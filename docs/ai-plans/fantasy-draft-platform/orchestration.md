@@ -90,3 +90,9 @@ Privacy rule: league truth is shared; draft strategy is private.
 - Shared-vs-private data boundaries must be called out in every epic.
 - Every epic must state launch-critical scope, deferred scope, acceptance criteria, data model impact, API/events impact, and test strategy.
 - The integrated roadmap should sequence foundation before parallel implementation.
+
+## Implementation Progress
+
+- `4413993` added the initial platform domain foundation for accounts, league seasons, private prep artifacts, jobs, simulations, mock sessions, live rooms, and draft exports.
+- `b05bd1c` added the platform app facade that enforces auth, membership, shared mutation roles, private prep boundaries, live room mutations, and final draft export access.
+- Current batch adds the framework-neutral HTTP contract, setup import preview/apply helpers, platform job orchestration helpers, and the Postgres schema contract.
