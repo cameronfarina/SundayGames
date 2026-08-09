@@ -136,15 +136,23 @@ class FakePostgresJobClient implements PostgresTransactionalQueryClient {
         throw new Error("claim query failed");
       }
 
-      const [nowValue, workerId, lockExpiresAt] = values as readonly [Date, string, Date];
+      const [nowValue, workerId, lockExpiresAt, kinds] = values as readonly [
+        Date,
+        string,
+        Date,
+        readonly JobKind[] | null,
+      ];
       const row = [...this.rows.values()]
         .filter(candidate =>
-          (candidate.status === "queued" && candidate.available_at.getTime() <= nowValue.getTime())
-          || (
-            candidate.status === "running"
-            && candidate.cancellation_requested_at === null
-            && candidate.lock_expires_at !== null
-            && candidate.lock_expires_at.getTime() <= nowValue.getTime()
+          (kinds === null || kinds.includes(candidate.kind))
+          && (
+            (candidate.status === "queued" && candidate.available_at.getTime() <= nowValue.getTime())
+            || (
+              candidate.status === "running"
+              && candidate.cancellation_requested_at === null
+              && candidate.lock_expires_at !== null
+              && candidate.lock_expires_at.getTime() <= nowValue.getTime()
+            )
           )
         )
         .sort((left, right) => {
@@ -522,6 +530,39 @@ describe("Postgres job queue", () => {
     const claimQuery = client.queries.find(query => normalizeSql(query.text) === normalizeSql(claimNextJobSql));
     expect(claimQuery).toMatchObject({ inTransaction: true });
     expect(claimQuery?.text).toContain("FOR UPDATE SKIP LOCKED");
+  });
+
+  it("can restrict claims by job kind", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "export",
+      inputJson: { format: "csv" },
+      idempotencyKey: "export",
+      now,
+    });
+    const simulationJob = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "simulation",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    const claimedJob = await queue.claimNextJob({
+      workerId: "worker_simulations",
+      kinds: ["simulation"],
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(claimedJob).toMatchObject({ id: simulationJob.id, kind: "simulation" });
+    const claimQuery = client.queries.find(query => normalizeSql(query.text) === normalizeSql(claimNextJobSql));
+    expect(claimQuery?.values[3]).toEqual(["simulation"]);
   });
 
   it("reclaims expired running jobs but skips cancellation-requested jobs", async () => {

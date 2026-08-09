@@ -151,12 +151,15 @@ WITH candidate AS (
   SELECT id
   FROM jobs
   WHERE
-    (status = 'queued' AND available_at <= $1)
-    OR (
-      status = 'running'
-      AND cancellation_requested_at IS NULL
-      AND lock_expires_at IS NOT NULL
-      AND lock_expires_at <= $1
+    ($4::text[] IS NULL OR kind = ANY($4::text[]))
+    AND (
+      (status = 'queued' AND available_at <= $1)
+      OR (
+        status = 'running'
+        AND cancellation_requested_at IS NULL
+        AND lock_expires_at IS NOT NULL
+        AND lock_expires_at <= $1
+      )
     )
   ORDER BY created_at ASC, id ASC
   FOR UPDATE SKIP LOCKED
@@ -248,6 +251,7 @@ RETURNING *;
         now,
         input.workerId,
         lockExpiresAt,
+        input.kinds === undefined ? null : [...input.kinds],
       ]);
       const row = firstRow(result);
 

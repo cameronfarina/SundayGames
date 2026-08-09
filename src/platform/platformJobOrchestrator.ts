@@ -232,6 +232,7 @@ export interface DispatchNextPlatformJobInput {
   handlers: Partial<PlatformJobHandlers>;
   now?: Date | undefined;
   lockTtlMs?: number | undefined;
+  jobKinds?: readonly JobKind[] | undefined;
 }
 
 const platformJobKinds: Record<PlatformJobType, JobKind> = {
@@ -387,9 +388,15 @@ export const dispatchNextPlatformJob = async ({
   handlers,
   now,
   lockTtlMs,
+  jobKinds,
 }: DispatchNextPlatformJobInput): Promise<JobRecord | null> => {
   const dispatchAt = now ?? new Date();
-  const job = await repository.claimNextJob({ workerId, now: dispatchAt, lockTtlMs });
+  const job = await repository.claimNextJob({
+    workerId,
+    now: dispatchAt,
+    lockTtlMs,
+    kinds: jobKinds,
+  });
 
   if (job === null) return null;
 

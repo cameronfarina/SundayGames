@@ -29,6 +29,9 @@
     "teams": "tsx src/cli.ts teams",
     "draft:ready": "tsx src/cli.ts draft-ready",
     "draft:ui": "tsx src/liveDraftServer.ts",
+    "platform:migrate": "tsx src/platform/runPlatformMigrations.ts",
+    "platform:web": "tsx src/platform/startPlatformWeb.ts",
+    "platform:worker": "tsx src/platform/startPlatformWorker.ts",
     "smoke": "tsx src/cli.ts smoke",
     "qa": "tsx src/cli.ts qa",
     "backtest": "tsx src/cli.ts backtest",
@@ -37,11 +40,13 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.21.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
   "dependencies": {
-    "fast-xml-parser": "^5.10.1"
+    "fast-xml-parser": "^5.10.1",
+    "pg": "^8.23.0"
   }
 }

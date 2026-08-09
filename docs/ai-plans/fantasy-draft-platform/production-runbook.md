@@ -35,11 +35,20 @@ This runbook is the launch architecture for Mockd as a league-calibrated fantasy
 - `postgres`: managed database with automated backups and PITR where possible.
 - `object-storage`: uploaded import files and generated export artifacts.
 
+Current npm entrypoints:
+
+- `npm run platform:migrate`: applies the snapshot bridge schema plus the normalized platform schema contract with a migration ledger.
+- `npm run platform:web`: starts the platform HTTP server.
+- `npm run platform:worker`: starts the background job worker loop.
+
+The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path.
+
 ## Environment Variables
 
 Conceptual required configuration:
 
 - Database: `DATABASE_URL`, connection pool size, statement timeout.
+- Local fallback only: `MOCKD_PLATFORM_DATA_FILE`.
 - Auth/session: cookie name, session secret or signing key, session TTL, secure cookie flag.
 - App URLs: public app URL, allowed origins, internal worker URL if needed.
 - Storage: import bucket, export bucket, object storage credentials.
@@ -49,6 +58,20 @@ Conceptual required configuration:
 - Observability: log level, error-reporting DSN, metrics endpoint/key.
 
 Secrets belong in the hosting provider secret store. They should never be committed.
+
+Implemented bootstrap variables:
+
+- `DATABASE_URL`: Postgres connection string for web, worker, and migrate.
+- `HOST` / `PORT`: web bind address.
+- `MOCKD_POSTGRES_POOL_SIZE`: Postgres pool size.
+- `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
+- `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
+- `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes only the snapshot bridge table during web/worker startup. Production should use `npm run platform:migrate`.
+- `MOCKD_WORKER_ID`: stable worker identifier for job locks.
+- `MOCKD_WORKER_JOB_KINDS`: comma-separated job kinds the worker may claim. Defaults to `simulation` so unsupported import/pricing/export jobs are not accidentally failed.
+- `MOCKD_WORKER_POLL_INTERVAL_MS`: idle/error poll delay.
+- `MOCKD_WORKER_LOCK_TTL_MS`: claimed-job lock TTL.
+- `MOCKD_SIMULATION_DATA_MODE`: `disabled` by default. Set `local-fixtures` only when intentionally backing simulations with the checked-in current-league fixture files. The worker refuses to start while claiming simulation jobs unless this is runnable.
 
 ## Realtime Decision
 

@@ -80,6 +80,7 @@ export interface ClaimNextJobInput {
   workerId: string;
   now?: Date | undefined;
   lockTtlMs?: number | undefined;
+  kinds?: readonly JobKind[] | undefined;
 }
 
 export interface UpdateJobProgressInput {
@@ -237,11 +238,14 @@ export class InMemoryJobQueue implements JobRepository {
     const lockTtlMs = input.lockTtlMs ?? defaultLockTtlMs;
     const job = [...this.#jobsById.values()]
       .filter(candidateJob =>
-        candidateJob.status === "queued" ||
-        (candidateJob.status === "running" &&
-          candidateJob.cancellationRequestedAt === undefined &&
-          candidateJob.lockExpiresAt !== undefined &&
-          candidateJob.lockExpiresAt.getTime() <= now.getTime())
+        (input.kinds === undefined || input.kinds.includes(candidateJob.kind)) &&
+        (
+          candidateJob.status === "queued" ||
+          (candidateJob.status === "running" &&
+            candidateJob.cancellationRequestedAt === undefined &&
+            candidateJob.lockExpiresAt !== undefined &&
+            candidateJob.lockExpiresAt.getTime() <= now.getTime())
+        )
       )
       .sort((leftJob, rightJob) => {
         const createdAtOrder = leftJob.createdAt.getTime() - rightJob.createdAt.getTime();
