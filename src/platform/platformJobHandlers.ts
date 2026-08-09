@@ -43,9 +43,9 @@ export const createSimulationRunExecutionHandler = ({
 }: CreateSimulationRunExecutionHandlerInput): PlatformJobHandler<
   SimulationRunExecutionJobPayload,
   SimulationRunExecutionJobResult
-> =>
+  > =>
   async (payload, context) => {
-    context.updateProgress({
+    await context.updateProgress({
       completed: 0,
       total: payload.runCount,
       message: `Running simulation run 0/${payload.runCount}`,
@@ -68,7 +68,7 @@ export const createSimulationRunExecutionHandler = ({
     const runCount = result.runCount;
     const completedRunCount = result.summary.runCount;
 
-    context.updateProgress({
+    await context.updateProgress({
       completed: completedRunCount,
       total: runCount,
       message: `Completed simulation run ${completedRunCount}/${runCount}`,

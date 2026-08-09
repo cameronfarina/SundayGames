@@ -63,6 +63,8 @@ export interface JobRecord {
   updatedAt: Date;
 }
 
+export type MaybePromise<T> = T | Promise<T>;
+
 export interface SubmitJobInput {
   userId: string;
   leagueId: string;
@@ -120,11 +122,24 @@ export interface CancelJobAtRunBoundaryInput {
   now?: Date | undefined;
 }
 
-const defaultMaxAttempts = 3;
-const defaultLockTtlMs = 60_000;
+export interface JobRepository {
+  submit(input: SubmitJobInput): MaybePromise<JobRecord>;
+  claimNextJob(input: ClaimNextJobInput): MaybePromise<JobRecord | null>;
+  updateProgress(input: UpdateJobProgressInput): MaybePromise<JobRecord>;
+  heartbeatJob(input: HeartbeatJobInput): MaybePromise<JobRecord>;
+  completeJob(input: CompleteJobInput): MaybePromise<JobRecord>;
+  failJob(input: FailJobInput): MaybePromise<JobRecord>;
+  cancelJob(input: CancelJobInput): MaybePromise<JobRecord>;
+  cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): MaybePromise<JobRecord>;
+  listForUser(userId: string): MaybePromise<JobRecord[]>;
+  fetchForUser(jobId: string, userId: string): MaybePromise<JobRecord | null>;
+}
+
+export const defaultMaxAttempts = 3;
+export const defaultLockTtlMs = 60_000;
 const jobIdBytes = 16;
 
-const createJobId = (): string => `job_${randomBytes(jobIdBytes).toString("base64url")}`;
+export const createJobId = (): string => `job_${randomBytes(jobIdBytes).toString("base64url")}`;
 
 const idempotencyIndexKey = (
   userId: string,
@@ -156,7 +171,7 @@ export const hashJobInput = (inputJson: JsonValue): string =>
 
 export const canAccessJob = (userId: string, job: JobRecord): boolean => job.userId === userId;
 
-export class InMemoryJobQueue {
+export class InMemoryJobQueue implements JobRepository {
   readonly #jobsById = new Map<string, JobRecord>();
   readonly #jobIdsByIdempotencyKey = new Map<string, string>();
 
@@ -433,7 +448,7 @@ const sanitizeJobErrorName = (error: unknown): string => {
   return error.name;
 };
 
-const sanitizeJobError = (error: unknown): SanitizedJobError => ({
+export const sanitizeJobError = (error: unknown): SanitizedJobError => ({
   name: sanitizeJobErrorName(error),
   message: "Job failed. Check worker logs for details.",
 });

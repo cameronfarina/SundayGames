@@ -1,10 +1,12 @@
 import type {
-  InMemoryJobQueue,
+  JobRepository,
   JobKind,
   JobProgress,
+  SubmitJobInput,
   JobRecord,
   JsonObject,
   JsonValue,
+  MaybePromise,
 } from "./jobs.js";
 
 export const platformJobTypes = {
@@ -112,15 +114,23 @@ export type PlatformJobResult =
   | DraftRoomExportJobResult;
 
 export type PlatformJobRepository = Pick<
-  InMemoryJobQueue,
-  "submit" | "claimNextJob" | "updateProgress" | "heartbeatJob" | "completeJob" | "failJob"
+  JobRepository,
+  "claimNextJob" | "updateProgress" | "heartbeatJob" | "completeJob" | "failJob"
 >;
+
+export interface PlatformJobSubmitRepository {
+  submit(input: SubmitJobInput): JobRecord;
+}
+
+export interface PlatformJobAsyncSubmitRepository {
+  submit(input: SubmitJobInput): MaybePromise<JobRecord>;
+}
 
 export interface PlatformJobHandlerContext {
   job: JobRecord;
   workerId: string;
-  updateProgress: (progress: JobProgress, now?: Date) => JobRecord;
-  heartbeat: (input?: { now?: Date | undefined; lockTtlMs?: number | undefined }) => JobRecord;
+  updateProgress: (progress: JobProgress, now?: Date) => MaybePromise<JobRecord>;
+  heartbeat: (input?: { now?: Date | undefined; lockTtlMs?: number | undefined }) => MaybePromise<JobRecord>;
 }
 
 export type PlatformJobHandler<Payload extends PlatformJobPayload, Result extends PlatformJobResult> = (
@@ -162,8 +172,10 @@ export class PlatformJobOrchestratorError extends Error {
   }
 }
 
-export interface EnqueuePlatformJobInput {
-  repository: PlatformJobRepository;
+export interface EnqueuePlatformJobInput<
+  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
+> {
+  repository: TRepository;
   userId: string;
   leagueId: string;
   seasonId: string;
@@ -172,7 +184,9 @@ export interface EnqueuePlatformJobInput {
   now?: Date | undefined;
 }
 
-export interface EnqueueSimulationRunExecutionJobInput extends EnqueuePlatformJobInput {
+export interface EnqueueSimulationRunExecutionJobInput<
+  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
+> extends EnqueuePlatformJobInput<TRepository> {
   simulationRunId: string;
   runCount: number;
   modelRunId?: string | undefined;
@@ -181,7 +195,9 @@ export interface EnqueueSimulationRunExecutionJobInput extends EnqueuePlatformJo
   strategyKey?: string | undefined;
 }
 
-export interface EnqueueHistoricalImportParseJobInput extends EnqueuePlatformJobInput {
+export interface EnqueueHistoricalImportParseJobInput<
+  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
+> extends EnqueuePlatformJobInput<TRepository> {
   seasonYear: number;
   fileHash: string;
   sourceFilename: string;
@@ -190,7 +206,9 @@ export interface EnqueueHistoricalImportParseJobInput extends EnqueuePlatformJob
   replacementRequested?: boolean | undefined;
 }
 
-export interface EnqueuePricingRebuildJobInput extends EnqueuePlatformJobInput {
+export interface EnqueuePricingRebuildJobInput<
+  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
+> extends EnqueuePlatformJobInput<TRepository> {
   seasonYear: number;
   modelVersion: string;
   inputSnapshotId: string;
@@ -200,7 +218,9 @@ export interface EnqueuePricingRebuildJobInput extends EnqueuePlatformJobInput {
   strategyOverlayIds?: readonly string[] | undefined;
 }
 
-export interface EnqueueDraftRoomExportJobInput extends EnqueuePlatformJobInput {
+export interface EnqueueDraftRoomExportJobInput<
+  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
+> extends EnqueuePlatformJobInput<TRepository> {
   draftRoomId: string;
   format: DraftRoomExportFormat;
   sourceRevision: number;
@@ -228,7 +248,7 @@ const idempotencyKeyFor = (
 ): string =>
   [type, explicitKey ?? defaultParts.join(":")].join(":");
 
-const submitPlatformJob = ({
+const submitPlatformJob = <TRepository extends PlatformJobAsyncSubmitRepository>({
   repository,
   userId,
   leagueId,
@@ -238,10 +258,10 @@ const submitPlatformJob = ({
   now,
   payload,
   defaultIdempotencyKeyParts,
-}: EnqueuePlatformJobInput & {
+}: EnqueuePlatformJobInput<TRepository> & {
   payload: PlatformJobPayload;
   defaultIdempotencyKeyParts: readonly (string | number)[];
-}): JobRecord =>
+}): ReturnType<TRepository["submit"]> =>
   repository.submit({
     userId,
     leagueId,
@@ -251,11 +271,17 @@ const submitPlatformJob = ({
     idempotencyKey: idempotencyKeyFor(payload.type, idempotencyKey, defaultIdempotencyKeyParts),
     maxAttempts,
     now,
-  });
+  }) as ReturnType<TRepository["submit"]>;
 
-export const enqueueSimulationRunExecutionJob = (
-  input: EnqueueSimulationRunExecutionJobInput,
-): JobRecord => {
+export function enqueueSimulationRunExecutionJob(
+  input: EnqueueSimulationRunExecutionJobInput<PlatformJobSubmitRepository>,
+): JobRecord;
+export function enqueueSimulationRunExecutionJob(
+  input: EnqueueSimulationRunExecutionJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord>;
+export function enqueueSimulationRunExecutionJob(
+  input: EnqueueSimulationRunExecutionJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord> {
   const payload: SimulationRunExecutionJobPayload = {
     type: platformJobTypes.simulationRunExecution,
     simulationRunId: input.simulationRunId,
@@ -271,11 +297,17 @@ export const enqueueSimulationRunExecutionJob = (
     payload,
     defaultIdempotencyKeyParts: [input.simulationRunId],
   });
-};
+}
 
-export const enqueueHistoricalImportParseJob = (
-  input: EnqueueHistoricalImportParseJobInput,
-): JobRecord => {
+export function enqueueHistoricalImportParseJob(
+  input: EnqueueHistoricalImportParseJobInput<PlatformJobSubmitRepository>,
+): JobRecord;
+export function enqueueHistoricalImportParseJob(
+  input: EnqueueHistoricalImportParseJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord>;
+export function enqueueHistoricalImportParseJob(
+  input: EnqueueHistoricalImportParseJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord> {
   const payload: HistoricalImportParseJobPayload = {
     type: platformJobTypes.historicalImportParse,
     seasonYear: input.seasonYear,
@@ -291,11 +323,17 @@ export const enqueueHistoricalImportParseJob = (
     payload,
     defaultIdempotencyKeyParts: [input.seasonYear, input.fileHash],
   });
-};
+}
 
-export const enqueuePricingRebuildJob = (
-  input: EnqueuePricingRebuildJobInput,
-): JobRecord => {
+export function enqueuePricingRebuildJob(
+  input: EnqueuePricingRebuildJobInput<PlatformJobSubmitRepository>,
+): JobRecord;
+export function enqueuePricingRebuildJob(
+  input: EnqueuePricingRebuildJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord>;
+export function enqueuePricingRebuildJob(
+  input: EnqueuePricingRebuildJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord> {
   const payload: PricingRebuildJobPayload = {
     type: platformJobTypes.pricingRebuild,
     seasonYear: input.seasonYear,
@@ -318,11 +356,17 @@ export const enqueuePricingRebuildJob = (
       input.scenarioIds.join(","),
     ],
   });
-};
+}
 
-export const enqueueDraftRoomExportJob = (
-  input: EnqueueDraftRoomExportJobInput,
-): JobRecord => {
+export function enqueueDraftRoomExportJob(
+  input: EnqueueDraftRoomExportJobInput<PlatformJobSubmitRepository>,
+): JobRecord;
+export function enqueueDraftRoomExportJob(
+  input: EnqueueDraftRoomExportJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord>;
+export function enqueueDraftRoomExportJob(
+  input: EnqueueDraftRoomExportJobInput<PlatformJobAsyncSubmitRepository>,
+): MaybePromise<JobRecord> {
   const payload: DraftRoomExportJobPayload = {
     type: platformJobTypes.draftRoomExport,
     draftRoomId: input.draftRoomId,
@@ -335,7 +379,7 @@ export const enqueueDraftRoomExportJob = (
     payload,
     defaultIdempotencyKeyParts: [input.draftRoomId, input.sourceRevision, input.format],
   });
-};
+}
 
 export const dispatchNextPlatformJob = async ({
   repository,
@@ -345,7 +389,7 @@ export const dispatchNextPlatformJob = async ({
   lockTtlMs,
 }: DispatchNextPlatformJobInput): Promise<JobRecord | null> => {
   const dispatchAt = now ?? new Date();
-  const job = repository.claimNextJob({ workerId, now: dispatchAt, lockTtlMs });
+  const job = await repository.claimNextJob({ workerId, now: dispatchAt, lockTtlMs });
 
   if (job === null) return null;
 
@@ -358,7 +402,7 @@ export const dispatchNextPlatformJob = async ({
     });
     const completedAt = now ?? new Date();
 
-    return repository.completeJob({
+    return await repository.completeJob({
       jobId: job.id,
       workerId,
       resultSummary,
@@ -367,7 +411,7 @@ export const dispatchNextPlatformJob = async ({
   } catch (error) {
     const failedAt = now ?? new Date();
 
-    return repository.failJob({
+    return await repository.failJob({
       jobId: job.id,
       workerId,
       error,
@@ -446,15 +490,15 @@ const handlerContextFor = (
 ): PlatformJobHandlerContext => ({
   job,
   workerId,
-  updateProgress: (progress, now) =>
-    repository.updateProgress({
+  updateProgress: async (progress, now) =>
+    await repository.updateProgress({
       jobId: job.id,
       workerId,
       progress,
       now,
     }),
-  heartbeat: input =>
-    repository.heartbeatJob({
+  heartbeat: async input =>
+    await repository.heartbeatJob({
       jobId: job.id,
       workerId,
       now: input?.now,
