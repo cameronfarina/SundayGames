@@ -10,12 +10,15 @@ export interface FilePlatformStoreSnapshot extends InMemoryPlatformStoreSnapshot
 }
 
 const dateKeys = new Set([
+  "abandonedAt",
+  "completedAt",
   "createdAt",
   "endedAt",
   "expiresAt",
   "occurredAt",
   "revokedAt",
   "startsAt",
+  "startedAt",
   "updatedAt",
 ]);
 
@@ -26,6 +29,8 @@ const emptySnapshot = (): InMemoryPlatformStoreSnapshot => ({
   },
   leagueSeasons: [],
   memberships: [],
+  mockDraftSessions: [],
+  simulationRuns: [],
   liveDraftRooms: [],
 });
 
@@ -42,12 +47,18 @@ const snapshotFileFor = (snapshot: InMemoryPlatformStoreSnapshot): FilePlatformS
   ...snapshot,
 });
 
-const snapshotFromFile = (file: FilePlatformStoreSnapshot): InMemoryPlatformStoreSnapshot => ({
-  auth: file.auth,
-  leagueSeasons: file.leagueSeasons,
-  memberships: file.memberships,
-  liveDraftRooms: file.liveDraftRooms,
-});
+const snapshotFromFile = (file: Partial<FilePlatformStoreSnapshot>): InMemoryPlatformStoreSnapshot => {
+  const empty = emptySnapshot();
+
+  return {
+    auth: file.auth ?? empty.auth,
+    leagueSeasons: file.leagueSeasons ?? empty.leagueSeasons,
+    memberships: file.memberships ?? empty.memberships,
+    mockDraftSessions: file.mockDraftSessions ?? empty.mockDraftSessions,
+    simulationRuns: file.simulationRuns ?? empty.simulationRuns,
+    liveDraftRooms: file.liveDraftRooms ?? empty.liveDraftRooms,
+  };
+};
 
 const isNotFoundError = (error: unknown): boolean =>
   error instanceof Error && "code" in error && error.code === "ENOENT";
@@ -78,7 +89,7 @@ export const readPlatformStoreSnapshot = async (path: string): Promise<InMemoryP
     throw error;
   }
 
-  return snapshotFromFile(JSON.parse(content, reviveDate) as FilePlatformStoreSnapshot);
+  return snapshotFromFile(JSON.parse(content, reviveDate) as Partial<FilePlatformStoreSnapshot>);
 };
 
 export const writePlatformStoreSnapshot = async (

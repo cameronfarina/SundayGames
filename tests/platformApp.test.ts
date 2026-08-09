@@ -150,6 +150,102 @@ describe("platform app service", () => {
     ).toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
   });
 
+  it("lets a server worker execute an existing simulation while preserving private team ownership checks", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+
+    const simulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 10,
+      seedPrefix: "worker-plan",
+      idempotencyKey: "worker-plan",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+
+    const completed = await app.executeSimulationRunForWorker({
+      runId: simulation.id,
+      userId: cam.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(completed.status).toBe("completed");
+    expect(completed.result).toMatchObject({
+      runCount: 10,
+      forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+    });
+    await expect(app.executeSimulationRunForWorker({
+      runId: simulation.id,
+      userId: seth.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      now: new Date(now.getTime() + 1_500),
+    })).rejects.toThrow(new PlatformAppError(
+      "private_resource",
+      "This prep artifact belongs to another user.",
+    ));
+
+    const blockedSimulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 10,
+      seedPrefix: "worker-plan-stale-claim",
+      idempotencyKey: "worker-plan-stale-claim",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: beatonTeam.ownerId,
+          teamId: beatonTeam.id,
+        },
+      ],
+    });
+
+    await expect(app.executeSimulationRunForWorker({
+      runId: blockedSimulation.id,
+      userId: cam.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      now: new Date(now.getTime() + 2_000),
+    })).rejects.toThrow(new PlatformAppError(
+      "private_team_required",
+      "Private prep can only use your claimed team.",
+    ));
+  });
+
   it("blocks outsider setup overwrites and replaces omitted league memberships", () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);

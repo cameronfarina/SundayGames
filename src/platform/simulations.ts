@@ -292,6 +292,10 @@ export class InMemorySimulationRepository {
   readonly #runsById = new Map<string, SimulationRun>();
   readonly #runIdsByIdempotencyKey = new Map<string, string>();
 
+  constructor(runs: readonly SimulationRun[] = []) {
+    this.replaceRuns(runs);
+  }
+
   createRequest(input: CreateSimulationRequestInput): SimulationRun {
     const createdAt = input.createdAt ?? new Date();
 
@@ -343,8 +347,7 @@ export class InMemorySimulationRepository {
       result: undefined,
     };
 
-    this.#runsById.set(run.id, run);
-    this.#runIdsByIdempotencyKey.set(indexKey, run.id);
+    this.#storeRun(run);
 
     return run;
   }
@@ -382,6 +385,14 @@ export class InMemorySimulationRepository {
     return run;
   }
 
+  markFailed(runId: string): SimulationRun {
+    const run = this.find(runId);
+
+    run.status = "failed";
+
+    return run;
+  }
+
   complete(runId: string, result: SimulationResult): SimulationRun {
     const run = this.find(runId);
 
@@ -390,6 +401,32 @@ export class InMemorySimulationRepository {
     run.result = result;
 
     return run;
+  }
+
+  runs(): SimulationRun[] {
+    return [...this.#runsById.values()].map(run => structuredClone(run));
+  }
+
+  replaceRuns(runs: readonly SimulationRun[]): void {
+    this.#runsById.clear();
+    this.#runIdsByIdempotencyKey.clear();
+
+    for (const run of runs) {
+      this.#storeRun(structuredClone(run));
+    }
+  }
+
+  #storeRun(run: SimulationRun): void {
+    this.#runsById.set(run.id, run);
+    this.#runIdsByIdempotencyKey.set(
+      idempotencyIndexKey(
+        run.request.userId,
+        run.request.leagueId,
+        run.request.seasonId,
+        run.request.idempotencyKey,
+      ),
+      run.id,
+    );
   }
 }
 
@@ -400,15 +437,28 @@ export const executeSimulationRun = async ({
   now,
 }: ExecuteSimulationRunInput): Promise<SimulationRun> => {
   const runAt = now ?? new Date();
+  const existingRun = repository.find(runId);
+  if (existingRun.status === "completed" && existingRun.result !== undefined) {
+    return existingRun;
+  }
+
   const run = repository.markRunning(runId, runAt);
   const forcedSales = forcedSalesForSimulationRequest(run.request);
-  const batch = await runner({
-    runsPerScenario: run.request.count,
-    seedPrefix: run.request.seedPrefix,
-    forcedSales,
-    hardLocks: run.request.strategy.hardLocks,
-    softTargets: run.request.strategy.softTargets,
-  });
+  let batch: MockBatch;
+
+  try {
+    batch = await runner({
+      runsPerScenario: run.request.count,
+      seedPrefix: run.request.seedPrefix,
+      forcedSales,
+      hardLocks: run.request.strategy.hardLocks,
+      softTargets: run.request.strategy.softTargets,
+    });
+  } catch (error) {
+    repository.markFailed(run.id);
+    throw error;
+  }
+
   const result: SimulationResult = {
     runId: run.id,
     requestId: run.request.id,

@@ -183,4 +183,88 @@ describe("file-backed platform store", () => {
     expect(saved).not.toContain("sessionToken");
     expect(saved).not.toContain("cam password");
   });
+
+  it("roundtrips private simulation and mock draft session state", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    const simulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 4,
+      seedPrefix: "file-store-sim",
+      idempotencyKey: "file-store-sim",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    const completedSimulation = await app.executeSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 1_000),
+    });
+    const mockSession = app.createMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      draftMode: { format: "auction", mockCount: 4, label: "File store mock" },
+      now,
+    });
+    const updatedMockSession = app.appendMockDraftCommand({
+      actorSessionToken: cam.sessionToken,
+      sessionId: mockSession.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "cmd_puka",
+      command: "draft puka for 62",
+      idempotencyKey: "mock:puka:62",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    await fileStore.save();
+    const loadedFileStore = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
+
+    expect(loadedApp.getSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now,
+    })).toEqual(completedSimulation);
+    expect(loadedApp.listMockDraftSessions({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      now,
+    })).toEqual([updatedMockSession]);
+  });
 });

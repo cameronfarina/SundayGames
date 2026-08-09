@@ -96,4 +96,5 @@ Privacy rule: league truth is shared; draft strategy is private.
 - `4413993` added the initial platform domain foundation for accounts, league seasons, private prep artifacts, jobs, simulations, mock sessions, live rooms, and draft exports.
 - `b05bd1c` added the platform app facade that enforces auth, membership, shared mutation roles, private prep boundaries, live room mutations, and final draft export access.
 - `06a717c` added the framework-neutral HTTP contract, setup import parser/apply helpers, platform job orchestration helpers, and the Postgres schema contract.
-- Current batch adds the Node HTTP adapter, setup import API helpers/routes, file-backed platform persistence, and live draft read-model/SSE contracts.
+- `a913a70` added the Node HTTP adapter, setup import API helpers/routes, file-backed platform persistence, and live draft read-model/SSE contracts.
+- Current batch adds historical import source parsing, deterministic league-calibrated pricing rebuild snapshots, server-worker simulation job handlers, local platform server composition, and worker-safe private simulation execution.

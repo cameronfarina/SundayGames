@@ -196,6 +196,10 @@ const assertExpectedCommandCount = (session: MockDraftSession, expectedCommandCo
 export class InMemoryMockDraftSessionRepository {
   readonly #sessionsById = new Map<string, MockDraftSession>();
 
+  constructor(sessions: readonly MockDraftSession[] = []) {
+    this.replaceSessions(sessions);
+  }
+
   createSession(input: CreateMockDraftSessionInput): MockDraftSession {
     const now = input.now ?? new Date();
     const status = input.status ?? "active";
@@ -365,6 +369,18 @@ export class InMemoryMockDraftSessionRepository {
     this.#sessionsById.set(updatedSession.id, updatedSession);
 
     return updatedSession;
+  }
+
+  sessions(): readonly MockDraftSession[] {
+    return [...this.#sessionsById.values()].map(session => structuredClone(session));
+  }
+
+  replaceSessions(sessions: readonly MockDraftSession[]): void {
+    this.#sessionsById.clear();
+
+    for (const session of sessions) {
+      this.#sessionsById.set(session.id, structuredClone(session));
+    }
   }
 
   #findAuthorizedSession(userId: string, sessionId: string): MockDraftSession {

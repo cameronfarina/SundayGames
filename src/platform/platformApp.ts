@@ -28,8 +28,8 @@ import {
 import {
   InMemoryMockDraftSessionRepository,
   type AppendMockDraftCommandInput,
-  type MockDraftModeMetadata,
   type MockDraftSession,
+  type MockDraftModeMetadata,
 } from "./mockSessions.js";
 import {
   InMemorySimulationRepository,
@@ -105,6 +105,14 @@ export interface CreatePlatformSimulationRunInput extends Omit<
 export interface ExecutePlatformSimulationRunInput {
   actorSessionToken: string;
   runId: string;
+  now?: Date | undefined;
+}
+
+export interface ExecutePlatformSimulationRunForWorkerInput {
+  runId: string;
+  userId: string;
+  leagueId: string;
+  seasonId: string;
   now?: Date | undefined;
 }
 
@@ -193,6 +201,8 @@ export interface InMemoryPlatformStoreSnapshot {
   };
   leagueSeasons: readonly LeagueSeason[];
   memberships: readonly PlatformLeagueMembership[];
+  mockDraftSessions: readonly MockDraftSession[];
+  simulationRuns: readonly SimulationRun[];
   liveDraftRooms: readonly LiveDraftRoom[];
 }
 
@@ -289,6 +299,8 @@ export class InMemoryPlatformStore {
       },
       leagueSeasons: [...this.#leagueSeasonsById.values()].map(season => cloneForRead(season)),
       memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),
+      mockDraftSessions: this.mockDraftSessions.sessions(),
+      simulationRuns: this.simulations.runs(),
       liveDraftRooms: this.liveDraftRooms.rooms(),
     };
   }
@@ -335,6 +347,8 @@ export class InMemoryPlatformStore {
     }
 
     this.liveDraftRooms.replaceRooms(snapshot.liveDraftRooms);
+    this.mockDraftSessions.replaceSessions(snapshot.mockDraftSessions ?? []);
+    this.simulations.replaceRuns(snapshot.simulationRuns ?? []);
   }
 }
 
@@ -579,6 +593,30 @@ export const createPlatformApp = ({
       const run = store.simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+      }
+      requirePrivateTeamContext(account, run.request);
+
+      return cloneForRead(await executeSimulationRun({
+        repository: store.simulations,
+        runId: input.runId,
+        runner: simulationRunner,
+        now: input.now,
+      }));
+    },
+
+    executeSimulationRunForWorker: async (input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun> => {
+      const run = store.simulations.find(input.runId);
+      if (
+        run.privacyOwnerUserId !== input.userId
+        || run.request.leagueId !== input.leagueId
+        || run.request.seasonId !== input.seasonId
+      ) {
+        throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+      }
+
+      const account = store.authRepository.findAccountById(input.userId);
+      if (account === null) {
+        throw new PlatformAppError("private_resource", "This prep artifact belongs to a missing account.");
       }
       requirePrivateTeamContext(account, run.request);
 

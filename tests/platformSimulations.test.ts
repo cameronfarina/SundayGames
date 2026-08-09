@@ -373,4 +373,49 @@ describe("private simulation runs", () => {
       }),
     ]);
   });
+
+  it("marks runner failures and returns completed runs idempotently", async () => {
+    const repository = new InMemorySimulationRepository();
+    const run = repository.createRequest({
+      ...baseRequestInput,
+      idempotencyKey: "failure-then-idempotent-completion",
+      createdAt: now,
+    });
+
+    await expect(executeSimulationRun({
+      repository,
+      runId: run.id,
+      runner: () => {
+        throw new Error("runner unavailable");
+      },
+      now: new Date(now.getTime() + 1_000),
+    })).rejects.toThrow("runner unavailable");
+    expect(repository.find(run.id).status).toBe("failed");
+
+    let runnerCallCount = 0;
+    const completed = await executeSimulationRun({
+      repository,
+      runId: run.id,
+      runner: options => {
+        runnerCallCount += 1;
+
+        return fakeBatch(options);
+      },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const completedAgain = await executeSimulationRun({
+      repository,
+      runId: run.id,
+      runner: options => {
+        runnerCallCount += 1;
+
+        return fakeBatch(options);
+      },
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(completedAgain).toBe(completed);
+    expect(runnerCallCount).toBe(1);
+    expect(repository.find(run.id).status).toBe("completed");
+  });
 });
