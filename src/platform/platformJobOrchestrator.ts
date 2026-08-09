@@ -8,6 +8,7 @@ import type {
   JsonValue,
   MaybePromise,
 } from "./jobs.js";
+import { JobError, defaultLockTtlMs as defaultJobLockTtlMs } from "./jobs.js";
 
 export const platformJobTypes = {
   simulationRunExecution: "simulation-run-execution",
@@ -115,7 +116,7 @@ export type PlatformJobResult =
 
 export type PlatformJobRepository = Pick<
   JobRepository,
-  "claimNextJob" | "updateProgress" | "heartbeatJob" | "completeJob" | "failJob"
+  "claimNextJob" | "updateProgress" | "heartbeatJob" | "completeJob" | "failJob" | "cancelJobAtRunBoundary"
 >;
 
 export interface PlatformJobSubmitRepository {
@@ -233,7 +234,14 @@ export interface DispatchNextPlatformJobInput {
   now?: Date | undefined;
   lockTtlMs?: number | undefined;
   jobKinds?: readonly JobKind[] | undefined;
+  heartbeatIntervalMs?: number | undefined;
+  heartbeatScheduler?: PlatformJobHeartbeatScheduler | undefined;
 }
+
+export type PlatformJobHeartbeatScheduler = (
+  heartbeat: () => Promise<void>,
+  intervalMs: number,
+) => () => void;
 
 const platformJobKinds: Record<PlatformJobType, JobKind> = {
   [platformJobTypes.simulationRunExecution]: "simulation",
@@ -389,6 +397,8 @@ export const dispatchNextPlatformJob = async ({
   now,
   lockTtlMs,
   jobKinds,
+  heartbeatIntervalMs,
+  heartbeatScheduler = startIntervalHeartbeat,
 }: DispatchNextPlatformJobInput): Promise<JobRecord | null> => {
   const dispatchAt = now ?? new Date();
   const job = await repository.claimNextJob({
@@ -401,22 +411,48 @@ export const dispatchNextPlatformJob = async ({
   if (job === null) return null;
 
   try {
-    const resultSummary = await runClaimedPlatformJob({
+    const handledJob = await runClaimedPlatformJob({
       repository,
       workerId,
       job,
       handlers,
+      lockTtlMs,
+      heartbeatIntervalMs,
+      heartbeatScheduler,
     });
+    const boundaryJob = handledJob.latestJob.cancellationRequestedAt === undefined
+      ? await repository.heartbeatJob({
+        jobId: job.id,
+        workerId,
+        lockTtlMs,
+      })
+      : handledJob.latestJob;
     const completedAt = now ?? new Date();
+
+    if (boundaryJob.cancellationRequestedAt !== undefined) {
+      return await repository.cancelJobAtRunBoundary({
+        jobId: job.id,
+        workerId,
+        now: completedAt,
+      });
+    }
 
     return await repository.completeJob({
       jobId: job.id,
       workerId,
-      resultSummary,
+      resultSummary: handledJob.resultSummary,
       now: completedAt,
     });
   } catch (error) {
     const failedAt = now ?? new Date();
+
+    if (isBoundaryCancellationError(error)) {
+      return await repository.cancelJobAtRunBoundary({
+        jobId: job.id,
+        workerId,
+        now: failedAt,
+      });
+    }
 
     return await repository.failJob({
       jobId: job.id,
@@ -432,61 +468,98 @@ const runClaimedPlatformJob = async ({
   workerId,
   job,
   handlers,
+  lockTtlMs,
+  heartbeatIntervalMs,
+  heartbeatScheduler,
 }: {
   repository: PlatformJobRepository;
   workerId: string;
   job: JobRecord;
   handlers: Partial<PlatformJobHandlers>;
-}): Promise<PlatformJobResult> => {
+  lockTtlMs?: number | undefined;
+  heartbeatIntervalMs?: number | undefined;
+  heartbeatScheduler: PlatformJobHeartbeatScheduler;
+}): Promise<{ resultSummary: PlatformJobResult; latestJob: JobRecord }> => {
+  let latestJob = job;
+  let heartbeatError: unknown;
+  const observeJob = (updatedJob: JobRecord): JobRecord => {
+    latestJob = updatedJob;
+
+    return updatedJob;
+  };
   const type = platformJobTypeFrom(job.inputJson);
-  const context = handlerContextFor(repository, job, workerId);
-
-  switch (type) {
-    case platformJobTypes.simulationRunExecution: {
-      if (!isSimulationRunExecutionJobPayload(job.inputJson)) {
-        throw invalidPayloadError(type);
+  const context = handlerContextFor(repository, job, workerId, observeJob);
+  const intervalMs = heartbeatIntervalMs ?? Math.max(1_000, Math.floor((lockTtlMs ?? defaultJobLockTtlMs) / 2));
+  const stopHeartbeat = intervalMs <= 0
+    ? undefined
+    : heartbeatScheduler(async () => {
+      try {
+        await context.heartbeat({ lockTtlMs });
+      } catch (error) {
+        heartbeatError = error;
       }
+    }, intervalMs);
 
-      const handler = handlers[type];
-      if (handler === undefined) throw missingHandlerError(type);
+  try {
+    let resultSummary: PlatformJobResult;
 
-      return handler(job.inputJson, context);
-    }
-    case platformJobTypes.historicalImportParse: {
-      if (!isHistoricalImportParseJobPayload(job.inputJson)) {
-        throw invalidPayloadError(type);
+    switch (type) {
+      case platformJobTypes.simulationRunExecution: {
+        if (!isSimulationRunExecutionJobPayload(job.inputJson)) {
+          throw invalidPayloadError(type);
+        }
+
+        const handler = handlers[type];
+        if (handler === undefined) throw missingHandlerError(type);
+
+        resultSummary = await handler(job.inputJson, context);
+        break;
       }
+      case platformJobTypes.historicalImportParse: {
+        if (!isHistoricalImportParseJobPayload(job.inputJson)) {
+          throw invalidPayloadError(type);
+        }
 
-      const handler = handlers[type];
-      if (handler === undefined) throw missingHandlerError(type);
+        const handler = handlers[type];
+        if (handler === undefined) throw missingHandlerError(type);
 
-      return handler(job.inputJson, context);
-    }
-    case platformJobTypes.pricingRebuild: {
-      if (!isPricingRebuildJobPayload(job.inputJson)) {
-        throw invalidPayloadError(type);
+        resultSummary = await handler(job.inputJson, context);
+        break;
       }
+      case platformJobTypes.pricingRebuild: {
+        if (!isPricingRebuildJobPayload(job.inputJson)) {
+          throw invalidPayloadError(type);
+        }
 
-      const handler = handlers[type];
-      if (handler === undefined) throw missingHandlerError(type);
+        const handler = handlers[type];
+        if (handler === undefined) throw missingHandlerError(type);
 
-      return handler(job.inputJson, context);
-    }
-    case platformJobTypes.draftRoomExport: {
-      if (!isDraftRoomExportJobPayload(job.inputJson)) {
-        throw invalidPayloadError(type);
+        resultSummary = await handler(job.inputJson, context);
+        break;
       }
+      case platformJobTypes.draftRoomExport: {
+        if (!isDraftRoomExportJobPayload(job.inputJson)) {
+          throw invalidPayloadError(type);
+        }
 
-      const handler = handlers[type];
-      if (handler === undefined) throw missingHandlerError(type);
+        const handler = handlers[type];
+        if (handler === undefined) throw missingHandlerError(type);
 
-      return handler(job.inputJson, context);
+        resultSummary = await handler(job.inputJson, context);
+        break;
+      }
+      case null:
+        throw new PlatformJobOrchestratorError(
+          "unknown_job_type",
+          "Job input does not contain a known platform job type.",
+        );
     }
-    case null:
-      throw new PlatformJobOrchestratorError(
-        "unknown_job_type",
-        "Job input does not contain a known platform job type.",
-      );
+
+    if (heartbeatError !== undefined) throw heartbeatError;
+
+    return { resultSummary, latestJob };
+  } finally {
+    stopHeartbeat?.();
   }
 };
 
@@ -494,24 +567,39 @@ const handlerContextFor = (
   repository: PlatformJobRepository,
   job: JobRecord,
   workerId: string,
+  observeJob: (job: JobRecord) => JobRecord,
 ): PlatformJobHandlerContext => ({
   job,
   workerId,
   updateProgress: async (progress, now) =>
-    await repository.updateProgress({
+    observeJob(await repository.updateProgress({
       jobId: job.id,
       workerId,
       progress,
       now,
-    }),
+    })),
   heartbeat: async input =>
-    await repository.heartbeatJob({
+    observeJob(await repository.heartbeatJob({
       jobId: job.id,
       workerId,
       now: input?.now,
       lockTtlMs: input?.lockTtlMs,
-    }),
+    })),
 });
+
+const startIntervalHeartbeat: PlatformJobHeartbeatScheduler = (heartbeat, intervalMs) => {
+  const interval = setInterval(() => {
+    void heartbeat();
+  }, intervalMs);
+  interval.unref?.();
+
+  return () => {
+    clearInterval(interval);
+  };
+};
+
+const isBoundaryCancellationError = (error: unknown): boolean =>
+  error instanceof JobError && error.code === "job_not_claimable";
 
 const platformJobTypeFrom = (value: JsonValue): PlatformJobType | null => {
   if (!isJsonObject(value)) return null;

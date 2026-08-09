@@ -708,7 +708,7 @@ const routeJobs = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
 ): Promise<PlatformHttpResponse> => {
-  const [, jobId] = request.segments;
+  const [, jobId, action] = request.segments;
 
   if (request.segments.length === 1) {
     if (request.method !== "GET") return methodNotAllowed();
@@ -719,6 +719,18 @@ const routeJobs = async (
     });
 
     return { status: 200, body: { jobs } };
+  }
+
+  if (request.segments.length === 3 && action === "cancel") {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const job = await app.cancelJob({
+      actorSessionToken: request.sessionToken,
+      jobId: jobId ?? "",
+      now: requestDate(request.body, request.query, "now"),
+    });
+
+    return { status: 200, body: { job } };
   }
 
   if (request.segments.length !== 2) return notFound();

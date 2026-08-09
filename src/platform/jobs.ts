@@ -295,6 +295,10 @@ export class InMemoryJobQueue implements JobRepository {
     const now = input.now ?? new Date();
     const job = this.#findRunningLockedJob(input.jobId, input.workerId);
 
+    if (job.cancellationRequestedAt !== undefined) {
+      throw new JobError("job_not_claimable", "Job has requested cancellation.");
+    }
+
     job.status = "completed";
     job.progress = { completed: 1, total: 1, message: "Completed" };
     job.resultSummary = input.resultSummary;
@@ -308,6 +312,15 @@ export class InMemoryJobQueue implements JobRepository {
   failJob(input: FailJobInput): JobRecord {
     const now = input.now ?? new Date();
     const job = this.#findRunningLockedJob(input.jobId, input.workerId);
+
+    if (job.cancellationRequestedAt !== undefined) {
+      job.status = "canceled";
+      job.finishedAt = now;
+      job.updatedAt = now;
+      this.#clearLock(job);
+
+      return job;
+    }
 
     job.attempts += 1;
     job.sanitizedError = sanitizeJobError(input.error);

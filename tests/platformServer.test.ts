@@ -847,6 +847,17 @@ describe("platform server composition", () => {
     const jobs = await jsonFetch(baseUrl, "/jobs", {
       headers: { "x-session-token": cam.sessionToken },
     });
+    const enqueuedJobId = (enqueued.body as { job: { id: string } }).job.id;
+    const canceled = await jsonFetch(baseUrl, `/jobs/${enqueuedJobId}/cancel`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        now: new Date(now.getTime() + 2_000).toISOString(),
+      }),
+    });
 
     expect(platformServer.jobRepository).toBe(jobRepository);
     expect(enqueued).toMatchObject({
@@ -866,13 +877,26 @@ describe("platform server composition", () => {
       body: {
         jobs: [
           {
-            id: (enqueued.body as { job: { id: string } }).job.id,
+            id: enqueuedJobId,
             status: "queued",
           },
         ],
       },
     });
+    expect(canceled).toMatchObject({
+      status: 200,
+      body: {
+        job: {
+          id: enqueuedJobId,
+          status: "canceled",
+        },
+      },
+    });
     expect(jobRepository.inner.jobs()).toHaveLength(1);
+    expect(jobRepository.inner.fetchForUser(enqueuedJobId, cam.account.id)).toMatchObject({
+      id: enqueuedJobId,
+      status: "canceled",
+    });
 
     const savedSnapshot = JSON.parse(await readFile(dataFilePath, "utf8")) as { jobs?: unknown[] };
     expect(savedSnapshot.jobs).toEqual([]);

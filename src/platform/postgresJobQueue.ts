@@ -319,6 +319,7 @@ SET status = 'completed',
 WHERE id = $1
   AND status = 'running'
   AND locked_by = $5
+  AND cancellation_requested_at IS NULL
 RETURNING *;
 `.trim(),
       [
@@ -330,11 +331,19 @@ RETURNING *;
       ],
     );
 
-    return await this.#requiredLockedUpdate(result, input.jobId, input.workerId);
+    return await this.#requiredCompletionUpdate(result, input.jobId, input.workerId);
   }
 
   async failJob(input: FailJobInput): Promise<JobRecord> {
     const job = await this.#requireRunningLockedJob(input.jobId, input.workerId);
+    if (job.cancellationRequestedAt !== undefined) {
+      return await this.cancelJobAtRunBoundary({
+        jobId: input.jobId,
+        workerId: input.workerId,
+        now: input.now,
+      });
+    }
+
     const now = input.now ?? new Date();
     const attempts = job.attempts + 1;
     const sanitizedError = sanitizeJobError(input.error);
@@ -356,6 +365,7 @@ SET status = $2,
 WHERE id = $1
   AND status = 'running'
   AND locked_by = $8
+  AND cancellation_requested_at IS NULL
 RETURNING *;
 `.trim(),
       [
@@ -370,7 +380,7 @@ RETURNING *;
       ],
     );
 
-    return await this.#requiredLockedUpdate(result, input.jobId, input.workerId);
+    return await this.#requiredFailureUpdate(result, input.jobId, input.workerId, now);
   }
 
   async cancelJob(input: CancelJobInput): Promise<JobRecord> {
@@ -536,5 +546,38 @@ WHERE user_id = $1
 
     await this.#requireRunningLockedJob(jobId, workerId);
     throw new Error("Postgres job lifecycle update did not return an updated row.");
+  }
+
+  async #requiredCompletionUpdate(
+    result: PostgresQueryResult<JobRow>,
+    jobId: string,
+    workerId: string,
+  ): Promise<JobRecord> {
+    const row = firstRow(result);
+    if (row !== undefined) return jobFromRow(row);
+
+    const job = await this.#requireRunningLockedJob(jobId, workerId);
+    if (job.cancellationRequestedAt !== undefined) {
+      throw new JobError("job_not_claimable", "Job has requested cancellation.");
+    }
+
+    throw new Error("Postgres job completion did not return an updated row.");
+  }
+
+  async #requiredFailureUpdate(
+    result: PostgresQueryResult<JobRow>,
+    jobId: string,
+    workerId: string,
+    now: Date,
+  ): Promise<JobRecord> {
+    const row = firstRow(result);
+    if (row !== undefined) return jobFromRow(row);
+
+    const job = await this.#requireRunningLockedJob(jobId, workerId);
+    if (job.cancellationRequestedAt !== undefined) {
+      return await this.cancelJobAtRunBoundary({ jobId, workerId, now });
+    }
+
+    throw new Error("Postgres job failure update did not return an updated row.");
   }
 }

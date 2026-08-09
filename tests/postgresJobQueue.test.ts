@@ -239,6 +239,7 @@ class FakePostgresJobClient implements PostgresTransactionalQueryClient {
         values as readonly [string, unknown, unknown, Date, string];
       const row = this.#requiredRow(jobId);
       if (!this.#lockedBy(row, workerId)) return { rows: [], rowCount: 0 };
+      if (row.cancellation_requested_at !== null) return { rows: [], rowCount: 0 };
 
       row.status = "completed";
       row.progress_json = jsonbParameterValue(progress);
@@ -255,6 +256,7 @@ class FakePostgresJobClient implements PostgresTransactionalQueryClient {
         values as readonly [string, JobStatus, number, unknown, string, Date | null, Date, string];
       const row = this.#requiredRow(jobId);
       if (!this.#lockedBy(row, workerId)) return { rows: [], rowCount: 0 };
+      if (row.cancellation_requested_at !== null) return { rows: [], rowCount: 0 };
 
       row.status = status;
       row.attempt_count = attempts;
@@ -737,6 +739,41 @@ describe("Postgres job queue", () => {
     });
   });
 
+  it("does not let completion overwrite a requested cancellation", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    const job = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "cancel-before-complete",
+      now,
+    });
+    await queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    await queue.cancelJob({
+      jobId: job.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    await expect(queue.completeJob({
+      jobId: job.id,
+      workerId: "worker_a",
+      resultSummary: { completed: true },
+      now: new Date(now.getTime() + 3_000),
+    })).rejects.toThrow(new JobError("job_not_claimable", "Job has requested cancellation."));
+    expect(await queue.fetchForUser(job.id, "user_cam")).toMatchObject({
+      status: "running",
+      cancellationRequestedAt: new Date(now.getTime() + 2_000),
+      resultSummary: undefined,
+    });
+  });
+
   it("retries failures while attempts remain and stores sanitized errors when exhausted", async () => {
     const client = new FakePostgresJobClient();
     const queue = new PostgresJobQueue(client);
@@ -787,6 +824,83 @@ describe("Postgres job queue", () => {
     });
     expect(JSON.stringify(failedJob.sanitizedError)).not.toContain("sk_live_secret");
     expect(JSON.stringify(failedJob.sanitizedError)).not.toContain("sensitive detail");
+  });
+
+  it("settles canceled running jobs as canceled when the handler fails", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    const job = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "cancel-failed-handler",
+      maxAttempts: 2,
+      now,
+    });
+    await queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    await queue.cancelJob({
+      jobId: job.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    const canceledJob = await queue.failJob({
+      jobId: job.id,
+      workerId: "worker_a",
+      error: new Error("handler failed after cancellation"),
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(canceledJob).toMatchObject({
+      status: "canceled",
+      attempts: 0,
+      finishedAt: new Date(now.getTime() + 3_000),
+      sanitizedError: undefined,
+      workerId: undefined,
+    });
+  });
+
+  it("settles as canceled when cancellation races with failure persistence", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    const job = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "cancel-failure-race",
+      maxAttempts: 2,
+      now,
+    });
+    await queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    client.afterNextSelectById = row => {
+      row.cancellation_requested_at = new Date(now.getTime() + 2_000);
+      row.updated_at = new Date(now.getTime() + 2_000);
+    };
+
+    const canceledJob = await queue.failJob({
+      jobId: job.id,
+      workerId: "worker_a",
+      error: new Error("handler failed while canceling"),
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(canceledJob).toMatchObject({
+      status: "canceled",
+      attempts: 0,
+      finishedAt: new Date(now.getTime() + 3_000),
+      sanitizedError: undefined,
+      workerId: undefined,
+    });
   });
 
   it("cancels queued jobs, marks running jobs for boundary cancel, and scopes user reads", async () => {

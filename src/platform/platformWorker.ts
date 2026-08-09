@@ -2,6 +2,7 @@ import type { JobKind, JobRecord } from "./jobs.js";
 import {
   dispatchNextPlatformJob,
   type DispatchNextPlatformJobInput,
+  type PlatformJobHeartbeatScheduler,
   type PlatformJobHandlers,
   type PlatformJobRepository,
 } from "./platformJobOrchestrator.js";
@@ -13,6 +14,8 @@ export interface RunPlatformWorkerOnceInput {
   now?: Date | undefined;
   lockTtlMs?: number | undefined;
   jobKinds?: readonly JobKind[] | undefined;
+  heartbeatIntervalMs?: number | undefined;
+  heartbeatScheduler?: PlatformJobHeartbeatScheduler | undefined;
 }
 
 export interface PlatformWorkerLoopStats {
@@ -45,6 +48,8 @@ export const runPlatformWorkerOnce = async ({
   now,
   lockTtlMs,
   jobKinds,
+  heartbeatIntervalMs,
+  heartbeatScheduler,
 }: RunPlatformWorkerOnceInput): Promise<JobRecord | null> => {
   const dispatchInput: DispatchNextPlatformJobInput = {
     repository,
@@ -53,6 +58,8 @@ export const runPlatformWorkerOnce = async ({
     ...(now === undefined ? {} : { now }),
     ...(lockTtlMs === undefined ? {} : { lockTtlMs }),
     ...(jobKinds === undefined ? {} : { jobKinds }),
+    ...(heartbeatIntervalMs === undefined ? {} : { heartbeatIntervalMs }),
+    ...(heartbeatScheduler === undefined ? {} : { heartbeatScheduler }),
   };
 
   return await dispatchNextPlatformJob(dispatchInput);
@@ -65,6 +72,8 @@ export const runPlatformWorkerLoop = async ({
   now,
   lockTtlMs,
   jobKinds,
+  heartbeatIntervalMs,
+  heartbeatScheduler,
   pollIntervalMs = defaultPollIntervalMs,
   maxIterations,
   abortSignal,
@@ -90,6 +99,8 @@ export const runPlatformWorkerLoop = async ({
         ...(now === undefined ? {} : { now }),
         ...(lockTtlMs === undefined ? {} : { lockTtlMs }),
         ...(jobKinds === undefined ? {} : { jobKinds }),
+        ...(heartbeatIntervalMs === undefined ? {} : { heartbeatIntervalMs }),
+        ...(heartbeatScheduler === undefined ? {} : { heartbeatScheduler }),
       });
 
       if (job === null) {

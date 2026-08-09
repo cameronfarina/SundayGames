@@ -322,6 +322,42 @@ describe("platform async jobs", () => {
     });
   });
 
+  it("does not let completion overwrite a requested cancellation", () => {
+    const queue = new InMemoryJobQueue();
+    const job = queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "cancel-before-complete",
+      now,
+    });
+    queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    queue.cancelJob({
+      jobId: job.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(() =>
+      queue.completeJob({
+        jobId: job.id,
+        workerId: "worker_a",
+        resultSummary: { completed: true },
+        now: new Date(now.getTime() + 3_000),
+      }),
+    ).toThrow(new JobError("job_not_claimable", "Job has requested cancellation."));
+    expect(queue.fetchForUser(job.id, "user_cam")).toMatchObject({
+      status: "running",
+      cancellationRequestedAt: new Date(now.getTime() + 2_000),
+      resultSummary: undefined,
+    });
+  });
+
   it("retries failures while attempts remain and stores a sanitized error when exhausted", () => {
     const queue = new InMemoryJobQueue();
     const job = queue.submit({
@@ -380,6 +416,44 @@ describe("platform async jobs", () => {
     });
     expect(JSON.stringify(failedJob.sanitizedError)).not.toContain("sk_live_secret");
     expect(JSON.stringify(failedJob.sanitizedError)).not.toContain("stack frame");
+  });
+
+  it("settles canceled running jobs as canceled when the handler fails", () => {
+    const queue = new InMemoryJobQueue();
+    const job = queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "cancel-failed-handler",
+      maxAttempts: 2,
+      now,
+    });
+    queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    queue.cancelJob({
+      jobId: job.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    const canceledJob = queue.failJob({
+      jobId: job.id,
+      workerId: "worker_a",
+      error: new Error("handler failed after cancellation"),
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(canceledJob).toMatchObject({
+      status: "canceled",
+      attempts: 0,
+      finishedAt: new Date(now.getTime() + 3_000),
+      sanitizedError: undefined,
+      workerId: undefined,
+    });
   });
 
   it("cancels queued jobs before claim and lets running jobs cancel at a run boundary", () => {

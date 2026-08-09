@@ -418,4 +418,51 @@ describe("private simulation runs", () => {
     expect(runnerCallCount).toBe(1);
     expect(repository.find(run.id).status).toBe("completed");
   });
+
+  it("keeps canceled simulation runs from persisting stale completion results", async () => {
+    const repository = new InMemorySimulationRepository();
+    const run = repository.createRequest({
+      ...baseRequestInput,
+      idempotencyKey: "cancel-before-runner-completes",
+      createdAt: now,
+    });
+    repository.markRunning(run.id, new Date(now.getTime() + 1_000));
+    repository.markCanceled(run.id);
+    let runnerCallCount = 0;
+
+    const canceledRun = await executeSimulationRun({
+      repository,
+      runId: run.id,
+      runner: options => {
+        runnerCallCount += 1;
+
+        return fakeBatch(options);
+      },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const attemptedCompletion = repository.complete(run.id, {
+      runId: run.id,
+      requestId: run.request.id,
+      completedAt: new Date(now.getTime() + 3_000),
+      runCount: 25,
+      seedPrefix: run.request.seedPrefix,
+      hardLockCount: run.request.strategy.hardLocks.length,
+      softTargetCount: run.request.strategy.softTargets.length,
+      forcedSales: [],
+      summary: fakeBatch({
+        runsPerScenario: 25,
+        seedPrefix: run.request.seedPrefix,
+        forcedSales: [],
+      }).summary,
+    });
+
+    expect(runnerCallCount).toBe(0);
+    expect(canceledRun).toBe(run);
+    expect(attemptedCompletion).toBe(run);
+    expect(repository.find(run.id)).toMatchObject({
+      status: "canceled",
+      completedAt: undefined,
+      result: undefined,
+    });
+  });
 });

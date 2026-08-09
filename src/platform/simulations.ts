@@ -5,7 +5,7 @@ import type { ForcedAuctionSale, MockBatch } from "../modeling/mockBatch.js";
 export const maxSimulationCount = 500;
 
 export type SimulationPriceMode = "exact" | "ceiling";
-export type SimulationRunStatus = "requested" | "running" | "completed" | "failed";
+export type SimulationRunStatus = "requested" | "running" | "completed" | "failed" | "canceled";
 
 export type SimulationErrorCode =
   | "duplicate_hard_lock"
@@ -388,13 +388,29 @@ export class InMemorySimulationRepository {
   markFailed(runId: string): SimulationRun {
     const run = this.find(runId);
 
+    if (run.status === "canceled") return run;
+
     run.status = "failed";
+
+    return run;
+  }
+
+  markCanceled(runId: string): SimulationRun {
+    const run = this.find(runId);
+
+    if (run.status === "completed") return run;
+
+    run.status = "canceled";
+    run.result = undefined;
+    run.completedAt = undefined;
 
     return run;
   }
 
   complete(runId: string, result: SimulationResult): SimulationRun {
     const run = this.find(runId);
+
+    if (run.status === "canceled") return run;
 
     run.status = "completed";
     run.completedAt = result.completedAt;
@@ -441,6 +457,7 @@ export const executeSimulationRun = async ({
   if (existingRun.status === "completed" && existingRun.result !== undefined) {
     return existingRun;
   }
+  if (existingRun.status === "canceled") return existingRun;
 
   const run = repository.markRunning(runId, runAt);
   const forcedSales = forcedSalesForSimulationRequest(run.request);

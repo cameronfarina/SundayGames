@@ -59,6 +59,7 @@ import {
 } from "./platformHistoricalImportWorkflow.js";
 import {
   enqueueSimulationRunExecutionJob,
+  platformJobTypes,
 } from "./platformJobOrchestrator.js";
 import {
   listLeaguePricingSnapshotsWorkflow,
@@ -176,6 +177,12 @@ export interface ListPlatformJobsInput {
 }
 
 export interface GetPlatformJobInput {
+  actorSessionToken: string;
+  jobId: string;
+  now?: Date | undefined;
+}
+
+export interface CancelPlatformJobInput {
   actorSessionToken: string;
   jobId: string;
   now?: Date | undefined;
@@ -316,6 +323,23 @@ const sharedMutationRoles = new Set<WorkspaceRole>(["owner", "admin"]);
 const membershipKeyFor = (userId: string, leagueId: string): string => `${userId}\0${leagueId}`;
 
 const cloneForRead = <T>(value: T): T => structuredClone(value);
+
+interface JobInputRecord {
+  readonly type?: unknown;
+  readonly simulationRunId?: unknown;
+}
+
+const isJobInputRecord = (value: unknown): value is JobInputRecord =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const simulationRunIdForJob = (job: JobRecord): string | null => {
+  if (!isJobInputRecord(job.inputJson)) return null;
+
+  return job.inputJson.type === platformJobTypes.simulationRunExecution &&
+    typeof job.inputJson.simulationRunId === "string"
+    ? job.inputJson.simulationRunId
+    : null;
+};
 
 const isExportSlotKey = (slot: string): slot is DraftExportRosterSlotKey => draftExportSlotKeys.has(slot);
 
@@ -837,6 +861,29 @@ export const createPlatformApp = ({
       }
 
       return cloneForRead(job);
+    },
+
+    cancelJob: async (input: CancelPlatformJobInput): Promise<JobRecord> => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const job = await jobs.fetchForUser(input.jobId, account.id);
+
+      if (job === null) {
+        throw new PlatformAppError("private_resource", "This job belongs to another user.");
+      }
+
+      const canceledJob = await jobs.cancelJob({
+        jobId: input.jobId,
+        userId: account.id,
+        now: input.now,
+      });
+      if (canceledJob.status === "canceled" || canceledJob.cancellationRequestedAt !== undefined) {
+        const simulationRunId = simulationRunIdForJob(canceledJob);
+        if (simulationRunId !== null) {
+          store.simulations.markCanceled(simulationRunId);
+        }
+      }
+
+      return cloneForRead(canceledJob);
     },
 
     previewHistoricalImportSource: (input: PreviewPlatformHistoricalImportInput): PreviewHistoricalImportSourceWorkflowResult => {

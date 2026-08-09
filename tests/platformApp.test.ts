@@ -154,10 +154,49 @@ describe("platform app service", () => {
     });
     await expect(app.listJobs({ actorSessionToken: cam.sessionToken })).resolves.toEqual([simulationJob]);
     await expect(app.listJobs({ actorSessionToken: seth.sessionToken })).resolves.toEqual([]);
-
-    const completed = await app.executeSimulationRun({
+    await expect(app.cancelJob({
+      actorSessionToken: seth.sessionToken,
+      jobId: simulationJob.id,
+      now: new Date(now.getTime() + 500),
+    })).rejects.toThrow(new PlatformAppError("private_resource", "This job belongs to another user."));
+    await expect(app.cancelJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: simulationJob.id,
+      now: new Date(now.getTime() + 750),
+    })).resolves.toMatchObject({
+      id: simulationJob.id,
+      status: "canceled",
+      cancellationRequestedAt: new Date(now.getTime() + 750),
+      finishedAt: new Date(now.getTime() + 750),
+    });
+    expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
+    })).toMatchObject({
+      id: simulation.id,
+      status: "canceled",
+      result: undefined,
+    });
+
+    const executableSimulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 25,
+      seedPrefix: "cam-puka-plan-direct",
+      idempotencyKey: "cam-puka-plan-direct",
+      strategy: {
+        hardLocks: [
+          { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+        ],
+      },
+      now: new Date(now.getTime() + 800),
+    });
+    const completed = await app.executeSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: executableSimulation.id,
       now: new Date(now.getTime() + 1_000),
     });
 
@@ -165,10 +204,13 @@ describe("platform app service", () => {
       runCount: 25,
       forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
     });
-    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).toEqual([completed]);
+    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken }).map(run => run.status)).toEqual([
+      "canceled",
+      "completed",
+    ]);
     expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).toEqual([]);
     expect(() =>
-      app.getSimulationRun({ actorSessionToken: seth.sessionToken, runId: simulation.id }),
+      app.getSimulationRun({ actorSessionToken: seth.sessionToken, runId: executableSimulation.id }),
     ).toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
   });
 

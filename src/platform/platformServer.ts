@@ -120,9 +120,17 @@ const isJobOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
 
-    return segments[0] === "simulations" &&
+    if (
+      segments[0] === "simulations" &&
       segments.length === 3 &&
-      (segments[2] === "jobs" || segments[2] === "enqueue");
+      (segments[2] === "jobs" || segments[2] === "enqueue")
+    ) {
+      return true;
+    }
+
+    return segments[0] === "jobs" &&
+      segments.length === 3 &&
+      segments[2] === "cancel";
   } catch {
     return false;
   }
