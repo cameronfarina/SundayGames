@@ -1,0 +1,536 @@
+import { describe, expect, it } from "vitest";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import type { MockBatch } from "../src/modeling/mockBatch.js";
+import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  InMemoryPlatformStore,
+  PlatformAppError,
+  createPlatformApp,
+} from "../src/platform/platformApp.js";
+import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+
+const now = new Date("2026-08-09T12:00:00.000Z");
+
+const playerCatalog = [
+  { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+  { name: "Xavier Legette", position: "WR", expectedPrice: 2 },
+  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+  { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
+] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const mockRunner: SimulationMockBatchRunner = ({
+  runsPerScenario,
+  seedPrefix,
+  forcedSales,
+}): MockBatch => ({
+  options: {
+    scenarioKeys: ["expected"],
+    runsPerScenario,
+    seedPrefix,
+    forcedSales: [...forcedSales],
+  },
+  runs: [],
+  summary: {
+    runCount: runsPerScenario,
+    scenarios: [],
+    players: [],
+    owners: [],
+    ownerPlayerExposure: [],
+  },
+});
+
+const signUpAndLogin = (
+  app: ReturnType<typeof createPlatformApp>,
+  email: string,
+  password: string,
+  createdAt: Date,
+) => {
+  app.createAccount({ email, password, now: createdAt });
+  const login = app.login({ email, password, now: createdAt });
+  if (login === null) throw new Error(`Expected ${email} login.`);
+
+  return login;
+};
+
+describe("platform app service", () => {
+  it("requires an owner or admin actor when registering league season data", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected fixture team.");
+
+    expect(() =>
+      app.registerLeagueSeason({
+        actorSessionToken: cam.sessionToken,
+        season,
+        memberships: [
+          {
+            userId: cam.account.id,
+            leagueId: season.leagueId,
+            role: "member",
+            ownerId: camTeam.ownerId,
+            teamId: camTeam.id,
+          },
+        ],
+      }),
+    ).toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+  });
+
+  it("registers a league season, gates shared access by membership, and keeps prep private", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    const registeredSeason = app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+
+    expect(registeredSeason).toEqual(season);
+    expect(registeredSeason).not.toBe(season);
+    expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id })).toEqual(season);
+    expect(() =>
+      app.getLeagueSeason({ actorSessionToken: outsider.sessionToken, seasonId: season.id }),
+    ).toThrow(new PlatformAppError(
+      "membership_required",
+      "Join this league before viewing shared league data.",
+    ));
+
+    const simulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 25,
+      seedPrefix: "cam-puka-plan",
+      idempotencyKey: "cam-puka-plan",
+      strategy: {
+        hardLocks: [
+          { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+        ],
+      },
+      now,
+    });
+
+    const completed = await app.executeSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(completed.result).toMatchObject({
+      runCount: 25,
+      forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+    });
+    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).toEqual([completed]);
+    expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).toEqual([]);
+    expect(() =>
+      app.getSimulationRun({ actorSessionToken: seth.sessionToken, runId: simulation.id }),
+    ).toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
+  });
+
+  it("blocks outsider setup overwrites and replaces omitted league memberships", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    if (camTeam === undefined || sethTeam === undefined || beatonTeam === undefined) {
+      throw new Error("Expected fixture teams.");
+    }
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+
+    expect(() =>
+      app.registerLeagueSeason({
+        actorSessionToken: outsider.sessionToken,
+        season,
+        memberships: [
+          {
+            userId: outsider.account.id,
+            leagueId: season.leagueId,
+            role: "owner",
+            ownerId: beatonTeam.ownerId,
+            teamId: beatonTeam.id,
+          },
+        ],
+      }),
+    ).toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+
+    expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).toEqual(season);
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+
+    expect(() =>
+      app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id }),
+    ).toThrow(new PlatformAppError(
+      "membership_required",
+      "Join this league before viewing shared league data.",
+    ));
+  });
+
+  it("blocks outsider registration for a new season in an existing league", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const season2026 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+      seasonYear: 2026,
+    });
+    const season2027 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+      seasonYear: 2027,
+    });
+    const camTeam = season2026.teams.find(team => team.ownerDisplayName === "Cam");
+    const outsiderTeam = season2027.teams.find(team => team.ownerDisplayName === "Beaton");
+    if (camTeam === undefined || outsiderTeam === undefined) throw new Error("Expected fixture teams.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season: season2026,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season2026.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+    });
+
+    expect(() =>
+      app.registerLeagueSeason({
+        actorSessionToken: outsider.sessionToken,
+        season: season2027,
+        memberships: [
+          {
+            userId: outsider.account.id,
+            leagueId: season2027.leagueId,
+            role: "owner",
+            ownerId: outsiderTeam.ownerId,
+            teamId: outsiderTeam.id,
+          },
+        ],
+      }),
+    ).toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+
+    expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season2026.id })).toEqual(season2026);
+  });
+
+  it("returns copies of shared league and live room state", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    const registeredSeason = app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+    registeredSeason.setupStatus = "draft";
+    season.setupStatus = "draft";
+
+    expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id }).setupStatus).toBe("published");
+
+    const room = app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_copy_test",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    });
+    room.status = "ended";
+
+    const freshRoom = app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId });
+    expect(freshRoom).not.toBe(room);
+    expect(freshRoom.status).toBe("setup");
+  });
+
+  it("runs mock draft sessions through revision and command-count guards", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+
+    const session = app.createMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      draftMode: { format: "auction", mockCount: 5, label: "Practice auction" },
+      now,
+    });
+    const appended = app.appendMockDraftCommand({
+      actorSessionToken: cam.sessionToken,
+      sessionId: session.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "cmd_puka",
+      command: "draft puka for 62",
+      idempotencyKey: "mock:puka:62",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(app.listMockDraftSessions({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+    })).toEqual([appended]);
+
+    const reset = app.resetMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      sessionId: session.id,
+      expectedRevision: 1,
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(reset.revision).toBe(2);
+    expect(reset.commandLog).toEqual([]);
+    expect(() =>
+      app.appendMockDraftCommand({
+        actorSessionToken: cam.sessionToken,
+        sessionId: session.id,
+        expectedRevision: 1,
+        expectedCommandCount: 1,
+        commandId: "cmd_stale",
+        command: "draft ladd for 21",
+        now: new Date(now.getTime() + 3_000),
+      }),
+    ).toThrow();
+  });
+
+  it("rechecks current team claims before reading or mutating private prep", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+    const simulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 5,
+      seedPrefix: "old-claim",
+      idempotencyKey: "old-claim",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    const mockSession = app.createMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      draftMode: { format: "auction", mockCount: 5 },
+      now,
+    });
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: beatonTeam.ownerId,
+          teamId: beatonTeam.id,
+        },
+      ],
+    });
+
+    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).toEqual([]);
+    expect(() =>
+      app.getSimulationRun({ actorSessionToken: cam.sessionToken, runId: simulation.id }),
+    ).toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
+    expect(() =>
+      app.appendMockDraftCommand({
+        actorSessionToken: cam.sessionToken,
+        sessionId: mockSession.id,
+        expectedRevision: 1,
+        expectedCommandCount: 0,
+        commandId: "cmd_after_claim_change",
+        command: "draft puka for 62",
+        now: new Date(now.getTime() + 1_000),
+      }),
+    ).toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
+  });
+
+  it("routes live room commands through commissioner authorization and exports one draft sheet", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+
+    const room = app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_214674_2026",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      initialRosters: [
+        { teamId: camTeam.id, playerName: "De'Von Achane", position: "RB", price: 50, expectedPrice: 50 },
+      ],
+      now,
+    });
+
+    expect(app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).toEqual(room);
+    expect(app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).not.toBe(room);
+    expect(() =>
+      app.startLiveDraftRoom({
+        actorSessionToken: seth.sessionToken,
+        roomId: room.roomId,
+        expectedRevision: 1,
+        idempotencyKey: "start-by-seth",
+        now: new Date(now.getTime() + 1_000),
+      }),
+    ).toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+
+    app.startLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: 1,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 2_000),
+    });
+    const sold = app.logLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
+      sale: "cam puka 62",
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(sold.projection.teams.find(team => team.ownerDisplayName === "Cam")).toMatchObject({
+      spent: 112,
+      budgetRemaining: 88,
+    });
+
+    const exportResult = app.exportLiveDraftRoom({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 4_000),
+    });
+
+    expect(exportResult.sheetName).toBe("Draft Results");
+    expect(exportResult.table[0]?.slice(0, 2)).toEqual(["League", "League 214674"]);
+
+    const teamHeaderRow = exportResult.table[5];
+    if (teamHeaderRow === undefined) throw new Error("Expected team header row.");
+    const camColumn = teamHeaderRow.indexOf("Cam");
+    expect(camColumn).toBeGreaterThanOrEqual(0);
+
+    const rb1Row = exportResult.table.find(row => row[0] === "RB1");
+    const wr1Row = exportResult.table.find(row => row[0] === "WR1");
+    expect(rb1Row?.slice(camColumn, camColumn + 3)).toEqual(["RB1", "De'Von Achane", 50]);
+    expect(wr1Row?.slice(camColumn, camColumn + 3)).toEqual(["WR1", "Puka Nacua", 62]);
+    expect(exportResult.csv).toContain("Puka Nacua,62");
+  });
+});
