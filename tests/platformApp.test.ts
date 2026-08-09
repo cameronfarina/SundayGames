@@ -122,7 +122,7 @@ describe("platform app service", () => {
       "Join this league before viewing shared league data.",
     ));
 
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -169,10 +169,10 @@ describe("platform app service", () => {
       cancellationRequestedAt: new Date(now.getTime() + 750),
       finishedAt: new Date(now.getTime() + 750),
     });
-    expect(app.getSimulationRun({
+    await expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
-    })).toMatchObject({
+    })).resolves.toMatchObject({
       id: simulation.id,
       status: "canceled",
       result: undefined,
@@ -199,10 +199,10 @@ describe("platform app service", () => {
     });
     expect(rerunJob.id).not.toBe(simulationJob.id);
     expect(rerunAgain).toEqual(rerunJob);
-    expect(app.getSimulationRun({
+    await expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
-    })).toMatchObject({
+    })).resolves.toMatchObject({
       id: simulation.id,
       status: "requested",
       result: undefined,
@@ -220,10 +220,10 @@ describe("platform app service", () => {
     });
     expect(completedRerunSimulation.status).toBe("completed");
     expect(rerunAfterCompletion).toEqual(rerunJob);
-    expect(app.getSimulationRun({
+    await expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
-    })).toMatchObject({
+    })).resolves.toMatchObject({
       id: simulation.id,
       status: "completed",
       result: expect.objectContaining({ runCount: 25 }),
@@ -235,7 +235,7 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 875),
     })).rejects.toThrow(new PlatformAppError("private_resource", "This job belongs to another user."));
 
-    const executableSimulation = app.createSimulationRun({
+    const executableSimulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -261,14 +261,14 @@ describe("platform app service", () => {
       runCount: 25,
       forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
     });
-    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken }).map(run => run.status)).toEqual([
+    expect((await app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).map(run => run.status)).toEqual([
       "completed",
       "completed",
     ]);
-    expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).toEqual([]);
-    expect(() =>
+    await expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).resolves.toEqual([]);
+    await expect(
       app.getSimulationRun({ actorSessionToken: seth.sessionToken, runId: executableSimulation.id }),
-    ).toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
+    ).rejects.toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
   });
 
   it("lets a server worker execute an existing simulation while preserving private team ownership checks", async () => {
@@ -291,7 +291,7 @@ describe("platform app service", () => {
       ],
     });
 
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -328,7 +328,7 @@ describe("platform app service", () => {
       "This prep artifact belongs to another user.",
     ));
 
-    const blockedSimulation = app.createSimulationRun({
+    const blockedSimulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -689,7 +689,7 @@ describe("platform app service", () => {
     ).toThrow();
   });
 
-  it("rechecks current team claims before reading or mutating private prep", () => {
+  it("rechecks current team claims before reading or mutating private prep", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -707,7 +707,7 @@ describe("platform app service", () => {
         { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -743,10 +743,10 @@ describe("platform app service", () => {
       ],
     });
 
-    expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).toEqual([]);
-    expect(() =>
+    await expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).resolves.toEqual([]);
+    await expect(
       app.getSimulationRun({ actorSessionToken: cam.sessionToken, runId: simulation.id }),
-    ).toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
+    ).rejects.toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
     expect(() =>
       app.appendMockDraftCommand({
         actorSessionToken: cam.sessionToken,

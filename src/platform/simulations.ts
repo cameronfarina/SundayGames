@@ -128,18 +128,23 @@ export type SimulationMockBatchRunner =
   (options: SimulationRunnerOptions) => MockBatch | Promise<MockBatch>;
 
 export interface ExecuteSimulationRunInput {
-  repository: InMemorySimulationRepository;
+  repository: SimulationRepository;
   runId: string;
   runner: SimulationMockBatchRunner;
   now?: Date | undefined;
 }
 
+type MaybePromise<T> = T | Promise<T>;
+
 const simulationIdBytes = 16;
 
-const createSimulationId = (): string => `sim_${randomBytes(simulationIdBytes).toString("base64url")}`;
+export const createSimulationId = (): string => `sim_${randomBytes(simulationIdBytes).toString("base64url")}`;
 
-const createSimulationRequestId = (): string =>
+export const createSimulationRequestId = (): string =>
   `simreq_${randomBytes(simulationIdBytes).toString("base64url")}`;
+
+export const createSimulationResultId = (): string =>
+  `simres_${randomBytes(simulationIdBytes).toString("base64url")}`;
 
 const idempotencyIndexKey = (
   userId: string,
@@ -165,13 +170,13 @@ const stableStringify = (value: unknown): string => {
   return `{${serializedEntries.join(",")}}`;
 };
 
-const hashSimulationInput = (input: unknown): string =>
+export const hashSimulationInput = (input: unknown): string =>
   createHash("sha256").update(stableStringify(input)).digest("base64url");
 
 const normalizePlayerKey = (playerName: string): string =>
   playerName.trim().toLowerCase().replace(/\s+/g, " ");
 
-const assertSimulationCount = (count: number): void => {
+export const assertSimulationCount = (count: number): void => {
   if (!Number.isInteger(count) || count < 1) {
     throw new SimulationError("invalid_count", "Simulation count must be at least 1.");
   }
@@ -253,12 +258,12 @@ const normalizeSoftTargets = (
     };
   });
 
-const normalizeStrategy = (strategy: SimulationStrategyInput): SimulationStrategy => ({
+export const normalizeStrategy = (strategy: SimulationStrategyInput): SimulationStrategy => ({
   hardLocks: normalizeHardLocks(strategy.hardLocks),
   softTargets: normalizeSoftTargets(strategy.softTargets),
 });
 
-const simulationInputHashPayload = (
+export const simulationInputHashPayload = (
   input: Omit<CreateSimulationRequestInput, "createdAt">,
   strategy: SimulationStrategy,
 ): unknown => ({
@@ -275,6 +280,18 @@ const simulationInputHashPayload = (
 export const canReadSimulationRun = (userId: string, run: SimulationRun): boolean =>
   run.privacyOwnerUserId === userId;
 
+export interface SimulationRepository {
+  createRequest(input: CreateSimulationRequestInput): MaybePromise<SimulationRun>;
+  listForUser(userId: string): MaybePromise<SimulationRun[]>;
+  fetchForUser(runId: string, userId: string): MaybePromise<SimulationRun | null>;
+  find(runId: string): MaybePromise<SimulationRun>;
+  markRunning(runId: string, now: Date): MaybePromise<SimulationRun>;
+  markFailed(runId: string): MaybePromise<SimulationRun>;
+  markCanceled(runId: string): MaybePromise<SimulationRun>;
+  resetForRerun(runId: string): MaybePromise<SimulationRun>;
+  complete(runId: string, result: SimulationResult): MaybePromise<SimulationRun>;
+}
+
 export const forcedSalesForSimulationRequest = (
   request: SimulationRequest,
 ): readonly ForcedAuctionSale[] =>
@@ -288,7 +305,7 @@ export const forcedSalesForSimulationRequest = (
       }],
   );
 
-export class InMemorySimulationRepository {
+export class InMemorySimulationRepository implements SimulationRepository {
   readonly #runsById = new Map<string, SimulationRun>();
   readonly #runIdsByIdempotencyKey = new Map<string, string>();
 
@@ -466,13 +483,13 @@ export const executeSimulationRun = async ({
   now,
 }: ExecuteSimulationRunInput): Promise<SimulationRun> => {
   const runAt = now ?? new Date();
-  const existingRun = repository.find(runId);
+  const existingRun = await repository.find(runId);
   if (existingRun.status === "completed" && existingRun.result !== undefined) {
     return existingRun;
   }
   if (existingRun.status === "canceled") return existingRun;
 
-  const run = repository.markRunning(runId, runAt);
+  const run = await repository.markRunning(runId, runAt);
   const forcedSales = forcedSalesForSimulationRequest(run.request);
   let batch: MockBatch;
 
@@ -485,7 +502,7 @@ export const executeSimulationRun = async ({
       softTargets: run.request.strategy.softTargets,
     });
   } catch (error) {
-    repository.markFailed(run.id);
+    await repository.markFailed(run.id);
     throw error;
   }
 
@@ -501,5 +518,5 @@ export const executeSimulationRun = async ({
     summary: batch.summary,
   };
 
-  return repository.complete(run.id, result);
+  return await repository.complete(run.id, result);
 };

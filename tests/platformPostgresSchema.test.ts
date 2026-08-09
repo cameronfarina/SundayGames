@@ -254,7 +254,7 @@ describe("platform Postgres schema contract", () => {
     ]);
   });
 
-  it("matches runtime records for imports, pricing, jobs, and exports", () => {
+  it("matches runtime records for imports, pricing, jobs, simulations, and exports", () => {
     expectColumn("historical_import_batches", "replacement_requested", {
       type: "boolean",
       default: "false",
@@ -310,6 +310,33 @@ describe("platform Postgres schema contract", () => {
       type: "jsonb",
       nullable: true,
     });
+
+    expectColumn("simulation_runs", "request_json", {
+      type: "jsonb",
+      default: "'{}'::jsonb",
+    });
+    expectColumn("simulation_runs", "status", { type: "text" });
+    expectColumn("simulation_runs", "started_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectColumn("simulation_runs", "completed_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectColumn("simulation_results", "summary_json", {
+      type: "jsonb",
+      default: "'{}'::jsonb",
+    });
+    expectColumn("simulation_results", "result_set_json", {
+      type: "jsonb",
+      default: "'{}'::jsonb",
+    });
+    expectCheckContract(
+      "simulation_runs",
+      "simulation_runs_status_check",
+      "status IN ('requested', 'queued', 'running', 'completed', 'failed', 'canceled')",
+    );
 
     expectColumn("draft_room_exports", "content_type", { type: "text" });
     expectColumn("draft_room_exports", "byte_length", { type: "integer" });

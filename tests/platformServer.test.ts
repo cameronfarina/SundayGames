@@ -32,7 +32,14 @@ import type {
   PostgresQueryResult,
 } from "../src/platform/postgresPlatformStore.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
-import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+import {
+  InMemorySimulationRepository,
+  type CreateSimulationRequestInput,
+  type SimulationMockBatchRunner,
+  type SimulationRepository,
+  type SimulationResult,
+  type SimulationRun,
+} from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -169,6 +176,46 @@ class AsyncJobRepository implements JobRepository {
 
   async fetchForUser(jobId: string, userId: string): Promise<JobRecord | null> {
     return this.inner.fetchForUser(jobId, userId);
+  }
+}
+
+class AsyncSimulationRepository implements SimulationRepository {
+  readonly inner = new InMemorySimulationRepository();
+
+  async createRequest(input: CreateSimulationRequestInput): Promise<SimulationRun> {
+    return this.inner.createRequest(input);
+  }
+
+  async listForUser(userId: string): Promise<SimulationRun[]> {
+    return this.inner.listForUser(userId);
+  }
+
+  async fetchForUser(runId: string, userId: string): Promise<SimulationRun | null> {
+    return this.inner.fetchForUser(runId, userId);
+  }
+
+  async find(runId: string): Promise<SimulationRun> {
+    return this.inner.find(runId);
+  }
+
+  async markRunning(runId: string, runAt: Date): Promise<SimulationRun> {
+    return this.inner.markRunning(runId, runAt);
+  }
+
+  async markFailed(runId: string): Promise<SimulationRun> {
+    return this.inner.markFailed(runId);
+  }
+
+  async markCanceled(runId: string): Promise<SimulationRun> {
+    return this.inner.markCanceled(runId);
+  }
+
+  async resetForRerun(runId: string): Promise<SimulationRun> {
+    return this.inner.resetForRerun(runId);
+  }
+
+  async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
+    return this.inner.complete(runId, result);
   }
 }
 
@@ -630,7 +677,7 @@ describe("platform server composition", () => {
       ],
       now,
     });
-    const simulation = platformServer.app.createSimulationRun({
+    const simulation = await platformServer.app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -728,7 +775,7 @@ describe("platform server composition", () => {
       ],
       now,
     });
-    const simulation = platformServer.app.createSimulationRun({
+    const simulation = await platformServer.app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -779,11 +826,11 @@ describe("platform server composition", () => {
       handlers: cachedHandlers,
     })).resolves.toBe(job);
     expect(postgresClient.row?.revision).toBe(3);
-    expect(platformServer.app.getSimulationRun({
+    await expect(platformServer.app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 2_000),
-    })).toMatchObject({
+    })).resolves.toMatchObject({
       id: simulation.id,
       status: "completed",
       result: {
@@ -824,7 +871,7 @@ describe("platform server composition", () => {
       ],
       now,
     });
-    const simulation = platformServer.app.createSimulationRun({
+    const simulation = await platformServer.app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -916,12 +963,184 @@ describe("platform server composition", () => {
     ]);
   });
 
+  it("uses external job and simulation repositories for private simulation lifecycle without snapshot results", async () => {
+    const dataFilePath = await storePath();
+    const jobRepository = new AsyncJobRepository();
+    const simulationRepository = new AsyncSimulationRepository();
+    const { platformServer, baseUrl } = await createListeningServer({
+      dataFilePath,
+      jobRepository,
+      simulationRepository,
+    });
+    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    platformServer.app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    await platformServer.persist();
+
+    const created = await jsonFetch(baseUrl, "/simulations", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        leagueId: season.leagueId,
+        seasonId: season.id,
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+        count: 6,
+        seedPrefix: "external-sim",
+        idempotencyKey: "external-sim",
+        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+        now: new Date(now.getTime() + 500).toISOString(),
+      }),
+    });
+    const simulationId = (created.body as { simulation: { id: string } }).simulation.id;
+    const enqueued = await jsonFetch(baseUrl, `/simulations/${simulationId}/jobs`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        idempotencyKey: "external-sim-job",
+        now: new Date(now.getTime() + 1_000).toISOString(),
+      }),
+    });
+    const enqueuedJobId = (enqueued.body as { job: { id: string } }).job.id;
+    const canceled = await jsonFetch(baseUrl, `/jobs/${enqueuedJobId}/cancel`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        now: new Date(now.getTime() + 2_000).toISOString(),
+      }),
+    });
+    const rerun = await jsonFetch(baseUrl, `/jobs/${enqueuedJobId}/rerun`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        idempotencyKey: "rerun-external-sim-job",
+        now: new Date(now.getTime() + 3_000).toISOString(),
+      }),
+    });
+    const rerunJobId = (rerun.body as { job: { id: string } }).job.id;
+
+    expect(platformServer.jobRepository).toBe(jobRepository);
+    expect(platformServer.simulationRepository).toBe(simulationRepository);
+    expect(created).toMatchObject({
+      status: 201,
+      body: {
+        simulation: {
+          id: simulationId,
+          status: "requested",
+        },
+      },
+    });
+    expect(canceled).toMatchObject({
+      status: 200,
+      body: {
+        job: {
+          id: enqueuedJobId,
+          status: "canceled",
+        },
+      },
+    });
+    expect(await simulationRepository.fetchForUser(simulationId, cam.account.id)).toMatchObject({
+      id: simulationId,
+      status: "requested",
+      result: undefined,
+    });
+
+    await expect(dispatchNextPlatformJob({
+      repository: jobRepository,
+      workerId: "worker_simulations",
+      now: new Date(now.getTime() + 4_000),
+      handlers: platformServer.jobHandlers,
+    })).resolves.toMatchObject({
+      id: rerunJobId,
+      status: "completed",
+    });
+    expect(await simulationRepository.fetchForUser(simulationId, cam.account.id)).toMatchObject({
+      id: simulationId,
+      status: "completed",
+      result: {
+        runCount: 6,
+        forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+      },
+    });
+
+    await platformServer.close();
+    const loadedServer = await createPlatformServer({
+      dataFilePath,
+      jobRepository,
+      simulationRepository,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+
+    await expect(loadedServer.app.getSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulationId,
+      now: new Date(now.getTime() + 5_000),
+    })).resolves.toMatchObject({
+      id: simulationId,
+      status: "completed",
+      result: {
+        runCount: 6,
+      },
+    });
+
+    const savedSnapshot = JSON.parse(await readFile(dataFilePath, "utf8")) as {
+      jobs?: unknown[];
+      simulationRuns?: unknown[];
+    };
+    expect(savedSnapshot.jobs).toEqual([]);
+    expect(savedSnapshot.simulationRuns).toEqual([]);
+  });
+
   it("creates a Postgres job queue when a transactional job client is configured", async () => {
     const postgresJobClient = new FakeTransactionalPostgresClient();
     const { platformServer } = await createListeningServer({ postgresJobClient });
 
     expect(platformServer.postgresJobQueue).toBeDefined();
     expect(platformServer.jobRepository).toBe(platformServer.postgresJobQueue);
+  });
+
+  it("creates a Postgres simulation repository when a transactional simulation client is configured", async () => {
+    const postgresSimulationClient = new FakeTransactionalPostgresClient();
+    const { platformServer } = await createListeningServer({ postgresSimulationClient });
+
+    expect(platformServer.postgresSimulationRepository).toBeDefined();
+    expect(platformServer.simulationRepository).toBe(platformServer.postgresSimulationRepository);
   });
 
   it("rejects ambiguous file and Postgres persistence configuration", async () => {
@@ -936,6 +1155,12 @@ describe("platform server composition", () => {
       postgresJobClient: new FakeTransactionalPostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either jobRepository or postgresJobClient, not both.");
+
+    await expect(createPlatformServer({
+      simulationRepository: new AsyncSimulationRepository(),
+      postgresSimulationClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either simulationRepository or postgresSimulationClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {
@@ -966,7 +1191,7 @@ describe("platform server composition", () => {
       ],
       now,
     });
-    const simulation = platformServer.app.createSimulationRun({
+    const simulation = await platformServer.app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -1008,11 +1233,11 @@ describe("platform server composition", () => {
     });
     servers.push(loadedServer);
 
-    expect(loadedServer.app.getSimulationRun({
+    await expect(loadedServer.app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 2_000),
-    })).toMatchObject({
+    })).resolves.toMatchObject({
       id: simulation.id,
       status: "completed",
       result: {

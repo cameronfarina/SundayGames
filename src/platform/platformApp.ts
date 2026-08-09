@@ -53,6 +53,7 @@ import {
   InMemorySimulationRepository,
   executeSimulationRun,
   type CreateSimulationRequestInput,
+  type SimulationRepository,
   type SimulationMockBatchRunner,
   type SimulationRun,
 } from "./simulations.js";
@@ -308,6 +309,7 @@ export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatfo
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
   jobRepository?: JobRepository | undefined;
+  simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
 }
 
@@ -530,10 +532,12 @@ export class InMemoryPlatformStore {
 export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
   jobRepository,
+  simulationRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
   const auth = createAuthService({ repository: store.authRepository });
   const jobs = jobRepository ?? store.jobs;
+  const simulations = simulationRepository ?? store.simulations;
 
   const requireAccount = (sessionToken: string, now?: Date): AccountRecord => {
     const authenticated = auth.lookupSession(sessionToken, now);
@@ -757,11 +761,11 @@ export const createPlatformApp = ({
     getLeagueSeason: (input: GetLeagueSeasonInput): LeagueSeason =>
       cloneForRead(requireSeasonRead(requireAccount(input.actorSessionToken, input.now), input.seasonId)),
 
-    createSimulationRun: (input: CreatePlatformSimulationRunInput): SimulationRun => {
+    createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
       const account = requireAccount(input.actorSessionToken, input.now);
       requirePrivateTeamContext(account, input);
 
-      return cloneForRead(store.simulations.createRequest({
+      return cloneForRead(await simulations.createRequest({
         userId: account.id,
         leagueId: input.leagueId,
         seasonId: input.seasonId,
@@ -777,14 +781,14 @@ export const createPlatformApp = ({
 
     executeSimulationRun: async (input: ExecutePlatformSimulationRunInput): Promise<SimulationRun> => {
       const account = requireAccount(input.actorSessionToken, input.now);
-      const run = store.simulations.fetchForUser(input.runId, account.id);
+      const run = await simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
       requirePrivateTeamContext(account, run.request);
 
       return cloneForRead(await executeSimulationRun({
-        repository: store.simulations,
+        repository: simulations,
         runId: input.runId,
         runner: simulationRunner,
         now: input.now,
@@ -792,7 +796,7 @@ export const createPlatformApp = ({
     },
 
     executeSimulationRunForWorker: async (input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun> => {
-      const run = store.simulations.find(input.runId);
+      const run = await simulations.find(input.runId);
       if (
         run.privacyOwnerUserId !== input.userId
         || run.request.leagueId !== input.leagueId
@@ -808,24 +812,24 @@ export const createPlatformApp = ({
       requirePrivateTeamContext(account, run.request);
 
       return cloneForRead(await executeSimulationRun({
-        repository: store.simulations,
+        repository: simulations,
         runId: input.runId,
         runner: simulationRunner,
         now: input.now,
       }));
     },
 
-    listSimulationRuns: (input: ListPlatformSimulationRunsInput): readonly SimulationRun[] => {
+    listSimulationRuns: async (input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]> => {
       const account = requireAccount(input.actorSessionToken, input.now);
 
-      return store.simulations.listForUser(account.id)
+      return (await simulations.listForUser(account.id))
         .filter(run => canReadPrivateTeamContext(account, run.request))
         .map(run => cloneForRead(run));
     },
 
-    getSimulationRun: (input: GetPlatformSimulationRunInput): SimulationRun => {
+    getSimulationRun: async (input: GetPlatformSimulationRunInput): Promise<SimulationRun> => {
       const account = requireAccount(input.actorSessionToken, input.now);
-      const run = store.simulations.fetchForUser(input.runId, account.id);
+      const run = await simulations.fetchForUser(input.runId, account.id);
 
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
@@ -837,7 +841,7 @@ export const createPlatformApp = ({
 
     enqueueSimulationRunExecutionJob: async (input: EnqueuePlatformSimulationRunJobInput): Promise<JobRecord> => {
       const account = requireAccount(input.actorSessionToken, input.now);
-      const run = store.simulations.fetchForUser(input.runId, account.id);
+      const run = await simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
@@ -891,7 +895,7 @@ export const createPlatformApp = ({
       if (canceledJob.status === "canceled" || canceledJob.cancellationRequestedAt !== undefined) {
         const simulationRunId = simulationRunIdForJob(canceledJob);
         if (simulationRunId !== null) {
-          store.simulations.markCanceled(simulationRunId);
+          await simulations.markCanceled(simulationRunId);
         }
       }
 
@@ -920,7 +924,7 @@ export const createPlatformApp = ({
       });
       const simulationRunId = simulationRunIdForJob(rerunJob);
       if (existingRerunJob === undefined && rerunJob.status === "queued" && simulationRunId !== null) {
-        store.simulations.resetForRerun(simulationRunId);
+        await simulations.resetForRerun(simulationRunId);
       }
 
       return cloneForRead(rerunJob);

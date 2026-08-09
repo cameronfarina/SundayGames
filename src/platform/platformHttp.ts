@@ -604,7 +604,7 @@ const routeSimulations = async (
 
   if (request.segments.length === 1) {
     if (request.method === "GET") {
-      const simulations = app.listSimulationRuns({
+      const simulations = await app.listSimulationRuns({
         actorSessionToken: request.sessionToken,
         now: requestDate(request.body, request.query, "now"),
       });
@@ -613,7 +613,7 @@ const routeSimulations = async (
     }
 
     if (request.method === "POST") {
-      const simulation = app.createSimulationRun({
+      const simulation = await app.createSimulationRun({
         actorSessionToken: request.sessionToken,
         leagueId: stringValue(request.body.leagueId),
         seasonId: stringValue(request.body.seasonId),
@@ -635,7 +635,7 @@ const routeSimulations = async (
   if (request.segments.length === 2) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const simulation = app.getSimulationRun({
+    const simulation = await app.getSimulationRun({
       actorSessionToken: request.sessionToken,
       runId: runId ?? "",
       now: requestDate(request.body, request.query, "now"),

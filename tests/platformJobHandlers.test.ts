@@ -95,7 +95,7 @@ describe("platform job handlers", () => {
       ],
       now,
     });
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,

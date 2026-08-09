@@ -41,7 +41,7 @@ Current npm entrypoints:
 - `npm run platform:web`: starts the platform HTTP server.
 - `npm run platform:worker`: starts the background job worker loop.
 
-The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path.
+The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path. In Postgres mode, web and worker construct normalized repositories for jobs and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet.
 
 ## Environment Variables
 

@@ -217,7 +217,7 @@ describe("file-backed platform store", () => {
       ],
       now,
     });
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -258,11 +258,11 @@ describe("file-backed platform store", () => {
     const loadedFileStore = await FilePlatformStore.load(path);
     const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
 
-    expect(loadedApp.getSimulationRun({
+    await expect(loadedApp.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
       now,
-    })).toEqual(completedSimulation);
+    })).resolves.toEqual(completedSimulation);
     expect(loadedApp.listMockDraftSessions({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
@@ -322,7 +322,7 @@ describe("file-backed platform store", () => {
       baselinePrices,
       now: new Date(now.getTime() + 2_000),
     });
-    const simulation = app.createSimulationRun({
+    const simulation = await app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
