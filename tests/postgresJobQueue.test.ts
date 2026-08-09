@@ -455,6 +455,102 @@ describe("Postgres job queue", () => {
     ));
   });
 
+  it("reruns terminal jobs idempotently with fresh queued lifecycle state", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    const originalJob = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "simulate-original",
+      now,
+    });
+    await queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    await queue.cancelJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+    await queue.cancelJobAtRunBoundary({
+      jobId: originalJob.id,
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    const rerunAt = new Date(now.getTime() + 4_000);
+    const rerunJob = await queue.rerunJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      idempotencyKey: "rerun-click-1",
+      now: rerunAt,
+    });
+    const rerunAgain = await queue.rerunJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      idempotencyKey: "rerun-click-1",
+      now: new Date(now.getTime() + 5_000),
+    });
+
+    expect(rerunJob.id).not.toBe(originalJob.id);
+    expect(rerunAgain.id).toBe(rerunJob.id);
+    expect(rerunJob).toMatchObject({
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      status: "queued",
+      inputJson: originalJob.inputJson,
+      inputHash: originalJob.inputHash,
+      idempotencyKey: `rerun:${originalJob.id}:rerun-click-1`,
+      progress: { completed: 0, total: 1, message: "Queued" },
+      attempts: 0,
+      maxAttempts: originalJob.maxAttempts,
+      workerId: undefined,
+      lockedAt: undefined,
+      heartbeatAt: undefined,
+      lockExpiresAt: undefined,
+      startedAt: undefined,
+      finishedAt: undefined,
+      cancellationRequestedAt: undefined,
+      resultSummary: undefined,
+      sanitizedError: undefined,
+      createdAt: rerunAt,
+      updatedAt: rerunAt,
+    });
+  });
+
+  it("rejects reruns for active jobs and jobs owned by another user", async () => {
+    const client = new FakePostgresJobClient();
+    const queue = new PostgresJobQueue(client);
+    const activeJob = await queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "active-job",
+      now,
+    });
+
+    await expect(queue.rerunJob({
+      jobId: activeJob.id,
+      userId: "user_cam",
+      idempotencyKey: "rerun-active",
+      now: new Date(now.getTime() + 1_000),
+    })).rejects.toThrow(new JobError("job_not_terminal", "Only completed, failed, or canceled jobs can be rerun."));
+    await expect(queue.rerunJob({
+      jobId: activeJob.id,
+      userId: "user_seth",
+      idempotencyKey: "rerun-rival",
+      now: new Date(now.getTime() + 1_000),
+    })).rejects.toThrow(new JobError("job_owner_required", "Job belongs to another user."));
+  });
+
   it("preserves top-level JSON strings from input and result JSONB", async () => {
     const client = new FakePostgresJobClient();
     const queue = new PostgresJobQueue(client);

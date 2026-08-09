@@ -113,6 +113,105 @@ describe("platform async jobs", () => {
     ));
   });
 
+  it("reruns terminal jobs idempotently with fresh queued lifecycle state", () => {
+    const queue = new InMemoryJobQueue();
+    const originalJob = queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "simulate-original",
+      now,
+    });
+    queue.claimNextJob({
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 1_000),
+    });
+    queue.cancelJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      now: new Date(now.getTime() + 2_000),
+    });
+    queue.cancelJobAtRunBoundary({
+      jobId: originalJob.id,
+      workerId: "worker_a",
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    const rerunAt = new Date(now.getTime() + 4_000);
+    const rerunJob = queue.rerunJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      idempotencyKey: "rerun-click-1",
+      now: rerunAt,
+    });
+    const rerunAgain = queue.rerunJob({
+      jobId: originalJob.id,
+      userId: "user_cam",
+      idempotencyKey: "rerun-click-1",
+      now: new Date(now.getTime() + 5_000),
+    });
+
+    expect(rerunJob).not.toBe(originalJob);
+    expect(rerunAgain).toBe(rerunJob);
+    expect(rerunJob).toMatchObject({
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      status: "queued",
+      inputJson: originalJob.inputJson,
+      inputHash: originalJob.inputHash,
+      idempotencyKey: `rerun:${originalJob.id}:rerun-click-1`,
+      progress: { completed: 0, total: 1, message: "Queued" },
+      attempts: 0,
+      maxAttempts: originalJob.maxAttempts,
+      workerId: undefined,
+      lockedAt: undefined,
+      heartbeatAt: undefined,
+      lockExpiresAt: undefined,
+      startedAt: undefined,
+      finishedAt: undefined,
+      cancellationRequestedAt: undefined,
+      resultSummary: undefined,
+      sanitizedError: undefined,
+      createdAt: rerunAt,
+      updatedAt: rerunAt,
+    });
+    expect(queue.listForUser("user_cam").map(job => job.id)).toEqual([originalJob.id, rerunJob.id]);
+  });
+
+  it("rejects reruns for active jobs and jobs owned by another user", () => {
+    const queue = new InMemoryJobQueue();
+    const activeJob = queue.submit({
+      userId: "user_cam",
+      leagueId: "league_home",
+      seasonId: "season_2026",
+      kind: "simulation",
+      inputJson: { iterations: 1000 },
+      idempotencyKey: "active-job",
+      now,
+    });
+
+    expect(() =>
+      queue.rerunJob({
+        jobId: activeJob.id,
+        userId: "user_cam",
+        idempotencyKey: "rerun-active",
+        now: new Date(now.getTime() + 1_000),
+      }),
+    ).toThrow(new JobError("job_not_terminal", "Only completed, failed, or canceled jobs can be rerun."));
+    expect(() =>
+      queue.rerunJob({
+        jobId: activeJob.id,
+        userId: "user_seth",
+        idempotencyKey: "rerun-rival",
+        now: new Date(now.getTime() + 1_000),
+      }),
+    ).toThrow(new JobError("job_owner_required", "Job belongs to another user."));
+  });
+
   it("claims the oldest queued job with a worker lock and heartbeat", () => {
     const queue = new InMemoryJobQueue();
     const olderJob = queue.submit({

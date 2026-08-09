@@ -615,29 +615,30 @@ describe("platform HTTP contract", () => {
       }),
     });
 
-    const createdExecutableSimulation = await handle({
+    const rerunJob = await handle({
       method: "POST",
-      path: "/simulations",
+      path: `/jobs/${enqueuedJobId}/rerun`,
       sessionToken: cam.sessionToken,
       body: {
-        leagueId: season.leagueId,
-        seasonId: season.id,
-        ownerId: camTeam.ownerId,
-        teamId: camTeam.id,
-        count: 25,
-        seedPrefix: "cam-puka-plan-direct",
-        idempotencyKey: "cam-puka-plan-direct",
-        strategy: {
-          hardLocks: [
-            { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
-          ],
-        },
+        idempotencyKey: "rerun-cam-puka-plan",
         now: new Date(now.getTime() + 950).toISOString(),
       },
     });
-    const executableSimulation = expectBodyRecord(createdExecutableSimulation.body).simulation;
-    if (!isRecord(executableSimulation)) throw new Error("Expected simulation response.");
-    const executableSimulationId = expectString(executableSimulation.id);
+    const rerunJobBody = expectBodyRecord(rerunJob.body);
+    const rerunJobRecord = expectBodyRecord(rerunJobBody.job);
+    const rerunJobId = expectString(rerunJobRecord.id);
+
+    expect(rerunJob).toMatchObject({
+      status: 202,
+      body: {
+        job: expect.objectContaining({
+          id: rerunJobId,
+          status: "queued",
+          idempotencyKey: `rerun:${enqueuedJobId}:rerun-cam-puka-plan`,
+        }),
+      },
+    });
+    expect(rerunJobId).not.toBe(enqueuedJobId);
 
     const listedSimulations = await handle({
       method: "GET",
@@ -646,25 +647,24 @@ describe("platform HTTP contract", () => {
     });
 
     expect(listedSimulations.body).toMatchObject({
-      simulations: expect.arrayContaining([
-        expect.objectContaining({ id: simulationId, status: "canceled" }),
-        expect.objectContaining({ id: executableSimulationId, status: "requested" }),
-      ]),
+      simulations: [
+        expect.objectContaining({ id: simulationId, status: "requested" }),
+      ],
     });
 
     const fetchedSimulation = await handle({
       method: "GET",
-      path: `/simulations/${executableSimulationId}`,
+      path: `/simulations/${simulationId}`,
       sessionToken: cam.sessionToken,
     });
 
     expect(fetchedSimulation.body).toMatchObject({
-      simulation: expect.objectContaining({ id: executableSimulationId }),
+      simulation: expect.objectContaining({ id: simulationId, status: "requested" }),
     });
 
     const executedSimulation = await handle({
       method: "POST",
-      path: `/simulations/${executableSimulationId}/execute`,
+      path: `/simulations/${simulationId}/execute`,
       sessionToken: cam.sessionToken,
       body: {
         now: new Date(now.getTime() + 1_000).toISOString(),
@@ -673,7 +673,7 @@ describe("platform HTTP contract", () => {
 
     expect(executedSimulation.body).toMatchObject({
       simulation: expect.objectContaining({
-        id: executableSimulationId,
+        id: simulationId,
         status: "completed",
         result: expect.objectContaining({ runCount: 25 }),
       }),

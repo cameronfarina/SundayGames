@@ -4,6 +4,8 @@ import {
   defaultLockTtlMs,
   defaultMaxAttempts,
   hashJobInput,
+  isTerminalJob,
+  jobRerunIdempotencyKeyFor,
   sanitizeJobError,
   type CancelJobAtRunBoundaryInput,
   type CancelJobInput,
@@ -17,6 +19,7 @@ import {
   type JobRepository,
   type JobStatus,
   type JsonValue,
+  type RerunJobInput,
   type SanitizedJobError,
   type SubmitJobInput,
   type UpdateJobProgressInput,
@@ -464,6 +467,30 @@ RETURNING *;
     );
 
     return await this.#requiredLockedUpdate(result, input.jobId, input.workerId);
+  }
+
+  async rerunJob(input: RerunJobInput): Promise<JobRecord> {
+    const originalJob = await this.#requireJobOwnedBy(input.jobId, input.userId);
+
+    if (!isTerminalJob(originalJob)) {
+      throw new JobError("job_not_terminal", "Only completed, failed, or canceled jobs can be rerun.");
+    }
+
+    const rerunIdempotencyKey = input.idempotencyKey.trim();
+    if (rerunIdempotencyKey.length === 0) {
+      throw new JobError("idempotency_key_required", "Rerun jobs require an idempotency key.");
+    }
+
+    return await this.submit({
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      inputJson: originalJob.inputJson,
+      idempotencyKey: jobRerunIdempotencyKeyFor(originalJob.id, rerunIdempotencyKey),
+      maxAttempts: originalJob.maxAttempts,
+      now: input.now,
+    });
   }
 
   async listForUser(userId: string): Promise<JobRecord[]> {

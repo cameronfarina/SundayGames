@@ -13,6 +13,7 @@ import {
   type HeartbeatJobInput,
   type JobRecord,
   type JobRepository,
+  type RerunJobInput,
   type SubmitJobInput,
   type UpdateJobProgressInput,
 } from "../src/platform/jobs.js";
@@ -156,6 +157,10 @@ class AsyncJobRepository implements JobRepository {
 
   async cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): Promise<JobRecord> {
     return this.inner.cancelJobAtRunBoundary(input);
+  }
+
+  async rerunJob(input: RerunJobInput): Promise<JobRecord> {
+    return this.inner.rerunJob(input);
   }
 
   async listForUser(userId: string): Promise<JobRecord[]> {
@@ -898,8 +903,17 @@ describe("platform server composition", () => {
       status: "canceled",
     });
 
-    const savedSnapshot = JSON.parse(await readFile(dataFilePath, "utf8")) as { jobs?: unknown[] };
+    const savedSnapshot = JSON.parse(await readFile(dataFilePath, "utf8")) as {
+      jobs?: unknown[];
+      simulationRuns?: Array<{ id?: unknown; status?: unknown }>;
+    };
     expect(savedSnapshot.jobs).toEqual([]);
+    expect(savedSnapshot.simulationRuns).toEqual([
+      expect.objectContaining({
+        id: simulation.id,
+        status: "canceled",
+      }),
+    ]);
   });
 
   it("creates a Postgres job queue when a transactional job client is configured", async () => {

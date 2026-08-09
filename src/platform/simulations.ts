@@ -407,6 +407,19 @@ export class InMemorySimulationRepository {
     return run;
   }
 
+  resetForRerun(runId: string): SimulationRun {
+    const run = this.find(runId);
+
+    if (run.status === "running") return run;
+
+    run.status = "requested";
+    run.startedAt = undefined;
+    run.completedAt = undefined;
+    run.result = undefined;
+
+    return run;
+  }
+
   complete(runId: string, result: SimulationResult): SimulationRun {
     const run = this.find(runId);
 

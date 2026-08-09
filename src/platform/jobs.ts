@@ -5,11 +5,13 @@ export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancele
 
 export type JobErrorCode =
   | "idempotency_conflict"
+  | "idempotency_key_required"
   | "job_not_found"
   | "job_owner_required"
   | "job_not_running"
   | "job_lock_mismatch"
-  | "job_not_claimable";
+  | "job_not_claimable"
+  | "job_not_terminal";
 
 export class JobError extends Error {
   readonly code: JobErrorCode;
@@ -123,6 +125,13 @@ export interface CancelJobAtRunBoundaryInput {
   now?: Date | undefined;
 }
 
+export interface RerunJobInput {
+  jobId: string;
+  userId: string;
+  idempotencyKey: string;
+  now?: Date | undefined;
+}
+
 export interface JobRepository {
   submit(input: SubmitJobInput): MaybePromise<JobRecord>;
   claimNextJob(input: ClaimNextJobInput): MaybePromise<JobRecord | null>;
@@ -132,6 +141,7 @@ export interface JobRepository {
   failJob(input: FailJobInput): MaybePromise<JobRecord>;
   cancelJob(input: CancelJobInput): MaybePromise<JobRecord>;
   cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): MaybePromise<JobRecord>;
+  rerunJob(input: RerunJobInput): MaybePromise<JobRecord>;
   listForUser(userId: string): MaybePromise<JobRecord[]>;
   fetchForUser(jobId: string, userId: string): MaybePromise<JobRecord | null>;
 }
@@ -141,6 +151,13 @@ export const defaultLockTtlMs = 60_000;
 const jobIdBytes = 16;
 
 export const createJobId = (): string => `job_${randomBytes(jobIdBytes).toString("base64url")}`;
+
+const terminalJobStatuses = new Set<JobStatus>(["completed", "failed", "canceled"]);
+
+export const isTerminalJob = (job: JobRecord): boolean => terminalJobStatuses.has(job.status);
+
+export const jobRerunIdempotencyKeyFor = (jobId: string, rerunIdempotencyKey: string): string =>
+  `rerun:${jobId}:${rerunIdempotencyKey}`;
 
 const idempotencyIndexKey = (
   userId: string,
@@ -373,6 +390,30 @@ export class InMemoryJobQueue implements JobRepository {
     this.#clearLock(job);
 
     return job;
+  }
+
+  rerunJob(input: RerunJobInput): JobRecord {
+    const originalJob = this.#findJobForUser(input.jobId, input.userId);
+
+    if (!isTerminalJob(originalJob)) {
+      throw new JobError("job_not_terminal", "Only completed, failed, or canceled jobs can be rerun.");
+    }
+
+    const rerunIdempotencyKey = input.idempotencyKey.trim();
+    if (rerunIdempotencyKey.length === 0) {
+      throw new JobError("idempotency_key_required", "Rerun jobs require an idempotency key.");
+    }
+
+    return this.submit({
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      inputJson: originalJob.inputJson,
+      idempotencyKey: jobRerunIdempotencyKeyFor(originalJob.id, rerunIdempotencyKey),
+      maxAttempts: originalJob.maxAttempts,
+      now: input.now,
+    });
   }
 
   listForUser(userId: string): JobRecord[] {

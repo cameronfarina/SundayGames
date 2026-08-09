@@ -27,7 +27,12 @@ import {
   type HistoricalImportBatch,
   type HistoricalSaleRecord,
 } from "./historicalImports.js";
-import { InMemoryJobQueue, type JobRecord, type JobRepository } from "./jobs.js";
+import {
+  InMemoryJobQueue,
+  jobRerunIdempotencyKeyFor,
+  type JobRecord,
+  type JobRepository,
+} from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   InMemoryLiveDraftRoomRepository,
@@ -185,6 +190,13 @@ export interface GetPlatformJobInput {
 export interface CancelPlatformJobInput {
   actorSessionToken: string;
   jobId: string;
+  now?: Date | undefined;
+}
+
+export interface RerunPlatformJobInput {
+  actorSessionToken: string;
+  jobId: string;
+  idempotencyKey: string;
   now?: Date | undefined;
 }
 
@@ -884,6 +896,34 @@ export const createPlatformApp = ({
       }
 
       return cloneForRead(canceledJob);
+    },
+
+    rerunJob: async (input: RerunPlatformJobInput): Promise<JobRecord> => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const job = await jobs.fetchForUser(input.jobId, account.id);
+
+      if (job === null) {
+        throw new PlatformAppError("private_resource", "This job belongs to another user.");
+      }
+
+      const rerunIdempotencyKey = jobRerunIdempotencyKeyFor(job.id, input.idempotencyKey.trim());
+      const existingRerunJob = (await jobs.listForUser(account.id)).find(candidateJob =>
+        candidateJob.leagueId === job.leagueId &&
+        candidateJob.seasonId === job.seasonId &&
+        candidateJob.idempotencyKey === rerunIdempotencyKey
+      );
+      const rerunJob = await jobs.rerunJob({
+        jobId: input.jobId,
+        userId: account.id,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      });
+      const simulationRunId = simulationRunIdForJob(rerunJob);
+      if (existingRerunJob === undefined && rerunJob.status === "queued" && simulationRunId !== null) {
+        store.simulations.resetForRerun(simulationRunId);
+      }
+
+      return cloneForRead(rerunJob);
     },
 
     previewHistoricalImportSource: (input: PreviewPlatformHistoricalImportInput): PreviewHistoricalImportSourceWorkflowResult => {

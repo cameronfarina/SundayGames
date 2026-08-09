@@ -335,6 +335,8 @@ const jobErrorStatus = (code: JobError["code"]): number => {
   switch (code) {
     case "job_not_found":
       return 404;
+    case "idempotency_key_required":
+      return 400;
     case "idempotency_conflict":
       return 409;
     case "job_lock_mismatch":
@@ -342,6 +344,7 @@ const jobErrorStatus = (code: JobError["code"]): number => {
       return 403;
     case "job_not_claimable":
     case "job_not_running":
+    case "job_not_terminal":
       return 409;
   }
 };
@@ -731,6 +734,19 @@ const routeJobs = async (
     });
 
     return { status: 200, body: { job } };
+  }
+
+  if (request.segments.length === 3 && action === "rerun") {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const job = await app.rerunJob({
+      actorSessionToken: request.sessionToken,
+      jobId: jobId ?? "",
+      idempotencyKey: stringValue(request.body.idempotencyKey),
+      now: requestDate(request.body, request.query, "now"),
+    });
+
+    return { status: 202, body: { job } };
   }
 
   if (request.segments.length !== 2) return notFound();

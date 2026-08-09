@@ -177,6 +177,63 @@ describe("platform app service", () => {
       status: "canceled",
       result: undefined,
     });
+    const rerunJob = await app.rerunJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: simulationJob.id,
+      idempotencyKey: "rerun-cam-puka-plan",
+      now: new Date(now.getTime() + 800),
+    });
+    const rerunAgain = await app.rerunJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: simulationJob.id,
+      idempotencyKey: "rerun-cam-puka-plan",
+      now: new Date(now.getTime() + 850),
+    });
+
+    expect(rerunJob).toMatchObject({
+      id: expect.stringMatching(/^job_/),
+      status: "queued",
+      kind: "simulation",
+      inputJson: simulationJob.inputJson,
+      idempotencyKey: `rerun:${simulationJob.id}:rerun-cam-puka-plan`,
+    });
+    expect(rerunJob.id).not.toBe(simulationJob.id);
+    expect(rerunAgain).toEqual(rerunJob);
+    expect(app.getSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+    })).toMatchObject({
+      id: simulation.id,
+      status: "requested",
+      result: undefined,
+    });
+    const completedRerunSimulation = await app.executeSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 860),
+    });
+    const rerunAfterCompletion = await app.rerunJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: simulationJob.id,
+      idempotencyKey: "rerun-cam-puka-plan",
+      now: new Date(now.getTime() + 870),
+    });
+    expect(completedRerunSimulation.status).toBe("completed");
+    expect(rerunAfterCompletion).toEqual(rerunJob);
+    expect(app.getSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+    })).toMatchObject({
+      id: simulation.id,
+      status: "completed",
+      result: expect.objectContaining({ runCount: 25 }),
+    });
+    await expect(app.rerunJob({
+      actorSessionToken: seth.sessionToken,
+      jobId: simulationJob.id,
+      idempotencyKey: "seth-rerun",
+      now: new Date(now.getTime() + 875),
+    })).rejects.toThrow(new PlatformAppError("private_resource", "This job belongs to another user."));
 
     const executableSimulation = app.createSimulationRun({
       actorSessionToken: cam.sessionToken,
@@ -205,7 +262,7 @@ describe("platform app service", () => {
       forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
     });
     expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken }).map(run => run.status)).toEqual([
-      "canceled",
+      "completed",
       "completed",
     ]);
     expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).toEqual([]);
