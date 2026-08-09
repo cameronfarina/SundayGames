@@ -1,10 +1,12 @@
 import {
   InMemoryAuthRepository,
   createAuthService,
+  type AccountCredentialRecord,
   type AccountRecord,
   type CreateUserInput,
   type LoginInput,
   type LoginResult,
+  type SessionRecord,
 } from "./auth.js";
 import {
   draftExportSlotOrder,
@@ -67,6 +69,7 @@ export class PlatformAppError extends Error {
 export interface PlatformLeagueMembership extends LeagueMembership {
   ownerId?: string;
   teamId?: string;
+  inviteEmail?: string;
 }
 
 export interface RegisterLeagueSeasonInput {
@@ -183,6 +186,16 @@ export interface PlatformAppOptions {
   simulationRunner: SimulationMockBatchRunner;
 }
 
+export interface InMemoryPlatformStoreSnapshot {
+  auth: {
+    accountCredentials: readonly AccountCredentialRecord[];
+    sessions: readonly SessionRecord[];
+  };
+  leagueSeasons: readonly LeagueSeason[];
+  memberships: readonly PlatformLeagueMembership[];
+  liveDraftRooms: readonly LiveDraftRoom[];
+}
+
 const draftExportSlotKeys = new Set<string>(draftExportSlotOrder);
 const sharedMutationRoles = new Set<WorkspaceRole>(["owner", "admin"]);
 
@@ -200,7 +213,7 @@ export class InMemoryPlatformStore {
   readonly #leagueSeasonsById = new Map<string, LeagueSeason>();
   readonly #membershipsByUserAndLeague = new Map<string, PlatformLeagueMembership>();
 
-  constructor() {
+  constructor(snapshot?: InMemoryPlatformStoreSnapshot | undefined) {
     this.liveDraftRooms = new InMemoryLiveDraftRoomRepository(({ actor, action, room }) => {
       const membership = this.findMembership(actor.userId, room.leagueId);
 
@@ -209,6 +222,10 @@ export class InMemoryPlatformStore {
 
       return sharedMutationRoles.has(membership.role);
     });
+
+    if (snapshot !== undefined) {
+      this.#loadSnapshot(snapshot);
+    }
   }
 
   registerLeagueSeason(
@@ -255,6 +272,69 @@ export class InMemoryPlatformStore {
     return [...this.#membershipsByUserAndLeague.values()]
       .filter(membership => membership.leagueId === leagueId)
       .map(membership => cloneForRead(membership));
+  }
+
+  snapshot(): InMemoryPlatformStoreSnapshot {
+    return {
+      auth: {
+        accountCredentials: this.authRepository.accounts().map(account => {
+          const credential = this.authRepository.findAccountCredentialByEmail(account.email);
+          if (credential === null) {
+            throw new Error(`Missing credential for account "${account.id}".`);
+          }
+
+          return cloneForRead(credential);
+        }),
+        sessions: this.authRepository.sessions().map(session => cloneForRead(session)),
+      },
+      leagueSeasons: [...this.#leagueSeasonsById.values()].map(season => cloneForRead(season)),
+      memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),
+      liveDraftRooms: this.liveDraftRooms.rooms(),
+    };
+  }
+
+  #loadSnapshot(snapshot: InMemoryPlatformStoreSnapshot): void {
+    this.#leagueSeasonsById.clear();
+    this.#membershipsByUserAndLeague.clear();
+
+    for (const credential of snapshot.auth.accountCredentials) {
+      const account = this.authRepository.createAccount({
+        id: credential.account.id,
+        email: credential.account.email,
+        passwordHash: credential.passwordHash,
+        now: credential.account.createdAt,
+      });
+
+      account.updatedAt = credential.account.updatedAt;
+    }
+
+    for (const session of snapshot.auth.sessions) {
+      this.authRepository.createSession({
+        id: session.id,
+        accountId: session.accountId,
+        tokenHash: session.tokenHash,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      });
+
+      if (session.revokedAt !== undefined) {
+        this.authRepository.revokeSession(session.id, session.revokedAt);
+      }
+    }
+
+    for (const season of snapshot.leagueSeasons) {
+      const storedSeason = cloneForRead(season);
+      this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
+    }
+
+    for (const membership of snapshot.memberships) {
+      this.#membershipsByUserAndLeague.set(
+        membershipKeyFor(membership.userId, membership.leagueId),
+        cloneForRead(membership),
+      );
+    }
+
+    this.liveDraftRooms.replaceRooms(snapshot.liveDraftRooms);
   }
 }
 

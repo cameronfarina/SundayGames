@@ -19,6 +19,12 @@ import {
   type PlatformLeagueMembership,
 } from "./platformApp.js";
 import {
+  applyLeagueSetupImport,
+  previewLeagueSetupImport,
+  type PlatformLeagueSetupImportInput,
+  type PlatformLeagueSetupImportKnownUser,
+} from "./platformSetupHttp.js";
+import {
   SimulationError,
   type SimulationStrategyInput,
 } from "./simulations.js";
@@ -156,6 +162,9 @@ const requestDate = (
 
 const arrayValue = (value: unknown): readonly unknown[] =>
   Array.isArray(value) ? value : [];
+
+const stringArrayValue = (value: unknown): readonly string[] =>
+  arrayValue(value).map(stringValue);
 
 const bearerSessionToken = (authorization: string | undefined): string | undefined => {
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
@@ -366,15 +375,59 @@ const registerSeason = (
   return { status: 200, body: { season } };
 };
 
+const setupImportKnownUsers = (value: unknown): readonly PlatformLeagueSetupImportKnownUser[] =>
+  arrayValue(value).flatMap((candidate): PlatformLeagueSetupImportKnownUser[] => {
+    const record = unknownRecord(candidate);
+    const email = optionalString(record?.email);
+    if (record === null || email === undefined) return [];
+    const userId = optionalString(record.userId);
+    const accountId = optionalString(record.accountId);
+
+    return [{
+      email,
+      ...(userId === undefined ? {} : { userId }),
+      ...(accountId === undefined ? {} : { accountId }),
+    }];
+  });
+
+const routeSeasonSetupImport = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, seasonId, , action] = request.segments;
+  if (request.segments.length !== 4) return notFound();
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const content = optionalString(request.body.content);
+  const now = requestDate(request.body, request.query, "now");
+  const input: PlatformLeagueSetupImportInput = {
+    actorSessionToken: request.sessionToken,
+    seasonId: seasonId ?? "",
+    rows: stringArrayValue(request.body.rows),
+    knownUsers: setupImportKnownUsers(request.body.knownUsers),
+    ...(content === undefined ? {} : { content }),
+    ...(now === undefined ? {} : { now }),
+  };
+
+  if (action === "preview") return previewLeagueSetupImport(app, input);
+  if (action === "apply") return applyLeagueSetupImport(app, input);
+
+  return notFound();
+};
+
 const routeSeason = (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
 ): PlatformHttpResponse => {
-  const [seasonRoot, seasonId] = request.segments;
+  const [seasonRoot, seasonId, seasonAction] = request.segments;
   if (seasonRoot !== "seasons") return notFound();
 
   if (request.segments.length === 1 && request.method === "POST") {
     return registerSeason(app, request);
+  }
+
+  if (seasonAction === "setup-import") {
+    return routeSeasonSetupImport(app, request);
   }
 
   if (request.segments.length !== 2) return notFound();

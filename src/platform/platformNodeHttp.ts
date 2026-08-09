@@ -1,0 +1,253 @@
+import { Buffer } from "node:buffer";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
+import type {
+  PlatformHttpErrorBody,
+  PlatformHttpHandler,
+  PlatformHttpRequest,
+  PlatformHttpResponse,
+} from "./platformHttp.js";
+
+export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
+export const mockdSessionCookieName = "mockd_session";
+
+export interface PlatformNodeHttpAdapterOptions {
+  maxBodyBytes?: number | undefined;
+}
+
+export interface MockdSessionCookieOptions {
+  path?: string | undefined;
+  maxAgeSeconds?: number | undefined;
+  expires?: Date | undefined;
+  httpOnly?: boolean | undefined;
+  secure?: boolean | undefined;
+  sameSite?: "Lax" | "Strict" | "None" | undefined;
+}
+
+class InvalidJsonBodyError extends Error {}
+class RequestBodyTooLargeError extends Error {}
+
+const jsonContentType = "application/json; charset=utf-8";
+
+const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
+  status: 400,
+  body: {
+    error: {
+      code: "invalid_json",
+      message: "Request body must be valid JSON.",
+    },
+  },
+};
+
+const requestBodyTooLargeResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
+  status: 413,
+  body: {
+    error: {
+      code: "request_body_too_large",
+      message: "Request body exceeds the configured size limit.",
+    },
+  },
+};
+
+const firstHeaderValue = (value: string | readonly string[] | undefined): string | undefined => {
+  if (typeof value === "string") return value === "" ? undefined : value;
+  if (value !== undefined) return value.find(candidate => candidate.length > 0);
+
+  return undefined;
+};
+
+const headerValue = (
+  headers: IncomingHttpHeaders,
+  headerName: string,
+): string | undefined => firstHeaderValue(headers[headerName]);
+
+const decodeCookieValue = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const cookieSessionToken = (cookieHeader: string | undefined): string | undefined => {
+  if (cookieHeader === undefined) return undefined;
+
+  for (const cookie of cookieHeader.split(";")) {
+    const separatorIndex = cookie.indexOf("=");
+    if (separatorIndex === -1) continue;
+
+    const name = cookie.slice(0, separatorIndex).trim();
+    const value = cookie.slice(separatorIndex + 1).trim();
+    if (name === mockdSessionCookieName && value.length > 0) return decodeCookieValue(value);
+  }
+
+  return undefined;
+};
+
+const bearerSessionToken = (authorization: string | undefined): string | undefined => {
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  const token = match?.[1]?.trim();
+
+  return token === "" ? undefined : token;
+};
+
+const sessionTokenFor = (headers: IncomingHttpHeaders): string | undefined =>
+  cookieSessionToken(headerValue(headers, "cookie")) ??
+  headerValue(headers, "x-session-token") ??
+  bearerSessionToken(headerValue(headers, "authorization"));
+
+const platformHeadersFor = (headers: IncomingHttpHeaders): Record<string, string | undefined> => {
+  const platformHeaders: Record<string, string | undefined> = {};
+
+  for (const [name, value] of Object.entries(headers)) {
+    const lowerName = name.toLowerCase();
+    if (
+      lowerName === "authorization" ||
+      lowerName === "cookie" ||
+      lowerName === "session-token" ||
+      lowerName === "sessiontoken" ||
+      lowerName === "x-session-token"
+    ) {
+      continue;
+    }
+
+    platformHeaders[lowerName] = firstHeaderValue(value);
+  }
+
+  return platformHeaders;
+};
+
+const contentLengthFor = (headers: IncomingHttpHeaders): number | undefined => {
+  const rawContentLength = headerValue(headers, "content-length");
+  if (rawContentLength === undefined) return undefined;
+
+  const contentLength = Number(rawContentLength);
+
+  return Number.isFinite(contentLength) && contentLength >= 0 ? contentLength : undefined;
+};
+
+const readJsonBody = async (
+  request: IncomingMessage,
+  maxBodyBytes: number,
+): Promise<unknown | undefined> => {
+  const contentLength = contentLengthFor(request.headers);
+  if (contentLength !== undefined && contentLength > maxBodyBytes) {
+    request.resume();
+    throw new RequestBodyTooLargeError();
+  }
+
+  const chunks: Buffer[] = [];
+  let byteLength = 0;
+
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    byteLength += buffer.byteLength;
+
+    if (byteLength > maxBodyBytes) {
+      request.resume();
+      throw new RequestBodyTooLargeError();
+    }
+
+    chunks.push(buffer);
+  }
+
+  if (byteLength === 0) return undefined;
+
+  const bodyText = Buffer.concat(chunks, byteLength).toString("utf8");
+  if (bodyText.trim().length === 0) return undefined;
+
+  try {
+    return JSON.parse(bodyText) as unknown;
+  } catch {
+    throw new InvalidJsonBodyError();
+  }
+};
+
+const writeJsonResponse = (
+  response: ServerResponse,
+  platformResponse: PlatformHttpResponse,
+): void => {
+  const body = JSON.stringify(platformResponse.body ?? null);
+
+  response.statusCode = platformResponse.status;
+  response.setHeader("Content-Type", jsonContentType);
+  response.setHeader("Content-Length", Buffer.byteLength(body));
+  response.end(body);
+};
+
+const platformRequestFor = async (
+  request: IncomingMessage,
+  maxBodyBytes: number,
+): Promise<PlatformHttpRequest> => {
+  const sessionToken = sessionTokenFor(request.headers);
+
+  return {
+    method: request.method ?? "GET",
+    path: request.url ?? "/",
+    body: await readJsonBody(request, maxBodyBytes),
+    sessionToken,
+    headers: platformHeadersFor(request.headers),
+  };
+};
+
+export const createPlatformNodeHttpAdapter = (
+  handle: PlatformHttpHandler,
+  options: PlatformNodeHttpAdapterOptions = {},
+): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
+  const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
+
+  return async (request, response) => {
+    try {
+      const platformRequest = await platformRequestFor(request, maxBodyBytes);
+      const platformResponse = await handle(platformRequest);
+
+      writeJsonResponse(response, platformResponse);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        writeJsonResponse(response, requestBodyTooLargeResponse);
+        return;
+      }
+
+      if (error instanceof InvalidJsonBodyError) {
+        writeJsonResponse(response, invalidJsonResponse);
+        return;
+      }
+
+      writeJsonResponse(response, {
+        status: 500,
+        body: {
+          error: {
+            code: "internal_error",
+            message: "Something went wrong.",
+          },
+        },
+      });
+    }
+  };
+};
+
+export const mockdSessionCookie = (
+  sessionToken: string,
+  options: MockdSessionCookieOptions = {},
+): string => {
+  const cookieParts = [
+    `${mockdSessionCookieName}=${encodeURIComponent(sessionToken)}`,
+    `Path=${options.path ?? "/"}`,
+  ];
+
+  if (options.maxAgeSeconds !== undefined) cookieParts.push(`Max-Age=${options.maxAgeSeconds}`);
+  if (options.expires !== undefined) cookieParts.push(`Expires=${options.expires.toUTCString()}`);
+  if (options.httpOnly ?? true) cookieParts.push("HttpOnly");
+  if (options.secure === true) cookieParts.push("Secure");
+  cookieParts.push(`SameSite=${options.sameSite ?? "Lax"}`);
+
+  return cookieParts.join("; ");
+};
+
+export const clearMockdSessionCookie = (
+  options: Omit<MockdSessionCookieOptions, "maxAgeSeconds" | "expires"> = {},
+): string =>
+  mockdSessionCookie("", {
+    ...options,
+    maxAgeSeconds: 0,
+    expires: new Date(0),
+  });

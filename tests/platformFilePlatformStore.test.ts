@@ -1,0 +1,186 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import { FilePlatformStore } from "../src/platform/filePlatformStore.js";
+import { createPlatformApp } from "../src/platform/platformApp.js";
+import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+
+const now = new Date("2026-08-09T12:00:00.000Z");
+
+const playerCatalog = [
+  { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const mockRunner: SimulationMockBatchRunner = () => ({
+  options: {
+    scenarioKeys: ["expected"],
+    runsPerScenario: 1,
+    seedPrefix: "unused",
+    forcedSales: [],
+  },
+  runs: [],
+  summary: {
+    runCount: 1,
+    scenarios: [],
+    players: [],
+    owners: [],
+    ownerPlayerExposure: [],
+  },
+});
+
+const asRecord = (value: unknown, label: string): Record<string, unknown> => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Expected ${label} to be an object.`);
+  }
+
+  return value as Record<string, unknown>;
+};
+
+describe("file-backed platform store", () => {
+  let directory: string | undefined;
+
+  afterEach(async () => {
+    if (directory !== undefined) {
+      await rm(directory, { force: true, recursive: true });
+      directory = undefined;
+    }
+  });
+
+  const storePath = async (): Promise<string> => {
+    directory = await mkdtemp(join(tmpdir(), "mockd-platform-store-"));
+
+    return join(directory, "platform-store.json");
+  };
+
+  it("roundtrips a registered league season and active auth session", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+    });
+
+    await fileStore.save();
+    const loadedFileStore = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
+    const loadedSnapshot = loadedFileStore.store.snapshot();
+
+    expect(loadedApp.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id, now })).toEqual(season);
+    expect(loadedSnapshot.auth.accountCredentials[0]?.account.createdAt).toBeInstanceOf(Date);
+    expect(loadedSnapshot.auth.accountCredentials[0]?.account.updatedAt).toBeInstanceOf(Date);
+    expect(loadedSnapshot.auth.sessions[0]?.createdAt).toBeInstanceOf(Date);
+    expect(loadedSnapshot.auth.sessions[0]?.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("roundtrips a live room sale with revived room and event dates", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+    const room = app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_214674_2026",
+      viewerPasswordHashRef: "viewer-password-hash",
+      startsAt: new Date(now.getTime() + 60_000),
+      playerCatalog,
+      now,
+    });
+    app.startLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: 1,
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = app.logLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
+      sale: "cam puka 62",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    await fileStore.save();
+    const loadedFileStore = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
+    const loadedRoom = loadedApp.getLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      now,
+    });
+
+    expect(loadedRoom.projection.sales).toEqual(sold.projection.sales);
+    expect(loadedRoom.createdAt).toBeInstanceOf(Date);
+    expect(loadedRoom.startsAt).toBeInstanceOf(Date);
+    expect(loadedRoom.updatedAt).toBeInstanceOf(Date);
+    expect(loadedRoom.projection.updatedAt).toBeInstanceOf(Date);
+    expect(loadedRoom.events.map(event => event.occurredAt)).toEqual([
+      now,
+      new Date(now.getTime() + 1_000),
+      new Date(now.getTime() + 2_000),
+    ]);
+  });
+
+  it("saves auth token hashes without raw session tokens", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+
+    await fileStore.save();
+    const saved = await readFile(path, "utf8");
+    const savedJson: unknown = JSON.parse(saved);
+    const savedRoot = asRecord(savedJson, "saved store");
+    const auth = asRecord(savedRoot.auth, "auth");
+    if (!Array.isArray(auth.sessions)) throw new Error("Expected auth.sessions to be an array.");
+    const firstSession = asRecord(auth.sessions[0], "first session");
+
+    expect(firstSession.tokenHash).toBe(cam.session.tokenHash);
+    expect(saved).not.toContain(cam.sessionToken);
+    expect(saved).not.toContain("sessionToken");
+    expect(saved).not.toContain("cam password");
+  });
+});

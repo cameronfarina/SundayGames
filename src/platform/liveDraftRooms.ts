@@ -1100,4 +1100,19 @@ export class InMemoryLiveDraftRoomRepository {
 
     return updatedRoom;
   }
+
+  rooms(): readonly LiveDraftRoom[] {
+    return [...this.#roomsById.values()].map(room => structuredClone(room));
+  }
+
+  replaceRooms(rooms: readonly LiveDraftRoom[]): void {
+    this.#roomsById.clear();
+
+    for (const room of rooms) {
+      const { projection: _projection, ...roomWithoutProjection } = structuredClone(room);
+      const storedRoom = roomWithProjection(roomWithoutProjection);
+
+      this.#roomsById.set(storedRoom.roomId, storedRoom);
+    }
+  }
 }
