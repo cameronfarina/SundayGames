@@ -41,6 +41,7 @@ const expectedTableOrder = [
   "draft_room_player_states",
   "draft_room_snapshots",
   "draft_room_exports",
+  "draft_room_export_contents",
   "audit_events",
 ] as const;
 
@@ -91,6 +92,30 @@ const expectIndexContract = (
       columns,
     }),
   );
+};
+
+const expectColumn = (
+  tableName: string,
+  columnName: string,
+  expected: Partial<{ type: string; nullable: boolean; default: string }> = {},
+): void => {
+  expect(tableByName(tableName).columns).toContainEqual(
+    expect.objectContaining({
+      name: columnName,
+      ...expected,
+    }),
+  );
+};
+
+const expectCheckContract = (
+  tableName: string,
+  constraintName: string,
+  expression: string,
+): void => {
+  expect(tableByName(tableName).checkConstraints ?? []).toContainEqual({
+    name: constraintName,
+    expression,
+  });
 };
 
 describe("platform Postgres schema contract", () => {
@@ -155,12 +180,20 @@ describe("platform Postgres schema contract", () => {
       "season_year",
       "file_hash",
     ], "superseded_by_batch_id IS NULL");
+    expectUniqueContract("historical_import_batches", "historical_import_batches_current_committed_season_key", [
+      "league_id",
+      "season_year",
+    ], "status = 'committed'");
     expectUniqueContract("model_runs", "model_runs_input_identity_key", [
       "league_season_id",
       "model_version",
       "input_hash",
     ]);
     expectUniqueContract("pricing_snapshots", "pricing_snapshots_snapshot_hash_key", ["snapshot_hash"]);
+    expectUniqueContract("player_prices", "player_prices_snapshot_player_key", [
+      "pricing_snapshot_id",
+      "player_key",
+    ]);
     expectUniqueContract("jobs", "jobs_user_league_season_idempotency_key", [
       "user_id",
       "league_id",
@@ -187,6 +220,9 @@ describe("platform Postgres schema contract", () => {
       "source_revision",
       "artifact_type",
     ], "status = 'completed'");
+    expectUniqueContract("draft_room_export_contents", "draft_room_export_contents_artifact_key", [
+      "artifact_id",
+    ]);
 
     expect(tableByName("draft_rooms").primaryKey).toEqual(["id"]);
   });
@@ -196,6 +232,7 @@ describe("platform Postgres schema contract", () => {
     expectIndexContract("sessions", "sessions_expires_at_idx", ["expires_at"]);
     expectIndexContract("league_memberships", "league_memberships_user_status_idx", ["user_id", "status"]);
     expectIndexContract("jobs", "jobs_claimable_idx", ["status", "available_at", "created_at"]);
+    expectIndexContract("jobs", "jobs_expired_lease_idx", ["status", "lock_expires_at"]);
     expectIndexContract("strategy_plans", "strategy_plans_private_owner_idx", [
       "user_id",
       "league_season_id",
@@ -217,6 +254,73 @@ describe("platform Postgres schema contract", () => {
     ]);
   });
 
+  it("matches runtime records for imports, pricing, jobs, and exports", () => {
+    expectColumn("historical_import_batches", "replacement_requested", {
+      type: "boolean",
+      default: "false",
+    });
+    expectColumn("historical_import_batches", "superseded_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+
+    expectColumn("historical_draft_sales", "owner_id", { type: "text" });
+    expectColumn("historical_draft_sales", "owner_display_name", { type: "text" });
+    expectColumn("historical_draft_sales", "player_name", { type: "text" });
+    expectColumn("historical_draft_sales", "price_dollars", { type: "integer" });
+    expectColumn("historical_draft_sales", "keeper", {
+      type: "boolean",
+      default: "false",
+    });
+    expectColumn("historical_draft_sales", "acquisition_type", { type: "text" });
+    expectCheckContract(
+      "historical_draft_sales",
+      "historical_draft_sales_acquisition_type_check",
+      "acquisition_type IN ('auction', 'keeper')",
+    );
+
+    expectColumn("player_prices", "player_id", {
+      type: "text",
+      nullable: true,
+    });
+    expectColumn("player_prices", "player_name", { type: "text" });
+    expectColumn("player_prices", "normalized_name", { type: "text" });
+    expectColumn("player_prices", "warnings_json", {
+      type: "jsonb",
+      default: "'[]'::jsonb",
+    });
+    expectColumn("player_prices", "confidence", {
+      type: "numeric",
+      nullable: true,
+    });
+    expectColumn("player_prices", "tier", {
+      type: "text",
+      nullable: true,
+    });
+    expectColumn("player_prices", "strategy_overlay_id", {
+      type: "text",
+      nullable: true,
+    });
+
+    expectColumn("jobs", "lock_expires_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectColumn("jobs", "sanitized_error_json", {
+      type: "jsonb",
+      nullable: true,
+    });
+
+    expectColumn("draft_room_exports", "content_type", { type: "text" });
+    expectColumn("draft_room_exports", "byte_length", { type: "integer" });
+    expectColumn("draft_room_export_contents", "content_base64", { type: "text" });
+    expectCheckContract(
+      "draft_room_exports",
+      "draft_room_exports_byte_length_check",
+      "byte_length >= 0",
+    );
+  });
+
   it("emits Postgres-compatible SQL statements without needing a database connection", () => {
     const migrationSql = platformPostgresMigrationStatements.join("\n").toLowerCase();
 
@@ -232,6 +336,8 @@ describe("platform Postgres schema contract", () => {
     expect(migrationSql).toContain("where idempotency_key is not null");
     expect(migrationSql).toContain("jsonb");
     expect(migrationSql).toContain("timestamptz");
+    expect(migrationSql).toContain("create table draft_room_export_contents");
+    expect(migrationSql).toContain("lock_expires_at timestamptz");
     expect(migrationSql).toContain(
       "alter table league_seasons add constraint league_seasons_active_model_run_id_fkey",
     );

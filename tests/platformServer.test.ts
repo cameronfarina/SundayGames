@@ -14,6 +14,10 @@ import {
   startPlatformServer,
   type PlatformServer,
 } from "../src/platform/platformServer.js";
+import type {
+  PostgresQueryClient,
+  PostgresQueryResult,
+} from "../src/platform/postgresPlatformStore.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -44,6 +48,70 @@ interface JsonFetchResult {
   contentType: string | null;
   body: unknown;
 }
+
+interface StoredSnapshotRow {
+  revision: number;
+  snapshot_json: unknown;
+}
+
+interface InsertGate {
+  entered: () => void;
+  release: Promise<void>;
+}
+
+class FakePostgresClient implements PostgresQueryClient {
+  row: StoredSnapshotRow | undefined;
+  nextInsertGate: InsertGate | undefined;
+
+  async query<TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> {
+    if (text.startsWith("CREATE TABLE") || text.startsWith("CREATE INDEX")) {
+      return { rows: [] };
+    }
+
+    if (text.startsWith("SELECT revision, snapshot_json")) {
+      return { rows: this.row === undefined ? [] : [this.row as TRow] };
+    }
+
+    if (text.startsWith("INSERT INTO platform_store_snapshots")) {
+      if (this.nextInsertGate !== undefined) {
+        const gate = this.nextInsertGate;
+        this.nextInsertGate = undefined;
+        gate.entered();
+        await gate.release;
+      }
+
+      const [, nextRevisionValue, , snapshotJson, , expectedRevisionValue] = values;
+      const nextRevision = Number(nextRevisionValue);
+      const expectedRevision = Number(expectedRevisionValue);
+
+      if (this.row === undefined) {
+        if (expectedRevision !== 0) return { rows: [], rowCount: 0 };
+
+        this.row = { revision: nextRevision, snapshot_json: snapshotJson };
+        return { rows: [{ revision: nextRevision } as TRow], rowCount: 1 };
+      }
+
+      if (this.row.revision !== expectedRevision) return { rows: [], rowCount: 0 };
+
+      this.row = { revision: nextRevision, snapshot_json: snapshotJson };
+      return { rows: [{ revision: nextRevision } as TRow], rowCount: 1 };
+    }
+
+    throw new Error(`Unexpected SQL: ${text}`);
+  }
+}
+
+const deferred = (): { promise: Promise<void>; resolve: () => void } => {
+  let resolve!: () => void;
+  const promise = new Promise<void>(innerResolve => {
+    resolve = innerResolve;
+  });
+
+  return { promise, resolve };
+};
 
 const listen = async (platformServer: PlatformServer): Promise<string> => {
   await new Promise<void>((resolve, reject) => {
@@ -269,6 +337,399 @@ describe("platform server composition", () => {
       },
       sessionToken: expect.any(String),
     });
+  });
+
+  it("loads Postgres-backed state on startup and persists successful mutations", async () => {
+    const postgresClient = new FakePostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+      initializePostgresSchema: true,
+    });
+
+    await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(postgresClient.row).toMatchObject({
+      revision: 1,
+      snapshot_json: {
+        schemaVersion: 1,
+        auth: {
+          accountCredentials: [
+            {
+              account: {
+                email: "cam@example.com",
+                createdAt: now.toISOString(),
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    await platformServer.close();
+    const loadedServer = await createPlatformServer({
+      postgresClient,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+    const loadedBaseUrl = await listen(loadedServer);
+
+    const login = await jsonFetch(loadedBaseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({
+      account: {
+        email: "cam@example.com",
+      },
+      sessionToken: expect.any(String),
+    });
+  });
+
+  it("recovers Postgres-backed runtime after a snapshot write conflict", async () => {
+    const postgresClient = new FakePostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    expect(created.status).toBe(201);
+
+    if (postgresClient.row === undefined) {
+      throw new Error("Expected first account mutation to persist a Postgres snapshot.");
+    }
+    postgresClient.row = {
+      revision: 2,
+      snapshot_json: postgresClient.row.snapshot_json,
+    };
+
+    const conflict = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "stale-local@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(conflict).toEqual({
+      status: 409,
+      contentType: "application/json; charset=utf-8",
+      body: {
+        error: {
+          code: "snapshot_write_conflict",
+          message: "Stored draft data changed before this request could be saved. Reload and try again.",
+        },
+      },
+    });
+    expect(platformServer.postgresStore?.loadedRevision).toBe(2);
+
+    const failedLocalLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "stale-local@example.com",
+        password: "secure password",
+      }),
+    });
+    expect(failedLocalLogin).toMatchObject({
+      status: 401,
+      body: {
+        error: {
+          code: "invalid_credentials",
+        },
+      },
+    });
+
+    const committedLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    expect(committedLogin.status).toBe(200);
+  });
+
+  it("serializes Postgres snapshot-backed HTTP mutations in process", async () => {
+    const postgresClient = new FakePostgresClient();
+    const firstInsertEntered = deferred();
+    const releaseFirstInsert = deferred();
+    postgresClient.nextInsertGate = {
+      entered: firstInsertEntered.resolve,
+      release: releaseFirstInsert.promise,
+    };
+    const { baseUrl } = await createListeningServer({
+      postgresClient,
+    });
+
+    const firstCreate = jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "first@example.com",
+        password: "secure password",
+      }),
+    });
+
+    await firstInsertEntered.promise;
+    const secondCreate = jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "second@example.com",
+        password: "secure password",
+      }),
+    });
+
+    releaseFirstInsert.resolve();
+
+    await expect(Promise.all([firstCreate, secondCreate])).resolves.toMatchObject([
+      { status: 201 },
+      { status: 201 },
+    ]);
+    expect(postgresClient.row?.revision).toBe(2);
+
+    const firstLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "first@example.com",
+        password: "secure password",
+      }),
+    });
+    const secondLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "second@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(firstLogin.status).toBe(200);
+    expect(secondLogin.status).toBe(200);
+  });
+
+  it("serializes Postgres snapshot-backed worker mutations with HTTP mutations", async () => {
+    const postgresClient = new FakePostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+    });
+    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    platformServer.app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    const simulation = platformServer.app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 6,
+      seedPrefix: "postgres-worker",
+      idempotencyKey: "postgres-worker",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    await platformServer.persist();
+    expect(postgresClient.row?.revision).toBe(1);
+
+    const repository = new InMemoryJobQueue();
+    const job = enqueueSimulationRunExecutionJob({
+      repository,
+      userId: cam.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      simulationRunId: simulation.id,
+      runCount: 6,
+      seedPrefix: "postgres-worker",
+      now,
+    });
+    const workerInsertEntered = deferred();
+    const releaseWorkerInsert = deferred();
+    postgresClient.nextInsertGate = {
+      entered: workerInsertEntered.resolve,
+      release: releaseWorkerInsert.promise,
+    };
+    const workerDispatch = dispatchNextPlatformJob({
+      repository,
+      workerId: "worker_simulations",
+      now: new Date(now.getTime() + 1_000),
+      handlers: platformServer.jobHandlers,
+    });
+
+    await workerInsertEntered.promise;
+    const accountCreate = jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "queued-http@example.com",
+        password: "secure password",
+      }),
+    });
+
+    releaseWorkerInsert.resolve();
+
+    await expect(workerDispatch).resolves.toBe(job);
+    await expect(accountCreate).resolves.toMatchObject({ status: 201 });
+    expect(job.status).toBe("completed");
+    expect(postgresClient.row?.revision).toBe(3);
+
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "queued-http@example.com",
+        password: "secure password",
+      }),
+    });
+    expect(login.status).toBe(200);
+  });
+
+  it("runs cached job handlers against the reloaded Postgres runtime", async () => {
+    const postgresClient = new FakePostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+    });
+    const cachedHandlers = platformServer.jobHandlers;
+    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    platformServer.app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    const simulation = platformServer.app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 6,
+      seedPrefix: "cached-handler",
+      idempotencyKey: "cached-handler",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    await platformServer.persist();
+
+    if (postgresClient.row === undefined) {
+      throw new Error("Expected setup mutation to persist a Postgres snapshot.");
+    }
+    postgresClient.row = {
+      revision: 2,
+      snapshot_json: postgresClient.row.snapshot_json,
+    };
+    const conflict = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "stale-local@example.com",
+        password: "secure password",
+      }),
+    });
+    expect(conflict.status).toBe(409);
+    expect(platformServer.postgresStore?.loadedRevision).toBe(2);
+
+    const repository = new InMemoryJobQueue();
+    const job = enqueueSimulationRunExecutionJob({
+      repository,
+      userId: cam.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      simulationRunId: simulation.id,
+      runCount: 6,
+      seedPrefix: "cached-handler",
+      now,
+    });
+
+    await expect(dispatchNextPlatformJob({
+      repository,
+      workerId: "worker_simulations",
+      now: new Date(now.getTime() + 1_000),
+      handlers: cachedHandlers,
+    })).resolves.toBe(job);
+    expect(postgresClient.row?.revision).toBe(3);
+    expect(platformServer.app.getSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 2_000),
+    })).toMatchObject({
+      id: simulation.id,
+      status: "completed",
+      result: {
+        runCount: 6,
+      },
+    });
+  });
+
+  it("rejects ambiguous file and Postgres persistence configuration", async () => {
+    await expect(createPlatformServer({
+      dataFilePath: "/tmp/mockd-platform.json",
+      postgresClient: new FakePostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either dataFilePath or postgresClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {
