@@ -138,7 +138,7 @@ describe("platform app service", () => {
       },
       now,
     });
-    const simulationJob = app.enqueueSimulationRunExecutionJob({
+    const simulationJob = await app.enqueueSimulationRunExecutionJob({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
       idempotencyKey: "job:cam-puka-plan",
@@ -152,8 +152,8 @@ describe("platform app service", () => {
       kind: "simulation",
       status: "queued",
     });
-    expect(app.listJobs({ actorSessionToken: cam.sessionToken })).toEqual([simulationJob]);
-    expect(app.listJobs({ actorSessionToken: seth.sessionToken })).toEqual([]);
+    await expect(app.listJobs({ actorSessionToken: cam.sessionToken })).resolves.toEqual([simulationJob]);
+    await expect(app.listJobs({ actorSessionToken: seth.sessionToken })).resolves.toEqual([]);
 
     const completed = await app.executeSimulationRun({
       actorSessionToken: cam.sessionToken,

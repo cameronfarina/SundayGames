@@ -334,7 +334,7 @@ describe("file-backed platform store", () => {
       strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
       now,
     });
-    const job = app.enqueueSimulationRunExecutionJob({
+    const job = await app.enqueueSimulationRunExecutionJob({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
       idempotencyKey: "job:file-store-job",
@@ -370,10 +370,10 @@ describe("file-backed platform store", () => {
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
     })).toEqual(pricing.snapshots);
-    expect(loadedApp.getJob({
+    await expect(loadedApp.getJob({
       actorSessionToken: cam.sessionToken,
       jobId: job.id,
-    })).toEqual(job);
+    })).resolves.toEqual(job);
     expect(loadedSnapshot.exportArtifacts).toEqual([exportArtifact.artifact]);
     expect(loadedSnapshot.exportArtifactContents).toEqual([
       {

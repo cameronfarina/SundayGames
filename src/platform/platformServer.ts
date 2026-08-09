@@ -1,9 +1,14 @@
 import { createServer, type Server } from "node:http";
 import { FilePlatformStore } from "./filePlatformStore.js";
+import type { JobRepository } from "./jobs.js";
 import {
   createPlatformApp,
   InMemoryPlatformStore,
 } from "./platformApp.js";
+import {
+  PostgresJobQueue,
+  type PostgresTransactionalQueryClient,
+} from "./postgresJobQueue.js";
 import {
   PostgresPlatformStore,
   PostgresPlatformStoreError,
@@ -30,8 +35,10 @@ export type PlatformClock = () => Date;
 export interface CreatePlatformServerOptions {
   dataFilePath?: string | undefined;
   postgresClient?: PostgresQueryClient | undefined;
+  postgresJobClient?: PostgresTransactionalQueryClient | undefined;
   postgresSnapshotKey?: string | undefined;
   initializePostgresSchema?: boolean | undefined;
+  jobRepository?: JobRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
   now?: PlatformClock | undefined;
@@ -41,10 +48,12 @@ export interface PlatformServer {
   server: Server;
   app: PlatformApp;
   store: InMemoryPlatformStore;
+  jobRepository: JobRepository;
   handler: PlatformHttpHandler;
   jobHandlers: PlatformJobHandlers;
   fileStore?: FilePlatformStore | undefined;
   postgresStore?: PostgresPlatformStore | undefined;
+  postgresJobQueue?: PostgresJobQueue | undefined;
   persist: () => Promise<void>;
   close: () => Promise<void>;
 }
@@ -101,6 +110,23 @@ const shouldPersistAfter = (
   mutatingHttpMethods.has(request.method.toUpperCase()) &&
   responseStatus >= 200 &&
   responseStatus < 300;
+
+const isJobOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+
+  try {
+    const segments = new URL(request.path, "http://mockd.local").pathname
+      .split("/")
+      .filter(Boolean)
+      .map(segment => decodeURIComponent(segment));
+
+    return segments[0] === "simulations" &&
+      segments.length === 3 &&
+      (segments[2] === "jobs" || segments[2] === "enqueue");
+  } catch {
+    return false;
+  }
+};
 
 const snapshotWriteConflictResponse = {
   status: 409,
@@ -199,13 +225,19 @@ const hostForUrl = (host: string): string => host.includes(":") ? `[${host}]` : 
 export const createPlatformServer = async (
   options: CreatePlatformServerOptions,
 ): Promise<PlatformServer> => {
+  if (options.jobRepository !== undefined && options.postgresJobClient !== undefined) {
+    throw new Error("Configure either jobRepository or postgresJobClient, not both.");
+  }
+
   interface Runtime {
     store: InMemoryPlatformStore;
+    jobRepository: JobRepository;
     app: PlatformApp;
     platformHandler: PlatformHttpHandler;
     rawJobHandlers: PlatformJobHandlers;
     fileStore?: FilePlatformStore | undefined;
     postgresStore?: PostgresPlatformStore | undefined;
+    postgresJobQueue?: PostgresJobQueue | undefined;
   }
 
   let runtime: Runtime;
@@ -256,8 +288,13 @@ export const createPlatformServer = async (
     fileStore,
     postgresStore,
   }: Awaited<ReturnType<typeof loadStore>>): Runtime => {
+    const postgresJobQueue = options.postgresJobClient === undefined
+      ? undefined
+      : new PostgresJobQueue(options.postgresJobClient);
+    const jobRepository = options.jobRepository ?? postgresJobQueue ?? store.jobs;
     const app = createPlatformApp({
       store,
+      jobRepository,
       simulationRunner: options.simulationRunner,
     });
 
@@ -266,8 +303,10 @@ export const createPlatformServer = async (
       app,
       platformHandler: createPlatformHttpHandler(app),
       rawJobHandlers: createPlatformJobHandlers({ app, persist: rawPersist }),
+      jobRepository,
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
+      ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),
     };
   };
 
@@ -277,8 +316,12 @@ export const createPlatformServer = async (
     const runRequest = async (): Promise<Awaited<ReturnType<PlatformHttpHandler>>> => {
       const requestWithNow = withDefaultNow(request, options.now);
       const response = await runtime.platformHandler(requestWithNow);
+      const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
 
-      if (shouldPersistAfter(requestWithNow, response.status)) {
+      if (
+        shouldPersistAfter(requestWithNow, response.status) &&
+        !(usesExternalJobRepository && isJobOnlyMutationRequest(requestWithNow))
+      ) {
         try {
           await rawPersist();
         } catch (error) {
@@ -304,6 +347,9 @@ export const createPlatformServer = async (
     get store() {
       return runtime.store;
     },
+    get jobRepository() {
+      return runtime.jobRepository;
+    },
     handler,
     get jobHandlers() {
       return jobHandlers;
@@ -315,6 +361,9 @@ export const createPlatformServer = async (
     },
     get postgresStore() {
       return runtime.postgresStore;
+    },
+    get postgresJobQueue() {
+      return runtime.postgresJobQueue;
     },
   };
 
@@ -344,6 +393,9 @@ export const startPlatformServer = async (
     get store() {
       return platformServer.store;
     },
+    get jobRepository() {
+      return platformServer.jobRepository;
+    },
     handler: platformServer.handler,
     get jobHandlers() {
       return platformServer.jobHandlers;
@@ -353,6 +405,9 @@ export const startPlatformServer = async (
     },
     get postgresStore() {
       return platformServer.postgresStore;
+    },
+    get postgresJobQueue() {
+      return platformServer.postgresJobQueue;
     },
     persist: platformServer.persist,
     close: platformServer.close,

@@ -27,7 +27,7 @@ import {
   type HistoricalImportBatch,
   type HistoricalSaleRecord,
 } from "./historicalImports.js";
-import { InMemoryJobQueue, type JobRecord } from "./jobs.js";
+import { InMemoryJobQueue, type JobRecord, type JobRepository } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   InMemoryLiveDraftRoomRepository,
@@ -288,6 +288,7 @@ export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatfo
 
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
+  jobRepository?: JobRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
 }
 
@@ -492,9 +493,11 @@ export class InMemoryPlatformStore {
 
 export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
+  jobRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
   const auth = createAuthService({ repository: store.authRepository });
+  const jobs = jobRepository ?? store.jobs;
 
   const requireAccount = (sessionToken: string, now?: Date): AccountRecord => {
     const authenticated = auth.lookupSession(sessionToken, now);
@@ -796,7 +799,7 @@ export const createPlatformApp = ({
       return cloneForRead(run);
     },
 
-    enqueueSimulationRunExecutionJob: (input: EnqueuePlatformSimulationRunJobInput): JobRecord => {
+    enqueueSimulationRunExecutionJob: async (input: EnqueuePlatformSimulationRunJobInput): Promise<JobRecord> => {
       const account = requireAccount(input.actorSessionToken, input.now);
       const run = store.simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
@@ -804,8 +807,8 @@ export const createPlatformApp = ({
       }
       requirePrivateTeamContext(account, run.request);
 
-      return cloneForRead(enqueueSimulationRunExecutionJob({
-        repository: store.jobs,
+      const job = await enqueueSimulationRunExecutionJob({
+        repository: jobs,
         userId: account.id,
         leagueId: run.request.leagueId,
         seasonId: run.request.seasonId,
@@ -814,18 +817,20 @@ export const createPlatformApp = ({
         seedPrefix: run.request.seedPrefix,
         idempotencyKey: input.idempotencyKey,
         now: input.now,
-      }));
+      });
+
+      return cloneForRead(job);
     },
 
-    listJobs: (input: ListPlatformJobsInput): readonly JobRecord[] => {
+    listJobs: async (input: ListPlatformJobsInput): Promise<readonly JobRecord[]> => {
       const account = requireAccount(input.actorSessionToken, input.now);
 
-      return store.jobs.listForUser(account.id).map(job => cloneForRead(job));
+      return (await jobs.listForUser(account.id)).map(job => cloneForRead(job));
     },
 
-    getJob: (input: GetPlatformJobInput): JobRecord => {
+    getJob: async (input: GetPlatformJobInput): Promise<JobRecord> => {
       const account = requireAccount(input.actorSessionToken, input.now);
-      const job = store.jobs.fetchForUser(input.jobId, account.id);
+      const job = await jobs.fetchForUser(input.jobId, account.id);
 
       if (job === null) {
         throw new PlatformAppError("private_resource", "This job belongs to another user.");

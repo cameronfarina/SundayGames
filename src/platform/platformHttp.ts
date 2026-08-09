@@ -656,7 +656,7 @@ const routeSimulations = async (
   if (request.segments.length === 3 && (action === "jobs" || action === "enqueue")) {
     if (request.method !== "POST") return methodNotAllowed();
 
-    const job = app.enqueueSimulationRunExecutionJob({
+    const job = await app.enqueueSimulationRunExecutionJob({
       actorSessionToken: request.sessionToken,
       runId: runId ?? "",
       idempotencyKey: optionalString(request.body.idempotencyKey),
@@ -704,16 +704,16 @@ const routePricingSnapshots = (
   return { status: 200, body: { pricingSnapshot } };
 };
 
-const routeJobs = (
+const routeJobs = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, jobId] = request.segments;
 
   if (request.segments.length === 1) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const jobs = app.listJobs({
+    const jobs = await app.listJobs({
       actorSessionToken: request.sessionToken,
       now: requestDate(request.body, request.query, "now"),
     });
@@ -724,7 +724,7 @@ const routeJobs = (
   if (request.segments.length !== 2) return notFound();
   if (request.method !== "GET") return methodNotAllowed();
 
-  const job = app.getJob({
+  const job = await app.getJob({
     actorSessionToken: request.sessionToken,
     jobId: jobId ?? "",
     now: requestDate(request.body, request.query, "now"),
@@ -980,7 +980,7 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
       if (root === "simulations") return routeSimulations(app, parsedRequest);
       if (root === "historical-imports") return routeHistoricalImports(app, parsedRequest);
       if (root === "pricing-snapshots") return routePricingSnapshots(app, parsedRequest);
-      if (root === "jobs") return routeJobs(app, parsedRequest);
+      if (root === "jobs") return await routeJobs(app, parsedRequest);
       if (root === "mock-sessions") return routeMockSessions(app, parsedRequest);
       if (root === "live-rooms") return routeLiveRooms(app, parsedRequest);
 

@@ -3,7 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
-import { InMemoryJobQueue } from "../src/platform/jobs.js";
+import {
+  InMemoryJobQueue,
+  type CancelJobAtRunBoundaryInput,
+  type CancelJobInput,
+  type ClaimNextJobInput,
+  type CompleteJobInput,
+  type FailJobInput,
+  type HeartbeatJobInput,
+  type JobRecord,
+  type JobRepository,
+  type SubmitJobInput,
+  type UpdateJobProgressInput,
+} from "../src/platform/jobs.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import {
   dispatchNextPlatformJob,
@@ -18,6 +30,7 @@ import type {
   PostgresQueryClient,
   PostgresQueryResult,
 } from "../src/platform/postgresPlatformStore.js";
+import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -101,6 +114,56 @@ class FakePostgresClient implements PostgresQueryClient {
     }
 
     throw new Error(`Unexpected SQL: ${text}`);
+  }
+}
+
+class FakeTransactionalPostgresClient extends FakePostgresClient implements PostgresTransactionalQueryClient {
+  async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    return operation(this);
+  }
+}
+
+class AsyncJobRepository implements JobRepository {
+  readonly inner = new InMemoryJobQueue();
+
+  async submit(input: SubmitJobInput): Promise<JobRecord> {
+    return this.inner.submit(input);
+  }
+
+  async claimNextJob(input: ClaimNextJobInput): Promise<JobRecord | null> {
+    return this.inner.claimNextJob(input);
+  }
+
+  async updateProgress(input: UpdateJobProgressInput): Promise<JobRecord> {
+    return this.inner.updateProgress(input);
+  }
+
+  async heartbeatJob(input: HeartbeatJobInput): Promise<JobRecord> {
+    return this.inner.heartbeatJob(input);
+  }
+
+  async completeJob(input: CompleteJobInput): Promise<JobRecord> {
+    return this.inner.completeJob(input);
+  }
+
+  async failJob(input: FailJobInput): Promise<JobRecord> {
+    return this.inner.failJob(input);
+  }
+
+  async cancelJob(input: CancelJobInput): Promise<JobRecord> {
+    return this.inner.cancelJob(input);
+  }
+
+  async cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): Promise<JobRecord> {
+    return this.inner.cancelJobAtRunBoundary(input);
+  }
+
+  async listForUser(userId: string): Promise<JobRecord[]> {
+    return this.inner.listForUser(userId);
+  }
+
+  async fetchForUser(jobId: string, userId: string): Promise<JobRecord | null> {
+    return this.inner.fetchForUser(jobId, userId);
   }
 }
 
@@ -724,12 +787,117 @@ describe("platform server composition", () => {
     });
   });
 
+  it("uses an injected async job repository for HTTP enqueue and reads without snapshot persistence", async () => {
+    const dataFilePath = await storePath();
+    const jobRepository = new AsyncJobRepository();
+    const { platformServer, baseUrl } = await createListeningServer({
+      dataFilePath,
+      jobRepository,
+    });
+    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    platformServer.app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    const simulation = platformServer.app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 6,
+      seedPrefix: "external-queue",
+      idempotencyKey: "external-queue",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    await platformServer.persist();
+
+    const enqueued = await jsonFetch(baseUrl, `/simulations/${simulation.id}/jobs`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": cam.sessionToken,
+      },
+      body: JSON.stringify({
+        idempotencyKey: "external-queue-job",
+        now: new Date(now.getTime() + 1_000).toISOString(),
+      }),
+    });
+    const jobs = await jsonFetch(baseUrl, "/jobs", {
+      headers: { "x-session-token": cam.sessionToken },
+    });
+
+    expect(platformServer.jobRepository).toBe(jobRepository);
+    expect(enqueued).toMatchObject({
+      status: 202,
+      body: {
+        job: {
+          id: expect.stringMatching(/^job_/),
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          seasonId: season.id,
+          status: "queued",
+        },
+      },
+    });
+    expect(jobs).toMatchObject({
+      status: 200,
+      body: {
+        jobs: [
+          {
+            id: (enqueued.body as { job: { id: string } }).job.id,
+            status: "queued",
+          },
+        ],
+      },
+    });
+    expect(jobRepository.inner.jobs()).toHaveLength(1);
+
+    const savedSnapshot = JSON.parse(await readFile(dataFilePath, "utf8")) as { jobs?: unknown[] };
+    expect(savedSnapshot.jobs).toEqual([]);
+  });
+
+  it("creates a Postgres job queue when a transactional job client is configured", async () => {
+    const postgresJobClient = new FakeTransactionalPostgresClient();
+    const { platformServer } = await createListeningServer({ postgresJobClient });
+
+    expect(platformServer.postgresJobQueue).toBeDefined();
+    expect(platformServer.jobRepository).toBe(platformServer.postgresJobQueue);
+  });
+
   it("rejects ambiguous file and Postgres persistence configuration", async () => {
     await expect(createPlatformServer({
       dataFilePath: "/tmp/mockd-platform.json",
       postgresClient: new FakePostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either dataFilePath or postgresClient, not both.");
+
+    await expect(createPlatformServer({
+      jobRepository: new AsyncJobRepository(),
+      postgresJobClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either jobRepository or postgresJobClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {
