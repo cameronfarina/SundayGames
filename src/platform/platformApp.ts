@@ -15,6 +15,19 @@ import {
   type DraftExportRosterSlotKey,
   type DraftExportTeamState,
 } from "./draftExport.js";
+import {
+  InMemoryExportArtifactRepository,
+  createDraftExportArtifact,
+  type DraftExportArtifactResult,
+  type ExportArtifact,
+  type ExportArtifactContent,
+} from "./exportArtifacts.js";
+import {
+  InMemoryHistoricalImportRepository,
+  type HistoricalImportBatch,
+  type HistoricalSaleRecord,
+} from "./historicalImports.js";
+import { InMemoryJobQueue, type JobRecord } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   InMemoryLiveDraftRoomRepository,
@@ -39,6 +52,27 @@ import {
   type SimulationRun,
 } from "./simulations.js";
 import {
+  commitHistoricalImportWorkflow,
+  previewHistoricalImportSourceWorkflow,
+  type CommitHistoricalImportWorkflowResult,
+  type PreviewHistoricalImportSourceWorkflowResult,
+} from "./platformHistoricalImportWorkflow.js";
+import {
+  enqueueSimulationRunExecutionJob,
+} from "./platformJobOrchestrator.js";
+import {
+  listLeaguePricingSnapshotsWorkflow,
+  readLatestPricingSnapshotWorkflow,
+  rebuildLeaguePricingWorkflow,
+  type RebuildLeaguePricingWorkflowResult,
+} from "./platformPricingWorkflow.js";
+import {
+  createInMemoryPricingSnapshotRepository,
+  type PricingSnapshot,
+  type PricingSnapshotRepository,
+  type PricingSourcePrice,
+} from "./pricingSnapshots.js";
+import {
   authorizeSharedLeagueResourceRead,
   authorizeSharedLeagueSetupMutation,
   type LeagueMembership,
@@ -47,10 +81,12 @@ import {
 
 export type PlatformAppErrorCode =
   | "auth_required"
+  | "historical_import_not_found"
   | "league_not_found"
   | "membership_required"
   | "private_resource"
   | "private_team_required"
+  | "pricing_snapshot_not_found"
   | "season_not_found"
   | "shared_mutation_denied"
   | "team_claim_required"
@@ -116,6 +152,13 @@ export interface ExecutePlatformSimulationRunForWorkerInput {
   now?: Date | undefined;
 }
 
+export interface EnqueuePlatformSimulationRunJobInput {
+  actorSessionToken: string;
+  runId: string;
+  idempotencyKey?: string | undefined;
+  now?: Date | undefined;
+}
+
 export interface ListPlatformSimulationRunsInput {
   actorSessionToken: string;
   now?: Date | undefined;
@@ -124,6 +167,58 @@ export interface ListPlatformSimulationRunsInput {
 export interface GetPlatformSimulationRunInput {
   actorSessionToken: string;
   runId: string;
+  now?: Date | undefined;
+}
+
+export interface ListPlatformJobsInput {
+  actorSessionToken: string;
+  now?: Date | undefined;
+}
+
+export interface GetPlatformJobInput {
+  actorSessionToken: string;
+  jobId: string;
+  now?: Date | undefined;
+}
+
+export interface PreviewPlatformHistoricalImportInput {
+  actorSessionToken: string;
+  leagueId: string;
+  seasonYear: number;
+  sourceText: string;
+  replacementRequested?: boolean | undefined;
+  now?: Date | undefined;
+}
+
+export interface CommitPlatformHistoricalImportInput {
+  actorSessionToken: string;
+  batchId: string;
+  now?: Date | undefined;
+}
+
+export interface RebuildPlatformPricingInput {
+  actorSessionToken: string;
+  leagueId: string;
+  seasonYear: number;
+  modelVersion: string;
+  scenarioIds: readonly string[];
+  baselinePrices: readonly PricingSourcePrice[];
+  now?: Date | undefined;
+}
+
+export interface ListPlatformPricingSnapshotsInput {
+  actorSessionToken: string;
+  leagueId: string;
+  seasonYear: number | string;
+  modelRunId?: string | undefined;
+  scenarioId?: string | undefined;
+  now?: Date | undefined;
+}
+
+export interface GetPlatformPricingSnapshotInput {
+  actorSessionToken: string;
+  modelRunId: string;
+  scenarioId?: string | undefined;
   now?: Date | undefined;
 }
 
@@ -189,6 +284,8 @@ export interface ExportPlatformLiveDraftRoomInput {
   now?: Date | undefined;
 }
 
+export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatformLiveDraftRoomInput {}
+
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -204,6 +301,12 @@ export interface InMemoryPlatformStoreSnapshot {
   mockDraftSessions: readonly MockDraftSession[];
   simulationRuns: readonly SimulationRun[];
   liveDraftRooms: readonly LiveDraftRoom[];
+  historicalImportBatches: readonly HistoricalImportBatch[];
+  historicalSaleRecords: readonly HistoricalSaleRecord[];
+  pricingSnapshots: readonly PricingSnapshot[];
+  jobs: readonly JobRecord[];
+  exportArtifacts: readonly ExportArtifact[];
+  exportArtifactContents: readonly ExportArtifactContent[];
 }
 
 const draftExportSlotKeys = new Set<string>(draftExportSlotOrder);
@@ -217,7 +320,11 @@ const isExportSlotKey = (slot: string): slot is DraftExportRosterSlotKey => draf
 
 export class InMemoryPlatformStore {
   readonly authRepository = new InMemoryAuthRepository();
+  readonly exportArtifacts = new InMemoryExportArtifactRepository();
+  readonly historicalImports = new InMemoryHistoricalImportRepository();
+  readonly jobs = new InMemoryJobQueue();
   readonly mockDraftSessions = new InMemoryMockDraftSessionRepository();
+  readonly pricingSnapshots: PricingSnapshotRepository = createInMemoryPricingSnapshotRepository();
   readonly simulations = new InMemorySimulationRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
   readonly #leagueSeasonsById = new Map<string, LeagueSeason>();
@@ -257,6 +364,7 @@ export class InMemoryPlatformStore {
         ...cloneForRead(membership),
       });
     }
+    this.#syncHistoricalImportSeasons();
 
     return cloneForRead(storedSeason);
   }
@@ -270,6 +378,13 @@ export class InMemoryPlatformStore {
   hasLeagueSeasonForLeague(leagueId: string): boolean {
     return [...this.#leagueSeasonsById.values()]
       .some(season => season.leagueId === leagueId);
+  }
+
+  findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number): LeagueSeason | null {
+    const season = [...this.#leagueSeasonsById.values()]
+      .find(candidate => candidate.leagueId === leagueId && candidate.seasonYear === seasonYear);
+
+    return season === undefined ? null : cloneForRead(season);
   }
 
   findMembership(userId: string, leagueId: string): PlatformLeagueMembership | null {
@@ -302,6 +417,12 @@ export class InMemoryPlatformStore {
       mockDraftSessions: this.mockDraftSessions.sessions(),
       simulationRuns: this.simulations.runs(),
       liveDraftRooms: this.liveDraftRooms.rooms(),
+      historicalImportBatches: this.historicalImports.batches(),
+      historicalSaleRecords: this.historicalImports.records(),
+      pricingSnapshots: this.pricingSnapshots.list(),
+      jobs: this.jobs.jobs(),
+      exportArtifacts: this.exportArtifacts.artifacts(),
+      exportArtifactContents: this.exportArtifacts.contents(),
     };
   }
 
@@ -346,9 +467,26 @@ export class InMemoryPlatformStore {
       );
     }
 
+    this.#syncHistoricalImportSeasons();
+    this.historicalImports.replaceBatchesAndRecords(
+      snapshot.historicalImportBatches ?? [],
+      snapshot.historicalSaleRecords ?? [],
+    );
+    for (const pricingSnapshot of snapshot.pricingSnapshots ?? []) {
+      this.pricingSnapshots.save(pricingSnapshot);
+    }
+    this.jobs.replaceJobs(snapshot.jobs ?? []);
+    this.exportArtifacts.replaceArtifactsAndContents(
+      snapshot.exportArtifacts ?? [],
+      snapshot.exportArtifactContents ?? [],
+    );
     this.liveDraftRooms.replaceRooms(snapshot.liveDraftRooms);
     this.mockDraftSessions.replaceSessions(snapshot.mockDraftSessions ?? []);
     this.simulations.replaceRuns(snapshot.simulationRuns ?? []);
+  }
+
+  #syncHistoricalImportSeasons(): void {
+    this.historicalImports.replaceLeagueSeasons([...this.#leagueSeasonsById.values()]);
   }
 }
 
@@ -370,6 +508,16 @@ export const createPlatformApp = ({
 
   const requireSeason = (seasonId: string): LeagueSeason => {
     const season = store.findLeagueSeason(seasonId);
+
+    if (season === null) {
+      throw new PlatformAppError("season_not_found", "League season was not found.");
+    }
+
+    return season;
+  };
+
+  const requireSeasonForLeagueYear = (leagueId: string, seasonYear: number): LeagueSeason => {
+    const season = store.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
 
     if (season === null) {
       throw new PlatformAppError("season_not_found", "League season was not found.");
@@ -648,6 +796,122 @@ export const createPlatformApp = ({
       return cloneForRead(run);
     },
 
+    enqueueSimulationRunExecutionJob: (input: EnqueuePlatformSimulationRunJobInput): JobRecord => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const run = store.simulations.fetchForUser(input.runId, account.id);
+      if (run === null) {
+        throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+      }
+      requirePrivateTeamContext(account, run.request);
+
+      return cloneForRead(enqueueSimulationRunExecutionJob({
+        repository: store.jobs,
+        userId: account.id,
+        leagueId: run.request.leagueId,
+        seasonId: run.request.seasonId,
+        simulationRunId: run.id,
+        runCount: run.request.count,
+        seedPrefix: run.request.seedPrefix,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      }));
+    },
+
+    listJobs: (input: ListPlatformJobsInput): readonly JobRecord[] => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+
+      return store.jobs.listForUser(account.id).map(job => cloneForRead(job));
+    },
+
+    getJob: (input: GetPlatformJobInput): JobRecord => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const job = store.jobs.fetchForUser(input.jobId, account.id);
+
+      if (job === null) {
+        throw new PlatformAppError("private_resource", "This job belongs to another user.");
+      }
+
+      return cloneForRead(job);
+    },
+
+    previewHistoricalImportSource: (input: PreviewPlatformHistoricalImportInput): PreviewHistoricalImportSourceWorkflowResult => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      requireSharedMutation(account, input.leagueId);
+
+      return cloneForRead(previewHistoricalImportSourceWorkflow({
+        repository: store.historicalImports,
+        leagueId: input.leagueId,
+        seasonYear: input.seasonYear,
+        sourceText: input.sourceText,
+        ...(input.replacementRequested === undefined ? {} : { replacementRequested: input.replacementRequested }),
+        ...(input.now === undefined ? {} : { now: input.now }),
+      }));
+    },
+
+    commitHistoricalImport: (input: CommitPlatformHistoricalImportInput): CommitHistoricalImportWorkflowResult => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const batch = store.historicalImports.findBatchById(input.batchId);
+      if (batch === null) {
+        throw new PlatformAppError("historical_import_not_found", "Historical import batch was not found.");
+      }
+      requireSharedMutation(account, batch.leagueId);
+
+      return cloneForRead(commitHistoricalImportWorkflow({
+        repository: store.historicalImports,
+        batchId: input.batchId,
+        ...(input.now === undefined ? {} : { now: input.now }),
+      }));
+    },
+
+    rebuildLeaguePricing: (input: RebuildPlatformPricingInput): RebuildLeaguePricingWorkflowResult => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const season = requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      requireSharedMutation(account, input.leagueId);
+
+      return cloneForRead(rebuildLeaguePricingWorkflow({
+        repository: store.pricingSnapshots,
+        leagueId: input.leagueId,
+        seasonYear: input.seasonYear,
+        modelVersion: input.modelVersion,
+        scenarioIds: input.scenarioIds,
+        baselinePrices: input.baselinePrices,
+        historicalSaleRecords: store.historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear),
+        currentAuctionBudget: season.settings.auction.budgetDollars,
+        currentTeamCount: season.teams.length,
+        keeperLockedSpend: 0,
+        ...(input.now === undefined ? {} : { createdAt: input.now.toISOString() }),
+      }));
+    },
+
+    listLeaguePricingSnapshots: (input: ListPlatformPricingSnapshotsInput): readonly PricingSnapshot[] => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      requireSeasonForLeagueYear(input.leagueId, Number(input.seasonYear));
+      requireSharedRead(account, input.leagueId);
+
+      return listLeaguePricingSnapshotsWorkflow(store.pricingSnapshots, {
+        leagueId: input.leagueId,
+        seasonYear: input.seasonYear,
+        ...(input.modelRunId === undefined ? {} : { modelRunId: input.modelRunId }),
+        ...(input.scenarioId === undefined ? {} : { scenarioId: input.scenarioId }),
+      }).map(snapshot => cloneForRead(snapshot));
+    },
+
+    getPricingSnapshot: (input: GetPlatformPricingSnapshotInput): PricingSnapshot => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const snapshot = readLatestPricingSnapshotWorkflow(store.pricingSnapshots, {
+        modelRunId: input.modelRunId,
+        ...(input.scenarioId === undefined ? {} : { scenarioId: input.scenarioId }),
+      });
+
+      if (snapshot === undefined) {
+        throw new PlatformAppError("pricing_snapshot_not_found", "Pricing snapshot was not found.");
+      }
+      requireSharedRead(account, snapshot.leagueId);
+
+      return cloneForRead(snapshot);
+    },
+
     createMockDraftSession: (input: CreatePlatformMockDraftSessionInput): MockDraftSession => {
       const account = requireAccount(input.actorSessionToken, input.now);
       requirePrivateTeamContext(account, input);
@@ -820,6 +1084,43 @@ export const createPlatformApp = ({
         revision: room.revision,
         teams: exportTeamStateFor(room),
       });
+    },
+
+    createLiveDraftRoomExportArtifact: (input: CreatePlatformLiveDraftExportArtifactInput): DraftExportArtifactResult => {
+      const account = requireAccount(input.actorSessionToken, input.now);
+      const room = store.liveDraftRooms.getRoom(input.roomId);
+      requireSharedRead(account, room.leagueId);
+      const existingArtifactResult = store.exportArtifacts.findByRoomRevision(room.roomId, room.revision);
+      if (existingArtifactResult !== undefined) {
+        return {
+          artifact: cloneForRead(existingArtifactResult.artifact),
+          content: Buffer.from(existingArtifactResult.content),
+        };
+      }
+
+      const draftExport = generateDraftExport({
+        leagueName: room.season.league.name,
+        seasonYear: room.season.seasonYear,
+        draftRoomId: room.roomId,
+        exportedAt: input.exportedAt,
+        status: room.status,
+        revision: room.revision,
+        teams: exportTeamStateFor(room),
+      });
+      const artifactResult = createDraftExportArtifact({
+        draftExport,
+        leagueId: room.leagueId,
+        seasonId: room.seasonId,
+        roomId: room.roomId,
+        sourceRevision: room.revision,
+        createdAt: input.exportedAt,
+      });
+      const savedArtifactResult = store.exportArtifacts.save(artifactResult);
+
+      return {
+        artifact: cloneForRead(savedArtifactResult.artifact),
+        content: Buffer.from(savedArtifactResult.content),
+      };
     },
   };
 };

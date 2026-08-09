@@ -224,6 +224,50 @@ describe("platform historical imports", () => {
     ]);
   });
 
+  it("requires explicit replacement before superseding a committed batch for a season", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const firstBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:first-season-file",
+      rows: [row()],
+      now,
+    });
+    const secondBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:second-season-file",
+      rows: [row({
+        playerName: "Justin Jefferson",
+        playerId: "player-justin-jefferson",
+        playerResolution: { status: "resolved", playerId: "player-justin-jefferson" },
+      })],
+      now: new Date("2026-08-09T12:02:00.000Z"),
+    });
+
+    commitHistoricalImportBatch({
+      repository,
+      batchId: firstBatch.id,
+      now: new Date("2026-08-09T12:01:00.000Z"),
+    });
+
+    expect(() =>
+      commitHistoricalImportBatch({
+        repository,
+        batchId: secondBatch.id,
+        now: new Date("2026-08-09T12:03:00.000Z"),
+      }),
+    ).toThrow("Historical import batch already exists for this league season. Request replacement to supersede it.");
+    const stillCurrentBatch = repository.findBatchById(firstBatch.id);
+    expect(stillCurrentBatch).toEqual(expect.objectContaining({ status: "committed" }));
+    expect(stillCurrentBatch).not.toHaveProperty("supersededByBatchId");
+    expect(repository.currentRecords(leagueSeason.leagueId, 2025)).toEqual([
+      expect.objectContaining({ batchId: firstBatch.id, playerId: "player-jamarr-chase" }),
+    ]);
+  });
+
   it("supersedes the prior committed batch for a league season without deleting old records", () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
     const firstBatch = previewHistoricalImportBatch({

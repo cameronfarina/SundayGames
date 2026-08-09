@@ -7,6 +7,7 @@ import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import { FilePlatformStore } from "../src/platform/filePlatformStore.js";
 import { createPlatformApp } from "../src/platform/platformApp.js";
+import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -15,6 +16,10 @@ const playerCatalog = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
 ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const baselinePrices = [
+  { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
+] as const satisfies readonly PricingSourcePrice[];
 
 const mockRunner: SimulationMockBatchRunner = () => ({
   options: {
@@ -266,5 +271,149 @@ describe("file-backed platform store", () => {
       teamId: camTeam.id,
       now,
     })).toEqual([updatedMockSession]);
+  });
+
+  it("roundtrips historical imports, pricing snapshots, jobs, and export artifacts", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        },
+      ],
+      now,
+    });
+    const preview = app.previewHistoricalImportSource({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2026,player-puka",
+      now,
+    });
+    app.commitHistoricalImport({
+      actorSessionToken: cam.sessionToken,
+      batchId: preview.batch.id,
+      now: new Date(now.getTime() + 1_000),
+    });
+    const pricing = app.rebuildLeaguePricing({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["balanced"],
+      baselinePrices,
+      now: new Date(now.getTime() + 2_000),
+    });
+    const simulation = app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 4,
+      seedPrefix: "file-store-job",
+      idempotencyKey: "file-store-job",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    const job = app.enqueueSimulationRunExecutionJob({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      idempotencyKey: "job:file-store-job",
+      now: new Date(now.getTime() + 3_000),
+    });
+    const room = app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_export_artifact",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    });
+    const exportArtifact = app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 4_000),
+    });
+
+    await fileStore.save();
+    const loadedFileStore = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
+    const loadedSnapshot = loadedFileStore.store.snapshot();
+
+    expect(loadedSnapshot.historicalImportBatches).toEqual([
+      expect.objectContaining({ id: preview.batch.id, status: "committed" }),
+    ]);
+    expect(loadedSnapshot.historicalSaleRecords).toEqual([
+      expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 }),
+    ]);
+    expect(loadedApp.listLeaguePricingSnapshots({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+    })).toEqual(pricing.snapshots);
+    expect(loadedApp.getJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: job.id,
+    })).toEqual(job);
+    expect(loadedSnapshot.exportArtifacts).toEqual([exportArtifact.artifact]);
+    expect(loadedSnapshot.exportArtifactContents).toEqual([
+      {
+        artifactId: exportArtifact.artifact.id,
+        contentBase64: exportArtifact.content.toString("base64"),
+      },
+    ]);
+    expect(loadedSnapshot.exportArtifacts[0]?.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("keeps generic job JSON date-like fields as JSON strings after a file roundtrip", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const job = fileStore.store.jobs.submit({
+      userId: "user_cam",
+      leagueId: "league_214674",
+      seasonId: "league_214674-season-2026",
+      kind: "simulation",
+      idempotencyKey: "job-json-date",
+      inputJson: {
+        nested: {
+          updatedAt: "2026-08-09T12:00:00.000Z",
+        },
+      },
+      now,
+    });
+
+    await fileStore.save();
+    const loadedFileStore = await FilePlatformStore.load(path);
+    const [loadedJob] = loadedFileStore.store.jobs.jobs();
+
+    expect(loadedJob).toEqual({
+      ...job,
+      inputJson: {
+        nested: {
+          updatedAt: "2026-08-09T12:00:00.000Z",
+        },
+      },
+    });
+    expect(loadedJob?.createdAt).toBeInstanceOf(Date);
+    expect(loadedJob?.updatedAt).toBeInstanceOf(Date);
   });
 });

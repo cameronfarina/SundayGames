@@ -1,6 +1,8 @@
 import { AuthError } from "./auth.js";
 import type { SessionRecord } from "./auth.js";
 import { DraftExportError } from "./draftExport.js";
+import { ExportArtifactError } from "./exportArtifacts.js";
+import { JobError } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   LiveDraftRoomError,
@@ -28,6 +30,11 @@ import {
   SimulationError,
   type SimulationStrategyInput,
 } from "./simulations.js";
+import { HistoricalImportError } from "./historicalImports.js";
+import {
+  PricingSnapshotError,
+  type PricingSourcePrice,
+} from "./pricingSnapshots.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -145,6 +152,17 @@ const optionalNumber = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const optionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+  if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+
+  return undefined;
+};
+
 const dateValue = (value: unknown): Date | undefined => {
   if (value instanceof Date) return value;
   if (typeof value !== "string" && typeof value !== "number") return undefined;
@@ -223,6 +241,8 @@ const platformErrorStatus = (code: PlatformAppError["code"]): number => {
     case "auth_required":
       return 401;
     case "league_not_found":
+    case "historical_import_not_found":
+    case "pricing_snapshot_not_found":
     case "season_not_found":
     case "team_not_found":
       return 404;
@@ -311,6 +331,31 @@ const draftExportErrorStatus = (code: DraftExportError["code"]): number => {
   }
 };
 
+const jobErrorStatus = (code: JobError["code"]): number => {
+  switch (code) {
+    case "job_not_found":
+      return 404;
+    case "idempotency_conflict":
+      return 409;
+    case "job_lock_mismatch":
+    case "job_owner_required":
+      return 403;
+    case "job_not_claimable":
+    case "job_not_running":
+      return 409;
+  }
+};
+
+const historicalImportErrorStatus = (code: HistoricalImportError["code"]): number => {
+  switch (code) {
+    case "batch_not_found":
+      return 404;
+    case "batch_blocked":
+    case "season_import_conflict":
+      return 409;
+  }
+};
+
 const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErrorBody> => {
   if (error instanceof URIError) {
     return knownError(400, "invalid_request", "Request path is invalid.");
@@ -338,6 +383,22 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof DraftExportError) {
     return knownError(draftExportErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof JobError) {
+    return knownError(jobErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof ExportArtifactError) {
+    return knownError(409, error.code, error.message);
+  }
+
+  if (error instanceof HistoricalImportError) {
+    return knownError(historicalImportErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof PricingSnapshotError) {
+    return knownError(409, error.code, error.message);
   }
 
   return {
@@ -415,6 +476,81 @@ const routeSeasonSetupImport = (
   return notFound();
 };
 
+const routeSeasonHistoricalImports = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, seasonId, , action] = request.segments;
+  if (request.segments.length !== 4) return notFound();
+  if (action !== "preview") return notFound();
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const season = app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId: seasonId ?? "",
+    now: requestDate(request.body, request.query, "now"),
+  });
+  const sourceText = optionalString(request.body.sourceText)
+    ?? optionalString(request.body.content)
+    ?? "";
+  const result = app.previewHistoricalImportSource({
+    actorSessionToken: request.sessionToken,
+    leagueId: season.leagueId,
+    seasonYear: season.seasonYear,
+    sourceText,
+    replacementRequested: optionalBoolean(request.body.replacementRequested),
+    now: requestDate(request.body, request.query, "now"),
+  });
+
+  return { status: 200, body: result };
+};
+
+const routeSeasonPricing = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, seasonId, seasonAction, action] = request.segments;
+  const now = requestDate(request.body, request.query, "now");
+  const season = app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId: seasonId ?? "",
+    now,
+  });
+
+  if (seasonAction === "pricing" && action === "rebuild" && request.segments.length === 4) {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const result = app.rebuildLeaguePricing({
+      actorSessionToken: request.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: stringValue(request.body.modelVersion),
+      scenarioIds: stringArrayValue(request.body.scenarioIds),
+      baselinePrices: arrayValue(request.body.baselinePrices) as readonly PricingSourcePrice[],
+      now,
+    });
+
+    return { status: 201, body: result };
+  }
+
+  if (seasonAction === "pricing-snapshots" && request.segments.length === 3) {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    const pricingSnapshots = app.listLeaguePricingSnapshots({
+      actorSessionToken: request.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelRunId: optionalString(request.query.modelRunId),
+      scenarioId: optionalString(request.query.scenarioId),
+      now,
+    });
+
+    return { status: 200, body: { pricingSnapshots } };
+  }
+
+  return notFound();
+};
+
 const routeSeason = (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -428,6 +564,14 @@ const routeSeason = (
 
   if (seasonAction === "setup-import") {
     return routeSeasonSetupImport(app, request);
+  }
+
+  if (seasonAction === "historical-imports") {
+    return routeSeasonHistoricalImports(app, request);
+  }
+
+  if (seasonAction === "pricing" || seasonAction === "pricing-snapshots") {
+    return routeSeasonPricing(app, request);
   }
 
   if (request.segments.length !== 2) return notFound();
@@ -509,7 +653,84 @@ const routeSimulations = async (
     return { status: 200, body: { simulation } };
   }
 
+  if (request.segments.length === 3 && (action === "jobs" || action === "enqueue")) {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const job = app.enqueueSimulationRunExecutionJob({
+      actorSessionToken: request.sessionToken,
+      runId: runId ?? "",
+      idempotencyKey: optionalString(request.body.idempotencyKey),
+      now: requestDate(request.body, request.query, "now"),
+    });
+
+    return { status: 202, body: { job } };
+  }
+
   return notFound();
+};
+
+const routeHistoricalImports = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, batchId, action] = request.segments;
+  if (request.segments.length !== 3 || action !== "commit") return notFound();
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const result = app.commitHistoricalImport({
+    actorSessionToken: request.sessionToken,
+    batchId: batchId ?? "",
+    now: requestDate(request.body, request.query, "now"),
+  });
+
+  return { status: 200, body: result };
+};
+
+const routePricingSnapshots = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, modelRunId] = request.segments;
+  if (request.segments.length !== 2) return notFound();
+  if (request.method !== "GET") return methodNotAllowed();
+
+  const pricingSnapshot = app.getPricingSnapshot({
+    actorSessionToken: request.sessionToken,
+    modelRunId: modelRunId ?? "",
+    scenarioId: optionalString(request.query.scenarioId),
+    now: requestDate(request.body, request.query, "now"),
+  });
+
+  return { status: 200, body: { pricingSnapshot } };
+};
+
+const routeJobs = (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+): PlatformHttpResponse => {
+  const [, jobId] = request.segments;
+
+  if (request.segments.length === 1) {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    const jobs = app.listJobs({
+      actorSessionToken: request.sessionToken,
+      now: requestDate(request.body, request.query, "now"),
+    });
+
+    return { status: 200, body: { jobs } };
+  }
+
+  if (request.segments.length !== 2) return notFound();
+  if (request.method !== "GET") return methodNotAllowed();
+
+  const job = app.getJob({
+    actorSessionToken: request.sessionToken,
+    jobId: jobId ?? "",
+    now: requestDate(request.body, request.query, "now"),
+  });
+
+  return { status: 200, body: { job } };
 };
 
 const routeMockSessions = (
@@ -638,6 +859,25 @@ const routeLiveRooms = (
     return { status: 200, body: { draftExport } };
   }
 
+  if (action === "export-artifacts" || action === "export-artifact") {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const artifactResult = app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      exportedAt: requestDate(request.body, request.query, "exportedAt") ?? new Date(),
+      now: requestDate(request.body, request.query, "now"),
+    });
+
+    return {
+      status: 201,
+      body: {
+        artifact: artifactResult.artifact,
+        content: artifactResult.content.toString("utf8"),
+      },
+    };
+  }
+
   if (request.method !== "POST") return methodNotAllowed();
 
   if (action === "start") {
@@ -738,6 +978,9 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
 
       if (root === "seasons") return routeSeason(app, parsedRequest);
       if (root === "simulations") return routeSimulations(app, parsedRequest);
+      if (root === "historical-imports") return routeHistoricalImports(app, parsedRequest);
+      if (root === "pricing-snapshots") return routePricingSnapshots(app, parsedRequest);
+      if (root === "jobs") return routeJobs(app, parsedRequest);
       if (root === "mock-sessions") return routeMockSessions(app, parsedRequest);
       if (root === "live-rooms") return routeLiveRooms(app, parsedRequest);
 

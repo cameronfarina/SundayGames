@@ -392,6 +392,140 @@ describe("platform HTTP contract", () => {
       },
     });
 
+    const importPreview = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/preview`,
+      sessionToken: cam.sessionToken,
+      body: {
+        sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2026,player-puka",
+        now,
+      },
+    });
+    const previewBody = expectBodyRecord(importPreview.body);
+    const previewBatch = expectBodyRecord(previewBody.batch);
+    const previewBatchId = expectString(previewBatch.id);
+
+    expect(importPreview.status).toBe(200);
+    expect(importPreview.body).toMatchObject({
+      source: {
+        fileHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
+        sourceRowCount: 2,
+      },
+      batch: expect.objectContaining({ status: "previewed" }),
+    });
+
+    const committedImport = await handle({
+      method: "POST",
+      path: `/historical-imports/${previewBatchId}/commit`,
+      sessionToken: cam.sessionToken,
+      body: {
+        now: new Date(now.getTime() + 250).toISOString(),
+      },
+    });
+
+    expect(committedImport.body).toMatchObject({
+      committedRecords: [expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 })],
+    });
+
+    const secondImportPreview = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/preview`,
+      sessionToken: cam.sessionToken,
+      body: {
+        sourceText: "owner,player,position,price,year,player id\nCam,Jahmyr Gibbs,RB,72,2026,player-gibbs",
+        now: new Date(now.getTime() + 300).toISOString(),
+      },
+    });
+    const secondPreviewBody = expectBodyRecord(secondImportPreview.body);
+    const secondPreviewBatch = expectBodyRecord(secondPreviewBody.batch);
+    const secondPreviewBatchId = expectString(secondPreviewBatch.id);
+    const conflictingImportCommit = await handle({
+      method: "POST",
+      path: `/historical-imports/${secondPreviewBatchId}/commit`,
+      sessionToken: cam.sessionToken,
+      body: {
+        now: new Date(now.getTime() + 350).toISOString(),
+      },
+    });
+
+    expect(conflictingImportCommit).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "season_import_conflict",
+          message: "Historical import batch already exists for this league season. Request replacement to supersede it.",
+        },
+      },
+    });
+
+    const pricingRebuild = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/pricing/rebuild`,
+      sessionToken: cam.sessionToken,
+      body: {
+        modelVersion: "league-calibration-v1",
+        scenarioIds: ["balanced"],
+        baselinePrices: [
+          { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
+        ],
+        now: new Date(now.getTime() + 500).toISOString(),
+      },
+    });
+    const pricingBody = expectBodyRecord(pricingRebuild.body);
+    const modelRunId = expectString(pricingBody.modelRunId);
+
+    expect(pricingRebuild.status).toBe(201);
+    expect(pricingRebuild.body).toMatchObject({
+      snapshots: [
+        expect.objectContaining({
+          scenarioId: "balanced",
+          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 60 })],
+        }),
+      ],
+    });
+
+    const conflictingPricingRebuild = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/pricing/rebuild`,
+      sessionToken: cam.sessionToken,
+      body: {
+        modelVersion: "league-calibration-v1",
+        scenarioIds: ["balanced"],
+        baselinePrices: [
+          { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
+        ],
+        now: new Date(now.getTime() + 550).toISOString(),
+      },
+    });
+
+    expect(conflictingPricingRebuild).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "pricing_snapshot_conflict",
+          message: `Cannot overwrite pricing snapshot for modelRunId ${modelRunId} and scenarioId balanced with a different payload.`,
+        },
+      },
+    });
+
+    const listedPricing = await handle({
+      method: "GET",
+      path: `/seasons/${season.id}/pricing-snapshots?scenarioId=balanced`,
+      sessionToken: seth.sessionToken,
+    });
+    const fetchedPricing = await handle({
+      method: "GET",
+      path: `/pricing-snapshots/${encodeURIComponent(modelRunId)}?scenarioId=balanced`,
+      sessionToken: seth.sessionToken,
+    });
+
+    expect(listedPricing.body).toMatchObject({
+      pricingSnapshots: [expect.objectContaining({ modelRunId })],
+    });
+    expect(fetchedPricing.body).toMatchObject({
+      pricingSnapshot: expect.objectContaining({ modelRunId, scenarioId: "balanced" }),
+    });
+
     const createdSimulation = await handle({
       method: "POST",
       path: "/simulations",
@@ -417,6 +551,34 @@ describe("platform HTTP contract", () => {
     const simulationId = expectString(simulation.id);
 
     expect(createdSimulation.status).toBe(201);
+
+    const enqueuedSimulationJob = await handle({
+      method: "POST",
+      path: `/simulations/${simulationId}/jobs`,
+      sessionToken: cam.sessionToken,
+      body: {
+        idempotencyKey: "job:cam-puka-plan",
+        now: new Date(now.getTime() + 750).toISOString(),
+      },
+    });
+
+    expect(enqueuedSimulationJob.status).toBe(202);
+    expect(enqueuedSimulationJob.body).toMatchObject({
+      job: expect.objectContaining({
+        kind: "simulation",
+        status: "queued",
+      }),
+    });
+
+    const listedJobs = await handle({
+      method: "GET",
+      path: "/jobs",
+      sessionToken: cam.sessionToken,
+    });
+
+    expect(listedJobs.body).toMatchObject({
+      jobs: [expect.objectContaining({ kind: "simulation" })],
+    });
 
     const listedSimulations = await handle({
       method: "GET",
@@ -674,6 +836,31 @@ describe("platform HTTP contract", () => {
         csv: expect.stringContaining("Puka Nacua,62"),
       }),
     });
+
+    const exportArtifact = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/export-artifacts",
+      sessionToken: seth.sessionToken,
+      body: {
+        exportedAt: "2026-08-09T12:00:10.000Z",
+      },
+    });
+    const retriedExportArtifact = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/export-artifacts",
+      sessionToken: seth.sessionToken,
+    });
+
+    expect(exportArtifact.status).toBe(201);
+    expect(exportArtifact.body).toMatchObject({
+      artifact: expect.objectContaining({
+        roomId: "room_214674_2026",
+        format: "csv",
+        sourceRevision: 6,
+      }),
+      content: expect.stringContaining("Puka Nacua,62"),
+    });
+    expect(retriedExportArtifact).toEqual(exportArtifact);
   });
 
   it("maps known domain errors and unexpected failures without leaking stack traces", async () => {

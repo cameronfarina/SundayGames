@@ -4,6 +4,20 @@ import type { FantasyTeam, LeagueSeason } from "./leagueSeason.js";
 export type HistoricalImportBatchStatus = "previewed" | "blocked" | "committed" | "superseded";
 export type HistoricalImportRowStatus = "ready" | "blocked";
 export type HistoricalImportIssueSeverity = "blocker" | "warning";
+export type HistoricalImportErrorCode =
+  | "batch_blocked"
+  | "batch_not_found"
+  | "season_import_conflict";
+
+export class HistoricalImportError extends Error {
+  readonly code: HistoricalImportErrorCode;
+
+  constructor(code: HistoricalImportErrorCode, message: string) {
+    super(message);
+    this.name = "HistoricalImportError";
+    this.code = code;
+  }
+}
 
 export type HistoricalImportIssueCode =
   | "season_missing"
@@ -111,6 +125,8 @@ export interface HistoricalImportRepository {
   createBatch(batch: HistoricalImportBatch): HistoricalImportBatch;
   updateBatch(batch: HistoricalImportBatch): HistoricalImportBatch;
   addRecords(records: readonly HistoricalSaleRecord[]): void;
+  currentRecords(leagueId: string, seasonYear: number): HistoricalSaleRecord[];
+  currentRecordsThroughSeason(leagueId: string, seasonYear: number): HistoricalSaleRecord[];
 }
 
 const positionSet = new Set<string>(positions);
@@ -196,17 +212,19 @@ export class InMemoryHistoricalImportRepository implements HistoricalImportRepos
   readonly #records: HistoricalSaleRecord[] = [];
 
   constructor(leagueSeasons: readonly LeagueSeason[] = []) {
-    for (const season of leagueSeasons) {
-      this.#leagueSeasons.set(seasonKey(season.leagueId, season.seasonYear), season);
-    }
+    this.replaceLeagueSeasons(leagueSeasons);
   }
 
   findLeagueSeason(leagueId: string, seasonYear: number): LeagueSeason | null {
-    return this.#leagueSeasons.get(seasonKey(leagueId, seasonYear)) ?? null;
+    const season = this.#leagueSeasons.get(seasonKey(leagueId, seasonYear));
+
+    return season === undefined ? null : structuredClone(season);
   }
 
   findBatchById(batchId: string): HistoricalImportBatch | null {
-    return this.#batchesById.get(batchId) ?? null;
+    const batch = this.#batchesById.get(batchId);
+
+    return batch === undefined ? null : structuredClone(batch);
   }
 
   findBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): HistoricalImportBatch | null {
@@ -246,25 +264,83 @@ export class InMemoryHistoricalImportRepository implements HistoricalImportRepos
   }
 
   createBatch(batch: HistoricalImportBatch): HistoricalImportBatch {
-    this.#batchesById.set(batch.id, batch);
-    return batch;
+    const storedBatch = structuredClone(batch);
+    this.#batchesById.set(storedBatch.id, storedBatch);
+
+    return structuredClone(storedBatch);
   }
 
   updateBatch(batch: HistoricalImportBatch): HistoricalImportBatch {
-    this.#batchesById.set(batch.id, batch);
-    return batch;
+    const storedBatch = structuredClone(batch);
+    this.#batchesById.set(storedBatch.id, storedBatch);
+
+    return structuredClone(storedBatch);
   }
 
   addRecords(records: readonly HistoricalSaleRecord[]): void {
-    this.#records.push(...records);
+    this.#records.push(...records.map(record => structuredClone(record)));
   }
 
   records(): HistoricalSaleRecord[] {
-    return [...this.#records];
+    return this.#records.map(record => structuredClone(record));
+  }
+
+  currentRecords(leagueId: string, seasonYear: number): HistoricalSaleRecord[] {
+    return this.#currentRecordsFor(batch =>
+      batch.leagueId === leagueId
+        && batch.seasonYear === seasonYear
+        && batch.status === "committed",
+    );
+  }
+
+  currentRecordsThroughSeason(leagueId: string, seasonYear: number): HistoricalSaleRecord[] {
+    return this.#currentRecordsFor(batch =>
+      batch.leagueId === leagueId
+        && batch.seasonYear <= seasonYear
+        && batch.status === "committed",
+    );
+  }
+
+  #currentRecordsFor(
+    batchFilter: (batch: HistoricalImportBatch) => boolean,
+  ): HistoricalSaleRecord[] {
+    const currentBatchIds = new Set(
+      [...this.#batchesById.values()]
+        .filter(batchFilter)
+        .map(batch => batch.id),
+    );
+
+    return this.#records
+      .filter(record => currentBatchIds.has(record.batchId))
+      .map(record => structuredClone(record));
   }
 
   batches(): HistoricalImportBatch[] {
-    return [...this.#batchesById.values()];
+    return [...this.#batchesById.values()].map(batch => structuredClone(batch));
+  }
+
+  replaceLeagueSeasons(leagueSeasons: readonly LeagueSeason[]): void {
+    this.#leagueSeasons.clear();
+
+    for (const season of leagueSeasons) {
+      const storedSeason = structuredClone(season);
+      this.#leagueSeasons.set(seasonKey(storedSeason.leagueId, storedSeason.seasonYear), storedSeason);
+    }
+  }
+
+  replaceBatchesAndRecords(
+    batches: readonly HistoricalImportBatch[],
+    records: readonly HistoricalSaleRecord[],
+  ): void {
+    this.#batchesById.clear();
+    this.#records.length = 0;
+
+    for (const batch of batches) {
+      const storedBatch = structuredClone(batch);
+      this.#batchesById.set(storedBatch.id, storedBatch);
+    }
+
+    this.#records.push(...records.map(record => structuredClone(record)));
   }
 }
 
@@ -447,7 +523,7 @@ export const commitHistoricalImportBatch = ({
   const batch = repository.findBatchById(batchId);
 
   if (batch === null) {
-    throw new Error(`Historical import batch ${batchId} was not found.`);
+    throw new HistoricalImportError("batch_not_found", `Historical import batch ${batchId} was not found.`);
   }
 
   if (batch.status === "committed" || batch.status === "superseded") {
@@ -455,7 +531,7 @@ export const commitHistoricalImportBatch = ({
   }
 
   if (batch.status === "blocked" || batch.blockers.length > 0) {
-    throw new Error("Cannot commit historical import batch with blockers.");
+    throw new HistoricalImportError("batch_blocked", "Cannot commit historical import batch with blockers.");
   }
 
   const existingCommittedBatch = batch.replacementRequested
@@ -469,6 +545,13 @@ export const commitHistoricalImportBatch = ({
   const currentCommittedBatch = repository.findCurrentCommittedBatch(batch.leagueId, batch.seasonYear);
 
   if (currentCommittedBatch !== null) {
+    if (!batch.replacementRequested) {
+      throw new HistoricalImportError(
+        "season_import_conflict",
+        "Historical import batch already exists for this league season. Request replacement to supersede it.",
+      );
+    }
+
     repository.updateBatch({
       ...currentCommittedBatch,
       status: "superseded",

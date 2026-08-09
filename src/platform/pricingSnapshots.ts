@@ -96,6 +96,18 @@ export interface PricingSnapshotRepository {
   list(): readonly PricingSnapshot[];
 }
 
+export type PricingSnapshotErrorCode = "pricing_snapshot_conflict";
+
+export class PricingSnapshotError extends Error {
+  readonly code: PricingSnapshotErrorCode;
+
+  constructor(code: PricingSnapshotErrorCode, message: string) {
+    super(message);
+    this.name = "PricingSnapshotError";
+    this.code = code;
+  }
+}
+
 type NormalizedSnapshotValue = JsonSnapshotValue | undefined;
 
 const slugify = (value: string): string => {
@@ -300,7 +312,8 @@ export const createInMemoryPricingSnapshotRepository = (): PricingSnapshotReposi
       const existing = snapshots.get(key);
       if (existing) {
         if (existing.hash !== hash) {
-          throw new Error(
+          throw new PricingSnapshotError(
+            "pricing_snapshot_conflict",
             `Cannot overwrite pricing snapshot for modelRunId ${snapshot.modelRunId} and scenarioId ${snapshot.scenarioId} with a different payload.`,
           );
         }

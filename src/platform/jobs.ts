@@ -212,8 +212,7 @@ export class InMemoryJobQueue {
       updatedAt: now,
     };
 
-    this.#jobsById.set(job.id, job);
-    this.#jobIdsByIdempotencyKey.set(indexKey, job.id);
+    this.#storeJob(job);
 
     return job;
   }
@@ -356,6 +355,32 @@ export class InMemoryJobQueue {
     }
 
     return job;
+  }
+
+  jobs(): readonly JobRecord[] {
+    return [...this.#jobsById.values()].map(job => structuredClone(job));
+  }
+
+  replaceJobs(jobs: readonly JobRecord[]): void {
+    this.#jobsById.clear();
+    this.#jobIdsByIdempotencyKey.clear();
+
+    for (const job of jobs) {
+      this.#storeJob(structuredClone(job));
+    }
+  }
+
+  #storeJob(job: JobRecord): void {
+    this.#jobsById.set(job.id, job);
+    this.#jobIdsByIdempotencyKey.set(
+      idempotencyIndexKey(
+        job.userId,
+        job.leagueId,
+        job.seasonId,
+        job.idempotencyKey,
+      ),
+      job.id,
+    );
   }
 
   #findJobForUser(jobId: string, userId: string): JobRecord {

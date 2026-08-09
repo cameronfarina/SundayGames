@@ -9,6 +9,7 @@ import {
 } from "../src/platform/platformApp.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -18,6 +19,11 @@ const playerCatalog = [
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
   { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
 ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const baselinePrices = [
+  { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
+  { name: "Bijan Robinson", normalizedName: "bijan robinson", position: "RB", price: 50 },
+] as const satisfies readonly PricingSourcePrice[];
 
 const mockRunner: SimulationMockBatchRunner = ({
   runsPerScenario,
@@ -132,6 +138,22 @@ describe("platform app service", () => {
       },
       now,
     });
+    const simulationJob = app.enqueueSimulationRunExecutionJob({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      idempotencyKey: "job:cam-puka-plan",
+      now,
+    });
+
+    expect(simulationJob).toMatchObject({
+      userId: cam.account.id,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      kind: "simulation",
+      status: "queued",
+    });
+    expect(app.listJobs({ actorSessionToken: cam.sessionToken })).toEqual([simulationJob]);
+    expect(app.listJobs({ actorSessionToken: seth.sessionToken })).toEqual([]);
 
     const completed = await app.executeSimulationRun({
       actorSessionToken: cam.sessionToken,
@@ -306,6 +328,105 @@ describe("platform app service", () => {
       "membership_required",
       "Join this league before viewing shared league data.",
     ));
+  });
+
+  it("runs shared historical imports and league pricing rebuilds behind commissioner permissions", () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const importSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+      seasonYear: 2025,
+    });
+    const draftSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+      seasonYear: 2026,
+    });
+    const importCamTeam = importSeason.teams.find(team => team.ownerDisplayName === "Cam");
+    const draftCamTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Cam");
+    const draftSethTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Seth");
+    if (importCamTeam === undefined || draftCamTeam === undefined || draftSethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season: importSeason,
+      memberships: [
+        { userId: cam.account.id, leagueId: importSeason.leagueId, role: "owner", ownerId: importCamTeam.ownerId, teamId: importCamTeam.id },
+      ],
+      now,
+    });
+    app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season: draftSeason,
+      memberships: [
+        { userId: cam.account.id, leagueId: draftSeason.leagueId, role: "owner", ownerId: draftCamTeam.ownerId, teamId: draftCamTeam.id },
+        { userId: seth.account.id, leagueId: draftSeason.leagueId, role: "member", ownerId: draftSethTeam.ownerId, teamId: draftSethTeam.id },
+      ],
+      now,
+    });
+
+    expect(() =>
+      app.previewHistoricalImportSource({
+        actorSessionToken: seth.sessionToken,
+        leagueId: importSeason.leagueId,
+        seasonYear: importSeason.seasonYear,
+        sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
+        now,
+      }),
+    ).toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+
+    const preview = app.previewHistoricalImportSource({
+      actorSessionToken: cam.sessionToken,
+      leagueId: importSeason.leagueId,
+      seasonYear: importSeason.seasonYear,
+      sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
+      now,
+    });
+    const committed = app.commitHistoricalImport({
+      actorSessionToken: cam.sessionToken,
+      batchId: preview.batch.id,
+      now: new Date(now.getTime() + 1_000),
+    });
+    const replacementPreview = app.previewHistoricalImportSource({
+      actorSessionToken: cam.sessionToken,
+      leagueId: importSeason.leagueId,
+      seasonYear: importSeason.seasonYear,
+      sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,90,2025,player-puka",
+      replacementRequested: true,
+      now: new Date(now.getTime() + 1_500),
+    });
+    app.commitHistoricalImport({
+      actorSessionToken: cam.sessionToken,
+      batchId: replacementPreview.batch.id,
+      now: new Date(now.getTime() + 1_750),
+    });
+    const pricing = app.rebuildLeaguePricing({
+      actorSessionToken: cam.sessionToken,
+      leagueId: draftSeason.leagueId,
+      seasonYear: draftSeason.seasonYear,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["balanced"],
+      baselinePrices,
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(committed.committedRecords).toEqual([
+      expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 }),
+    ]);
+    expect(pricing.snapshots[0]?.rows.find(row => row.playerName === "Puka Nacua")).toMatchObject({
+      marketPrice: 70,
+      scenarioPrice: 70,
+    });
+    expect(app.listLeaguePricingSnapshots({
+      actorSessionToken: seth.sessionToken,
+      leagueId: draftSeason.leagueId,
+      seasonYear: draftSeason.seasonYear,
+    })).toEqual(pricing.snapshots);
   });
 
   it("blocks outsider registration for a new season in an existing league", () => {
@@ -614,6 +735,16 @@ describe("platform app service", () => {
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
     });
+    const artifactResult = app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 5_000),
+    });
+    const replayedArtifactResult = app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 6_000),
+    });
 
     expect(exportResult.sheetName).toBe("Draft Results");
     expect(exportResult.table[0]?.slice(0, 2)).toEqual(["League", "League 214674"]);
@@ -628,5 +759,15 @@ describe("platform app service", () => {
     expect(rb1Row?.slice(camColumn, camColumn + 3)).toEqual(["RB1", "De'Von Achane", 50]);
     expect(wr1Row?.slice(camColumn, camColumn + 3)).toEqual(["WR1", "Puka Nacua", 62]);
     expect(exportResult.csv).toContain("Puka Nacua,62");
+    expect(artifactResult.artifact).toMatchObject({
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      roomId: room.roomId,
+      sourceRevision: sold.revision,
+      format: "csv",
+      contentType: "text/csv; charset=utf-8",
+    });
+    expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
+    expect(replayedArtifactResult).toEqual(artifactResult);
   });
 });

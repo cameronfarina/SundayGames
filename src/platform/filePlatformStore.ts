@@ -4,6 +4,7 @@ import {
   InMemoryPlatformStore,
   type InMemoryPlatformStoreSnapshot,
 } from "./platformApp.js";
+import type { JobRecord, JsonValue } from "./jobs.js";
 
 export interface FilePlatformStoreSnapshot extends InMemoryPlatformStoreSnapshot {
   schemaVersion: 1;
@@ -12,13 +13,20 @@ export interface FilePlatformStoreSnapshot extends InMemoryPlatformStoreSnapshot
 const dateKeys = new Set([
   "abandonedAt",
   "completedAt",
+  "committedAt",
+  "cancellationRequestedAt",
   "createdAt",
   "endedAt",
   "expiresAt",
+  "finishedAt",
+  "heartbeatAt",
+  "lockedAt",
+  "lockExpiresAt",
   "occurredAt",
   "revokedAt",
   "startsAt",
   "startedAt",
+  "supersededAt",
   "updatedAt",
 ]);
 
@@ -32,6 +40,12 @@ const emptySnapshot = (): InMemoryPlatformStoreSnapshot => ({
   mockDraftSessions: [],
   simulationRuns: [],
   liveDraftRooms: [],
+  historicalImportBatches: [],
+  historicalSaleRecords: [],
+  pricingSnapshots: [],
+  jobs: [],
+  exportArtifacts: [],
+  exportArtifactContents: [],
 });
 
 const reviveDate = (key: string, value: unknown): unknown => {
@@ -47,6 +61,50 @@ const snapshotFileFor = (snapshot: InMemoryPlatformStoreSnapshot): FilePlatformS
   ...snapshot,
 });
 
+type PricingSnapshot = InMemoryPlatformStoreSnapshot["pricingSnapshots"][number];
+
+const normalizeRevivedJsonValue = (value: unknown): JsonValue | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeRevivedJsonValue(item) ?? null);
+  }
+  if (typeof value !== "object") {
+    return undefined;
+  }
+
+  const normalized: Record<string, JsonValue> = {};
+  for (const [key, childValue] of Object.entries(value)) {
+    const normalizedChildValue = normalizeRevivedJsonValue(childValue);
+    if (normalizedChildValue !== undefined) {
+      normalized[key] = normalizedChildValue;
+    }
+  }
+
+  return normalized;
+};
+
+const normalizeRevivedJob = (job: JobRecord): JobRecord => ({
+  ...job,
+  inputJson: normalizeRevivedJsonValue(job.inputJson) ?? null,
+  resultSummary: normalizeRevivedJsonValue(job.resultSummary),
+});
+
+const normalizePricingSnapshot = (snapshot: PricingSnapshot): PricingSnapshot => {
+  const createdAt = snapshot.createdAt as unknown;
+
+  return createdAt instanceof Date
+    ? {
+      ...snapshot,
+      createdAt: createdAt.toISOString(),
+    }
+    : snapshot;
+};
+
 const snapshotFromFile = (file: Partial<FilePlatformStoreSnapshot>): InMemoryPlatformStoreSnapshot => {
   const empty = emptySnapshot();
 
@@ -57,6 +115,12 @@ const snapshotFromFile = (file: Partial<FilePlatformStoreSnapshot>): InMemoryPla
     mockDraftSessions: file.mockDraftSessions ?? empty.mockDraftSessions,
     simulationRuns: file.simulationRuns ?? empty.simulationRuns,
     liveDraftRooms: file.liveDraftRooms ?? empty.liveDraftRooms,
+    historicalImportBatches: file.historicalImportBatches ?? empty.historicalImportBatches,
+    historicalSaleRecords: file.historicalSaleRecords ?? empty.historicalSaleRecords,
+    pricingSnapshots: (file.pricingSnapshots ?? empty.pricingSnapshots).map(normalizePricingSnapshot),
+    jobs: (file.jobs ?? empty.jobs).map(normalizeRevivedJob),
+    exportArtifacts: file.exportArtifacts ?? empty.exportArtifacts,
+    exportArtifactContents: file.exportArtifactContents ?? empty.exportArtifactContents,
   };
 };
 
