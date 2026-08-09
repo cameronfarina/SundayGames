@@ -1,0 +1,335 @@
+import { describe, expect, it } from "vitest";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  InMemoryHistoricalImportRepository,
+  commitHistoricalImportBatch,
+  previewHistoricalImportBatch,
+  type NormalizedHistoricalImportRow,
+} from "../src/platform/historicalImports.js";
+
+const now = new Date("2026-08-09T12:00:00.000Z");
+const leagueSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+  seasonYear: 2025,
+  setupStatus: "locked",
+});
+
+const row = (
+  overrides: Partial<NormalizedHistoricalImportRow> = {},
+): NormalizedHistoricalImportRow => {
+  const playerId = overrides.playerId ?? "player-jamarr-chase";
+
+  return {
+    sourceRowNumber: 2,
+    seasonYear: 2025,
+    ownerDisplayName: "Cam",
+    playerName: "Ja'Marr Chase",
+    playerId,
+    position: "WR",
+    priceDollars: 61,
+    playerResolution: { status: "resolved", playerId },
+    keeper: false,
+    acquisitionType: "auction",
+    ...overrides,
+  };
+};
+
+describe("platform historical imports", () => {
+  it("creates a preview batch from normalized rows", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+
+    const batch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:first",
+      rows: [row()],
+      now,
+    });
+
+    expect(batch).toMatchObject({
+      id: "historical-import-league-214674-2025-sha256-first-001",
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:first",
+      status: "previewed",
+      blockers: [],
+      warnings: [
+        {
+          code: "season_spend_mismatch",
+          severity: "warning",
+        },
+      ],
+    });
+    expect(batch.rows).toEqual([
+      expect.objectContaining({
+        rowNumber: 2,
+        status: "ready",
+        blockers: [],
+        warnings: [],
+        record: expect.objectContaining({
+          leagueId: leagueSeason.leagueId,
+          seasonYear: 2025,
+          ownerId: "owner-cam",
+          playerId: "player-jamarr-chase",
+          playerName: "Ja'Marr Chase",
+          position: "WR",
+          priceDollars: 61,
+          keeper: false,
+          acquisitionType: "auction",
+        }),
+      }),
+    ]);
+  });
+
+  it("blocks commit for missing season, invalid rows, duplicates, and unresolved required players", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const missingSeasonBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2024,
+      fileHash: "sha256:missing-season",
+      rows: [row({ seasonYear: 2024 })],
+      now,
+    });
+
+    expect(missingSeasonBatch.status).toBe("blocked");
+    expect(missingSeasonBatch.blockers.map(blocker => blocker.code)).toEqual(["season_missing"]);
+    expect(() =>
+      commitHistoricalImportBatch({
+        repository,
+        batchId: missingSeasonBatch.id,
+        now,
+      }),
+    ).toThrow("Cannot commit historical import batch with blockers.");
+
+    const invalidRowsBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:invalid-rows",
+      rows: [
+        row({
+          sourceRowNumber: 3,
+          ownerDisplayName: "Mystery Owner",
+          position: "P",
+          playerName: "",
+          priceDollars: 12.5,
+        }),
+        row({
+          sourceRowNumber: 4,
+          playerName: "Bijan Robinson",
+          playerId: "",
+          position: "RB",
+          playerResolution: { status: "unresolved", required: true, candidates: ["Bijan Robinson Jr."] },
+        }),
+        row({ sourceRowNumber: 5, priceDollars: -1 }),
+        row({ sourceRowNumber: 6, playerName: "Amon-Ra St. Brown", playerId: "player-arsb" }),
+        row({ sourceRowNumber: 7, playerName: "Amon-Ra St. Brown", playerId: "player-arsb", ownerDisplayName: "Sam" }),
+      ],
+      now,
+    });
+
+    expect(invalidRowsBatch.status).toBe("blocked");
+    expect(invalidRowsBatch.blockers.map(blocker => blocker.code)).toEqual([
+      "owner_unknown",
+      "position_invalid",
+      "player_missing",
+      "price_invalid",
+      "player_unresolved",
+      "price_invalid",
+      "player_duplicate",
+      "player_duplicate",
+    ]);
+    expect(invalidRowsBatch.rows.map(batchRow => batchRow.status)).toEqual([
+      "blocked",
+      "blocked",
+      "blocked",
+      "blocked",
+      "blocked",
+    ]);
+    expect(() =>
+      commitHistoricalImportBatch({
+        repository,
+        batchId: invalidRowsBatch.id,
+        now,
+      }),
+    ).toThrow("Cannot commit historical import batch with blockers.");
+  });
+
+  it("warns for spend mismatch and inferred keeper or acquisition details", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+
+    const batch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:warnings",
+      rows: [
+        {
+          sourceRowNumber: 2,
+          seasonYear: 2025,
+          ownerDisplayName: "Cam",
+          playerName: "Ja'Marr Chase",
+          playerId: "player-jamarr-chase",
+          position: "WR",
+          priceDollars: 61,
+          playerResolution: { status: "resolved", playerId: "player-jamarr-chase" },
+        },
+      ],
+      now,
+    });
+
+    expect(batch.status).toBe("previewed");
+    expect(batch.warnings.map(warning => warning.code)).toEqual(["season_spend_mismatch"]);
+    expect(batch.rows[0]?.warnings.map(warning => warning.code)).toEqual([
+      "keeper_inferred",
+      "acquisition_type_inferred",
+    ]);
+    expect(batch.rows[0]?.record).toEqual(expect.objectContaining({
+      keeper: false,
+      acquisitionType: "auction",
+    }));
+  });
+
+  it("commits a preview batch into normalized historical sale records", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const batch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:commit",
+      rows: [row()],
+      now,
+    });
+
+    const committed = commitHistoricalImportBatch({
+      repository,
+      batchId: batch.id,
+      now: new Date("2026-08-09T12:01:00.000Z"),
+    });
+
+    expect(committed.status).toBe("committed");
+    expect(committed.committedAt).toEqual(new Date("2026-08-09T12:01:00.000Z"));
+    expect(repository.records()).toEqual([
+      expect.objectContaining({
+        id: `${batch.id}-row-001`,
+        batchId: batch.id,
+        leagueId: leagueSeason.leagueId,
+        leagueSeasonId: leagueSeason.id,
+        seasonYear: 2025,
+        ownerId: "owner-cam",
+        playerId: "player-jamarr-chase",
+      }),
+    ]);
+  });
+
+  it("supersedes the prior committed batch for a league season without deleting old records", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const firstBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:first-season-file",
+      rows: [row({ playerName: "Ja'Marr Chase", playerId: "player-jamarr-chase" })],
+      now,
+    });
+    const committedFirst = commitHistoricalImportBatch({
+      repository,
+      batchId: firstBatch.id,
+      now,
+    });
+    const replacementBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:replacement-season-file",
+      replacementRequested: true,
+      rows: [row({ playerName: "Justin Jefferson", playerId: "player-justin-jefferson" })],
+      now: new Date("2026-08-09T12:02:00.000Z"),
+    });
+
+    const committedReplacement = commitHistoricalImportBatch({
+      repository,
+      batchId: replacementBatch.id,
+      now: new Date("2026-08-09T12:03:00.000Z"),
+    });
+
+    expect(committedReplacement.status).toBe("committed");
+    expect(repository.findBatchById(committedFirst.id)).toEqual(expect.objectContaining({
+      status: "superseded",
+      supersededByBatchId: committedReplacement.id,
+    }));
+    expect(repository.records()).toEqual([
+      expect.objectContaining({ batchId: committedFirst.id, playerId: "player-jamarr-chase" }),
+      expect.objectContaining({ batchId: committedReplacement.id, playerId: "player-justin-jefferson" }),
+    ]);
+  });
+
+  it("treats the same league season file hash as idempotent unless replacement is requested", () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const firstBatch = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:same-file",
+      rows: [row()],
+      now,
+    });
+    const duplicatePreviewBeforeCommit = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:same-file",
+      rows: [row({ playerName: "Changed Input", playerId: "player-changed" })],
+      now: new Date("2026-08-09T12:00:30.000Z"),
+    });
+
+    expect(duplicatePreviewBeforeCommit.id).toBe(firstBatch.id);
+
+    const committedFirst = commitHistoricalImportBatch({
+      repository,
+      batchId: firstBatch.id,
+      now,
+    });
+
+    const idempotentPreview = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:same-file",
+      rows: [row({ playerName: "Changed Input", playerId: "player-changed" })],
+      now: new Date("2026-08-09T12:04:00.000Z"),
+    });
+    const idempotentCommit = commitHistoricalImportBatch({
+      repository,
+      batchId: idempotentPreview.id,
+      now: new Date("2026-08-09T12:05:00.000Z"),
+    });
+
+    expect(idempotentPreview.id).toBe(committedFirst.id);
+    expect(idempotentCommit.id).toBe(committedFirst.id);
+    expect(repository.records()).toHaveLength(1);
+
+    const replacementPreview = previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:same-file",
+      replacementRequested: true,
+      rows: [row({ playerName: "Changed Input", playerId: "player-changed" })],
+      now: new Date("2026-08-09T12:06:00.000Z"),
+    });
+    const committedReplacement = commitHistoricalImportBatch({
+      repository,
+      batchId: replacementPreview.id,
+      now: new Date("2026-08-09T12:07:00.000Z"),
+    });
+
+    expect(committedReplacement.id).not.toBe(committedFirst.id);
+    expect(repository.records()).toEqual([
+      expect.objectContaining({ batchId: committedFirst.id, playerId: "player-jamarr-chase" }),
+      expect.objectContaining({ batchId: committedReplacement.id, playerId: "player-changed" }),
+    ]);
+  });
+});
