@@ -4,14 +4,20 @@
 
 Give every league member a fast, draft-ready prep workspace that separates shared league truth from private strategy work. Members review league setup, board, teams, keepers, and pricing snapshots, then privately mock, simulate, save target lists, refine strategy paths, and chat with a coach.
 
+This epic now owns the product-shell correction. The visible app must stop feeling like separate Real Draft, Mock Draft, My Expert, Player News, and Draft Room apps. The board/team workspace should become the common shell for prep, mocks, simulations, expert context, news context, and live draft mode.
+
 ## Launch-Critical Scope
 
+- Logged-out login/signup shell.
+- Logged-in app shell with active league/season, user menu, and one navigation model.
+- League home for setup/readiness/import/model status and role-based next actions.
 - Authenticated prep home for the active league season.
 - Shared league summary: draft date, readiness, rules, teams, owners, keepers, active model run, and warnings.
 - Shared draft board using the published pricing snapshot, with search, position filters, sort, tiers, keeper status, and explanation entry points.
 - Team/owner panels showing shared rosters, keeper spend, remaining needs, and draft-night budget context.
 - Private user workspace with saved strategy, target list, max bids, notes, mock sessions, simulation runs, and coach history.
 - Mode switch between prep, private mock, simulation results, and live draft room without changing the board/team mental model.
+- My Expert and Player News as contextual panels or secondary views inside the same shell, not unrelated full-app experiences.
 - Clear freshness/status indicators for model run, keeper lock, imports, and draft readiness.
 - Launch path optimized for one league of about 18 users.
 
@@ -33,10 +39,11 @@ Primary navigation is workflow-based:
 
 - `League`: shared setup, teams, keepers, rules, readiness, and model status.
 - `Board`: calibrated player board with shared prices plus private overlays.
-- `Mock`: user-owned mock draft sessions and interactive practice.
+- `Mock Drafts`: user-owned mock draft sessions and interactive practice.
 - `Simulations`: batch run setup, results, exposures, and strategy comparison.
 - `Strategy`: private draft plan, target lists, max bids, notes, and guardrails.
-- `Coach`: private recommendations and chat grounded in the user's strategy and league state.
+- `Expert`: private recommendations and chat grounded in the user's strategy and league state.
+- `News`: player news tied to selected players, targets, roster, and board filters.
 - `Live Draft`: same board/team shell in live mode, reading real draft state.
 
 UX principles:
@@ -46,6 +53,7 @@ UX principles:
 - Prep and live draft use the same board, filters, team panels, and player detail patterns.
 - Draft-night mode reduces chrome, preserves keyboard/search speed, and makes mutation status obvious.
 - Empty states drive action: publish setup, run model, create mock, choose strategy, add targets.
+- Real Draft is live draft mode. Mock Draft is private practice mode. Neither should fork the whole product shell.
 
 ## Component Contracts
 
@@ -59,6 +67,8 @@ UX principles:
 - `SimulationRunPanel`: private batch runs, exposures, price ranges, roster outcomes.
 - `StrategyPlanEditor`: private strategy path, budget envelopes, build-around players, avoid list, guardrails.
 - `CoachPanel`: reads shared league context and private user prep; writes only private conversation/recommendation artifacts.
+- `NewsPanel`: reads player news and filters it by board context, roster context, target list, or selected player.
+- `LiveDraftModeBar`: room status, countdown/start state, share info, commissioner command, SSE/polling status, and export state.
 
 Components receive shared league state and private user state as separate payloads. No component infers privacy from UI placement.
 
@@ -132,11 +142,14 @@ Required invariant: league membership permits reading shared league state, but p
 ## Acceptance Criteria
 
 - A league member can open the prep workspace and immediately see shared league status, board, teams, keepers, and model freshness.
+- A new user can sign up or log in from a visible UI and land in the authenticated shell.
+- A logged-in member can refresh and remain in the same shell when their session is valid.
 - A member can create and resume private mocks without affecting the live draft or other users.
 - A member can save private targets, max bids, notes, and strategy plans.
 - Private prep artifacts are not visible to other members, commissioners included, unless a later sharing feature is added.
 - Board values distinguish shared market price from personal value/max bid.
 - Prep and live draft modes use the same player board and team panel concepts.
+- My Expert and Player News are available as contextual support without making the app feel like separate products.
 - Readiness warnings are visible before draft night.
 - The first production league supports about 18 concurrent users reading shared state and working privately.
 - Unauthorized, non-member, cross-league, and cross-user requests are rejected server-side.

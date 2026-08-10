@@ -2,6 +2,60 @@
 
 Important: These slices are intended as stacked PR boundaries. Keep each slice mergeable and useful on its own.
 
+## Immediate Re-Slice: Product Shell And UI Consolidation
+
+The original slice order was backend-first. Current implementation has enough backend foundation to expose a real product shell, and the visible UI is now the highest-risk gap.
+
+Before adding more persistence repositories, prioritize these UI slices:
+
+1. Auth and session UI: login, signup, session bootstrap, logout, and useful account errors.
+2. League home: active league/season, readiness, keepers, historical import status, model freshness, and role-based next actions.
+3. Unified board workspace: shared board and team panels as the primary surface.
+4. Private prep navigation: Mock Drafts, Simulations, Strategy, Expert, and News inside the same shell.
+5. Live Draft mode: reuse the same board/team panels with commissioner command bar and realtime room state.
+
+See `ui-product-shell-plan.md` for the detailed UI contract.
+
+## [0] Authenticated Product Shell
+
+- Type: Feature
+- Slice category: User-facing behavior
+- Owner: Staff Eng 8 with Staff Eng 1
+- Depends on: [1], [2], [3]
+- Suggested PR boundary: logged-out shell, login/signup forms, session bootstrap, logged-in app shell, basic league home
+
+### Scope
+
+Add the visible product shell that proves the platform is usable from a browser.
+
+### Acceptance Criteria
+
+- User can sign up or log in through a visible Mockd screen.
+- Refresh keeps the user in the app when the session is valid.
+- Logged-in user sees a league home, not a raw draft room.
+- The shell has one navigation model for League, Board, Mock Drafts, Simulations, Strategy, Live Draft, Expert, and News.
+- Disabled or unfinished surfaces show clear product states instead of pretending to be separate apps.
+
+## [0.1] Unified Board And Team Workspace
+
+- Type: Feature
+- Slice category: User-facing behavior
+- Owner: Staff Eng 8 with Staff Eng 6 and Staff Eng 9
+- Depends on: [0], [7], [15], [17]
+- Suggested PR boundary: reusable board/team components, route shell, mode-aware command surfaces
+
+### Scope
+
+Make the board and team panels the shared center for prep, mock, and live draft modes.
+
+### Acceptance Criteria
+
+- Board and team panels render in prep mode.
+- Mock mode and live mode reuse the same layout and data concepts.
+- My Expert and Player News can appear as contextual panels without hiding the board.
+- Shared market price and private max bid are visually distinct.
+- Real Draft, Mock Draft, My Expert, Player News, and Draft Room no longer look like unrelated applications.
+
 ## [1] Auth And Session Foundation
 
 - Type: Feature

@@ -70,6 +70,29 @@ Privacy rule: league truth is shared; draft strategy is private.
 | 9 | Staff Eng 9 | Live draft room, realtime SSE, and commissioner workflow |
 | 10 | Staff Eng 10 | Export, operations, backups, observability, and reliability |
 
+## Cross-Epic UI Ownership
+
+Staff Eng 8 owns the unified product shell and component contract across every product surface. The UI work is not optional polish. It is the next integration layer that makes the platform usable.
+
+Current visible surfaces to consolidate:
+
+- Real draft
+- Mock draft
+- My expert
+- Player news
+- Dedicated draft room
+
+Target product shape:
+
+- Logged-out auth shell.
+- Logged-in league home.
+- Board-centered prep workspace.
+- Private mock drafts and simulations inside the same shell.
+- Expert and news as contextual support, not unrelated mini-apps.
+- Live draft mode reusing the same board/team panels plus commissioner controls.
+
+See `ui-product-shell-plan.md` for the detailed UI plan.
+
 ## Contract Boundaries To Align
 
 - user/session/league membership model
@@ -106,4 +129,18 @@ Privacy rule: league truth is shared; draft strategy is private.
 - `77eaa71` added a normalized Postgres simulation repository so private simulation requests/results live outside the snapshot bridge while retaining in-memory/file behavior for local development.
 - `d800e51` added a normalized Postgres account/session repository so email/password accounts and session hashes are not stored in the transitional snapshot bridge.
 - `f8e0f0c` added a normalized Postgres league setup repository for leagues, seasons, fantasy teams, roster rules, and league memberships. The web and worker runtimes construct that repository in Postgres mode while preserving the in-memory/file repository for local development.
-- The active implementation slice adds a normalized Postgres historical import repository. Preview batches retain row-level validation state in the batch JSON payload, committed sale rows persist in `historical_draft_sales`, and commit runs inside one repository transaction so batch status and calibration rows cannot split.
+- `c035a74` added a normalized Postgres historical import repository. Preview batches retain row-level validation state in the batch JSON payload, committed sale rows persist in `historical_draft_sales`, and commit runs inside one repository transaction so batch status and calibration rows cannot split.
+
+## Current Reality Check
+
+The backend platform foundation is real, but the product UI is not caught up.
+
+What a browser user still cannot do from the visible UI:
+
+- sign up or log in through a product screen
+- land on a league home
+- see a unified shared/private prep workspace
+- move between board, mocks, simulations, expert, news, and live draft as one product
+- use the hosted platform shell as the primary local app
+
+See `epic-status-audit.md` for the current done/remaining audit by epic.

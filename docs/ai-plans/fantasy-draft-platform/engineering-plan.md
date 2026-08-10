@@ -256,9 +256,10 @@ Build the app shell around the board as the center of gravity.
 
 Exit criteria:
 
-- league members can move between League, Board, Mock, Simulations, Strategy, Coach, and Live Draft views
+- league members can sign up or log in, land on a league home, and move between League, Board, Mock Drafts, Simulations, Strategy, Expert, News, and Live Draft views
 - shared market price and private max bid are visibly distinct
 - board/team panels are reusable between prep, mock, and live modes
+- Real Draft, Mock Draft, My Expert, Player News, and the dedicated Draft Room no longer feel like separate applications
 
 ### Phase 5: Live Draft And Export
 
