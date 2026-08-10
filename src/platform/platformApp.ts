@@ -53,8 +53,10 @@ import {
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
 import {
+  buildLiveDraftRoomReadModel,
   liveDraftRoomEventsAfterRevision,
   type LiveDraftRoomEventsAfterRevisionResult,
+  type LiveDraftRoomReadModel,
   type LiveDraftRoomStreamActor,
 } from "./liveDraftRoomStream.js";
 import {
@@ -114,6 +116,7 @@ export type PlatformAppErrorCode =
   | "season_not_found"
   | "shared_mutation_denied"
   | "team_already_claimed"
+  | "team_claim_locked"
   | "team_claim_required"
   | "team_not_found";
 
@@ -307,6 +310,8 @@ export interface CreatePlatformLiveDraftRoomInput extends Omit<
 export interface GetPlatformLiveDraftRoomInput {
   actorSessionToken: string;
   roomId: string;
+  selectedTeamId?: string | undefined;
+  viewedTeamId?: string | undefined;
   now?: Date | undefined;
 }
 
@@ -324,6 +329,11 @@ export interface MutatePlatformLiveDraftRoomInput {
 
 export interface LogPlatformLiveDraftSaleInput extends MutatePlatformLiveDraftRoomInput {
   sale: LiveDraftRoomSaleCommandInput;
+}
+
+export interface CorrectPlatformLiveDraftSaleInput extends MutatePlatformLiveDraftRoomInput {
+  saleEventId: string;
+  replacementSale: LiveDraftRoomSaleCommandInput;
 }
 
 export interface ExportPlatformLiveDraftRoomInput {
@@ -936,12 +946,22 @@ export const createPlatformApp = ({
     claimLeagueSeasonTeam: async (input: ClaimLeagueSeasonTeamInput): Promise<PlatformLeagueMembership> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const season = await requireSeason(input.seasonId);
-      await requireSharedRead(account, season.leagueId);
+      const currentMembership = await requireSharedRead(account, season.leagueId);
       const team = season.teams.find(candidate =>
         candidate.id === input.teamId && candidate.ownerId === input.ownerId
       );
       if (team === undefined) {
         throw new PlatformAppError("team_not_found", "Team was not found in this league season.");
+      }
+
+      const changesExistingClaim = currentMembership.teamId !== undefined && (
+        currentMembership.teamId !== team.id || currentMembership.ownerId !== team.ownerId
+      );
+      if (changesExistingClaim && await liveDraftRooms.hasStartedRoomForSeason(season.id)) {
+        throw new PlatformAppError(
+          "team_claim_locked",
+          "Your team claim is locked because this league's live draft has started.",
+        );
       }
 
       const memberships = await leagueSetup.membershipsForLeague(season.leagueId);
@@ -1348,6 +1368,26 @@ export const createPlatformApp = ({
       }));
     },
 
+    getLiveDraftRoomState: async (
+      input: GetPlatformLiveDraftRoomInput,
+    ): Promise<LiveDraftRoomReadModel> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = await liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedRead(account, room.leagueId);
+      const actor = liveActorFor(account, room.leagueId, membership);
+      const authorizedRoom = await liveDraftRooms.getRoomForActor({
+        roomId: input.roomId,
+        actor,
+      });
+
+      return cloneForRead(buildLiveDraftRoomReadModel({
+        room: authorizedRoom,
+        actor,
+        selectedTeamId: input.selectedTeamId,
+        viewedTeamId: input.viewedTeamId,
+      }));
+    },
+
     getLiveDraftRoomEvents: async (
       input: GetPlatformLiveDraftRoomEventsInput,
     ): Promise<LiveDraftRoomEventsAfterRevisionResult> => {
@@ -1380,6 +1420,34 @@ export const createPlatformApp = ({
       }));
     },
 
+    pauseLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = await liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedMutation(account, room.leagueId);
+
+      return cloneForRead(await liveDraftRooms.pauseRoom({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      }));
+    },
+
+    resumeLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = await liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedMutation(account, room.leagueId);
+
+      return cloneForRead(await liveDraftRooms.resumeRoom({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      }));
+    },
+
     logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = await liveDraftRooms.getRoom(input.roomId);
@@ -1392,6 +1460,22 @@ export const createPlatformApp = ({
         idempotencyKey: input.idempotencyKey,
         now: input.now,
         sale: input.sale,
+      }));
+    },
+
+    correctLiveDraftSale: async (input: CorrectPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = await liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedMutation(account, room.leagueId);
+
+      return cloneForRead(await liveDraftRooms.correctSale({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+        saleEventId: input.saleEventId,
+        replacementSale: input.replacementSale,
       }));
     },
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   InMemoryLiveDraftRoomRepository,
   LiveDraftRoomError,
+  type CorrectLiveDraftRoomSaleInput,
   type CreateLiveDraftRoomInput,
   type LiveDraftRoom,
   type LiveDraftRoomAuthorizer,
@@ -23,6 +24,10 @@ interface DraftRoomSnapshotRow {
 
 interface RevisionUpdateRow {
   current_revision: number;
+}
+
+interface StartedRoomRow {
+  has_started_room: boolean;
 }
 
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
@@ -52,6 +57,10 @@ const startedAtFor = (room: LiveDraftRoom): Date | null =>
 
 const endedAtFor = (room: LiveDraftRoom): Date | null => room.endedAt ?? null;
 
+// The current draft_rooms check constraint predates pause; events and snapshots retain the exact state.
+const persistedStatusFor = (room: LiveDraftRoom): Exclude<LiveDraftRoom["status"], "paused"> =>
+  room.status === "paused" ? "live" : room.status;
+
 const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown> => {
   switch (event.type) {
     case "sale_logged":
@@ -61,15 +70,27 @@ const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown>
         undoneSaleEventId: event.undoneSaleEventId,
         undoneSale: event.undoneSale,
       };
+    case "sale_corrected":
+      return {
+        correctedSaleEventId: event.correctedSaleEventId,
+        previousSale: event.previousSale,
+        replacementSale: event.replacementSale,
+      };
     case "room_created":
     case "room_started":
+    case "room_paused":
+    case "room_resumed":
     case "room_ended":
       return {};
   }
 };
 
 const rawCommandForEvent = (event: LiveDraftRoomEvent): string | null =>
-  event.type === "sale_logged" ? event.sale.input : null;
+  event.type === "sale_logged"
+    ? event.sale.input
+    : event.type === "sale_corrected"
+      ? event.replacementSale.input
+      : null;
 
 const latestRoomSnapshot = async (
   client: PostgresQueryClient,
@@ -117,7 +138,7 @@ RETURNING id
       room.roomId,
       room.leagueId,
       room.seasonId,
-      room.status,
+      persistedStatusFor(room),
       room.commissionerUserId,
       room.startsAt ?? null,
       startedAtFor(room),
@@ -155,7 +176,7 @@ RETURNING current_revision
 `.trim(),
     [
       room.roomId,
-      room.status,
+      persistedStatusFor(room),
       room.revision,
       startedAtFor(room),
       endedAtFor(room),
@@ -239,13 +260,13 @@ INSERT INTO draft_room_snapshots (
   );
 };
 
-const persistSaleProjection = async (
+const insertActiveSaleProjection = async (
   client: PostgresQueryClient,
-  event: LiveDraftRoomEvent,
+  event: Pick<LiveDraftRoomEvent, "id" | "roomId" | "occurredAt">,
+  sale: Extract<LiveDraftRoomEvent, { type: "sale_logged" }>["sale"],
 ): Promise<void> => {
-  if (event.type === "sale_logged") {
-    await client.query(
-      `
+  await client.query(
+    `
 INSERT INTO draft_room_sales (
   id,
   draft_room_id,
@@ -260,19 +281,41 @@ INSERT INTO draft_room_sales (
   created_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10)
 `.trim(),
-      [
-        event.sale.saleEventId,
-        event.roomId,
-        event.id,
-        event.sale.teamId,
-        event.sale.playerName,
-        event.sale.normalizedPlayerName,
-        event.sale.position,
-        event.sale.price,
-        event.sale.expectedPrice,
-        event.occurredAt,
-      ],
+    [
+      sale.saleEventId,
+      event.roomId,
+      event.id,
+      sale.teamId,
+      sale.playerName,
+      sale.normalizedPlayerName,
+      sale.position,
+      sale.price,
+      sale.expectedPrice,
+      event.occurredAt,
+    ],
+  );
+};
+
+const persistSaleProjection = async (
+  client: PostgresQueryClient,
+  event: LiveDraftRoomEvent,
+  previousRoom: LiveDraftRoom,
+): Promise<void> => {
+  if (event.type === "sale_logged") {
+    await insertActiveSaleProjection(client, event, event.sale);
+  }
+
+  if (event.type === "sale_corrected") {
+    await client.query(
+      `
+UPDATE draft_room_sales
+SET status = 'corrected',
+    corrected_by_event_id = $2
+WHERE source_event_id = $1
+`.trim(),
+      [event.correctedSaleEventId, event.id],
     );
+    await insertActiveSaleProjection(client, event, event.replacementSale);
   }
 
   if (event.type === "sale_undone") {
@@ -285,6 +328,19 @@ WHERE source_event_id = $1
 `.trim(),
       [event.undoneSaleEventId, event.id],
     );
+
+    const undoneEvent = previousRoom.events.find(candidate => candidate.id === event.undoneSaleEventId);
+    if (undoneEvent?.type === "sale_corrected") {
+      await client.query(
+        `
+UPDATE draft_room_sales
+SET status = 'active',
+    corrected_by_event_id = NULL
+WHERE source_event_id = $1
+`.trim(),
+        [undoneEvent.correctedSaleEventId],
+      );
+    }
   }
 };
 
@@ -344,12 +400,40 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
     return cloneRoom(repositoryForRoom(room, this.authorizer).getRoomForActor(input));
   }
 
+  async hasStartedRoomForSeason(seasonId: string): Promise<boolean> {
+    const result = await this.client.query<StartedRoomRow>(
+      `
+SELECT EXISTS (
+  SELECT 1
+  FROM draft_rooms
+  WHERE league_season_id = $1
+    AND started_at IS NOT NULL
+) AS has_started_room
+`.trim(),
+      [seasonId],
+    );
+
+    return firstRow(result)?.has_started_room ?? false;
+  }
+
   async startRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
     return await this.mutateRoom(input, repository => repository.startRoom(input));
   }
 
+  async pauseRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+    return await this.mutateRoom(input, repository => repository.pauseRoom(input));
+  }
+
+  async resumeRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+    return await this.mutateRoom(input, repository => repository.resumeRoom(input));
+  }
+
   async logSaleCommand(input: LogLiveDraftRoomSaleInput): Promise<LiveDraftRoom> {
     return await this.mutateRoom(input, repository => repository.logSaleCommand(input));
+  }
+
+  async correctSale(input: CorrectLiveDraftRoomSaleInput): Promise<LiveDraftRoom> {
+    return await this.mutateRoom(input, repository => repository.correctSale(input));
   }
 
   async undoLastSale(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
@@ -394,7 +478,7 @@ ORDER BY draft_room_id, revision DESC
 
       await updateDraftRoomRevision(client, updatedRoom, currentRoom.revision);
       await insertDraftRoomEvent(client, newEvent, input.expectedRevision);
-      await persistSaleProjection(client, newEvent);
+      await persistSaleProjection(client, newEvent, currentRoom);
       await insertDraftRoomSnapshot(client, updatedRoom);
 
       return cloneRoom(updatedRoom);

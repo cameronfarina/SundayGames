@@ -564,6 +564,127 @@ describe("live draft rooms", () => {
     ));
   });
 
+  it("pauses and resumes a live room while freezing sale mutations", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    createRoom(repository);
+    startRoom(repository);
+
+    const pauseInput = {
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 2,
+      idempotencyKey: "pause:room_sunday",
+      now: new Date(now.getTime() + 2_000),
+    } as const;
+    const paused = repository.pauseRoom(pauseInput);
+
+    expect(paused).toMatchObject({ status: "paused", revision: 3 });
+    expect(paused.events.at(-1)).toMatchObject({ type: "room_paused", revision: 3 });
+    expect(repository.pauseRoom(pauseInput)).toBe(paused);
+    expect(() =>
+      repository.logSaleCommand({
+        roomId: "room_sunday",
+        actor: commissioner,
+        expectedRevision: 3,
+        idempotencyKey: "sale:while-paused",
+        sale: "cam puka 62",
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "room_paused",
+      "Resume the draft room before changing sales.",
+    ));
+
+    const resumed = repository.resumeRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 3,
+      idempotencyKey: "resume:room_sunday",
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(resumed).toMatchObject({ status: "live", revision: 4 });
+    expect(resumed.events.at(-1)).toMatchObject({ type: "room_resumed", revision: 4 });
+    expect(repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 4,
+      idempotencyKey: "sale:after-resume",
+      sale: "cam puka 62",
+    }).projection.sales).toHaveLength(1);
+  });
+
+  it("corrects an active sale append-only and restores the original when the correction is undone", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    createRoom(repository);
+    startRoom(repository);
+    const sold = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
+      sale: "cam puka 62",
+      now: new Date(now.getTime() + 2_000),
+    });
+    const originalSale = sold.projection.sales[0];
+    if (originalSale === undefined) throw new Error("Expected original sale fixture.");
+
+    const correctionInput = {
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 3,
+      idempotencyKey: "correct:puka:seth:41",
+      saleEventId: originalSale.saleEventId,
+      replacementSale: { ownerText: "Seth", playerName: "Puka Nacua", price: 41 },
+      now: new Date(now.getTime() + 3_000),
+    } as const;
+    const corrected = repository.correctSale(correctionInput);
+
+    expect(corrected).toMatchObject({ status: "live", revision: 4 });
+    expect(corrected.events.at(-1)).toMatchObject({
+      type: "sale_corrected",
+      correctedSaleEventId: originalSale.saleEventId,
+      previousSale: expect.objectContaining({ ownerDisplayName: "Cam", price: 62 }),
+      replacementSale: expect.objectContaining({ ownerDisplayName: "Seth", price: 41 }),
+    });
+    expect(corrected.projection.sales).toEqual([
+      expect.objectContaining({
+        saleEventId: "room_sunday-rev-4-sale_corrected",
+        ownerDisplayName: "Seth",
+        playerName: "Puka Nacua",
+        price: 41,
+      }),
+    ]);
+    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Cam")?.spent).toBe(0);
+    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Seth")?.spent).toBe(41);
+    expect(repository.correctSale(correctionInput)).toBe(corrected);
+    expect(() =>
+      repository.correctSale({
+        ...correctionInput,
+        expectedRevision: corrected.revision,
+        idempotencyKey: "correct:inactive-original",
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "sale_not_active",
+      "Only an active sale can be corrected.",
+    ));
+
+    const restored = repository.undoLastSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 4,
+      idempotencyKey: "undo:puka:correction",
+      now: new Date(now.getTime() + 4_000),
+    });
+
+    expect(restored.projection.sales).toEqual([
+      expect.objectContaining({
+        saleEventId: originalSale.saleEventId,
+        ownerDisplayName: "Cam",
+        price: 62,
+      }),
+    ]);
+  });
+
   it("undoes the last sale and ends the room", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     createRoom(repository);

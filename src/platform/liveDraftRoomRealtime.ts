@@ -24,9 +24,15 @@ const maybeUnref = (timer: ReturnType<typeof setTimeout>): void => {
 };
 
 export class LiveDraftRoomRevisionNotifier {
+  readonly #latestRevisionByRoomId = new Map<string, number>();
   readonly #waitersByRoomId = new Map<string, Set<LiveDraftRoomRevisionWaiter>>();
 
   waitForRevision(input: WaitForLiveDraftRoomRevisionInput): Promise<boolean> {
+    const latestRevision = this.#latestRevisionByRoomId.get(input.roomId);
+    if (latestRevision !== undefined && latestRevision > input.afterRevision) {
+      return Promise.resolve(true);
+    }
+
     const timeoutMs = input.timeoutMs ?? defaultRevisionWaitTimeoutMs;
     if (timeoutMs <= 0) return Promise.resolve(false);
 
@@ -55,6 +61,9 @@ export class LiveDraftRoomRevisionNotifier {
   }
 
   notifyRevision(roomId: string, revision: number): void {
+    const latestRevision = this.#latestRevisionByRoomId.get(roomId) ?? 0;
+    if (revision > latestRevision) this.#latestRevisionByRoomId.set(roomId, revision);
+
     const waiters = this.#waitersByRoomId.get(roomId);
     if (waiters === undefined) return;
 

@@ -8,7 +8,7 @@ import {
 } from "./leagueSeason.js";
 import type { WorkspaceRole } from "./workspacePrivacy.js";
 
-export type LiveDraftRoomStatus = "setup" | "countdown" | "live" | "ended";
+export type LiveDraftRoomStatus = "setup" | "countdown" | "live" | "paused" | "ended";
 
 export type LiveDraftRoomErrorCode =
   | "access_denied"
@@ -25,10 +25,13 @@ export type LiveDraftRoomErrorCode =
   | "position_limit"
   | "room_not_found"
   | "room_not_live"
+  | "room_not_paused"
+  | "room_paused"
   | "room_already_exists"
   | "room_already_ended"
   | "room_already_live"
   | "roster_full"
+  | "sale_not_active"
   | "season_not_ready"
   | "stale_revision"
   | "team_not_found";
@@ -66,7 +69,15 @@ export interface LiveDraftRoomActor {
   role?: WorkspaceRole | undefined;
 }
 
-export type LiveDraftRoomMutationAction = "read" | "start" | "log_sale" | "undo_sale" | "end";
+export type LiveDraftRoomMutationAction =
+  | "read"
+  | "start"
+  | "pause"
+  | "resume"
+  | "log_sale"
+  | "correct_sale"
+  | "undo_sale"
+  | "end";
 
 export type LiveDraftRoomAuthorizer = (input: {
   actor: LiveDraftRoomActor;
@@ -80,8 +91,12 @@ export interface LiveDraftRoomRepository {
   createRoom(input: CreateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   getRoom(roomId: string): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  hasStartedRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  resumeRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   logSaleCommand(input: LogLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  correctSale(input: CorrectLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   endRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
 }
@@ -186,6 +201,30 @@ export type LiveDraftRoomEvent =
     leagueId: string;
     seasonId: string;
     revision: number;
+    type: "room_paused";
+    actorUserId: string;
+    occurredAt: Date;
+    idempotencyKey?: string | undefined;
+    mutationHash?: string | undefined;
+  }
+  | {
+    id: string;
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    revision: number;
+    type: "room_resumed";
+    actorUserId: string;
+    occurredAt: Date;
+    idempotencyKey?: string | undefined;
+    mutationHash?: string | undefined;
+  }
+  | {
+    id: string;
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    revision: number;
     type: "room_started";
     actorUserId: string;
     occurredAt: Date;
@@ -204,6 +243,21 @@ export type LiveDraftRoomEvent =
     idempotencyKey?: string | undefined;
     mutationHash?: string | undefined;
     sale: LiveDraftRoomSale;
+  }
+  | {
+    id: string;
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    revision: number;
+    type: "sale_corrected";
+    actorUserId: string;
+    occurredAt: Date;
+    idempotencyKey?: string | undefined;
+    mutationHash?: string | undefined;
+    correctedSaleEventId: string;
+    previousSale: LiveDraftRoomSale;
+    replacementSale: LiveDraftRoomSale;
   }
   | {
     id: string;
@@ -272,6 +326,11 @@ export interface MutateLiveDraftRoomInput {
 
 export interface LogLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput {
   sale: LiveDraftRoomSaleCommandInput;
+}
+
+export interface CorrectLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput {
+  saleEventId: string;
+  replacementSale: LiveDraftRoomSaleCommandInput;
 }
 
 const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
@@ -615,8 +674,14 @@ const actionForEventType = (
   switch (eventType) {
     case "room_started":
       return "start";
+    case "room_paused":
+      return "pause";
+    case "room_resumed":
+      return "resume";
     case "sale_logged":
       return "log_sale";
+    case "sale_corrected":
+      return "correct_sale";
     case "sale_undone":
       return "undo_sale";
     case "room_ended":
@@ -647,19 +712,43 @@ const replayIdempotentMutation = (
   return room;
 };
 
-const activeSaleEventsFor = (
-  events: readonly LiveDraftRoomEvent[],
-): readonly Extract<LiveDraftRoomEvent, { type: "sale_logged" }>[] => {
-  const undoneSaleEventIds = new Set(
-    events
-      .filter((event): event is Extract<LiveDraftRoomEvent, { type: "sale_undone" }> => event.type === "sale_undone")
-      .map(event => event.undoneSaleEventId),
-  );
+interface ActiveLiveDraftRoomSale {
+  sourceEventId: string;
+  sale: LiveDraftRoomSale;
+}
 
-  return events.filter(
-    (event): event is Extract<LiveDraftRoomEvent, { type: "sale_logged" }> =>
-      event.type === "sale_logged" && !undoneSaleEventIds.has(event.id),
-  );
+const activeSalesFor = (
+  events: readonly LiveDraftRoomEvent[],
+): readonly ActiveLiveDraftRoomSale[] => {
+  const eventsById = new Map(events.map(event => [event.id, event]));
+  const activeSalesBySourceEventId = new Map<string, ActiveLiveDraftRoomSale>();
+
+  for (const event of events) {
+    if (event.type === "sale_logged") {
+      activeSalesBySourceEventId.set(event.id, { sourceEventId: event.id, sale: event.sale });
+    }
+
+    if (event.type === "sale_corrected") {
+      activeSalesBySourceEventId.delete(event.correctedSaleEventId);
+      activeSalesBySourceEventId.set(event.id, {
+        sourceEventId: event.id,
+        sale: event.replacementSale,
+      });
+    }
+
+    if (event.type === "sale_undone") {
+      activeSalesBySourceEventId.delete(event.undoneSaleEventId);
+      const undoneEvent = eventsById.get(event.undoneSaleEventId);
+      if (undoneEvent?.type === "sale_corrected") {
+        activeSalesBySourceEventId.set(undoneEvent.correctedSaleEventId, {
+          sourceEventId: undoneEvent.correctedSaleEventId,
+          sale: undoneEvent.previousSale,
+        });
+      }
+    }
+  }
+
+  return [...activeSalesBySourceEventId.values()];
 };
 
 const rosterPlayerFromInitial = (
@@ -780,6 +869,7 @@ const teamStateFor = (
 
 const projectRoom = (
   room: Omit<LiveDraftRoom, "projection">,
+  excludedSaleEventIds: ReadonlySet<string> = new Set(),
 ): LiveDraftRoomProjection => {
   const rostersByTeamId = new Map<string, LiveDraftRoomRosterPlayer[]>(
     room.season.teams.map(team => [team.id, []]),
@@ -790,18 +880,19 @@ const projectRoom = (
     if (roster !== undefined) roster.push(rosterPlayerFromInitial(initialPlayer));
   }
 
-  const activeSaleEvents = activeSaleEventsFor(room.events);
-  for (const event of activeSaleEvents) {
-    const roster = rostersByTeamId.get(event.sale.teamId);
-    if (roster !== undefined) roster.push(rosterPlayerFromSale(event.sale));
+  const activeSales = activeSalesFor(room.events)
+    .filter(activeSale => !excludedSaleEventIds.has(activeSale.sourceEventId));
+  for (const activeSale of activeSales) {
+    const roster = rostersByTeamId.get(activeSale.sale.teamId);
+    if (roster !== undefined) roster.push(rosterPlayerFromSale(activeSale.sale));
   }
 
   const unavailableNames = new Set<string>();
   for (const initialPlayer of room.initialRosters) {
     unavailableNames.add(normalizePlayerName(cleanPlayerName(initialPlayer.playerName)));
   }
-  for (const event of activeSaleEvents) {
-    unavailableNames.add(event.sale.normalizedPlayerName);
+  for (const activeSale of activeSales) {
+    unavailableNames.add(activeSale.sale.normalizedPlayerName);
   }
 
   return {
@@ -813,15 +904,16 @@ const projectRoom = (
     updatedAt: room.updatedAt,
     teams: room.season.teams.map(team => teamStateFor(room.season, team, rostersByTeamId.get(team.id) ?? [])),
     board: room.playerCatalog.filter(player => !unavailableNames.has(player.normalizedPlayerName)),
-    sales: activeSaleEvents.map(event => event.sale),
+    sales: activeSales.map(activeSale => activeSale.sale),
   };
 };
 
 const roomWithProjection = (
   room: Omit<LiveDraftRoom, "projection">,
+  excludedSaleEventIds?: ReadonlySet<string> | undefined,
 ): LiveDraftRoom => ({
   ...room,
-  projection: projectRoom(room),
+  projection: projectRoom(room, excludedSaleEventIds),
 });
 
 const assertWriter = (
@@ -899,14 +991,23 @@ const assertRoomNotEnded = (room: LiveDraftRoom): void => {
 };
 
 const assertRoomCanStart = (room: LiveDraftRoom): void => {
-  if (room.status === "live") {
+  if (room.status === "live" || room.status === "paused") {
     throw new LiveDraftRoomError("room_already_live", "Draft room has already started.");
   }
 };
 
 const assertRoomLive = (room: LiveDraftRoom): void => {
+  if (room.status === "paused") {
+    throw new LiveDraftRoomError("room_paused", "Resume the draft room before changing sales.");
+  }
   if (room.status !== "live") {
     throw new LiveDraftRoomError("room_not_live", "Start the draft room before logging sales.");
+  }
+};
+
+const assertRoomPaused = (room: LiveDraftRoom): void => {
+  if (room.status !== "paused") {
+    throw new LiveDraftRoomError("room_not_paused", "Only a paused draft room can be resumed.");
   }
 };
 
@@ -1063,6 +1164,12 @@ export class InMemoryLiveDraftRoomRepository {
     return room;
   }
 
+  hasStartedRoomForSeason(seasonId: string): boolean {
+    return [...this.#roomsById.values()].some(room =>
+      room.seasonId === seasonId && room.events.some(event => event.type === "room_started")
+    );
+  }
+
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("start", {});
@@ -1083,6 +1190,68 @@ export class InMemoryLiveDraftRoomRepository {
       seasonId: room.seasonId,
       revision,
       type: "room_started",
+      actorUserId: input.actor.userId,
+      occurredAt: now,
+      ...mutationMetadataFor(input, mutationHash),
+    };
+    const updatedRoom = appendEvent(room, event, "live", now);
+
+    this.#roomsById.set(updatedRoom.roomId, updatedRoom);
+
+    return updatedRoom;
+  }
+
+  pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
+    const room = this.getRoom(input.roomId);
+    const mutationHash = mutationHashFor("pause", {});
+    assertWriter(room, input.actor, "pause", this.authorizer);
+    assertMutationMetadata(input);
+    const replayedRoom = replayIdempotentMutation(room, "pause", input.idempotencyKey, mutationHash);
+    if (replayedRoom !== undefined) return replayedRoom;
+    assertExpectedRevision(room, input.expectedRevision);
+    assertRoomNotEnded(room);
+    assertRoomLive(room);
+
+    const now = input.now ?? new Date();
+    const revision = room.revision + 1;
+    const event: LiveDraftRoomEvent = {
+      id: eventIdFor(room.roomId, revision, "room_paused"),
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      revision,
+      type: "room_paused",
+      actorUserId: input.actor.userId,
+      occurredAt: now,
+      ...mutationMetadataFor(input, mutationHash),
+    };
+    const updatedRoom = appendEvent(room, event, "paused", now);
+
+    this.#roomsById.set(updatedRoom.roomId, updatedRoom);
+
+    return updatedRoom;
+  }
+
+  resumeRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
+    const room = this.getRoom(input.roomId);
+    const mutationHash = mutationHashFor("resume", {});
+    assertWriter(room, input.actor, "resume", this.authorizer);
+    assertMutationMetadata(input);
+    const replayedRoom = replayIdempotentMutation(room, "resume", input.idempotencyKey, mutationHash);
+    if (replayedRoom !== undefined) return replayedRoom;
+    assertExpectedRevision(room, input.expectedRevision);
+    assertRoomNotEnded(room);
+    assertRoomPaused(room);
+
+    const now = input.now ?? new Date();
+    const revision = room.revision + 1;
+    const event: LiveDraftRoomEvent = {
+      id: eventIdFor(room.roomId, revision, "room_resumed"),
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      revision,
+      type: "room_resumed",
       actorUserId: input.actor.userId,
       occurredAt: now,
       ...mutationMetadataFor(input, mutationHash),
@@ -1130,6 +1299,61 @@ export class InMemoryLiveDraftRoomRepository {
     return updatedRoom;
   }
 
+  correctSale(input: CorrectLiveDraftRoomSaleInput): LiveDraftRoom {
+    const room = this.getRoom(input.roomId);
+    const mutationHash = mutationHashFor("correct_sale", {
+      saleEventId: input.saleEventId,
+      replacementSale: input.replacementSale,
+    });
+    assertWriter(room, input.actor, "correct_sale", this.authorizer);
+    assertMutationMetadata(input);
+    const replayedRoom = replayIdempotentMutation(room, "correct_sale", input.idempotencyKey, mutationHash);
+    if (replayedRoom !== undefined) return replayedRoom;
+    assertExpectedRevision(room, input.expectedRevision);
+    assertRoomNotEnded(room);
+    assertRoomLive(room);
+
+    const activeSale = activeSalesFor(room.events)
+      .find(candidate => candidate.sourceEventId === input.saleEventId);
+    if (activeSale === undefined) {
+      throw new LiveDraftRoomError(
+        "sale_not_active",
+        "Only an active sale can be corrected.",
+      );
+    }
+
+    const now = input.now ?? new Date();
+    const revision = room.revision + 1;
+    const eventId = eventIdFor(room.roomId, revision, "sale_corrected");
+    const replacementSale = buildSale(room, input.replacementSale, eventId);
+    const { projection: _projection, ...roomWithoutProjection } = room;
+    const roomWithoutCorrectedSale = roomWithProjection(
+      roomWithoutProjection,
+      new Set([activeSale.sourceEventId]),
+    );
+    validateSale(roomWithoutCorrectedSale, replacementSale);
+
+    const event: LiveDraftRoomEvent = {
+      id: eventId,
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      revision,
+      type: "sale_corrected",
+      actorUserId: input.actor.userId,
+      occurredAt: now,
+      ...mutationMetadataFor(input, mutationHash),
+      correctedSaleEventId: activeSale.sourceEventId,
+      previousSale: activeSale.sale,
+      replacementSale,
+    };
+    const updatedRoom = appendEvent(room, event, "live", now);
+
+    this.#roomsById.set(updatedRoom.roomId, updatedRoom);
+
+    return updatedRoom;
+  }
+
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoom {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("undo_sale", {});
@@ -1141,8 +1365,8 @@ export class InMemoryLiveDraftRoomRepository {
     assertRoomNotEnded(room);
     assertRoomLive(room);
 
-    const lastSaleEvent = [...activeSaleEventsFor(room.events)].at(-1);
-    if (lastSaleEvent === undefined) {
+    const lastSale = [...activeSalesFor(room.events)].at(-1);
+    if (lastSale === undefined) {
       throw new LiveDraftRoomError("no_sale_to_undo", "There is no sale to undo.");
     }
 
@@ -1158,8 +1382,8 @@ export class InMemoryLiveDraftRoomRepository {
       actorUserId: input.actor.userId,
       occurredAt: now,
       ...mutationMetadataFor(input, mutationHash),
-      undoneSaleEventId: lastSaleEvent.id,
-      undoneSale: lastSaleEvent.sale,
+      undoneSaleEventId: lastSale.sourceEventId,
+      undoneSale: lastSale.sale,
     };
     const updatedRoom = appendEvent(room, event, "live", now);
 

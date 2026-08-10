@@ -108,6 +108,8 @@ describe("live draft room stream contract", () => {
     const memberModel = buildLiveDraftRoomReadModel({
       room,
       actor: actorWithTeam(member, sethTeam.teamId),
+      selectedTeamId: camTeam.teamId,
+      viewedTeamId: camTeam.teamId,
     });
     const observerModel = buildLiveDraftRoomReadModel({
       room,
@@ -123,6 +125,15 @@ describe("live draft room stream contract", () => {
     expect(memberModel.role).toBe("member");
     expect(memberModel.canMutateRoom).toBe(false);
     expect(memberModel.selectedTeam?.teamId).toBe(sethTeam.teamId);
+    expect(memberModel.viewedTeam?.teamId).toBe(camTeam.teamId);
+    expect(memberModel.connection).toEqual({
+      state: "synchronized",
+      transport: "sse",
+      cursor: "room_sunday:4",
+      revision: 4,
+      retryMilliseconds: 5_000,
+      pollingFallback: true,
+    });
     expect(observerModel.role).toBe("observer");
     expect(observerModel.selectedTeam).toBeUndefined();
     expect(observerModel.viewedTeam?.teamId).toBe(camTeam.teamId);
@@ -220,6 +231,72 @@ describe("live draft room stream contract", () => {
       revision: 4,
       data: expect.objectContaining({ status: "ended" }),
     });
+  });
+
+  it("streams correction snapshots and pause/resume status events with the active replacement sale", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    createRoom(repository);
+    repository.startRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 1,
+      idempotencyKey: "start:correction-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 2,
+      idempotencyKey: "sale:correction-room",
+      sale: "cam puka 62",
+      now: new Date(now.getTime() + 2_000),
+    });
+    const originalSale = sold.projection.sales[0];
+    if (originalSale === undefined) throw new Error("Expected original sale fixture.");
+    const corrected = repository.correctSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 3,
+      idempotencyKey: "correct:correction-room",
+      saleEventId: originalSale.saleEventId,
+      replacementSale: "seth puka 41",
+      now: new Date(now.getTime() + 3_000),
+    });
+    const paused = repository.pauseRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 4,
+      idempotencyKey: "pause:correction-room",
+      now: new Date(now.getTime() + 4_000),
+    });
+    const resumed = repository.resumeRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 5,
+      idempotencyKey: "resume:correction-room",
+      now: new Date(now.getTime() + 5_000),
+    });
+
+    expect(buildLiveDraftRoomReadModel({ room: corrected, actor: commissioner }).salesLog).toEqual([
+      expect.objectContaining({
+        revision: 4,
+        ownerDisplayName: "Seth",
+        playerName: "Puka Nacua",
+        price: 41,
+      }),
+    ]);
+    expect([
+      corrected.events.at(-1),
+      paused.events.at(-1),
+      resumed.events.at(-1),
+    ].map(event => {
+      if (event === undefined) throw new Error("Expected lifecycle event fixture.");
+      return buildLiveDraftRoomSseEvent({ room: resumed, event, actor: commissioner });
+    })).toMatchObject([
+      { event: "room.snapshot", revision: 4 },
+      { event: "room.paused", revision: 5, data: { status: "paused" } },
+      { event: "room.resumed", revision: 6, data: { status: "live" } },
+    ]);
   });
 
   it("returns next events after a stale client revision for polling fallback", () => {

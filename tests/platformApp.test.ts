@@ -128,12 +128,28 @@ class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.getRoomForActor(input);
   }
 
+  async hasStartedRoomForSeason(seasonId: string) {
+    return this.inner.hasStartedRoomForSeason(seasonId);
+  }
+
   async startRoom(input: MutateLiveDraftRoomInput) {
     return this.inner.startRoom(input);
   }
 
+  async pauseRoom(input: MutateLiveDraftRoomInput) {
+    return this.inner.pauseRoom(input);
+  }
+
+  async resumeRoom(input: MutateLiveDraftRoomInput) {
+    return this.inner.resumeRoom(input);
+  }
+
   async logSaleCommand(input: LogLiveDraftRoomSaleInput) {
     return this.inner.logSaleCommand(input);
+  }
+
+  async correctSale(input: Parameters<LiveDraftRoomRepository["correctSale"]>[0]) {
+    return this.inner.correctSale(input);
   }
 
   async undoLastSale(input: MutateLiveDraftRoomInput) {
@@ -364,6 +380,64 @@ describe("platform app service", () => {
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
     });
+  });
+
+  it("locks an assigned team claim after a live draft has started", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const samTeam = season.teams.find(team => team.ownerDisplayName === "Sam");
+    if (camTeam === undefined || sethTeam === undefined || samTeam === undefined) {
+      throw new Error("Expected fixture teams.");
+    }
+
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+      ],
+    });
+    const room = await app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_claim_lock",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    });
+    await app.startLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: room.revision,
+      idempotencyKey: "start:claim-lock",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: seth.sessionToken,
+      seasonId: season.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      now: new Date(now.getTime() + 2_000),
+    })).resolves.toMatchObject({ teamId: sethTeam.id, ownerId: sethTeam.ownerId });
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: seth.sessionToken,
+      seasonId: season.id,
+      ownerId: samTeam.ownerId,
+      teamId: samTeam.id,
+      now: new Date(now.getTime() + 3_000),
+    })).rejects.toThrow(new PlatformAppError(
+      "team_claim_locked",
+      "Your team claim is locked because this league's live draft has started.",
+    ));
   });
 
   it("registers a league season, gates shared access by membership, and keeps prep private", async () => {
@@ -1178,15 +1252,76 @@ describe("platform app service", () => {
       budgetRemaining: 88,
     });
 
+    const memberState = await app.getLiveDraftRoomState({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+    });
+    expect(memberState).toMatchObject({
+      role: "member",
+      canMutateRoom: false,
+      selectedTeam: { teamId: sethTeam.id },
+      connection: { state: "synchronized", revision: sold.revision },
+    });
+    expect(JSON.stringify(memberState)).not.toContain("viewerPasswordHashRef");
+
+    const paused = await app.pauseLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: sold.revision,
+      idempotencyKey: "pause-room",
+      now: new Date(now.getTime() + 4_000),
+    });
+    await expect(app.resumeLiveDraftRoom({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: paused.revision,
+      idempotencyKey: "resume-room-by-member",
+      now: new Date(now.getTime() + 5_000),
+    })).rejects.toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+    const resumed = await app.resumeLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: paused.revision,
+      idempotencyKey: "resume-room",
+      now: new Date(now.getTime() + 6_000),
+    });
+    const pukaSale = resumed.projection.sales.find(sale => sale.playerName === "Puka Nacua");
+    if (pukaSale === undefined) throw new Error("Expected Puka sale fixture.");
+    const corrected = await app.correctLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: resumed.revision,
+      idempotencyKey: "correct-puka-sale",
+      saleEventId: pukaSale.saleEventId,
+      replacementSale: "seth puka 41",
+      now: new Date(now.getTime() + 7_000),
+    });
+    expect(corrected.projection.sales).toEqual([
+      expect.objectContaining({ ownerDisplayName: "Seth", playerName: "Puka Nacua", price: 41 }),
+    ]);
+    const restored = await app.undoLastLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: corrected.revision,
+      idempotencyKey: "undo-puka-correction",
+      now: new Date(now.getTime() + 8_000),
+    });
+    expect(restored.projection.sales).toEqual([
+      expect.objectContaining({ ownerDisplayName: "Cam", playerName: "Puka Nacua", price: 62 }),
+    ]);
+
     const exportResult = await app.exportLiveDraftRoom({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 4_000),
+      exportedAt: new Date(now.getTime() + 9_000),
     });
     await expect(app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 5_000),
+      exportedAt: new Date(now.getTime() + 10_000),
     })).rejects.toThrow(new PlatformAppError(
       "draft_room_not_final",
       "Draft room must be ended before creating a final export artifact.",
@@ -1194,19 +1329,19 @@ describe("platform app service", () => {
     const ended = await app.endLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
-      expectedRevision: sold.revision,
+      expectedRevision: restored.revision,
       idempotencyKey: "end-room-before-export",
-      now: new Date(now.getTime() + 6_000),
+      now: new Date(now.getTime() + 11_000),
     });
     const artifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 7_000),
+      exportedAt: new Date(now.getTime() + 12_000),
     });
     const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 8_000),
+      exportedAt: new Date(now.getTime() + 13_000),
     });
 
     expect(exportResult.sheetName).toBe("Draft Results");

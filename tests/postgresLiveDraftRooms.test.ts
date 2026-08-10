@@ -71,6 +71,7 @@ interface DraftRoomSaleRow {
   expected_price: number | null;
   status: string;
   voided_by_event_id: string | null;
+  corrected_by_event_id: string | null;
   created_at: Date;
 }
 
@@ -162,6 +163,15 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
           ? []
           : [{ snapshot_json: cloneSnapshotRow(snapshot).snapshot_json } as TRow],
       };
+    }
+
+    if (normalizedSql.startsWith("SELECT EXISTS") && normalizedSql.includes("FROM draft_rooms")) {
+      const [seasonId] = values as readonly [string];
+      const hasStartedRoom = [...this.rooms.values()].some(room =>
+        room.league_season_id === seasonId && room.started_at !== null
+      );
+
+      return { rows: [{ has_started_room: hasStartedRoom } as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("INSERT INTO draft_rooms")) {
@@ -326,6 +336,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         expected_price: expectedPrice,
         status: "active",
         voided_by_event_id: null,
+        corrected_by_event_id: null,
         created_at: new Date(createdAt.getTime()),
       });
 
@@ -341,6 +352,34 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         ...sale,
         status: "voided",
         voided_by_event_id: voidedByEventId,
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_room_sales SET status = 'corrected'")) {
+      const [sourceEventId, correctedByEventId] = values as readonly [string, string];
+      const sale = [...this.sales.values()].find(candidate => candidate.source_event_id === sourceEventId);
+      if (sale === undefined) return { rows: [], rowCount: 0 };
+
+      this.sales.set(sale.id, {
+        ...sale,
+        status: "corrected",
+        corrected_by_event_id: correctedByEventId,
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_room_sales SET status = 'active'")) {
+      const [sourceEventId] = values as readonly [string];
+      const sale = [...this.sales.values()].find(candidate => candidate.source_event_id === sourceEventId);
+      if (sale === undefined) return { rows: [], rowCount: 0 };
+
+      this.sales.set(sale.id, {
+        ...sale,
+        status: "active",
+        corrected_by_event_id: null,
       });
 
       return { rows: [], rowCount: 1 };
@@ -590,6 +629,116 @@ describe("Postgres live draft rooms", () => {
         source_event_id: "room_sunday-rev-3-sale_logged",
         status: "voided",
         voided_by_event_id: "room_sunday-rev-4-sale_undone",
+      },
+    ]);
+  });
+
+  it("persists pause, resume, correction, and started-season claim locking with repository parity", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    await expect(repository.hasStartedRoomForSeason(created.seasonId)).resolves.toBe(false);
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    await expect(repository.hasStartedRoomForSeason(created.seasonId)).resolves.toBe(true);
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const originalSale = sold.projection.sales[0];
+    if (originalSale === undefined) throw new Error("Expected original sale fixture.");
+    const corrected = await repository.correctSale({
+      roomId: sold.roomId,
+      actor: commissioner,
+      expectedRevision: sold.revision,
+      idempotencyKey: "correct-puka",
+      saleEventId: originalSale.saleEventId,
+      replacementSale: { ownerText: "Seth", playerName: "Puka Nacua", price: 41 },
+      now: new Date(now.getTime() + 3_000),
+    });
+    const paused = await repository.pauseRoom({
+      roomId: corrected.roomId,
+      actor: commissioner,
+      expectedRevision: corrected.revision,
+      idempotencyKey: "pause-room",
+      now: new Date(now.getTime() + 4_000),
+    });
+    const resumed = await repository.resumeRoom({
+      roomId: paused.roomId,
+      actor: commissioner,
+      expectedRevision: paused.revision,
+      idempotencyKey: "resume-room",
+      now: new Date(now.getTime() + 5_000),
+    });
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(created.roomId);
+
+    expect(reloaded).toEqual(resumed);
+    expect(reloaded.projection.sales).toEqual([
+      expect.objectContaining({ ownerDisplayName: "Seth", playerName: "Puka Nacua", price: 41 }),
+    ]);
+    expect(client.events.map(event => [event.revision, event.event_type])).toEqual([
+      [1, "room_created"],
+      [2, "room_started"],
+      [3, "sale_logged"],
+      [4, "sale_corrected"],
+      [5, "room_paused"],
+      [6, "room_resumed"],
+    ]);
+    expect([...client.sales.values()]).toMatchObject([
+      {
+        source_event_id: originalSale.saleEventId,
+        status: "corrected",
+        corrected_by_event_id: "room_sunday-rev-4-sale_corrected",
+      },
+      {
+        source_event_id: "room_sunday-rev-4-sale_corrected",
+        fantasy_team_id: "league-214674-season-2026-team-04-seth",
+        price: 41,
+        status: "active",
+      },
+    ]);
+
+    const restored = await repository.undoLastSale({
+      roomId: resumed.roomId,
+      actor: commissioner,
+      expectedRevision: resumed.revision,
+      idempotencyKey: "undo-correction",
+      now: new Date(now.getTime() + 6_000),
+    });
+
+    expect(restored.projection.sales).toEqual([
+      expect.objectContaining({
+        saleEventId: originalSale.saleEventId,
+        ownerDisplayName: "Cam",
+        price: 67,
+      }),
+    ]);
+    expect([...client.sales.values()]).toMatchObject([
+      {
+        source_event_id: originalSale.saleEventId,
+        status: "active",
+        corrected_by_event_id: null,
+      },
+      {
+        source_event_id: "room_sunday-rev-4-sale_corrected",
+        status: "voided",
+        voided_by_event_id: "room_sunday-rev-7-sale_undone",
       },
     ]);
   });

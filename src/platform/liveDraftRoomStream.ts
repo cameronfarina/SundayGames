@@ -16,6 +16,8 @@ export type LiveDraftRoomSseEventName =
   | "room.snapshot"
   | "room.sale"
   | "room.started"
+  | "room.paused"
+  | "room.resumed"
   | "room.ended"
   | "room.error";
 
@@ -69,6 +71,15 @@ export interface LiveDraftRoomExportReadiness {
   blockers: readonly string[];
 }
 
+export interface LiveDraftRoomConnectionState {
+  state: "synchronized";
+  transport: "sse";
+  cursor: string;
+  revision: number;
+  retryMilliseconds: number;
+  pollingFallback: true;
+}
+
 export interface LiveDraftRoomReadModel {
   roomId: string;
   leagueId: string;
@@ -84,6 +95,7 @@ export interface LiveDraftRoomReadModel {
   viewedTeam?: LiveDraftRoomTeamSummary | undefined;
   teamSummaries: readonly LiveDraftRoomTeamSummary[];
   salesLog: readonly LiveDraftRoomSaleLogEntry[];
+  connection: LiveDraftRoomConnectionState;
   exportReadiness: LiveDraftRoomExportReadiness;
 }
 
@@ -112,13 +124,13 @@ export type LiveDraftRoomSsePayload =
   }
   | {
     id: string;
-    event: "room.started" | "room.ended";
+    event: "room.started" | "room.paused" | "room.resumed" | "room.ended";
     revision: number;
     data: {
       roomId: string;
       leagueId: string;
       seasonId: string;
-      status: "live" | "ended";
+      status: "live" | "paused" | "ended";
       revision: number;
       occurredAt: string;
       actorUserId: string;
@@ -222,7 +234,7 @@ const selectedTeamFor = (
   role: LiveDraftRoomViewerRole,
   teamSummaries: readonly LiveDraftRoomTeamSummary[],
 ): LiveDraftRoomTeamSummary | undefined => {
-  if (input.selectedTeamId !== undefined) {
+  if (role === "commissioner" && input.selectedTeamId !== undefined) {
     return teamSummaries.find(team => team.teamId === input.selectedTeamId);
   }
 
@@ -270,12 +282,17 @@ const roomCreatedSnapshotRoom = (room: LiveDraftRoom, event: LiveDraftRoomEvent)
 const eventNameFor = (event: LiveDraftRoomEvent): LiveDraftRoomSseEventName => {
   switch (event.type) {
     case "room_created":
+    case "sale_corrected":
     case "sale_undone":
       return "room.snapshot";
     case "room_started":
       return "room.started";
     case "sale_logged":
       return "room.sale";
+    case "room_paused":
+      return "room.paused";
+    case "room_resumed":
+      return "room.resumed";
     case "room_ended":
       return "room.ended";
   }
@@ -312,10 +329,12 @@ export const buildLiveDraftRoomReadModel = (
   const viewedTeam = viewedTeamId === undefined
     ? undefined
     : teamSummaries.find(team => team.teamId === viewedTeamId);
-  const salesLog = input.room.events
-    .filter((event): event is Extract<LiveDraftRoomEvent, { type: "sale_logged" }> => event.type === "sale_logged")
-    .filter(event => input.room.projection.sales.some(sale => sale.saleEventId === event.sale.saleEventId))
-    .map(event => saleLogEntryFor(event.sale, event.revision, event.occurredAt));
+  const salesLog = input.room.projection.sales.flatMap(sale => {
+    const sourceEvent = input.room.events.find(event => event.id === sale.saleEventId);
+    if (sourceEvent === undefined) return [];
+
+    return [saleLogEntryFor(sale, sourceEvent.revision, sourceEvent.occurredAt)];
+  });
 
   return {
     roomId: input.room.roomId,
@@ -332,6 +351,14 @@ export const buildLiveDraftRoomReadModel = (
     ...(viewedTeam === undefined ? {} : { viewedTeam }),
     teamSummaries,
     salesLog,
+    connection: {
+      state: "synchronized",
+      transport: "sse",
+      cursor: eventStreamIdFor(input.room.roomId, input.room.revision),
+      revision: input.room.revision,
+      retryMilliseconds: sseRetryMilliseconds,
+      pollingFallback: true,
+    },
     exportReadiness: exportReadinessFor(input.room, teamSummaries),
   };
 };
@@ -375,16 +402,26 @@ export const buildLiveDraftRoomSseEvent = (
     };
   }
 
-  if (input.event.type === "room_started") {
+  if (
+    input.event.type === "room_started" ||
+    input.event.type === "room_paused" ||
+    input.event.type === "room_resumed"
+  ) {
+    const status = input.event.type === "room_paused" ? "paused" : "live";
+    const lifecycleEventName = input.event.type === "room_started"
+      ? "room.started"
+      : input.event.type === "room_paused"
+        ? "room.paused"
+        : "room.resumed";
     return {
       id: eventStreamIdFor(input.event.roomId, input.event.revision),
-      event: "room.started",
+      event: lifecycleEventName,
       revision: input.event.revision,
       data: {
         roomId: input.event.roomId,
         leagueId: input.event.leagueId,
         seasonId: input.event.seasonId,
-        status: "live",
+        status,
         revision: input.event.revision,
         occurredAt: isoStringFor(input.event.occurredAt),
         actorUserId: input.event.actorUserId,
