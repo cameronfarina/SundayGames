@@ -8,13 +8,13 @@ import {
 } from "../src/platform/platformNodeHttp.js";
 
 let server: Server | undefined;
+type TestAdapterOptions = NonNullable<Parameters<typeof createPlatformNodeHttpAdapter>[1]>;
 
 const listen = async (
   handle: PlatformHttpHandler,
-  maxBodyBytes?: number,
-  appHtml?: string,
+  options: TestAdapterOptions = {},
 ): Promise<string> => {
-  server = createServer(createPlatformNodeHttpAdapter(handle, { appHtml, maxBodyBytes }));
+  server = createServer(createPlatformNodeHttpAdapter(handle, options));
 
   await new Promise<void>((resolve, reject) => {
     server?.once("error", reject);
@@ -100,13 +100,42 @@ describe("platform Node HTTP adapter", () => {
       callCount += 1;
 
       return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
-    }, undefined, "<!doctype html><title>Mockd app</title>");
+    }, { appHtml: "<!doctype html><title>Mockd app</title>" });
 
     const response = await fetch(`${baseUrl}/login`);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(await response.text()).toBe("<!doctype html><title>Mockd app</title>");
+    expect(callCount).toBe(0);
+  });
+
+  it("serves auth shell and draft workspace HTML from their browser routes", async () => {
+    let callCount = 0;
+    const authShellHtml = "<!doctype html><main id=\"auth-panel\"></main>";
+    const draftRoomHtml = "<!doctype html><main id=\"draft-room-view\"></main>";
+    const baseUrl = await listen(async () => {
+      callCount += 1;
+
+      return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
+    }, { appHtml: authShellHtml, draftRoomHtml });
+
+    for (const path of ["/login", "/signup"]) {
+      const response = await fetch(`${baseUrl}${path}`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await response.text()).toBe(authShellHtml);
+    }
+
+    for (const path of ["/draft-room", "/mock-results", "/my-expert", "/player-news"]) {
+      const response = await fetch(`${baseUrl}${path}`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await response.text()).toBe(draftRoomHtml);
+    }
+
     expect(callCount).toBe(0);
   });
 
@@ -193,7 +222,7 @@ describe("platform Node HTTP adapter", () => {
       callCount += 1;
 
       return { status: 200, body: { ok: true } };
-    }, 10);
+    }, { maxBodyBytes: 10 });
 
     const response = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",

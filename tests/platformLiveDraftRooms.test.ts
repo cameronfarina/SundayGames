@@ -53,6 +53,13 @@ const startRoom = (
     now: new Date(now.getTime() + 1_000),
   });
 
+const teamByOwner = (season: LeagueSeason, ownerDisplayName: string) => {
+  const team = season.teams.find(candidate => candidate.ownerDisplayName === ownerDisplayName);
+  if (team === undefined) throw new Error(`Expected ${ownerDisplayName} team fixture.`);
+
+  return team;
+};
+
 describe("live draft rooms", () => {
   it("creates rooms only from ready published seasons and starts with revisioned events", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
@@ -328,10 +335,130 @@ describe("live draft rooms", () => {
     ).toThrow(new LiveDraftRoomError("duplicate_player", "Puka Nacua is already unavailable."));
   });
 
+  it("rejects duplicate players in initial rosters", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const camTeam = teamByOwner(season, "Cam");
+    const samTeam = teamByOwner(season, "Sam");
+
+    expect(() =>
+      createRoom(repository, {
+        season,
+        initialRosters: [
+          { teamId: camTeam.id, playerName: "Puka Nacua", position: "WR", price: 10 },
+          { teamId: samTeam.id, playerName: "Puka Nacua", position: "WR", price: 11 },
+        ],
+      }),
+    ).toThrow(new LiveDraftRoomError("duplicate_player", "Puka Nacua is already unavailable."));
+  });
+
+  it("rejects initial roster players for unknown teams", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+
+    expect(() =>
+      createRoom(repository, {
+        initialRosters: [
+          { teamId: "team_missing", playerName: "Puka Nacua", position: "WR", price: 10 },
+        ],
+      }),
+    ).toThrow(new LiveDraftRoomError("team_not_found", "Unknown team \"team_missing\"."));
+  });
+
+  it("rejects non-positive and non-whole-dollar initial roster prices", () => {
+    const season = publishedSeason();
+    const camTeam = teamByOwner(season, "Cam");
+    const invalidPlayers = [
+      { playerName: "Puka Nacua", price: 0 },
+      { playerName: "Xavier Legette", price: 1.5 },
+    ] as const;
+
+    for (const player of invalidPlayers) {
+      const repository = new InMemoryLiveDraftRoomRepository();
+      expect(() =>
+        createRoom(repository, {
+          season,
+          initialRosters: [
+            { teamId: camTeam.id, playerName: player.playerName, position: "WR", price: player.price },
+          ],
+        }),
+      ).toThrow(new LiveDraftRoomError(
+        "invalid_sale_price",
+        `Initial roster price must be a positive whole-dollar amount for ${player.playerName}.`,
+      ));
+    }
+  });
+
+  it("rejects initial rosters that exceed the roster size", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const camTeam = teamByOwner(season, "Cam");
+    const playerPositions = [
+      "QB", "QB", "QB",
+      "RB", "RB", "RB", "RB", "RB", "RB",
+      "WR", "WR", "WR", "WR",
+      "TE", "TE",
+      "K",
+      "DST",
+    ] as const;
+
+    expect(() =>
+      createRoom(repository, {
+        season,
+        initialRosters: playerPositions.map((position, index) => ({
+          teamId: camTeam.id,
+          playerName: `Initial Player ${index + 1}`,
+          position,
+          price: 1,
+        })),
+      }),
+    ).toThrow(new LiveDraftRoomError("roster_full", "Cam has no open roster slots."));
+  });
+
+  it("rejects initial rosters that exceed a position maximum", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const camTeam = teamByOwner(season, "Cam");
+
+    expect(() =>
+      createRoom(repository, {
+        season,
+        initialRosters: [
+          { teamId: camTeam.id, playerName: "WR One", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Two", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Three", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Four", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Five", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Six", position: "WR", price: 1 },
+          { teamId: camTeam.id, playerName: "WR Seven", position: "WR", price: 1 },
+        ],
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "position_limit",
+      "Cam cannot roster WR Seven: roster limit is 6 WRs.",
+    ));
+  });
+
+  it("rejects initial roster players above the team's max bid", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const camTeam = teamByOwner(season, "Cam");
+
+    expect(() =>
+      createRoom(repository, {
+        season,
+        initialRosters: [
+          { teamId: camTeam.id, playerName: "Puka Nacua", position: "WR", price: 190 },
+        ],
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "max_bid_exceeded",
+      "Cam cannot roster Puka Nacua for $190: max bid is $185.",
+    ));
+  });
+
   it("rejects sales for players already on initial rosters", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
-    const camTeam = publishedSeason().teams.find(team => team.ownerDisplayName === "Cam");
-    if (!camTeam) throw new Error("Expected Cam team fixture.");
+    const camTeam = teamByOwner(publishedSeason(), "Cam");
     createRoom(repository, {
       initialRosters: [
         { teamId: camTeam.id, playerName: "De'Von Achane", position: "RB", price: 50 },
@@ -353,8 +480,7 @@ describe("live draft rooms", () => {
 
   it("rejects position maximum overages with user-facing copy", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
-    const camTeam = publishedSeason().teams.find(team => team.ownerDisplayName === "Cam");
-    if (!camTeam) throw new Error("Expected Cam team fixture.");
+    const camTeam = teamByOwner(publishedSeason(), "Cam");
     createRoom(repository, {
       initialRosters: [
         { teamId: camTeam.id, playerName: "WR One", position: "WR", price: 1 },

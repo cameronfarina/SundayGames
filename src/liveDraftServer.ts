@@ -2194,7 +2194,7 @@ export const createLiveDraftServer = async (
     try {
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
-      if (request.method === "GET" && url.pathname === "/") {
+      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/draft-room")) {
         sendHtml(response);
         return;
       }

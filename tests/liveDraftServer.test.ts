@@ -360,6 +360,27 @@ describe("live draft server", () => {
     servers.length = 0;
   });
 
+  it("serves the mature draft workspace at the draft-room browser route", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const response = await fetch(`${baseUrl}/draft-room`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await response.text()).toContain("id=\"draft-room-view\"");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves the draft board with the same default sourced evidence as prep commands", async () => {
     const directory = await tempSessionDirectory();
     try {

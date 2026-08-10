@@ -125,6 +125,7 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
   readonly memberships = new Map<string, MembershipRow>();
   readonly referencedTeamIds = new Set<string>();
   readonly queries: Array<{ text: string; values: readonly unknown[]; inTransaction: boolean }> = [];
+  failNextTeamClaimWithUniqueViolation = false;
   transactionCount = 0;
 
   #inTransaction = false;
@@ -304,6 +305,74 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
         .map(cloneTeam);
 
       return { rows: rows as TRow[] };
+    }
+
+    if (normalizedSql.startsWith("SELECT id, league_id, user_id, role FROM league_memberships")
+      && normalizedSql.includes("user_id = $2")) {
+      const [leagueId, userId] = values as readonly [string, string];
+      const row = [...this.memberships.values()]
+        .find(membership =>
+          membership.league_id === leagueId &&
+          membership.user_id === userId &&
+          membership.status === "active"
+        );
+
+      return { rows: row === undefined ? [] : [cloneMembership(row) as TRow] };
+    }
+
+    if (normalizedSql.startsWith("SELECT id FROM fantasy_teams WHERE league_season_id = $1")) {
+      const [seasonId, teamId, ownerId] = values as readonly [string, string, string];
+      const row = this.teams.get(teamId);
+      const matches = row?.league_season_id === seasonId && row.team_key === ownerId;
+
+      return { rows: matches ? [{ id: teamId } as TRow] : [] };
+    }
+
+    if (normalizedSql.startsWith("UPDATE fantasy_teams SET owner_user_id = NULL")) {
+      const [seasonId, userId, targetTeamId, updatedAt] = values as readonly [string, string, string, Date];
+      for (const [teamId, team] of this.teams) {
+        if (team.league_season_id !== seasonId || team.owner_user_id !== userId || team.id === targetTeamId) {
+          continue;
+        }
+
+        this.teams.set(teamId, { ...team, owner_user_id: null, updated_at: updatedAt });
+      }
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE fantasy_teams SET owner_user_id = $4")) {
+      if (this.failNextTeamClaimWithUniqueViolation) {
+        this.failNextTeamClaimWithUniqueViolation = false;
+        throw Object.assign(new Error("duplicate key value violates unique constraint"), {
+          code: "23505",
+          constraint: "fantasy_teams_season_owner_user_key",
+        });
+      }
+
+      const [seasonId, teamId, ownerId, userId, updatedAt] =
+        values as readonly [string, string, string, string, Date];
+      const team = this.teams.get(teamId);
+      if (
+        team === undefined ||
+        team.league_season_id !== seasonId ||
+        team.team_key !== ownerId ||
+        (team.owner_user_id !== null && team.owner_user_id !== userId)
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      const claimed = { ...team, owner_user_id: userId, updated_at: updatedAt };
+      this.teams.set(teamId, claimed);
+
+      return {
+        rows: [{
+          owner_user_id: userId,
+          owner_id: ownerId,
+          team_id: teamId,
+        } as TRow],
+        rowCount: 1,
+      };
     }
 
     if (normalizedSql.startsWith("SELECT id, league_id, user_id, role FROM league_memberships")) {
@@ -544,5 +613,36 @@ describe("Postgres league setup repository", () => {
 
     await expect(repository.membershipsForLeague(season2027.leagueId)).resolves.toEqual(camUnclaimed);
     await expect(repository.findMembership("acct_cam", season2027.leagueId)).resolves.toEqual(camUnclaimed[0]);
+  });
+
+  it("returns null when a concurrent same-user team claim hits the unique claim guard", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const camMembership = {
+      userId: "acct_cam",
+      leagueId: season.leagueId,
+      role: "owner" as const,
+    };
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam team.");
+
+    await repository.registerLeagueSeason({
+      season,
+      memberships: [camMembership],
+      createdByUserId: "acct_cam",
+      now,
+    });
+
+    client.failNextTeamClaimWithUniqueViolation = true;
+
+    await expect(repository.claimLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_cam",
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toBeNull();
   });
 });

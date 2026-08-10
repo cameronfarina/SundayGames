@@ -69,6 +69,10 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
     expect(liveDraftHtml).toContain("id=\"active-session-label\"");
     expect(liveDraftHtml).toContain("id=\"draft-lock-status\"");
+    expect(liveDraftHtml).toContain("byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/draft-room'));");
+    expect(liveDraftHtml).toContain("byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/draft-room'));");
+    expect(liveDraftHtml).toContain("byId('player-news-back-button').addEventListener('click', () => window.location.assign('/draft-room'));");
+    expect(liveDraftHtml).not.toContain("window.location.assign('/')");
     expect(liveDraftHtml).toContain("<header class=\"draft-header app-page-header\">");
     expect(liveDraftHtml).toContain("id=\"draft-header-menu-slot\"");
     expect(liveDraftHtml).toContain("id=\"app-menu-button\"");

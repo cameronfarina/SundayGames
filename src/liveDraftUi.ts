@@ -7563,10 +7563,10 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-next-decision-button').addEventListener('click', () => advanceMockDraft('next-cam-decision'));
     byId('mock-next-round-button').addEventListener('click', () => advanceMockDraft('next-round'));
     byId('mock-complete-button').addEventListener('click', () => advanceMockDraft('complete-mock'));
-    byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/'));
-    byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/'));
+    byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/draft-room'));
+    byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/draft-room'));
     byId('my-expert-refresh-button').addEventListener('click', () => refreshMyExpertIfCurrentRoute());
-    byId('player-news-back-button').addEventListener('click', () => window.location.assign('/'));
+    byId('player-news-back-button').addEventListener('click', () => window.location.assign('/draft-room'));
     byId('player-news-refresh-button').addEventListener('click', () => refreshPlayerNewsIfCurrentRoute({ background: true }));
     for (const button of document.querySelectorAll('.player-news-filter-button')) {
       button.addEventListener('click', event => {

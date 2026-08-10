@@ -10,7 +10,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("fetch(\"/accounts\"");
     expect(platformShellHtml).toContain("fetch(\"/session\", { method: \"DELETE\" })");
     expect(platformShellHtml).toContain("Live draft room");
-    expect(platformShellHtml).toContain("Mock drafts");
-    expect(platformShellHtml).toContain("League prep");
+    expect(platformShellHtml).toContain("href=\"/draft-room\"");
+    expect(platformShellHtml).not.toContain("href=\"/mock-draft\"");
+    expect(platformShellHtml).not.toContain("href=\"/prep\"");
+    expect(platformShellHtml).not.toContain("Open mocks");
+    expect(platformShellHtml).not.toContain("Open prep");
   });
 });

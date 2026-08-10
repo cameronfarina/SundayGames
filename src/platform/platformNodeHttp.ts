@@ -18,6 +18,7 @@ export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
 
 export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
+  draftRoomHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
 }
 
@@ -26,7 +27,8 @@ class RequestBodyTooLargeError extends Error {}
 
 const jsonContentType = "application/json; charset=utf-8";
 const htmlContentType = "text/html; charset=utf-8";
-const appShellPaths = new Set(["/", "/app", "/login", "/signup", "/draft-room"]);
+const authShellPaths = new Set(["/", "/app", "/login", "/signup"]);
+const draftWorkspacePaths = new Set(["/draft-room", "/mock-results", "/my-expert", "/player-news"]);
 
 const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
   status: 400,
@@ -187,18 +189,21 @@ const writeHtmlResponse = (
   response.end(html);
 };
 
-const shouldServeAppShell = (
+const htmlForBrowserRequest = (
   request: IncomingMessage,
   appHtml: string | undefined,
-): appHtml is string => {
-  if (appHtml === undefined || request.method !== "GET") return false;
+  draftRoomHtml: string | undefined,
+): string | undefined => {
+  if (request.method !== "GET") return undefined;
 
   try {
     const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+    if (draftWorkspacePaths.has(pathname)) return draftRoomHtml ?? appHtml;
+    if (authShellPaths.has(pathname)) return appHtml;
 
-    return appShellPaths.has(pathname);
+    return undefined;
   } catch {
-    return false;
+    return undefined;
   }
 };
 
@@ -222,12 +227,14 @@ export const createPlatformNodeHttpAdapter = (
   options: PlatformNodeHttpAdapterOptions = {},
 ): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
   const appHtml = options.appHtml;
+  const draftRoomHtml = options.draftRoomHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
 
   return async (request, response) => {
     try {
-      if (shouldServeAppShell(request, appHtml)) {
-        writeHtmlResponse(response, appHtml);
+      const browserHtml = htmlForBrowserRequest(request, appHtml, draftRoomHtml);
+      if (browserHtml !== undefined) {
+        writeHtmlResponse(response, browserHtml);
         return;
       }
 

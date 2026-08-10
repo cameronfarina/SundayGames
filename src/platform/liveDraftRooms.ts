@@ -679,6 +679,63 @@ const rosterPlayerFromSale = (
   ...(sale.byeWeek === undefined ? {} : { byeWeek: sale.byeWeek }),
 });
 
+const validateInitialRosters = (
+  season: LeagueSeason,
+  initialRosters: readonly LiveDraftRoomInitialRosterPlayer[],
+): void => {
+  const rosterStateByTeamId = new Map<string, { team: FantasyTeam; roster: LiveDraftRoomRosterPlayer[] }>(
+    season.teams.map(team => [team.id, { team, roster: [] }]),
+  );
+  const unavailableNames = new Set<string>();
+
+  for (const player of initialRosters) {
+    const rosterPlayer = rosterPlayerFromInitial(player);
+    const rosterState = rosterStateByTeamId.get(player.teamId);
+    if (rosterState === undefined) {
+      throw new LiveDraftRoomError("team_not_found", `Unknown team "${player.teamId}".`);
+    }
+    const { roster, team } = rosterState;
+    assertPositiveWholeDollar(
+      rosterPlayer.price,
+      `Initial roster price must be a positive whole-dollar amount for ${rosterPlayer.name}.`,
+    );
+
+    if (unavailableNames.has(rosterPlayer.normalizedPlayerName)) {
+      throw new LiveDraftRoomError("duplicate_player", `${rosterPlayer.name} is already unavailable.`);
+    }
+
+    if (roster.length >= season.settings.roster.rosterSize) {
+      throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
+    }
+
+    const spent = roster.reduce((total, rosteredPlayer) => total + rosteredPlayer.price, 0);
+    const rosterSlotsRemaining = season.settings.roster.rosterSize - roster.length;
+    const budgetRemaining = season.settings.auction.budgetDollars - spent;
+    const maxBid = maxBidFor(
+      budgetRemaining,
+      rosterSlotsRemaining,
+      season.settings.auction.minimumBidDollars,
+    );
+    if (rosterPlayer.price > maxBid) {
+      throw new LiveDraftRoomError(
+        "max_bid_exceeded",
+        `${team.ownerDisplayName} cannot roster ${rosterPlayer.name} for $${rosterPlayer.price}: max bid is $${maxBid}.`,
+      );
+    }
+
+    const positionMaximum = season.settings.roster.rosterMaximums[rosterPlayer.position];
+    if (countPositions(roster)[rosterPlayer.position] >= positionMaximum) {
+      throw new LiveDraftRoomError(
+        "position_limit",
+        `${team.ownerDisplayName} cannot roster ${rosterPlayer.name}: roster limit is ${positionMaximum} ${pluralPosition(rosterPlayer.position)}.`,
+      );
+    }
+
+    unavailableNames.add(rosterPlayer.normalizedPlayerName);
+    roster.push(rosterPlayer);
+  }
+};
+
 const teamStateFor = (
   season: LeagueSeason,
   team: FantasyTeam,
@@ -939,6 +996,7 @@ export class InMemoryLiveDraftRoomRepository {
         `Live draft room "${input.roomId}" already exists.`,
       );
     }
+    validateInitialRosters(input.season, input.initialRosters ?? []);
 
     const createdAt = input.createdAt ?? new Date();
     const status: LiveDraftRoomStatus = input.startsAt !== undefined && input.startsAt.getTime() > createdAt.getTime()

@@ -292,6 +292,8 @@ const platformErrorStatus = (code: PlatformAppError["code"]): number => {
   switch (code) {
     case "auth_required":
       return 401;
+    case "draft_room_not_final":
+      return 409;
     case "league_not_found":
     case "historical_import_not_found":
     case "pricing_snapshot_not_found":

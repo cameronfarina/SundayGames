@@ -349,6 +349,28 @@ describe("file-backed platform store", () => {
       playerCatalog,
       now,
     });
+    await app.startLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: room.revision,
+      idempotencyKey: "start:room_export_artifact",
+      now: new Date(now.getTime() + 3_500),
+    });
+    const sold = await app.logLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: 2,
+      idempotencyKey: "sale:puka:70",
+      sale: "cam puka 70",
+      now: new Date(now.getTime() + 3_750),
+    });
+    await app.endLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: sold.revision,
+      idempotencyKey: "end:room_export_artifact",
+      now: new Date(now.getTime() + 3_900),
+    });
     const exportArtifact = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,

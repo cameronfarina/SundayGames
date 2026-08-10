@@ -101,6 +101,7 @@ export type { PlatformLeagueMembership } from "./leagueSetup.js";
 
 export type PlatformAppErrorCode =
   | "auth_required"
+  | "draft_room_not_final"
   | "historical_import_not_found"
   | "league_not_found"
   | "membership_required"
@@ -1419,6 +1420,12 @@ export const createPlatformApp = ({
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       await requireSharedRead(account, room.leagueId);
+      if (room.status !== "ended") {
+        throw new PlatformAppError(
+          "draft_room_not_final",
+          "Draft room must be ended before creating a final export artifact.",
+        );
+      }
       const existingArtifactResult = store.exportArtifacts.findByRoomRevision(room.roomId, room.revision);
       if (existingArtifactResult !== undefined) {
         return {

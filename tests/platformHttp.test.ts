@@ -1141,6 +1141,25 @@ describe("platform HTTP contract", () => {
       },
     });
 
+    const earlyExportArtifact = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/export-artifacts",
+      sessionToken: seth.sessionToken,
+      body: {
+        exportedAt: new Date(now.getTime() + 7_500).toISOString(),
+      },
+    });
+
+    expect(earlyExportArtifact).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "draft_room_not_final",
+          message: "Draft room must be ended before creating a final export artifact.",
+        },
+      },
+    });
+
     const endedRoom = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/end",

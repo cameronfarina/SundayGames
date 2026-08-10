@@ -1023,15 +1023,30 @@ describe("platform app service", () => {
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
     });
-    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+    await expect(app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 5_000),
+    })).rejects.toThrow(new PlatformAppError(
+      "draft_room_not_final",
+      "Draft room must be ended before creating a final export artifact.",
+    ));
+    const ended = await app.endLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      expectedRevision: sold.revision,
+      idempotencyKey: "end-room-before-export",
+      now: new Date(now.getTime() + 6_000),
+    });
+    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: seth.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 7_000),
     });
     const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 6_000),
+      exportedAt: new Date(now.getTime() + 8_000),
     });
 
     expect(exportResult.sheetName).toBe("Draft Results");
@@ -1051,7 +1066,7 @@ describe("platform app service", () => {
       leagueId: season.leagueId,
       seasonId: season.id,
       roomId: room.roomId,
-      sourceRevision: sold.revision,
+      sourceRevision: ended.revision,
       format: "csv",
       contentType: "text/csv; charset=utf-8",
     });

@@ -635,7 +635,7 @@ describe("platform server composition", () => {
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
   });
 
-  it("serves the platform app shell from browser routes", async () => {
+  it("serves the platform app shell from auth browser routes", async () => {
     const { baseUrl } = await createListeningServer();
 
     const response = await textFetch(baseUrl, "/login");
@@ -644,6 +644,29 @@ describe("platform server composition", () => {
     expect(response.contentType).toBe("text/html; charset=utf-8");
     expect(response.body).toContain("id=\"auth-panel\"");
     expect(response.body).toContain("Live draft room");
+  });
+
+  it("serves the mature draft workspace from draft browser routes", async () => {
+    const { baseUrl } = await createListeningServer();
+
+    const signup = await textFetch(baseUrl, "/signup");
+    const draftRoom = await textFetch(baseUrl, "/draft-room");
+    const myExpert = await textFetch(baseUrl, "/my-expert");
+
+    expect(signup.status).toBe(200);
+    expect(signup.contentType).toBe("text/html; charset=utf-8");
+    expect(signup.body).toContain("id=\"auth-panel\"");
+    expect(signup.body).not.toContain("id=\"draft-room-view\"");
+
+    expect(draftRoom.status).toBe(200);
+    expect(draftRoom.contentType).toBe("text/html; charset=utf-8");
+    expect(draftRoom.body).toContain("id=\"draft-room-view\"");
+    expect(draftRoom.body).not.toContain("id=\"auth-panel\"");
+
+    expect(myExpert.status).toBe(200);
+    expect(myExpert.contentType).toBe("text/html; charset=utf-8");
+    expect(myExpert.body).toContain("id=\"my-expert-view\"");
+    expect(myExpert.body).not.toContain("id=\"auth-panel\"");
   });
 
   it("keeps createPlatformServer unbound and starts listening only through the start helper", async () => {

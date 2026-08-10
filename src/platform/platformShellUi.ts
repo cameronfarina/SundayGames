@@ -80,7 +80,7 @@ export const platformShellHtml = `<!doctype html>
     .cards {
       display: grid;
       gap: 14px;
-      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      grid-template-columns: minmax(240px, 420px);
     }
 
     .panel {
@@ -193,15 +193,9 @@ export const platformShellHtml = `<!doctype html>
       color: #f5c4ff;
     }
 
-    .room-command {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-    }
-
     @media (max-width: 920px) {
       .page { padding: 18px; }
-      .grid, .cards, .room-command { grid-template-columns: 1fr; }
+      .grid, .cards { grid-template-columns: 1fr; }
       .topbar { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -240,29 +234,7 @@ export const platformShellHtml = `<!doctype html>
       <div class="cards">
         <article class="panel hot">
           <h2>Live draft room</h2>
-          <div class="room-command">
-            <input id="sale-command-input" placeholder="cam puka 62">
-            <button id="create-room-button" class="btn primary" type="button">Create room</button>
-            <button id="join-room-button" class="btn" type="button">Join room</button>
-          </div>
-        </article>
-        <article class="panel">
-          <h2>Mock drafts</h2>
-          <a class="section-link" data-active="true" href="/mock-draft">Open mocks <span>></span></a>
-        </article>
-        <article class="panel">
-          <h2>League prep</h2>
-          <a class="section-link" href="/prep">Open prep <span>></span></a>
-        </article>
-      </div>
-      <div class="grid">
-        <article class="panel">
-          <h3>Board</h3>
-          <div id="board-preview" class="muted">No room loaded</div>
-        </article>
-        <article class="panel">
-          <h3>Team</h3>
-          <div id="team-preview" class="muted">Select a room</div>
+          <a class="section-link" data-active="true" href="/draft-room">Open draft room <span>></span></a>
         </article>
       </div>
     </section>
