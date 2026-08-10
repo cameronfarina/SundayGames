@@ -10,6 +10,7 @@ import {
   createPlatformApp,
   InMemoryPlatformStore,
 } from "./platformApp.js";
+import { LiveDraftRoomRevisionNotifier } from "./liveDraftRoomRealtime.js";
 import {
   PostgresJobQueue,
   type PostgresTransactionalQueryClient,
@@ -99,6 +100,13 @@ export interface StartedPlatformServer extends PlatformServer {
 }
 
 const mutatingHttpMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
+const eventStreamKeepAliveBody = ": keep-alive\n\n";
+const liveRoomMutationActions = new Set(["start", "sales", "sale", "undo", "end"]);
+
+interface LiveDraftRoomEventStreamRequest {
+  roomId: string;
+  afterRevision: number;
+}
 
 const withTrustedNow = (
   request: PlatformHttpRequest,
@@ -121,57 +129,134 @@ const shouldPersistAfter = (
   responseStatus >= 200 &&
   responseStatus < 300;
 
-const isJobOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
-  if (request.method.toUpperCase() !== "POST") return false;
-
+const pathSegmentsFor = (request: PlatformHttpRequest): readonly string[] | null => {
   try {
-    const segments = new URL(request.path, "http://mockd.local").pathname
+    return new URL(request.path, "http://mockd.local").pathname
       .split("/")
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
-
-    return segments[0] === "simulations" &&
-      segments.length === 3 &&
-      (segments[2] === "jobs" || segments[2] === "enqueue");
   } catch {
-    return false;
+    return null;
   }
+};
+
+const queryNumberFor = (
+  request: PlatformHttpRequest,
+  key: string,
+): number | undefined => {
+  try {
+    const value = new URL(request.path, "http://mockd.local").searchParams.get(key);
+    if (value === null || value.trim().length === 0) return undefined;
+
+    return Number(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const liveDraftRoomEventStreamRequestFor = (
+  request: PlatformHttpRequest,
+): LiveDraftRoomEventStreamRequest | null => {
+  if (request.method.toUpperCase() !== "GET") return null;
+
+  const segments = pathSegmentsFor(request);
+  if (
+    segments === null ||
+    segments.length !== 3 ||
+    segments[0] !== "live-rooms" ||
+    (segments[2] !== "event-stream" && segments[2] !== "events-stream")
+  ) {
+    return null;
+  }
+
+  const queryAfterRevision = queryNumberFor(request, "afterRevision");
+  const explicitAfterRevision = typeof request.query?.afterRevision === "number"
+    ? request.query.afterRevision
+    : undefined;
+
+  return {
+    roomId: segments[1] ?? "",
+    afterRevision: explicitAfterRevision ?? queryAfterRevision ?? 0,
+  };
+};
+
+const isKeepAliveEventStreamResponse = (
+  response: Awaited<ReturnType<PlatformHttpHandler>>,
+): boolean => {
+  const contentType = Object.entries(response.headers ?? {})
+    .find(([name]) => name.toLowerCase() === "content-type")?.[1];
+  const firstContentType = Array.isArray(contentType) ? contentType[0] : contentType;
+
+  return response.status === 200 &&
+    firstContentType?.toLowerCase().startsWith("text/event-stream") === true &&
+    response.body === eventStreamKeepAliveBody;
+};
+
+const notifyLiveDraftRoomRevision = (
+  notifier: LiveDraftRoomRevisionNotifier,
+  request: PlatformHttpRequest,
+  response: Awaited<ReturnType<PlatformHttpHandler>>,
+): void => {
+  if (response.status < 200 || response.status >= 300) return;
+
+  const segments = pathSegmentsFor(request);
+  if (segments === null || segments[0] !== "live-rooms") return;
+  if (
+    request.method.toUpperCase() !== "POST" ||
+    (
+      segments.length !== 1 &&
+      (segments.length !== 3 || !liveRoomMutationActions.has(segments[2] ?? ""))
+    )
+  ) {
+    return;
+  }
+
+  const body = response.body;
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return;
+
+  const room = (body as { room?: unknown }).room;
+  if (room === null || typeof room !== "object" || Array.isArray(room)) return;
+
+  const roomId = (room as { roomId?: unknown }).roomId;
+  const revision = (room as { revision?: unknown }).revision;
+  if (typeof roomId === "string" && typeof revision === "number") {
+    notifier.notifyRevision(roomId, revision);
+  }
+};
+
+const isJobOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+
+  const segments = pathSegmentsFor(request);
+  if (segments === null) return false;
+
+  return segments[0] === "simulations" &&
+    segments.length === 3 &&
+    (segments[2] === "jobs" || segments[2] === "enqueue");
 };
 
 const isSimulationOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   if (request.method.toUpperCase() !== "POST") return false;
 
-  try {
-    const segments = new URL(request.path, "http://mockd.local").pathname
-      .split("/")
-      .filter(Boolean)
-      .map(segment => decodeURIComponent(segment));
+  const segments = pathSegmentsFor(request);
+  if (segments === null) return false;
 
-    return segments[0] === "simulations" &&
-      (
-        segments.length === 1 ||
-        (segments.length === 3 && segments[2] === "execute")
-      );
-  } catch {
-    return false;
-  }
+  return segments[0] === "simulations" &&
+    (
+      segments.length === 1 ||
+      (segments.length === 3 && segments[2] === "execute")
+    );
 };
 
 const isJobAndSimulationOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   if (request.method.toUpperCase() !== "POST") return false;
 
-  try {
-    const segments = new URL(request.path, "http://mockd.local").pathname
-      .split("/")
-      .filter(Boolean)
-      .map(segment => decodeURIComponent(segment));
+  const segments = pathSegmentsFor(request);
+  if (segments === null) return false;
 
-    return segments[0] === "jobs" &&
-      segments.length === 3 &&
-      (segments[2] === "cancel" || segments[2] === "rerun");
-  } catch {
-    return false;
-  }
+  return segments[0] === "jobs" &&
+    segments.length === 3 &&
+    (segments[2] === "cancel" || segments[2] === "rerun");
 };
 
 const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
@@ -519,60 +604,75 @@ export const createPlatformServer = async (
   };
 
   runtime = createRuntime(await loadStore(options));
+  const liveDraftRoomNotifier = new LiveDraftRoomRevisionNotifier();
+
+  const runRequest = async (
+    requestWithNow: PlatformHttpRequest,
+  ): Promise<Awaited<ReturnType<PlatformHttpHandler>>> => {
+    const response = await runtime.platformHandler(requestWithNow);
+    const usesExternalAuthRepository = runtime.authRepository !== runtime.store.authRepository;
+    const usesExternalLeagueSetupRepository = runtime.leagueSetupRepository !== runtime.store;
+    const usesExternalHistoricalImportRepository = runtime.historicalImportRepository !== runtime.store.historicalImports;
+    const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
+    const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
+    const skipSnapshotPersist =
+      (
+        usesExternalAuthRepository &&
+        isAuthOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalLeagueSetupRepository &&
+        isLeagueSetupOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalHistoricalImportRepository &&
+        isHistoricalImportOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalJobRepository &&
+        isJobOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalSimulationRepository &&
+        isSimulationOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalJobRepository &&
+        usesExternalSimulationRepository &&
+        isJobAndSimulationOnlyMutationRequest(requestWithNow)
+      );
+
+    if (
+      shouldPersistAfter(requestWithNow, response.status) &&
+      !skipSnapshotPersist
+    ) {
+      try {
+        await rawPersist();
+      } catch (error) {
+        if (isSnapshotWriteConflict(error)) return snapshotWriteConflictResponse;
+
+        throw error;
+      }
+    }
+
+    notifyLiveDraftRoomRevision(liveDraftRoomNotifier, requestWithNow, response);
+
+    return response;
+  };
 
   const handler: PlatformHttpHandler = async request => {
-    const runRequest = async (): Promise<Awaited<ReturnType<PlatformHttpHandler>>> => {
-      const requestWithNow = withTrustedNow(request, options.now);
-      const response = await runtime.platformHandler(requestWithNow);
-      const usesExternalAuthRepository = runtime.authRepository !== runtime.store.authRepository;
-      const usesExternalLeagueSetupRepository = runtime.leagueSetupRepository !== runtime.store;
-      const usesExternalHistoricalImportRepository = runtime.historicalImportRepository !== runtime.store.historicalImports;
-      const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
-      const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
-      const skipSnapshotPersist =
-        (
-          usesExternalAuthRepository &&
-          isAuthOnlyMutationRequest(requestWithNow)
-        ) ||
-        (
-          usesExternalLeagueSetupRepository &&
-          isLeagueSetupOnlyMutationRequest(requestWithNow)
-        ) ||
-        (
-          usesExternalHistoricalImportRepository &&
-          isHistoricalImportOnlyMutationRequest(requestWithNow)
-        ) ||
-        (
-          usesExternalJobRepository &&
-          isJobOnlyMutationRequest(requestWithNow)
-        ) ||
-        (
-          usesExternalSimulationRepository &&
-          isSimulationOnlyMutationRequest(requestWithNow)
-        ) ||
-        (
-          usesExternalJobRepository &&
-          usesExternalSimulationRepository &&
-          isJobAndSimulationOnlyMutationRequest(requestWithNow)
-        );
+    const requestWithNow = withTrustedNow(request, options.now);
+    const eventStreamRequest = liveDraftRoomEventStreamRequestFor(requestWithNow);
+    if (eventStreamRequest !== null) {
+      const initialResponse = await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
+      if (!isKeepAliveEventStreamResponse(initialResponse)) return initialResponse;
 
-      if (
-        shouldPersistAfter(requestWithNow, response.status) &&
-        !skipSnapshotPersist
-      ) {
-        try {
-          await rawPersist();
-        } catch (error) {
-          if (isSnapshotWriteConflict(error)) return snapshotWriteConflictResponse;
+      await liveDraftRoomNotifier.waitForRevision(eventStreamRequest);
 
-          throw error;
-        }
-      }
+      return await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
+    }
 
-      return response;
-    };
-
-    return runInSnapshotCriticalSection(runRequest);
+    return runInSnapshotCriticalSection(() => runRequest(requestWithNow));
   };
   const server = createServer(createPlatformNodeHttpAdapter(handler, {
     appHtml: platformShellHtml,

@@ -669,6 +669,105 @@ describe("platform server composition", () => {
     expect(myExpert.body).not.toContain("id=\"auth-panel\"");
   });
 
+  it("keeps live room event streams open until the next draft revision", async () => {
+    const { baseUrl } = await createListeningServer();
+    const camCreated = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+    const sethCreated = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "seth@example.com", password: "secure password" }),
+    });
+    const camLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+    const sethLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "seth@example.com", password: "secure password" }),
+    });
+    const camAccount = (camCreated.body as { account: { id: string } }).account;
+    const sethAccount = (sethCreated.body as { account: { id: string } }).account;
+    const camSessionToken = (camLogin.body as { sessionToken: string }).sessionToken;
+    const sethSessionToken = (sethLogin.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    await jsonFetch(baseUrl, `/seasons/${season.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({
+        season,
+        memberships: [
+          { userId: camAccount.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+          { userId: sethAccount.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        ],
+      }),
+    });
+    await jsonFetch(baseUrl, "/live-rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({
+        seasonId: season.id,
+        roomId: "room_stream_wait",
+        viewerPasswordHashRef: "viewer-password-hash",
+        playerCatalog: [
+          { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+          { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+        ],
+      }),
+    });
+    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/start", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "start:room_stream_wait",
+      }),
+    });
+
+    const streamTextPromise = fetch(`${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`, {
+      headers: { "x-session-token": sethSessionToken },
+    }).then(async response => {
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+
+      return await response.text();
+    });
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    const sale = await Promise.race([
+      jsonFetch(baseUrl, "/live-rooms/room_stream_wait/sales", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+        body: JSON.stringify({
+          expectedRevision: 2,
+          idempotencyKey: "sale:puka:62",
+          command: "cam puka 62",
+        }),
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out posting sale.")), 1_000)),
+    ]);
+    const streamText = await Promise.race([
+      streamTextPromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for event stream.")), 1_000)),
+    ]);
+
+    expect(sale.status).toBe(200);
+    expect(streamText).toContain("event: room.sale\n");
+    expect(streamText).toContain("\"playerName\":\"Puka Nacua\"");
+  });
+
   it("keeps createPlatformServer unbound and starts listening only through the start helper", async () => {
     const platformServer = await createPlatformServer({
       simulationRunner: mockRunner,
