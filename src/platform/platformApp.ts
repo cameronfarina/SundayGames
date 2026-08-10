@@ -60,6 +60,7 @@ import {
   type AppendMockDraftCommandInput,
   type MockDraftSession,
   type MockDraftModeMetadata,
+  type MockDraftResultReference,
 } from "./mockSessions.js";
 import {
   InMemorySimulationRepository,
@@ -777,6 +778,21 @@ export const createPlatformApp = ({
     }
   };
 
+  const requireReadableMockDraftResultReference = async (
+    account: AccountRecord,
+    latestResultRef: MockDraftResultReference | undefined,
+  ): Promise<MockDraftResultReference | undefined> => {
+    if (latestResultRef === undefined || latestResultRef.kind !== "simulation-result") return latestResultRef;
+
+    const run = await simulations.fetchForUser(latestResultRef.id, account.id);
+    if (run === null) {
+      throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+    }
+    await requirePrivateTeamContext(account, run.request);
+
+    return latestResultRef;
+  };
+
   const assertSeasonRegistrationAllowed = async (
     account: AccountRecord,
     season: LeagueSeason,
@@ -1268,6 +1284,7 @@ export const createPlatformApp = ({
       const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
       await requirePrivateTeamContext(account, session);
+      const latestResultRef = await requireReadableMockDraftResultReference(account, input.latestResultRef);
 
       return cloneForRead(store.mockDraftSessions.appendCommand({
         userId: account.id,
@@ -1277,7 +1294,7 @@ export const createPlatformApp = ({
         commandId: input.commandId,
         command: input.command,
         idempotencyKey: input.idempotencyKey,
-        latestResultRef: input.latestResultRef,
+        latestResultRef,
         now: input.now,
       }));
     },

@@ -878,6 +878,82 @@ describe("platform app service", () => {
     ).rejects.toThrow();
   });
 
+  it("rejects mock draft result references to another user's private simulation", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+    const sethSimulation = await app.createSimulationRun({
+      actorSessionToken: seth.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      count: 5,
+      seedPrefix: "seth-private-run",
+      idempotencyKey: "seth-private-run",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      now,
+    });
+    await app.executeSimulationRun({
+      actorSessionToken: seth.sessionToken,
+      runId: sethSimulation.id,
+      now: new Date(now.getTime() + 500),
+    });
+    const camSession = await app.createMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      draftMode: { format: "auction", mockCount: 5 },
+      now,
+    });
+
+    await expect(app.appendMockDraftCommand({
+      actorSessionToken: cam.sessionToken,
+      sessionId: camSession.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "cmd_leak",
+      command: "show seth result",
+      idempotencyKey: "mock:leak",
+      latestResultRef: { kind: "simulation-result", id: sethSimulation.id },
+      now: new Date(now.getTime() + 1_000),
+    })).rejects.toThrow(new PlatformAppError(
+      "private_resource",
+      "This prep artifact belongs to another user.",
+    ));
+
+    const [storedSession] = await app.listMockDraftSessions({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+    });
+    expect(storedSession).toMatchObject({
+      id: camSession.id,
+      latestResultRef: undefined,
+      commandLog: [],
+    });
+  });
+
   it("rechecks current team claims before reading or mutating private prep", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);

@@ -836,6 +836,26 @@ describe("platform HTTP contract", () => {
       }),
     });
 
+    const sethSimulation = await handle({
+      method: "POST",
+      path: "/simulations",
+      sessionToken: seth.sessionToken,
+      body: {
+        leagueId: season.leagueId,
+        seasonId: season.id,
+        ownerId: sethTeam.ownerId,
+        teamId: sethTeam.id,
+        count: 5,
+        seedPrefix: "seth-private-run",
+        idempotencyKey: "seth-private-run",
+        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+        now: new Date(now.getTime() + 1_100),
+      },
+    });
+    const sethSimulationBody = expectBodyRecord(sethSimulation.body);
+    const sethSimulationRecord = expectBodyRecord(sethSimulationBody.simulation);
+    const sethSimulationId = expectString(sethSimulationRecord.id);
+
     const createdMockSession = await handle({
       method: "POST",
       path: "/mock-sessions",
@@ -855,6 +875,31 @@ describe("platform HTTP contract", () => {
 
     expect(createdMockSession.status).toBe(201);
 
+    const leakedResultReference = await handle({
+      method: "POST",
+      path: `/mock-sessions/${mockSessionId}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 1,
+        expectedCommandCount: 0,
+        commandId: "cmd_leak",
+        command: "show seth result",
+        idempotencyKey: "mock:leak",
+        latestResultRef: { kind: "simulation-result", id: sethSimulationId },
+        now: new Date(now.getTime() + 1_500).toISOString(),
+      },
+    });
+
+    expect(leakedResultReference).toEqual({
+      status: 403,
+      body: {
+        error: {
+          code: "private_resource",
+          message: "This prep artifact belongs to another user.",
+        },
+      },
+    });
+
     const listedMockSessions = await handle({
       method: "GET",
       path: "/mock-sessions",
@@ -867,7 +912,11 @@ describe("platform HTTP contract", () => {
     });
 
     expect(listedMockSessions.body).toMatchObject({
-      mockSessions: [expect.objectContaining({ id: mockSessionId })],
+      mockSessions: [expect.objectContaining({
+        id: mockSessionId,
+        commandLog: [],
+        latestResultRef: undefined,
+      })],
     });
 
     const appendedMockSession = await handle({

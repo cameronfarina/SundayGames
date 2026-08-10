@@ -199,6 +199,23 @@ const arrayValue = (value: unknown): readonly unknown[] =>
 const stringArrayValue = (value: unknown): readonly string[] =>
   arrayValue(value).map(stringValue);
 
+const mockDraftResultReferenceFor = (value: unknown): MockDraftResultReference | undefined => {
+  const record = unknownRecord(value);
+  if (record === null) return undefined;
+
+  const id = optionalString(record.id);
+  const kind = optionalString(record.kind);
+  if (id === undefined || (kind !== "mock-result" && kind !== "simulation-result")) return undefined;
+
+  const label = optionalString(record.label);
+
+  return {
+    id,
+    kind,
+    ...(label === undefined ? {} : { label }),
+  };
+};
+
 const liveDraftSaleInputFor = (
   body: Record<string, unknown>,
 ): LiveDraftRoomSaleCommandInput => {
@@ -887,7 +904,7 @@ const routeMockSessions = async (
       commandId: stringValue(request.body.commandId),
       command: stringValue(request.body.command),
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      latestResultRef: request.body.latestResultRef as MockDraftResultReference | undefined,
+      latestResultRef: mockDraftResultReferenceFor(request.body.latestResultRef),
       now: request.now,
     });
 
