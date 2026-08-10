@@ -27,7 +27,7 @@ class RequestBodyTooLargeError extends Error {}
 
 const jsonContentType = "application/json; charset=utf-8";
 const htmlContentType = "text/html; charset=utf-8";
-const authShellPaths = new Set(["/", "/app", "/login", "/signup"]);
+const authShellPaths = new Set(["/", "/app", "/login", "/signup", "/setup"]);
 const draftWorkspacePaths = new Set(["/draft-room", "/mock-results", "/my-expert", "/player-news"]);
 
 const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {

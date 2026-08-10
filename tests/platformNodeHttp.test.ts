@@ -138,7 +138,7 @@ describe("platform Node HTTP adapter", () => {
       return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
     }, { appHtml: authShellHtml, draftRoomHtml });
 
-    for (const path of ["/login", "/signup"]) {
+    for (const path of ["/login", "/signup", "/setup"]) {
       const response = await fetch(`${baseUrl}${path}`);
 
       expect(response.status).toBe(200);

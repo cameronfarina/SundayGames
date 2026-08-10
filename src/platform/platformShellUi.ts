@@ -30,7 +30,7 @@ export const platformShellHtml = `<!doctype html>
       letter-spacing: 0;
     }
 
-    button, input {
+    button, input, textarea {
       font: inherit;
     }
 
@@ -129,19 +129,35 @@ export const platformShellHtml = `<!doctype html>
       min-width: 0;
     }
 
-    input {
+    input, textarea {
       background: #050506;
       border: 1px solid var(--line);
       border-radius: 6px;
       color: var(--text);
-      min-height: 46px;
       padding: 0 12px;
       width: 100%;
     }
 
-    input:focus {
+    input {
+      min-height: 46px;
+    }
+
+    textarea {
+      line-height: 1.45;
+      min-height: 180px;
+      padding-bottom: 12px;
+      padding-top: 12px;
+      resize: vertical;
+    }
+
+    input:focus, textarea:focus {
       border-color: var(--line-hot);
       outline: 2px solid var(--line-soft);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.54;
     }
 
     .btn {
@@ -193,9 +209,31 @@ export const platformShellHtml = `<!doctype html>
       color: #f5c4ff;
     }
 
+    .setup-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(280px, 460px) minmax(280px, 1fr);
+    }
+
+    .result-list {
+      display: grid;
+      gap: 8px;
+      list-style: none;
+      margin: 0;
+      min-height: 32px;
+      padding: 0;
+    }
+
+    .result-list li {
+      background: #070708;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
     @media (max-width: 920px) {
       .page { padding: 18px; }
-      .grid, .cards { grid-template-columns: 1fr; }
+      .grid, .cards, .setup-grid { grid-template-columns: 1fr; }
       .topbar { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -236,6 +274,31 @@ export const platformShellHtml = `<!doctype html>
           <h2>Live draft room</h2>
           <a class="section-link" data-active="true" href="/draft-room">Open draft room <span>></span></a>
         </article>
+        <article class="panel">
+          <h2>Commissioner setup</h2>
+          <a class="section-link" href="/setup">Open setup <span>></span></a>
+        </article>
+      </div>
+      <div class="setup-grid">
+        <form id="setup-form" class="panel stack">
+          <h2>Commissioner setup</h2>
+          <label for="setup-season-id-input">Season id</label>
+          <input id="setup-season-id-input" autocomplete="off" name="seasonId">
+          <label for="setup-rows-input">Owner rows</label>
+          <textarea id="setup-rows-input" name="setupRows" spellcheck="false">owner,team,email,role
+Cam,Cam,cam@example.com,owner</textarea>
+          <div class="row">
+            <button id="setup-preview-button" class="btn" type="button">Preview</button>
+            <button id="setup-apply-button" class="btn green" type="button" disabled>Apply</button>
+          </div>
+          <div id="setup-status" class="muted"></div>
+        </form>
+        <article class="panel stack">
+          <h3>Blockers</h3>
+          <ul id="setup-blockers" class="result-list"></ul>
+          <h3>pending invites</h3>
+          <ul id="setup-pending-invites" class="result-list"></ul>
+        </article>
       </div>
     </section>
   </main>
@@ -251,6 +314,15 @@ export const platformShellHtml = `<!doctype html>
     const emailInput = document.getElementById("email-input");
     const passwordInput = document.getElementById("password-input");
     const createAccountButton = document.getElementById("create-account-button");
+    const setupSeasonIdInput = document.getElementById("setup-season-id-input");
+    const setupRowsInput = document.getElementById("setup-rows-input");
+    const setupPreviewButton = document.getElementById("setup-preview-button");
+    const setupApplyButton = document.getElementById("setup-apply-button");
+    const setupStatus = document.getElementById("setup-status");
+    const setupBlockers = document.getElementById("setup-blockers");
+    const setupPendingInvites = document.getElementById("setup-pending-invites");
+    const setupPreviewSuffix = "/setup-import/preview";
+    const setupApplySuffix = "/setup-import/apply";
 
     const setSignedIn = account => {
       authPanel.classList.add("hidden");
@@ -270,6 +342,65 @@ export const platformShellHtml = `<!doctype html>
       const body = await response.json();
       if (!response.ok) throw new Error(body.error?.message || "Request failed.");
       return body;
+    };
+
+    const readSetupJson = async response => {
+      const body = await response.json();
+      if (!response.ok && !body.import) throw new Error(body.error?.message || "Request failed.");
+      return body;
+    };
+
+    const replaceListItems = (list, items, emptyText, renderText) => {
+      const values = items.length === 0 ? [emptyText] : items.map(renderText);
+      list.replaceChildren(...values.map(value => {
+        const item = document.createElement("li");
+        item.textContent = value;
+        return item;
+      }));
+    };
+
+    const setupEndpoint = action => {
+      const seasonId = setupSeasonIdInput.value.trim();
+      if (seasonId.length === 0) throw new Error("Season id is required.");
+
+      return "/seasons/" + encodeURIComponent(seasonId) + (
+        action === "preview" ? setupPreviewSuffix : setupApplySuffix
+      );
+    };
+
+    const renderSetupResult = body => {
+      const setupImport = body.import || {};
+      const blockers = setupImport.blockers || [];
+      const pendingInvites = body.pendingInvites || [];
+      setupApplyButton.disabled = setupImport.status !== "ready";
+      setupStatus.textContent = body.season
+        ? "Setup applied."
+        : setupImport.status === "ready"
+          ? "Ready to apply."
+          : blockers.length + " blockers";
+      replaceListItems(
+        setupBlockers,
+        blockers,
+        "No blockers.",
+        blocker => blocker.message || blocker.code || "Blocked row."
+      );
+      replaceListItems(
+        setupPendingInvites,
+        pendingInvites,
+        "No pending invites.",
+        invite => invite.email + " - " + invite.ownerDisplayName + " - " + invite.role
+      );
+    };
+
+    const submitSetupImport = async action => {
+      setupStatus.textContent = action === "preview" ? "Previewing..." : "Applying...";
+      const body = await readSetupJson(await fetch(setupEndpoint(action), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ content: setupRowsInput.value }),
+      }));
+      renderSetupResult(body);
     };
 
     const signIn = async () => {
@@ -310,6 +441,19 @@ export const platformShellHtml = `<!doctype html>
     logoutButton.addEventListener("click", () => {
       fetch("/session", { method: "DELETE" })
         .finally(setSignedOut);
+    });
+
+    setupPreviewButton.addEventListener("click", () => {
+      submitSetupImport("preview").catch(error => {
+        setupStatus.textContent = error.message;
+        setupApplyButton.disabled = true;
+      });
+    });
+
+    setupApplyButton.addEventListener("click", () => {
+      submitSetupImport("apply").catch(error => {
+        setupStatus.textContent = error.message;
+      });
     });
 
     fetch("/session", { credentials: "same-origin" })

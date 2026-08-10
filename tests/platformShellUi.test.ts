@@ -11,6 +11,17 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("fetch(\"/session\", { method: \"DELETE\" })");
     expect(platformShellHtml).toContain("Live draft room");
     expect(platformShellHtml).toContain("href=\"/draft-room\"");
+    expect(platformShellHtml).toContain("Commissioner setup");
+    expect(platformShellHtml).toContain("href=\"/setup\"");
+    expect(platformShellHtml).toContain("id=\"setup-season-id-input\"");
+    expect(platformShellHtml).toContain("id=\"setup-rows-input\"");
+    expect(platformShellHtml).toContain("id=\"setup-preview-button\"");
+    expect(platformShellHtml).toContain("id=\"setup-apply-button\"");
+    expect(platformShellHtml).toContain("/setup-import/preview");
+    expect(platformShellHtml).toContain("/setup-import/apply");
+    expect(platformShellHtml).toContain("id=\"setup-blockers\"");
+    expect(platformShellHtml).toContain("id=\"setup-pending-invites\"");
+    expect(platformShellHtml).toContain("pending invites");
     expect(platformShellHtml).not.toContain("href=\"/mock-draft\"");
     expect(platformShellHtml).not.toContain("href=\"/prep\"");
     expect(platformShellHtml).not.toContain("Open mocks");
