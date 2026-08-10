@@ -15,6 +15,7 @@ export interface PreviewHistoricalImportSourceWorkflowInput {
   leagueId: string;
   seasonYear: number;
   sourceText: string;
+  uploadedByUserId?: string;
   replacementRequested?: boolean;
   now?: Date;
 }
@@ -48,21 +49,23 @@ const recordsFromBatchRows = (
     rowPreview.record === null ? [] : [rowPreview.record],
   );
 
-export const previewHistoricalImportSourceWorkflow = ({
+export const previewHistoricalImportSourceWorkflow = async ({
   repository,
   leagueId,
   seasonYear,
   sourceText,
+  uploadedByUserId,
   replacementRequested,
   now,
-}: PreviewHistoricalImportSourceWorkflowInput): PreviewHistoricalImportSourceWorkflowResult => {
+}: PreviewHistoricalImportSourceWorkflowInput): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
   const source = parseHistoricalImportSource(sourceText);
-  const batch = previewHistoricalImportBatch({
+  const batch = await previewHistoricalImportBatch({
     repository,
     leagueId,
     seasonYear,
     fileHash: source.fileHash,
     rows: source.rows,
+    ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
     ...(replacementRequested === undefined ? {} : { replacementRequested }),
     ...(now === undefined ? {} : { now }),
   });
@@ -77,12 +80,12 @@ export const previewHistoricalImportSourceWorkflow = ({
   };
 };
 
-export const commitHistoricalImportWorkflow = ({
+export const commitHistoricalImportWorkflow = async ({
   repository,
   batchId,
   now,
-}: CommitHistoricalImportWorkflowInput): CommitHistoricalImportWorkflowResult => {
-  const batch = commitHistoricalImportBatch({
+}: CommitHistoricalImportWorkflowInput): Promise<CommitHistoricalImportWorkflowResult> => {
+  const batch = await commitHistoricalImportBatch({
     repository,
     batchId,
     ...(now === undefined ? {} : { now }),

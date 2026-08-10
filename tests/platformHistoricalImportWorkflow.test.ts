@@ -40,17 +40,17 @@ const sourceText = (
 ].join("\n");
 
 describe("platform historical import workflow", () => {
-  it("previews source text and commits the ready batch records", () => {
+  it("previews source text and commits the ready batch records", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 
-    const preview = previewHistoricalImportSourceWorkflow({
+    const preview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
       sourceText: sourceText(),
       now,
     });
-    const commit = commitHistoricalImportWorkflow({
+    const commit = await commitHistoricalImportWorkflow({
       repository,
       batchId: preview.batch.id,
       now: new Date("2026-08-09T12:01:00.000Z"),
@@ -83,10 +83,10 @@ describe("platform historical import workflow", () => {
     ]);
   });
 
-  it("surfaces parse warnings without bypassing downstream blockers", () => {
+  it("surfaces parse warnings without bypassing downstream blockers", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 
-    const preview = previewHistoricalImportSourceWorkflow({
+    const preview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -105,25 +105,25 @@ describe("platform historical import workflow", () => {
       "owner_unknown",
       "player_unresolved",
     ]);
-    expect(() =>
+    await expect(
       commitHistoricalImportWorkflow({
         repository,
         batchId: preview.batch.id,
         now: new Date("2026-08-09T12:02:00.000Z"),
       }),
-    ).toThrow("Cannot commit historical import batch with blockers.");
+    ).rejects.toThrow("Cannot commit historical import batch with blockers.");
   });
 
-  it("treats duplicate source files as idempotent through preview and commit", () => {
+  it("treats duplicate source files as idempotent through preview and commit", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const firstPreview = previewHistoricalImportSourceWorkflow({
+    const firstPreview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
       sourceText: sourceText(),
       now,
     });
-    const duplicatePreview = previewHistoricalImportSourceWorkflow({
+    const duplicatePreview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -131,12 +131,12 @@ describe("platform historical import workflow", () => {
       now: new Date("2026-08-09T12:00:30.000Z"),
     });
 
-    const firstCommit = commitHistoricalImportWorkflow({
+    const firstCommit = await commitHistoricalImportWorkflow({
       repository,
       batchId: firstPreview.batch.id,
       now: new Date("2026-08-09T12:01:00.000Z"),
     });
-    const duplicateCommit = commitHistoricalImportWorkflow({
+    const duplicateCommit = await commitHistoricalImportWorkflow({
       repository,
       batchId: duplicatePreview.batch.id,
       now: new Date("2026-08-09T12:02:00.000Z"),
@@ -149,21 +149,21 @@ describe("platform historical import workflow", () => {
     expect(repository.records()).toHaveLength(1);
   });
 
-  it("commits replacement imports as the current batch and supersedes the prior batch", () => {
+  it("commits replacement imports as the current batch and supersedes the prior batch", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const firstPreview = previewHistoricalImportSourceWorkflow({
+    const firstPreview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
       sourceText: sourceText(),
       now,
     });
-    const firstCommit = commitHistoricalImportWorkflow({
+    const firstCommit = await commitHistoricalImportWorkflow({
       repository,
       batchId: firstPreview.batch.id,
       now: new Date("2026-08-09T12:01:00.000Z"),
     });
-    const replacementPreview = previewHistoricalImportSourceWorkflow({
+    const replacementPreview = await previewHistoricalImportSourceWorkflow({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -176,7 +176,7 @@ describe("platform historical import workflow", () => {
       now: new Date("2026-08-09T12:02:00.000Z"),
     });
 
-    const replacementCommit = commitHistoricalImportWorkflow({
+    const replacementCommit = await commitHistoricalImportWorkflow({
       repository,
       batchId: replacementPreview.batch.id,
       now: new Date("2026-08-09T12:03:00.000Z"),

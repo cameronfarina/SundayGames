@@ -18,6 +18,10 @@ import {
   type UpdateJobProgressInput,
 } from "../src/platform/jobs.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  InMemoryHistoricalImportRepository,
+  type HistoricalImportRepository,
+} from "../src/platform/historicalImports.js";
 import type {
   LeagueSetupRepository,
   RegisterLeagueSeasonRepositoryInput,
@@ -423,6 +427,68 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
 
   async membershipsForLeague(leagueId: string) {
     return this.inner.membershipsForLeague(leagueId);
+  }
+}
+
+class AsyncHistoricalImportRepository implements HistoricalImportRepository {
+  readonly inner: InMemoryHistoricalImportRepository;
+  transactionCount = 0;
+
+  constructor(leagueSeasons = [buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+    leagueName: "League 214674",
+    setupStatus: "published",
+  })]) {
+    this.inner = new InMemoryHistoricalImportRepository(leagueSeasons);
+  }
+
+  async withTransaction<T>(operation: (repository: HistoricalImportRepository) => T | Promise<T>): Promise<T> {
+    this.transactionCount += 1;
+
+    return await operation(this);
+  }
+
+  async findLeagueSeason(leagueId: string, seasonYear: number) {
+    return this.inner.findLeagueSeason(leagueId, seasonYear);
+  }
+
+  async findBatchById(batchId: string) {
+    return this.inner.findBatchById(batchId);
+  }
+
+  async findBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string) {
+    return this.inner.findBatchByFileHash(leagueId, seasonYear, fileHash);
+  }
+
+  async findCommittedBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string) {
+    return this.inner.findCommittedBatchByFileHash(leagueId, seasonYear, fileHash);
+  }
+
+  async findCurrentCommittedBatch(leagueId: string, seasonYear: number) {
+    return this.inner.findCurrentCommittedBatch(leagueId, seasonYear);
+  }
+
+  async nextBatchOrdinal(leagueId: string, seasonYear: number, fileHash: string) {
+    return this.inner.nextBatchOrdinal(leagueId, seasonYear, fileHash);
+  }
+
+  async createBatch(batch: Parameters<HistoricalImportRepository["createBatch"]>[0]) {
+    return this.inner.createBatch(batch);
+  }
+
+  async updateBatch(batch: Parameters<HistoricalImportRepository["updateBatch"]>[0]) {
+    return this.inner.updateBatch(batch);
+  }
+
+  async addRecords(records: Parameters<HistoricalImportRepository["addRecords"]>[0]) {
+    this.inner.addRecords(records);
+  }
+
+  async currentRecords(leagueId: string, seasonYear: number) {
+    return this.inner.currentRecords(leagueId, seasonYear);
+  }
+
+  async currentRecordsThroughSeason(leagueId: string, seasonYear: number) {
+    return this.inner.currentRecordsThroughSeason(leagueId, seasonYear);
   }
 }
 
@@ -1684,6 +1750,105 @@ describe("platform server composition", () => {
     expect(platformServer.leagueSetupRepository).toBe(platformServer.postgresLeagueSetupRepository);
   });
 
+  it("uses an external historical import repository for import HTTP routes without snapshot import writes", async () => {
+    const postgresClient = new FakePostgresClient();
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const historicalImportRepository = new AsyncHistoricalImportRepository([season]);
+    const { baseUrl } = await createListeningServer({
+      postgresClient,
+      historicalImportRepository,
+    });
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const memberships = [{
+      userId: accountId,
+      leagueId: season.leagueId,
+      role: "owner" as const,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+    }];
+
+    await jsonFetch(baseUrl, "/seasons", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({ season, memberships }),
+    });
+
+    const preview = await jsonFetch(baseUrl, `/seasons/${season.id}/historical-imports/preview`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        sourceText: [
+          "owner,player,position,price,year,player id,keeper,acquisition",
+          "Cam,Ja'Marr Chase,WR,$61,2026,player-jamarr-chase,false,auction",
+        ].join("\n"),
+      }),
+    });
+    const batchId = (preview.body as { batch: { id: string } }).batch.id;
+    const commit = await jsonFetch(baseUrl, `/historical-imports/${batchId}/commit`, {
+      method: "POST",
+      headers: { "x-session-token": sessionToken },
+    });
+
+    expect(preview).toMatchObject({
+      status: 200,
+      body: {
+        batch: {
+          status: "previewed",
+        },
+      },
+    });
+    expect(commit).toMatchObject({
+      status: 200,
+      body: {
+        batch: {
+          id: batchId,
+          status: "committed",
+        },
+      },
+    });
+    expect(historicalImportRepository.transactionCount).toBe(1);
+    expect(postgresClient.row?.snapshot_json).toMatchObject({
+      historicalImportBatches: [],
+      historicalSaleRecords: [],
+    });
+  });
+
+  it("creates a Postgres historical import repository when a transactional import client is configured", async () => {
+    const postgresHistoricalImportClient = new FakeTransactionalPostgresClient();
+    const { platformServer } = await createListeningServer({ postgresHistoricalImportClient });
+
+    expect(platformServer.postgresHistoricalImportRepository).toBeDefined();
+    expect(platformServer.historicalImportRepository).toBe(platformServer.postgresHistoricalImportRepository);
+  });
+
   it("rejects ambiguous file and Postgres persistence configuration", async () => {
     await expect(createPlatformServer({
       dataFilePath: "/tmp/mockd-platform.json",
@@ -1708,6 +1873,12 @@ describe("platform server composition", () => {
       postgresLeagueSetupClient: new FakeTransactionalPostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either leagueSetupRepository or postgresLeagueSetupClient, not both.");
+
+    await expect(createPlatformServer({
+      historicalImportRepository: new AsyncHistoricalImportRepository(),
+      postgresHistoricalImportClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either historicalImportRepository or postgresHistoricalImportClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {

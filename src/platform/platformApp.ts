@@ -26,6 +26,7 @@ import {
 import {
   InMemoryHistoricalImportRepository,
   type HistoricalImportBatch,
+  type HistoricalImportRepository,
   type HistoricalSaleRecord,
 } from "./historicalImports.js";
 import {
@@ -312,6 +313,7 @@ export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
   authRepository?: AuthRepository | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
+  historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -459,6 +461,10 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.authRepository.clear();
   }
 
+  clearHistoricalImportSnapshotState(): void {
+    this.historicalImports.replaceBatchesAndRecords([], []);
+  }
+
   snapshot(): InMemoryPlatformStoreSnapshot {
     return {
       auth: {
@@ -554,12 +560,14 @@ export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
   authRepository,
   leagueSetupRepository,
+  historicalImportRepository,
   jobRepository,
   simulationRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
   const runtimeAuthRepository = authRepository ?? store.authRepository;
   const leagueSetup = leagueSetupRepository ?? store;
+  const historicalImports = historicalImportRepository ?? store.historicalImports;
   const auth = createAuthService({ repository: runtimeAuthRepository });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
@@ -1020,11 +1028,12 @@ export const createPlatformApp = ({
       await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
       await requireSharedMutation(account, input.leagueId);
 
-      return cloneForRead(previewHistoricalImportSourceWorkflow({
-        repository: store.historicalImports,
+      return cloneForRead(await previewHistoricalImportSourceWorkflow({
+        repository: historicalImports,
         leagueId: input.leagueId,
         seasonYear: input.seasonYear,
         sourceText: input.sourceText,
+        uploadedByUserId: account.id,
         ...(input.replacementRequested === undefined ? {} : { replacementRequested: input.replacementRequested }),
         ...(input.now === undefined ? {} : { now: input.now }),
       }));
@@ -1034,14 +1043,14 @@ export const createPlatformApp = ({
       input: CommitPlatformHistoricalImportInput,
     ): Promise<CommitHistoricalImportWorkflowResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const batch = store.historicalImports.findBatchById(input.batchId);
+      const batch = await historicalImports.findBatchById(input.batchId);
       if (batch === null) {
         throw new PlatformAppError("historical_import_not_found", "Historical import batch was not found.");
       }
       await requireSharedMutation(account, batch.leagueId);
 
-      return cloneForRead(commitHistoricalImportWorkflow({
-        repository: store.historicalImports,
+      return cloneForRead(await commitHistoricalImportWorkflow({
+        repository: historicalImports,
         batchId: input.batchId,
         ...(input.now === undefined ? {} : { now: input.now }),
       }));
@@ -1054,6 +1063,8 @@ export const createPlatformApp = ({
       const season = await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
       await requireSharedMutation(account, input.leagueId);
 
+      const historicalSaleRecords = await historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear);
+
       return cloneForRead(rebuildLeaguePricingWorkflow({
         repository: store.pricingSnapshots,
         leagueId: input.leagueId,
@@ -1061,7 +1072,7 @@ export const createPlatformApp = ({
         modelVersion: input.modelVersion,
         scenarioIds: input.scenarioIds,
         baselinePrices: input.baselinePrices,
-        historicalSaleRecords: store.historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear),
+        historicalSaleRecords,
         currentAuctionBudget: season.settings.auction.budgetDollars,
         currentTeamCount: season.teams.length,
         keeperLockedSpend: 0,

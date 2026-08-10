@@ -1,6 +1,8 @@
 import { positions, type Position } from "../../config/league.js";
 import type { FantasyTeam, LeagueSeason } from "./leagueSeason.js";
 
+type MaybePromise<T> = T | Promise<T>;
+
 export type HistoricalImportBatchStatus = "previewed" | "blocked" | "committed" | "superseded";
 export type HistoricalImportRowStatus = "ready" | "blocked";
 export type HistoricalImportIssueSeverity = "blocker" | "warning";
@@ -88,6 +90,7 @@ export interface HistoricalImportBatch {
   leagueSeasonId: string | null;
   seasonYear: number;
   fileHash: string;
+  uploadedByUserId?: string;
   status: HistoricalImportBatchStatus;
   replacementRequested: boolean;
   createdAt: Date;
@@ -104,6 +107,7 @@ export interface PreviewHistoricalImportBatchInput {
   leagueId: string;
   seasonYear: number;
   fileHash: string;
+  uploadedByUserId?: string;
   replacementRequested?: boolean;
   rows: readonly NormalizedHistoricalImportRow[];
   now?: Date;
@@ -116,17 +120,18 @@ export interface CommitHistoricalImportBatchInput {
 }
 
 export interface HistoricalImportRepository {
-  findLeagueSeason(leagueId: string, seasonYear: number): LeagueSeason | null;
-  findBatchById(batchId: string): HistoricalImportBatch | null;
-  findBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): HistoricalImportBatch | null;
-  findCommittedBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): HistoricalImportBatch | null;
-  findCurrentCommittedBatch(leagueId: string, seasonYear: number): HistoricalImportBatch | null;
-  nextBatchOrdinal(leagueId: string, seasonYear: number, fileHash: string): number;
-  createBatch(batch: HistoricalImportBatch): HistoricalImportBatch;
-  updateBatch(batch: HistoricalImportBatch): HistoricalImportBatch;
-  addRecords(records: readonly HistoricalSaleRecord[]): void;
-  currentRecords(leagueId: string, seasonYear: number): HistoricalSaleRecord[];
-  currentRecordsThroughSeason(leagueId: string, seasonYear: number): HistoricalSaleRecord[];
+  withTransaction?<T>(operation: (repository: HistoricalImportRepository) => MaybePromise<T>): MaybePromise<T>;
+  findLeagueSeason(leagueId: string, seasonYear: number): MaybePromise<LeagueSeason | null>;
+  findBatchById(batchId: string): MaybePromise<HistoricalImportBatch | null>;
+  findBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): MaybePromise<HistoricalImportBatch | null>;
+  findCommittedBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): MaybePromise<HistoricalImportBatch | null>;
+  findCurrentCommittedBatch(leagueId: string, seasonYear: number): MaybePromise<HistoricalImportBatch | null>;
+  nextBatchOrdinal(leagueId: string, seasonYear: number, fileHash: string): MaybePromise<number>;
+  createBatch(batch: HistoricalImportBatch): MaybePromise<HistoricalImportBatch>;
+  updateBatch(batch: HistoricalImportBatch): MaybePromise<HistoricalImportBatch>;
+  addRecords(records: readonly HistoricalSaleRecord[]): MaybePromise<void>;
+  currentRecords(leagueId: string, seasonYear: number): MaybePromise<HistoricalSaleRecord[]>;
+  currentRecordsThroughSeason(leagueId: string, seasonYear: number): MaybePromise<HistoricalSaleRecord[]>;
 }
 
 const positionSet = new Set<string>(positions);
@@ -344,36 +349,38 @@ export class InMemoryHistoricalImportRepository implements HistoricalImportRepos
   }
 }
 
-export const previewHistoricalImportBatch = ({
+export const previewHistoricalImportBatch = async ({
   repository,
   leagueId,
   seasonYear,
   fileHash,
+  uploadedByUserId,
   replacementRequested = false,
   rows,
   now = new Date(),
-}: PreviewHistoricalImportBatchInput): HistoricalImportBatch => {
+}: PreviewHistoricalImportBatchInput): Promise<HistoricalImportBatch> => {
   const existingBatch = replacementRequested
     ? null
-    : repository.findBatchByFileHash(leagueId, seasonYear, fileHash);
+    : await repository.findBatchByFileHash(leagueId, seasonYear, fileHash);
 
   if (existingBatch !== null) {
     return existingBatch;
   }
 
-  const season = repository.findLeagueSeason(leagueId, seasonYear);
+  const season = await repository.findLeagueSeason(leagueId, seasonYear);
   const batchId = [
     batchBaseId(leagueId, seasonYear, fileHash),
-    String(repository.nextBatchOrdinal(leagueId, seasonYear, fileHash)).padStart(3, "0"),
+    String(await repository.nextBatchOrdinal(leagueId, seasonYear, fileHash)).padStart(3, "0"),
   ].join("-");
 
   if (season === null) {
-    return repository.createBatch({
+    return await repository.createBatch({
       id: batchId,
       leagueId,
       leagueSeasonId: null,
       seasonYear,
       fileHash,
+      ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
       status: "blocked",
       replacementRequested,
       createdAt: now,
@@ -500,12 +507,13 @@ export const previewHistoricalImportBatch = ({
     ? []
     : [issue("season_spend_mismatch", "warning", `Imported spend is $${actualSpend}, expected $${expectedSpend}.`)];
 
-  return repository.createBatch({
+  return await repository.createBatch({
     id: batchId,
     leagueId,
     leagueSeasonId: season.id,
     seasonYear,
     fileHash,
+    ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
     status: blockers.length > 0 ? "blocked" : "previewed",
     replacementRequested,
     createdAt: now,
@@ -515,62 +523,72 @@ export const previewHistoricalImportBatch = ({
   });
 };
 
+const runHistoricalImportTransaction = async <T>(
+  repository: HistoricalImportRepository,
+  operation: (repository: HistoricalImportRepository) => MaybePromise<T>,
+): Promise<T> => {
+  if (repository.withTransaction === undefined) return await operation(repository);
+
+  return await repository.withTransaction(operation);
+};
+
 export const commitHistoricalImportBatch = ({
   repository,
   batchId,
   now = new Date(),
-}: CommitHistoricalImportBatchInput): HistoricalImportBatch => {
-  const batch = repository.findBatchById(batchId);
+}: CommitHistoricalImportBatchInput): Promise<HistoricalImportBatch> =>
+  runHistoricalImportTransaction(repository, async transactionalRepository => {
+    const batch = await transactionalRepository.findBatchById(batchId);
 
-  if (batch === null) {
-    throw new HistoricalImportError("batch_not_found", `Historical import batch ${batchId} was not found.`);
-  }
-
-  if (batch.status === "committed" || batch.status === "superseded") {
-    return batch;
-  }
-
-  if (batch.status === "blocked" || batch.blockers.length > 0) {
-    throw new HistoricalImportError("batch_blocked", "Cannot commit historical import batch with blockers.");
-  }
-
-  const existingCommittedBatch = batch.replacementRequested
-    ? null
-    : repository.findCommittedBatchByFileHash(batch.leagueId, batch.seasonYear, batch.fileHash);
-
-  if (existingCommittedBatch !== null) {
-    return existingCommittedBatch;
-  }
-
-  const currentCommittedBatch = repository.findCurrentCommittedBatch(batch.leagueId, batch.seasonYear);
-
-  if (currentCommittedBatch !== null) {
-    if (!batch.replacementRequested) {
-      throw new HistoricalImportError(
-        "season_import_conflict",
-        "Historical import batch already exists for this league season. Request replacement to supersede it.",
-      );
+    if (batch === null) {
+      throw new HistoricalImportError("batch_not_found", `Historical import batch ${batchId} was not found.`);
     }
 
-    repository.updateBatch({
-      ...currentCommittedBatch,
-      status: "superseded",
-      supersededAt: now,
-      supersededByBatchId: batch.id,
+    if (batch.status === "committed" || batch.status === "superseded") {
+      return batch;
+    }
+
+    if (batch.status === "blocked" || batch.blockers.length > 0) {
+      throw new HistoricalImportError("batch_blocked", "Cannot commit historical import batch with blockers.");
+    }
+
+    const existingCommittedBatch = batch.replacementRequested
+      ? null
+      : await transactionalRepository.findCommittedBatchByFileHash(batch.leagueId, batch.seasonYear, batch.fileHash);
+
+    if (existingCommittedBatch !== null) {
+      return existingCommittedBatch;
+    }
+
+    const currentCommittedBatch = await transactionalRepository.findCurrentCommittedBatch(batch.leagueId, batch.seasonYear);
+
+    if (currentCommittedBatch !== null) {
+      if (!batch.replacementRequested) {
+        throw new HistoricalImportError(
+          "season_import_conflict",
+          "Historical import batch already exists for this league season. Request replacement to supersede it.",
+        );
+      }
+
+      await transactionalRepository.updateBatch({
+        ...currentCommittedBatch,
+        status: "superseded",
+        supersededAt: now,
+        supersededByBatchId: batch.id,
+      });
+    }
+
+    const committedBatch = await transactionalRepository.updateBatch({
+      ...batch,
+      status: "committed",
+      committedAt: now,
     });
-  }
+    const records = committedBatch.rows.flatMap(rowPreview =>
+      rowPreview.record === null ? [] : [rowPreview.record],
+    );
 
-  const committedBatch = repository.updateBatch({
-    ...batch,
-    status: "committed",
-    committedAt: now,
+    await transactionalRepository.addRecords(records);
+    return committedBatch;
   });
-  const records = committedBatch.rows.flatMap(rowPreview =>
-    rowPreview.record === null ? [] : [rowPreview.record],
-  );
-
-  repository.addRecords(records);
-  return committedBatch;
-};
 
 const seasonKey = (leagueId: string, seasonYear: number): string => `${leagueId}:${seasonYear}`;

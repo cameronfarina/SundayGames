@@ -35,10 +35,10 @@ const row = (
 };
 
 describe("platform historical imports", () => {
-  it("creates a preview batch from normalized rows", () => {
+  it("creates a preview batch from normalized rows", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 
-    const batch = previewHistoricalImportBatch({
+    const batch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -82,9 +82,9 @@ describe("platform historical imports", () => {
     ]);
   });
 
-  it("blocks commit for missing season, invalid rows, duplicates, and unresolved required players", () => {
+  it("blocks commit for missing season, invalid rows, duplicates, and unresolved required players", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const missingSeasonBatch = previewHistoricalImportBatch({
+    const missingSeasonBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2024,
@@ -95,15 +95,15 @@ describe("platform historical imports", () => {
 
     expect(missingSeasonBatch.status).toBe("blocked");
     expect(missingSeasonBatch.blockers.map(blocker => blocker.code)).toEqual(["season_missing"]);
-    expect(() =>
+    await expect(
       commitHistoricalImportBatch({
         repository,
         batchId: missingSeasonBatch.id,
         now,
       }),
-    ).toThrow("Cannot commit historical import batch with blockers.");
+    ).rejects.toThrow("Cannot commit historical import batch with blockers.");
 
-    const invalidRowsBatch = previewHistoricalImportBatch({
+    const invalidRowsBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -148,19 +148,19 @@ describe("platform historical imports", () => {
       "blocked",
       "blocked",
     ]);
-    expect(() =>
+    await expect(
       commitHistoricalImportBatch({
         repository,
         batchId: invalidRowsBatch.id,
         now,
       }),
-    ).toThrow("Cannot commit historical import batch with blockers.");
+    ).rejects.toThrow("Cannot commit historical import batch with blockers.");
   });
 
-  it("warns for spend mismatch and inferred keeper or acquisition details", () => {
+  it("warns for spend mismatch and inferred keeper or acquisition details", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 
-    const batch = previewHistoricalImportBatch({
+    const batch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -192,9 +192,9 @@ describe("platform historical imports", () => {
     }));
   });
 
-  it("commits a preview batch into normalized historical sale records", () => {
+  it("commits a preview batch into normalized historical sale records", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const batch = previewHistoricalImportBatch({
+    const batch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -203,7 +203,7 @@ describe("platform historical imports", () => {
       now,
     });
 
-    const committed = commitHistoricalImportBatch({
+    const committed = await commitHistoricalImportBatch({
       repository,
       batchId: batch.id,
       now: new Date("2026-08-09T12:01:00.000Z"),
@@ -224,9 +224,9 @@ describe("platform historical imports", () => {
     ]);
   });
 
-  it("requires explicit replacement before superseding a committed batch for a season", () => {
+  it("requires explicit replacement before superseding a committed batch for a season", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const firstBatch = previewHistoricalImportBatch({
+    const firstBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -234,7 +234,7 @@ describe("platform historical imports", () => {
       rows: [row()],
       now,
     });
-    const secondBatch = previewHistoricalImportBatch({
+    const secondBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -247,19 +247,19 @@ describe("platform historical imports", () => {
       now: new Date("2026-08-09T12:02:00.000Z"),
     });
 
-    commitHistoricalImportBatch({
+    await commitHistoricalImportBatch({
       repository,
       batchId: firstBatch.id,
       now: new Date("2026-08-09T12:01:00.000Z"),
     });
 
-    expect(() =>
+    await expect(
       commitHistoricalImportBatch({
         repository,
         batchId: secondBatch.id,
         now: new Date("2026-08-09T12:03:00.000Z"),
       }),
-    ).toThrow("Historical import batch already exists for this league season. Request replacement to supersede it.");
+    ).rejects.toThrow("Historical import batch already exists for this league season. Request replacement to supersede it.");
     const stillCurrentBatch = repository.findBatchById(firstBatch.id);
     expect(stillCurrentBatch).toEqual(expect.objectContaining({ status: "committed" }));
     expect(stillCurrentBatch).not.toHaveProperty("supersededByBatchId");
@@ -268,9 +268,9 @@ describe("platform historical imports", () => {
     ]);
   });
 
-  it("supersedes the prior committed batch for a league season without deleting old records", () => {
+  it("supersedes the prior committed batch for a league season without deleting old records", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const firstBatch = previewHistoricalImportBatch({
+    const firstBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -278,12 +278,12 @@ describe("platform historical imports", () => {
       rows: [row({ playerName: "Ja'Marr Chase", playerId: "player-jamarr-chase" })],
       now,
     });
-    const committedFirst = commitHistoricalImportBatch({
+    const committedFirst = await commitHistoricalImportBatch({
       repository,
       batchId: firstBatch.id,
       now,
     });
-    const replacementBatch = previewHistoricalImportBatch({
+    const replacementBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -293,7 +293,7 @@ describe("platform historical imports", () => {
       now: new Date("2026-08-09T12:02:00.000Z"),
     });
 
-    const committedReplacement = commitHistoricalImportBatch({
+    const committedReplacement = await commitHistoricalImportBatch({
       repository,
       batchId: replacementBatch.id,
       now: new Date("2026-08-09T12:03:00.000Z"),
@@ -310,9 +310,9 @@ describe("platform historical imports", () => {
     ]);
   });
 
-  it("treats the same league season file hash as idempotent unless replacement is requested", () => {
+  it("treats the same league season file hash as idempotent unless replacement is requested", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
-    const firstBatch = previewHistoricalImportBatch({
+    const firstBatch = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -320,7 +320,7 @@ describe("platform historical imports", () => {
       rows: [row()],
       now,
     });
-    const duplicatePreviewBeforeCommit = previewHistoricalImportBatch({
+    const duplicatePreviewBeforeCommit = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -331,13 +331,13 @@ describe("platform historical imports", () => {
 
     expect(duplicatePreviewBeforeCommit.id).toBe(firstBatch.id);
 
-    const committedFirst = commitHistoricalImportBatch({
+    const committedFirst = await commitHistoricalImportBatch({
       repository,
       batchId: firstBatch.id,
       now,
     });
 
-    const idempotentPreview = previewHistoricalImportBatch({
+    const idempotentPreview = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -345,7 +345,7 @@ describe("platform historical imports", () => {
       rows: [row({ playerName: "Changed Input", playerId: "player-changed" })],
       now: new Date("2026-08-09T12:04:00.000Z"),
     });
-    const idempotentCommit = commitHistoricalImportBatch({
+    const idempotentCommit = await commitHistoricalImportBatch({
       repository,
       batchId: idempotentPreview.id,
       now: new Date("2026-08-09T12:05:00.000Z"),
@@ -355,7 +355,7 @@ describe("platform historical imports", () => {
     expect(idempotentCommit.id).toBe(committedFirst.id);
     expect(repository.records()).toHaveLength(1);
 
-    const replacementPreview = previewHistoricalImportBatch({
+    const replacementPreview = await previewHistoricalImportBatch({
       repository,
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
@@ -364,7 +364,7 @@ describe("platform historical imports", () => {
       rows: [row({ playerName: "Changed Input", playerId: "player-changed" })],
       now: new Date("2026-08-09T12:06:00.000Z"),
     });
-    const committedReplacement = commitHistoricalImportBatch({
+    const committedReplacement = await commitHistoricalImportBatch({
       repository,
       batchId: replacementPreview.id,
       now: new Date("2026-08-09T12:07:00.000Z"),
