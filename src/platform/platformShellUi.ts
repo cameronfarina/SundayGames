@@ -247,15 +247,64 @@ export const platformShellHtml = `<!doctype html>
       border-radius: 6px;
       color: var(--text);
       display: flex;
+      font-weight: 800;
       justify-content: space-between;
       min-height: 56px;
       padding: 0 14px;
       text-decoration: none;
+      width: 100%;
     }
 
     .section-link[data-active="true"] {
       border-color: var(--line-hot);
       color: #f5c4ff;
+    }
+
+    .notice {
+      background: #0b0b10;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      padding: 12px;
+    }
+
+    .notice strong {
+      color: var(--text);
+    }
+
+    .catalog-list {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .catalog-list li {
+      background: #070708;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: grid;
+      gap: 4px;
+      min-height: 66px;
+      padding: 10px 12px;
+    }
+
+    .catalog-list strong {
+      overflow-wrap: anywhere;
+    }
+
+    details.advanced {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    details.advanced summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 800;
     }
 
     .result-list {
@@ -334,6 +383,7 @@ export const platformShellHtml = `<!doctype html>
       </div>
       <div class="row wrap">
         <span id="session-label" class="muted">Signed out</span>
+        <button id="local-demo-topbar-button" class="btn blue hidden" type="button">Use local demo</button>
         <button id="logout-button" class="btn hidden" type="button">Sign out</button>
       </div>
     </header>
@@ -350,6 +400,7 @@ export const platformShellHtml = `<!doctype html>
         <div class="row wrap">
           <button id="signin-button" class="btn primary" type="submit">Sign in</button>
           <button id="create-account-button" class="btn" type="button">Create account</button>
+          <button id="local-demo-button" class="btn blue hidden" type="button">Use local demo</button>
         </div>
         <div id="auth-error" class="error" role="alert"></div>
       </form>
@@ -359,21 +410,22 @@ export const platformShellHtml = `<!doctype html>
       <div class="cards">
         <article class="panel hot">
           <h2>League home</h2>
-          <a class="section-link" data-active="true" href="/app">Open league <span>></span></a>
+          <button id="open-league-section-button" class="section-link" data-active="true" type="button">Open league <span>></span></button>
         </article>
         <article class="panel">
           <h2>Live draft room</h2>
-          <a id="draft-room-link" class="section-link" href="/draft-room">Open draft room <span>></span></a>
+          <button id="draft-room-link" class="section-link" type="button">Open draft room <span>></span></button>
         </article>
         <article class="panel">
           <h2>Commissioner setup</h2>
-          <a class="section-link" href="/setup">Open setup <span>></span></a>
+          <button id="open-setup-section-button" class="section-link" type="button">Open setup <span>></span></button>
         </article>
       </div>
 
       <div class="workspace-grid">
-        <section class="panel stack">
+        <section id="league-section" class="panel stack">
           <h2>League home</h2>
+          <div id="local-member-notice" class="notice hidden"></div>
           <label for="season-id-input">Season id</label>
           <div class="row">
             <input id="season-id-input" autocomplete="off" name="seasonId">
@@ -398,7 +450,7 @@ export const platformShellHtml = `<!doctype html>
           <ul id="team-claim-list" class="result-list"></ul>
         </section>
 
-        <section class="panel hot stack">
+        <section id="draft-room-section" class="panel hot stack">
           <h2>Live draft room</h2>
           <label for="room-id-input">Room id</label>
           <div class="row">
@@ -406,8 +458,12 @@ export const platformShellHtml = `<!doctype html>
             <button id="open-room-button" class="btn" type="button">Open</button>
             <button id="create-room-button" class="btn blue" type="button">Create</button>
           </div>
-          <label for="player-catalog-input">Player catalog</label>
-          <textarea id="player-catalog-input" spellcheck="false"></textarea>
+          <label>Player catalog</label>
+          <ul id="player-catalog-list" class="catalog-list"></ul>
+          <details class="advanced">
+            <summary>Advanced catalog JSON</summary>
+            <textarea id="player-catalog-input" spellcheck="false"></textarea>
+          </details>
           <div class="row wrap">
             <button id="start-room-button" class="btn green" type="button" disabled>Start</button>
             <button id="undo-sale-button" class="btn" type="button" disabled>Undo</button>
@@ -466,7 +522,7 @@ export const platformShellHtml = `<!doctype html>
           <h2>Commissioner setup</h2>
           <label for="setup-season-id-input">Season id</label>
           <input id="setup-season-id-input" autocomplete="off" name="seasonId">
-          <label for="setup-rows-input">Owner rows</label>
+          <label for="setup-rows-input">Owner import rows</label>
           <textarea id="setup-rows-input" name="setupRows" spellcheck="false">owner,team,email,role
 Beaton,Beaton,beaton@example.com,member
 Hoody,Hoody,hoody@example.com,member
@@ -489,9 +545,9 @@ Mello,Mello,mello@example.com,member</textarea>
           <div id="setup-status" class="status-line"></div>
         </form>
         <article class="panel stack">
-          <h3>Blockers</h3>
+          <h3>Setup blockers</h3>
           <ul id="setup-blockers" class="result-list"></ul>
-          <h3>pending invites</h3>
+          <h3>Owners without accounts</h3>
           <ul id="setup-pending-invites" class="result-list"></ul>
         </article>
       </div>
@@ -501,6 +557,9 @@ Mello,Mello,mello@example.com,member</textarea>
   <script type="module">
     const currentSessionRequest = "GET /session";
     const defaultSeasonId = "league-214674-season-2026";
+    const localDemoEmail = "cam@mockd.local";
+    const localDemoPassword = "mockd local e2e password";
+    const localDemoRoomId = "room_mockd_e2e_2026";
     const defaultPlayerCatalog = [
       { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 8 },
       { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 8 },
@@ -528,15 +587,22 @@ Mello,Mello,mello@example.com,member</textarea>
     const authPanel = document.getElementById("auth-panel");
     const appShell = document.getElementById("app-shell");
     const sessionLabel = document.getElementById("session-label");
+    const localDemoTopbarButton = document.getElementById("local-demo-topbar-button");
     const logoutButton = document.getElementById("logout-button");
     const authForm = document.getElementById("auth-form");
     const authError = document.getElementById("auth-error");
     const emailInput = document.getElementById("email-input");
     const passwordInput = document.getElementById("password-input");
     const createAccountButton = document.getElementById("create-account-button");
+    const localDemoButton = document.getElementById("local-demo-button");
+    const openLeagueSectionButton = document.getElementById("open-league-section-button");
+    const leagueSection = document.getElementById("league-section");
+    const draftRoomSection = document.getElementById("draft-room-section");
+    const openSetupSectionButton = document.getElementById("open-setup-section-button");
     const seasonIdInput = document.getElementById("season-id-input");
     const loadSeasonButton = document.getElementById("load-season-button");
     const seasonStatus = document.getElementById("season-status");
+    const localMemberNotice = document.getElementById("local-member-notice");
     const leagueNameLabel = document.getElementById("league-name-label");
     const seasonYearLabel = document.getElementById("season-year-label");
     const teamCountLabel = document.getElementById("team-count-label");
@@ -545,6 +611,7 @@ Mello,Mello,mello@example.com,member</textarea>
     const roomIdInput = document.getElementById("room-id-input");
     const openRoomButton = document.getElementById("open-room-button");
     const createRoomButton = document.getElementById("create-room-button");
+    const playerCatalogList = document.getElementById("player-catalog-list");
     const playerCatalogInput = document.getElementById("player-catalog-input");
     const startRoomButton = document.getElementById("start-room-button");
     const saleForm = document.getElementById("sale-form");
@@ -585,10 +652,21 @@ Mello,Mello,mello@example.com,member</textarea>
     };
 
     const defaultRoomIdFor = seasonId => {
+      if (seasonId === defaultSeasonId) return localDemoRoomId;
+
       const match = /^league-([a-z0-9-]+)-season-([0-9]+)$/i.exec(seasonId);
       if (match) return "room_" + cleanIdFragment(match[1]) + "_" + match[2];
 
       return cleanIdFragment(seasonId) + "_room";
+    };
+
+    const isLoopbackHost = () =>
+      ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+
+    const syncLocalDemoButtons = () => {
+      const localPreview = isLoopbackHost();
+      localDemoButton.classList.toggle("hidden", !localPreview || state.account !== null);
+      localDemoTopbarButton.classList.toggle("hidden", !localPreview || state.account === null);
     };
 
     const selectedSeasonId = () => seasonIdInput.value.trim() || defaultSeasonId;
@@ -635,6 +713,38 @@ Mello,Mello,mello@example.com,member</textarea>
       }));
     };
 
+    const scrollToSection = section => {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const focusCurrentRoute = () => {
+      if (window.location.pathname === "/draft-room") {
+        scrollToSection(draftRoomSection);
+        return;
+      }
+      if (window.location.pathname === "/setup") {
+        scrollToSection(setupSeasonIdInput);
+        setupSeasonIdInput.focus();
+      }
+    };
+
+    const localDemoHelpText = () =>
+      "This account is signed in, but it is not a member of the seeded local league. " +
+      "Sign out or use the local demo account to open league-214674-season-2026.";
+
+    const friendlySeasonError = error => {
+      const message = error instanceof Error ? error.message : String(error);
+      return isLoopbackHost() && message.includes("Join this league")
+        ? localDemoHelpText()
+        : message;
+    };
+
+    const renderPlayerCatalog = () => {
+      replaceListItems(playerCatalogList, defaultPlayerCatalog, "No catalog players.", player =>
+        player.name + " / " + player.position + " / " + player.teamAbbreviation + " / $" + player.expectedPrice
+      );
+    };
+
     const setButtonStates = () => {
       const hasSeason = state.season !== null;
       const hasRoom = state.room !== null;
@@ -677,6 +787,8 @@ Mello,Mello,mello@example.com,member</textarea>
     const renderSeason = season => {
       state.season = season;
       state.membership = null;
+      localMemberNotice.classList.add("hidden");
+      localMemberNotice.textContent = "";
       leagueNameLabel.textContent = season?.league?.name || "Not loaded";
       seasonYearLabel.textContent = season?.seasonYear === undefined ? "-" : String(season.seasonYear);
       teamCountLabel.textContent = season?.teams === undefined ? "-" : String(season.teams.length);
@@ -704,8 +816,6 @@ Mello,Mello,mello@example.com,member</textarea>
       roomStatusLabel.textContent = model.status || "Not opened";
       roomRevisionLabel.textContent = model.revision === undefined ? "-" : String(model.revision);
       saleCountLabel.textContent = String((model.salesLog || []).length);
-      draftRoomLink.href = "/draft-room?seasonId=" + encodeURIComponent(selectedSeasonId()) +
-        "&roomId=" + encodeURIComponent(selectedRoomId());
 
       replaceListItems(
         saleLog,
@@ -875,6 +985,7 @@ Mello,Mello,mello@example.com,member</textarea>
       const body = await readJson(await fetch(seasonEndpoint(), { credentials: "same-origin" }));
       renderSeason(body.season);
       seasonStatus.textContent = "Loaded " + body.season.league.name + " " + body.season.seasonYear + ".";
+      return body.season;
     };
 
     const claimTeam = async team => {
@@ -991,9 +1102,19 @@ Mello,Mello,mello@example.com,member</textarea>
       appShell.classList.remove("hidden");
       logoutButton.classList.remove("hidden");
       sessionLabel.textContent = account.email;
-      loadSeason().catch(error => {
-        seasonStatus.textContent = error.message;
+      syncLocalDemoButtons();
+      loadSeason().then(() => {
+        return openRoom().catch(error => {
+          roomStatus.textContent = error.message;
+        });
+      }).then(() => {
+        focusCurrentRoute();
+      }).catch(error => {
+        const message = friendlySeasonError(error);
         renderSeason(null);
+        seasonStatus.textContent = message;
+        localMemberNotice.textContent = message;
+        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
       });
     };
 
@@ -1007,6 +1128,7 @@ Mello,Mello,mello@example.com,member</textarea>
       appShell.classList.add("hidden");
       logoutButton.classList.add("hidden");
       sessionLabel.textContent = "Signed out";
+      syncLocalDemoButtons();
       renderSeason(null);
       renderRoomReadModel({ status: "Not opened", revision: undefined, salesLog: [], board: [], teamSummaries: [] });
       replaceListItems(roomEvents, [], "No room events.", value => value);
@@ -1062,18 +1184,29 @@ Mello,Mello,mello@example.com,member</textarea>
       renderSetupResult(body);
     };
 
-    const signIn = async () => {
+    const loginWithCredentials = async (email, password) => {
       authError.textContent = "";
       const body = await readJson(await fetch("/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          email: emailInput.value,
-          password: passwordInput.value,
+          email,
+          password,
         }),
       }));
       setSignedIn(body.account);
+    };
+
+    const signIn = async () => {
+      await loginWithCredentials(emailInput.value, passwordInput.value);
+    };
+
+    const useLocalDemo = async () => {
+      await fetch("/session", { method: "DELETE" }).catch(() => undefined);
+      emailInput.value = localDemoEmail;
+      passwordInput.value = localDemoPassword;
+      await loginWithCredentials(localDemoEmail, localDemoPassword);
     };
 
     authForm.addEventListener("submit", event => {
@@ -1097,15 +1230,49 @@ Mello,Mello,mello@example.com,member</textarea>
         .catch(error => { authError.textContent = error.message; });
     });
 
+    localDemoButton.addEventListener("click", () => {
+      useLocalDemo().catch(error => { authError.textContent = error.message; });
+    });
+
+    localDemoTopbarButton.addEventListener("click", () => {
+      useLocalDemo().catch(error => {
+        seasonStatus.textContent = error.message;
+      });
+    });
+
     logoutButton.addEventListener("click", () => {
       fetch("/session", { method: "DELETE" })
         .finally(setSignedOut);
     });
 
+    openLeagueSectionButton.addEventListener("click", () => {
+      scrollToSection(leagueSection);
+    });
+
+    draftRoomLink.addEventListener("click", () => {
+      scrollToSection(draftRoomSection);
+      if (state.room === null) {
+        const openAfterSeason = state.season === null
+          ? loadSeason()
+          : Promise.resolve(state.season);
+        openAfterSeason
+          .then(() => openRoom())
+          .catch(error => { roomStatus.textContent = friendlySeasonError(error); });
+      }
+    });
+
+    openSetupSectionButton.addEventListener("click", () => {
+      scrollToSection(setupSeasonIdInput);
+      setupSeasonIdInput.focus();
+    });
+
     loadSeasonButton.addEventListener("click", () => {
       loadSeason().catch(error => {
-        seasonStatus.textContent = error.message;
         renderSeason(null);
+        const message = friendlySeasonError(error);
+        seasonStatus.textContent = message;
+        localMemberNotice.textContent = message;
+        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
       });
     });
 
@@ -1156,6 +1323,8 @@ Mello,Mello,mello@example.com,member</textarea>
     roomIdInput.value = initialRoomId || defaultRoomIdFor(initialSeasonId);
     playerCatalogInput.value = JSON.stringify(defaultPlayerCatalog, null, 2);
     saleCommandInput.value = "cam puka 62";
+    syncLocalDemoButtons();
+    renderPlayerCatalog();
     renderSeason(null);
     renderRoomReadModel({ status: "Not opened", revision: undefined, salesLog: [], board: [], teamSummaries: [] });
     replaceListItems(roomEvents, [], "No room events.", value => value);

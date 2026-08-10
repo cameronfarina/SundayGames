@@ -1,5 +1,4 @@
 import { createServer, type Server } from "node:http";
-import { liveDraftHtml } from "../liveDraftUi.js";
 import { FilePlatformStore } from "./filePlatformStore.js";
 import type { JobRepository } from "./jobs.js";
 import type { AuthRepository } from "./auth.js";
@@ -766,7 +765,6 @@ export const createPlatformServer = async (
   };
   const server = createServer(createPlatformNodeHttpAdapter(handler, {
     appHtml: platformShellHtml,
-    draftRoomHtml: liveDraftHtml,
     maxBodyBytes: options.bodyLimitBytes,
   }));
   const platformServer = {

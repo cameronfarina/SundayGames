@@ -1149,7 +1149,7 @@ describe("platform server composition", () => {
     expect(response.body).toContain("Live draft room");
   });
 
-  it("serves the mature draft workspace from draft browser routes", async () => {
+  it("serves the hosted platform shell from hosted platform browser routes", async () => {
     const { baseUrl } = await createListeningServer();
 
     const signup = await textFetch(baseUrl, "/signup");
@@ -1163,13 +1163,14 @@ describe("platform server composition", () => {
 
     expect(draftRoom.status).toBe(200);
     expect(draftRoom.contentType).toBe("text/html; charset=utf-8");
-    expect(draftRoom.body).toContain("id=\"draft-room-view\"");
-    expect(draftRoom.body).not.toContain("id=\"auth-panel\"");
+    expect(draftRoom.body).toContain("id=\"auth-panel\"");
+    expect(draftRoom.body).toContain("id=\"draft-room-section\"");
+    expect(draftRoom.body).not.toContain("id=\"draft-room-view\"");
 
     expect(myExpert.status).toBe(200);
     expect(myExpert.contentType).toBe("text/html; charset=utf-8");
-    expect(myExpert.body).toContain("id=\"my-expert-view\"");
-    expect(myExpert.body).not.toContain("id=\"auth-panel\"");
+    expect(myExpert.body).toContain("id=\"auth-panel\"");
+    expect(myExpert.body).not.toContain("id=\"my-expert-view\"");
   });
 
   it("keeps live room event streams open until the next draft revision", async () => {
