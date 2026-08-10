@@ -15,6 +15,13 @@ import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "./liveDraftRooms.js";
+import {
+  localDemoEmail,
+  localDemoPassword,
+  localDemoPlayerCatalog,
+  localDemoRoomId,
+  localDemoSeasonId,
+} from "./localDemoFixtures.js";
 import { createNodePostgresClient, type NodePostgresClient } from "./postgresClient.js";
 import {
   createPlatformApp,
@@ -100,13 +107,11 @@ export interface SeedLocalE2eResult {
   liveDraftRoom: SeedLocalE2eRoomSummary;
 }
 
-const seedPassword = "mockd local e2e password";
-const roomId = "room_mockd_e2e_2026";
 const seedSessionExpiresAt = new Date("2100-01-01T00:00:00.000Z");
 const seedAccountFixtures = {
   cam: {
     id: "acct_mockd_e2e_cam",
-    email: "cam@mockd.local",
+    email: localDemoEmail,
     sessionId: "sess_mockd_e2e_cam",
     sessionToken: "mockd-local-e2e-cam-session-token",
   },
@@ -117,11 +122,6 @@ const seedAccountFixtures = {
     sessionToken: "mockd-local-e2e-seth-session-token",
   },
 } as const;
-const defaultPlayerCatalog = [
-  { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 11 },
-  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 6 },
-  { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 6 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 const optionalEnvString = (
   env: LocalE2eSeedEnv,
@@ -154,7 +154,7 @@ const ensureSeedAccount = async (
   const existingCredential = await app.authRepository.findAccountCredentialByEmail(email);
 
   if (existingCredential !== null) {
-    if (!verifyPassword(seedPassword, existingCredential.passwordHash)) {
+    if (!verifyPassword(localDemoPassword, existingCredential.passwordHash)) {
       throw new Error(`Existing account ${email} does not match the local E2E seed password.`);
     }
 
@@ -164,7 +164,7 @@ const ensureSeedAccount = async (
   return await app.authRepository.createAccount({
     id: fixture.id,
     email,
-    passwordHash: hashPassword(seedPassword),
+    passwordHash: hashPassword(localDemoPassword),
     now,
   });
 };
@@ -208,7 +208,7 @@ const seedAccount = async (
   return {
     accountId: account.id,
     email: account.email,
-    password: seedPassword,
+    password: localDemoPassword,
     sessionToken: fixture.sessionToken,
   };
 };
@@ -236,7 +236,7 @@ const findSeedRoom = async (
   try {
     return await app.getLiveDraftRoom({
       actorSessionToken: camSessionToken,
-      roomId,
+      roomId: localDemoRoomId,
     });
   } catch (error) {
     const code = error !== null && typeof error === "object" && "code" in error
@@ -258,7 +258,7 @@ const ensureSeedRoom = async (
   const existingRoom = await findSeedRoom(app, cam.sessionToken);
   if (existingRoom !== null) {
     if (existingRoom.status === "ended") {
-      throw new Error(`Local E2E room ${roomId} has ended. Remove it before reseeding.`);
+      throw new Error(`Local E2E room ${localDemoRoomId} has ended. Remove it before reseeding.`);
     }
 
     if (existingRoom.status === "live") return existingRoom;
@@ -267,7 +267,7 @@ const ensureSeedRoom = async (
       actorSessionToken: cam.sessionToken,
       roomId: existingRoom.roomId,
       expectedRevision: existingRoom.revision,
-      idempotencyKey: `${roomId}:start`,
+      idempotencyKey: `${localDemoRoomId}:start`,
       now,
     });
   }
@@ -275,9 +275,9 @@ const ensureSeedRoom = async (
   const createdRoom = await app.createLiveDraftRoom({
     actorSessionToken: cam.sessionToken,
     seasonId: season.id,
-    roomId,
+    roomId: localDemoRoomId,
     viewerPasswordHashRef: "local-e2e-viewer-password",
-    playerCatalog: options.playerCatalog ?? defaultPlayerCatalog,
+    playerCatalog: options.playerCatalog ?? localDemoPlayerCatalog,
     initialRosters: options.initialRosters ?? [],
     now,
   });
@@ -286,7 +286,7 @@ const ensureSeedRoom = async (
     actorSessionToken: cam.sessionToken,
     roomId: createdRoom.roomId,
     expectedRevision: createdRoom.revision,
-    idempotencyKey: `${roomId}:start`,
+    idempotencyKey: `${localDemoRoomId}:start`,
     now: new Date(now.getTime() + 1_000),
   });
 };
@@ -382,13 +382,18 @@ export const seedLocalE2e = async (
   app: LocalE2eSeedPlatformApp,
   options: SeedLocalE2eOptions = {},
 ): Promise<SeedLocalE2eResult> => {
-  const now = dateOrDefault(options.now);
-  const cam = await seedAccount(app, seedAccountFixtures.cam, now);
-  const seth = await seedAccount(app, seedAccountFixtures.seth, now);
   const draftSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName: "Mockd Local E2E",
     setupStatus: "published",
   });
+  if (draftSeason.id !== localDemoSeasonId) {
+    throw new Error(
+      `Local E2E season ${draftSeason.id} does not match the configured demo season ${localDemoSeasonId}.`,
+    );
+  }
+  const now = dateOrDefault(options.now);
+  const cam = await seedAccount(app, seedAccountFixtures.cam, now);
+  const seth = await seedAccount(app, seedAccountFixtures.seth, now);
   const season = await app.registerLeagueSeason({
     actorSessionToken: cam.sessionToken,
     season: draftSeason,

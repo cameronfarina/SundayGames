@@ -1,3 +1,13 @@
+import {
+  localDemoEmail,
+  localDemoPassword,
+  localDemoPlayerCatalog,
+  localDemoRoomId,
+  localDemoSeasonId,
+} from "./localDemoFixtures.js";
+
+const localDemoPlayerCatalogJson = JSON.stringify(localDemoPlayerCatalog, null, 6);
+
 export const platformShellHtml = `<!doctype html>
 <html lang="en">
 <head>
@@ -413,8 +423,8 @@ export const platformShellHtml = `<!doctype html>
           <button id="open-league-section-button" class="section-link" data-active="true" type="button">Open league <span>></span></button>
         </article>
         <article class="panel">
-          <h2>Live draft room</h2>
-          <button id="draft-room-link" class="section-link" type="button">Open draft room <span>></span></button>
+          <h2>Draft board</h2>
+          <button id="draft-room-link" class="section-link" type="button">Open draft board <span>></span></button>
         </article>
         <article class="panel">
           <h2>Commissioner setup</h2>
@@ -422,6 +432,7 @@ export const platformShellHtml = `<!doctype html>
         </article>
       </div>
 
+      <div id="league-workspace" class="stack">
       <div class="workspace-grid">
         <section id="league-section" class="panel stack">
           <h2>League home</h2>
@@ -449,9 +460,14 @@ export const platformShellHtml = `<!doctype html>
           <h3>Claim team</h3>
           <ul id="team-claim-list" class="result-list"></ul>
         </section>
+      </div>
 
+      <details id="room-admin-workspace" class="advanced">
+        <summary>Room administration</summary>
+        <div class="stack">
+        <div class="workspace-grid">
         <section id="draft-room-section" class="panel hot stack">
-          <h2>Live draft room</h2>
+          <h2>Room admin</h2>
           <label for="room-id-input">Room id</label>
           <div class="row">
             <input id="room-id-input" autocomplete="off" name="roomId">
@@ -516,8 +532,11 @@ export const platformShellHtml = `<!doctype html>
         <div id="artifact-status" class="status-line"></div>
         <pre id="artifact-preview" class="artifact-preview"></pre>
       </section>
+        </div>
+      </details>
+      </div>
 
-      <div class="setup-grid">
+      <div id="setup-workspace" class="setup-grid hidden">
         <form id="setup-form" class="panel stack">
           <h2>Commissioner setup</h2>
           <label for="setup-season-id-input">Season id</label>
@@ -556,21 +575,11 @@ Mello,Mello,mello@example.com,member</textarea>
 
   <script type="module">
     const currentSessionRequest = "GET /session";
-    const defaultSeasonId = "league-214674-season-2026";
-    const localDemoEmail = "cam@mockd.local";
-    const localDemoPassword = "mockd local e2e password";
-    const localDemoRoomId = "room_mockd_e2e_2026";
-    const defaultPlayerCatalog = [
-      { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 8 },
-      { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 8 },
-      { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 8 },
-      { name: "De'Von Achane", position: "RB", expectedPrice: 50, teamAbbreviation: "MIA", byeWeek: 12 },
-      { name: "George Kittle", position: "TE", expectedPrice: 28, teamAbbreviation: "SF", byeWeek: 14 },
-      { name: "Xavier Legette", position: "WR", expectedPrice: 2, teamAbbreviation: "CAR", byeWeek: 14 },
-      { name: "Trevor Lawrence", position: "QB", expectedPrice: 9, teamAbbreviation: "JAC", byeWeek: 8 },
-      { name: "Brandon Aubrey", position: "K", expectedPrice: 2, teamAbbreviation: "DAL", byeWeek: 10 },
-      { name: "Lions D/ST", position: "DST", expectedPrice: 2, teamAbbreviation: "DET", byeWeek: 8 },
-    ];
+    const defaultSeasonId = ${JSON.stringify(localDemoSeasonId)};
+    const localDemoEmail = ${JSON.stringify(localDemoEmail)};
+    const localDemoPassword = ${JSON.stringify(localDemoPassword)};
+    const localDemoRoomId = ${JSON.stringify(localDemoRoomId)};
+    const defaultPlayerCatalog = ${localDemoPlayerCatalogJson};
     const query = new URLSearchParams(window.location.search);
     const initialSeasonId = query.get("seasonId") || query.get("season") || defaultSeasonId;
     const initialRoomId = query.get("roomId") || query.get("room");
@@ -596,9 +605,10 @@ Mello,Mello,mello@example.com,member</textarea>
     const createAccountButton = document.getElementById("create-account-button");
     const localDemoButton = document.getElementById("local-demo-button");
     const openLeagueSectionButton = document.getElementById("open-league-section-button");
-    const leagueSection = document.getElementById("league-section");
-    const draftRoomSection = document.getElementById("draft-room-section");
     const openSetupSectionButton = document.getElementById("open-setup-section-button");
+    const leagueWorkspace = document.getElementById("league-workspace");
+    const setupWorkspace = document.getElementById("setup-workspace");
+    const roomAdminWorkspace = document.getElementById("room-admin-workspace");
     const seasonIdInput = document.getElementById("season-id-input");
     const loadSeasonButton = document.getElementById("load-season-button");
     const seasonStatus = document.getElementById("season-status");
@@ -641,6 +651,8 @@ Mello,Mello,mello@example.com,member</textarea>
     const setupPreviewSuffix = "/setup-import/preview";
     const setupApplySuffix = "/setup-import/apply";
 
+    setupWorkspace.append(roomAdminWorkspace);
+
     const cleanIdFragment = value => {
       const cleanValue = String(value || "")
         .trim()
@@ -662,6 +674,21 @@ Mello,Mello,mello@example.com,member</textarea>
 
     const isLoopbackHost = () =>
       ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+
+    const draftBoardUrlFor = () => {
+      const draftBoardUrl = new URL("/draft-room", window.location.href);
+      draftBoardUrl.searchParams.set("mode", "real");
+      draftBoardUrl.searchParams.set("draftSession", "live");
+      if (isLoopbackHost()) {
+        draftBoardUrl.hostname = "localhost";
+        draftBoardUrl.port = "4317";
+      }
+      return draftBoardUrl.toString();
+    };
+
+    const openDraftBoard = () => {
+      window.location.assign(draftBoardUrlFor());
+    };
 
     const syncLocalDemoButtons = () => {
       const localPreview = isLoopbackHost();
@@ -713,18 +740,28 @@ Mello,Mello,mello@example.com,member</textarea>
       }));
     };
 
-    const scrollToSection = section => {
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    const showLeagueWorkspace = () => {
+      leagueWorkspace.classList.remove("hidden");
+      setupWorkspace.classList.add("hidden");
+      openLeagueSectionButton.dataset.active = "true";
+      openSetupSectionButton.dataset.active = "false";
+    };
+
+    const showSetupWorkspace = () => {
+      leagueWorkspace.classList.add("hidden");
+      setupWorkspace.classList.remove("hidden");
+      openLeagueSectionButton.dataset.active = "false";
+      openSetupSectionButton.dataset.active = "true";
     };
 
     const focusCurrentRoute = () => {
-      if (window.location.pathname === "/draft-room") {
-        scrollToSection(draftRoomSection);
+      if (window.location.pathname === "/draft-room" && isLoopbackHost()) {
+        openDraftBoard();
         return;
       }
       if (window.location.pathname === "/setup") {
-        scrollToSection(setupSeasonIdInput);
-        setupSeasonIdInput.focus();
+        showSetupWorkspace();
+        setupSeasonIdInput.focus({ preventScroll: true });
       }
     };
 
@@ -1246,24 +1283,22 @@ Mello,Mello,mello@example.com,member</textarea>
     });
 
     openLeagueSectionButton.addEventListener("click", () => {
-      scrollToSection(leagueSection);
+      showLeagueWorkspace();
+      loadSeason().catch(error => {
+        const message = friendlySeasonError(error);
+        seasonStatus.textContent = message;
+        localMemberNotice.textContent = message;
+        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
+      });
     });
 
     draftRoomLink.addEventListener("click", () => {
-      scrollToSection(draftRoomSection);
-      if (state.room === null) {
-        const openAfterSeason = state.season === null
-          ? loadSeason()
-          : Promise.resolve(state.season);
-        openAfterSeason
-          .then(() => openRoom())
-          .catch(error => { roomStatus.textContent = friendlySeasonError(error); });
-      }
+      openDraftBoard();
     });
 
     openSetupSectionButton.addEventListener("click", () => {
-      scrollToSection(setupSeasonIdInput);
-      setupSeasonIdInput.focus();
+      showSetupWorkspace();
+      setupSeasonIdInput.focus({ preventScroll: true });
     });
 
     loadSeasonButton.addEventListener("click", () => {

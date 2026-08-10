@@ -3,7 +3,10 @@ dist/
 .env
 .DS_Store
 coverage/
+.mockd/
+.playwright-cli/
 .playwright-mcp/
+test-results/
 data/live-draft/
 data/processed/mock-prep/
 output/*.tmp.xlsx

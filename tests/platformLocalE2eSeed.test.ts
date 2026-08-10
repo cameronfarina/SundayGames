@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import { localDemoPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import {
   loadLocalE2eSeedRuntime,
   seedLocalE2e,
@@ -134,6 +135,20 @@ describe("local E2E platform seed", () => {
       "room_started",
       "sale_logged",
     ]);
+  });
+
+  it("seeds a realistic default local draft board", async () => {
+    const path = await storePath();
+    const env = { MOCKD_PLATFORM_DATA_FILE: path };
+
+    const seeded = await seedLocalE2eFromEnv(env, { now });
+
+    expect(localDemoPlayerCatalog.length).toBeGreaterThanOrEqual(60);
+    expect(seeded.liveDraftRoom).toMatchObject({
+      roomId: "room_mockd_e2e_2026",
+      status: "live",
+      boardCount: localDemoPlayerCatalog.length,
+    });
   });
 
   it("rejects existing accounts whose password does not match the E2E fixture", async () => {

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "tsx scripts/start-local-preview.ts",
     "test": "vitest run",
     "test:e2e": "tsx scripts/run-platform-e2e.ts",
     "test:e2e:deployed": "npm run test:e2e -- --target=deployed",

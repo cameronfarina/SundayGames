@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { localDemoPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import { platformShellHtml } from "../src/platform/platformShellUi.js";
 
 describe("platform shell UI", () => {
@@ -9,8 +10,19 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("fetch(\"/sessions\"");
     expect(platformShellHtml).toContain("fetch(\"/accounts\"");
     expect(platformShellHtml).toContain("fetch(\"/session\", { method: \"DELETE\" })");
-    expect(platformShellHtml).toContain("Live draft room");
+    expect(platformShellHtml).toContain("Draft board");
     expect(platformShellHtml).toContain("id=\"draft-room-link\"");
+    expect(platformShellHtml).toContain("Open draft board");
+    expect(platformShellHtml).toContain("draftBoardUrlFor");
+    expect(platformShellHtml).toContain("window.location.assign(draftBoardUrlFor())");
+    expect(platformShellHtml).toContain("Room admin");
+    expect(platformShellHtml).toContain("Room administration");
+    expect(platformShellHtml).toContain("setupWorkspace.append(roomAdminWorkspace)");
+    expect(platformShellHtml).toContain("id=\"league-workspace\"");
+    expect(platformShellHtml).toContain("id=\"setup-workspace\" class=\"setup-grid hidden\"");
+    expect(platformShellHtml).toContain("showLeagueWorkspace");
+    expect(platformShellHtml).toContain("showSetupWorkspace");
+    expect(platformShellHtml).toContain("focus({ preventScroll: true })");
     expect(platformShellHtml).toContain("Commissioner setup");
     expect(platformShellHtml).toContain("id=\"open-setup-section-button\"");
     expect(platformShellHtml).toContain("id=\"local-demo-button\"");
@@ -42,6 +54,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("id=\"artifact-download-link\"");
     expect(platformShellHtml).toContain("id=\"artifact-preview\"");
     expect(platformShellHtml).toContain("const defaultSeasonId = \"league-214674-season-2026\"");
+    expect(localDemoPlayerCatalog.length).toBeGreaterThanOrEqual(60);
     expect(platformShellHtml).toContain("const defaultPlayerCatalog");
     expect(platformShellHtml).toContain("Puka Nacua");
     expect(platformShellHtml).toContain("fetch(seasonEndpoint()");

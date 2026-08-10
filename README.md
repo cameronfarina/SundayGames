@@ -47,6 +47,17 @@ This repository captures the reusable foundation behind the analysis previously 
 
 ```bash
 npm install
+npm run dev
+```
+
+`npm run dev` seeds the reusable local demo and starts the platform shell at
+`http://127.0.0.1:4319/login` together with the working draft board at
+`http://localhost:4317/draft-room`. Use `MOCKD_PLATFORM_DATA_FILE` when you
+want the local platform preview to use a different file-backed store.
+
+The remaining project checks and modeling commands are available separately:
+
+```bash
 npm test
 npx playwright install chromium
 npm run test:e2e

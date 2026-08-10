@@ -1146,7 +1146,8 @@ describe("platform server composition", () => {
     expect(response.status).toBe(200);
     expect(response.contentType).toBe("text/html; charset=utf-8");
     expect(response.body).toContain("id=\"auth-panel\"");
-    expect(response.body).toContain("Live draft room");
+    expect(response.body).toContain("Draft board");
+    expect(response.body).toContain("Open draft board");
   });
 
   it("serves the hosted platform shell from hosted platform browser routes", async () => {
@@ -1164,7 +1165,8 @@ describe("platform server composition", () => {
     expect(draftRoom.status).toBe(200);
     expect(draftRoom.contentType).toBe("text/html; charset=utf-8");
     expect(draftRoom.body).toContain("id=\"auth-panel\"");
-    expect(draftRoom.body).toContain("id=\"draft-room-section\"");
+    expect(draftRoom.body).toContain("id=\"draft-room-link\"");
+    expect(draftRoom.body).toContain("Open draft board");
     expect(draftRoom.body).not.toContain("id=\"draft-room-view\"");
 
     expect(myExpert.status).toBe(200);
