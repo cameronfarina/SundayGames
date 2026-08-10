@@ -189,6 +189,7 @@ export interface MockResultsRun {
 
 export interface MockResultsReport {
   mode: "batch-mock";
+  watchOwner: Owner;
   options: MockBatch["options"] & {
     strategyKey: LiveDraftStrategyKey;
   };
@@ -512,14 +513,15 @@ const buildSummaryFor = (
 const camOutcomeFor = (
   teams: readonly MockResultsTeam[],
   rankings: readonly MockResultsRanking[],
+  watchOwner: Owner,
 ): MockResultsCamOutcome => {
-  const camTeam = teams.find(team => team.owner === "Cam");
-  const camRanking = rankings.find(ranking => ranking.owner === "Cam");
-  if (!camTeam || !camRanking) throw new Error("Missing Cam mock result.");
+  const camTeam = teams.find(team => team.owner === watchOwner);
+  const camRanking = rankings.find(ranking => ranking.owner === watchOwner);
+  if (!camTeam || !camRanking) throw new Error(`Missing ${watchOwner} mock result.`);
 
   return {
     ...buildSummaryFor(camTeam, camRanking),
-    week1Rank: weekOneRankByOwner(teams).get("Cam") ?? camRanking.rank,
+    week1Rank: weekOneRankByOwner(teams).get(watchOwner) ?? camRanking.rank,
     strengths: camRanking.strengths,
     risks: camRanking.risks,
   };
@@ -622,11 +624,12 @@ const isDraftPlanStrategyKey = (strategyKey: LiveDraftStrategyKey): strategyKey 
 const strategyCoachFor = (
   batch: MockBatch,
   strategyKey: LiveDraftStrategyKey,
+  watchOwner: Owner,
 ): DraftPlanStrategyCoach | undefined =>
   isDraftPlanStrategyKey(strategyKey)
     ? buildDraftPlanReport({
       batch,
-      owner: "Cam",
+      owner: watchOwner,
       strategyKey,
       limit: 5,
     }).recommendations.strategyCoach
@@ -636,8 +639,9 @@ const analyticsFor = (
   runs: readonly MockResultsRun[],
   batch: MockBatch,
   strategyKey: LiveDraftStrategyKey,
+  watchOwner: Owner,
 ): MockResultsAnalytics => {
-  const strategyCoach = strategyCoachFor(batch, strategyKey);
+  const strategyCoach = strategyCoachFor(batch, strategyKey, watchOwner);
 
   return {
     strategyLeaderboard: strategyLeaderboardFor(runs),
@@ -776,6 +780,7 @@ const runResultFor = (
   index: number,
   strategyKey: LiveDraftStrategyKey,
   label?: string,
+  watchOwner: Owner = "Cam",
 ): MockResultsRun => {
   const baseTeams = ownerOrder.map(owner => {
     const roster = run.rosters.find(candidate => candidate.owner === owner);
@@ -802,7 +807,7 @@ const runResultFor = (
     rankings: enrichedRankings,
     bestBuild: buildSummaryFor(bestTeam, bestRanking),
     worstBuild: buildSummaryFor(worstTeam, worstRanking),
-    camOutcome: camOutcomeFor(teams, enrichedRankings),
+    camOutcome: camOutcomeFor(teams, enrichedRankings, watchOwner),
   };
 };
 
@@ -812,14 +817,16 @@ export const buildMockResultsReport = (
   runStrategyKeys: readonly LiveDraftStrategyKey[] = [],
   script?: MockDraftScript,
   runLabels: readonly string[] = [],
+  watchOwner: Owner = "Cam",
 ): MockResultsReport => {
-  const cam = batch.summary.owners.find(owner => owner.owner === "Cam");
+  const cam = batch.summary.owners.find(owner => owner.owner === watchOwner);
   const resolvedRunStrategyKeys = batch.runs.map((_run, index) => runStrategyKeys[index] ?? strategyKey);
   const runs = batch.runs.map((run, index) =>
-    runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey, runLabels[index]));
+    runResultFor(run, index, resolvedRunStrategyKeys[index] ?? strategyKey, runLabels[index], watchOwner));
 
   return {
     mode: "batch-mock",
+    watchOwner,
     options: {
       ...batch.options,
       strategyKey,
@@ -827,11 +834,11 @@ export const buildMockResultsReport = (
     summary: batch.summary,
     runStrategyKeys: resolvedRunStrategyKeys,
     runs,
-    analytics: analyticsFor(runs, batch, strategyKey),
+    analytics: analyticsFor(runs, batch, strategyKey, watchOwner),
     ...(script === undefined ? {} : { script: scriptSummaryFor(script, runs, batch.options.runsPerScenario) }),
     ...(cam === undefined ? {} : { cam }),
     camTopExposures: batch.summary.ownerPlayerExposure
-      .filter(exposure => exposure.owner === "Cam")
+      .filter(exposure => exposure.owner === watchOwner)
       .slice(0, 12),
     topPlayers: batch.summary.players.slice(0, 12),
   };

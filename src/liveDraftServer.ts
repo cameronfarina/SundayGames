@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { keepers } from "../config/keepers.js";
-import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
+import { leagueConfig, ownerOrder, type Owner, type Position } from "../config/league.js";
 import { nflTeamByEspnProTeamId } from "../config/nflTeams.js";
 import {
   defaultDraftRoomRankingPath,
@@ -135,7 +135,7 @@ const liveDraftModes: readonly LiveDraftModeDescriptor[] = [
   {
     key: "interactive-mock",
     label: "Mock draft",
-    description: "Practice room. Cam controls Cam while AI owners bid and nominate.",
+    description: "Practice room. You control your team while AI owners bid and nominate.",
   },
 ];
 
@@ -551,7 +551,7 @@ interface MyExpertRecommendation {
 }
 
 interface MyExpertTeamSummary {
-  owner: "Cam";
+  owner: Owner;
   rosteredCount: number;
   rosteredValue: number;
   players: MyExpertPlayer[];
@@ -612,7 +612,7 @@ interface InteractiveMockDraftModule {
     historicalRecords: readonly HistoricalAuctionRecord[];
     keepers: typeof keepers;
     commands: readonly string[];
-    watchOwner: "Cam";
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     pricingConfig?: PricingConfig;
     draftRoomRankings?: readonly DraftRoomRanking[];
@@ -664,7 +664,8 @@ interface MockBatchJob {
   jobId: string;
   status: MockBatchJobStatus;
   source?: "batch" | "interactive-complete";
-  draftSessionKey?: string;
+  draftSessionKey: string;
+  watchOwner: Owner;
   draftMode?: LiveDraftSessionMode;
   commandCount?: number;
   strategyKey: LiveDraftStrategyKey;
@@ -724,6 +725,23 @@ const strategyKeyFromQuery = (url: URL): LiveDraftStrategyKey =>
 
 const strategyKeyFromBody = (body: Record<string, unknown>): LiveDraftStrategyKey =>
   parseLiveDraftStrategyKey(body.strategyKey);
+
+const defaultWatchOwner: Owner = "Cam";
+
+const watchOwnerFromValue = (value: unknown, fallback: Owner = defaultWatchOwner): Owner => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value !== "string") throw new Error("Draft owner must be a string.");
+
+  const owner = ownerOrder.find(candidate => candidate === value.trim());
+  if (!owner) throw new Error(`Unknown draft owner "${value}".`);
+  return owner;
+};
+
+const watchOwnerFromQuery = (url: URL): Owner =>
+  watchOwnerFromValue(url.searchParams.get("owner") ?? url.searchParams.get("watchOwner"));
+
+const watchOwnerFromBody = (body: Record<string, unknown>): Owner =>
+  watchOwnerFromValue(body.owner ?? body.watchOwner);
 
 const currentWeekFromQuery = (url: URL): number => {
   const value = url.searchParams.get("week");
@@ -1026,6 +1044,14 @@ const mockDraftScriptFromBody = (body: Record<string, unknown>): MockDraftScript
   return parseMockDraftScript(value);
 };
 
+const mockDraftScriptForOwner = (script: MockDraftScript, watchOwner: Owner): MockDraftScript => ({
+  ...script,
+  targetMaxBids: script.targetMaxBids.map(target => ({ ...target, owner: watchOwner })),
+  ...(script.buildAround === undefined
+    ? {}
+    : { buildAround: { ...script.buildAround, owner: watchOwner } }),
+});
+
 const targetMaxBidOverridesFor = (
   script: MockDraftScript | undefined,
 ): AuctionEngineConfigOverrides => {
@@ -1303,8 +1329,8 @@ export const createLiveDraftServer = async (
   };
   await storePairFor(defaultLiveDraftSessionKey);
   const mockBatchJobs = new Map<string, MockBatchJob>();
+  const latestMockBatchJobIds = new Map<string, string>();
   const sessionMutationQueues = new Map<string, Promise<void>>();
-  let latestMockBatchJobId: string | undefined;
   let playerNewsEvidenceRowsPromise: ReturnType<typeof loadPlayerEvidenceSourceRows> | undefined;
   const sleeperSyncPreviewProvider =
     options.sleeperSyncPreviewProvider ?? defaultSleeperSyncPreviewProvider;
@@ -1335,8 +1361,19 @@ export const createLiveDraftServer = async (
     return queued;
   };
 
-  const latestCompleteMockBatchReport = (): MockResultsReport | undefined => {
-    const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
+  const mockResultScopeKey = (draftSessionKey: string, watchOwner: Owner): string =>
+    `${draftSessionKey}\u0000${watchOwner}`;
+
+  const rememberLatestMockBatchJob = (job: MockBatchJob): void => {
+    latestMockBatchJobIds.set(mockResultScopeKey(job.draftSessionKey, job.watchOwner), job.jobId);
+  };
+
+  const latestCompleteMockBatchReport = (
+    draftSessionKey: string,
+    watchOwner: Owner,
+  ): MockResultsReport | undefined => {
+    const jobId = latestMockBatchJobIds.get(mockResultScopeKey(draftSessionKey, watchOwner));
+    const job = jobId === undefined ? undefined : mockBatchJobs.get(jobId);
     if (job?.source === "interactive-complete") return undefined;
     return job?.status === "complete" ? job.result : undefined;
   };
@@ -1352,8 +1389,12 @@ export const createLiveDraftServer = async (
       },
     ]));
 
-  const stateWithLatestMockRanges = (state: LiveDraftState): LiveDraftState => {
-    const report = latestCompleteMockBatchReport();
+  const stateWithLatestMockRanges = (
+    state: LiveDraftState,
+    draftSessionKey: string,
+    watchOwner: Owner,
+  ): LiveDraftState => {
+    const report = latestCompleteMockBatchReport(draftSessionKey, watchOwner);
     if (!report || !state.postDraftAudit.length) return state;
     if (report.options.strategyKey !== state.strategy.key || report.script) return state;
 
@@ -1372,11 +1413,13 @@ export const createLiveDraftServer = async (
     mode = defaultLiveDraftSessionMode,
     commands,
     strategyKey = defaultLiveDraftStrategyKey,
+    watchOwner = defaultWatchOwner,
   }: {
     draftSessionKey?: string;
     mode?: LiveDraftSessionMode;
     commands?: readonly string[];
     strategyKey?: LiveDraftStrategyKey;
+    watchOwner?: Owner;
   } = {}): Promise<LiveDraftStateResponse> => {
     const canonicalMode = canonicalSessionModeFor(draftSessionKey, mode);
     const store = await storeFor(draftSessionKey, canonicalMode);
@@ -1384,14 +1427,14 @@ export const createLiveDraftServer = async (
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner,
       scenarioKey: "expected",
       strategyKey,
       pricingConfig,
       draftRoomRankings,
       commands: commands ?? store.currentCommands(),
       targetLimit: liveTargetLimit,
-    }));
+    }), draftSessionKey, watchOwner);
     const session = store.status();
     return {
       ...state,
@@ -1406,10 +1449,12 @@ export const createLiveDraftServer = async (
   };
   const myExpertFor = async (url: URL): Promise<MyExpertResponse> => {
     const currentWeek = currentWeekFromQuery(url);
+    const watchOwner = watchOwnerFromQuery(url);
     const draftState = await stateFor({
       draftSessionKey: draftSessionKeyFromQuery(url),
       mode: sessionModeFromQuery(url),
       strategyKey: strategyKeyFromQuery(url),
+      watchOwner,
     });
     const projectionsByPlayer = projectionLookupFor(projections);
     const roles = rosterRoleByPlayerId(draftState.watchOwner.slots);
@@ -1456,7 +1501,7 @@ export const createLiveDraftServer = async (
         detail: "Current Mockd draft room state.",
       },
       team: {
-        owner: "Cam",
+        owner: watchOwner,
         rosteredCount: roster.length,
         rosteredValue: draftState.watchOwner.spent,
         players: roster,
@@ -1500,6 +1545,7 @@ export const createLiveDraftServer = async (
   };
   const mockDraftFor = async ({
     draftSessionKey = defaultLiveDraftSessionKey,
+    watchOwner = defaultWatchOwner,
     commands,
     strategyKey,
     seed,
@@ -1507,6 +1553,7 @@ export const createLiveDraftServer = async (
     nominatedPrice,
   }: {
     draftSessionKey?: string;
+    watchOwner?: Owner;
     commands?: readonly string[];
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
@@ -1520,7 +1567,7 @@ export const createLiveDraftServer = async (
       historicalRecords,
       keepers,
       commands: commands ?? interactiveMockStore.currentCommands(),
-      watchOwner: "Cam",
+      watchOwner,
       strategyKey,
       pricingConfig,
       draftRoomRankings,
@@ -1531,12 +1578,14 @@ export const createLiveDraftServer = async (
   };
   const stateWithMockDraft = async ({
     draftSessionKey = defaultLiveDraftSessionKey,
+    watchOwner = defaultWatchOwner,
     strategyKey,
     seed,
     nominatedPlayer,
     nominatedPrice,
   }: {
     draftSessionKey?: string;
+    watchOwner?: Owner;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
     nominatedPlayer?: string;
@@ -1545,10 +1594,11 @@ export const createLiveDraftServer = async (
     const interactiveMockStore = await storeFor(draftSessionKey, "interactive-mock");
     const commands = interactiveMockStore.currentCommands();
     return {
-      ...await stateFor({ draftSessionKey, mode: "interactive-mock", commands, strategyKey }),
+      ...await stateFor({ draftSessionKey, mode: "interactive-mock", commands, strategyKey, watchOwner }),
       mockDraft: await mockDraftFor({
         ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
         draftSessionKey,
+        watchOwner,
         commands,
       }),
     };
@@ -1617,11 +1667,13 @@ export const createLiveDraftServer = async (
   const appendInteractiveMockCommand = async ({
     store,
     draftSessionKey,
+    watchOwner,
     strategyKey,
     command,
   }: {
     store: FileBackedLiveDraftSessionStore;
     draftSessionKey: string;
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     command: string;
   }): Promise<{ input: string; message: string } | undefined> => {
@@ -1631,6 +1683,7 @@ export const createLiveDraftServer = async (
       mode: "interactive-mock",
       commands: trialCommands,
       strategyKey,
+      watchOwner,
     });
     const commandError = trialState.errors.find(error => error.input === command);
     if (commandError) return commandError;
@@ -1640,11 +1693,13 @@ export const createLiveDraftServer = async (
   };
   const publishInteractiveMockResultsJob = ({
     draftSessionKey,
+    watchOwner,
     strategyKey,
     commandCount,
     batch,
   }: {
     draftSessionKey: string;
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     commandCount: number;
     batch: MockBatch;
@@ -1657,6 +1712,7 @@ export const createLiveDraftServer = async (
       status: "complete",
       source: "interactive-complete",
       draftSessionKey,
+      watchOwner,
       draftMode: "interactive-mock",
       commandCount,
       strategyKey,
@@ -1667,19 +1723,21 @@ export const createLiveDraftServer = async (
       percent: 100,
       startedAt: now,
       updatedAt: now,
-      result: buildMockResultsReport(batch, strategyKey, [strategyKey], undefined, ["Completed mock draft"]),
+      result: buildMockResultsReport(batch, strategyKey, [strategyKey], undefined, ["Completed mock draft"], watchOwner),
     };
     mockBatchJobs.set(completedJob.jobId, completedJob);
-    latestMockBatchJobId = completedJob.jobId;
+    rememberLatestMockBatchJob(completedJob);
     return completedJob;
   };
   const interactiveMockBatchForCommands = async ({
     draftSessionKey,
+    watchOwner,
     strategyKey,
     commands,
     seed,
   }: {
     draftSessionKey: string;
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     commands: readonly string[];
     seed?: string;
@@ -1689,6 +1747,7 @@ export const createLiveDraftServer = async (
       mode: "interactive-mock",
       commands,
       strategyKey,
+      watchOwner,
     });
     if (currentState.errors.length) {
       throw new Error(currentState.errors.map(error => error.message).join("\n"));
@@ -1709,13 +1768,14 @@ export const createLiveDraftServer = async (
       runsPerScenario: 1,
       seedPrefix: completeSeed,
       pricingConfig,
-      auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey, { variantSeed: completeSeed }),
+      auctionConfigOverrides: strategyAuctionOverridesFor(watchOwner, strategyKey, { variantSeed: completeSeed }),
       forcedSales,
       diagnosticsMode: "summary",
     });
   };
   const runMockSpeedAction = async ({
     draftSessionKey,
+    watchOwner,
     strategyKey,
     seed,
     action,
@@ -1723,6 +1783,7 @@ export const createLiveDraftServer = async (
     nominatedPrice,
   }: {
     draftSessionKey: string;
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     seed?: string;
     action: string;
@@ -1755,6 +1816,7 @@ export const createLiveDraftServer = async (
         draftSessionKey,
         mode: "interactive-mock",
         strategyKey,
+        watchOwner,
       });
       if (currentState.errors.length) {
         return {
@@ -1763,6 +1825,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: currentState.errors,
           },
@@ -1773,6 +1836,7 @@ export const createLiveDraftServer = async (
       const currentMockDraft = await mockDraftFor({
         ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
         draftSessionKey,
+        watchOwner,
         commands: completionBaseCommands,
       });
       const currentPhase = mockDraftPhaseFor(currentMockDraft);
@@ -1787,6 +1851,7 @@ export const createLiveDraftServer = async (
           const nominatedMockDraft = await mockDraftFor({
             ...mockDraftRequestFor(strategyKey, seed, automaticNomination, nominatedPrice),
             draftSessionKey,
+            watchOwner,
             commands: completionBaseCommands,
           });
           const nominatedPhase = mockDraftPhaseFor(nominatedMockDraft);
@@ -1802,6 +1867,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: [{ input: "", message: "Mock draft is blocked and cannot be completed." }],
           },
@@ -1815,6 +1881,7 @@ export const createLiveDraftServer = async (
           mode: "interactive-mock",
           commands: trialCommands,
           strategyKey,
+          watchOwner,
         });
         const commandError = trialState.errors.find(error => error.input === visibleAuctionCommand);
         if (commandError) {
@@ -1824,6 +1891,7 @@ export const createLiveDraftServer = async (
               ...await stateWithMockDraft({
                 ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
                 draftSessionKey,
+                watchOwner,
               }),
               errors: [commandError],
             },
@@ -1837,6 +1905,7 @@ export const createLiveDraftServer = async (
         mode: "interactive-mock",
         commands: completionBaseCommands,
         strategyKey,
+        watchOwner,
       });
       const forcedSales: ForcedAuctionSale[] = completionBaseState.events.map(event => ({
         owner: event.owner,
@@ -1854,7 +1923,7 @@ export const createLiveDraftServer = async (
           runsPerScenario: 1,
           seedPrefix: completeSeed,
           pricingConfig,
-          auctionConfigOverrides: strategyAuctionOverridesFor("Cam", strategyKey, { variantSeed: completeSeed }),
+          auctionConfigOverrides: strategyAuctionOverridesFor(watchOwner, strategyKey, { variantSeed: completeSeed }),
           forcedSales,
           diagnosticsMode: "summary",
         });
@@ -1865,6 +1934,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: [{
               input: "",
@@ -1881,6 +1951,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: [{ input: "", message: "Mock draft completion did not produce a run." }],
           },
@@ -1896,6 +1967,7 @@ export const createLiveDraftServer = async (
         mode: "interactive-mock",
         commands: completedCommands,
         strategyKey,
+        watchOwner,
       });
       if (completedState.errors.length) {
         return {
@@ -1904,6 +1976,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: completedState.errors,
           },
@@ -1913,6 +1986,7 @@ export const createLiveDraftServer = async (
       await interactiveMockStore.importCommands(completedCommands);
       const completedJob = publishInteractiveMockResultsJob({
         draftSessionKey,
+        watchOwner,
         strategyKey,
         commandCount: completedCommands.length,
         batch,
@@ -1921,7 +1995,7 @@ export const createLiveDraftServer = async (
       return {
         status: 200,
         body: {
-          ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+          ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
           mockBatchJob: mockBatchJobResponseFor(completedJob),
         },
       };
@@ -1937,6 +2011,7 @@ export const createLiveDraftServer = async (
       const mockDraft = await mockDraftFor({
         ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer, nextNominatedPrice),
         draftSessionKey,
+        watchOwner,
       });
       const phase = mockDraftPhaseFor(mockDraft);
       const pickNumber = mockDraftPickNumberFor(mockDraft);
@@ -1963,6 +2038,7 @@ export const createLiveDraftServer = async (
         const nominatedMockDraft = await mockDraftFor({
           ...mockDraftRequestFor(strategyKey, seed, automaticNomination),
           draftSessionKey,
+          watchOwner,
         });
         const nominatedPhase = mockDraftPhaseFor(nominatedMockDraft);
         command = commandForMockAction(
@@ -1976,6 +2052,7 @@ export const createLiveDraftServer = async (
       const commandError = await appendInteractiveMockCommand({
         store: interactiveMockStore,
         draftSessionKey,
+        watchOwner,
         strategyKey,
         command,
       });
@@ -1986,6 +2063,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nextNominatedPlayer, nextNominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: [commandError],
           },
@@ -1999,14 +2077,15 @@ export const createLiveDraftServer = async (
 
     return {
       status: 200,
-      body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+      body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
     };
   };
   const mockBatchJobResponseFor = (job: MockBatchJob): MockBatchJob => ({
     jobId: job.jobId,
     status: job.status,
     ...(job.source === undefined ? {} : { source: job.source }),
-    ...(job.draftSessionKey === undefined ? {} : { draftSessionKey: job.draftSessionKey }),
+    draftSessionKey: job.draftSessionKey,
+    watchOwner: job.watchOwner,
     ...(job.draftMode === undefined ? {} : { draftMode: job.draftMode }),
     ...(job.commandCount === undefined ? {} : { commandCount: job.commandCount }),
     strategyKey: job.strategyKey,
@@ -2069,7 +2148,7 @@ export const createLiveDraftServer = async (
             seedPrefix: `${seedPrefix}:build-around:${normalizePlayerName(job.script.buildAround.player)}:${price}`,
             pricingConfig,
             auctionConfigOverrides: mergeAuctionConfigOverrides(
-              strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: `${seedPrefix}:${price}` }),
+              strategyAuctionOverridesFor(job.watchOwner, job.strategyKey, { variantSeed: `${seedPrefix}:${price}` }),
               scriptOverrides,
             ),
             forcedSales: [{ owner: job.script.buildAround.owner, player: job.script.buildAround.player, price }],
@@ -2101,7 +2180,7 @@ export const createLiveDraftServer = async (
             seedPrefix,
             pricingConfig,
             auctionConfigOverrides: mergeAuctionConfigOverrides(
-              strategyAuctionOverridesFor("Cam", job.strategyKey, { variantSeed: seedPrefix }),
+              strategyAuctionOverridesFor(job.watchOwner, job.strategyKey, { variantSeed: seedPrefix }),
               scriptOverrides,
             ),
             diagnosticsMode: "summary",
@@ -2117,7 +2196,7 @@ export const createLiveDraftServer = async (
             auctionConfigOverridesForRun: context =>
               mergeAuctionConfigOverrides(
                 strategyAuctionOverridesFor(
-                  "Cam",
+                  job.watchOwner,
                   job.runStrategyKeys[context.completedRuns] ?? job.strategyKey,
                   { variantSeed: context.seed },
                 ),
@@ -2148,7 +2227,14 @@ export const createLiveDraftServer = async (
 
       updateMockBatchJobProgress(job, job.totalRuns);
       job.status = "complete";
-      job.result = buildMockResultsReport(batch, job.strategyKey, job.runStrategyKeys, job.script, runLabels);
+      job.result = buildMockResultsReport(
+        batch,
+        job.strategyKey,
+        job.runStrategyKeys,
+        job.script,
+        runLabels,
+        job.watchOwner,
+      );
       job.updatedAt = new Date().toISOString();
     } catch (error) {
       job.status = "failed";
@@ -2158,11 +2244,15 @@ export const createLiveDraftServer = async (
   };
 
   const startMockBatchJob = ({
+    draftSessionKey,
+    watchOwner,
     strategyKey,
     runsPerScenario,
     seedPrefix,
     script,
   }: {
+    draftSessionKey: string;
+    watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
     runsPerScenario: number;
     seedPrefix: string;
@@ -2173,6 +2263,8 @@ export const createLiveDraftServer = async (
     const job: MockBatchJob = {
       jobId: `mock-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       status: "queued",
+      draftSessionKey,
+      watchOwner,
       strategyKey,
       runStrategyKeys: mockBatchStrategySequence(strategyKey, totalRuns, runsPerScenario),
       ...(script === undefined ? {} : { script }),
@@ -2185,7 +2277,7 @@ export const createLiveDraftServer = async (
     };
 
     mockBatchJobs.set(job.jobId, job);
-    latestMockBatchJobId = job.jobId;
+    rememberLatestMockBatchJob(job);
     void runMockBatchJob({ job, runsPerScenario, seedPrefix });
     return job;
   };
@@ -2200,6 +2292,11 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/mock-results") {
+        sendHtml(response);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/mock-simulations") {
         sendHtml(response);
         return;
       }
@@ -2226,6 +2323,7 @@ export const createLiveDraftServer = async (
           draftSessionKey,
           mode: sessionModeFromQueryForSession(url, draftSessionKey),
           strategyKey: strategyKeyFromQuery(url),
+          watchOwner: watchOwnerFromQuery(url),
         }));
         return;
       }
@@ -2238,6 +2336,7 @@ export const createLiveDraftServer = async (
         sendJson(response, 200, await stateWithMockDraft({
           ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
           draftSessionKey: draftSessionKeyFromQuery(url),
+          watchOwner: watchOwnerFromQuery(url),
         }));
         return;
       }
@@ -2326,12 +2425,13 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const watchOwner = watchOwnerFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
         const command = typeof body.command === "string" ? body.command.trim() : "";
         if (!command) {
           sendJson(response, 422, {
-            ...await stateFor({ draftSessionKey, mode, strategyKey }),
+            ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
             errors: [{ input: "", message: "Command is required." }],
           });
           return;
@@ -2339,19 +2439,19 @@ export const createLiveDraftServer = async (
 
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
           const trialCommands = [...store.currentCommands(), command];
-          const trialState = await stateFor({ draftSessionKey, mode, commands: trialCommands, strategyKey });
+          const trialState = await stateFor({ draftSessionKey, mode, commands: trialCommands, strategyKey, watchOwner });
           const commandError = trialState.errors.find(error => error.input === command);
           if (commandError) {
             return {
               status: 422,
-              body: { ...await stateFor({ draftSessionKey, mode, strategyKey }), errors: [commandError] },
+              body: { ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }), errors: [commandError] },
             };
           }
 
           await store.appendCommand(command);
           return {
             status: 200,
-            body: await stateFor({ draftSessionKey, mode, strategyKey }),
+            body: await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
           };
         });
         sendJson(response, result.status, result.body);
@@ -2362,6 +2462,7 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const watchOwner = watchOwnerFromBody(body);
         const seed = seedFromValue(body.seed);
         const nominatedPlayer = nominatedPlayerFromValue(body.nominatedPlayer);
         const nominatedPrice = nominatedPriceFromValue(body.nominatedPrice);
@@ -2370,7 +2471,7 @@ export const createLiveDraftServer = async (
         const lock = draftNightLockFor(draftSessionKey);
         if (lock.locked) {
           sendJson(response, 423, {
-            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey, watchOwner }),
             errors: [{ input: "", message: lock.reason ?? "Live session is locked for mock draft advances." }],
           });
           return;
@@ -2381,6 +2482,7 @@ export const createLiveDraftServer = async (
             ...await stateWithMockDraft({
               ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             errors: [{ input: "", message: "Mock draft action is required." }],
           });
@@ -2391,6 +2493,7 @@ export const createLiveDraftServer = async (
           const result = await runQueuedSessionMutation(draftSessionKey, "interactive-mock", () =>
             runMockSpeedAction({
               draftSessionKey,
+              watchOwner,
               strategyKey,
               action,
               ...(seed === undefined ? {} : { seed }),
@@ -2405,8 +2508,8 @@ export const createLiveDraftServer = async (
         if (action === "cam-nominate") {
           if (!nominatedPlayer) {
             sendJson(response, 422, {
-              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
-              errors: [{ input: "", message: "Select a player for Cam to nominate." }],
+              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
+              errors: [{ input: "", message: `Select a player for ${watchOwner} to nominate.` }],
             });
             return;
           }
@@ -2414,6 +2517,7 @@ export const createLiveDraftServer = async (
           sendJson(response, 200, await stateWithMockDraft({
             ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
             draftSessionKey,
+            watchOwner,
           }));
           return;
         }
@@ -2427,6 +2531,7 @@ export const createLiveDraftServer = async (
             await mockDraftFor({
               ...mockDraftRequestFor(strategyKey, seed, restoredNominatedPlayer, restoredNominatedPrice),
               draftSessionKey,
+              watchOwner,
             }),
             mockAuction,
           );
@@ -2437,7 +2542,7 @@ export const createLiveDraftServer = async (
             return {
               status: 200,
               body: {
-                ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+                ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey, watchOwner }),
                 mockDraft: unresolvedMockDraft ?? mockDraft,
               },
             };
@@ -2448,6 +2553,7 @@ export const createLiveDraftServer = async (
             mode: "interactive-mock",
             commands: trialCommands,
             strategyKey,
+            watchOwner,
           });
           const commandError = trialState.errors.find(error => error.input === command);
           if (commandError) {
@@ -2457,6 +2563,7 @@ export const createLiveDraftServer = async (
                 ...await stateWithMockDraft({
                   ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
                   draftSessionKey,
+                  watchOwner,
                 }),
                 errors: [commandError],
               },
@@ -2466,7 +2573,7 @@ export const createLiveDraftServer = async (
           await interactiveMockStore.appendCommand(command);
           return {
             status: 200,
-            body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+            body: await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
           };
         });
         sendJson(response, result.status, result.body);
@@ -2477,11 +2584,12 @@ export const createLiveDraftServer = async (
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
+        const watchOwner = watchOwnerFromBody(body);
         const seed = seedFromValue(body.seed ?? body.seedPrefix);
         const lock = draftNightLockFor(draftSessionKey);
         if (lock.locked) {
           sendJson(response, 423, {
-            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey }),
+            ...await stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey, watchOwner }),
             errors: [{ input: "", message: lock.reason ?? "Live session is locked for mock draft results." }],
           });
           return;
@@ -2499,7 +2607,7 @@ export const createLiveDraftServer = async (
             return {
               status: 409,
               body: {
-                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
                 errors: [{
                   input: "",
                   message: `Mock results expected ${expectedCommandCount} command(s), but the room currently has ${commands.length}. Refresh before viewing results.`,
@@ -2512,6 +2620,7 @@ export const createLiveDraftServer = async (
           try {
             batch = await interactiveMockBatchForCommands({
               draftSessionKey,
+              watchOwner,
               strategyKey,
               commands,
               ...(seed === undefined ? {} : { seed }),
@@ -2520,7 +2629,7 @@ export const createLiveDraftServer = async (
             return {
               status: 422,
               body: {
-                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
                 errors: [{
                   input: "",
                   message: error instanceof Error ? error.message : "Could not build results from the current mock draft.",
@@ -2533,6 +2642,7 @@ export const createLiveDraftServer = async (
           try {
             mockBatchJob = publishInteractiveMockResultsJob({
               draftSessionKey,
+              watchOwner,
               strategyKey,
               commandCount: commands.length,
               batch,
@@ -2541,7 +2651,7 @@ export const createLiveDraftServer = async (
             return {
               status: 422,
               body: {
-                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+                ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
                 errors: [{
                   input: "",
                   message: error instanceof Error ? error.message : "Could not publish mock draft results.",
@@ -2553,7 +2663,7 @@ export const createLiveDraftServer = async (
           return {
             status: 200,
             body: {
-              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey }),
+              ...await stateWithMockDraft({ ...mockDraftRequestFor(strategyKey, seed), draftSessionKey, watchOwner }),
               mockBatchJob,
             },
           };
@@ -2570,10 +2680,17 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/mock-batch") {
         const body = await parseJsonBody(request);
         const strategyKey = strategyKeyFromBody(body);
+        const draftSessionKey = draftSessionKeyFromBody(body);
+        const watchOwner = watchOwnerFromBody(body);
         let script: MockDraftScript | undefined;
         try {
           script = mockDraftScriptFromBody(body);
-          if (script) script = canonicalizeMockDraftScript(script, projections.map(projection => projection.name));
+          if (script) {
+            script = canonicalizeMockDraftScript(
+              mockDraftScriptForOwner(script, watchOwner),
+              projections.map(projection => projection.name),
+            );
+          }
         } catch (error) {
           sendJson(response, 422, {
             error: error instanceof Error ? error.message : "Mock script could not be read.",
@@ -2586,6 +2703,8 @@ export const createLiveDraftServer = async (
           : batchRunsPerScenarioFromValue(script.runsPerScenario);
         const seedPrefix = seedPrefixFromValue(body.seedPrefix);
         const job = startMockBatchJob({
+          draftSessionKey,
+          watchOwner,
           strategyKey,
           runsPerScenario,
           seedPrefix,
@@ -2596,7 +2715,10 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/mock-batch/latest") {
-        const job = latestMockBatchJobId === undefined ? undefined : mockBatchJobs.get(latestMockBatchJobId);
+        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const watchOwner = watchOwnerFromQuery(url);
+        const latestJobId = latestMockBatchJobIds.get(mockResultScopeKey(draftSessionKey, watchOwner));
+        const job = latestJobId === undefined ? undefined : mockBatchJobs.get(latestJobId);
         if (!job) {
           sendJson(response, 200, null);
           return;
@@ -2609,7 +2731,9 @@ export const createLiveDraftServer = async (
       if (request.method === "GET" && url.pathname.startsWith("/api/mock-batch/")) {
         const jobId = decodeURIComponent(url.pathname.slice("/api/mock-batch/".length));
         const job = mockBatchJobs.get(jobId);
-        if (!job) {
+        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const watchOwner = watchOwnerFromQuery(url);
+        if (!job || job.draftSessionKey !== draftSessionKey || job.watchOwner !== watchOwner) {
           sendJson(response, 404, { error: `Unknown mock batch job "${jobId}".` });
           return;
         }
@@ -2623,6 +2747,7 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
+        const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
         let importedCommands: string[];
         try {
@@ -2636,7 +2761,7 @@ export const createLiveDraftServer = async (
           const message = error instanceof Error ? error.message : "Draft log import could not be read.";
           const parseError = { input: "", message };
           sendJson(response, 422, {
-            ...await stateFor({ draftSessionKey, mode, strategyKey }),
+            ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
             errors: [parseError],
             conflictReview: importConflictReviewFor([], [parseError], "Import could not be read"),
           });
@@ -2656,18 +2781,18 @@ export const createLiveDraftServer = async (
             return {
               status: 409,
               body: {
-                ...await stateFor({ draftSessionKey, mode, strategyKey }),
+                ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
                 errors: [{ input: "", message: unsafeMessage }],
               },
             };
           }
 
-          const trialState = await stateFor({ draftSessionKey, mode, commands: importedCommands, strategyKey });
+          const trialState = await stateFor({ draftSessionKey, mode, commands: importedCommands, strategyKey, watchOwner });
           if (trialState.errors.length) {
             return {
               status: 422,
               body: {
-                ...await stateFor({ draftSessionKey, mode, strategyKey }),
+                ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
                 errors: trialState.errors,
                 conflictReview: importConflictReviewFor(importedCommands, trialState.errors),
               },
@@ -2677,7 +2802,7 @@ export const createLiveDraftServer = async (
           await store.importCommands(importedCommands);
           return {
             status: 200,
-            body: await stateFor({ draftSessionKey, mode, strategyKey }),
+            body: await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
           };
         });
         sendJson(response, result.status, result.body);
@@ -2689,6 +2814,7 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
+        const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
           const unsafeMessage = unsafeLiveMutationMessage({
@@ -2703,7 +2829,7 @@ export const createLiveDraftServer = async (
             return {
               status: 409,
               body: {
-                ...await stateFor({ draftSessionKey, mode, strategyKey }),
+                ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
                 errors: [{ input: "", message: unsafeMessage }],
               },
             };
@@ -2712,7 +2838,7 @@ export const createLiveDraftServer = async (
           await store.undo();
           return {
             status: 200,
-            body: await stateFor({ draftSessionKey, mode, strategyKey }),
+            body: await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
           };
         });
         sendJson(response, result.status, result.body);
@@ -2724,6 +2850,7 @@ export const createLiveDraftServer = async (
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
+        const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
         const result = await runQueuedSessionMutation(draftSessionKey, mode, async (): Promise<LiveDraftMutationResult> => {
           const unsafeMessage = unsafeLiveMutationMessage({
@@ -2738,7 +2865,7 @@ export const createLiveDraftServer = async (
             return {
               status: 409,
               body: {
-                ...await stateFor({ draftSessionKey, mode, strategyKey }),
+                ...await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
                 errors: [{ input: "", message: unsafeMessage }],
               },
             };
@@ -2747,7 +2874,7 @@ export const createLiveDraftServer = async (
           await store.reset();
           return {
             status: 200,
-            body: await stateFor({ draftSessionKey, mode, strategyKey }),
+            body: await stateFor({ draftSessionKey, mode, strategyKey, watchOwner }),
           };
         });
         sendJson(response, result.status, result.body);

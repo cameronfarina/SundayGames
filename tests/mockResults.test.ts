@@ -153,6 +153,14 @@ describe("mock results report", () => {
     });
   });
 
+  it("builds the user outcome for the requested watch owner", () => {
+    const rosters = ownerOrder.map(owner => rosterSummary(owner));
+    const report = buildMockResultsReport(mockBatch(rosters), "three-rb", [], undefined, [], "Hoody");
+
+    expect(report.watchOwner).toBe("Hoody");
+    expect(report.runs[0]?.camOutcome.owner).toBe("Hoody");
+  });
+
   it("uses full-season projection for projected finish when it differs from Weeks 1-4", () => {
     const rosters = ownerOrder.map(owner => {
       const summary = owner === "Martins"

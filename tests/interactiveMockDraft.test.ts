@@ -268,4 +268,27 @@ describe("interactive mock draft", () => {
     );
     expect(resolved.command).toBe(nominated.aiSaleCommand);
   });
+
+  it("uses the selected owner in user-facing auction errors", async () => {
+    const projections = await loadEspnWeeksOneToFour(projectionPath);
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const state = buildInteractiveMockDraftState({
+      projections,
+      historicalRecords,
+      keepers,
+      commands: [],
+      watchOwner: "Hoody",
+      strategyKey: "three-rb",
+      seed: "owner-error-test",
+    });
+
+    const stateWithoutDecision = { ...state };
+    delete stateWithoutDecision.nomination;
+    delete stateWithoutDecision.camDecision;
+
+    expect(() => resolveInteractiveMockDraftAction(
+      stateWithoutDecision,
+      "cam-bid",
+    )).toThrow("Hoody does not have a live decision to win.");
+  });
 });

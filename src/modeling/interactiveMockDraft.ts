@@ -1125,7 +1125,7 @@ const stateAfterAiRaise = (
   aiBid: InteractiveMockDraftBid,
 ): InteractiveMockDraftState => {
   if (!state.auction || !state.camDecision) {
-    throw new Error("Cam does not have a live auction decision.");
+    throw new Error(`${state.watchOwner} does not have a live auction decision.`);
   }
 
   const aiResponseAmount = camBid + 1;
@@ -1165,11 +1165,11 @@ export const resolveInteractiveMockDraftAction = (
 ): InteractiveMockDraftActionResult => {
   if (action === "cam-bid" || action === "cam-win") {
     if (!state.nomination || !state.camDecision) {
-      throw new Error("Cam does not have a live decision to win.");
+      throw new Error(`${state.watchOwner} does not have a live decision to win.`);
     }
     const camBid = state.auction?.nextCamBid ?? state.camDecision.recommendedBid;
     if (camBid > state.camDecision.maxBid) {
-      throw new Error(`Cam cannot bid ${camBid}; max bid is ${state.camDecision.maxBid}.`);
+      throw new Error(`${state.watchOwner} cannot bid ${camBid}; max bid is ${state.camDecision.maxBid}.`);
     }
 
     const aiRaise = nextAiBidAfterCam(state, camBid);

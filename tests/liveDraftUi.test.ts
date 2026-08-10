@@ -179,8 +179,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("class=\"workspace\"");
     expect(liveDraftHtml).toContain("class=\"sidebar-section\"");
     expect(liveDraftHtml).toContain(".app.draft-active {\n      grid-template-columns: minmax(0, 1fr);\n      grid-template-rows: auto minmax(0, 1fr);");
-    expect(liveDraftHtml).toContain(".app.draft-active {\n        grid-template-rows: auto minmax(0, 1fr);\n        height: 100vh;\n        min-height: 100vh;\n        overflow: hidden;");
-    expect(liveDraftHtml).toContain(".app.draft-active .workspace {\n        grid-row: 2;\n        height: 100%;\n        min-height: 0;\n        overflow: hidden;");
+    expect(liveDraftHtml).toContain(".app.draft-active {\n        grid-template-rows: auto auto;\n        height: auto;\n        min-height: 100vh;\n        overflow: visible;");
+    expect(liveDraftHtml).toContain(".app.draft-active .workspace {\n        grid-row: 2;\n        height: auto;\n        min-height: 0;\n        overflow: visible;");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions");
     expect(liveDraftHtml).toContain(".app.draft-active .draft-header {\n      grid-template-columns: 48px minmax(0, 1fr) auto;\n      grid-template-rows: auto auto;");
     expect(liveDraftHtml).toContain(".app.draft-active .header-actions {\n      grid-column: 1 / -1;\n      grid-row: 2;");
@@ -252,7 +252,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("role=\"alert\"");
     expect(liveDraftHtml).toContain("' cannot buy ' + target.name + ': roster limit is '");
     expect(liveDraftHtml).toContain("const alertCommandErrors = data =>");
-    expect(liveDraftHtml).toContain("window.alert(messages.join('\\n'))");
+    expect(liveDraftHtml).toContain("announceOperation(messages.join(' '), { assertive: true, focus: true })");
     expect(liveDraftHtml).toContain("const renderMutationState = data =>");
     expect(liveDraftHtml).toContain("if (data && data.availableTargets && data.owners) render(data);");
     expect(liveDraftHtml).toContain("renderMutationState(data);");
@@ -324,7 +324,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("renderMockBatchResultsForJob(latestMockBatchJob)");
     expect(liveDraftHtml).toContain("const renderMockBatchResultsForJob = job =>");
     expect(liveDraftHtml).toContain("'Previous results'");
-    expect(liveDraftHtml).toContain("'Run mocks to apply the current strategy, run count, and script.'");
+    expect(liveDraftHtml).toContain("'Run simulations to apply the current strategy, run count, and scenario.'");
     expect(liveDraftHtml).toContain("renderMockBatchButtonState(latestMockBatchJob);");
     expect(liveDraftHtml).toContain("const renderMockResultsRoute = report =>");
     expect(liveDraftHtml).toContain("const renderMyExpertPage = async () =>");
@@ -390,7 +390,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("team.consistencyScore");
     expect(liveDraftHtml).toContain("run.bestBuild");
     expect(liveDraftHtml).toContain("run.worstBuild");
-    expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
+    expect(liveDraftHtml).toContain("window.location.assign(mockResultsRouteUrl())");
     expect(liveDraftHtml).toContain("const syncMockNominationSelection = mockDraft =>");
     expect(liveDraftHtml).toContain("const canNominateTarget = target =>");
     expect(liveDraftHtml).toContain("className = 'target-action'");
@@ -401,8 +401,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("Nominate");
     expect(liveDraftHtml).toContain("if (!isActiveDraft()) menuActions.push(buildAroundAction);");
     expect(liveDraftHtml).toContain("const buildAroundScriptForTarget = target =>");
-    expect(liveDraftHtml).toContain("byId('mock-batch-script').value = buildAroundScriptForTarget(target)");
-    expect(liveDraftHtml).toContain("byId('run-mock-batch-button').focus()");
+    expect(liveDraftHtml).toContain("window.location.assign(mockSimulationsRouteUrl(buildAroundScriptForTarget(target)))");
     expect(liveDraftHtml).toContain("const selectTargetForNomination = target =>");
     expect(liveDraftHtml).toContain("selectTargetForNomination(target)");
     expect(liveDraftHtml).toContain("id=\"mock-nomination-price\"");
@@ -411,7 +410,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const focusNominationPriceInput = () =>");
     expect(liveDraftHtml).toContain("const mockNominationIdeaEvents = mockDraft =>");
     expect(liveDraftHtml).toContain("mockDraft.phase === 'human-nomination' || Boolean(mockDraft.auction)");
-    expect(liveDraftHtml).toContain("textElement('strong', 'Cam is nominating')");
+    expect(liveDraftHtml).toContain("textElement('strong', currentWatchOwner + ' is nominating')");
     expect(liveDraftHtml).toContain("target ? 'Ready to nominate ' + target.name + ' at ' + money(nominationPriceValue()) : 'Select a player from the board'");
     expect(liveDraftHtml).toContain("renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft))");
     expect(liveDraftHtml).toContain("if (currentState) renderBoard(currentState);\n        renderSaleControls(currentState);\n        return;");
@@ -455,19 +454,19 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("action === 'complete-mock'");
     expect(liveDraftHtml).toContain("completeButton.textContent = 'Completing mock...'");
     expect(liveDraftHtml).toContain("mockDraftItem('Completing mock', 'Simulating the remaining auction and writing the completed practice log.')");
-    expect(liveDraftHtml).toContain("nextDecisionButton.textContent = mockAdvanceRequestAction === 'next-cam-decision' ? 'Simming to Cam...' : 'Sim to Cam action';");
+    expect(liveDraftHtml).toContain("nextDecisionButton.textContent = mockAdvanceRequestAction === 'next-cam-decision' ? 'Simming to ' + currentWatchOwner + '...' : 'Sim to ' + currentWatchOwner + ' action';");
     expect(liveDraftHtml).toContain("nextRoundButton.textContent = 'Sim to next round';");
     expect(liveDraftHtml).toContain("completeButton.textContent = mockAdvanceRequestAction === 'complete-mock' ? 'Completing mock...' : 'Complete mock draft';");
     expect(liveDraftHtml).toContain("completeButton.disabled = mockAdvanceBusy || !isMockMode || terminal;");
     expect(liveDraftHtml).toContain("if (data.availableTargets && data.owners) render(data);");
     expect(liveDraftHtml).toContain("if (data.mockBatchJob && data.mockBatchJob.result) {");
-    expect(liveDraftHtml).toContain("window.location.assign('/mock-results');");
+    expect(liveDraftHtml).toContain("window.location.assign(mockResultsRouteUrl());");
     expect(liveDraftHtml).toContain("else await refreshMockDraft();");
     expect(liveDraftHtml).toContain("mockAuctionFeedLines(mockDraft)");
     expect(liveDraftHtml).toContain("className = 'mock-feed-line ' + event.type");
     expect(liveDraftHtml).toContain("mockDraftItem('Current nomination'");
     expect(liveDraftHtml).toContain("mockDraftItem('Top AI bids'");
-    expect(liveDraftHtml).toContain("recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / Cam max ' + maxBid");
+    expect(liveDraftHtml).toContain("recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / ' + currentWatchOwner + ' max ' + maxBid");
     expect(liveDraftHtml).toContain("currentDraftMode === 'interactive-mock'");
     expect(liveDraftHtml).toContain("Mock mode - use auction controls");
     expect(liveDraftHtml).toContain("Mock auction sold ");
@@ -523,7 +522,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('header-reset-button').addEventListener('click', () => resetDraftRoom())");
     expect(liveDraftHtml).toContain("if (!guardDraftModeSwitch(nextMode)) return;");
     expect(liveDraftHtml).toContain("await setDraftMode(mode, { prepareStart: true });");
-    expect(liveDraftHtml).toContain("Run mocks");
+    expect(liveDraftHtml).toContain("Run simulations");
     expect(liveDraftHtml).toContain("Run new mocks");
     expect(liveDraftHtml).toContain("Mock results");
     expect(liveDraftHtml).toContain("Mock Results");
@@ -551,7 +550,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".results-grid {\n        grid-template-columns: 1fr;\n      }");
     expect(liveDraftHtml).not.toContain("mockDraftItem('AI max bids'");
     expect(liveDraftHtml).toContain("strategyKey: currentStrategyKey");
-    expect(liveDraftHtml).toContain("window.location.assign('/mock-results')");
+    expect(liveDraftHtml).toContain("window.location.assign(mockResultsRouteUrl())");
     expect(liveDraftHtml).toContain("byId('player-news-button').addEventListener('click', () => {");
     expect(liveDraftHtml).toContain("window.location.assign(playerNewsRouteUrl())");
     expect(liveDraftHtml).toContain("byId('my-expert-button').addEventListener('click', () => {");
@@ -561,13 +560,13 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("byId('player-news-refresh-button').addEventListener('click', () => refreshPlayerNewsIfCurrentRoute({ background: true }))");
     expect(liveDraftHtml).toContain("byId('app-menu-button').addEventListener('click'");
     expect(liveDraftHtml).toContain("closeAppMenu()");
-    expect(liveDraftHtml).toContain("byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch())");
+    expect(liveDraftHtml).toContain("byId('mock-results-run-new-button').addEventListener('click', () => window.location.assign(mockSimulationsRouteUrl()))");
     expect(liveDraftHtml).toContain("byId('mock-results-run-button').textContent = 'No runs yet'");
     expect(liveDraftHtml).toContain("byId('mock-results-run-button').disabled = true");
     expect(liveDraftHtml).toContain("button.disabled = !selectedRun");
     expect(liveDraftHtml).toContain("if (byId('mock-results-run-button').disabled) return;");
     expect(liveDraftHtml).toContain("script: mockBatchScript()");
-    expect(liveDraftHtml).toContain("Build around Hampton:46-52:2; target Zay max $31");
+    expect(liveDraftHtml).toContain("Example: Build around Omarion Hampton at $46 to $52");
     expect(liveDraftHtml).toContain("'Build around'");
     expect(liveDraftHtml).toContain("latestMockBatchReport.script.buildAround");
     expect(liveDraftHtml).toContain("const buildAroundOutcomeText = outcome =>");
@@ -809,5 +808,52 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain(".board-cards {\n        display: block;\n      }");
     expect(liveDraftHtml).toContain("className = 'target-card ' + positionClassFor(target.position)");
     expect(liveDraftHtml).toContain("className = 'target-card-values'");
+  });
+
+  it("keeps active real and mock workflows scrollable and action-first on phones", () => {
+    expect(liveDraftHtml).toContain(".app.draft-active {\n        grid-template-rows: auto auto;\n        height: auto;\n        min-height: 100vh;\n        overflow: visible;");
+    expect(liveDraftHtml).toContain(".app.draft-active .workspace {\n        grid-row: 2;\n        height: auto;\n        min-height: 0;\n        overflow: visible;");
+    expect(liveDraftHtml).toContain(".app.draft-active main {\n        grid-template-columns: 1fr;\n        grid-auto-rows: max-content;");
+    expect(liveDraftHtml).toContain(".app.draft-active .decision-panel {\n        order: -1;");
+    expect(liveDraftHtml).toContain(".app.draft-active section,\n      .app.draft-active aside {\n        height: auto;\n        overflow: visible;");
+    expect(liveDraftHtml).toContain(".results-header {\n        grid-template-columns: 38px minmax(0, 1fr);\n        grid-template-rows: auto auto;");
+    expect(liveDraftHtml).toContain(".results-header > .results-header-actions {\n        grid-column: 1 / -1;");
+  });
+
+  it("separates interactive practice from batch simulations", () => {
+    expect(liveDraftHtml).toContain("data-menu-key=\"mock-simulations\"");
+    expect(liveDraftHtml).toContain("id=\"mock-simulations-view\"");
+    expect(liveDraftHtml).toContain("id=\"mock-simulations-header-menu-slot\"");
+    expect(liveDraftHtml).toContain("window.location.assign(mockSimulationsRouteUrl())");
+    expect(liveDraftHtml).toContain("if (window.location.pathname === '/mock-simulations')");
+    expect(liveDraftHtml).not.toContain("<div class=\"sidebar-section\">\n        <div class=\"section-label\">Mock results</div>");
+  });
+
+  it("uses owner-scoped requests and visible accessible mutation feedback", () => {
+    expect(liveDraftHtml).toContain("let currentWatchOwner = 'Cam'");
+    expect(liveDraftHtml).toContain("const isInitialRender = currentState === null");
+    expect(liveDraftHtml).toContain("isInitialRender ||");
+    expect(liveDraftHtml).toContain("params.set('owner', currentWatchOwner)");
+    expect(liveDraftHtml).toContain("owner: currentWatchOwner");
+    expect(liveDraftHtml).toContain("job.watchOwner === currentWatchOwner");
+    expect(liveDraftHtml).toContain("auctionEventFor(mockDraft.watchOwner || currentWatchOwner, camBid)");
+    expect(liveDraftHtml).toContain("owner: mockDraft.watchOwner || currentWatchOwner");
+    expect(liveDraftHtml).toContain("id=\"operation-status\" role=\"status\" aria-live=\"polite\" tabindex=\"-1\"");
+    expect(liveDraftHtml).toContain("id=\"mock-auction-feed-lines\" role=\"log\" aria-live=\"polite\" aria-relevant=\"additions text\"");
+    expect(liveDraftHtml).toContain("const announceOperation = (message, { assertive = false, focus = false } = {}) =>");
+    expect(liveDraftHtml).toContain("status.setAttribute('aria-live', assertive ? 'assertive' : 'polite')");
+    expect(liveDraftHtml).toContain("announceOperation(message, { assertive: true, focus: true })");
+  });
+
+  it("makes destructive draft transitions explicit and durable", () => {
+    expect(liveDraftHtml).not.toContain("if (currentDraftMode === 'interactive-mock') {\n        const data = await postJson('/api/reset', {});");
+    expect(liveDraftHtml).toContain("const confirmDraftReset = () =>");
+    expect(liveDraftHtml).toContain("Reset this mock draft and permanently remove all practice picks?");
+    expect(liveDraftHtml).toContain("const confirmDraftUndo = () =>");
+    expect(liveDraftHtml).toContain("Undo the most recent mock draft sale?");
+    expect(liveDraftHtml).toContain("announceOperation('Mock draft reset. Start again when you are ready.', { focus: true })");
+    expect(liveDraftHtml).toContain("announceOperation('Last draft action undone.', { focus: true })");
+    expect(liveDraftHtml).toContain("announceOperation(isMock ? 'Mock draft ended. Your picks are saved.' : 'Real draft view ended.', { focus: true })");
+    expect(liveDraftHtml).toContain("window.history.replaceState(null, '', draftRoomRouteUrl(currentDraftMode))");
   });
 });

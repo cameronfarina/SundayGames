@@ -29,6 +29,7 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
   buildInteractiveMockDraftState: options => {
     const openingBid = options.nominatedPrice ?? 37;
     return {
+      watchOwner: options.watchOwner,
       phase: options.nominatedPlayer
         ? "human-decision"
         : options.commands.length >= 3
@@ -319,9 +320,15 @@ const post = async (baseUrl: string, path: string, body: Record<string, unknown>
   };
 };
 
-const waitForMockBatchJob = async (baseUrl: string, jobId: string) => {
+const waitForMockBatchJob = async (
+  baseUrl: string,
+  jobId: string,
+  owner = "Cam",
+  draftSession = "live",
+) => {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const job = await fetch(`${baseUrl}/api/mock-batch/${jobId}`).then(response => response.json());
+    const params = new URLSearchParams({ owner, draftSession });
+    const job = await fetch(`${baseUrl}/api/mock-batch/${jobId}?${params}`).then(response => response.json());
     if (job.status === "complete" || job.status === "failed") return job;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
@@ -590,6 +597,7 @@ describe("live draft server", () => {
       expect(realAfterPractice.events.map((event: { input: string }) => event.input)).toEqual([realSaleCommand]);
 
       const batch = await post(baseUrl, "/api/mock-batch", {
+        draftSession: "practice-3rb",
         strategyKey: "three-rb",
         runs: 3,
         seedPrefix: "server-batch",
@@ -598,7 +606,7 @@ describe("live draft server", () => {
       expect(batch.data.status).toMatch(/queued|running|complete/);
       expect(batch.data.totalRuns).toBe(3);
 
-      const completedBatch = await waitForMockBatchJob(baseUrl, batch.data.jobId);
+      const completedBatch = await waitForMockBatchJob(baseUrl, batch.data.jobId, "Cam", "practice-3rb");
       expect(completedBatch.status).toBe("complete");
       expect(completedBatch.percent).toBe(100);
       expect(completedBatch.result.mode).toBe("batch-mock");
@@ -640,11 +648,12 @@ describe("live draft server", () => {
       const baseUrl = await listen(app.server);
 
       const wrongStrategyBatch = await post(baseUrl, "/api/mock-batch", {
+        draftSession: "practice-3rb",
         strategyKey: "wr-heavy",
         runs: 1,
         seedPrefix: "wrong-audit-range",
       });
-      await waitForMockBatchJob(baseUrl, wrongStrategyBatch.data.jobId);
+      await waitForMockBatchJob(baseUrl, wrongStrategyBatch.data.jobId, "Cam", "practice-3rb");
 
       const sale = await post(baseUrl, "/api/mock/advance", {
         draftSession: "practice-3rb",
@@ -657,11 +666,12 @@ describe("live draft server", () => {
       expect(sale.data.postDraftAudit[0].mockRange).toBeUndefined();
 
       const matchingStrategyBatch = await post(baseUrl, "/api/mock-batch", {
+        draftSession: "practice-3rb",
         strategyKey: "three-rb",
         runs: 1,
         seedPrefix: "matching-audit-range",
       });
-      await waitForMockBatchJob(baseUrl, matchingStrategyBatch.data.jobId);
+      await waitForMockBatchJob(baseUrl, matchingStrategyBatch.data.jobId, "Cam", "practice-3rb");
 
       const scopedState = await fetch(`${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock&strategy=three-rb`)
         .then(response => response.json());
@@ -1251,9 +1261,82 @@ describe("live draft server", () => {
         rankExplanation: expect.stringContaining("Projected"),
       }));
 
-      const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
+      const latest = await fetch(
+        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Acompletion-results&owner=Cam`,
+      ).then(response => response.json());
       expect(latest.jobId).toBe(complete.data.mockBatchJob.jobId);
       expect(latest.result.runs[0].label).toBe("Completed mock draft");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("uses the request owner for interactive mock state", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const response = await fetch(
+        `${baseUrl}/api/mock/state?draftSession=practice-3rb&strategy=three-rb&owner=Hoody`,
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.watchOwner.owner).toBe("Hoody");
+      expect(data.mockDraft.watchOwner).toBe("Hoody");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("scopes latest mock results and direct job access by owner and draft session", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const camJob = await post(baseUrl, "/api/mock-batch", {
+        owner: "Cam",
+        draftSession: "scratch:cam-results",
+        strategyKey: "three-rb",
+        runs: 1,
+        seedPrefix: "cam-scoped-results",
+      });
+      await waitForMockBatchJob(baseUrl, camJob.data.jobId, "Cam", "scratch:cam-results");
+
+      const hoodyJob = await post(baseUrl, "/api/mock-batch", {
+        owner: "Hoody",
+        draftSession: "scratch:hoody-results",
+        strategyKey: "wr-heavy",
+        runs: 1,
+        seedPrefix: "hoody-scoped-results",
+      });
+      await waitForMockBatchJob(baseUrl, hoodyJob.data.jobId, "Hoody", "scratch:hoody-results");
+
+      const camLatestResponse = await fetch(
+        `${baseUrl}/api/mock-batch/latest?owner=Cam&draftSession=scratch%3Acam-results`,
+      );
+      const camLatest = await camLatestResponse.json();
+      const wrongOwnerResponse = await fetch(
+        `${baseUrl}/api/mock-batch/${encodeURIComponent(camJob.data.jobId)}?owner=Hoody&draftSession=scratch%3Acam-results`,
+      );
+
+      expect(camLatestResponse.status).toBe(200);
+      expect(camLatest.jobId).toBe(camJob.data.jobId);
+      expect(camLatest.watchOwner).toBe("Cam");
+      expect(camLatest.draftSessionKey).toBe("scratch:cam-results");
+      expect(wrongOwnerResponse.status).toBe(404);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -1307,7 +1390,9 @@ describe("live draft server", () => {
         expect.objectContaining({ name: "Breece Hall", price: 42 }),
       ]));
 
-      const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
+      const latest = await fetch(
+        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Aexact-results&owner=Cam`,
+      ).then(response => response.json());
       expect(latest.jobId).toBe(published.data.mockBatchJob.jobId);
       expect(latest.jobId).not.toBe(staleBatch.data.jobId);
       expect(latest.draftSessionKey).toBe("scratch:exact-results");
@@ -1330,6 +1415,9 @@ describe("live draft server", () => {
       const resultsPage = await fetch(`${baseUrl}/mock-results`);
       expect(resultsPage.status).toBe(200);
       expect(await resultsPage.text()).toContain("id=\"mock-results-view\"");
+      const simulationsPage = await fetch(`${baseUrl}/mock-simulations`);
+      expect(simulationsPage.status).toBe(200);
+      expect(await simulationsPage.text()).toContain("id=\"mock-simulations-view\"");
 
       const started = await post(baseUrl, "/api/mock-batch", {
         strategyKey: "three-rb",
@@ -1658,6 +1746,15 @@ describe("live draft server", () => {
       expect(data.team.players.map((player: { name: string }) => player.name)).toEqual(
         expect.arrayContaining(["De'Von Achane", "Jahmyr Gibbs"]),
       );
+
+      const hoodyResponse = await fetch(
+        `${baseUrl}/api/my-expert?strategy=three-rb&mode=interactive-mock&draftSession=practice-3rb&week=5&owner=Hoody`,
+      );
+      expect(hoodyResponse.status).toBe(200);
+      const hoodyData = await hoodyResponse.json();
+      expect(hoodyData.team).toEqual(expect.objectContaining({
+        owner: "Hoody",
+      }));
       expect(data.summary).toEqual(expect.objectContaining({
         currentWeek: 5,
         recommendationCount: expect.any(Number),

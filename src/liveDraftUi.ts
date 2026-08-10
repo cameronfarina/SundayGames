@@ -2025,6 +2025,27 @@ export const liveDraftHtml = `<!doctype html>
       font-size: 13px;
     }
 
+    .operation-status {
+      min-height: 0;
+      padding: 0 10px;
+      color: var(--good);
+      font-size: 13px;
+    }
+
+    .operation-status:not(:empty) {
+      min-height: 38px;
+      padding-top: 9px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid rgba(74, 211, 149, 0.42);
+      background: rgba(74, 211, 149, 0.08);
+    }
+
+    .operation-status[role="alert"]:not(:empty) {
+      border-color: rgba(255, 113, 106, 0.46);
+      background: rgba(255, 113, 106, 0.08);
+      color: var(--danger);
+    }
+
     .results-view {
       width: 100%;
       min-width: 100vw;
@@ -2097,6 +2118,29 @@ export const liveDraftHtml = `<!doctype html>
       gap: 10px;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .simulation-panel {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+      gap: 10px 14px;
+      align-items: center;
+      max-width: 960px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .simulation-panel label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .simulation-panel .results-header-actions,
+    .simulation-panel #mock-batch-results {
+      grid-column: 2;
     }
 
     .run-selector {
@@ -3046,10 +3090,10 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       .app.draft-active {
-        grid-template-rows: auto minmax(0, 1fr);
-        height: 100vh;
+        grid-template-rows: auto auto;
+        height: auto;
         min-height: 100vh;
-        overflow: hidden;
+        overflow: visible;
       }
 
       .draft-header {
@@ -3084,9 +3128,9 @@ export const liveDraftHtml = `<!doctype html>
 
       .app.draft-active .workspace {
         grid-row: 2;
-        height: 100%;
+        height: auto;
         min-height: 0;
-        overflow: hidden;
+        overflow: visible;
       }
 
       .draft-header {
@@ -3118,6 +3162,17 @@ export const liveDraftHtml = `<!doctype html>
 
       .app.draft-active main {
         grid-template-columns: 1fr;
+        grid-auto-rows: max-content;
+      }
+
+      .app.draft-active .decision-panel {
+        order: -1;
+      }
+
+      .app.draft-active section,
+      .app.draft-active aside {
+        height: auto;
+        overflow: visible;
       }
 
       .scroll, .side-scroll {
@@ -3131,23 +3186,46 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       .results-header {
-        flex-direction: column;
-        align-items: flex-start;
+        grid-template-columns: 38px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        align-items: start;
+        gap: 10px;
         height: auto;
-        min-height: auto;
-        padding: 106px 12px 14px;
+        min-height: 118px;
+        padding: 12px;
+      }
+
+      .results-header .results-title-block {
+        grid-column: 2;
+        grid-row: 1;
+        justify-items: start;
+        justify-self: stretch;
+        text-align: left;
+      }
+
+      .results-header > .results-header-actions {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: flex-start;
+        justify-self: stretch;
       }
 
       .results-main {
-        padding-top: 232px;
-      }
-
-      .results-header-actions {
-        flex-wrap: wrap;
+        padding: 136px 12px 20px;
       }
 
       .results-grid {
         grid-template-columns: 1fr;
+      }
+
+      .simulation-panel {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      .simulation-panel .results-header-actions,
+      .simulation-panel #mock-batch-results {
+        grid-column: 1;
       }
 
       .player-news-card-header {
@@ -3211,9 +3289,13 @@ export const liveDraftHtml = `<!doctype html>
                 <strong>Player news</strong>
                 <span>Fantasy updates feed</span>
               </button>
+              <button type="button" class="app-menu-item" id="mock-simulations-button" role="menuitem" data-menu-key="mock-simulations" data-menu-label="Mock simulations">
+                <strong>Mock simulations</strong>
+                <span>Compare AI draft outcomes</span>
+              </button>
               <button type="button" class="app-menu-item" id="see-mock-results-button" role="menuitem" data-menu-key="mock-results" data-menu-label="Mock results" hidden>
                 <strong>Mock results</strong>
-                <span>Latest batch report</span>
+                <span>Latest simulation report</span>
               </button>
             </div>
           </div>
@@ -3259,14 +3341,6 @@ export const liveDraftHtml = `<!doctype html>
         </div>
         <button class="primary start-draft-button" type="button" id="confirm-start-draft-button" aria-label="Confirm start draft" hidden>Start draft</button>
         <div class="draft-countdown" id="draft-countdown" hidden>5</div>
-      </div>
-      <div class="sidebar-section">
-        <div class="section-label">Mock results</div>
-        <div class="mock-batch-control">
-          <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
-          <button type="button" id="run-mock-batch-button">Run mocks</button>
-          <input id="mock-batch-script" autocomplete="off" placeholder="Build around Hampton:46-52:2; target Zay max $31" aria-label="Mock draft script">
-        </div>
       </div>
       <div class="sidebar-section">
         <div class="section-label">Sale Command</div>
@@ -3351,11 +3425,11 @@ export const liveDraftHtml = `<!doctype html>
             <button type="button" id="mock-nominate-button" disabled>Nominate</button>
             <button type="button" id="mock-cam-win-button" disabled>Bid</button>
             <button type="button" id="mock-pass-button" disabled>Pass</button>
-            <button type="button" id="mock-next-decision-button" disabled>Next Cam</button>
+            <button type="button" id="mock-next-decision-button" disabled>Next action</button>
             <button type="button" id="mock-next-round-button" disabled>Next Round</button>
             <button type="button" id="mock-complete-button" disabled>Complete</button>
           </div>
-          <div class="mock-auction-feed-lines" id="mock-auction-feed-lines"></div>
+          <div class="mock-auction-feed-lines" id="mock-auction-feed-lines" role="log" aria-live="polite" aria-relevant="additions text"></div>
         </div>
         <div class="scroll">
           <table class="board-table">
@@ -3393,6 +3467,7 @@ export const liveDraftHtml = `<!doctype html>
           <button type="button" data-side-panel="draft-path" aria-pressed="false">Draft path</button>
         </div>
         <div id="errors" role="alert"></div>
+        <div class="operation-status" id="operation-status" role="status" aria-live="polite" tabindex="-1"></div>
         <div class="summary-list import-conflict-review" id="import-conflict-review"></div>
         <div class="side-scroll">
           <div class="side-panel-view" id="lineup-panel" data-side-panel-view="lineup">
@@ -3448,13 +3523,6 @@ export const liveDraftHtml = `<!doctype html>
                 </div>
               </div>
             </div>
-            <div class="section-label">Mock Results</div>
-            <div class="summary-list" id="mock-batch-results">
-              <div class="summary-item">
-                <strong>No batch run yet</strong>
-                <span class="subtle">Run mocks to compare AI-only team outcomes for the selected strategy.</span>
-              </div>
-            </div>
             <div class="section-label">Post Draft Audit</div>
             <div class="summary-list" id="post-draft-audit"></div>
             <div class="section-label">Readiness</div>
@@ -3464,6 +3532,42 @@ export const liveDraftHtml = `<!doctype html>
       </aside>
       </main>
     </div>
+  </div>
+  <div class="results-view" id="mock-simulations-view" hidden>
+    <header class="results-header app-page-header">
+      <div class="app-header-menu-slot" id="mock-simulations-header-menu-slot"></div>
+      <div class="results-title-block">
+        <h1>Mock Simulations</h1>
+        <div class="subtle">Compare strategies across many AI drafts.</div>
+      </div>
+      <div class="results-header-actions">
+        <button type="button" id="mock-simulations-back-button">Draft room</button>
+      </div>
+    </header>
+    <main class="results-main">
+      <section class="simulation-panel">
+        <label for="mock-simulation-strategy">Draft strategy</label>
+        <select id="mock-simulation-strategy">
+          <option value="balanced">Balanced</option>
+          <option value="three-rb">True 3RB</option>
+          <option value="hero-rb">Hero RB</option>
+          <option value="wr-heavy">WR Heavy</option>
+        </select>
+        <label for="mock-batch-runs">Number of drafts</label>
+        <input id="mock-batch-runs" inputmode="numeric" pattern="[0-9]*" value="25" aria-label="Mock draft run count">
+        <label for="mock-batch-script">Scenario instructions</label>
+        <input id="mock-batch-script" autocomplete="off" placeholder="Example: Build around Omarion Hampton at $46 to $52" aria-label="Mock draft scenario">
+        <div class="results-header-actions">
+          <button class="primary" type="button" id="run-mock-batch-button">Run simulations</button>
+        </div>
+        <div class="summary-list" id="mock-batch-results" role="status" aria-live="polite">
+          <div class="summary-item">
+            <strong>No simulations yet</strong>
+            <span class="subtle">Run a set of drafts to compare outcomes for this strategy.</span>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
   <div class="results-view" id="mock-results-view" hidden>
     <header class="results-header app-page-header">
@@ -3504,7 +3608,7 @@ export const liveDraftHtml = `<!doctype html>
     </header>
     <main class="results-main">
       <div class="my-expert-context-row" id="my-expert-context-row">
-        <strong id="my-expert-roster-title">Cam roster</strong>
+        <strong id="my-expert-roster-title">Your roster</strong>
         <span id="my-expert-status">Read-only advice</span>
         <span id="my-expert-source">Mockd draft</span>
       </div>
@@ -3597,6 +3701,7 @@ export const liveDraftHtml = `<!doctype html>
     let currentState = null;
     let selectedTargetName = null;
     let selectedRosterOwner = 'Cam';
+    let currentWatchOwner = 'Cam';
     let boardPositionFilter = 'ALL';
     let boardSortKey = 'liveExpectedPrice';
     let currentStrategyKey = 'three-rb';
@@ -3648,7 +3753,7 @@ export const liveDraftHtml = `<!doctype html>
       },
       'interactive-mock': {
         label: 'Mock draft',
-        detail: 'Practice room. Cam controls Cam while AI owners bid.'
+        detail: 'Practice room. You control your team while AI owners bid.'
       }
     };
     const flexPositions = ['RB', 'WR', 'TE'];
@@ -3722,7 +3827,7 @@ export const liveDraftHtml = `<!doctype html>
     const isLiveRealDraftRoom = () => currentDraftSession === 'live' && currentDraftMode === 'real';
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
-    const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession);
+    const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner);
     const setBoardPositionFilter = nextPosition => {
       if (!boardPositions.includes(nextPosition)) return;
       boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;
@@ -3755,13 +3860,15 @@ export const liveDraftHtml = `<!doctype html>
     const draftLifecycleContext = () => ({
       mode: currentDraftMode,
       session: currentDraftSession,
-      strategy: currentStrategyKey
+      strategy: currentStrategyKey,
+      owner: currentWatchOwner
     });
     const sameDraftLifecycleContext = context =>
       context &&
       context.mode === currentDraftMode &&
       context.session === currentDraftSession &&
-      context.strategy === currentStrategyKey;
+      context.strategy === currentStrategyKey &&
+      context.owner === currentWatchOwner;
     const isActiveDraft = () => draftLifecycle === 'active';
     const isStartingDraft = () => draftLifecycle === 'countdown';
     const normalizeDraftLifecycle = value => {
@@ -3776,7 +3883,8 @@ export const liveDraftHtml = `<!doctype html>
           lifecycle: draftLifecycle,
           mode: currentDraftMode,
           session: currentDraftSession,
-          strategy: currentStrategyKey
+          strategy: currentStrategyKey,
+          owner: currentWatchOwner
         }));
       } catch {
         // The draft state still renders correctly without local storage.
@@ -3790,6 +3898,7 @@ export const liveDraftHtml = `<!doctype html>
         const parsed = JSON.parse(stored);
         if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
         if (draftModes.includes(parsed.mode)) currentDraftMode = parsed.mode;
+        if (typeof parsed.owner === 'string' && parsed.owner.trim()) currentWatchOwner = parsed.owner.trim();
         if (typeof parsed.session === 'string' && parsed.session) {
           currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode, currentStrategyKey);
         }
@@ -3828,6 +3937,7 @@ export const liveDraftHtml = `<!doctype html>
       params.set('strategy', currentStrategyKey);
       params.set('mode', currentDraftMode);
       params.set('draftSession', currentDraftSession);
+      params.set('owner', currentWatchOwner);
       params.set('source', playerNewsSource);
       if (playerNewsQuery) params.set('q', playerNewsQuery);
       if (playerNewsCategory !== 'All') params.set('category', playerNewsCategory);
@@ -3841,11 +3951,29 @@ export const liveDraftHtml = `<!doctype html>
       params.set('strategy', currentStrategyKey);
       params.set('mode', currentDraftMode);
       params.set('draftSession', currentDraftSession);
+      params.set('owner', currentWatchOwner);
       params.set('week', String(myExpertWeek));
       return params.toString();
     };
     const myExpertUrl = () => '/api/my-expert?' + myExpertQueryString();
     const myExpertRouteUrl = () => '/my-expert?' + myExpertQueryString();
+    const mockSimulationsRouteUrl = scenario => {
+      const params = new URLSearchParams();
+      params.set('strategy', currentStrategyKey);
+      params.set('mode', currentDraftMode);
+      params.set('draftSession', currentDraftSession);
+      params.set('owner', currentWatchOwner);
+      if (scenario) params.set('scenario', scenario);
+      return '/mock-simulations?' + params.toString();
+    };
+    const mockResultsRouteUrl = () => {
+      const params = new URLSearchParams();
+      params.set('strategy', currentStrategyKey);
+      params.set('mode', currentDraftMode);
+      params.set('draftSession', currentDraftSession);
+      params.set('owner', currentWatchOwner);
+      return '/mock-results?' + params.toString();
+    };
     const draftSessionForMode = mode =>
       mode === 'interactive-mock' && currentDraftSession === 'live' ? practiceSessionForStrategy(currentStrategyKey) : currentDraftSession;
     const draftRoomRouteUrl = mode => {
@@ -3854,6 +3982,7 @@ export const liveDraftHtml = `<!doctype html>
       params.set('mode', nextMode);
       params.set('strategy', currentStrategyKey);
       params.set('draftSession', draftSessionForMode(nextMode));
+      params.set('owner', currentWatchOwner);
       return '/?' + params.toString();
     };
     const hydrateDraftRoomFromLocation = () => {
@@ -3861,10 +3990,12 @@ export const liveDraftHtml = `<!doctype html>
       const strategy = params.get('strategy');
       const mode = params.get('mode');
       const draftSession = params.get('draftSession');
+      const owner = params.get('owner');
       const previousContext = draftLifecycleContext();
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
+      if (owner && owner.trim()) currentWatchOwner = owner.trim();
       if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode, currentStrategyKey);
       else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode, currentStrategyKey);
       currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
@@ -3879,11 +4010,13 @@ export const liveDraftHtml = `<!doctype html>
       const strategy = params.get('strategy');
       const mode = params.get('mode');
       const draftSession = params.get('draftSession');
+      const owner = params.get('owner');
       const week = Number(params.get('week') || 1);
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
       if (draftSession) currentDraftSession = draftSession;
+      if (owner && owner.trim()) currentWatchOwner = owner.trim();
       myExpertWeek = Number.isInteger(week) && week > 0 ? week : 1;
     };
 
@@ -3907,6 +4040,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const appMenuSlotIdsByRoute = {
       'draft-room': 'draft-header-menu-slot',
+      'mock-simulations': 'mock-simulations-header-menu-slot',
       'mock-results': 'mock-results-header-menu-slot',
       'my-expert': 'my-expert-header-menu-slot',
       'player-news': 'player-news-header-menu-slot'
@@ -3925,6 +4059,12 @@ export const liveDraftHtml = `<!doctype html>
     const setActiveRouteShell = route => {
       syncAppMenuHostForRoute(route);
       document.body.dataset.activeRoute = route;
+    };
+
+    const showOnlyAppView = activeId => {
+      for (const id of ['draft-room-view', 'mock-simulations-view', 'mock-results-view', 'my-expert-view', 'player-news-view']) {
+        byId(id).hidden = id !== activeId;
+      }
     };
 
     const setAppMenuOpen = isOpen => {
@@ -4125,10 +4265,12 @@ export const liveDraftHtml = `<!doctype html>
       const strategy = params.get('strategy');
       const mode = params.get('mode');
       const draftSession = params.get('draftSession');
+      const owner = params.get('owner');
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
       if (draftSession) currentDraftSession = draftSession;
+      if (owner && owner.trim()) currentWatchOwner = owner.trim();
 
       playerNewsSource = playerNewsFilterValue('source', params.get('source'), 'all');
       playerNewsCategory = playerNewsFilterValue('category', params.get('category'), 'All');
@@ -4174,26 +4316,47 @@ export const liveDraftHtml = `<!doctype html>
       requestAnimationFrame(() => byId('mock-nomination-price').focus());
     };
 
+    const announceOperation = (message, { assertive = false, focus = false } = {}) => {
+      const status = byId('operation-status');
+      if (!status) return;
+      status.setAttribute('role', assertive ? 'alert' : 'status');
+      status.setAttribute('aria-live', assertive ? 'assertive' : 'polite');
+      status.textContent = cleanText(message);
+      if (focus) requestAnimationFrame(() => status.focus());
+    };
+
     const postJson = async (url, body) => {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ strategyKey: currentStrategyKey, mode: currentDraftMode, draftSession: currentDraftSession, ...(body || {}) })
-      });
-      const data = await response.json();
-      if (!response.ok && !Array.isArray(data.errors)) {
-        data.errors = [{ input: '', message: data.error || 'Could not update draft room.' }];
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            strategyKey: currentStrategyKey,
+            mode: currentDraftMode,
+            draftSession: currentDraftSession,
+            owner: currentWatchOwner,
+            ...(body || {})
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok && !Array.isArray(data.errors)) {
+          data.errors = [{ input: '', message: data.error || 'Could not update draft room.' }];
+        }
+        if (data.availableTargets && data.owners) render(data);
+        else if (!response.ok) renderErrors(data);
+        return data;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not reach the draft room.';
+        announceOperation(message, { assertive: true, focus: true });
+        return { errors: [{ input: '', message }] };
       }
-      if (data.availableTargets && data.owners) render(data);
-      else if (!response.ok) renderStateLoadError(data.errors[0].message);
-      return data;
     };
 
     const alertCommandErrors = data => {
       const messages = (data && Array.isArray(data.errors) ? data.errors : [])
         .map(error => error && error.message)
         .filter(Boolean);
-      if (messages.length) window.alert(messages.join('\\n'));
+      if (messages.length) announceOperation(messages.join(' '), { assertive: true, focus: true });
     };
 
     const tableCell = (row, text, className) => {
@@ -4315,11 +4478,7 @@ export const liveDraftHtml = `<!doctype html>
     const selectTargetForBuildAround = target => {
       if (!target || target.draftable === false) return;
       selectedTargetName = target.name;
-      byId('mock-batch-script').value = buildAroundScriptForTarget(target);
-      renderMockBatchButtonState(latestMockBatchJob);
-      renderMockBatchResultsForJob(latestMockBatchJob);
-      renderBoard(currentState);
-      byId('run-mock-batch-button').focus();
+      window.location.assign(mockSimulationsRouteUrl(buildAroundScriptForTarget(target)));
     };
 
     const starTargetButton = target => {
@@ -4655,6 +4814,7 @@ export const liveDraftHtml = `<!doctype html>
 
       byId('confirm-start-draft-button').hidden = !canStartDraft;
       byId('confirm-start-draft-button').disabled = !canStartDraft;
+      byId('confirm-start-draft-button').textContent = isMock && currentCommandCount() > 0 ? 'Resume mock draft' : 'Start draft';
       byId('draft-countdown').hidden = !isStartingDraft();
       byId('draft-countdown').textContent = countdownText;
       byId('draft-start-banner').hidden = !isStartingDraft();
@@ -4738,15 +4898,16 @@ export const liveDraftHtml = `<!doctype html>
     const renderMockBatchResults = report => {
       const root = byId('mock-batch-results');
       latestMockBatchReport = report || latestMockBatchReport;
+      if (latestMockBatchReport && latestMockBatchReport.watchOwner) currentWatchOwner = latestMockBatchReport.watchOwner;
       if (!latestMockBatchReport) {
-        root.replaceChildren(mockDraftItem('No batch run yet', 'Run mocks to compare AI-only team outcomes for the selected strategy.'));
+        root.replaceChildren(mockDraftItem('No simulations yet', 'Run simulations to compare team outcomes for the selected strategy.'));
         return;
       }
 
       const cam = latestMockBatchReport.cam;
       const items = [
         mockDraftItem(
-          'Batch mocks',
+          'Simulation summary',
           latestMockBatchReport.summary.runCount + ' runs - ' + latestMockBatchReport.options.strategyKey + ' - expected keepers'
         )
       ];
@@ -4783,7 +4944,7 @@ export const liveDraftHtml = `<!doctype html>
 
       if (cam) {
         items.push(mockDraftItem(
-          'Cam average roster',
+          currentWatchOwner + ' average roster',
           money(cam.averageSpend) + ' spend / ' + money(cam.averageBudgetRemaining) + ' left / ' + cam.averageWeeks1To4Score + ' Weeks 1-4'
         ));
       }
@@ -4791,7 +4952,7 @@ export const liveDraftHtml = `<!doctype html>
       const exposures = (latestMockBatchReport.camTopExposures || []).slice(0, 5);
       if (exposures.length) {
         items.push(mockDraftItem(
-          'Likely Cam targets',
+          'Likely ' + currentWatchOwner + ' targets',
           exposures.map(exposure => exposure.player + ' ' + Math.round(exposure.draftedRate * 100) + '% at ' + money(exposure.averagePrice)).join(' / ')
         ));
       }
@@ -4816,7 +4977,7 @@ export const liveDraftHtml = `<!doctype html>
         const previousLabel = job.script && job.script.label ? 'Previous: ' + job.script.label + '. ' : '';
         byId('mock-batch-results').replaceChildren(mockDraftItem(
           'Previous results',
-          previousLabel + 'Run mocks to apply the current strategy, run count, and script.'
+          previousLabel + 'Run simulations to apply the current strategy, run count, and scenario.'
         ));
         return;
       }
@@ -5330,7 +5491,7 @@ export const liveDraftHtml = `<!doctype html>
       byId('my-expert-title').textContent =
         (summary.recommendationCount || 0) + ' recommendations / Week ' + (summary.currentWeek || myExpertWeek);
       byId('my-expert-roster-title').textContent =
-        (reportTeam.owner || 'Cam') + ' roster - ' + (reportTeam.rosteredCount || 0) + ' players';
+        (reportTeam.owner || currentWatchOwner) + ' roster - ' + (reportTeam.rosteredCount || 0) + ' players';
       byId('my-expert-status').textContent = myExpertReadOnlyLabel(latestMyExpertReport);
       byId('my-expert-source').textContent =
         latestMyExpertReport.source ? latestMyExpertReport.source.label : 'Mockd draft';
@@ -5471,8 +5632,8 @@ export const liveDraftHtml = `<!doctype html>
       const worst = run.worstBuild;
       root.replaceChildren(
         insightCard(
-          'Cam outcome',
-          cam ? cam.headline : 'Cam outcome unavailable',
+          currentWatchOwner + ' outcome',
+          cam ? cam.headline : currentWatchOwner + ' outcome unavailable',
           cam ? [...(cam.strengths || []).slice(0, 2), ...(cam.risks || []).slice(0, 1)].join(' / ') : '-'
         ),
         insightCard(
@@ -5548,7 +5709,7 @@ export const liveDraftHtml = `<!doctype html>
             : '-'
         ),
         insightCard(
-          'Cam score range',
+          currentWatchOwner + ' score range',
           camScoreRange
             ? scoreText(camScoreRange.minimumWeek1Score) + '-' + scoreText(camScoreRange.maximumWeek1Score) + ' W1'
             : 'No score range',
@@ -5557,7 +5718,7 @@ export const liveDraftHtml = `<!doctype html>
             : '-'
         ),
         insightCard(
-          'Common Cam path',
+          'Common ' + currentWatchOwner + ' path',
           commonPath ? commonPath.path : 'No common path yet',
           commonPath
             ? Math.round(commonPath.draftedRate * 100) + '% of runs / avg rank ' + scoreText(commonPath.averageRank)
@@ -5698,13 +5859,16 @@ export const liveDraftHtml = `<!doctype html>
       const root = byId('mock-results-grid');
       if (!run) {
         mockResultsIntelligencePanel(null);
-        root.replaceChildren(mockDraftItem('No run selected', 'Run mocks from the draft room first.'));
+        root.replaceChildren(mockDraftItem('No run selected', 'Run simulations first.'));
         return;
       }
 
       mockResultsIntelligencePanel(run);
+      const resultTeams = [...run.teams].sort((left, right) =>
+        (left.owner === currentWatchOwner ? -1 : 0) - (right.owner === currentWatchOwner ? -1 : 0)
+      );
       root.replaceChildren(
-        ...run.teams.map(mockResultsTeamCard),
+        ...resultTeams.map(mockResultsTeamCard),
         renderMockResultsRankingsCard(run.rankings)
       );
     };
@@ -5733,19 +5897,20 @@ export const liveDraftHtml = `<!doctype html>
 
     const renderMockResultsRoute = report => {
       latestMockBatchReport = report || latestMockBatchReport;
+      if (latestMockBatchReport && latestMockBatchReport.watchOwner) currentWatchOwner = latestMockBatchReport.watchOwner;
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = false;
 
       if (!latestMockBatchReport || !latestMockBatchReport.runs || !latestMockBatchReport.runs.length) {
         byId('mock-results-title').textContent = 'No completed mock batch yet.';
-        byId('mock-results-status').textContent = 'Start a batch from the draft room.';
+        byId('mock-results-status').textContent = 'Start simulations from the simulations page.';
         byId('mock-results-run-button').textContent = 'No runs yet';
         byId('mock-results-run-button').disabled = true;
         byId('mock-results-run-list').hidden = true;
         byId('mock-results-run-list').replaceChildren();
         byId('mock-results-analytics').replaceChildren();
         byId('mock-results-intelligence').replaceChildren();
-        byId('mock-results-grid').replaceChildren(mockDraftItem('No results yet', 'Run mocks, wait for the progress bar, then come back here.'));
+        byId('mock-results-grid').replaceChildren(mockDraftItem('No results yet', 'Run simulations and wait for them to finish.'));
         return;
       }
 
@@ -5766,7 +5931,7 @@ export const liveDraftHtml = `<!doctype html>
     const renderMockResultsLoading = job => {
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = false;
-      byId('mock-results-title').textContent = 'Mock batch running.';
+      byId('mock-results-title').textContent = 'Simulations running.';
       byId('mock-results-status').textContent = String(job.percent || 0) + '% complete';
       byId('mock-results-run-button').textContent = 'Waiting for results';
       byId('mock-results-run-button').disabled = true;
@@ -6125,7 +6290,7 @@ export const liveDraftHtml = `<!doctype html>
       const maxBid = mockDraft.camDecision.maxBid;
       if (!camBid || camBid > maxBid) return [];
 
-      const events = [auctionEventFor(mockDraft.watchOwner || 'Cam', camBid)];
+      const events = [auctionEventFor(mockDraft.watchOwner || currentWatchOwner, camBid)];
       const aiRaise = (mockDraft.aiBids || [])
         .filter(bid => bid.amount >= camBid + 1)
         .sort((left, right) => right.amount - left.amount || cleanText(left.owner).localeCompare(cleanText(right.owner)))[0];
@@ -6134,7 +6299,7 @@ export const liveDraftHtml = `<!doctype html>
         return events.concat(mockAuctionResolutionEvents({
           ...auction,
           resolution: {
-            owner: mockDraft.watchOwner || 'Cam',
+            owner: mockDraft.watchOwner || currentWatchOwner,
             price: camBid
           }
         }));
@@ -6168,7 +6333,7 @@ export const liveDraftHtml = `<!doctype html>
         return 'Sold to ' + auction.resolution.owner + ' for ' + money(auction.resolution.price);
       }
       if (mockDraft.phase === 'human-decision' && auction.nextCamBid != null) {
-        return 'Current ' + money(auction.currentBid) + ' - Cam can bid ' + money(auction.nextCamBid);
+        return 'Current ' + money(auction.currentBid) + ' - ' + currentWatchOwner + ' can bid ' + money(auction.nextCamBid);
       }
       if (mockDraft.phase === 'ai-sale' && auction.resolution) {
         return 'Current high bid ' + money(auction.resolution.price) + ' - AI sale will continue automatically';
@@ -6229,7 +6394,7 @@ export const liveDraftHtml = `<!doctype html>
       if (mockDraft.phase === 'human-nomination') {
         const target = selectedTarget();
         active.replaceChildren(
-          textElement('strong', 'Cam is nominating'),
+          textElement('strong', currentWatchOwner + ' is nominating'),
           textElement('span', target ? 'Ready to nominate ' + target.name + ' at ' + money(nominationPriceValue()) : 'Select a player from the board', 'mock-auction-phase')
         );
         renderMockAuctionFeedEvents(mockNominationIdeaEvents(mockDraft));
@@ -6312,7 +6477,7 @@ export const liveDraftHtml = `<!doctype html>
       const canPass = isMockMode && (phase === 'human-decision' || phase === 'ai-sale');
       byId('mock-pass-button').disabled = mockAdvanceBusy || !canPass;
       byId('mock-pass-button').textContent = 'Pass';
-      nextDecisionButton.textContent = mockAdvanceRequestAction === 'next-cam-decision' ? 'Simming to Cam...' : 'Sim to Cam action';
+      nextDecisionButton.textContent = mockAdvanceRequestAction === 'next-cam-decision' ? 'Simming to ' + currentWatchOwner + '...' : 'Sim to ' + currentWatchOwner + ' action';
       nextDecisionButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
       nextRoundButton.textContent = 'Sim to next round';
       nextRoundButton.disabled = mockAdvanceBusy || !isMockMode || terminal || humanStop;
@@ -6338,7 +6503,7 @@ export const liveDraftHtml = `<!doctype html>
       if (phase === 'human-nomination') {
         const ideas = (mockDraft.topTargets || []).slice(0, 5);
         details.replaceChildren(
-          mockDraftItem('Cam nomination', target ? 'Nominate ' + target.name + ' from the board.' : 'Select a player from the board.'),
+          mockDraftItem(currentWatchOwner + ' nomination', target ? 'Nominate ' + target.name + ' from the board.' : 'Select a player from the board.'),
           mockDraftItem('Nomination ideas', ideas.length ? ideas.map(candidate => candidate.name + ' ' + money(candidate.liveExpectedPrice)).join(' / ') : '-')
         );
         if (currentState) renderBoard(currentState);
@@ -6374,9 +6539,9 @@ export const liveDraftHtml = `<!doctype html>
         const maxBid = mockDraft.camDecision.maxBid == null ? '-' : money(mockDraft.camDecision.maxBid);
         const topAiOwner = mockDraft.camDecision.topAiBidOwner || (aiBids[0] && aiBids[0].owner) || 'AI';
         const topAiBid = mockDraft.camDecision.topAiBid == null ? '-' : money(mockDraft.camDecision.topAiBid);
-        items.push(mockDraftItem('Cam bid', recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / Cam max ' + maxBid));
+        items.push(mockDraftItem(currentWatchOwner + ' bid', recommended + ' now / ' + topAiOwner + ' can chase to ' + topAiBid + ' / ' + currentWatchOwner + ' max ' + maxBid));
       } else if (aiBids.length) {
-        items.push(mockDraftItem('Cam bid', aiBids[0].owner + ' can go to ' + money(aiBids[0].amount) + '. Use AI sale unless you want to manually override.'));
+        items.push(mockDraftItem(currentWatchOwner + ' bid', aiBids[0].owner + ' can go to ' + money(aiBids[0].amount) + '. Use AI sale unless you want to manually override.'));
       }
 
       details.replaceChildren(...items);
@@ -6627,6 +6792,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderErrors = state => {
+      const message = (state.errors || []).map(error => error.message).filter(Boolean).join(' ');
       const errors = (state.errors || []).map(error => {
         const element = document.createElement('div');
         element.className = 'error';
@@ -6634,6 +6800,7 @@ export const liveDraftHtml = `<!doctype html>
         return element;
       });
       byId('errors').replaceChildren(...errors);
+      if (message) announceOperation(message, { assertive: true, focus: true });
     };
 
     const renderStateLoadError = message => {
@@ -6652,12 +6819,19 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const render = state => {
+      const isInitialRender = currentState === null;
+      const previousWatchOwner = currentWatchOwner;
       currentState = state;
+      if (state.watchOwner && state.watchOwner.owner) currentWatchOwner = state.watchOwner.owner;
       syncStrategy(state);
       syncDraftSession(state);
       loadManualShortlist();
       renderDraftMode(state);
-      if (!state.owners.some(owner => owner.owner === selectedRosterOwner)) selectedRosterOwner = 'Cam';
+      if (
+        isInitialRender ||
+        selectedRosterOwner === previousWatchOwner ||
+        !state.owners.some(owner => owner.owner === selectedRosterOwner)
+      ) selectedRosterOwner = currentWatchOwner;
       syncOwnerSelects(state);
       syncBoardFilterOptions(state);
       renderPositionMarket(state);
@@ -6693,6 +6867,7 @@ export const liveDraftHtml = `<!doctype html>
         return data;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not load mock draft.';
+        announceOperation(message, { assertive: true, focus: true });
         byId('mock-draft-details').replaceChildren(mockDraftItem('Mock draft unavailable', message));
         byId('mock-advance-button').disabled = true;
         byId('mock-nominate-button').disabled = true;
@@ -6706,14 +6881,20 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const refreshState = async () => {
-      const response = await fetch(stateUrl());
-      const state = await response.json();
-      if (!response.ok) {
-        renderStateLoadError(state.error || 'Could not load draft room.');
+      try {
+        const response = await fetch(stateUrl());
+        const state = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          renderStateLoadError(state.error || 'Could not load draft room.');
+          return null;
+        }
+        render(state);
+        return state;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not reach the draft room.';
+        renderStateLoadError(message);
         return null;
       }
-      render(state);
-      return state;
     };
 
     const refreshDraftRoom = async () => {
@@ -6737,12 +6918,13 @@ export const liveDraftHtml = `<!doctype html>
       pendingCamNominationPrice = 1;
       persistDraftLifecycle();
 
-      if (currentDraftMode === 'interactive-mock') {
-        const data = await postJson('/api/reset', {});
-        alertCommandErrors(data);
+      const state = await refreshDraftRoom();
+      if (!state) {
+        draftLifecycle = 'ready';
+        persistDraftLifecycle();
+        return;
       }
-
-      await refreshDraftRoom();
+      announceOperation(currentDraftMode === 'interactive-mock' ? 'Mock draft ready.' : 'Real draft ready.');
       focusCommandInput();
     };
 
@@ -6785,7 +6967,7 @@ export const liveDraftHtml = `<!doctype html>
       pendingCamNominationPrice = 1;
       persistDraftLifecycle();
       await refreshDraftRoom();
-      focusCommandInput();
+      announceOperation(isMock ? 'Mock draft ended. Your picks are saved.' : 'Real draft view ended.', { focus: true });
     };
 
     const setDraftMode = async (mode, options = {}) => {
@@ -6877,6 +7059,7 @@ export const liveDraftHtml = `<!doctype html>
       if (job.source === 'interactive-complete') {
         return currentDraftMode === 'interactive-mock' &&
           job.draftSessionKey === currentDraftSession &&
+          job.watchOwner === currentWatchOwner &&
           job.strategyKey === currentStrategyKey &&
           Number(job.commandCount || 0) === currentCommandCount();
       }
@@ -6884,6 +7067,8 @@ export const liveDraftHtml = `<!doctype html>
       const jobScript = job.script && job.script.raw ? job.script.raw : '';
       const scriptRunsControlTheBatch = Boolean(job.script && job.script.runsPerScenario !== undefined);
       return job.strategyKey === currentStrategyKey &&
+        job.draftSessionKey === currentDraftSession &&
+        job.watchOwner === currentWatchOwner &&
         jobScript === currentScript &&
         (scriptRunsControlTheBatch || Number(job.runsPerScenario || 25) === currentMockBatchRuns());
     };
@@ -6911,8 +7096,8 @@ export const liveDraftHtml = `<!doctype html>
       resultsRunNewButton.disabled = isRunning;
 
       if (isRunning) {
-        button.textContent = percent > 0 ? percent + '% complete' : 'Starting mocks';
-        resultsRunNewButton.textContent = percent > 0 ? percent + '% complete' : 'Starting mocks';
+        button.textContent = percent > 0 ? percent + '% complete' : 'Starting simulations';
+        resultsRunNewButton.textContent = percent > 0 ? percent + '% complete' : 'Starting simulations';
         return;
       }
 
@@ -6921,7 +7106,7 @@ export const liveDraftHtml = `<!doctype html>
         button.textContent = 'See results';
         return;
       }
-      button.textContent = 'Run mocks';
+      button.textContent = 'Run simulations';
     };
 
     const publishCurrentMockResults = async () => {
@@ -6956,12 +7141,12 @@ export const liveDraftHtml = `<!doctype html>
           latestMockBatchJob.result &&
           mockBatchJobMatchesCurrentControls(latestMockBatchJob)
         )) {
-          throw new Error('Run mocks or complete the current mock draft before opening results.');
+          throw new Error('Run simulations or complete the current mock draft before opening results.');
         }
 
-        window.location.assign('/mock-results');
+        window.location.assign(mockResultsRouteUrl());
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : 'Could not open mock results.');
+        announceOperation(error instanceof Error ? error.message : 'Could not open mock results.', { assertive: true, focus: true });
         renderMockBatchButtonState(latestMockBatchJob);
         focusCommandInput();
       }
@@ -6970,7 +7155,7 @@ export const liveDraftHtml = `<!doctype html>
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     const fetchMockBatchJob = async jobId => {
-      const response = await fetch('/api/mock-batch/' + encodeURIComponent(jobId));
+      const response = await fetch('/api/mock-batch/' + encodeURIComponent(jobId) + '?draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner));
       const job = await response.json();
       if (!response.ok) throw new Error(job.error || 'Could not load mock batch job.');
       return job;
@@ -6991,14 +7176,14 @@ export const liveDraftHtml = `<!doctype html>
       }
 
       if (job.status === 'complete') return job;
-      if (job.status === 'failed') throw new Error(job.error || 'Mock batch failed.');
+      if (job.status === 'failed') throw new Error(job.error || 'Simulation failed.');
 
       await wait(250);
       return pollMockBatchJob(jobId);
     };
 
     const loadLatestMockBatchJob = async () => {
-      const response = await fetch('/api/mock-batch/latest');
+      const response = await fetch('/api/mock-batch/latest?draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner));
       const job = await response.json();
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(job.error || 'Could not load mock batch results.');
@@ -7033,6 +7218,7 @@ export const liveDraftHtml = `<!doctype html>
           body: JSON.stringify({
             strategyKey: currentStrategyKey,
             draftSession: currentDraftSession,
+            owner: currentWatchOwner,
             runs,
             seedPrefix: mockBatchSeedPrefix(),
             script: mockBatchScript()
@@ -7045,7 +7231,7 @@ export const liveDraftHtml = `<!doctype html>
         await pollMockBatchJob(job.jobId);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not run mock batch.';
-        byId('mock-batch-results').replaceChildren(mockDraftItem('Mock batch failed', message));
+        byId('mock-batch-results').replaceChildren(mockDraftItem('Simulation failed', message));
         latestMockBatchJob = { status: 'failed', percent: 0, error: message };
         renderMockBatchButtonState(latestMockBatchJob);
       }
@@ -7059,6 +7245,7 @@ export const liveDraftHtml = `<!doctype html>
       stopPlayerNewsPolling();
       setActiveRouteShell('draft-room');
       hydrateDraftRoomFromLocation();
+      showOnlyAppView('draft-room-view');
       byId('draft-room-view').hidden = false;
       byId('mock-results-view').hidden = true;
       byId('my-expert-view').hidden = true;
@@ -7072,10 +7259,30 @@ export const liveDraftHtml = `<!doctype html>
       focusCommandInput();
     };
 
+    const renderMockSimulationsPage = async () => {
+      stopPlayerNewsPolling();
+      hydrateDraftRoomFromLocation();
+      setActiveRouteShell('mock-simulations');
+      setAppMenuCurrent('mock-simulations', 'Mock simulations');
+      showOnlyAppView('mock-simulations-view');
+      byId('mock-simulation-strategy').value = currentStrategyKey;
+      const scenario = new URLSearchParams(window.location.search).get('scenario');
+      if (scenario) byId('mock-batch-script').value = scenario;
+      try {
+        await syncLatestMockBatchJob();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not load simulations.';
+        byId('mock-batch-results').replaceChildren(mockDraftItem('Simulations unavailable', message));
+        announceOperation(message, { assertive: true, focus: true });
+      }
+    };
+
     const renderMockResultsPage = async () => {
       stopPlayerNewsPolling();
+      hydrateDraftRoomFromLocation();
       setActiveRouteShell('mock-results');
       setAppMenuCurrent('mock-results', 'Mock results');
+      showOnlyAppView('mock-results-view');
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = false;
       byId('my-expert-view').hidden = true;
@@ -7107,6 +7314,7 @@ export const liveDraftHtml = `<!doctype html>
       setActiveRouteShell('my-expert');
       hydrateMyExpertFromLocation();
       setAppMenuCurrent('my-expert', 'My expert');
+      showOnlyAppView('my-expert-view');
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = true;
       byId('my-expert-view').hidden = false;
@@ -7127,6 +7335,7 @@ export const liveDraftHtml = `<!doctype html>
       setActiveRouteShell('player-news');
       hydratePlayerNewsFromLocation();
       setAppMenuCurrent('player-news', 'Player news');
+      showOnlyAppView('player-news-view');
       byId('draft-room-view').hidden = true;
       byId('mock-results-view').hidden = true;
       byId('my-expert-view').hidden = true;
@@ -7144,6 +7353,11 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderCurrentRoute = async () => {
+      if (window.location.pathname === '/mock-simulations') {
+        await renderMockSimulationsPage();
+        return;
+      }
+
       if (window.location.pathname === '/player-news') {
         await renderPlayerNewsPage();
         return;
@@ -7215,8 +7429,19 @@ export const liveDraftHtml = `<!doctype html>
       return window.confirm('This will ' + action + ' the real live draft room. Export a bundle first if you are not sure.');
     };
 
+    const confirmDraftReset = () =>
+      currentDraftMode === 'interactive-mock'
+        ? window.confirm('Reset this mock draft and permanently remove all practice picks?')
+        : confirmLiveDraftMutation('reset');
+
+    const confirmDraftUndo = () =>
+      currentDraftMode === 'interactive-mock'
+        ? window.confirm('Undo the most recent mock draft sale?')
+        : confirmLiveDraftMutation('undo the last command in');
+
     const advanceMockDraft = async (action, nominatedPlayerName = selectedTargetName, nominatedPrice = nominationPriceValue()) => {
       if (mockAdvanceRequestInFlight) return null;
+      if (action === 'complete-mock' && !window.confirm('Complete this mock draft by simulating every remaining sale?')) return null;
       mockAdvanceRequestInFlight = true;
       mockAdvanceRequestAction = action;
       if (currentMockDraft) renderMockDraft(currentMockDraft);
@@ -7280,7 +7505,7 @@ export const liveDraftHtml = `<!doctype html>
           renderMockBatchButtonState(data.mockBatchJob);
           renderMockBatchResultsForJob(data.mockBatchJob);
           if (action === 'complete-mock' && !(data.errors || []).length) {
-            window.location.assign('/mock-results');
+            window.location.assign(mockResultsRouteUrl());
             return data;
           }
         }
@@ -7288,6 +7513,10 @@ export const liveDraftHtml = `<!doctype html>
         else await refreshMockDraft();
         focusCommandInput();
         return data;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not update the mock draft.';
+        announceOperation(message, { assertive: true, focus: true });
+        return null;
       } finally {
         mockAdvanceRequestInFlight = false;
         mockAdvanceRequestAction = null;
@@ -7362,7 +7591,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const resetDraftRoom = async () => {
-      if (!confirmLiveDraftMutation('reset')) {
+      if (!confirmDraftReset()) {
         focusCommandInput();
         return;
       }
@@ -7371,10 +7600,17 @@ export const liveDraftHtml = `<!doctype html>
         : {};
       const data = await postJsonAndRefresh('/api/reset', resetGuard);
       alertCommandErrors(data);
+      if (!(data.errors || []).length) {
+        if (currentDraftMode === 'interactive-mock') {
+          announceOperation('Mock draft reset. Start again when you are ready.', { focus: true });
+        } else {
+          announceOperation('Real draft reset.', { focus: true });
+        }
+      }
     };
 
     const undoDraftRoom = async () => {
-      if (!confirmLiveDraftMutation('undo the last command in')) {
+      if (!confirmDraftUndo()) {
         focusCommandInput();
         return;
       }
@@ -7383,6 +7619,7 @@ export const liveDraftHtml = `<!doctype html>
         : {};
       const data = await postJsonAndRefresh('/api/undo', undoGuard);
       alertCommandErrors(data);
+      if (!(data.errors || []).length) announceOperation('Last draft action undone.', { focus: true });
     };
 
     const syncBoardSearchInput = source => {
@@ -7442,6 +7679,7 @@ export const liveDraftHtml = `<!doctype html>
       pendingCamNominationName = null;
       pendingCamNominationPrice = 1;
       persistDraftLifecycle();
+      window.history.replaceState(null, '', draftRoomRouteUrl(currentDraftMode));
       await refreshDraftRoom();
       focusCommandInput();
     });
@@ -7540,6 +7778,10 @@ export const liveDraftHtml = `<!doctype html>
       renderMockBatchResultsForJob(latestMockBatchJob);
     });
     byId('see-mock-results-button').addEventListener('click', () => void openMockResults());
+    byId('mock-simulations-button').addEventListener('click', () => {
+      closeAppMenu();
+      window.location.assign(mockSimulationsRouteUrl());
+    });
     byId('my-expert-button').addEventListener('click', () => {
       closeAppMenu();
       window.location.assign(myExpertRouteUrl());
@@ -7563,6 +7805,7 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-next-decision-button').addEventListener('click', () => advanceMockDraft('next-cam-decision'));
     byId('mock-next-round-button').addEventListener('click', () => advanceMockDraft('next-round'));
     byId('mock-complete-button').addEventListener('click', () => advanceMockDraft('complete-mock'));
+    byId('mock-simulations-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));
     byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/draft-room'));
     byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/draft-room'));
     byId('my-expert-refresh-button').addEventListener('click', () => refreshMyExpertIfCurrentRoute());
@@ -7596,7 +7839,15 @@ export const liveDraftHtml = `<!doctype html>
       const list = byId('mock-results-run-list');
       list.hidden = !list.hidden;
     });
-    byId('mock-results-run-new-button').addEventListener('click', () => runMockBatch());
+    byId('mock-results-run-new-button').addEventListener('click', () => window.location.assign(mockSimulationsRouteUrl()));
+    byId('mock-simulation-strategy').addEventListener('change', event => {
+      currentStrategyKey = strategyKeys.includes(event.target.value) ? event.target.value : 'three-rb';
+      latestMockBatchJob = null;
+      latestMockBatchReport = null;
+      window.history.replaceState(null, '', mockSimulationsRouteUrl(mockBatchScript()));
+      renderMockBatchButtonState(null);
+      renderMockBatchResults(null);
+    });
     document.addEventListener('click', event => {
       if (!event.target.closest || !event.target.closest('.run-selector')) byId('mock-results-run-list').hidden = true;
       if (!event.target.closest || !event.target.closest('#app-menu')) closeAppMenu();
