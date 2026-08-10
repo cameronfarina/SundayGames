@@ -273,6 +273,36 @@ describe("live draft rooms", () => {
     ]);
   });
 
+  it("rejects structured sales when teamId and ownerId point to different teams", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    createRoom(repository, { season });
+    startRoom(repository);
+
+    expect(() =>
+      repository.logSaleCommand({
+        roomId: "room_sunday",
+        actor: commissioner,
+        expectedRevision: 2,
+        idempotencyKey: "sale:mismatched-team-owner",
+        sale: {
+          teamId: camTeam.id,
+          ownerId: sethTeam.ownerId,
+          playerName: "Puka Nacua",
+          price: 1,
+        },
+        now: new Date(now.getTime() + 2_000),
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "team_not_found",
+      `Sale team does not match owner "${sethTeam.ownerId}".`,
+    ));
+  });
+
   it("rejects duplicate sold players", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     createRoom(repository);

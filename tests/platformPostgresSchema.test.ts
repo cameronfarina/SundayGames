@@ -194,6 +194,10 @@ describe("platform Postgres schema contract", () => {
     expectUniqueContract("sessions", "sessions_token_hash_key", ["token_hash"]);
     expectUniqueContract("league_seasons", "league_seasons_league_year_key", ["league_id", "season_year"]);
     expectUniqueContract("league_memberships", "league_memberships_league_user_key", ["league_id", "user_id"]);
+    expectUniqueContract("fantasy_teams", "fantasy_teams_season_owner_user_key", [
+      "league_season_id",
+      "owner_user_id",
+    ], "owner_user_id IS NOT NULL");
     expectUniqueContract("historical_import_batches", "historical_import_batches_file_identity_key", [
       "league_id",
       "season_year",

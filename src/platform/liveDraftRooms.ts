@@ -442,6 +442,9 @@ const resolveTeam = (
     if (team === undefined) {
       throw new LiveDraftRoomError("team_not_found", `Unknown team "${input.teamId}".`);
     }
+    if (input.ownerId !== undefined && team.ownerId !== input.ownerId) {
+      throw new LiveDraftRoomError("team_not_found", `Sale team does not match owner "${input.ownerId}".`);
+    }
 
     return team;
   }

@@ -173,6 +173,7 @@ describe("platform HTTP contract", () => {
     const login = await handle({
       method: "POST",
       path: "/sessions",
+      headers: { host: "mockd.example.com" },
       body: {
         email: "cam@example.com",
         password: "secure password",
@@ -196,6 +197,7 @@ describe("platform HTTP contract", () => {
     expect(JSON.stringify(login.body)).not.toContain("scrypt");
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("mockd_session="));
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("HttpOnly"));
+    expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("Secure"));
   });
 
   it("bootstraps and clears the current browser session", async () => {
@@ -213,6 +215,7 @@ describe("platform HTTP contract", () => {
       method: "DELETE",
       path: "/session",
       sessionToken: cam.sessionToken,
+      headers: { host: "mockd.example.com" },
       now: new Date(now.getTime() + 1_000),
     });
     const afterLogout = await handle({
@@ -234,7 +237,7 @@ describe("platform HTTP contract", () => {
     expect(loggedOut).toEqual({
       status: 200,
       headers: {
-        "Set-Cookie": "mockd_session=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax",
+        "Set-Cookie": "mockd_session=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax",
       },
       body: { ok: true },
     });
@@ -972,6 +975,33 @@ describe("platform HTTP contract", () => {
 
     expect(startedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "live", revision: 2 }),
+    });
+
+    const mismatchedStructuredSale = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/sales",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 2,
+        idempotencyKey: "sale:mismatched-team-owner",
+        structuredSale: {
+          teamId: camTeam.id,
+          ownerId: sethTeam.ownerId,
+          playerName: "Puka Nacua",
+          price: 1,
+        },
+        now: new Date(now.getTime() + 4_100),
+      },
+    });
+
+    expect(mismatchedStructuredSale).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: "team_not_found",
+          message: `Sale team does not match owner "${sethTeam.ownerId}".`,
+        },
+      },
     });
 
     const missingSaleRevision = await handle({

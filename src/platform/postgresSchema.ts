@@ -258,6 +258,12 @@ const platformPostgresTables = [
       },
     ],
     indexes: [
+      {
+        name: "fantasy_teams_season_owner_user_key",
+        columns: ["league_season_id", "owner_user_id"],
+        unique: true,
+        where: "owner_user_id IS NOT NULL",
+      },
       { name: "fantasy_teams_owner_user_id_idx", columns: ["owner_user_id"] },
     ],
   },

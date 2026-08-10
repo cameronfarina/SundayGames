@@ -225,6 +225,32 @@ const sessionTokenFor = (
   bearerSessionToken(headerValue(request.headers, "authorization")) ??
   "";
 
+const loopbackHostnames = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+
+const hostnameForCookiePolicy = (hostHeader: string | undefined): string | undefined => {
+  const host = hostHeader?.trim().toLowerCase();
+  if (host === undefined || host.length === 0) return undefined;
+  if (host.startsWith("[")) {
+    const endBracketIndex = host.indexOf("]");
+
+    return endBracketIndex === -1 ? host : host.slice(1, endBracketIndex);
+  }
+
+  return host.split(":")[0];
+};
+
+const secureSessionCookieFor = (headers: PlatformHttpRequest["headers"]): boolean => {
+  const forwardedProto = headerValue(headers, "x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+  if (forwardedProto === "https") return true;
+
+  const hostname = hostnameForCookiePolicy(headerValue(headers, "host"));
+
+  return hostname === undefined || !loopbackHostnames.has(hostname);
+};
+
 const publicSessionFor = (session: SessionRecord): PublicSessionRecord => ({
   id: session.id,
   accountId: session.accountId,
@@ -1022,6 +1048,7 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
     try {
       const parsedRequest = parsedRequestFor(request);
       const [root] = parsedRequest.segments;
+      const secureSessionCookie = secureSessionCookieFor(request.headers);
 
       if (root === "accounts" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
@@ -1056,6 +1083,7 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
           headers: {
             "Set-Cookie": mockdSessionCookie(login.sessionToken, {
               expires: login.session.expiresAt,
+              secure: secureSessionCookie,
             }),
           },
           body: {
@@ -1084,7 +1112,7 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
           return {
             status: 200,
             headers: {
-              "Set-Cookie": clearMockdSessionCookie(),
+              "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }),
             },
             body: { ok: true },
           };
