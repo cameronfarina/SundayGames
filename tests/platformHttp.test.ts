@@ -1111,6 +1111,21 @@ describe("platform HTTP contract", () => {
       },
     });
 
+    const saleEventStream = await handle({
+      method: "GET",
+      path: "/live-rooms/room_214674_2026/event-stream?afterRevision=2",
+      sessionToken: seth.sessionToken,
+    });
+
+    expect(saleEventStream.status).toBe(200);
+    expect(saleEventStream.headers).toMatchObject({
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    });
+    expect(saleEventStream.body).toContain("id: room_214674_2026:3\n");
+    expect(saleEventStream.body).toContain("event: room.sale\n");
+    expect(saleEventStream.body).toContain("\"playerName\":\"Puka Nacua\"");
+
     const undoneRoom = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/undo",

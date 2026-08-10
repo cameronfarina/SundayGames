@@ -94,6 +94,24 @@ describe("platform Node HTTP adapter", () => {
     expect(seenRequests).toHaveLength(1);
   });
 
+  it("serializes text event stream responses without JSON wrapping", async () => {
+    const baseUrl = await listen(async () => ({
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+      },
+      body: "id: room_1:2\nevent: room.started\ndata: {\"revision\":2}\n\n",
+    }));
+
+    const response = await fetch(`${baseUrl}/live-rooms/room_1/event-stream?afterRevision=1`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    expect(response.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(await response.text()).toBe("id: room_1:2\nevent: room.started\ndata: {\"revision\":2}\n\n");
+  });
+
   it("serves the configured platform shell without calling the JSON handler", async () => {
     let callCount = 0;
     const baseUrl = await listen(async () => {

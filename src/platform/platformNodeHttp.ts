@@ -168,6 +168,20 @@ const writeJsonResponse = (
   response: ServerResponse,
   platformResponse: PlatformHttpResponse,
 ): void => {
+  const explicitContentType = Object.entries(platformResponse.headers ?? {})
+    .find(([name]) => name.toLowerCase() === "content-type")?.[1];
+  const contentType = firstHeaderValue(explicitContentType);
+  const rawTextBody = typeof platformResponse.body === "string" ? platformResponse.body : undefined;
+  if (rawTextBody !== undefined && contentType?.toLowerCase().startsWith("text/event-stream") === true) {
+    response.statusCode = platformResponse.status;
+    for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
+      if (value !== undefined) response.setHeader(name, value);
+    }
+    response.setHeader("Content-Length", Buffer.byteLength(rawTextBody));
+    response.end(rawTextBody);
+    return;
+  }
+
   const body = JSON.stringify(platformResponse.body ?? null);
 
   response.statusCode = platformResponse.status;

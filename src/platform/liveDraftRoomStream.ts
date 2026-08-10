@@ -425,6 +425,23 @@ export const buildLiveDraftRoomErrorEvent = (
   },
 });
 
+export const formatLiveDraftRoomSsePayloads = (
+  events: readonly LiveDraftRoomSsePayload[],
+): string => {
+  if (events.length === 0) return ": keep-alive\n\n";
+
+  return events.map(event => {
+    const lines = [
+      `id: ${event.id}`,
+      `event: ${event.event}`,
+      ...("retry" in event ? [`retry: ${event.retry}`] : []),
+      `data: ${JSON.stringify(event.data)}`,
+    ];
+
+    return `${lines.join("\n")}\n\n`;
+  }).join("");
+};
+
 export const liveDraftRoomEventsAfterRevision = (
   input: LiveDraftRoomEventsAfterRevisionInput,
 ): LiveDraftRoomEventsAfterRevisionResult => {

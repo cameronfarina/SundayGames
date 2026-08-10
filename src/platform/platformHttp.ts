@@ -10,6 +10,7 @@ import {
   type LiveDraftRoomPlayerCatalogEntry,
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
+import { formatLiveDraftRoomSsePayloads } from "./liveDraftRoomStream.js";
 import {
   MockDraftSessionError,
   type MockDraftModeMetadata,
@@ -989,6 +990,28 @@ const routeLiveRooms = async (
     });
 
     return { status: 200, body: { events } };
+  }
+
+  if (action === "event-stream" || action === "events-stream") {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    const events = await app.getLiveDraftRoomEvents({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      afterRevision: optionalNumber(request.query.afterRevision) ?? 0,
+      now: request.now,
+    });
+
+    return {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+      body: formatLiveDraftRoomSsePayloads(events.events),
+    };
   }
 
   if (request.method !== "POST") return methodNotAllowed();

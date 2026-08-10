@@ -10,6 +10,7 @@ import {
   buildLiveDraftRoomReadModel,
   buildLiveDraftRoomSseEvent,
   buildLiveDraftRoomSnapshotEvent,
+  formatLiveDraftRoomSsePayloads,
   liveDraftRoomEventsAfterRevision,
   type LiveDraftRoomStreamActor,
 } from "../src/platform/liveDraftRoomStream.js";
@@ -238,6 +239,24 @@ describe("live draft room stream contract", () => {
       "room.ended",
     ]);
     expect(nextEvents.events.map(event => event.revision)).toEqual([2, 3, 4]);
+  });
+
+  it("formats revisioned events as EventSource-compatible SSE text", () => {
+    const room = buildLiveRoom();
+    const nextEvents = liveDraftRoomEventsAfterRevision({
+      room,
+      actor: commissioner,
+      afterRevision: 2,
+    });
+
+    const sseText = formatLiveDraftRoomSsePayloads(nextEvents.events);
+
+    expect(sseText).toContain("id: room_sunday:3\nevent: room.sale\n");
+    expect(sseText).toContain("id: room_sunday:4\nevent: room.ended\n");
+    expect(sseText).toContain("data: {\"roomId\":\"room_sunday\"");
+    expect(sseText).toContain("\"playerName\":\"Puka Nacua\"");
+    expect(sseText.endsWith("\n\n")).toBe(true);
+    expect(formatLiveDraftRoomSsePayloads([])).toBe(": keep-alive\n\n");
   });
 
   it("returns the current snapshot when a polling client has no revision", () => {
