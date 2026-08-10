@@ -1,0 +1,256 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import type { AccountRecord } from "../src/platform/auth.js";
+import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+
+const mobileViewport = { width: 390, height: 844 } as const;
+const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
+const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
+const smokeRunId = process.env.MOCKD_E2E_RUN_ID?.trim()
+  ?.toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "");
+const namespace = smokeRunId === undefined || smokeRunId.length === 0 ? "local" : smokeRunId;
+const leagueName = `Mobile Release League ${namespace}`;
+const roomId = `room_mobile_release_${namespace.replace(/-/g, "_")}`;
+
+interface JsonResponse<TBody> {
+  status: number;
+  body: TBody;
+}
+
+interface AccountBody {
+  account: AccountRecord;
+}
+
+interface SeasonBody {
+  season: LeagueSeason;
+}
+
+const playerCatalog = [
+  { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 8 },
+  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 8 },
+  { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 8 },
+  { name: "De'Von Achane", position: "RB", expectedPrice: 50, teamAbbreviation: "MIA", byeWeek: 12 },
+  { name: "George Kittle", position: "TE", expectedPrice: 28, teamAbbreviation: "SF", byeWeek: 9 },
+  { name: "Trevor Lawrence", position: "QB", expectedPrice: 9, teamAbbreviation: "JAC", byeWeek: 8 },
+] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const api = async <TBody>(
+  page: Page,
+  path: string,
+  options: { method?: "GET" | "POST"; body?: unknown } = {},
+): Promise<JsonResponse<TBody>> =>
+  await page.evaluate(async ({ requestPath, method, body }) => {
+    const request: RequestInit = {
+      method,
+      credentials: "same-origin",
+    };
+    if (body !== undefined) {
+      request.headers = { "content-type": "application/json" };
+      request.body = JSON.stringify(body);
+    }
+    const response = await fetch(requestPath, request);
+    const text = await response.text();
+
+    return {
+      status: response.status,
+      body: text.length === 0 ? null : JSON.parse(text),
+    };
+  }, {
+    requestPath: path,
+    method: options.method ?? "GET",
+    body: options.body,
+  }) as JsonResponse<TBody>;
+
+const expectOk = <TBody>(response: JsonResponse<TBody>): TBody => {
+  expect(response.status, JSON.stringify(response.body)).toBeGreaterThanOrEqual(200);
+  expect(response.status, JSON.stringify(response.body)).toBeLessThan(300);
+  return response.body;
+};
+
+const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord> => {
+  await page.goto("/signup");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
+    const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
+    if (!authError.includes("already exists")) throw error;
+
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.locator("#account-email")).toHaveText(email);
+  });
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator("#account-email")).toHaveText(email);
+
+  return expectOk(await api<AccountBody>(page, "/session")).account;
+};
+
+const seasonForMobileRelease = (): LeagueSeason => {
+  const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+    leagueName,
+    setupStatus: "published",
+  });
+  const leagueId = `${season.leagueId}-mobile-${namespace}`;
+  const seasonId = `${leagueId}-season-${season.seasonYear}`;
+
+  return {
+    ...season,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...season.league,
+      id: leagueId,
+      externalLeagueId: `${season.league.externalLeagueId}-mobile-${namespace}`,
+      name: leagueName,
+    },
+    teams: season.teams.map((team, index) => ({
+      ...team,
+      id: `${seasonId}-team-${String(index + 1).padStart(2, "0")}`,
+      leagueSeasonId: seasonId,
+      ownerId: `${team.ownerId}-mobile-${namespace}`,
+    })),
+  };
+};
+
+const expectNoHorizontalPageOverflow = async (page: Page): Promise<void> => {
+  const dimensions = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    bodyWidth: document.body.scrollWidth,
+  }));
+
+  expect(dimensions.viewportWidth).toBe(mobileViewport.width);
+  expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+  expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+};
+
+const expectNoControlOverlap = async (controls: readonly Locator[]): Promise<void> => {
+  const boxes = await Promise.all(controls.map(async control => {
+    await expect(control).toBeVisible();
+    const box = await control.boundingBox();
+    if (box === null) throw new Error("Expected visible control bounds.");
+    return box;
+  }));
+
+  for (const box of boxes) {
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(mobileViewport.width);
+  }
+
+  for (let leftIndex = 0; leftIndex < boxes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < boxes.length; rightIndex += 1) {
+      const left = boxes[leftIndex];
+      const right = boxes[rightIndex];
+      if (left === undefined || right === undefined) throw new Error("Expected control bounds.");
+      const overlaps = left.x < right.x + right.width
+        && left.x + left.width > right.x
+        && left.y < right.y + right.height
+        && left.y + left.height > right.y;
+      expect(overlaps).toBe(false);
+    }
+  }
+};
+
+test.use({
+  viewport: mobileViewport,
+  hasTouch: true,
+  isMobile: true,
+});
+
+test("mobile shell and live draft preserve a commissioner sale through reconnect", async ({ page }) => {
+  const email = smokeRunId === undefined
+    ? "mobile.release.e2e@example.com"
+    : `mobile.release.e2e+${smokeRunId}@${emailDomain}`;
+  const account = await signUpAndLogIn(page, email);
+  const season = seasonForMobileRelease();
+  const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+  if (camTeam === undefined) throw new Error("Expected the Cam fixture team.");
+
+  expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    body: {
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+      }],
+    },
+  }));
+  expectOk(await api(page, "/live-rooms", {
+    method: "POST",
+    body: {
+      seasonId: season.id,
+      roomId,
+      viewerPasswordHashRef: "mobile-release-viewer-password-hash",
+      playerCatalog,
+      initialRosters: [{
+        teamId: camTeam.id,
+        playerName: "De'Von Achane",
+        position: "RB",
+        price: 50,
+        expectedPrice: 50,
+      }],
+    },
+  }));
+
+  await page.goto(`/app?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#league-name")).toHaveText(leagueName);
+  await expect(page.locator("#my-team-name")).toHaveText("Cam");
+  await expect(page.locator("#membership-role")).toHaveText("Admin");
+  await expect(page.locator("#open-live-draft-button")).toHaveText("Open live draft");
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoControlOverlap([
+    page.locator("#sign-out-button"),
+    page.locator("#league-picker"),
+    page.locator("#open-live-draft-button"),
+  ]);
+
+  await page.locator("#open-live-draft-button").click();
+  await expect(page.locator("#draft-room-view")).toBeVisible();
+  await expect(page.locator("#draft-board-cards")).toBeVisible();
+  await expect(page.locator("#draft-board-cards [data-player-name]")).toHaveCount(playerCatalog.length - 1);
+  await expect(page.locator('#draft-board-cards [data-player-name="Puka Nacua"]')).toBeVisible();
+  await expect(page.locator("#draft-current-team")).toHaveText("Your team: Cam");
+  await expect(page.locator("#draft-team-budget")).toHaveText("$150");
+  await expect(page.locator("#draft-team-roster")).toContainText("De'Von Achane");
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoControlOverlap([
+    page.locator("#draft-sale-command"),
+    page.locator("#draft-log-sale"),
+    page.locator("#draft-start"),
+    page.locator("#draft-pause"),
+    page.locator("#draft-undo"),
+    page.locator("#draft-end"),
+  ]);
+
+  await page.locator("#draft-start").click();
+  await expect(page.locator("#draft-room-status")).toHaveText("Live");
+  await page.locator("#draft-sale-command").fill("cam puka 62");
+  await page.locator("#draft-log-sale").click();
+  await expect(page.locator("#draft-sales")).toContainText("Puka Nacua");
+  await expect(page.locator("#draft-team-budget")).toHaveText("$88");
+  await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
+
+  await page.reload();
+  await expect(page.locator("#draft-room-status")).toHaveText("Live");
+  await expect(page.locator("#draft-connection-label")).toHaveText("Live");
+  await expect(page.locator("#draft-sales")).toContainText("Puka Nacua");
+  await expect(page.locator("#draft-team-budget")).toHaveText("$88");
+  await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
+  await expect(page.locator('#draft-board-cards [data-player-name="Puka Nacua"]')).toHaveCount(0);
+  await expectNoHorizontalPageOverflow(page);
+});
