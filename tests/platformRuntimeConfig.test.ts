@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readPlatformRuntimeConfig } from "../src/platform/platformRuntimeConfig.js";
+import {
+  assessPlatformProductionReadiness,
+  formatPlatformProductionReadinessReport,
+  platformProductionReadinessExitCode,
+  readPlatformRuntimeConfig,
+} from "../src/platform/platformRuntimeConfig.js";
 
 describe("platform runtime config", () => {
   it("reads web, Postgres, and worker settings from environment variables", () => {
@@ -112,5 +117,128 @@ describe("platform runtime config", () => {
     expect(readPlatformRuntimeConfig({
       MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
     }, { requireDurableStore: true }).dataFilePath).toBe("/tmp/mockd-platform.json");
+  });
+
+  it("reports production/domain readiness for a Postgres-backed deploy target", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+      PORT: "443",
+    });
+
+    expect(report).toMatchObject({
+      ready: true,
+      host: "0.0.0.0",
+      port: 443,
+      storage: {
+        kind: "postgres",
+        envKey: "DATABASE_URL",
+      },
+    });
+    expect(report.checks).toEqual([
+      {
+        status: "pass",
+        label: "Postgres durable storage",
+        detail: "DATABASE_URL is configured for durable platform storage.",
+      },
+      {
+        status: "pass",
+        label: "File-backed storage",
+        detail: "MOCKD_PLATFORM_DATA_FILE is not configured.",
+      },
+      {
+        status: "pass",
+        label: "Web bind target",
+        detail: "Host 0.0.0.0, port 443.",
+      },
+    ]);
+    expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
+    expect(report.nextSteps.join("\n")).toContain("Seed or verify");
+    expect(report.nextSteps.join("\n")).toContain("npm run smoke");
+    expect(platformProductionReadinessExitCode(report)).toBe(0);
+
+    const formatted = formatPlatformProductionReadinessReport(report);
+    expect(formatted).toContain("Mockd production/domain readiness: READY");
+    expect(formatted).toContain("Web bind: 0.0.0.0:443");
+    expect(formatted).toContain("PASS Postgres durable storage - DATABASE_URL is configured");
+  });
+
+  it("blocks production/domain readiness when Postgres env is missing", () => {
+    const report = assessPlatformProductionReadiness({
+      HOST: "0.0.0.0",
+      PORT: "4361",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.storage).toEqual({ kind: "missing" });
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Postgres durable storage",
+      detail: "DATABASE_URL is required for production/domain readiness.",
+    });
+    expect(platformProductionReadinessExitCode(report)).toBe(1);
+    expect(formatPlatformProductionReadinessReport(report)).toContain(
+      "FAIL Postgres durable storage - DATABASE_URL is required for production/domain readiness.",
+    );
+  });
+
+  it("blocks file-backed stores for production/domain readiness", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.storage).toEqual({
+      kind: "ambiguous",
+      databaseEnvKey: "DATABASE_URL",
+      dataFilePath: "/tmp/mockd-platform.json",
+    });
+    expect(report.checks).toContainEqual({
+      status: "pass",
+      label: "Postgres durable storage",
+      detail: "DATABASE_URL is configured for durable platform storage.",
+    });
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "File-backed storage",
+      detail: "MOCKD_PLATFORM_DATA_FILE is local-only and cannot be used for production/domain deployment.",
+    });
+    expect(platformProductionReadinessExitCode(report)).toBe(1);
+  });
+
+  it("blocks non-Postgres database URLs for production/domain readiness", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "file:/tmp/mockd-platform.json",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Postgres durable storage",
+      detail: "DATABASE_URL must be a postgres:// or postgresql:// connection string.",
+    });
+    expect(formatPlatformProductionReadinessReport(report)).not.toContain("file:/tmp/mockd-platform.json");
+  });
+
+  it("requires an explicit production bind port", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.host).toBe("0.0.0.0");
+    expect(report.port).toBeUndefined();
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Web bind target",
+      detail: "PORT is required for production/domain readiness.",
+    });
+    expect(formatPlatformProductionReadinessReport(report)).toContain("Web bind: 0.0.0.0:<missing PORT>");
   });
 });

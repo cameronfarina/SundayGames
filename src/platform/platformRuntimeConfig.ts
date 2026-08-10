@@ -29,11 +29,47 @@ export interface PlatformRuntimeConfig {
   };
 }
 
+export type PlatformProductionReadinessCheckStatus = "pass" | "fail";
+
+export interface PlatformProductionReadinessCheck {
+  status: PlatformProductionReadinessCheckStatus;
+  label: string;
+  detail: string;
+}
+
+type PlatformDatabaseUrlEnvKey = "DATABASE_URL" | "MOCKD_DATABASE_URL";
+
+interface PlatformDatabaseUrlEnvValue {
+  envKey: PlatformDatabaseUrlEnvKey;
+  value: string;
+}
+
+export type PlatformProductionReadinessStorage =
+  | { kind: "postgres"; envKey: PlatformDatabaseUrlEnvKey }
+  | { kind: "file"; dataFilePath: string }
+  | { kind: "ambiguous"; databaseEnvKey: PlatformDatabaseUrlEnvKey; dataFilePath: string }
+  | { kind: "missing" };
+
+export interface PlatformProductionReadinessReport {
+  ready: boolean;
+  host: string;
+  port: number | undefined;
+  storage: PlatformProductionReadinessStorage;
+  checks: readonly PlatformProductionReadinessCheck[];
+  nextSteps: readonly string[];
+}
+
 const defaultPostgresPoolSize = 5;
 const defaultWorkerJobKinds: readonly JobKind[] = ["simulation"];
 const defaultWorkerPollIntervalMs = 1_000;
 const defaultWorkerLockTtlMs = 60_000;
 const launchWorkerJobKinds = ["simulation"] as const satisfies readonly JobKind[];
+const productionReadinessNextSteps = [
+  "Run `npm run platform:migrate` against the production DATABASE_URL before starting web or worker processes.",
+  "Seed or verify production league, users, memberships, pricing, and a test live room; use `npm run platform:seed:e2e` only for rehearsal fixtures.",
+  "Start `npm run platform:web` behind the domain/proxy and `npm run platform:worker` for background jobs.",
+  "Run `npm run smoke` after deploy and keep the output with the release notes.",
+] as const;
 
 const optionalEnvString = (env: PlatformRuntimeEnv, key: string): string | undefined => {
   const value = env[key]?.trim();
@@ -115,11 +151,36 @@ const workerJobKinds = (env: PlatformRuntimeEnv): readonly JobKind[] => {
   });
 };
 
+const databaseUrlEnv = (
+  env: PlatformRuntimeEnv,
+): PlatformDatabaseUrlEnvValue | undefined => {
+  const databaseUrl = optionalEnvString(env, "DATABASE_URL");
+  if (databaseUrl !== undefined) return { envKey: "DATABASE_URL", value: databaseUrl };
+
+  const mockdDatabaseUrl = optionalEnvString(env, "MOCKD_DATABASE_URL");
+  if (mockdDatabaseUrl !== undefined) return { envKey: "MOCKD_DATABASE_URL", value: mockdDatabaseUrl };
+
+  return undefined;
+};
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const isPostgresDatabaseUrl = (databaseUrl: string): boolean => {
+  try {
+    const protocol = new URL(databaseUrl).protocol;
+
+    return protocol === "postgres:" || protocol === "postgresql:";
+  } catch {
+    return false;
+  }
+};
+
 export const readPlatformRuntimeConfig = (
   env: PlatformRuntimeEnv = process.env,
   options: ReadPlatformRuntimeConfigOptions = {},
 ): PlatformRuntimeConfig => {
-  const databaseUrl = optionalEnvString(env, "DATABASE_URL") ?? optionalEnvString(env, "MOCKD_DATABASE_URL");
+  const databaseUrl = databaseUrlEnv(env)?.value;
   const dataFilePath = optionalEnvString(env, "MOCKD_PLATFORM_DATA_FILE");
 
   if (databaseUrl !== undefined && dataFilePath !== undefined) {
@@ -169,3 +230,148 @@ export const readPlatformRuntimeConfig = (
     },
   };
 };
+
+const productionReadinessStorage = (
+  env: PlatformRuntimeEnv,
+): PlatformProductionReadinessStorage => {
+  const database = databaseUrlEnv(env);
+  const dataFilePath = optionalEnvString(env, "MOCKD_PLATFORM_DATA_FILE");
+
+  if (database !== undefined && dataFilePath !== undefined) {
+    return {
+      kind: "ambiguous",
+      databaseEnvKey: database.envKey,
+      dataFilePath,
+    };
+  }
+  if (database !== undefined) return { kind: "postgres", envKey: database.envKey };
+  if (dataFilePath !== undefined) return { kind: "file", dataFilePath };
+
+  return { kind: "missing" };
+};
+
+export const assessPlatformProductionReadiness = (
+  env: PlatformRuntimeEnv = process.env,
+): PlatformProductionReadinessReport => {
+  const checks: PlatformProductionReadinessCheck[] = [];
+  const storage = productionReadinessStorage(env);
+  const database = databaseUrlEnv(env);
+  const databaseUsesPostgresScheme = database !== undefined &&
+    isPostgresDatabaseUrl(database.value);
+  const host = optionalEnvString(env, "HOST") ?? "127.0.0.1";
+  let port: number | undefined;
+
+  if (database === undefined) {
+    checks.push({
+      status: "fail",
+      label: "Postgres durable storage",
+      detail: "DATABASE_URL is required for production/domain readiness.",
+    });
+  } else if (!databaseUsesPostgresScheme) {
+    checks.push({
+      status: "fail",
+      label: "Postgres durable storage",
+      detail: `${database.envKey} must be a postgres:// or postgresql:// connection string.`,
+    });
+  } else {
+    checks.push({
+      status: "pass",
+      label: "Postgres durable storage",
+      detail: `${database.envKey} is configured for durable platform storage.`,
+    });
+  }
+
+  if (storage.kind === "file" || storage.kind === "ambiguous") {
+    checks.push({
+      status: "fail",
+      label: "File-backed storage",
+      detail: "MOCKD_PLATFORM_DATA_FILE is local-only and cannot be used for production/domain deployment.",
+    });
+  } else {
+    checks.push({
+      status: "pass",
+      label: "File-backed storage",
+      detail: "MOCKD_PLATFORM_DATA_FILE is not configured.",
+    });
+  }
+
+  if (optionalEnvString(env, "PORT") === undefined) {
+    checks.push({
+      status: "fail",
+      label: "Web bind target",
+      detail: "PORT is required for production/domain readiness.",
+    });
+  } else {
+    try {
+      port = positiveIntegerEnv(env, "PORT", 0);
+      checks.push({
+        status: "pass",
+        label: "Web bind target",
+        detail: `Host ${host}, port ${port}.`,
+      });
+    } catch (error) {
+      checks.push({
+        status: "fail",
+        label: "Web bind target",
+        detail: errorMessage(error),
+      });
+    }
+  }
+
+  if (storage.kind === "postgres" && databaseUsesPostgresScheme && port !== undefined) {
+    try {
+      readPlatformRuntimeConfig(env, { requireDatabase: true });
+    } catch (error) {
+      checks.push({
+        status: "fail",
+        label: "Runtime configuration",
+        detail: errorMessage(error),
+      });
+    }
+  }
+
+  return {
+    ready: checks.every(check => check.status === "pass"),
+    host,
+    port,
+    storage,
+    checks,
+    nextSteps: productionReadinessNextSteps,
+  };
+};
+
+const storageDescription = (storage: PlatformProductionReadinessStorage): string => {
+  switch (storage.kind) {
+    case "postgres":
+      return `Postgres (${storage.envKey})`;
+    case "file":
+      return `File-backed local store (${storage.dataFilePath})`;
+    case "ambiguous":
+      return `Postgres (${storage.databaseEnvKey}) plus file-backed local store (${storage.dataFilePath})`;
+    case "missing":
+      return "Missing";
+  }
+};
+
+export const formatPlatformProductionReadinessReport = (
+  report: PlatformProductionReadinessReport,
+): string => {
+  const status = report.ready ? "READY" : "BLOCKED";
+  const bindTarget = report.port === undefined ? `${report.host}:<missing PORT>` : `${report.host}:${report.port}`;
+
+  return [
+    `Mockd production/domain readiness: ${status}`,
+    `Storage: ${storageDescription(report.storage)}`,
+    `Web bind: ${bindTarget}`,
+    "",
+    "Checks:",
+    ...report.checks.map(check => `${check.status.toUpperCase()} ${check.label} - ${check.detail}`),
+    "",
+    "Next steps:",
+    ...report.nextSteps.map((step, index) => `${index + 1}. ${step}`),
+  ].join("\n");
+};
+
+export const platformProductionReadinessExitCode = (
+  report: Pick<PlatformProductionReadinessReport, "ready">,
+): 0 | 1 => report.ready ? 0 : 1;

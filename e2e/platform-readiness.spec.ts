@@ -5,9 +5,29 @@ import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platfor
 import type { LiveDraftRoom, LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
 
-const password = "e2e-secure-password";
-const leagueName = "E2E League 214674";
-const roomId = "room_e2e_readiness";
+const smokeRunIdFromEnv = (): string | undefined => {
+  const rawSmokeRunId = process.env.MOCKD_E2E_RUN_ID?.trim();
+  if (rawSmokeRunId === undefined || rawSmokeRunId.length === 0) return undefined;
+
+  const normalizedSmokeRunId = rawSmokeRunId
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (normalizedSmokeRunId.length === 0) {
+    throw new Error("MOCKD_E2E_RUN_ID must contain at least one letter or number.");
+  }
+
+  return normalizedSmokeRunId;
+};
+
+const smokeRunId = smokeRunIdFromEnv();
+const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
+const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
+const baseLeagueName = "E2E League 214674";
+const leagueName = smokeRunId === undefined ? baseLeagueName : `${baseLeagueName} ${smokeRunId}`;
+const roomId = smokeRunId === undefined
+  ? "room_e2e_readiness"
+  : `room_e2e_readiness_${smokeRunId.replace(/-/g, "_")}`;
 const exportedAt = "2026-08-09T15:30:00.000Z";
 
 interface JsonResponse<TBody> {
@@ -74,6 +94,50 @@ const expectOk = <TBody>(response: JsonResponse<TBody>): TBody => {
   return response.body;
 };
 
+const cleanIdFragment = (value: string): string => {
+  const cleanValue = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return cleanValue.length === 0 ? "smoke" : cleanValue;
+};
+
+const emailFor = (name: "cam" | "seth"): string =>
+  smokeRunId === undefined
+    ? `${name}.e2e@example.com`
+    : `${name}.e2e+${smokeRunId}@${emailDomain}`;
+
+const namespacedSeasonForSmoke = (season: LeagueSeason): LeagueSeason => {
+  if (smokeRunId === undefined) return season;
+
+  const leagueId = `${season.leagueId}-${smokeRunId}`;
+  const seasonId = `${leagueId}-season-${season.seasonYear}`;
+
+  return {
+    ...season,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...season.league,
+      id: leagueId,
+      externalLeagueId: `${season.league.externalLeagueId}-${smokeRunId}`,
+      name: leagueName,
+    },
+    teams: season.teams.map((team, index) => {
+      const ownerSlug = cleanIdFragment(team.ownerDisplayName);
+
+      return {
+        ...team,
+        id: `${seasonId}-team-${String(index + 1).padStart(2, "0")}-${ownerSlug}`,
+        leagueSeasonId: seasonId,
+        ownerId: `${team.ownerId}-${smokeRunId}`,
+      };
+    }),
+  };
+};
+
 const api = async <TBody>(
   page: Page,
   path: string,
@@ -112,7 +176,17 @@ const signUpAndLogIn = async (
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#session-label")).toHaveText(email);
+  await expect(page.locator("#session-label")).toHaveText(email).catch(async error => {
+    const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
+    if (!authError.includes("already exists")) throw error;
+
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.locator("#session-label"), [
+      `Smoke account ${email} already existed but could not sign in with the configured password.`,
+      "Use a fresh MOCKD_E2E_RUN_ID or set MOCKD_E2E_PASSWORD to the password used for that run.",
+      authError,
+    ].join(" ")).toHaveText(email);
+  });
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.locator("#session-label")).toHaveText("Signed out");
@@ -162,10 +236,10 @@ const seedSeasonFromBrowser = async (
   camAccount: AccountRecord,
   sethAccount: AccountRecord,
 ): Promise<LeagueSeason> => {
-  const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+  const season = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName,
     setupStatus: "published",
-  });
+  }));
   const camTeam = teamByOwner(season, "Cam");
 
   return expectOk(await api<SeasonBody>(page, "/seasons", {
@@ -243,8 +317,8 @@ const waitForSaleEvent = async (
   }) as BrowserSseEvent;
 
 test("platform web supports signup, login, setup, team claim, live room realtime sale, end, and export artifact", async ({ browser }) => {
-  const camEmail = "cam.e2e@example.com";
-  const sethEmail = "seth.e2e@example.com";
+  const camEmail = emailFor("cam");
+  const sethEmail = emailFor("seth");
   const { page: camPage, account: camAccount } = await pageForSignedInUser(browser, camEmail);
   const { page: sethPage, account: sethAccount } = await pageForSignedInUser(browser, sethEmail);
   const seedSeason = await seedSeasonFromBrowser(camPage, camAccount, sethAccount);

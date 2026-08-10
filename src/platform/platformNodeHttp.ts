@@ -29,6 +29,10 @@ const jsonContentType = "application/json; charset=utf-8";
 const htmlContentType = "text/html; charset=utf-8";
 const authShellPaths = new Set(["/", "/app", "/login", "/signup", "/setup"]);
 const draftWorkspacePaths = new Set(["/draft-room", "/mock-results", "/my-expert", "/player-news"]);
+const defaultSecurityHeaders = {
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+} as const;
 
 const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
   status: 400,
@@ -164,6 +168,15 @@ const readJsonBody = async (
   }
 };
 
+const setDefaultSecurityHeaders = (response: ServerResponse): void => {
+  for (const [name, value] of Object.entries(defaultSecurityHeaders)) {
+    if (!response.hasHeader(name)) response.setHeader(name, value);
+  }
+};
+
+const isDirectSecureRequest = (request: IncomingMessage): boolean =>
+  "encrypted" in request.socket && request.socket.encrypted === true;
+
 const writeJsonResponse = (
   response: ServerResponse,
   platformResponse: PlatformHttpResponse,
@@ -177,6 +190,7 @@ const writeJsonResponse = (
     for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
       if (value !== undefined) response.setHeader(name, value);
     }
+    setDefaultSecurityHeaders(response);
     response.setHeader("Content-Length", Buffer.byteLength(rawTextBody));
     response.end(rawTextBody);
     return;
@@ -189,6 +203,7 @@ const writeJsonResponse = (
   for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
     if (value !== undefined) response.setHeader(name, value);
   }
+  setDefaultSecurityHeaders(response);
   response.setHeader("Content-Length", Buffer.byteLength(body));
   response.end(body);
 };
@@ -199,6 +214,7 @@ const writeHtmlResponse = (
 ): void => {
   response.statusCode = 200;
   response.setHeader("Content-Type", htmlContentType);
+  setDefaultSecurityHeaders(response);
   response.setHeader("Content-Length", Buffer.byteLength(html));
   response.end(html);
 };
@@ -233,6 +249,7 @@ const platformRequestFor = async (
     body: await readJsonBody(request, maxBodyBytes),
     sessionToken,
     headers: platformHeadersFor(request.headers),
+    isSecure: isDirectSecureRequest(request),
   };
 };
 

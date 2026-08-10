@@ -105,11 +105,38 @@ npm run test:e2e -- --headed
 Set `MOCKD_E2E_DATA_FILE=/path/to/platform-store.json` when you want to keep
 the seeded store after the run.
 
+To smoke an already deployed platform without starting a local server:
+
+```bash
+npm run test:e2e:deployed -- --base-url=https://staging.example.com
+```
+
+You can also set `MOCKD_E2E_BASE_URL` or `PLAYWRIGHT_BASE_URL` instead of
+`--base-url`, and `--smoke-run-id` or `MOCKD_E2E_RUN_ID` when you need a named
+smoke namespace. Deployed smoke runs create throwaway accounts, a namespaced
+league season, a live room, sales, and an export artifact through the real
+browser/API flow, so use an approved smoke namespace for production targets.
+
 To seed a reusable local platform store without running Playwright:
 
 ```bash
 MOCKD_PLATFORM_DATA_FILE=/path/to/platform-store.json npm run platform:seed:e2e
 ```
+
+## Hosted Platform Production
+
+Use `docs/ai-plans/fantasy-draft-platform/production-runbook.md` for the domain cutover checklist. Do not point a public domain at Mockd until that runbook's go/no-go table is all pass.
+
+Current hosted entrypoints:
+
+```bash
+HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... npm run platform:ready
+DATABASE_URL=postgres://... npm run platform:migrate
+HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... npm run platform:web
+DATABASE_URL=postgres://... MOCKD_SIMULATION_DATA_MODE=local-fixtures npm run platform:worker
+```
+
+Production uses `DATABASE_URL`. `MOCKD_PLATFORM_DATA_FILE` and `platform:seed:e2e` are local or throwaway-staging tools only. This branch has no production league seed command yet; use an approved admin/UI/API path before domain cutover.
 
 ## Historical Data
 

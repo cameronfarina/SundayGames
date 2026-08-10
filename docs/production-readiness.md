@@ -51,4 +51,15 @@ This does not need a database for the first real draft night. A database becomes
 9. Practice mock sessions that are isolated from live draft sessions by default.
 10. Export/import APIs for backup, support, and user trust.
 
+## Hosted Domain Gate
+
+A public domain is no-go until `docs/ai-plans/fantasy-draft-platform/production-runbook.md` is all pass.
+
+Minimum blockers to clear:
+
+1. `platform:ready`, `platform:migrate`, web, worker, and browser smoke all pass with Postgres-backed storage.
+2. Real production league data is created through an approved path; `platform:seed:e2e` is not a production seed.
+3. Automated backups are enabled, a pre-cutover snapshot exists, and restore has been rehearsed into an isolated database within 7 days.
+4. DNS, TLS, monitoring, alerts, rollback, and draft-night degraded mode have named owners.
+
 The key architectural rule stays the same in both local and hosted modes: the engine should rebuild from explicit inputs and command history. Hidden mutable model state is how a draft tool becomes impossible to trust.

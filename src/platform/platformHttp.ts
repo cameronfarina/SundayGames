@@ -49,6 +49,7 @@ export interface PlatformHttpRequest {
   now?: Date | undefined;
   sessionToken?: string | undefined;
   headers?: Record<string, string | undefined> | undefined;
+  isSecure?: boolean | undefined;
 }
 
 export interface PlatformHttpErrorBody {
@@ -92,6 +93,11 @@ const authRequiredBody: PlatformHttpErrorBody = {
     message: "Sign in before using this workspace.",
   },
 };
+
+const healthyResponseBody = {
+  service: "mockd-platform",
+  status: "ok",
+} as const;
 
 const notFound = (): PlatformHttpResponse<PlatformHttpErrorBody> => ({
   status: 404,
@@ -257,14 +263,16 @@ const hostnameForCookiePolicy = (hostHeader: string | undefined): string | undef
   return host.split(":")[0];
 };
 
-const secureSessionCookieFor = (headers: PlatformHttpRequest["headers"]): boolean => {
-  const forwardedProto = headerValue(headers, "x-forwarded-proto")
+const secureSessionCookieFor = (request: PlatformHttpRequest): boolean => {
+  if (request.isSecure === true) return true;
+
+  const forwardedProto = headerValue(request.headers, "x-forwarded-proto")
     ?.split(",")[0]
     ?.trim()
     .toLowerCase();
   if (forwardedProto === "https") return true;
 
-  const hostname = hostnameForCookiePolicy(headerValue(headers, "host"));
+  const hostname = hostnameForCookiePolicy(headerValue(request.headers, "host"));
 
   return hostname === undefined || !loopbackHostnames.has(hostname);
 };
@@ -1090,7 +1098,13 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
     try {
       const parsedRequest = parsedRequestFor(request);
       const [root] = parsedRequest.segments;
-      const secureSessionCookie = secureSessionCookieFor(request.headers);
+      const secureSessionCookie = secureSessionCookieFor(request);
+
+      if ((root === "healthz" || root === "readyz") && parsedRequest.segments.length === 1) {
+        return parsedRequest.method === "GET"
+          ? { status: 200, body: healthyResponseBody }
+          : methodNotAllowed();
+      }
 
       if (root === "accounts" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();

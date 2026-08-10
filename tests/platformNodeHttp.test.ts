@@ -1,4 +1,5 @@
-import { createServer, type Server } from "node:http";
+import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
+import { createServer as createHttpsServer, request as httpsRequest, type Server as HttpsServer } from "node:https";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PlatformHttpHandler, PlatformHttpRequest } from "../src/platform/platformHttp.js";
 import {
@@ -7,14 +8,35 @@ import {
   mockdSessionCookie,
 } from "../src/platform/platformNodeHttp.js";
 
-let server: Server | undefined;
+let server: HttpServer | HttpsServer | undefined;
 type TestAdapterOptions = NonNullable<Parameters<typeof createPlatformNodeHttpAdapter>[1]>;
+
+const testHttpsKey = `
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgjfVDyg78ElgSRTkU
+VZcqJ6TPYr2v3enO8jWlx7FoH3uhRANCAAQby1M3iNMViQi6L90EnKFHx5qR7jBy
+xJUneqLE5aOPxHeQNPcfbC8iDjie2htkhIoOwFOutF2Xab+kksTLteV4
+-----END PRIVATE KEY-----
+`.trim();
+
+const testHttpsCertificate = `
+-----BEGIN CERTIFICATE-----
+MIIBfDCCASOgAwIBAgIUFjJffVxdBBndT5HYXbc//YGpVZkwCgYIKoZIzj0EAwIw
+FDESMBAGA1UEAwwJMTI3LjAuMC4xMB4XDTI2MDgxMDE5MjcyOFoXDTI2MDgxMTE5
+MjcyOFowFDESMBAGA1UEAwwJMTI3LjAuMC4xMFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAEG8tTN4jTFYkIui/dBJyhR8eake4wcsSVJ3qixOWjj8R3kDT3H2wvIg44
+ntobZISKDsBTrrRdl2m/pJLEy7XleKNTMFEwHQYDVR0OBBYEFCr8cmFHj7Seisrb
+qi6rCQXBcm0nMB8GA1UdIwQYMBaAFCr8cmFHj7Seisrbqi6rCQXBcm0nMA8GA1Ud
+EwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDRwAwRAIgWTkWy6SKzE80xEVlSrNEuBqL
+MDZEcK8q1/DNsc/LA9ICIFdwo2yBcmvXOR+horr2dxgmR+b6W4juUzWxMHhvWRdv
+-----END CERTIFICATE-----
+`.trim();
 
 const listen = async (
   handle: PlatformHttpHandler,
   options: TestAdapterOptions = {},
 ): Promise<string> => {
-  server = createServer(createPlatformNodeHttpAdapter(handle, options));
+  server = createHttpServer(createPlatformNodeHttpAdapter(handle, options));
 
   await new Promise<void>((resolve, reject) => {
     server?.once("error", reject);
@@ -27,6 +49,28 @@ const listen = async (
   }
 
   return `http://127.0.0.1:${address.port}`;
+};
+
+const listenHttps = async (
+  handle: PlatformHttpHandler,
+  options: TestAdapterOptions = {},
+): Promise<string> => {
+  server = createHttpsServer(
+    { key: testHttpsKey, cert: testHttpsCertificate },
+    createPlatformNodeHttpAdapter(handle, options),
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    server?.once("error", reject);
+    server?.listen(0, "127.0.0.1", () => resolve());
+  });
+
+  const address = server.address();
+  if (typeof address !== "object" || address === null) {
+    throw new Error("Expected TCP test server address.");
+  }
+
+  return `https://127.0.0.1:${address.port}`;
 };
 
 const jsonFetch = async (
@@ -43,6 +87,32 @@ const jsonFetch = async (
     body: await response.json(),
   };
 };
+
+const httpsJsonFetch = async (
+  baseUrl: string,
+  path: string,
+): Promise<{ status: number; body: unknown }> =>
+  await new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      `${baseUrl}${path}`,
+      { rejectUnauthorized: false },
+      response => {
+        const chunks: Buffer[] = [];
+        response.on("data", chunk => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          const bodyText = Buffer.concat(chunks).toString("utf8");
+          resolve({
+            status: response.statusCode ?? 0,
+            body: JSON.parse(bodyText) as unknown,
+          });
+        });
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
 
 afterEach(async () => {
   await new Promise<void>((resolve, reject) => {
@@ -109,6 +179,8 @@ describe("platform Node HTTP adapter", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(await response.text()).toBe("id: room_1:2\nevent: room.started\ndata: {\"revision\":2}\n\n");
   });
 
@@ -126,6 +198,34 @@ describe("platform Node HTTP adapter", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(await response.text()).toBe("<!doctype html><title>Mockd app</title>");
     expect(callCount).toBe(0);
+  });
+
+  it("adds minimal security headers to JSON and HTML responses", async () => {
+    const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }), {
+      appHtml: "<!doctype html><title>Mockd app</title>",
+    });
+
+    const jsonResponse = await fetch(`${baseUrl}/api/status`);
+    const htmlResponse = await fetch(`${baseUrl}/login`);
+
+    for (const response of [jsonResponse, htmlResponse]) {
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    }
+  });
+
+  it("marks platform requests as secure for directly HTTPS traffic", async () => {
+    const seenRequests: PlatformHttpRequest[] = [];
+    const baseUrl = await listenHttps(async request => {
+      seenRequests.push(request);
+
+      return { status: 200, body: { ok: true } };
+    });
+
+    await httpsJsonFetch(baseUrl, "/session");
+
+    expect(seenRequests).toHaveLength(1);
+    expect(seenRequests[0]?.isSecure).toBe(true);
   });
 
   it("serves auth shell and draft workspace HTML from their browser routes", async () => {
