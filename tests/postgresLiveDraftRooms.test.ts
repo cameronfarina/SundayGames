@@ -1,0 +1,596 @@
+import { describe, expect, it } from "vitest";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
+import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
+import type {
+  PostgresQueryClient,
+  PostgresQueryResult,
+} from "../src/platform/postgresPlatformStore.js";
+import { PostgresLiveDraftRoomRepository } from "../src/platform/postgresLiveDraftRooms.js";
+import {
+  LiveDraftRoomError,
+  type LiveDraftRoomPlayerCatalogEntry,
+} from "../src/platform/liveDraftRooms.js";
+
+const now = new Date("2026-08-09T12:00:00.000Z");
+const commissioner = { userId: "user_commish", leagueId: "league-214674", role: "admin" } as const;
+
+const playerCatalog = [
+  { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+interface DraftRoomRow {
+  id: string;
+  league_id: string;
+  league_season_id: string;
+  room_type: string;
+  status: string;
+  created_by_user_id: string;
+  current_revision: number;
+  starts_at: Date | null;
+  started_at: Date | null;
+  ended_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DraftRoomEventRow {
+  id: string;
+  draft_room_id: string;
+  revision: number;
+  sequence: number;
+  event_type: string;
+  actor_user_id: string;
+  idempotency_key: string | null;
+  mutation_hash: string | null;
+  expected_revision: number | null;
+  raw_command: string | null;
+  payload_json: unknown;
+  occurred_at: Date;
+}
+
+interface DraftRoomSnapshotRow {
+  id: string;
+  draft_room_id: string;
+  revision: number;
+  snapshot_json: unknown;
+  snapshot_hash: string;
+  created_at: Date;
+}
+
+interface DraftRoomSaleRow {
+  id: string;
+  draft_room_id: string;
+  source_event_id: string;
+  fantasy_team_id: string;
+  player_name: string;
+  normalized_player_name: string;
+  position: string;
+  price: number;
+  expected_price: number | null;
+  status: string;
+  voided_by_event_id: string | null;
+  created_at: Date;
+}
+
+const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+const cloneDate = (date: Date | null): Date | null =>
+  date === null ? null : new Date(date.getTime());
+
+const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+const jsonValue = (value: unknown): unknown => typeof value === "string"
+  ? JSON.parse(value)
+  : cloneJson(value);
+
+const cloneRoomRow = (row: DraftRoomRow): DraftRoomRow => ({
+  ...row,
+  starts_at: cloneDate(row.starts_at),
+  started_at: cloneDate(row.started_at),
+  ended_at: cloneDate(row.ended_at),
+  created_at: new Date(row.created_at.getTime()),
+  updated_at: new Date(row.updated_at.getTime()),
+});
+
+const cloneEventRow = (row: DraftRoomEventRow): DraftRoomEventRow => ({
+  ...row,
+  payload_json: jsonValue(row.payload_json),
+  occurred_at: new Date(row.occurred_at.getTime()),
+});
+
+const cloneSnapshotRow = (row: DraftRoomSnapshotRow): DraftRoomSnapshotRow => ({
+  ...row,
+  snapshot_json: jsonValue(row.snapshot_json),
+  created_at: new Date(row.created_at.getTime()),
+});
+
+const cloneSaleRow = (row: DraftRoomSaleRow): DraftRoomSaleRow => ({
+  ...row,
+  created_at: new Date(row.created_at.getTime()),
+});
+
+class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClient {
+  readonly rooms = new Map<string, DraftRoomRow>();
+  readonly events: DraftRoomEventRow[] = [];
+  readonly snapshots: DraftRoomSnapshotRow[] = [];
+  readonly sales = new Map<string, DraftRoomSaleRow>();
+  readonly queries: Array<{ text: string; values: readonly unknown[]; inTransaction: boolean }> = [];
+  transactionCount = 0;
+
+  #inTransaction = false;
+
+  async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    this.transactionCount += 1;
+    const roomBackup = new Map([...this.rooms].map(([id, row]) => [id, cloneRoomRow(row)]));
+    const eventsBackup = this.events.map(cloneEventRow);
+    const snapshotsBackup = this.snapshots.map(cloneSnapshotRow);
+    const salesBackup = new Map([...this.sales].map(([id, row]) => [id, cloneSaleRow(row)]));
+
+    this.#inTransaction = true;
+    try {
+      return await operation(this);
+    } catch (error) {
+      this.rooms.clear();
+      for (const [id, row] of roomBackup) this.rooms.set(id, row);
+      this.events.splice(0, this.events.length, ...eventsBackup);
+      this.snapshots.splice(0, this.snapshots.length, ...snapshotsBackup);
+      this.sales.clear();
+      for (const [id, row] of salesBackup) this.sales.set(id, row);
+      throw error;
+    } finally {
+      this.#inTransaction = false;
+    }
+  }
+
+  async query<TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> {
+    this.queries.push({ text, values, inTransaction: this.#inTransaction });
+    const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("SELECT snapshot_json FROM draft_room_snapshots")) {
+      const [roomId] = values as readonly [string];
+      const snapshot = this.snapshots
+        .filter(row => row.draft_room_id === roomId)
+        .sort((left, right) => right.revision - left.revision)[0];
+
+      return {
+        rows: snapshot === undefined
+          ? []
+          : [{ snapshot_json: cloneSnapshotRow(snapshot).snapshot_json } as TRow],
+      };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_rooms")) {
+      const [
+        id,
+        leagueId,
+        seasonId,
+        status,
+        createdByUserId,
+        startsAt,
+        startedAt,
+        endedAt,
+        currentRevision,
+        createdAt,
+        updatedAt,
+      ] = values as readonly [
+        string,
+        string,
+        string,
+        string,
+        string,
+        Date | null,
+        Date | null,
+        Date | null,
+        number,
+        Date,
+        Date,
+      ];
+      if (this.rooms.has(id)) return { rows: [], rowCount: 0 };
+
+      this.rooms.set(id, {
+        id,
+        league_id: leagueId,
+        league_season_id: seasonId,
+        room_type: "real",
+        status,
+        created_by_user_id: createdByUserId,
+        current_revision: currentRevision,
+        starts_at: cloneDate(startsAt),
+        started_at: cloneDate(startedAt),
+        ended_at: cloneDate(endedAt),
+        created_at: new Date(createdAt.getTime()),
+        updated_at: new Date(updatedAt.getTime()),
+      });
+
+      return { rows: [{ id } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_rooms SET status = $2")) {
+      const [
+        roomId,
+        status,
+        currentRevision,
+        startedAt,
+        endedAt,
+        updatedAt,
+        expectedCurrentRevision,
+      ] = values as readonly [string, string, number, Date | null, Date | null, Date, number];
+      const room = this.rooms.get(roomId);
+      if (room === undefined || room.current_revision !== expectedCurrentRevision) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      this.rooms.set(roomId, {
+        ...room,
+        status,
+        current_revision: currentRevision,
+        started_at: cloneDate(startedAt),
+        ended_at: cloneDate(endedAt),
+        updated_at: new Date(updatedAt.getTime()),
+      });
+
+      return { rows: [{ current_revision: currentRevision } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_events")) {
+      const [
+        id,
+        roomId,
+        revision,
+        sequence,
+        eventType,
+        actorUserId,
+        idempotencyKey,
+        mutationHash,
+        expectedRevision,
+        rawCommand,
+        payloadJson,
+        occurredAt,
+      ] = values as readonly [
+        string,
+        string,
+        number,
+        number,
+        string,
+        string,
+        string | null,
+        string | null,
+        number | null,
+        string | null,
+        unknown,
+        Date,
+      ];
+
+      this.events.push({
+        id,
+        draft_room_id: roomId,
+        revision,
+        sequence,
+        event_type: eventType,
+        actor_user_id: actorUserId,
+        idempotency_key: idempotencyKey,
+        mutation_hash: mutationHash,
+        expected_revision: expectedRevision,
+        raw_command: rawCommand,
+        payload_json: jsonValue(payloadJson),
+        occurred_at: new Date(occurredAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_snapshots")) {
+      const [id, roomId, revision, snapshotJson, snapshotHash, createdAt] =
+        values as readonly [string, string, number, unknown, string, Date];
+
+      this.snapshots.push({
+        id,
+        draft_room_id: roomId,
+        revision,
+        snapshot_json: jsonValue(snapshotJson),
+        snapshot_hash: snapshotHash,
+        created_at: new Date(createdAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_sales")) {
+      const [
+        id,
+        roomId,
+        sourceEventId,
+        fantasyTeamId,
+        playerName,
+        normalizedPlayerName,
+        position,
+        price,
+        expectedPrice,
+        createdAt,
+      ] = values as readonly [string, string, string, string, string, string, string, number, number, Date];
+
+      this.sales.set(id, {
+        id,
+        draft_room_id: roomId,
+        source_event_id: sourceEventId,
+        fantasy_team_id: fantasyTeamId,
+        player_name: playerName,
+        normalized_player_name: normalizedPlayerName,
+        position,
+        price,
+        expected_price: expectedPrice,
+        status: "active",
+        voided_by_event_id: null,
+        created_at: new Date(createdAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_room_sales SET status = 'voided'")) {
+      const [sourceEventId, voidedByEventId] = values as readonly [string, string];
+      const sale = [...this.sales.values()].find(candidate => candidate.source_event_id === sourceEventId);
+      if (sale === undefined) return { rows: [], rowCount: 0 };
+
+      this.sales.set(sale.id, {
+        ...sale,
+        status: "voided",
+        voided_by_event_id: voidedByEventId,
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    throw new Error(`Unexpected SQL: ${text}`);
+  }
+}
+
+const publishedSeason = (): LeagueSeason =>
+  buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+    setupStatus: "published",
+    leagueName: "Sunday league",
+  });
+
+describe("Postgres live draft rooms", () => {
+  it("creates, mutates, and reloads a live draft room from dedicated Postgres rows", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom("room_sunday");
+
+    expect(sold.revision).toBe(3);
+    expect(reloaded).toEqual(sold);
+    expect(reloaded.projection.sales.map(sale => sale.playerName)).toEqual(["Puka Nacua"]);
+    expect(client.rooms.get("room_sunday")).toMatchObject({
+      league_id: "league-214674",
+      league_season_id: "league-214674-season-2026",
+      status: "live",
+      current_revision: 3,
+      created_by_user_id: "user_commish",
+    });
+    expect(client.events.map(event => [event.revision, event.event_type, event.idempotency_key])).toEqual([
+      [1, "room_created", null],
+      [2, "room_started", "start-room"],
+      [3, "sale_logged", "sale-puka"],
+    ]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3]);
+    expect([...client.sales.values()]).toMatchObject([
+      {
+        source_event_id: "room_sunday-rev-3-sale_logged",
+        fantasy_team_id: "league-214674-season-2026-team-11-cam",
+        player_name: "Puka Nacua",
+        status: "active",
+      },
+    ]);
+  });
+
+  it("replays idempotent start and sale mutations without appending duplicate events", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const startInput = {
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    };
+    const started = await repository.startRoom(startInput);
+    const replayedStart = await repository.startRoom(startInput);
+    const saleInput = {
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    } as const;
+
+    const sold = await repository.logSaleCommand(saleInput);
+    const replayedSale = await repository.logSaleCommand(saleInput);
+
+    expect(replayedStart).toEqual(started);
+    expect(replayedSale).toEqual(sold);
+    expect(client.events.map(event => [event.revision, event.event_type, event.idempotency_key])).toEqual([
+      [1, "room_created", null],
+      [2, "room_started", "start-room"],
+      [3, "sale_logged", "sale-puka"],
+    ]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3]);
+    expect(client.sales).toHaveLength(1);
+  });
+
+  it("rejects an idempotency key reused with different live room input", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    await expect(repository.logSaleCommand({
+      roomId: sold.roomId,
+      actor: commissioner,
+      expectedRevision: sold.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Jahmyr Gibbs", price: 72 },
+      now: new Date(now.getTime() + 3_000),
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "idempotency_conflict",
+      "A draft room mutation already exists for this idempotency key with different input.",
+    ));
+    expect(client.events).toHaveLength(3);
+    expect(client.snapshots).toHaveLength(3);
+    expect(client.sales).toHaveLength(1);
+  });
+
+  it("rejects stale concurrent mutations and leaves the event log unchanged", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    await expect(repository.logSaleCommand({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "sale-stale",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "stale_revision",
+      "Draft room changed since this action was prepared. Refresh and try again.",
+    ));
+    expect(client.events.map(event => event.event_type)).toEqual(["room_created", "room_started"]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2]);
+    expect(client.sales).toHaveLength(0);
+  });
+
+  it("persists undo and end events with contiguous revisions for polling fallback", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-puka",
+      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const undone = await repository.undoLastSale({
+      roomId: sold.roomId,
+      actor: commissioner,
+      expectedRevision: sold.revision,
+      idempotencyKey: "undo-puka",
+      now: new Date(now.getTime() + 3_000),
+    });
+    const ended = await repository.endRoom({
+      roomId: undone.roomId,
+      actor: commissioner,
+      expectedRevision: undone.revision,
+      idempotencyKey: "end-room",
+      now: new Date(now.getTime() + 4_000),
+    });
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom("room_sunday");
+
+    expect(ended.status).toBe("ended");
+    expect(reloaded).toEqual(ended);
+    expect(client.events.map(event => [event.revision, event.event_type])).toEqual([
+      [1, "room_created"],
+      [2, "room_started"],
+      [3, "sale_logged"],
+      [4, "sale_undone"],
+      [5, "room_ended"],
+    ]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3, 4, 5]);
+    expect([...client.sales.values()]).toMatchObject([
+      {
+        source_event_id: "room_sunday-rev-3-sale_logged",
+        status: "voided",
+        voided_by_event_id: "room_sunday-rev-4-sale_undone",
+      },
+    ]);
+  });
+});
