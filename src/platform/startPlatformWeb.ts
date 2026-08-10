@@ -27,6 +27,7 @@ export const startPlatformWebFromEnv = async (
     port: config.port,
     dataFilePath: config.dataFilePath,
     postgresClient,
+    postgresAuthClient: postgresClient,
     postgresJobClient: postgresClient,
     postgresSimulationClient: postgresClient,
     postgresSnapshotKey: config.postgresSnapshotKey,

@@ -46,23 +46,23 @@ const mockRunner: SimulationMockBatchRunner = ({
   },
 });
 
-const signUpAndLogin = (
+const signUpAndLogin = async (
   app: ReturnType<typeof createPlatformApp>,
   email: string,
   password: string,
   createdAt: Date,
 ) => {
-  app.createAccount({ email, password, now: createdAt });
-  const login = app.login({ email, password, now: createdAt });
+  await app.createAccount({ email, password, now: createdAt });
+  const login = await app.login({ email, password, now: createdAt });
   if (login === null) throw new Error(`Expected ${email} login.`);
 
   return login;
 };
 
 describe("platform app service", () => {
-  it("requires an owner or admin actor when registering league season data", () => {
+  it("requires an owner or admin actor when registering league season data", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -70,8 +70,7 @@ describe("platform app service", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected fixture team.");
 
-    expect(() =>
-      app.registerLeagueSeason({
+    await expect(app.registerLeagueSeason({
         actorSessionToken: cam.sessionToken,
         season,
         memberships: [
@@ -83,8 +82,7 @@ describe("platform app service", () => {
             teamId: camTeam.id,
           },
         ],
-      }),
-    ).toThrow(new PlatformAppError(
+      })).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
@@ -92,9 +90,9 @@ describe("platform app service", () => {
 
   it("registers a league season, gates shared access by membership, and keeps prep private", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
-    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -103,7 +101,7 @@ describe("platform app service", () => {
     const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
-    const registeredSeason = app.registerLeagueSeason({
+    const registeredSeason = await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -114,10 +112,10 @@ describe("platform app service", () => {
 
     expect(registeredSeason).toEqual(season);
     expect(registeredSeason).not.toBe(season);
-    expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id })).toEqual(season);
-    expect(() =>
+    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id })).toEqual(season);
+    await expect(
       app.getLeagueSeason({ actorSessionToken: outsider.sessionToken, seasonId: season.id }),
-    ).toThrow(new PlatformAppError(
+    ).rejects.toThrow(new PlatformAppError(
       "membership_required",
       "Join this league before viewing shared league data.",
     ));
@@ -273,8 +271,8 @@ describe("platform app service", () => {
 
   it("lets a server worker execute an existing simulation while preserving private team ownership checks", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -283,7 +281,7 @@ describe("platform app service", () => {
     const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
     if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -341,7 +339,7 @@ describe("platform app service", () => {
       now,
     });
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -367,11 +365,11 @@ describe("platform app service", () => {
     ));
   });
 
-  it("blocks outsider setup overwrites and replaces omitted league memberships", () => {
+  it("blocks outsider setup overwrites and replaces omitted league memberships", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
-    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -383,7 +381,7 @@ describe("platform app service", () => {
       throw new Error("Expected fixture teams.");
     }
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -392,8 +390,7 @@ describe("platform app service", () => {
       ],
     });
 
-    expect(() =>
-      app.registerLeagueSeason({
+    await expect(app.registerLeagueSeason({
         actorSessionToken: outsider.sessionToken,
         season,
         memberships: [
@@ -405,15 +402,14 @@ describe("platform app service", () => {
             teamId: beatonTeam.id,
           },
         ],
-      }),
-    ).toThrow(new PlatformAppError(
+      })).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
 
-    expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).toEqual(season);
+    expect(await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).toEqual(season);
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -421,18 +417,18 @@ describe("platform app service", () => {
       ],
     });
 
-    expect(() =>
+    await expect(
       app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id }),
-    ).toThrow(new PlatformAppError(
+    ).rejects.toThrow(new PlatformAppError(
       "membership_required",
       "Join this league before viewing shared league data.",
     ));
   });
 
-  it("runs shared historical imports and league pricing rebuilds behind commissioner permissions", () => {
+  it("runs shared historical imports and league pricing rebuilds behind commissioner permissions", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
     const importSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -448,7 +444,7 @@ describe("platform app service", () => {
     const draftSethTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Seth");
     if (importCamTeam === undefined || draftCamTeam === undefined || draftSethTeam === undefined) throw new Error("Expected fixture teams.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season: importSeason,
       memberships: [
@@ -456,7 +452,7 @@ describe("platform app service", () => {
       ],
       now,
     });
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season: draftSeason,
       memberships: [
@@ -466,7 +462,7 @@ describe("platform app service", () => {
       now,
     });
 
-    expect(() =>
+    await expect(
       app.previewHistoricalImportSource({
         actorSessionToken: seth.sessionToken,
         leagueId: importSeason.leagueId,
@@ -474,24 +470,24 @@ describe("platform app service", () => {
         sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
         now,
       }),
-    ).toThrow(new PlatformAppError(
+    ).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
 
-    const preview = app.previewHistoricalImportSource({
+    const preview = await app.previewHistoricalImportSource({
       actorSessionToken: cam.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
       sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
       now,
     });
-    const committed = app.commitHistoricalImport({
+    const committed = await app.commitHistoricalImport({
       actorSessionToken: cam.sessionToken,
       batchId: preview.batch.id,
       now: new Date(now.getTime() + 1_000),
     });
-    const replacementPreview = app.previewHistoricalImportSource({
+    const replacementPreview = await app.previewHistoricalImportSource({
       actorSessionToken: cam.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
@@ -499,12 +495,12 @@ describe("platform app service", () => {
       replacementRequested: true,
       now: new Date(now.getTime() + 1_500),
     });
-    app.commitHistoricalImport({
+    await app.commitHistoricalImport({
       actorSessionToken: cam.sessionToken,
       batchId: replacementPreview.batch.id,
       now: new Date(now.getTime() + 1_750),
     });
-    const pricing = app.rebuildLeaguePricing({
+    const pricing = await app.rebuildLeaguePricing({
       actorSessionToken: cam.sessionToken,
       leagueId: draftSeason.leagueId,
       seasonYear: draftSeason.seasonYear,
@@ -521,17 +517,17 @@ describe("platform app service", () => {
       marketPrice: 70,
       scenarioPrice: 70,
     });
-    expect(app.listLeaguePricingSnapshots({
+    expect(await app.listLeaguePricingSnapshots({
       actorSessionToken: seth.sessionToken,
       leagueId: draftSeason.leagueId,
       seasonYear: draftSeason.seasonYear,
     })).toEqual(pricing.snapshots);
   });
 
-  it("blocks outsider registration for a new season in an existing league", () => {
+  it("blocks outsider registration for a new season in an existing league", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const outsider = signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season2026 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -546,7 +542,7 @@ describe("platform app service", () => {
     const outsiderTeam = season2027.teams.find(team => team.ownerDisplayName === "Beaton");
     if (camTeam === undefined || outsiderTeam === undefined) throw new Error("Expected fixture teams.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season: season2026,
       memberships: [
@@ -560,8 +556,7 @@ describe("platform app service", () => {
       ],
     });
 
-    expect(() =>
-      app.registerLeagueSeason({
+    await expect(app.registerLeagueSeason({
         actorSessionToken: outsider.sessionToken,
         season: season2027,
         memberships: [
@@ -573,19 +568,18 @@ describe("platform app service", () => {
             teamId: outsiderTeam.id,
           },
         ],
-      }),
-    ).toThrow(new PlatformAppError(
+      })).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
 
-    expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season2026.id })).toEqual(season2026);
+    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season2026.id })).toEqual(season2026);
   });
 
-  it("returns copies of shared league and live room state", () => {
+  it("returns copies of shared league and live room state", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -594,7 +588,7 @@ describe("platform app service", () => {
     const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
-    const registeredSeason = app.registerLeagueSeason({
+    const registeredSeason = await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -605,9 +599,10 @@ describe("platform app service", () => {
     registeredSeason.setupStatus = "draft";
     season.setupStatus = "draft";
 
-    expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id }).setupStatus).toBe("published");
+    expect((await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).setupStatus)
+      .toBe("published");
 
-    const room = app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       seasonId: season.id,
       roomId: "room_copy_test",
@@ -617,14 +612,14 @@ describe("platform app service", () => {
     });
     room.status = "ended";
 
-    const freshRoom = app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId });
+    const freshRoom = await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId });
     expect(freshRoom).not.toBe(room);
     expect(freshRoom.status).toBe("setup");
   });
 
-  it("runs mock draft sessions through revision and command-count guards", () => {
+  it("runs mock draft sessions through revision and command-count guards", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -632,7 +627,7 @@ describe("platform app service", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -640,7 +635,7 @@ describe("platform app service", () => {
       ],
     });
 
-    const session = app.createMockDraftSession({
+    const session = await app.createMockDraftSession({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -649,7 +644,7 @@ describe("platform app service", () => {
       draftMode: { format: "auction", mockCount: 5, label: "Practice auction" },
       now,
     });
-    const appended = app.appendMockDraftCommand({
+    const appended = await app.appendMockDraftCommand({
       actorSessionToken: cam.sessionToken,
       sessionId: session.id,
       expectedRevision: 1,
@@ -660,14 +655,14 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 1_000),
     });
 
-    expect(app.listMockDraftSessions({
+    expect(await app.listMockDraftSessions({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
     })).toEqual([appended]);
 
-    const reset = app.resetMockDraftSession({
+    const reset = await app.resetMockDraftSession({
       actorSessionToken: cam.sessionToken,
       sessionId: session.id,
       expectedRevision: 1,
@@ -676,7 +671,7 @@ describe("platform app service", () => {
 
     expect(reset.revision).toBe(2);
     expect(reset.commandLog).toEqual([]);
-    expect(() =>
+    await expect(
       app.appendMockDraftCommand({
         actorSessionToken: cam.sessionToken,
         sessionId: session.id,
@@ -686,12 +681,12 @@ describe("platform app service", () => {
         command: "draft ladd for 21",
         now: new Date(now.getTime() + 3_000),
       }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
   it("rechecks current team claims before reading or mutating private prep", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -700,7 +695,7 @@ describe("platform app service", () => {
     const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
     if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -719,7 +714,7 @@ describe("platform app service", () => {
       strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
       now,
     });
-    const mockSession = app.createMockDraftSession({
+    const mockSession = await app.createMockDraftSession({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -729,7 +724,7 @@ describe("platform app service", () => {
       now,
     });
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -747,7 +742,7 @@ describe("platform app service", () => {
     await expect(
       app.getSimulationRun({ actorSessionToken: cam.sessionToken, runId: simulation.id }),
     ).rejects.toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
-    expect(() =>
+    await expect(
       app.appendMockDraftCommand({
         actorSessionToken: cam.sessionToken,
         sessionId: mockSession.id,
@@ -757,13 +752,13 @@ describe("platform app service", () => {
         command: "draft puka for 62",
         now: new Date(now.getTime() + 1_000),
       }),
-    ).toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
+    ).rejects.toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
   });
 
-  it("routes live room commands through commissioner authorization and exports one draft sheet", () => {
+  it("routes live room commands through commissioner authorization and exports one draft sheet", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -772,7 +767,7 @@ describe("platform app service", () => {
     const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -781,7 +776,7 @@ describe("platform app service", () => {
       ],
     });
 
-    const room = app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       seasonId: season.id,
       roomId: "room_214674_2026",
@@ -793,9 +788,9 @@ describe("platform app service", () => {
       now,
     });
 
-    expect(app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).toEqual(room);
-    expect(app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).not.toBe(room);
-    expect(() =>
+    expect(await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).toEqual(room);
+    expect(await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).not.toBe(room);
+    await expect(
       app.startLiveDraftRoom({
         actorSessionToken: seth.sessionToken,
         roomId: room.roomId,
@@ -803,19 +798,19 @@ describe("platform app service", () => {
         idempotencyKey: "start-by-seth",
         now: new Date(now.getTime() + 1_000),
       }),
-    ).toThrow(new PlatformAppError(
+    ).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
 
-    app.startLiveDraftRoom({
+    await app.startLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       expectedRevision: 1,
       idempotencyKey: "start-room",
       now: new Date(now.getTime() + 2_000),
     });
-    const sold = app.logLiveDraftSale({
+    const sold = await app.logLiveDraftSale({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       expectedRevision: 2,
@@ -829,17 +824,17 @@ describe("platform app service", () => {
       budgetRemaining: 88,
     });
 
-    const exportResult = app.exportLiveDraftRoom({
+    const exportResult = await app.exportLiveDraftRoom({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
     });
-    const artifactResult = app.createLiveDraftRoomExportArtifact({
+    const artifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 5_000),
     });
-    const replayedArtifactResult = app.createLiveDraftRoomExportArtifact({
+    const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 6_000),

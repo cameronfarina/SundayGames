@@ -3,6 +3,7 @@ import {
   createAuthService,
   type AccountCredentialRecord,
   type AccountRecord,
+  type AuthRepository,
   type CreateUserInput,
   type LoginInput,
   type LoginResult,
@@ -308,6 +309,7 @@ export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatfo
 
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
+  authRepository?: AuthRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -438,6 +440,10 @@ export class InMemoryPlatformStore {
       .map(membership => cloneForRead(membership));
   }
 
+  clearAuthSnapshotState(): void {
+    this.authRepository.clear();
+  }
+
   snapshot(): InMemoryPlatformStoreSnapshot {
     return {
       auth: {
@@ -531,16 +537,18 @@ export class InMemoryPlatformStore {
 
 export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
+  authRepository,
   jobRepository,
   simulationRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
-  const auth = createAuthService({ repository: store.authRepository });
+  const runtimeAuthRepository = authRepository ?? store.authRepository;
+  const auth = createAuthService({ repository: runtimeAuthRepository });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
 
-  const requireAccount = (sessionToken: string, now?: Date): AccountRecord => {
-    const authenticated = auth.lookupSession(sessionToken, now);
+  const requireAccount = async (sessionToken: string, now?: Date): Promise<AccountRecord> => {
+    const authenticated = await auth.lookupSession(sessionToken, now);
 
     if (authenticated === null) {
       throw new PlatformAppError("auth_required", "Sign in before using this workspace.");
@@ -742,27 +750,41 @@ export const createPlatformApp = ({
 
   return {
     store,
+    authRepository: runtimeAuthRepository,
 
-    createAccount: (input: CreateUserInput): AccountRecord => cloneForRead(auth.createUser(input)),
+    createAccount: async (input: CreateUserInput): Promise<AccountRecord> =>
+      cloneForRead(await auth.createUser(input)),
 
-    login: (input: LoginInput): LoginResult | null => {
-      const login = auth.login(input);
+    login: async (input: LoginInput): Promise<LoginResult | null> => {
+      const login = await auth.login(input);
 
       return login === null ? null : cloneForRead(login);
     },
 
-    registerLeagueSeason: (input: RegisterLeagueSeasonInput): LeagueSeason => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    findAccountByEmail: async (email: string): Promise<AccountRecord | null> => {
+      const credential = await runtimeAuthRepository.findAccountCredentialByEmail(email.trim().toLowerCase());
+
+      return credential === null ? null : cloneForRead(credential.account);
+    },
+
+    findAccountBySessionToken: async (sessionToken: string, now?: Date): Promise<AccountRecord | null> => {
+      const authenticated = await auth.lookupSession(sessionToken, now);
+
+      return authenticated === null ? null : cloneForRead(authenticated.account);
+    },
+
+    registerLeagueSeason: async (input: RegisterLeagueSeasonInput): Promise<LeagueSeason> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       assertSeasonRegistrationAllowed(account, input.season, input.memberships);
 
       return store.registerLeagueSeason(input.season, input.memberships);
     },
 
-    getLeagueSeason: (input: GetLeagueSeasonInput): LeagueSeason =>
-      cloneForRead(requireSeasonRead(requireAccount(input.actorSessionToken, input.now), input.seasonId)),
+    getLeagueSeason: async (input: GetLeagueSeasonInput): Promise<LeagueSeason> =>
+      cloneForRead(requireSeasonRead(await requireAccount(input.actorSessionToken, input.now), input.seasonId)),
 
     createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       requirePrivateTeamContext(account, input);
 
       return cloneForRead(await simulations.createRequest({
@@ -780,7 +802,7 @@ export const createPlatformApp = ({
     },
 
     executeSimulationRun: async (input: ExecutePlatformSimulationRunInput): Promise<SimulationRun> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const run = await simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
@@ -805,7 +827,7 @@ export const createPlatformApp = ({
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
 
-      const account = store.authRepository.findAccountById(input.userId);
+      const account = await runtimeAuthRepository.findAccountById(input.userId);
       if (account === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to a missing account.");
       }
@@ -820,7 +842,7 @@ export const createPlatformApp = ({
     },
 
     listSimulationRuns: async (input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
 
       return (await simulations.listForUser(account.id))
         .filter(run => canReadPrivateTeamContext(account, run.request))
@@ -828,7 +850,7 @@ export const createPlatformApp = ({
     },
 
     getSimulationRun: async (input: GetPlatformSimulationRunInput): Promise<SimulationRun> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const run = await simulations.fetchForUser(input.runId, account.id);
 
       if (run === null) {
@@ -840,7 +862,7 @@ export const createPlatformApp = ({
     },
 
     enqueueSimulationRunExecutionJob: async (input: EnqueuePlatformSimulationRunJobInput): Promise<JobRecord> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const run = await simulations.fetchForUser(input.runId, account.id);
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
@@ -863,13 +885,13 @@ export const createPlatformApp = ({
     },
 
     listJobs: async (input: ListPlatformJobsInput): Promise<readonly JobRecord[]> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
 
       return (await jobs.listForUser(account.id)).map(job => cloneForRead(job));
     },
 
     getJob: async (input: GetPlatformJobInput): Promise<JobRecord> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const job = await jobs.fetchForUser(input.jobId, account.id);
 
       if (job === null) {
@@ -880,7 +902,7 @@ export const createPlatformApp = ({
     },
 
     cancelJob: async (input: CancelPlatformJobInput): Promise<JobRecord> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const job = await jobs.fetchForUser(input.jobId, account.id);
 
       if (job === null) {
@@ -903,7 +925,7 @@ export const createPlatformApp = ({
     },
 
     rerunJob: async (input: RerunPlatformJobInput): Promise<JobRecord> => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const job = await jobs.fetchForUser(input.jobId, account.id);
 
       if (job === null) {
@@ -930,8 +952,10 @@ export const createPlatformApp = ({
       return cloneForRead(rerunJob);
     },
 
-    previewHistoricalImportSource: (input: PreviewPlatformHistoricalImportInput): PreviewHistoricalImportSourceWorkflowResult => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    previewHistoricalImportSource: async (
+      input: PreviewPlatformHistoricalImportInput,
+    ): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
       requireSharedMutation(account, input.leagueId);
 
@@ -945,8 +969,10 @@ export const createPlatformApp = ({
       }));
     },
 
-    commitHistoricalImport: (input: CommitPlatformHistoricalImportInput): CommitHistoricalImportWorkflowResult => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    commitHistoricalImport: async (
+      input: CommitPlatformHistoricalImportInput,
+    ): Promise<CommitHistoricalImportWorkflowResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const batch = store.historicalImports.findBatchById(input.batchId);
       if (batch === null) {
         throw new PlatformAppError("historical_import_not_found", "Historical import batch was not found.");
@@ -960,8 +986,10 @@ export const createPlatformApp = ({
       }));
     },
 
-    rebuildLeaguePricing: (input: RebuildPlatformPricingInput): RebuildLeaguePricingWorkflowResult => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    rebuildLeaguePricing: async (
+      input: RebuildPlatformPricingInput,
+    ): Promise<RebuildLeaguePricingWorkflowResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const season = requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
       requireSharedMutation(account, input.leagueId);
 
@@ -980,8 +1008,10 @@ export const createPlatformApp = ({
       }));
     },
 
-    listLeaguePricingSnapshots: (input: ListPlatformPricingSnapshotsInput): readonly PricingSnapshot[] => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    listLeaguePricingSnapshots: async (
+      input: ListPlatformPricingSnapshotsInput,
+    ): Promise<readonly PricingSnapshot[]> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       requireSeasonForLeagueYear(input.leagueId, Number(input.seasonYear));
       requireSharedRead(account, input.leagueId);
 
@@ -993,8 +1023,8 @@ export const createPlatformApp = ({
       }).map(snapshot => cloneForRead(snapshot));
     },
 
-    getPricingSnapshot: (input: GetPlatformPricingSnapshotInput): PricingSnapshot => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    getPricingSnapshot: async (input: GetPlatformPricingSnapshotInput): Promise<PricingSnapshot> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const snapshot = readLatestPricingSnapshotWorkflow(store.pricingSnapshots, {
         modelRunId: input.modelRunId,
         ...(input.scenarioId === undefined ? {} : { scenarioId: input.scenarioId }),
@@ -1008,8 +1038,8 @@ export const createPlatformApp = ({
       return cloneForRead(snapshot);
     },
 
-    createMockDraftSession: (input: CreatePlatformMockDraftSessionInput): MockDraftSession => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    createMockDraftSession: async (input: CreatePlatformMockDraftSessionInput): Promise<MockDraftSession> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       requirePrivateTeamContext(account, input);
 
       return cloneForRead(store.mockDraftSessions.createSession({
@@ -1024,8 +1054,10 @@ export const createPlatformApp = ({
       }));
     },
 
-    listMockDraftSessions: (input: ListPlatformMockDraftSessionsInput): readonly MockDraftSession[] => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    listMockDraftSessions: async (
+      input: ListPlatformMockDraftSessionsInput,
+    ): Promise<readonly MockDraftSession[]> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const season = requireSeason(input.seasonId);
       const membership = requireSharedRead(account, input.leagueId);
 
@@ -1050,8 +1082,8 @@ export const createPlatformApp = ({
       }).map(session => cloneForRead(session));
     },
 
-    appendMockDraftCommand: (input: AppendPlatformMockDraftCommandInput): MockDraftSession => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    appendMockDraftCommand: async (input: AppendPlatformMockDraftCommandInput): Promise<MockDraftSession> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
       requirePrivateTeamContext(account, session);
 
@@ -1068,8 +1100,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    resetMockDraftSession: (input: ResetPlatformMockDraftSessionInput): MockDraftSession => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    resetMockDraftSession: async (input: ResetPlatformMockDraftSessionInput): Promise<MockDraftSession> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
       requirePrivateTeamContext(account, session);
 
@@ -1081,8 +1113,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    createLiveDraftRoom: (input: CreatePlatformLiveDraftRoomInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    createLiveDraftRoom: async (input: CreatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const season = requireSeason(input.seasonId);
       requireSharedMutation(account, season.leagueId);
 
@@ -1098,8 +1130,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    getLiveDraftRoom: (input: GetPlatformLiveDraftRoomInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    getLiveDraftRoom: async (input: GetPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       const membership = requireSharedRead(account, room.leagueId);
 
@@ -1109,8 +1141,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    startLiveDraftRoom: (input: MutatePlatformLiveDraftRoomInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    startLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       const membership = requireSharedMutation(account, room.leagueId);
 
@@ -1123,8 +1155,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    logLiveDraftSale: (input: LogPlatformLiveDraftSaleInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       const membership = requireSharedMutation(account, room.leagueId);
 
@@ -1138,8 +1170,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    undoLastLiveDraftSale: (input: MutatePlatformLiveDraftRoomInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    undoLastLiveDraftSale: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       const membership = requireSharedMutation(account, room.leagueId);
 
@@ -1152,8 +1184,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    endLiveDraftRoom: (input: MutatePlatformLiveDraftRoomInput): LiveDraftRoom => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    endLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       const membership = requireSharedMutation(account, room.leagueId);
 
@@ -1166,8 +1198,8 @@ export const createPlatformApp = ({
       }));
     },
 
-    exportLiveDraftRoom: (input: ExportPlatformLiveDraftRoomInput): DraftExportResult => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    exportLiveDraftRoom: async (input: ExportPlatformLiveDraftRoomInput): Promise<DraftExportResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       requireSharedRead(account, room.leagueId);
 
@@ -1182,8 +1214,10 @@ export const createPlatformApp = ({
       });
     },
 
-    createLiveDraftRoomExportArtifact: (input: CreatePlatformLiveDraftExportArtifactInput): DraftExportArtifactResult => {
-      const account = requireAccount(input.actorSessionToken, input.now);
+    createLiveDraftRoomExportArtifact: async (
+      input: CreatePlatformLiveDraftExportArtifactInput,
+    ): Promise<DraftExportArtifactResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
       requireSharedRead(account, room.leagueId);
       const existingArtifactResult = store.exportArtifacts.findByRoomRevision(room.roomId, room.revision);

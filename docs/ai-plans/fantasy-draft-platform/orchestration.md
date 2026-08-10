@@ -98,6 +98,10 @@ Privacy rule: league truth is shared; draft strategy is private.
 - `06a717c` added the framework-neutral HTTP contract, setup import parser/apply helpers, platform job orchestration helpers, and the Postgres schema contract.
 - `a913a70` added the Node HTTP adapter, setup import API helpers/routes, file-backed platform persistence, and live draft read-model/SSE contracts.
 - `81b4e16` added historical import source parsing, deterministic league-calibrated pricing rebuild snapshots, server-worker simulation job handlers, local platform server composition, and worker-safe private simulation execution.
-- Current batch wires historical imports, pricing rebuild snapshots, simulation jobs/results, and live draft export artifacts through the platform app, HTTP contract, worker handlers, and durable repository boundaries. Replacement historical imports keep superseded rows for audit history, but pricing rebuilds only read current committed batches through the target draft season. Export artifacts persist CSV bytes and replay the saved artifact/content for repeat exports of the same live room revision.
+- `f691eb5` wired historical imports, pricing rebuild snapshots, simulation jobs/results, and live draft export artifacts through the platform app, HTTP contract, worker handlers, and durable repository boundaries. Replacement historical imports keep superseded rows for audit history, but pricing rebuilds only read current committed batches through the target draft season. Export artifacts persist CSV bytes and replay the saved artifact/content for repeat exports of the same live room revision.
+- `7418fe7` added the Postgres snapshot bridge for transitional shared app state.
+- `b56361c` and `c6c1483` added the normalized Postgres job queue and wired the web/worker runtime to it.
+- `f10c01f` added job cancellation lifecycle controls.
 - `0689f5e` added terminal job reruns with idempotent fresh queued jobs and simulation reset semantics.
-- The active implementation slice adds a normalized Postgres simulation repository so private simulation requests/results can live outside the snapshot bridge while retaining in-memory/file behavior for local development.
+- `77eaa71` added a normalized Postgres simulation repository so private simulation requests/results live outside the snapshot bridge while retaining in-memory/file behavior for local development.
+- The active implementation slice adds a normalized Postgres account/session repository so email/password accounts and session hashes are not stored in the transitional snapshot bridge.

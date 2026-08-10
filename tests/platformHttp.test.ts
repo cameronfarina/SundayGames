@@ -225,6 +225,57 @@ describe("platform HTTP contract", () => {
     expect(bodyTokenResponse).toEqual(queryTokenResponse);
   });
 
+  it("uses trusted request time instead of client-provided body or query time for auth", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+
+    const created = await handle({
+      method: "POST",
+      path: "/accounts",
+      now,
+      body: {
+        email: "cam@example.com",
+        password: "secure password",
+        now: new Date("2099-01-01T00:00:00.000Z"),
+      },
+    });
+    const login = await handle({
+      method: "POST",
+      path: "/sessions",
+      now,
+      body: {
+        email: "cam@example.com",
+        password: "secure password",
+        now: new Date("2099-01-01T00:00:00.000Z"),
+      },
+    });
+    const account = expectAccount(expectBodyRecord(created.body).account);
+    const sessionToken = expectString(expectBodyRecord(login.body).sessionToken);
+    const afterDefaultSessionExpiry = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+
+    expect(account.createdAt).toEqual(now);
+
+    const protectedResponse = await handle({
+      method: "GET",
+      path: `/seasons/missing-season?now=${encodeURIComponent(now.toISOString())}`,
+      sessionToken,
+      now: afterDefaultSessionExpiry,
+      body: {
+        now,
+      },
+    });
+
+    expect(protectedResponse).toEqual({
+      status: 401,
+      body: {
+        error: {
+          code: "auth_required",
+          message: "Sign in before using this workspace.",
+        },
+      },
+    });
+  });
+
   it("returns user-facing live sale validation errors through the HTTP boundary", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
@@ -462,13 +513,13 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: `/seasons/${season.id}/pricing/rebuild`,
       sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 500),
       body: {
         modelVersion: "league-calibration-v1",
         scenarioIds: ["balanced"],
         baselinePrices: [
           { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
         ],
-        now: new Date(now.getTime() + 500).toISOString(),
       },
     });
     const pricingBody = expectBodyRecord(pricingRebuild.body);
@@ -488,13 +539,13 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: `/seasons/${season.id}/pricing/rebuild`,
       sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 550),
       body: {
         modelVersion: "league-calibration-v1",
         scenarioIds: ["balanced"],
         baselinePrices: [
           { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
         ],
-        now: new Date(now.getTime() + 550).toISOString(),
       },
     });
 

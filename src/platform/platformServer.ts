@@ -1,6 +1,8 @@
 import { createServer, type Server } from "node:http";
 import { FilePlatformStore } from "./filePlatformStore.js";
 import type { JobRepository } from "./jobs.js";
+import type { AuthRepository } from "./auth.js";
+import { applyPlatformPostgresMigrations } from "./platformMigrations.js";
 import {
   createPlatformApp,
   InMemoryPlatformStore,
@@ -14,6 +16,7 @@ import {
   PostgresPlatformStoreError,
   type PostgresQueryClient,
 } from "./postgresPlatformStore.js";
+import { PostgresAuthRepository } from "./postgresAuth.js";
 import { PostgresSimulationRepository } from "./postgresSimulations.js";
 import {
   createPlatformHttpHandler,
@@ -39,10 +42,12 @@ export type PlatformClock = () => Date;
 export interface CreatePlatformServerOptions {
   dataFilePath?: string | undefined;
   postgresClient?: PostgresQueryClient | undefined;
+  postgresAuthClient?: PostgresQueryClient | undefined;
   postgresJobClient?: PostgresTransactionalQueryClient | undefined;
   postgresSimulationClient?: PostgresTransactionalQueryClient | undefined;
   postgresSnapshotKey?: string | undefined;
   initializePostgresSchema?: boolean | undefined;
+  authRepository?: AuthRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -54,12 +59,14 @@ export interface PlatformServer {
   server: Server;
   app: PlatformApp;
   store: InMemoryPlatformStore;
+  authRepository: AuthRepository;
   jobRepository: JobRepository;
   simulationRepository: SimulationRepository;
   handler: PlatformHttpHandler;
   jobHandlers: PlatformJobHandlers;
   fileStore?: FilePlatformStore | undefined;
   postgresStore?: PostgresPlatformStore | undefined;
+  postgresAuthRepository?: PostgresAuthRepository | undefined;
   postgresJobQueue?: PostgresJobQueue | undefined;
   postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   persist: () => Promise<void>;
@@ -79,35 +86,16 @@ export interface StartedPlatformServer extends PlatformServer {
 
 const mutatingHttpMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
-
-const requestPathHasNow = (path: string): boolean => {
-  try {
-    return new URL(path, "http://mockd.local").searchParams.has("now");
-  } catch {
-    return false;
-  }
-};
-
-const requestHasNow = (request: PlatformHttpRequest): boolean => {
-  const bodyNow = isRecord(request.body) ? request.body.now : undefined;
-
-  return bodyNow !== undefined || request.query?.now !== undefined || requestPathHasNow(request.path);
-};
-
-const withDefaultNow = (
+const withTrustedNow = (
   request: PlatformHttpRequest,
   now: PlatformClock | undefined,
 ): PlatformHttpRequest => {
-  if (now === undefined || requestHasNow(request)) return request;
+  const trustedNow = now?.() ?? request.now;
+  if (trustedNow === undefined) return request;
 
   return {
     ...request,
-    query: {
-      ...(request.query ?? {}),
-      now: now(),
-    },
+    now: trustedNow,
   };
 };
 
@@ -172,6 +160,54 @@ const isJobAndSimulationOnlyMutationRequest = (request: PlatformHttpRequest): bo
   }
 };
 
+const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+
+  try {
+    const segments = new URL(request.path, "http://mockd.local").pathname
+      .split("/")
+      .filter(Boolean)
+      .map(segment => decodeURIComponent(segment));
+
+    return segments.length === 1 && (segments[0] === "accounts" || segments[0] === "sessions");
+  } catch {
+    return false;
+  }
+};
+
+const isTransactionalPostgresClient = (
+  client: PostgresQueryClient,
+): client is PostgresTransactionalQueryClient =>
+  "transaction" in client && typeof client.transaction === "function";
+
+const initializePostgresSchemas = async (
+  options: Pick<
+    CreatePlatformServerOptions,
+    | "initializePostgresSchema"
+    | "postgresAuthClient"
+    | "postgresClient"
+    | "postgresJobClient"
+    | "postgresSimulationClient"
+  >,
+): Promise<void> => {
+  if (options.initializePostgresSchema !== true) return;
+
+  const migratedClients = new Set<PostgresTransactionalQueryClient>();
+  const candidates = [
+    options.postgresClient,
+    options.postgresAuthClient,
+    options.postgresJobClient,
+    options.postgresSimulationClient,
+  ];
+
+  for (const client of candidates) {
+    if (client === undefined || !isTransactionalPostgresClient(client) || migratedClients.has(client)) continue;
+
+    await applyPlatformPostgresMigrations(client);
+    migratedClients.add(client);
+  }
+};
+
 const snapshotWriteConflictResponse = {
   status: 409,
   body: {
@@ -225,7 +261,10 @@ const loadStore = async (
   }
 
   if (options.postgresClient !== undefined) {
-    if (options.initializePostgresSchema === true) {
+    if (
+      options.initializePostgresSchema === true &&
+      !isTransactionalPostgresClient(options.postgresClient)
+    ) {
       await PostgresPlatformStore.initializeSchema(options.postgresClient);
     }
 
@@ -269,6 +308,9 @@ const hostForUrl = (host: string): string => host.includes(":") ? `[${host}]` : 
 export const createPlatformServer = async (
   options: CreatePlatformServerOptions,
 ): Promise<PlatformServer> => {
+  if (options.authRepository !== undefined && options.postgresAuthClient !== undefined) {
+    throw new Error("Configure either authRepository or postgresAuthClient, not both.");
+  }
   if (options.jobRepository !== undefined && options.postgresJobClient !== undefined) {
     throw new Error("Configure either jobRepository or postgresJobClient, not both.");
   }
@@ -276,8 +318,11 @@ export const createPlatformServer = async (
     throw new Error("Configure either simulationRepository or postgresSimulationClient, not both.");
   }
 
+  await initializePostgresSchemas(options);
+
   interface Runtime {
     store: InMemoryPlatformStore;
+    authRepository: AuthRepository;
     jobRepository: JobRepository;
     simulationRepository: SimulationRepository;
     app: PlatformApp;
@@ -285,6 +330,7 @@ export const createPlatformServer = async (
     rawJobHandlers: PlatformJobHandlers;
     fileStore?: FilePlatformStore | undefined;
     postgresStore?: PostgresPlatformStore | undefined;
+    postgresAuthRepository?: PostgresAuthRepository | undefined;
     postgresJobQueue?: PostgresJobQueue | undefined;
     postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   }
@@ -337,16 +383,26 @@ export const createPlatformServer = async (
     fileStore,
     postgresStore,
   }: Awaited<ReturnType<typeof loadStore>>): Runtime => {
+    const postgresAuthRepository = options.postgresAuthClient === undefined
+      ? undefined
+      : new PostgresAuthRepository(options.postgresAuthClient);
     const postgresJobQueue = options.postgresJobClient === undefined
       ? undefined
       : new PostgresJobQueue(options.postgresJobClient);
     const postgresSimulationRepository = options.postgresSimulationClient === undefined
       ? undefined
       : new PostgresSimulationRepository(options.postgresSimulationClient);
+    const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
     const jobRepository = options.jobRepository ?? postgresJobQueue ?? store.jobs;
     const simulationRepository = options.simulationRepository ?? postgresSimulationRepository ?? store.simulations;
+
+    if (authRepository !== store.authRepository) {
+      store.clearAuthSnapshotState();
+    }
+
     const app = createPlatformApp({
       store,
+      authRepository,
       jobRepository,
       simulationRepository,
       simulationRunner: options.simulationRunner,
@@ -360,10 +416,12 @@ export const createPlatformServer = async (
         app,
         persist: simulationRepository === store.simulations ? rawPersist : undefined,
       }),
+      authRepository,
       jobRepository,
       simulationRepository,
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
+      ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
       ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),
       ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
     };
@@ -373,11 +431,16 @@ export const createPlatformServer = async (
 
   const handler: PlatformHttpHandler = async request => {
     const runRequest = async (): Promise<Awaited<ReturnType<PlatformHttpHandler>>> => {
-      const requestWithNow = withDefaultNow(request, options.now);
+      const requestWithNow = withTrustedNow(request, options.now);
       const response = await runtime.platformHandler(requestWithNow);
+      const usesExternalAuthRepository = runtime.authRepository !== runtime.store.authRepository;
       const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
       const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
       const skipSnapshotPersist =
+        (
+          usesExternalAuthRepository &&
+          isAuthOnlyMutationRequest(requestWithNow)
+        ) ||
         (
           usesExternalJobRepository &&
           isJobOnlyMutationRequest(requestWithNow)
@@ -421,6 +484,9 @@ export const createPlatformServer = async (
     get store() {
       return runtime.store;
     },
+    get authRepository() {
+      return runtime.authRepository;
+    },
     get jobRepository() {
       return runtime.jobRepository;
     },
@@ -438,6 +504,9 @@ export const createPlatformServer = async (
     },
     get postgresStore() {
       return runtime.postgresStore;
+    },
+    get postgresAuthRepository() {
+      return runtime.postgresAuthRepository;
     },
     get postgresJobQueue() {
       return runtime.postgresJobQueue;
@@ -473,6 +542,9 @@ export const startPlatformServer = async (
     get store() {
       return platformServer.store;
     },
+    get authRepository() {
+      return platformServer.authRepository;
+    },
     get jobRepository() {
       return platformServer.jobRepository;
     },
@@ -488,6 +560,9 @@ export const startPlatformServer = async (
     },
     get postgresStore() {
       return platformServer.postgresStore;
+    },
+    get postgresAuthRepository() {
+      return platformServer.postgresAuthRepository;
     },
     get postgresJobQueue() {
       return platformServer.postgresJobQueue;

@@ -41,6 +41,7 @@ export interface PlatformHttpRequest {
   path: string;
   body?: unknown;
   query?: Record<string, unknown> | undefined;
+  now?: Date | undefined;
   sessionToken?: string | undefined;
   headers?: Record<string, string | undefined> | undefined;
 }
@@ -66,6 +67,7 @@ interface ParsedPlatformHttpRequest {
   segments: readonly string[];
   body: Record<string, unknown>;
   query: Record<string, unknown>;
+  now?: Date | undefined;
   sessionToken: string;
 }
 
@@ -218,6 +220,7 @@ const parsedRequestFor = (request: PlatformHttpRequest): ParsedPlatformHttpReque
     segments: url.pathname.split("/").filter(Boolean).map(segment => decodeURIComponent(segment)),
     body,
     query,
+    now: request.now,
     sessionToken: sessionTokenFor(request),
   };
 };
@@ -415,11 +418,11 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
   };
 };
 
-const registerSeason = (
+const registerSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   expectedSeasonId?: string | undefined,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const seasonInput = unknownRecord(request.body.season);
   if (expectedSeasonId !== undefined && optionalString(seasonInput?.id) !== expectedSeasonId) {
     return knownError(
@@ -429,11 +432,11 @@ const registerSeason = (
     );
   }
 
-  const season = app.registerLeagueSeason({
+  const season = await app.registerLeagueSeason({
     actorSessionToken: request.sessionToken,
     season: request.body.season as LeagueSeason,
     memberships: arrayValue(request.body.memberships) as readonly PlatformLeagueMembership[],
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
 
   return { status: 200, body: { season } };
@@ -454,16 +457,16 @@ const setupImportKnownUsers = (value: unknown): readonly PlatformLeagueSetupImpo
     }];
   });
 
-const routeSeasonSetupImport = (
+const routeSeasonSetupImport = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
   if (request.segments.length !== 4) return notFound();
   if (request.method !== "POST") return methodNotAllowed();
 
   const content = optionalString(request.body.content);
-  const now = requestDate(request.body, request.query, "now");
+  const now = request.now;
   const input: PlatformLeagueSetupImportInput = {
     actorSessionToken: request.sessionToken,
     seasonId: seasonId ?? "",
@@ -473,48 +476,48 @@ const routeSeasonSetupImport = (
     ...(now === undefined ? {} : { now }),
   };
 
-  if (action === "preview") return previewLeagueSetupImport(app, input);
-  if (action === "apply") return applyLeagueSetupImport(app, input);
+  if (action === "preview") return await previewLeagueSetupImport(app, input);
+  if (action === "apply") return await applyLeagueSetupImport(app, input);
 
   return notFound();
 };
 
-const routeSeasonHistoricalImports = (
+const routeSeasonHistoricalImports = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
   if (request.segments.length !== 4) return notFound();
   if (action !== "preview") return notFound();
   if (request.method !== "POST") return methodNotAllowed();
 
-  const season = app.getLeagueSeason({
+  const season = await app.getLeagueSeason({
     actorSessionToken: request.sessionToken,
     seasonId: seasonId ?? "",
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
   const sourceText = optionalString(request.body.sourceText)
     ?? optionalString(request.body.content)
     ?? "";
-  const result = app.previewHistoricalImportSource({
+  const result = await app.previewHistoricalImportSource({
     actorSessionToken: request.sessionToken,
     leagueId: season.leagueId,
     seasonYear: season.seasonYear,
     sourceText,
     replacementRequested: optionalBoolean(request.body.replacementRequested),
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
 
   return { status: 200, body: result };
 };
 
-const routeSeasonPricing = (
+const routeSeasonPricing = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, seasonId, seasonAction, action] = request.segments;
-  const now = requestDate(request.body, request.query, "now");
-  const season = app.getLeagueSeason({
+  const now = request.now;
+  const season = await app.getLeagueSeason({
     actorSessionToken: request.sessionToken,
     seasonId: seasonId ?? "",
     now,
@@ -523,7 +526,7 @@ const routeSeasonPricing = (
   if (seasonAction === "pricing" && action === "rebuild" && request.segments.length === 4) {
     if (request.method !== "POST") return methodNotAllowed();
 
-    const result = app.rebuildLeaguePricing({
+    const result = await app.rebuildLeaguePricing({
       actorSessionToken: request.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
@@ -539,7 +542,7 @@ const routeSeasonPricing = (
   if (seasonAction === "pricing-snapshots" && request.segments.length === 3) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const pricingSnapshots = app.listLeaguePricingSnapshots({
+    const pricingSnapshots = await app.listLeaguePricingSnapshots({
       actorSessionToken: request.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
@@ -554,43 +557,43 @@ const routeSeasonPricing = (
   return notFound();
 };
 
-const routeSeason = (
+const routeSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [seasonRoot, seasonId, seasonAction] = request.segments;
   if (seasonRoot !== "seasons") return notFound();
 
   if (request.segments.length === 1 && request.method === "POST") {
-    return registerSeason(app, request);
+    return await registerSeason(app, request);
   }
 
   if (seasonAction === "setup-import") {
-    return routeSeasonSetupImport(app, request);
+    return await routeSeasonSetupImport(app, request);
   }
 
   if (seasonAction === "historical-imports") {
-    return routeSeasonHistoricalImports(app, request);
+    return await routeSeasonHistoricalImports(app, request);
   }
 
   if (seasonAction === "pricing" || seasonAction === "pricing-snapshots") {
-    return routeSeasonPricing(app, request);
+    return await routeSeasonPricing(app, request);
   }
 
   if (request.segments.length !== 2) return notFound();
 
   if (request.method === "GET") {
-    const season = app.getLeagueSeason({
+    const season = await app.getLeagueSeason({
       actorSessionToken: request.sessionToken,
       seasonId: seasonId ?? "",
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { season } };
   }
 
   if (request.method === "PUT") {
-    return registerSeason(app, request, seasonId);
+    return await registerSeason(app, request, seasonId);
   }
 
   return methodNotAllowed();
@@ -606,7 +609,7 @@ const routeSimulations = async (
     if (request.method === "GET") {
       const simulations = await app.listSimulationRuns({
         actorSessionToken: request.sessionToken,
-        now: requestDate(request.body, request.query, "now"),
+        now: request.now,
       });
 
       return { status: 200, body: { simulations } };
@@ -623,7 +626,7 @@ const routeSimulations = async (
         seedPrefix: stringValue(request.body.seedPrefix),
         idempotencyKey: stringValue(request.body.idempotencyKey),
         strategy: (request.body.strategy ?? {}) as SimulationStrategyInput,
-        now: requestDate(request.body, request.query, "now"),
+        now: request.now,
       });
 
       return { status: 201, body: { simulation } };
@@ -638,7 +641,7 @@ const routeSimulations = async (
     const simulation = await app.getSimulationRun({
       actorSessionToken: request.sessionToken,
       runId: runId ?? "",
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { simulation } };
@@ -650,7 +653,7 @@ const routeSimulations = async (
     const simulation = await app.executeSimulationRun({
       actorSessionToken: request.sessionToken,
       runId: runId ?? "",
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { simulation } };
@@ -663,7 +666,7 @@ const routeSimulations = async (
       actorSessionToken: request.sessionToken,
       runId: runId ?? "",
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 202, body: { job } };
@@ -672,36 +675,36 @@ const routeSimulations = async (
   return notFound();
 };
 
-const routeHistoricalImports = (
+const routeHistoricalImports = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, batchId, action] = request.segments;
   if (request.segments.length !== 3 || action !== "commit") return notFound();
   if (request.method !== "POST") return methodNotAllowed();
 
-  const result = app.commitHistoricalImport({
+  const result = await app.commitHistoricalImport({
     actorSessionToken: request.sessionToken,
     batchId: batchId ?? "",
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
 
   return { status: 200, body: result };
 };
 
-const routePricingSnapshots = (
+const routePricingSnapshots = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, modelRunId] = request.segments;
   if (request.segments.length !== 2) return notFound();
   if (request.method !== "GET") return methodNotAllowed();
 
-  const pricingSnapshot = app.getPricingSnapshot({
+  const pricingSnapshot = await app.getPricingSnapshot({
     actorSessionToken: request.sessionToken,
     modelRunId: modelRunId ?? "",
     scenarioId: optionalString(request.query.scenarioId),
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
 
   return { status: 200, body: { pricingSnapshot } };
@@ -718,7 +721,7 @@ const routeJobs = async (
 
     const jobs = await app.listJobs({
       actorSessionToken: request.sessionToken,
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { jobs } };
@@ -730,7 +733,7 @@ const routeJobs = async (
     const job = await app.cancelJob({
       actorSessionToken: request.sessionToken,
       jobId: jobId ?? "",
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { job } };
@@ -743,7 +746,7 @@ const routeJobs = async (
       actorSessionToken: request.sessionToken,
       jobId: jobId ?? "",
       idempotencyKey: stringValue(request.body.idempotencyKey),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 202, body: { job } };
@@ -755,27 +758,27 @@ const routeJobs = async (
   const job = await app.getJob({
     actorSessionToken: request.sessionToken,
     jobId: jobId ?? "",
-    now: requestDate(request.body, request.query, "now"),
+    now: request.now,
   });
 
   return { status: 200, body: { job } };
 };
 
-const routeMockSessions = (
+const routeMockSessions = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, sessionId, action] = request.segments;
 
   if (request.segments.length === 1) {
     if (request.method === "GET") {
-      const mockSessions = app.listMockDraftSessions({
+      const mockSessions = await app.listMockDraftSessions({
         actorSessionToken: request.sessionToken,
         leagueId: stringValue(request.query.leagueId),
         seasonId: stringValue(request.query.seasonId),
         ownerId: stringValue(request.query.ownerId),
         teamId: optionalString(request.query.teamId),
-        now: requestDate(request.body, request.query, "now"),
+        now: request.now,
       });
 
       return { status: 200, body: { mockSessions } };
@@ -785,7 +788,7 @@ const routeMockSessions = (
       const status = request.body.status === "setup" || request.body.status === "active"
         ? request.body.status
         : undefined;
-      const mockSession = app.createMockDraftSession({
+      const mockSession = await app.createMockDraftSession({
         actorSessionToken: request.sessionToken,
         leagueId: stringValue(request.body.leagueId),
         seasonId: stringValue(request.body.seasonId),
@@ -793,7 +796,7 @@ const routeMockSessions = (
         teamId: stringValue(request.body.teamId),
         draftMode: request.body.draftMode as MockDraftModeMetadata,
         status,
-        now: requestDate(request.body, request.query, "now"),
+        now: request.now,
       });
 
       return { status: 201, body: { mockSession } };
@@ -806,7 +809,7 @@ const routeMockSessions = (
   if (request.method !== "POST") return methodNotAllowed();
 
   if (action === "commands" || action === "append") {
-    const mockSession = app.appendMockDraftCommand({
+    const mockSession = await app.appendMockDraftCommand({
       actorSessionToken: request.sessionToken,
       sessionId: sessionId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision) ?? Number.NaN,
@@ -815,18 +818,18 @@ const routeMockSessions = (
       command: stringValue(request.body.command),
       idempotencyKey: optionalString(request.body.idempotencyKey),
       latestResultRef: request.body.latestResultRef as MockDraftResultReference | undefined,
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { mockSession } };
   }
 
   if (action === "reset") {
-    const mockSession = app.resetMockDraftSession({
+    const mockSession = await app.resetMockDraftSession({
       actorSessionToken: request.sessionToken,
       sessionId: sessionId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision) ?? Number.NaN,
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { mockSession } };
@@ -835,16 +838,16 @@ const routeMockSessions = (
   return notFound();
 };
 
-const routeLiveRooms = (
+const routeLiveRooms = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-): PlatformHttpResponse => {
+): Promise<PlatformHttpResponse> => {
   const [, roomId, action] = request.segments;
 
   if (request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
 
-    const room = app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       seasonId: stringValue(request.body.seasonId),
       roomId: stringValue(request.body.roomId),
@@ -854,7 +857,7 @@ const routeLiveRooms = (
       initialRosters: Array.isArray(request.body.initialRosters)
         ? request.body.initialRosters as readonly LiveDraftRoomInitialRosterPlayer[]
         : undefined,
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 201, body: { room } };
@@ -863,10 +866,10 @@ const routeLiveRooms = (
   if (request.segments.length === 2) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const room = app.getLiveDraftRoom({
+    const room = await app.getLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { room } };
@@ -877,11 +880,11 @@ const routeLiveRooms = (
   if (action === "export") {
     if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed();
 
-    const draftExport = app.exportLiveDraftRoom({
+    const draftExport = await app.exportLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       exportedAt: requestDate(request.body, request.query, "exportedAt") ?? new Date(),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { draftExport } };
@@ -890,11 +893,11 @@ const routeLiveRooms = (
   if (action === "export-artifacts" || action === "export-artifact") {
     if (request.method !== "POST") return methodNotAllowed();
 
-    const artifactResult = app.createLiveDraftRoomExportArtifact({
+    const artifactResult = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       exportedAt: requestDate(request.body, request.query, "exportedAt") ?? new Date(),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return {
@@ -909,49 +912,49 @@ const routeLiveRooms = (
   if (request.method !== "POST") return methodNotAllowed();
 
   if (action === "start") {
-    const room = app.startLiveDraftRoom({
+    const room = await app.startLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { room } };
   }
 
   if (action === "sales" || action === "sale") {
-    const room = app.logLiveDraftSale({
+    const room = await app.logLiveDraftSale({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
       sale: request.body.sale as LiveDraftRoomSaleCommandInput,
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { room } };
   }
 
   if (action === "undo") {
-    const room = app.undoLastLiveDraftSale({
+    const room = await app.undoLastLiveDraftSale({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { room } };
   }
 
   if (action === "end") {
-    const room = app.endLiveDraftRoom({
+    const room = await app.endLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      now: requestDate(request.body, request.query, "now"),
+      now: request.now,
     });
 
     return { status: 200, body: { room } };
@@ -969,10 +972,10 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
       if (root === "accounts" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
 
-        const account = app.createAccount({
+        const account = await app.createAccount({
           email: stringValue(parsedRequest.body.email),
           password: stringValue(parsedRequest.body.password),
-          now: requestDate(parsedRequest.body, parsedRequest.query, "now"),
+          now: parsedRequest.now,
         });
 
         return { status: 201, body: { account } };
@@ -981,10 +984,10 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
       if (root === "sessions" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
 
-        const login = app.login({
+        const login = await app.login({
           email: stringValue(parsedRequest.body.email),
           password: stringValue(parsedRequest.body.password),
-          now: requestDate(parsedRequest.body, parsedRequest.query, "now"),
+          now: parsedRequest.now,
         });
 
         if (login === null) {
@@ -1004,13 +1007,13 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
         };
       }
 
-      if (root === "seasons") return routeSeason(app, parsedRequest);
+      if (root === "seasons") return await routeSeason(app, parsedRequest);
       if (root === "simulations") return routeSimulations(app, parsedRequest);
-      if (root === "historical-imports") return routeHistoricalImports(app, parsedRequest);
-      if (root === "pricing-snapshots") return routePricingSnapshots(app, parsedRequest);
+      if (root === "historical-imports") return await routeHistoricalImports(app, parsedRequest);
+      if (root === "pricing-snapshots") return await routePricingSnapshots(app, parsedRequest);
       if (root === "jobs") return await routeJobs(app, parsedRequest);
-      if (root === "mock-sessions") return routeMockSessions(app, parsedRequest);
-      if (root === "live-rooms") return routeLiveRooms(app, parsedRequest);
+      if (root === "mock-sessions") return await routeMockSessions(app, parsedRequest);
+      if (root === "live-rooms") return await routeLiveRooms(app, parsedRequest);
 
       return notFound();
     } catch (error) {

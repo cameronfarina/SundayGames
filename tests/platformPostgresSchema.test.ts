@@ -118,6 +118,25 @@ const expectCheckContract = (
   });
 };
 
+const expectForeignKeyContract = (
+  tableName: string,
+  constraintName: string,
+  columns: readonly string[],
+  referencedTableName: string,
+  referencedColumns: readonly string[],
+): void => {
+  expect(tableByName(tableName).foreignKeys ?? []).toContainEqual(
+    expect.objectContaining({
+      name: constraintName,
+      columns,
+      references: {
+        table: referencedTableName,
+        columns: referencedColumns,
+      },
+    }),
+  );
+};
+
 describe("platform Postgres schema contract", () => {
   it("covers the hosted platform production tables in migration order", () => {
     expect(platformPostgresSchema.tables.map(table => table.name)).toEqual(expectedTableOrder);
@@ -255,6 +274,32 @@ describe("platform Postgres schema contract", () => {
   });
 
   it("matches runtime records for imports, pricing, jobs, simulations, and exports", () => {
+    expectColumn("accounts", "email", { type: "text" });
+    expectColumn("accounts", "email_normalized", { type: "text" });
+    expectColumn("accounts", "password_hash", { type: "text" });
+    expectColumn("accounts", "status", {
+      type: "text",
+      default: "'active'",
+    });
+    expectCheckContract(
+      "accounts",
+      "accounts_status_check",
+      "status IN ('active', 'disabled', 'deleted')",
+    );
+
+    expectColumn("sessions", "account_id", { type: "text" });
+    expectColumn("sessions", "token_hash", { type: "text" });
+    expectColumn("sessions", "expires_at", { type: "timestamptz" });
+    expectColumn("sessions", "revoked_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectColumn("sessions", "last_used_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectForeignKeyContract("sessions", "sessions_account_id_fkey", ["account_id"], "accounts", ["id"]);
+
     expectColumn("historical_import_batches", "replacement_requested", {
       type: "boolean",
       default: "false",

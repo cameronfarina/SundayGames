@@ -1,4 +1,3 @@
-import { hashSessionToken } from "./auth.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   applyLeagueSetupImportToSeason,
@@ -86,37 +85,37 @@ const normalizeEmailKey = (email: string): string => email.trim().toLowerCase();
 const contentFor = (input: Pick<PlatformLeagueSetupImportInput, "content" | "rows">): string =>
   input.content ?? input.rows?.join("\n") ?? "";
 
-const existingSeasonFor = (
+const existingSeasonFor = async (
   app: PlatformApp,
   input: Pick<PlatformLeagueSetupImportInput, "actorSessionToken" | "seasonId" | "now">,
-): LeagueSeason | null => {
+): Promise<LeagueSeason | null> => {
   if (input.seasonId === undefined || input.seasonId.trim().length === 0) return null;
 
-  return app.getLeagueSeason({
+  return await app.getLeagueSeason({
     actorSessionToken: input.actorSessionToken,
     seasonId: input.seasonId,
     now: input.now,
   });
 };
 
-const registeredAccountIdForEmail = (
+const registeredAccountIdForEmail = async (
   app: PlatformApp,
   email: string,
-): string | null => {
-  const credential = app.store.authRepository.findAccountCredentialByEmail(normalizeEmailKey(email));
+): Promise<string | null> => {
+  const account = await app.findAccountByEmail(normalizeEmailKey(email));
 
-  return credential?.account.id ?? null;
+  return account?.id ?? null;
 };
 
-const knownUserIdsByEmail = (
+const knownUserIdsByEmail = async (
   app: PlatformApp,
   knownUsers: readonly PlatformLeagueSetupImportKnownUser[] | undefined,
-): ReadonlyMap<string, string> => {
+): Promise<ReadonlyMap<string, string>> => {
   const knownUserIds = new Map<string, string>();
 
   for (const knownUser of knownUsers ?? []) {
     const email = normalizeEmailKey(knownUser.email);
-    const accountId = registeredAccountIdForEmail(app, email);
+    const accountId = await registeredAccountIdForEmail(app, email);
     const submittedUserId = knownUser.userId ?? knownUser.accountId;
 
     if (accountId === null || email.length === 0) continue;
@@ -133,13 +132,14 @@ const knownUserIdsByEmail = (
   return knownUserIds;
 };
 
-const actorAccountIdFor = (
+const actorAccountIdFor = async (
   app: PlatformApp,
   actorSessionToken: string,
-): string | null => {
-  const session = app.store.authRepository.findSessionByTokenHash(hashSessionToken(actorSessionToken));
+  now: Date | undefined,
+): Promise<string | null> => {
+  const account = await app.findAccountBySessionToken(actorSessionToken, now);
 
-  return session?.accountId ?? null;
+  return account?.id ?? null;
 };
 
 const membershipForSeed = (
@@ -192,31 +192,31 @@ const pendingInviteFor = (
   };
 };
 
-const membershipsForAppliedImport = (
+const membershipsForAppliedImport = async (
   app: PlatformApp,
   input: PlatformLeagueSetupImportInput,
   season: LeagueSeason,
   seeds: readonly LeagueSetupMembershipSeed[],
-): {
+): Promise<{
   memberships: readonly PlatformLeagueMembership[];
   pendingInvites: readonly PlatformLeagueSetupImportPendingInvite[];
-} => {
+}> => {
   const membershipsByUserId = new Map<string, PlatformLeagueMembership>();
   const claimedTeamIds = new Set<string>();
-  const userIdsByEmail = knownUserIdsByEmail(app, input.knownUsers);
+  const userIdsByEmail = await knownUserIdsByEmail(app, input.knownUsers);
 
   for (const seed of seeds) {
     if (seed.email === undefined) continue;
 
     const email = normalizeEmailKey(seed.email);
-    const knownUserId = userIdsByEmail.get(email) ?? registeredAccountIdForEmail(app, email);
+    const knownUserId = userIdsByEmail.get(email) ?? (await registeredAccountIdForEmail(app, email));
     if (knownUserId === undefined || knownUserId === null) continue;
 
     membershipsByUserId.set(knownUserId, membershipForSeed(seed, knownUserId));
     claimedTeamIds.add(seed.teamId);
   }
 
-  const actorAccountId = actorAccountIdFor(app, input.actorSessionToken);
+  const actorAccountId = await actorAccountIdFor(app, input.actorSessionToken, input.now);
   for (const existingMembership of app.store.membershipsForLeague(season.leagueId)) {
     const existingSeed = seedForExistingMembership(season, seeds, existingMembership);
     const membership = existingSeed === undefined
@@ -251,11 +251,11 @@ const membershipsForAppliedImport = (
   };
 };
 
-export const previewLeagueSetupImport = (
+export const previewLeagueSetupImport = async (
   app: PlatformApp,
   input: PlatformLeagueSetupImportInput,
-): PlatformSetupHttpResponse<PlatformLeagueSetupImportPreviewBody> => {
-  const season = existingSeasonFor(app, input);
+): Promise<PlatformSetupHttpResponse<PlatformLeagueSetupImportPreviewBody>> => {
+  const season = await existingSeasonFor(app, input);
   const parsedImport = parseLeagueSetupImport(
     contentFor(input),
     season === null ? {} : { expectedTeamCount: season.settings.expectedTeamCount },
@@ -267,11 +267,11 @@ export const previewLeagueSetupImport = (
   };
 };
 
-export const applyLeagueSetupImport = (
+export const applyLeagueSetupImport = async (
   app: PlatformApp,
   input: PlatformLeagueSetupImportInput,
-): PlatformSetupHttpResponse<PlatformLeagueSetupImportApplyBody | PlatformLeagueSetupImportBlockedBody> => {
-  const season = existingSeasonFor(app, input);
+): Promise<PlatformSetupHttpResponse<PlatformLeagueSetupImportApplyBody | PlatformLeagueSetupImportBlockedBody>> => {
+  const season = await existingSeasonFor(app, input);
   if (season === null) {
     return {
       status: 400,
@@ -291,13 +291,13 @@ export const applyLeagueSetupImport = (
   }
 
   const appliedImport = applyLeagueSetupImportToSeason(season, parsedImport.records);
-  const { memberships, pendingInvites } = membershipsForAppliedImport(
+  const { memberships, pendingInvites } = await membershipsForAppliedImport(
     app,
     input,
     season,
     appliedImport.memberships,
   );
-  const registeredSeason = app.registerLeagueSeason({
+  const registeredSeason = await app.registerLeagueSeason({
     actorSessionToken: input.actorSessionToken,
     season: appliedImport.season,
     memberships,

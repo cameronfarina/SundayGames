@@ -75,10 +75,44 @@ interface StoredSnapshotRow {
   snapshot_json: unknown;
 }
 
+interface StoredAuthAccountRow {
+  id: string;
+  email: string;
+  email_normalized: string;
+  password_hash: string;
+  status: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface StoredAuthSessionRow {
+  id: string;
+  account_id: string;
+  token_hash: string;
+  created_at: Date;
+  expires_at: Date;
+  revoked_at: Date | null;
+}
+
 interface InsertGate {
   entered: () => void;
   release: Promise<void>;
 }
+
+const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+const cloneAuthAccountRow = (row: StoredAuthAccountRow): StoredAuthAccountRow => ({
+  ...row,
+  created_at: new Date(row.created_at.getTime()),
+  updated_at: new Date(row.updated_at.getTime()),
+});
+
+const cloneAuthSessionRow = (row: StoredAuthSessionRow): StoredAuthSessionRow => ({
+  ...row,
+  created_at: new Date(row.created_at.getTime()),
+  expires_at: new Date(row.expires_at.getTime()),
+  revoked_at: row.revoked_at === null ? null : new Date(row.revoked_at.getTime()),
+});
 
 class FakePostgresClient implements PostgresQueryClient {
   row: StoredSnapshotRow | undefined;
@@ -122,6 +156,143 @@ class FakePostgresClient implements PostgresQueryClient {
     }
 
     throw new Error(`Unexpected SQL: ${text}`);
+  }
+}
+
+class FakePostgresAuthClient implements PostgresQueryClient {
+  readonly accounts = new Map<string, StoredAuthAccountRow>();
+  readonly sessions = new Map<string, StoredAuthSessionRow>();
+
+  async query<TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> {
+    const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("INSERT INTO accounts")) {
+      const [id, email, passwordHash, createdAt] = values as readonly [string, string, string, Date];
+      const existing = [...this.accounts.values()].find(account => account.email_normalized === email);
+      if (existing !== undefined) return { rows: [], rowCount: 0 };
+
+      const row: StoredAuthAccountRow = {
+        id,
+        email,
+        email_normalized: email,
+        password_hash: passwordHash,
+        status: "active",
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
+      this.accounts.set(id, row);
+
+      return { rows: [cloneAuthAccountRow(row) as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("FROM accounts") && normalizedSql.includes("WHERE email_normalized = $1")) {
+      const [email] = values as readonly [string];
+      const activeOnly = normalizedSql.includes("status = 'active'");
+      const row = [...this.accounts.values()]
+        .find(account => account.email_normalized === email && (!activeOnly || account.status === "active"));
+
+      return { rows: row === undefined ? [] : [cloneAuthAccountRow(row) as TRow] };
+    }
+
+    if (normalizedSql.includes("FROM accounts") && normalizedSql.includes("WHERE id = $1")) {
+      const [accountId] = values as readonly [string];
+      const row = this.accounts.get(accountId);
+      if (normalizedSql.includes("status = 'active'") && row?.status !== "active") {
+        return { rows: [] };
+      }
+
+      return { rows: row === undefined ? [] : [cloneAuthAccountRow(row) as TRow] };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO sessions")) {
+      const [id, accountId, tokenHash, expiresAt, createdAt] =
+        values as readonly [string, string, string, Date, Date];
+      const row: StoredAuthSessionRow = {
+        id,
+        account_id: accountId,
+        token_hash: tokenHash,
+        created_at: createdAt,
+        expires_at: expiresAt,
+        revoked_at: null,
+      };
+      this.sessions.set(id, row);
+
+      return { rows: [cloneAuthSessionRow(row) as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE token_hash = $1")) {
+      const [tokenHash] = values as readonly [string];
+      const row = [...this.sessions.values()].find(session => session.token_hash === tokenHash);
+
+      return { rows: row === undefined ? [] : [cloneAuthSessionRow(row) as TRow] };
+    }
+
+    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE id = $1")) {
+      const [sessionId] = values as readonly [string];
+      const row = this.sessions.get(sessionId);
+
+      return { rows: row === undefined ? [] : [cloneAuthSessionRow(row) as TRow] };
+    }
+
+    if (normalizedSql.startsWith("UPDATE sessions SET revoked_at")) {
+      const [sessionId, revokedAt] = values as readonly [string, Date];
+      const row = this.sessions.get(sessionId);
+      if (row === undefined) return { rows: [], rowCount: 0 };
+
+      row.revoked_at = revokedAt;
+
+      return { rows: [cloneAuthSessionRow(row) as TRow], rowCount: 1 };
+    }
+
+    throw new Error(`Unexpected SQL: ${text}`);
+  }
+}
+
+class FakeTransactionalPostgresAuthClient
+  extends FakePostgresAuthClient
+  implements PostgresTransactionalQueryClient {
+  readonly statements: string[] = [];
+  readonly appliedMigrations = new Set<string>();
+
+  override async query<TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> {
+    this.statements.push(text);
+    const normalizedSql = normalizeSql(text);
+
+    if (
+      normalizedSql.startsWith("CREATE TABLE") ||
+      normalizedSql.startsWith("CREATE INDEX") ||
+      normalizedSql.startsWith("CREATE UNIQUE INDEX") ||
+      normalizedSql.startsWith("ALTER TABLE")
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith("SELECT id FROM platform_schema_migrations")) {
+      const [migrationId] = values as readonly [string];
+
+      return {
+        rows: this.appliedMigrations.has(migrationId) ? [{ id: migrationId } as TRow] : [],
+      };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO platform_schema_migrations")) {
+      const [migrationId] = values as readonly [string];
+      this.appliedMigrations.add(migrationId);
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    return await super.query(text, values);
+  }
+
+  async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    return await operation(this);
   }
 }
 
@@ -514,6 +685,238 @@ describe("platform server composition", () => {
     });
   });
 
+  it("uses Postgres auth for account and session HTTP routes without snapshot auth writes", async () => {
+    const postgresClient = new FakePostgresClient();
+    const postgresAuthClient = new FakePostgresAuthClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+      postgresAuthClient,
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+
+    expect(platformServer.authRepository).toBe(platformServer.postgresAuthRepository);
+    expect(postgresClient.row).toBeUndefined();
+    expect(postgresAuthClient.accounts.get(accountId)).toMatchObject({
+      email: "cam@example.com",
+      email_normalized: "cam@example.com",
+      password_hash: expect.stringMatching(/^scrypt\$/),
+    });
+    expect(JSON.stringify([...postgresAuthClient.sessions.values()])).not.toContain(sessionToken);
+
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    const registered = await jsonFetch(baseUrl, "/seasons", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        season,
+        memberships: [
+          {
+            userId: accountId,
+            leagueId: season.leagueId,
+            role: "owner",
+            ownerId: camTeam.ownerId,
+            teamId: camTeam.id,
+          },
+        ],
+      }),
+    });
+
+    expect(registered.status).toBe(200);
+    expect(postgresClient.row?.snapshot_json).toMatchObject({
+      schemaVersion: 1,
+      auth: {
+        accountCredentials: [],
+        sessions: [],
+      },
+      memberships: [
+        expect.objectContaining({
+          userId: accountId,
+          leagueId: season.leagueId,
+        }),
+      ],
+    });
+
+    await platformServer.close();
+    const loadedServer = await createPlatformServer({
+      postgresClient,
+      postgresAuthClient,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+    const loadedBaseUrl = await listen(loadedServer);
+
+    const loadedSeason = await jsonFetch(loadedBaseUrl, `/seasons/${season.id}`, {
+      headers: { "x-session-token": sessionToken },
+    });
+
+    expect(loadedSeason).toMatchObject({
+      status: 200,
+      body: {
+        season: {
+          id: season.id,
+          leagueId: season.leagueId,
+        },
+      },
+    });
+    expect(loadedServer.store.snapshot().auth).toEqual({
+      accountCredentials: [],
+      sessions: [],
+    });
+  });
+
+  it("initializes normalized auth schema when auth is the only Postgres-backed repository", async () => {
+    const postgresAuthClient = new FakeTransactionalPostgresAuthClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresAuthClient,
+      initializePostgresSchema: true,
+    });
+
+    expect(platformServer.postgresAuthRepository).toBeDefined();
+    expect(postgresAuthClient.statements.some(statement =>
+      statement.includes("CREATE TABLE IF NOT EXISTS platform_schema_migrations")
+    )).toBe(true);
+    expect(postgresAuthClient.statements.some(statement =>
+      normalizeSql(statement).startsWith("CREATE TABLE accounts")
+    )).toBe(true);
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "auth-only@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: {
+        account: {
+          email: "auth-only@example.com",
+        },
+      },
+    });
+    expect(postgresAuthClient.accounts.size).toBe(1);
+  });
+
+  it("scrubs stale snapshot auth when Postgres auth owns runtime accounts and sessions", async () => {
+    const postgresClient = new FakePostgresClient();
+    const legacyServer = await createPlatformServer({
+      postgresClient,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(legacyServer);
+    const legacyBaseUrl = await listen(legacyServer);
+
+    await jsonFetch(legacyBaseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "legacy@example.com",
+        password: "legacy password",
+      }),
+    });
+    expect(JSON.stringify(postgresClient.row?.snapshot_json)).toContain("legacy@example.com");
+
+    await legacyServer.close();
+    const postgresAuthClient = new FakePostgresAuthClient();
+    const loadedServer = await createPlatformServer({
+      postgresClient,
+      postgresAuthClient,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+    const loadedBaseUrl = await listen(loadedServer);
+
+    expect(loadedServer.store.snapshot().auth).toEqual({
+      accountCredentials: [],
+      sessions: [],
+    });
+
+    const created = await jsonFetch(loadedBaseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(loadedBaseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await jsonFetch(loadedBaseUrl, "/seasons", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        season,
+        memberships: [
+          {
+            userId: accountId,
+            leagueId: season.leagueId,
+            role: "owner",
+            ownerId: camTeam.ownerId,
+            teamId: camTeam.id,
+          },
+        ],
+      }),
+    });
+
+    expect(postgresClient.row?.snapshot_json).toMatchObject({
+      auth: {
+        accountCredentials: [],
+        sessions: [],
+      },
+    });
+    expect(JSON.stringify(postgresClient.row?.snapshot_json)).not.toContain("legacy@example.com");
+  });
+
   it("recovers Postgres-backed runtime after a snapshot write conflict", async () => {
     const postgresClient = new FakePostgresClient();
     const { platformServer, baseUrl } = await createListeningServer({
@@ -652,8 +1055,8 @@ describe("platform server composition", () => {
     const { platformServer, baseUrl } = await createListeningServer({
       postgresClient,
     });
-    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -663,7 +1066,7 @@ describe("platform server composition", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    platformServer.app.registerLeagueSeason({
+    await platformServer.app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -750,8 +1153,8 @@ describe("platform server composition", () => {
       postgresClient,
     });
     const cachedHandlers = platformServer.jobHandlers;
-    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -761,7 +1164,7 @@ describe("platform server composition", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    platformServer.app.registerLeagueSeason({
+    await platformServer.app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -846,8 +1249,8 @@ describe("platform server composition", () => {
       dataFilePath,
       jobRepository,
     });
-    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -857,7 +1260,7 @@ describe("platform server composition", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    platformServer.app.registerLeagueSeason({
+    await platformServer.app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -972,8 +1375,8 @@ describe("platform server composition", () => {
       jobRepository,
       simulationRepository,
     });
-    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -983,7 +1386,7 @@ describe("platform server composition", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    platformServer.app.registerLeagueSeason({
+    await platformServer.app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -1166,8 +1569,8 @@ describe("platform server composition", () => {
   it("persists worker-completed private simulations in the file-backed store", async () => {
     const dataFilePath = await storePath();
     const { platformServer } = await createListeningServer({ dataFilePath });
-    platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
+    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -1177,7 +1580,7 @@ describe("platform server composition", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    platformServer.app.registerLeagueSeason({
+    await platformServer.app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [

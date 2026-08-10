@@ -41,7 +41,9 @@ Current npm entrypoints:
 - `npm run platform:web`: starts the platform HTTP server.
 - `npm run platform:worker`: starts the background job worker loop.
 
-The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path. In Postgres mode, web and worker construct normalized repositories for jobs and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet.
+The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path. In Postgres mode, web and worker construct normalized repositories for accounts, sessions, jobs, and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only HTTP mutations skip snapshot persistence when an external auth repository is configured, so raw auth state does not duplicate into the bridge. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
+
+HTTP auth timestamps are server-controlled. Client body/query `now` values are ignored for account creation, login, session lookup, and protected route authorization; tests and server composition inject trusted request time through the platform server clock.
 
 ## Environment Variables
 
@@ -66,7 +68,7 @@ Implemented bootstrap variables:
 - `MOCKD_POSTGRES_POOL_SIZE`: Postgres pool size.
 - `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
 - `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
-- `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes only the snapshot bridge table during web/worker startup. Production should use `npm run platform:migrate`.
+- `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web/worker startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
 - `MOCKD_WORKER_ID`: stable worker identifier for job locks.
 - `MOCKD_WORKER_JOB_KINDS`: comma-separated job kinds the worker may claim. Defaults to `simulation` so unsupported import/pricing/export jobs are not accidentally failed.
 - `MOCKD_WORKER_POLL_INTERVAL_MS`: idle/error poll delay.
@@ -217,7 +219,8 @@ If a commissioner enters a bad sale:
 
 ## Launch Readiness Checklist
 
-- Accounts and sessions are production-safe.
+- Accounts and sessions use normalized Postgres persistence with password hashes and session-token hashes only.
+- Auth uses server-controlled request time, and disabled/deleted accounts cannot log in or keep sessions valid.
 - League membership and privacy checks pass for shared and private routes.
 - Postgres migrations are applied.
 - Backups are enabled and one restore has been rehearsed.

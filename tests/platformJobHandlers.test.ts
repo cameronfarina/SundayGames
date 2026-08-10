@@ -37,14 +37,14 @@ const mockBatch = ({
   },
 });
 
-const signUpAndLogin = (
+const signUpAndLogin = async (
   app: ReturnType<typeof createPlatformApp>,
   email: string,
   password: string,
   createdAt: Date,
 ) => {
-  app.createAccount({ email, password, now: createdAt });
-  const login = app.login({ email, password, now: createdAt });
+  await app.createAccount({ email, password, now: createdAt });
+  const login = await app.login({ email, password, now: createdAt });
   if (login === null) throw new Error(`Expected ${email} login.`);
 
   return login;
@@ -73,7 +73,7 @@ describe("platform job handlers", () => {
     const persist = vi.fn(() => {
       progressEvents.push("persist");
     });
-    const cam = signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -81,7 +81,7 @@ describe("platform job handlers", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam team fixture.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [

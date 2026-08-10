@@ -66,8 +66,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
@@ -76,7 +76,7 @@ describe("file-backed platform store", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -95,7 +95,7 @@ describe("file-backed platform store", () => {
     const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
     const loadedSnapshot = loadedFileStore.store.snapshot();
 
-    expect(loadedApp.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id, now })).toEqual(season);
+    expect(await loadedApp.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id, now })).toEqual(season);
     expect(loadedSnapshot.auth.accountCredentials[0]?.account.createdAt).toBeInstanceOf(Date);
     expect(loadedSnapshot.auth.accountCredentials[0]?.account.updatedAt).toBeInstanceOf(Date);
     expect(loadedSnapshot.auth.sessions[0]?.createdAt).toBeInstanceOf(Date);
@@ -106,8 +106,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
@@ -115,14 +115,14 @@ describe("file-backed platform store", () => {
     });
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
         { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
-    const room = app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       seasonId: season.id,
       roomId: "room_214674_2026",
@@ -131,13 +131,13 @@ describe("file-backed platform store", () => {
       playerCatalog,
       now,
     });
-    app.startLiveDraftRoom({
+    await app.startLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       expectedRevision: 1,
       now: new Date(now.getTime() + 1_000),
     });
-    const sold = app.logLiveDraftSale({
+    const sold = await app.logLiveDraftSale({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       expectedRevision: 2,
@@ -149,7 +149,7 @@ describe("file-backed platform store", () => {
     await fileStore.save();
     const loadedFileStore = await FilePlatformStore.load(path);
     const loadedApp = createPlatformApp({ store: loadedFileStore.store, simulationRunner: mockRunner });
-    const loadedRoom = loadedApp.getLiveDraftRoom({
+    const loadedRoom = await loadedApp.getLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       now,
@@ -171,8 +171,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
 
     await fileStore.save();
@@ -193,8 +193,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
@@ -203,7 +203,7 @@ describe("file-backed platform store", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -234,7 +234,7 @@ describe("file-backed platform store", () => {
       runId: simulation.id,
       now: new Date(now.getTime() + 1_000),
     });
-    const mockSession = app.createMockDraftSession({
+    const mockSession = await app.createMockDraftSession({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -243,7 +243,7 @@ describe("file-backed platform store", () => {
       draftMode: { format: "auction", mockCount: 4, label: "File store mock" },
       now,
     });
-    const updatedMockSession = app.appendMockDraftCommand({
+    const updatedMockSession = await app.appendMockDraftCommand({
       actorSessionToken: cam.sessionToken,
       sessionId: mockSession.id,
       expectedRevision: 1,
@@ -263,7 +263,7 @@ describe("file-backed platform store", () => {
       runId: simulation.id,
       now,
     })).resolves.toEqual(completedSimulation);
-    expect(loadedApp.listMockDraftSessions({
+    expect(await loadedApp.listMockDraftSessions({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
@@ -277,8 +277,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = app.login({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
     if (cam === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
@@ -287,7 +287,7 @@ describe("file-backed platform store", () => {
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
 
-    app.registerLeagueSeason({
+    await app.registerLeagueSeason({
       actorSessionToken: cam.sessionToken,
       season,
       memberships: [
@@ -301,19 +301,19 @@ describe("file-backed platform store", () => {
       ],
       now,
     });
-    const preview = app.previewHistoricalImportSource({
+    const preview = await app.previewHistoricalImportSource({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2026,player-puka",
       now,
     });
-    app.commitHistoricalImport({
+    await app.commitHistoricalImport({
       actorSessionToken: cam.sessionToken,
       batchId: preview.batch.id,
       now: new Date(now.getTime() + 1_000),
     });
-    const pricing = app.rebuildLeaguePricing({
+    const pricing = await app.rebuildLeaguePricing({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
@@ -340,7 +340,7 @@ describe("file-backed platform store", () => {
       idempotencyKey: "job:file-store-job",
       now: new Date(now.getTime() + 3_000),
     });
-    const room = app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       seasonId: season.id,
       roomId: "room_export_artifact",
@@ -348,7 +348,7 @@ describe("file-backed platform store", () => {
       playerCatalog,
       now,
     });
-    const exportArtifact = app.createLiveDraftRoomExportArtifact({
+    const exportArtifact = await app.createLiveDraftRoomExportArtifact({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
@@ -365,7 +365,7 @@ describe("file-backed platform store", () => {
     expect(loadedSnapshot.historicalSaleRecords).toEqual([
       expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 }),
     ]);
-    expect(loadedApp.listLeaguePricingSnapshots({
+    expect(await loadedApp.listLeaguePricingSnapshots({
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,

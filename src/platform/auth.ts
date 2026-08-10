@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 export type AuthErrorCode = "duplicate_email" | "invalid_email" | "invalid_password";
+type MaybePromise<T> = T | Promise<T>;
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;
@@ -49,13 +50,13 @@ export interface CreateSessionRecordInput {
 }
 
 export interface AuthRepository {
-  createAccount(input: CreateAccountRecordInput): AccountRecord;
-  findAccountCredentialByEmail(normalizedEmail: string): AccountCredentialRecord | null;
-  findAccountById(accountId: string): AccountRecord | null;
-  createSession(input: CreateSessionRecordInput): SessionRecord;
-  findSessionByTokenHash(tokenHash: string): SessionRecord | null;
-  findSessionById(sessionId: string): SessionRecord | null;
-  revokeSession(sessionId: string, revokedAt: Date): SessionRecord | null;
+  createAccount(input: CreateAccountRecordInput): MaybePromise<AccountRecord>;
+  findAccountCredentialByEmail(normalizedEmail: string): MaybePromise<AccountCredentialRecord | null>;
+  findAccountById(accountId: string): MaybePromise<AccountRecord | null>;
+  createSession(input: CreateSessionRecordInput): MaybePromise<SessionRecord>;
+  findSessionByTokenHash(tokenHash: string): MaybePromise<SessionRecord | null>;
+  findSessionById(sessionId: string): MaybePromise<SessionRecord | null>;
+  revokeSession(sessionId: string, revokedAt: Date): MaybePromise<SessionRecord | null>;
 }
 
 export interface CreateAuthServiceOptions {
@@ -88,11 +89,11 @@ export interface AuthenticatedSession {
 }
 
 export interface AuthService {
-  createUser(input: CreateUserInput): AccountRecord;
-  login(input: LoginInput): LoginResult | null;
-  lookupSession(sessionToken: string, now?: Date): AuthenticatedSession | null;
-  logout(sessionToken: string, now?: Date): boolean;
-  revokeSession(sessionId: string, now?: Date): boolean;
+  createUser(input: CreateUserInput): Promise<AccountRecord>;
+  login(input: LoginInput): Promise<LoginResult | null>;
+  lookupSession(sessionToken: string, now?: Date): Promise<AuthenticatedSession | null>;
+  logout(sessionToken: string, now?: Date): Promise<boolean>;
+  revokeSession(sessionId: string, now?: Date): Promise<boolean>;
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -246,17 +247,24 @@ export class InMemoryAuthRepository implements AuthRepository {
   sessions(): SessionRecord[] {
     return [...this.#sessionsById.values()];
   }
+
+  clear(): void {
+    this.#accountsById.clear();
+    this.#accountIdsByEmail.clear();
+    this.#sessionsById.clear();
+    this.#sessionIdsByTokenHash.clear();
+  }
 }
 
 export const createAuthService = ({
   repository,
   sessionTtlMs = defaultSessionTtlMs,
 }: CreateAuthServiceOptions): AuthService => ({
-  createUser: ({ email, password, now = new Date() }) => {
+  createUser: async ({ email, password, now = new Date() }) => {
     const normalizedEmail = normalizeEmail(email);
     const passwordHash = hashPassword(password);
 
-    return repository.createAccount({
+    return await repository.createAccount({
       id: createId("acct"),
       email: normalizedEmail,
       passwordHash,
@@ -264,9 +272,9 @@ export const createAuthService = ({
     });
   },
 
-  login: ({ email, password, now = new Date(), sessionTtlMs: loginSessionTtlMs }) => {
+  login: async ({ email, password, now = new Date(), sessionTtlMs: loginSessionTtlMs }) => {
     const normalizedEmail = normalizeEmail(email);
-    const credential = repository.findAccountCredentialByEmail(normalizedEmail);
+    const credential = await repository.findAccountCredentialByEmail(normalizedEmail);
 
     if (credential === null || !verifyPassword(password, credential.passwordHash)) {
       return null;
@@ -274,7 +282,7 @@ export const createAuthService = ({
 
     const sessionToken = createSessionToken();
     const expiresAt = new Date(now.getTime() + (loginSessionTtlMs ?? sessionTtlMs));
-    const session = repository.createSession({
+    const session = await repository.createSession({
       id: createId("sess"),
       accountId: credential.account.id,
       tokenHash: hashSessionToken(sessionToken),
@@ -289,14 +297,14 @@ export const createAuthService = ({
     };
   },
 
-  lookupSession: (sessionToken, now = new Date()) => {
-    const session = repository.findSessionByTokenHash(hashSessionToken(sessionToken));
+  lookupSession: async (sessionToken, now = new Date()) => {
+    const session = await repository.findSessionByTokenHash(hashSessionToken(sessionToken));
 
     if (session === null || session.revokedAt !== undefined || session.expiresAt <= now) {
       return null;
     }
 
-    const account = repository.findAccountById(session.accountId);
+    const account = await repository.findAccountById(session.accountId);
 
     if (account === null) {
       return null;
@@ -308,17 +316,17 @@ export const createAuthService = ({
     };
   },
 
-  logout: (sessionToken, now = new Date()) => {
-    const session = repository.findSessionByTokenHash(hashSessionToken(sessionToken));
+  logout: async (sessionToken, now = new Date()) => {
+    const session = await repository.findSessionByTokenHash(hashSessionToken(sessionToken));
 
     if (session === null) {
       return false;
     }
 
-    return repository.revokeSession(session.id, now) !== null;
+    return await repository.revokeSession(session.id, now) !== null;
   },
 
-  revokeSession: (sessionId, now = new Date()) => repository.revokeSession(sessionId, now) !== null,
+  revokeSession: async (sessionId, now = new Date()) => await repository.revokeSession(sessionId, now) !== null,
 });
 
 const derivePasswordKey = (password: string, salt: string): string =>

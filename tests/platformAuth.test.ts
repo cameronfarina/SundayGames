@@ -20,10 +20,10 @@ const expectLoginResult = (login: LoginResult | null): LoginResult => {
 };
 
 describe("platform auth foundation", () => {
-  it("creates a user with a normalized unique email", () => {
+  it("creates a user with a normalized unique email", async () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
 
-    const account = auth.createUser({
+    const account = await auth.createUser({
       email: "  Cameron.Farina+Mockd@Example.COM  ",
       password: "correct horse battery staple",
       now,
@@ -38,36 +38,36 @@ describe("platform auth foundation", () => {
     expect(normalizeEmail("CAMERON.FARINA+MOCKD@example.com")).toBe(account.email);
   });
 
-  it("rejects duplicate account emails case-insensitively", () => {
+  it("rejects duplicate account emails case-insensitively", async () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
 
-    auth.createUser({
+    await auth.createUser({
       email: "team@mockd.app",
       password: "first secure password",
       now,
     });
 
-    expect(() =>
+    await expect(
       auth.createUser({
         email: " TEAM@MOCKD.APP ",
         password: "second secure password",
         now,
       }),
-    ).toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
+    ).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
   });
 
-  it("logs in with a password and returns the raw session token only in the login result", () => {
+  it("logs in with a password and returns the raw session token only in the login result", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
-    const account = auth.createUser({
+    const account = await auth.createUser({
       email: "coach@mockd.app",
       password: "valid password",
       now,
     });
 
-    expect(auth.login({ email: "coach@mockd.app", password: "wrong password", now })).toBeNull();
+    await expect(auth.login({ email: "coach@mockd.app", password: "wrong password", now })).resolves.toBeNull();
 
-    const login = expectLoginResult(auth.login({
+    const login = expectLoginResult(await auth.login({
       email: " COACH@MOCKD.APP ",
       password: "valid password",
       now,
@@ -88,63 +88,63 @@ describe("platform auth foundation", () => {
     expect(JSON.stringify(repository.sessions())).not.toContain(login.sessionToken);
   });
 
-  it("looks sessions up by hashed token and ignores expired sessions", () => {
+  it("looks sessions up by hashed token and ignores expired sessions", async () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
-    const account = auth.createUser({
+    const account = await auth.createUser({
       email: "session@mockd.app",
       password: "valid password",
       now,
     });
-    const login = expectLoginResult(auth.login({
+    const login = expectLoginResult(await auth.login({
       email: "session@mockd.app",
       password: "valid password",
       now,
       sessionTtlMs: 1_000,
     }));
 
-    expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 999))).toEqual({
+    await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 999))).resolves.toEqual({
       account,
       session: login.session,
     });
-    expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 1_000))).toBeNull();
+    await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 1_000))).resolves.toBeNull();
   });
 
-  it("invalidates sessions through logout and direct revocation", () => {
+  it("invalidates sessions through logout and direct revocation", async () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
-    auth.createUser({
+    await auth.createUser({
       email: "logout@mockd.app",
       password: "valid password",
       now,
     });
-    const login = expectLoginResult(auth.login({
+    const login = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
       password: "valid password",
       now,
     }));
 
-    expect(auth.logout(login.sessionToken, new Date(now.getTime() + 1))).toBe(true);
-    expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 2))).toBeNull();
+    await expect(auth.logout(login.sessionToken, new Date(now.getTime() + 1))).resolves.toBe(true);
+    await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 2))).resolves.toBeNull();
 
-    const secondLogin = expectLoginResult(auth.login({
+    const secondLogin = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
       password: "valid password",
       now: new Date(now.getTime() + 3),
     }));
 
-    expect(auth.revokeSession(secondLogin.session.id, new Date(now.getTime() + 4))).toBe(true);
-    expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 5))).toBeNull();
+    await expect(auth.revokeSession(secondLogin.session.id, new Date(now.getTime() + 4))).resolves.toBe(true);
+    await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 5))).resolves.toBeNull();
   });
 
-  it("keeps raw passwords and raw session tokens out of public records", () => {
+  it("keeps raw passwords and raw session tokens out of public records", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
     const rawPassword = "do not store this password";
-    const account = auth.createUser({
+    const account = await auth.createUser({
       email: "private@mockd.app",
       password: rawPassword,
       now,
     });
-    const login = expectLoginResult(auth.login({
+    const login = expectLoginResult(await auth.login({
       email: "private@mockd.app",
       password: rawPassword,
       now,
