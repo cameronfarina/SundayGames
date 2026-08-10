@@ -1,77 +1,73 @@
 import { describe, expect, it } from "vitest";
-import { localDemoPlayerCatalog } from "../src/platform/localDemoFixtures.js";
-import { platformShellHtml } from "../src/platform/platformShellUi.js";
+import {
+  draftRoomPathFor,
+  platformShellHtml,
+  platformShellNavigation,
+} from "../src/platform/platformShellUi.js";
 
 describe("platform shell UI", () => {
-  it("ships a cookie-backed auth shell and unified product frame", () => {
-    expect(platformShellHtml).toContain("id=\"auth-panel\"");
-    expect(platformShellHtml).toContain("id=\"app-shell\"");
-    expect(platformShellHtml).toContain("GET /session");
-    expect(platformShellHtml).toContain("fetch(\"/sessions\"");
-    expect(platformShellHtml).toContain("fetch(\"/accounts\"");
-    expect(platformShellHtml).toContain("fetch(\"/session\", { method: \"DELETE\" })");
-    expect(platformShellHtml).toContain("Draft board");
-    expect(platformShellHtml).toContain("id=\"draft-room-link\"");
-    expect(platformShellHtml).toContain("Open draft board");
-    expect(platformShellHtml).toContain("draftBoardUrlFor");
-    expect(platformShellHtml).toContain("window.location.assign(draftBoardUrlFor())");
-    expect(platformShellHtml).toContain("Room admin");
-    expect(platformShellHtml).toContain("Room administration");
-    expect(platformShellHtml).toContain("setupWorkspace.append(roomAdminWorkspace)");
-    expect(platformShellHtml).toContain("id=\"league-workspace\"");
-    expect(platformShellHtml).toContain("id=\"setup-workspace\" class=\"setup-grid hidden\"");
-    expect(platformShellHtml).toContain("showLeagueWorkspace");
-    expect(platformShellHtml).toContain("showSetupWorkspace");
-    expect(platformShellHtml).toContain("focus({ preventScroll: true })");
-    expect(platformShellHtml).toContain("Commissioner setup");
-    expect(platformShellHtml).toContain("id=\"open-setup-section-button\"");
-    expect(platformShellHtml).toContain("id=\"local-demo-button\"");
-    expect(platformShellHtml).toContain("cam@mockd.local");
-    expect(platformShellHtml).toContain("room_mockd_e2e_2026");
+  it("uses route-backed product navigation and the canonical live draft URL", () => {
+    expect(platformShellNavigation.map(item => [item.label, item.path])).toEqual([
+      ["League", "/app"],
+      ["Board", "/board"],
+      ["Mock drafts", "/mock-drafts"],
+      ["Simulations", "/simulations"],
+      ["Strategy", "/strategy"],
+      ["Live draft", "/draft-room"],
+    ]);
+    expect(draftRoomPathFor({ seasonId: "season 2026", roomId: "room/live" })).toBe(
+      "/draft-room?seasonId=season+2026&roomId=room%2Flive",
+    );
+    expect(platformShellHtml).toContain("<nav class=\"product-nav\" aria-label=\"Primary\">");
+    expect(platformShellHtml).toContain("aria-current");
+    expect(platformShellHtml).not.toContain("localhost:4317");
+    expect(platformShellHtml).not.toContain("draftBoardUrl.port");
+  });
+
+  it("renders distinct login and signup modes", () => {
+    expect(platformShellHtml).toContain("window.location.pathname === \"/signup\"");
+    expect(platformShellHtml).toContain("id=\"auth-title\"");
+    expect(platformShellHtml).toContain("id=\"auth-submit-button\"");
+    expect(platformShellHtml).toContain("id=\"auth-mode-link\"");
+    expect(platformShellHtml).toContain("href=\"/signup\"");
+    expect(platformShellHtml).toContain("href=\"/login\"");
+    expect(platformShellHtml).toContain("minlength=\"8\"");
+    expect(platformShellHtml).toContain("autocomplete=\"new-password\"");
+    expect(platformShellHtml).not.toContain("id=\"create-account-button\"");
+  });
+
+  it("bootstraps durable league and team identity before enabling workspaces", () => {
+    expect(platformShellHtml).toContain("fetch(\"/onboarding\"");
+    expect(platformShellHtml).toContain("id=\"league-picker\"");
+    expect(platformShellHtml).toContain("id=\"my-team-name\"");
+    expect(platformShellHtml).toContain("id=\"membership-role\"");
+    expect(platformShellHtml).toContain("selectedLeague.membership");
+    expect(platformShellHtml).toContain("selectedLeague.liveDraft?.roomId");
+    expect(platformShellHtml).toContain("draftRoomPathFor(selectedLeague.seasonId");
+  });
+
+  it("role-gates setup and renders actionable invitation controls", () => {
+    expect(platformShellHtml).toContain("id=\"commissioner-nav-item\"");
+    expect(platformShellHtml).toContain("selectedLeague.canManageLeague");
+    expect(platformShellHtml).toContain("id=\"setup-workspace\"");
     expect(platformShellHtml).toContain("id=\"setup-season-id-input\"");
     expect(platformShellHtml).toContain("id=\"setup-rows-input\"");
     expect(platformShellHtml).toContain("id=\"setup-preview-button\"");
     expect(platformShellHtml).toContain("id=\"setup-apply-button\"");
-    expect(platformShellHtml).toContain("/setup-import/preview");
-    expect(platformShellHtml).toContain("/setup-import/apply");
-    expect(platformShellHtml).toContain("id=\"setup-blockers\"");
-    expect(platformShellHtml).toContain("id=\"setup-pending-invites\"");
-    expect(platformShellHtml).toContain("Owners without accounts");
-    expect(platformShellHtml).toContain("id=\"season-id-input\"");
-    expect(platformShellHtml).toContain("id=\"load-season-button\"");
-    expect(platformShellHtml).toContain("id=\"team-claim-list\"");
-    expect(platformShellHtml).toContain("id=\"room-id-input\"");
-    expect(platformShellHtml).toContain("id=\"open-room-button\"");
-    expect(platformShellHtml).toContain("id=\"create-room-button\"");
-    expect(platformShellHtml).toContain("id=\"player-catalog-list\"");
-    expect(platformShellHtml).toContain("Advanced catalog JSON");
-    expect(platformShellHtml).toContain("id=\"start-room-button\"");
-    expect(platformShellHtml).toContain("id=\"sale-command-input\"");
-    expect(platformShellHtml).toContain("id=\"log-sale-button\"");
-    expect(platformShellHtml).toContain("id=\"undo-sale-button\"");
-    expect(platformShellHtml).toContain("id=\"end-room-button\"");
-    expect(platformShellHtml).toContain("id=\"create-export-artifact-button\"");
-    expect(platformShellHtml).toContain("id=\"artifact-download-link\"");
-    expect(platformShellHtml).toContain("id=\"artifact-preview\"");
-    expect(platformShellHtml).toContain("const defaultSeasonId = \"league-214674-season-2026\"");
-    expect(localDemoPlayerCatalog.length).toBeGreaterThanOrEqual(60);
-    expect(platformShellHtml).toContain("const defaultPlayerCatalog");
-    expect(platformShellHtml).toContain("Puka Nacua");
-    expect(platformShellHtml).toContain("fetch(seasonEndpoint()");
-    expect(platformShellHtml).toContain("/team-claims");
-    expect(platformShellHtml).toContain("fetch(\"/live-rooms\"");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint()");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"start\")");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"sales\")");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"undo\")");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"end\")");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"export-artifacts\")");
-    expect(platformShellHtml).toContain("fetch(roomEndpoint(\"events\")");
-    expect(platformShellHtml).toContain("new EventSource(roomEndpoint(\"event-stream\")");
-    expect(platformShellHtml).toContain("This account is signed in, but it is not a member of the seeded local league.");
-    expect(platformShellHtml).not.toContain("href=\"/mock-draft\"");
-    expect(platformShellHtml).not.toContain("href=\"/prep\"");
-    expect(platformShellHtml).not.toContain("Open mocks");
-    expect(platformShellHtml).not.toContain("Open prep");
+    expect(platformShellHtml).toContain("id=\"setup-invitations\"");
+    expect(platformShellHtml).toContain("fetch(\"/invitations?seasonId=\"");
+    expect(platformShellHtml).toContain("Copy invite link");
+    expect(platformShellHtml).toContain("Reissue");
+    expect(platformShellHtml).not.toContain("id=\"setup-pending-invites\"");
+  });
+
+  it("announces loading and errors and keeps useful content first on mobile", () => {
+    expect(platformShellHtml).toContain("id=\"app-status\" class=\"status\" role=\"status\" aria-live=\"polite\"");
+    expect(platformShellHtml).toContain("id=\"app-error\" class=\"error hidden\" role=\"alert\"");
+    expect(platformShellHtml).toContain("id=\"retry-onboarding-button\"");
+    expect(platformShellHtml).toContain("@media (min-width: 860px)");
+    expect(platformShellHtml).toContain("overflow-x: auto");
+    expect(platformShellHtml).not.toContain("class=\"cards\"");
+    expect(platformShellHtml).not.toContain("Draft command center");
   });
 });

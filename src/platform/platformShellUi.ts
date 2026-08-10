@@ -1,12 +1,20 @@
-import {
-  localDemoEmail,
-  localDemoPassword,
-  localDemoPlayerCatalog,
-  localDemoRoomId,
-  localDemoSeasonId,
-} from "./localDemoFixtures.js";
+export const platformShellNavigation = [
+  { label: "League", path: "/app" },
+  { label: "Board", path: "/board" },
+  { label: "Mock drafts", path: "/mock-drafts" },
+  { label: "Simulations", path: "/simulations" },
+  { label: "Strategy", path: "/strategy" },
+  { label: "Live draft", path: "/draft-room" },
+] as const;
 
-const localDemoPlayerCatalogJson = JSON.stringify(localDemoPlayerCatalog, null, 6);
+export const draftRoomPathFor = (input: { seasonId: string; roomId: string }): string => {
+  const query = new URLSearchParams({ seasonId: input.seasonId, roomId: input.roomId });
+  return `/draft-room?${query.toString()}`;
+};
+
+const navigationMarkup = platformShellNavigation
+  .map(item => `<a class="product-nav-link" data-nav-path="${item.path}" href="${item.path}">${item.label}</a>`)
+  .join("");
 
 export const platformShellHtml = `<!doctype html>
 <html lang="en">
@@ -17,1362 +25,956 @@ export const platformShellHtml = `<!doctype html>
   <style>
     :root {
       color-scheme: dark;
-      --bg: #050506;
-      --panel: #09090c;
-      --panel-2: #101014;
-      --line: #292632;
-      --line-hot: #d75cff;
-      --line-soft: rgba(215, 92, 255, 0.36);
-      --blue: #5cc8ff;
-      --gold: #ffcf5c;
-      --green: #37e89b;
-      --text: #f6f0ff;
-      --muted: #aaa2b5;
-      --danger: #ff5c8a;
+      --bg: #08090b;
+      --surface: #101216;
+      --surface-raised: #171a20;
+      --line: #2b3039;
+      --text: #f3f5f7;
+      --muted: #a5acb8;
+      --accent: #67d8b0;
+      --accent-strong: #88edc8;
+      --danger: #ff8c9b;
+      --warning: #f4c86b;
+      --focus: #71b7ff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
     }
 
     * { box-sizing: border-box; }
 
     body {
-      margin: 0;
-      min-height: 100vh;
       background: var(--bg);
       color: var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      letter-spacing: 0;
-    }
-
-    button, input, textarea, select {
-      font: inherit;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    .page {
+      margin: 0;
       min-height: 100vh;
-      padding: 28px;
     }
+
+    button, input, select, textarea { font: inherit; }
+    button, select { cursor: pointer; }
+    a { color: inherit; }
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      background: var(--text);
+      color: var(--bg);
+      left: 12px;
+      padding: 10px 12px;
+      position: fixed;
+      top: -60px;
+      z-index: 20;
+    }
+
+    .skip-link:focus { top: 12px; }
+    .hidden { display: none !important; }
 
     .topbar {
       align-items: center;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+      border-bottom: 1px solid var(--line);
       display: flex;
       gap: 16px;
       justify-content: space-between;
-      margin-bottom: 18px;
-      padding: 16px 18px;
+      min-height: 64px;
+      padding: 12px 16px;
     }
 
     .brand {
-      display: grid;
-      gap: 2px;
+      font-size: 22px;
+      font-weight: 850;
+      text-decoration: none;
     }
 
-    .brand strong {
-      font-size: 26px;
-      line-height: 1;
-    }
-
-    .brand span, label, .muted {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
-    }
-
-    .cards {
-      display: grid;
-      gap: 14px;
-      grid-template-columns: repeat(3, minmax(220px, 1fr));
-    }
-
-    .workspace-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
-    }
-
-    .setup-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(280px, 460px) minmax(280px, 1fr);
-    }
-
-    .summary-grid {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(3, minmax(120px, 1fr));
-    }
-
-    .summary-item {
-      background: #070708;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      display: grid;
-      gap: 4px;
-      min-height: 70px;
-      padding: 10px 12px;
-    }
-
-    .summary-item strong {
-      font-size: 17px;
-      overflow-wrap: anywhere;
-    }
-
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 18px;
-    }
-
-    .panel.hot {
-      border-color: var(--line-hot);
-      box-shadow: 0 0 34px rgba(215, 92, 255, 0.16);
-    }
-
-    .panel h1, .panel h2, .panel h3 {
-      margin: 0;
-    }
-
-    .panel h1 {
-      font-size: 38px;
-      line-height: 1.05;
-    }
-
-    .panel h2 {
-      font-size: 20px;
-      margin-bottom: 14px;
-    }
-
-    .panel h3 {
-      font-size: 17px;
-      margin-bottom: 10px;
-    }
-
-    .stack {
-      display: grid;
-      gap: 12px;
-    }
-
-    .row {
+    .account-actions {
       align-items: center;
       display: flex;
       gap: 10px;
-    }
-
-    .row.wrap {
-      flex-wrap: wrap;
-    }
-
-    .row > * {
       min-width: 0;
     }
 
-    input, textarea {
-      background: #050506;
+    .account-email {
+      color: var(--muted);
+      display: none;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product-nav {
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 0 12px;
+      scrollbar-width: thin;
+    }
+
+    .product-nav-link {
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      flex: 0 0 auto;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 14px 10px 11px;
+      text-decoration: none;
+    }
+
+    .product-nav-link[aria-current="page"] {
+      border-bottom-color: var(--accent);
+      color: var(--text);
+    }
+
+    .product-nav-link[aria-disabled="true"] {
+      cursor: not-allowed;
+      opacity: .48;
+    }
+
+    .shell-main {
+      margin: 0 auto;
+      max-width: 1240px;
+      padding: 20px 16px 56px;
+    }
+
+    .boot, .auth-shell {
+      margin: 10vh auto 0;
+      max-width: 440px;
+    }
+
+    .auth-shell h1, .workspace h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    .eyebrow, label, .field-label {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 7px;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 8px 0 0;
+    }
+
+    .stack { display: grid; gap: 16px; }
+    .compact-stack { display: grid; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    input, select, textarea {
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 6px;
       color: var(--text);
-      padding: 0 12px;
+      min-height: 44px;
+      padding: 10px 12px;
       width: 100%;
-    }
-
-    input {
-      min-height: 46px;
     }
 
     textarea {
       line-height: 1.45;
-      min-height: 180px;
-      padding-bottom: 12px;
-      padding-top: 12px;
+      min-height: 190px;
       resize: vertical;
     }
 
-    input:focus, textarea:focus {
-      border-color: var(--line-hot);
-      outline: 2px solid var(--line-soft);
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.54;
-    }
-
-    .btn {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: var(--text);
-      font-weight: 800;
-      min-height: 46px;
-      padding: 0 16px;
-      white-space: nowrap;
-    }
-
-    .btn.primary {
-      background: #26112f;
-      border-color: var(--line-hot);
-    }
-
-    .btn.green {
-      border-color: var(--green);
-      color: #83ffd0;
-    }
-
-    .btn.blue {
-      border-color: var(--blue);
-      color: #bfeeff;
-    }
-
-    .btn.gold {
-      border-color: var(--gold);
-      color: #ffe7a3;
-    }
-
-    .error {
-      color: var(--danger);
-      font-weight: 800;
-      min-height: 20px;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .section-link {
+    button, .button {
       align-items: center;
-      background: #070708;
+      background: var(--surface-raised);
       border: 1px solid var(--line);
       border-radius: 6px;
       color: var(--text);
-      display: flex;
-      font-weight: 800;
-      justify-content: space-between;
-      min-height: 56px;
-      padding: 0 14px;
+      display: inline-flex;
+      font-weight: 750;
+      justify-content: center;
+      min-height: 42px;
+      padding: 9px 14px;
       text-decoration: none;
-      width: 100%;
     }
 
-    .section-link[data-active="true"] {
-      border-color: var(--line-hot);
-      color: #f5c4ff;
+    button.primary, .button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #06110d;
     }
 
-    .notice {
-      background: #0b0b10;
-      border: 1px solid var(--line);
-      border-radius: 6px;
+    button:disabled, .button[aria-disabled="true"] {
+      cursor: not-allowed;
+      opacity: .5;
+    }
+
+    .text-button {
+      background: transparent;
+      border-color: transparent;
       color: var(--muted);
-      padding: 12px;
+      min-height: 38px;
+      padding: 6px 8px;
     }
 
-    .notice strong {
-      color: var(--text);
-    }
-
-    .catalog-list {
+    .context-bar {
+      align-items: end;
+      border-bottom: 1px solid var(--line);
       display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+    }
+
+    .identity {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .identity strong { overflow-wrap: anywhere; }
+    .identity span { color: var(--muted); font-size: 13px; }
+
+    .workspace { display: grid; gap: 24px; }
+
+    .workspace-header {
+      align-items: start;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: space-between;
+    }
+
+    .workspace-section {
+      border-top: 1px solid var(--line);
+      padding-top: 20px;
+    }
+
+    .workspace-section h2 {
+      font-size: 18px;
+      margin: 0 0 14px;
+    }
+
+    .facts {
+      display: grid;
+      gap: 1px;
+      grid-template-columns: 1fr;
+    }
+
+    .fact {
+      background: var(--surface);
+      min-height: 82px;
+      padding: 14px;
+    }
+
+    .fact span { color: var(--muted); display: block; font-size: 12px; font-weight: 750; margin-bottom: 6px; text-transform: uppercase; }
+    .fact strong { display: block; overflow-wrap: anywhere; }
+    .ready { color: var(--accent-strong); }
+    .attention { color: var(--warning); }
+
+    .status { color: var(--muted); min-height: 22px; }
+    .error { color: var(--danger); line-height: 1.45; }
+
+    .empty-state {
+      border: 1px dashed var(--line);
+      color: var(--muted);
+      padding: 24px;
+    }
+
+    .setup-layout { display: grid; gap: 28px; }
+
+    details {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    summary { cursor: pointer; font-weight: 750; }
+
+    .result-list, .invitation-list {
+      display: grid;
+      gap: 1px;
       list-style: none;
       margin: 0;
       padding: 0;
     }
 
-    .catalog-list li {
-      background: #070708;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      display: grid;
-      gap: 4px;
-      min-height: 66px;
-      padding: 10px 12px;
-    }
-
-    .catalog-list strong {
-      overflow-wrap: anywhere;
-    }
-
-    details.advanced {
-      border: 1px solid var(--line);
-      border-radius: 6px;
+    .result-list li, .invitation-row {
+      background: var(--surface);
       padding: 12px;
     }
 
-    details.advanced summary {
-      color: var(--muted);
-      cursor: pointer;
-      font-weight: 800;
-    }
-
-    .result-list {
-      display: grid;
-      gap: 8px;
-      list-style: none;
-      margin: 0;
-      min-height: 32px;
-      padding: 0;
-    }
-
-    .result-list li {
-      background: #070708;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 10px 12px;
-    }
-
-    .team-claim-row {
+    .invitation-row {
       align-items: center;
-      display: grid;
+      display: flex;
+      flex-wrap: wrap;
       gap: 10px;
-      grid-template-columns: minmax(0, 1fr) auto;
+      justify-content: space-between;
     }
 
-    .team-claim-row span {
-      overflow-wrap: anywhere;
+    .invitation-copy { min-width: 0; }
+    .invitation-copy strong, .invitation-copy span { display: block; overflow-wrap: anywhere; }
+    .invitation-copy span { color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+    .visually-hidden {
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      height: 1px;
+      overflow: hidden;
+      position: absolute;
+      white-space: nowrap;
+      width: 1px;
     }
 
-    .status-line {
-      color: var(--muted);
-      font-size: 14px;
-      min-height: 22px;
-      overflow-wrap: anywhere;
-    }
-
-    .status-line strong {
-      color: var(--text);
-    }
-
-    .event-list {
-      max-height: 180px;
-      overflow: auto;
-    }
-
-    .artifact-preview {
-      background: #050506;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: #dbefff;
-      max-height: 260px;
-      overflow: auto;
-      padding: 12px;
-      white-space: pre-wrap;
-    }
-
-    @media (max-width: 1100px) {
-      .cards, .workspace-grid, .setup-grid { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 700px) {
-      .page { padding: 18px; }
-      .summary-grid { grid-template-columns: 1fr; }
-      .topbar { align-items: flex-start; flex-direction: column; }
-      .row { align-items: stretch; flex-direction: column; }
-      .btn { width: 100%; }
+    @media (min-width: 860px) {
+      .topbar { padding-left: 28px; padding-right: 28px; }
+      .account-email { display: block; max-width: 320px; }
+      .product-nav { padding-left: max(20px, calc((100vw - 1240px) / 2)); }
+      .shell-main { padding-left: 28px; padding-right: 28px; }
+      .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
+      .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
     }
   </style>
 </head>
-<body>
-  <main class="page">
-    <header class="topbar">
-      <div class="brand">
-        <span>Mockd</span>
-        <strong>Draft command center</strong>
-      </div>
-      <div class="row wrap">
-        <span id="session-label" class="muted">Signed out</span>
-        <button id="local-demo-topbar-button" class="btn blue hidden" type="button">Use local demo</button>
-        <button id="logout-button" class="btn hidden" type="button">Sign out</button>
-      </div>
-    </header>
+<body data-session-state="loading">
+  <a class="skip-link" href="#main-content">Skip to content</a>
 
-    <section id="auth-panel" class="grid">
-      <div class="panel hot">
-        <h1>Sign in</h1>
+  <header id="app-header" class="hidden">
+    <div class="topbar">
+      <a class="brand" href="/app">Mockd</a>
+      <div class="account-actions">
+        <span id="account-email" class="account-email"></span>
+        <button id="sign-out-button" class="text-button" type="button">Sign out</button>
       </div>
-      <form id="auth-form" class="panel stack">
-        <label for="email-input">Email</label>
-        <input id="email-input" autocomplete="email" inputmode="email" name="email" type="email">
-        <label for="password-input">Password</label>
-        <input id="password-input" autocomplete="current-password" name="password" type="password">
-        <div class="row wrap">
-          <button id="signin-button" class="btn primary" type="submit">Sign in</button>
-          <button id="create-account-button" class="btn" type="button">Create account</button>
-          <button id="local-demo-button" class="btn blue hidden" type="button">Use local demo</button>
+    </div>
+    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
+  </header>
+
+  <main id="main-content" class="shell-main">
+    <section id="boot-panel" class="boot" aria-live="polite">
+      <p class="eyebrow">Mockd</p>
+      <p>Opening your league...</p>
+    </section>
+
+    <section id="auth-panel" class="auth-shell stack hidden" aria-labelledby="auth-title">
+      <div>
+        <p class="eyebrow">Mockd</p>
+        <h1 id="auth-title">Sign in</h1>
+        <p id="auth-description" class="lede">Open your league, draft tools, and live room.</p>
+      </div>
+      <form id="auth-form" class="stack">
+        <div>
+          <label for="email-input">Email</label>
+          <input id="email-input" name="email" type="email" autocomplete="email" required>
         </div>
-        <div id="auth-error" class="error" role="alert"></div>
+        <div>
+          <label for="password-input">Password</label>
+          <input id="password-input" name="password" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button id="auth-submit-button" class="primary" type="submit">Sign in</button>
       </form>
+      <p id="auth-error" class="error hidden" role="alert"></p>
+      <p><span id="auth-mode-prompt">New to Mockd?</span> <a id="auth-mode-link" href="/signup">Create an account</a><a class="visually-hidden" href="/login">Sign in</a></p>
     </section>
 
-    <section id="app-shell" class="hidden stack">
-      <div class="cards">
-        <article class="panel hot">
-          <h2>League home</h2>
-          <button id="open-league-section-button" class="section-link" data-active="true" type="button">Open league <span>></span></button>
-        </article>
-        <article class="panel">
-          <h2>Draft board</h2>
-          <button id="draft-room-link" class="section-link" type="button">Open draft board <span>></span></button>
-        </article>
-        <article class="panel">
-          <h2>Commissioner setup</h2>
-          <button id="open-setup-section-button" class="section-link" type="button">Open setup <span>></span></button>
-        </article>
+    <div id="app-shell" class="hidden">
+      <div id="app-error" class="error hidden" role="alert">
+        <p id="app-error-message"></p>
+        <button id="retry-onboarding-button" type="button">Try again</button>
       </div>
+      <p id="app-status" class="status" role="status" aria-live="polite"></p>
 
-      <div id="league-workspace" class="stack">
-      <div class="workspace-grid">
-        <section id="league-section" class="panel stack">
-          <h2>League home</h2>
-          <div id="local-member-notice" class="notice hidden"></div>
-          <label for="season-id-input">Season id</label>
-          <div class="row">
-            <input id="season-id-input" autocomplete="off" name="seasonId">
-            <button id="load-season-button" class="btn blue" type="button">Load</button>
-          </div>
-          <div id="season-status" class="status-line"></div>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <span class="muted">League</span>
-              <strong id="league-name-label">Not loaded</strong>
-            </div>
-            <div class="summary-item">
-              <span class="muted">Season</span>
-              <strong id="season-year-label">-</strong>
-            </div>
-            <div class="summary-item">
-              <span class="muted">Teams</span>
-              <strong id="team-count-label">-</strong>
-            </div>
-          </div>
-          <h3>Claim team</h3>
-          <ul id="team-claim-list" class="result-list"></ul>
-        </section>
-      </div>
-
-      <details id="room-admin-workspace" class="advanced">
-        <summary>Room administration</summary>
-        <div class="stack">
-        <div class="workspace-grid">
-        <section id="draft-room-section" class="panel hot stack">
-          <h2>Room admin</h2>
-          <label for="room-id-input">Room id</label>
-          <div class="row">
-            <input id="room-id-input" autocomplete="off" name="roomId">
-            <button id="open-room-button" class="btn" type="button">Open</button>
-            <button id="create-room-button" class="btn blue" type="button">Create</button>
-          </div>
-          <label>Player catalog</label>
-          <ul id="player-catalog-list" class="catalog-list"></ul>
-          <details class="advanced">
-            <summary>Advanced catalog JSON</summary>
-            <textarea id="player-catalog-input" spellcheck="false"></textarea>
-          </details>
-          <div class="row wrap">
-            <button id="start-room-button" class="btn green" type="button" disabled>Start</button>
-            <button id="undo-sale-button" class="btn" type="button" disabled>Undo</button>
-            <button id="end-room-button" class="btn gold" type="button" disabled>End</button>
-          </div>
-          <form id="sale-form" class="row">
-            <input id="sale-command-input" autocomplete="off" name="saleCommand" placeholder="cam puka 62">
-            <button id="log-sale-button" class="btn primary" type="submit" disabled>Log sale</button>
-          </form>
-          <div id="room-status" class="status-line"></div>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <span class="muted">Status</span>
-              <strong id="room-status-label">Not opened</strong>
-            </div>
-            <div class="summary-item">
-              <span class="muted">Revision</span>
-              <strong id="room-revision-label">-</strong>
-            </div>
-            <div class="summary-item">
-              <span class="muted">Sales</span>
-              <strong id="sale-count-label">-</strong>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div class="workspace-grid">
-        <section class="panel stack">
-          <h2>Sale log</h2>
-          <ul id="sale-log" class="result-list"></ul>
-          <h3>Room events</h3>
-          <ul id="room-events" class="result-list event-list"></ul>
-        </section>
-
-        <section class="panel stack">
-          <h2>Board</h2>
-          <ul id="room-board-list" class="result-list"></ul>
-          <h3>Teams</h3>
-          <ul id="room-team-list" class="result-list"></ul>
-        </section>
-      </div>
-
-      <section class="panel stack">
-        <h2>Final export</h2>
-        <div class="row wrap">
-          <button id="create-export-artifact-button" class="btn green" type="button" disabled>Create CSV artifact</button>
-          <a id="artifact-download-link" class="section-link hidden" href="#" download="mockd-draft-export.csv">Download CSV <span>></span></a>
+      <section id="league-context" class="context-bar hidden" aria-label="League context">
+        <div>
+          <label for="league-picker">League</label>
+          <select id="league-picker"></select>
         </div>
-        <div id="artifact-status" class="status-line"></div>
-        <pre id="artifact-preview" class="artifact-preview"></pre>
+        <div class="identity">
+          <span>My team</span>
+          <strong id="my-team-name">Not assigned</strong>
+        </div>
+        <div class="identity">
+          <span>Access</span>
+          <strong id="membership-role">Member</strong>
+        </div>
       </section>
-        </div>
-      </details>
-      </div>
 
-      <div id="setup-workspace" class="setup-grid hidden">
-        <form id="setup-form" class="panel stack">
-          <h2>Commissioner setup</h2>
-          <label for="setup-season-id-input">Season id</label>
-          <input id="setup-season-id-input" autocomplete="off" name="seasonId">
-          <label for="setup-rows-input">Owner import rows</label>
-          <textarea id="setup-rows-input" name="setupRows" spellcheck="false">owner,team,email,role
-Beaton,Beaton,beaton@example.com,member
-Hoody,Hoody,hoody@example.com,member
-PJ,PJ,pj@example.com,member
-Seth,Seth,seth@example.com,member
-Jakub,Jakub,jakub@example.com,member
-Tye,Tye,tye@example.com,member
-Chip,Chip,chip@example.com,member
-CJ,CJ,cj@example.com,member
-Kenny,Kenny,kenny@example.com,member
-Russ,Russ,russ@example.com,member
-Cam,Cam,cam@example.com,owner
-Sam,Sam,sam@example.com,member
-Martins,Martins,martins@example.com,member
-Mello,Mello,mello@example.com,member</textarea>
-          <div class="row wrap">
-            <button id="setup-preview-button" class="btn" type="button">Preview</button>
-            <button id="setup-apply-button" class="btn green" type="button" disabled>Apply</button>
+      <section id="empty-leagues" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">League</p>
+            <h1>No league yet</h1>
+            <p class="lede">Accept an invitation from your commissioner to join your league.</p>
           </div>
-          <div id="setup-status" class="status-line"></div>
-        </form>
-        <article class="panel stack">
-          <h3>Setup blockers</h3>
-          <ul id="setup-blockers" class="result-list"></ul>
-          <h3>Owners without accounts</h3>
-          <ul id="setup-pending-invites" class="result-list"></ul>
-        </article>
-      </div>
-    </section>
+        </div>
+        <div class="empty-state">Invitation links open the correct league automatically.</div>
+      </section>
+
+      <section id="league-workspace" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">League home</p>
+            <h1 id="league-name">Your league</h1>
+            <p id="league-season" class="lede"></p>
+          </div>
+          <a id="open-live-draft-button" class="button primary" href="/draft-room">Open live draft</a>
+        </div>
+        <div class="facts" aria-label="League readiness">
+          <div class="fact"><span>League setup</span><strong id="league-setup-readiness"></strong></div>
+          <div class="fact"><span>My team</span><strong id="team-claim-readiness"></strong></div>
+          <div class="fact"><span>Live draft</span><strong id="live-draft-readiness"></strong></div>
+        </div>
+        <section class="workspace-section">
+          <h2>Draft schedule</h2>
+          <p id="next-draft-at" class="lede">No draft time scheduled.</p>
+        </section>
+      </section>
+
+      <section id="feature-workspace" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p id="feature-eyebrow" class="eyebrow"></p>
+            <h1 id="feature-title"></h1>
+            <p id="feature-description" class="lede"></p>
+          </div>
+        </div>
+        <div id="feature-empty-state" class="empty-state"></div>
+      </section>
+
+      <section id="setup-workspace" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Commissioner</p>
+            <h1>League setup</h1>
+            <p class="lede">Manage team ownership and invitations for the selected season.</p>
+          </div>
+        </div>
+        <div class="setup-layout">
+          <section class="workspace-section">
+            <h2>Teams and owners</h2>
+            <input id="setup-season-id-input" type="hidden">
+            <details>
+              <summary>Import owner list</summary>
+              <div class="stack" style="margin-top: 16px">
+                <div>
+                  <label for="setup-rows-input">Owner rows</label>
+                  <textarea id="setup-rows-input" spellcheck="false" placeholder="owner,team,email,role"></textarea>
+                </div>
+                <div class="actions">
+                  <button id="setup-preview-button" type="button">Preview</button>
+                  <button id="setup-apply-button" class="primary" type="button" disabled>Apply changes</button>
+                </div>
+              </div>
+            </details>
+            <p id="setup-status" class="status" role="status" aria-live="polite"></p>
+            <ul id="setup-blockers" class="result-list"></ul>
+          </section>
+          <section class="workspace-section" aria-labelledby="invitations-title">
+            <h2 id="invitations-title">Invitations</h2>
+            <div id="setup-invitations" class="invitation-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="setup-access-denied" class="workspace hidden">
+        <div>
+          <p class="eyebrow">Commissioner</p>
+          <h1>Commissioner access required</h1>
+          <p class="lede">Ask a league owner or commissioner to make setup changes.</p>
+        </div>
+        <div><a class="button" href="/app">Back to league</a></div>
+      </section>
+
+      <section id="invite-workspace" class="workspace hidden">
+        <div>
+          <p class="eyebrow">League invitation</p>
+          <h1>Join your league</h1>
+          <p class="lede">Your account email must match the invitation.</p>
+        </div>
+        <div class="actions">
+          <button id="accept-invitation-button" class="primary" type="button">Accept invitation</button>
+        </div>
+        <p id="invite-status" class="status" role="status" aria-live="polite"></p>
+      </section>
+    </div>
   </main>
 
-  <script type="module">
-    const currentSessionRequest = "GET /session";
-    const defaultSeasonId = ${JSON.stringify(localDemoSeasonId)};
-    const localDemoEmail = ${JSON.stringify(localDemoEmail)};
-    const localDemoPassword = ${JSON.stringify(localDemoPassword)};
-    const localDemoRoomId = ${JSON.stringify(localDemoRoomId)};
-    const defaultPlayerCatalog = ${localDemoPlayerCatalogJson};
-    const query = new URLSearchParams(window.location.search);
-    const initialSeasonId = query.get("seasonId") || query.get("season") || defaultSeasonId;
-    const initialRoomId = query.get("roomId") || query.get("room");
-    const state = {
-      account: null,
-      season: null,
-      membership: null,
-      room: null,
-      eventSource: null,
-      pollTimer: 0,
-      artifactUrl: null,
+  <script>
+    const routePath = window.location.pathname;
+    const signupMode = window.location.pathname === "/signup";
+    const navigation = ${JSON.stringify(platformShellNavigation)};
+    const featureRoutes = {
+      "/board": ["Draft prep", "Board", "Rank, filter, and shortlist players for your selected league."],
+      "/mock-drafts": ["Practice", "Mock drafts", "Run a draft against your league settings and keep the results."],
+      "/simulations": ["Modeling", "Simulations", "Compare strategy outcomes for your selected team."],
+      "/strategy": ["Decision support", "Strategy", "Review budget, roster needs, and draft targets."],
     };
+    const state = { account: null, onboarding: null, selectedLeague: null, invitations: [] };
 
-    const authPanel = document.getElementById("auth-panel");
-    const appShell = document.getElementById("app-shell");
-    const sessionLabel = document.getElementById("session-label");
-    const localDemoTopbarButton = document.getElementById("local-demo-topbar-button");
-    const logoutButton = document.getElementById("logout-button");
-    const authForm = document.getElementById("auth-form");
-    const authError = document.getElementById("auth-error");
-    const emailInput = document.getElementById("email-input");
-    const passwordInput = document.getElementById("password-input");
-    const createAccountButton = document.getElementById("create-account-button");
-    const localDemoButton = document.getElementById("local-demo-button");
-    const openLeagueSectionButton = document.getElementById("open-league-section-button");
-    const openSetupSectionButton = document.getElementById("open-setup-section-button");
-    const leagueWorkspace = document.getElementById("league-workspace");
-    const setupWorkspace = document.getElementById("setup-workspace");
-    const roomAdminWorkspace = document.getElementById("room-admin-workspace");
-    const seasonIdInput = document.getElementById("season-id-input");
-    const loadSeasonButton = document.getElementById("load-season-button");
-    const seasonStatus = document.getElementById("season-status");
-    const localMemberNotice = document.getElementById("local-member-notice");
-    const leagueNameLabel = document.getElementById("league-name-label");
-    const seasonYearLabel = document.getElementById("season-year-label");
-    const teamCountLabel = document.getElementById("team-count-label");
-    const teamClaimList = document.getElementById("team-claim-list");
-    const draftRoomLink = document.getElementById("draft-room-link");
-    const roomIdInput = document.getElementById("room-id-input");
-    const openRoomButton = document.getElementById("open-room-button");
-    const createRoomButton = document.getElementById("create-room-button");
-    const playerCatalogList = document.getElementById("player-catalog-list");
-    const playerCatalogInput = document.getElementById("player-catalog-input");
-    const startRoomButton = document.getElementById("start-room-button");
-    const saleForm = document.getElementById("sale-form");
-    const saleCommandInput = document.getElementById("sale-command-input");
-    const logSaleButton = document.getElementById("log-sale-button");
-    const undoSaleButton = document.getElementById("undo-sale-button");
-    const endRoomButton = document.getElementById("end-room-button");
-    const roomStatus = document.getElementById("room-status");
-    const roomStatusLabel = document.getElementById("room-status-label");
-    const roomRevisionLabel = document.getElementById("room-revision-label");
-    const saleCountLabel = document.getElementById("sale-count-label");
-    const saleLog = document.getElementById("sale-log");
-    const roomEvents = document.getElementById("room-events");
-    const roomBoardList = document.getElementById("room-board-list");
-    const roomTeamList = document.getElementById("room-team-list");
-    const createExportArtifactButton = document.getElementById("create-export-artifact-button");
-    const artifactDownloadLink = document.getElementById("artifact-download-link");
-    const artifactStatus = document.getElementById("artifact-status");
-    const artifactPreview = document.getElementById("artifact-preview");
-    const setupSeasonIdInput = document.getElementById("setup-season-id-input");
-    const setupRowsInput = document.getElementById("setup-rows-input");
-    const setupPreviewButton = document.getElementById("setup-preview-button");
-    const setupApplyButton = document.getElementById("setup-apply-button");
-    const setupStatus = document.getElementById("setup-status");
-    const setupBlockers = document.getElementById("setup-blockers");
-    const setupPendingInvites = document.getElementById("setup-pending-invites");
-    const setupPreviewSuffix = "/setup-import/preview";
-    const setupApplySuffix = "/setup-import/apply";
+    const byId = id => document.getElementById(id);
+    const bootPanel = byId("boot-panel");
+    const authPanel = byId("auth-panel");
+    const authForm = byId("auth-form");
+    const authTitle = byId("auth-title");
+    const authDescription = byId("auth-description");
+    const authSubmitButton = byId("auth-submit-button");
+    const authModePrompt = byId("auth-mode-prompt");
+    const authModeLink = byId("auth-mode-link");
+    const authError = byId("auth-error");
+    const emailInput = byId("email-input");
+    const passwordInput = byId("password-input");
+    const appHeader = byId("app-header");
+    const appShell = byId("app-shell");
+    const appStatus = byId("app-status");
+    const appError = byId("app-error");
+    const appErrorMessage = byId("app-error-message");
+    const leagueContext = byId("league-context");
+    const leaguePicker = byId("league-picker");
+    const commissionerNavItem = byId("commissioner-nav-item");
+    const setupApplyButton = byId("setup-apply-button");
+    const setupStatus = byId("setup-status");
+    const setupBlockers = byId("setup-blockers");
+    const setupInvitations = byId("setup-invitations");
 
-    setupWorkspace.append(roomAdminWorkspace);
+    const setHidden = (element, hidden) => element.classList.toggle("hidden", hidden);
 
-    const cleanIdFragment = value => {
-      const cleanValue = String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-
-      return cleanValue.length === 0 ? "draft" : cleanValue;
-    };
-
-    const defaultRoomIdFor = seasonId => {
-      if (seasonId === defaultSeasonId) return localDemoRoomId;
-
-      const match = /^league-([a-z0-9-]+)-season-([0-9]+)$/i.exec(seasonId);
-      if (match) return "room_" + cleanIdFragment(match[1]) + "_" + match[2];
-
-      return cleanIdFragment(seasonId) + "_room";
-    };
-
-    const isLoopbackHost = () =>
-      ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-
-    const draftBoardUrlFor = () => {
-      const draftBoardUrl = new URL("/draft-room", window.location.href);
-      draftBoardUrl.searchParams.set("mode", "real");
-      draftBoardUrl.searchParams.set("draftSession", "live");
-      if (isLoopbackHost()) {
-        draftBoardUrl.hostname = "localhost";
-        draftBoardUrl.port = "4317";
-      }
-      return draftBoardUrl.toString();
-    };
-
-    const openDraftBoard = () => {
-      window.location.assign(draftBoardUrlFor());
-    };
-
-    const syncLocalDemoButtons = () => {
-      const localPreview = isLoopbackHost();
-      localDemoButton.classList.toggle("hidden", !localPreview || state.account !== null);
-      localDemoTopbarButton.classList.toggle("hidden", !localPreview || state.account === null);
-    };
-
-    const selectedSeasonId = () => seasonIdInput.value.trim() || defaultSeasonId;
-    const selectedRoomId = () => roomIdInput.value.trim() || defaultRoomIdFor(selectedSeasonId());
-    const seasonEndpoint = () => "/seasons/" + encodeURIComponent(selectedSeasonId());
-    const roomEndpoint = action => "/live-rooms/" + encodeURIComponent(selectedRoomId()) + (
-      action === undefined ? "" : "/" + action
-    );
-
-    const jsonRequest = (method, body) => ({
-      method,
-      headers: { "content-type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(body),
-    });
+    const errorMessageFor = body => body && body.error && body.error.message
+      ? body.error.message
+      : "Mockd could not complete that request.";
 
     const readJson = async response => {
-      const text = await response.text();
-      const body = text.trim().length === 0 ? {} : JSON.parse(text);
-      if (!response.ok) throw new Error(body.error?.message || "Request failed.");
-      return body;
-    };
-
-    const readSetupJson = async response => {
-      const text = await response.text();
-      const body = text.trim().length === 0 ? {} : JSON.parse(text);
-      if (!response.ok && !body.import) throw new Error(body.error?.message || "Request failed.");
-      return body;
-    };
-
-    const replaceListItems = (list, items, emptyText, renderItem) => {
-      const values = items.length === 0 ? [emptyText] : items;
-      list.replaceChildren(...values.map(value => {
-        const item = document.createElement("li");
-        if (typeof value === "string") {
-          item.textContent = value;
-          return item;
-        }
-
-        const rendered = renderItem(value);
-        if (typeof rendered === "string") item.textContent = rendered;
-        else item.appendChild(rendered);
-        return item;
-      }));
-    };
-
-    const showLeagueWorkspace = () => {
-      leagueWorkspace.classList.remove("hidden");
-      setupWorkspace.classList.add("hidden");
-      openLeagueSectionButton.dataset.active = "true";
-      openSetupSectionButton.dataset.active = "false";
-    };
-
-    const showSetupWorkspace = () => {
-      leagueWorkspace.classList.add("hidden");
-      setupWorkspace.classList.remove("hidden");
-      openLeagueSectionButton.dataset.active = "false";
-      openSetupSectionButton.dataset.active = "true";
-    };
-
-    const focusCurrentRoute = () => {
-      if (window.location.pathname === "/draft-room" && isLoopbackHost()) {
-        openDraftBoard();
-        return;
-      }
-      if (window.location.pathname === "/setup") {
-        showSetupWorkspace();
-        setupSeasonIdInput.focus({ preventScroll: true });
-      }
-    };
-
-    const localDemoHelpText = () =>
-      "This account is signed in, but it is not a member of the seeded local league. " +
-      "Sign out or use the local demo account to open league-214674-season-2026.";
-
-    const friendlySeasonError = error => {
-      const message = error instanceof Error ? error.message : String(error);
-      return isLoopbackHost() && message.includes("Join this league")
-        ? localDemoHelpText()
-        : message;
-    };
-
-    const renderPlayerCatalog = () => {
-      replaceListItems(playerCatalogList, defaultPlayerCatalog, "No catalog players.", player =>
-        player.name + " / " + player.position + " / " + player.teamAbbreviation + " / $" + player.expectedPrice
-      );
-    };
-
-    const setButtonStates = () => {
-      const hasSeason = state.season !== null;
-      const hasRoom = state.room !== null;
-      const roomStatusValue = state.room?.status;
-      const isLive = roomStatusValue === "live";
-      openRoomButton.disabled = !hasSeason;
-      createRoomButton.disabled = !hasSeason;
-      startRoomButton.disabled = !hasRoom || (roomStatusValue !== "setup" && roomStatusValue !== "countdown");
-      logSaleButton.disabled = !isLive;
-      undoSaleButton.disabled = !isLive || ((state.room?.projection?.sales || []).length === 0);
-      endRoomButton.disabled = !isLive;
-      createExportArtifactButton.disabled = roomStatusValue !== "ended";
-    };
-
-    const renderTeamClaims = () => {
-      if (state.season === null) {
-        replaceListItems(teamClaimList, [], "Load a season to claim a team.", value => value);
-        return;
-      }
-
-      replaceListItems(teamClaimList, state.season.teams || [], "No teams.", team => {
-        const row = document.createElement("div");
-        row.className = "team-claim-row";
-        const label = document.createElement("span");
-        const claimed = state.membership?.teamId === team.id ? " claimed" : "";
-        label.textContent = team.draftOrderPosition + ". " + team.displayName + " / " + team.ownerDisplayName + claimed;
-        const button = document.createElement("button");
-        button.className = "btn";
-        button.type = "button";
-        button.textContent = state.membership?.teamId === team.id ? "Claimed" : "Claim";
-        button.disabled = state.membership?.teamId === team.id;
-        button.addEventListener("click", () => {
-          claimTeam(team).catch(error => { seasonStatus.textContent = error.message; });
-        });
-        row.append(label, button);
-        return row;
-      });
-    };
-
-    const renderSeason = season => {
-      state.season = season;
-      state.membership = null;
-      localMemberNotice.classList.add("hidden");
-      localMemberNotice.textContent = "";
-      leagueNameLabel.textContent = season?.league?.name || "Not loaded";
-      seasonYearLabel.textContent = season?.seasonYear === undefined ? "-" : String(season.seasonYear);
-      teamCountLabel.textContent = season?.teams === undefined ? "-" : String(season.teams.length);
-      if (season !== null) {
-        seasonIdInput.value = season.id;
-        setupSeasonIdInput.value = season.id;
-        if (roomIdInput.value.trim().length === 0 || initialRoomId === null) {
-          roomIdInput.value = defaultRoomIdFor(season.id);
-        }
-      }
-      renderTeamClaims();
-      setButtonStates();
-    };
-
-    const clearArtifact = () => {
-      if (state.artifactUrl !== null) URL.revokeObjectURL(state.artifactUrl);
-      state.artifactUrl = null;
-      artifactDownloadLink.classList.add("hidden");
-      artifactDownloadLink.removeAttribute("href");
-      artifactPreview.textContent = "";
-      artifactStatus.textContent = "";
-    };
-
-    const renderRoomReadModel = model => {
-      roomStatusLabel.textContent = model.status || "Not opened";
-      roomRevisionLabel.textContent = model.revision === undefined ? "-" : String(model.revision);
-      saleCountLabel.textContent = String((model.salesLog || []).length);
-
-      replaceListItems(
-        saleLog,
-        model.salesLog || [],
-        "No sales logged.",
-        sale => "r" + sale.revision + " " + sale.ownerDisplayName + " bought " + sale.playerName + " for $" + sale.price
-      );
-      replaceListItems(
-        roomBoardList,
-        (model.board || []).slice(0, 10),
-        "No board players.",
-        player => player.name + " / " + player.position + " / $" + player.expectedPrice
-      );
-      replaceListItems(
-        roomTeamList,
-        model.teamSummaries || [],
-        "No team states.",
-        team => team.ownerDisplayName + ": $" + team.budgetRemaining + " left, max bid $" + team.maxBid
-      );
-      setButtonStates();
-    };
-
-    const readModelForRoom = room => {
-      const saleEvents = room.events || [];
-      const salesLog = (room.projection?.sales || []).map(sale => {
-        const event = saleEvents.find(candidate =>
-          candidate.type === "sale_logged" && candidate.sale?.saleEventId === sale.saleEventId
-        );
-        return {
-          ...sale,
-          revision: event?.revision || room.revision,
-          occurredAt: event?.occurredAt || room.updatedAt,
-        };
-      });
-
-      return {
-        roomId: room.roomId,
-        leagueId: room.leagueId,
-        seasonId: room.seasonId,
-        status: room.status,
-        revision: room.revision,
-        board: room.projection?.board || [],
-        teamSummaries: room.projection?.teams || [],
-        salesLog,
-      };
-    };
-
-    const renderRoom = room => {
-      state.room = room;
-      roomIdInput.value = room.roomId;
-      clearArtifact();
-      renderRoomReadModel(readModelForRoom(room));
-      replaceListItems(
-        roomEvents,
-        (room.events || []).slice(-8).reverse(),
-        "No room events.",
-        event => "r" + event.revision + " " + event.type
-      );
-    };
-
-    const appendRoomEvent = text => {
-      const item = document.createElement("li");
-      item.textContent = text;
-      roomEvents.prepend(item);
-    };
-
-    const stopRoomUpdates = () => {
-      if (state.eventSource !== null) {
-        state.eventSource.close();
-        state.eventSource = null;
-      }
-      if (state.pollTimer !== 0) {
-        window.clearTimeout(state.pollTimer);
-        state.pollTimer = 0;
-      }
-    };
-
-    const refreshRoom = async () => {
-      const body = await readJson(await fetch(roomEndpoint(), { credentials: "same-origin" }));
-      renderRoom(body.room);
-      return body.room;
-    };
-
-    const pollRoomEvents = async () => {
-      state.pollTimer = 0;
-      if (state.room === null) return;
-
-      try {
-        const afterRevision = state.room.revision || 0;
-        const body = await readJson(await fetch(roomEndpoint("events") + "?afterRevision=" + encodeURIComponent(afterRevision), {
-          credentials: "same-origin",
-        }));
-        const payloads = body.events?.events || [];
-        if (payloads.length > 0) {
-          appendRoomEvent("Fetched " + payloads.length + " update(s).");
-          await refreshRoom();
-        }
-      } catch (error) {
-        roomStatus.textContent = error.message;
-      }
-
-      if (state.room !== null && state.eventSource === null) {
-        state.pollTimer = window.setTimeout(pollRoomEvents, 5000);
-      }
-    };
-
-    const scheduleRoomEventPoll = () => {
-      if (state.pollTimer !== 0 || state.room === null) return;
-
-      state.pollTimer = window.setTimeout(pollRoomEvents, 1000);
-    };
-
-    const connectRoomUpdates = () => {
-      stopRoomUpdates();
-      if (state.room === null) return;
-
-      if (!("EventSource" in window)) {
-        scheduleRoomEventPoll();
-        return;
-      }
-
-      const afterRevision = state.room.revision || 0;
-      const eventSource = new EventSource(roomEndpoint("event-stream") + "?afterRevision=" + encodeURIComponent(afterRevision));
-      state.eventSource = eventSource;
-      const refreshFromStream = event => {
-        const data = JSON.parse(event.data);
-        appendRoomEvent(event.type + " r" + data.revision);
-        refreshRoom()
-          .then(() => { connectRoomUpdates(); })
-          .catch(error => {
-            roomStatus.textContent = error.message;
-            scheduleRoomEventPoll();
-          });
-      };
-      eventSource.addEventListener("room.snapshot", refreshFromStream);
-      eventSource.addEventListener("room.started", refreshFromStream);
-      eventSource.addEventListener("room.sale", refreshFromStream);
-      eventSource.addEventListener("room.ended", refreshFromStream);
-      eventSource.onerror = () => {
-        if (state.eventSource === eventSource) {
-          eventSource.close();
-          state.eventSource = null;
-          scheduleRoomEventPoll();
-        }
-      };
-    };
-
-    const currentRevision = () => {
-      const revision = state.room?.revision;
-      if (typeof revision !== "number") throw new Error("Open or create a room first.");
-
-      return revision;
-    };
-
-    const idempotencyKeyFor = (action, detail) =>
-      action + ":" + selectedRoomId() + ":" + currentRevision() + ":" + cleanIdFragment(detail) + ":" + Date.now();
-
-    const playerCatalogFor = () => {
-      const playerCatalog = JSON.parse(playerCatalogInput.value);
-      if (!Array.isArray(playerCatalog)) throw new Error("Player catalog must be a JSON array.");
-
-      return playerCatalog;
-    };
-
-    const loadSeason = async () => {
-      seasonStatus.textContent = "Loading season...";
-      const body = await readJson(await fetch(seasonEndpoint(), { credentials: "same-origin" }));
-      renderSeason(body.season);
-      seasonStatus.textContent = "Loaded " + body.season.league.name + " " + body.season.seasonYear + ".";
-      return body.season;
-    };
-
-    const claimTeam = async team => {
-      seasonStatus.textContent = "Claiming " + team.displayName + "...";
-      const body = await readJson(await fetch(seasonEndpoint() + "/team-claims", jsonRequest("POST", {
-        ownerId: team.ownerId,
-        teamId: team.id,
-      })));
-      state.membership = body.membership;
-      renderTeamClaims();
-      seasonStatus.textContent = "Claimed " + team.displayName + ".";
-    };
-
-    const openRoom = async () => {
-      roomStatus.textContent = "Opening room...";
-      await refreshRoom();
-      roomStatus.textContent = "Room opened.";
-      connectRoomUpdates();
-    };
-
-    const createRoom = async () => {
-      roomStatus.textContent = "Creating room...";
-      try {
-        const body = await readJson(await fetch("/live-rooms", jsonRequest("POST", {
-          seasonId: selectedSeasonId(),
-          roomId: selectedRoomId(),
-          viewerPasswordHashRef: "browser-viewer",
-          playerCatalog: playerCatalogFor(),
-        })));
-        renderRoom(body.room);
-        roomStatus.textContent = "Room created.";
-        connectRoomUpdates();
-      } catch (error) {
-        if (error.message.includes("already exists")) {
-          await openRoom();
-          return;
-        }
-
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(errorMessageFor(body));
+        error.status = response.status;
         throw error;
       }
+      return body;
     };
 
-    const startRoom = async () => {
-      roomStatus.textContent = "Starting room...";
-      const body = await readJson(await fetch(roomEndpoint("start"), jsonRequest("POST", {
-        expectedRevision: currentRevision(),
-        idempotencyKey: idempotencyKeyFor("start", "room"),
-      })));
-      renderRoom(body.room);
-      connectRoomUpdates();
-      roomStatus.textContent = "Room started.";
+    const returnPath = () => routePath + window.location.search;
+
+    const authenticationReturnPath = () => {
+      const requestedPath = new URLSearchParams(window.location.search).get("returnTo");
+      return requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
+        ? requestedPath
+        : "/app";
     };
 
-    const logSale = async () => {
-      const command = saleCommandInput.value.trim();
-      if (command.length === 0) throw new Error("Sale command is required.");
-
-      roomStatus.textContent = "Logging sale...";
-      const body = await readJson(await fetch(roomEndpoint("sales"), jsonRequest("POST", {
-        expectedRevision: currentRevision(),
-        idempotencyKey: idempotencyKeyFor("sale", command),
-        command,
-      })));
-      renderRoom(body.room);
-      connectRoomUpdates();
-      roomStatus.textContent = "Sale logged.";
+    const configureAuthMode = () => {
+      authTitle.textContent = signupMode ? "Create your account" : "Sign in";
+      authDescription.textContent = signupMode
+        ? "Use the email address where your league invitation was sent."
+        : "Open your league, draft tools, and live room.";
+      authSubmitButton.textContent = signupMode ? "Create account" : "Sign in";
+      authModePrompt.textContent = signupMode ? "Already have an account?" : "New to Mockd?";
+      authModeLink.textContent = signupMode ? "Sign in" : "Create an account";
+      const modeReturnPath = routePath === "/login" || routePath === "/signup"
+        ? authenticationReturnPath()
+        : returnPath();
+      authModeLink.href = (signupMode ? "/login" : "/signup") + "?returnTo=" + encodeURIComponent(modeReturnPath);
+      passwordInput.autocomplete = signupMode ? "new-password" : "current-password";
     };
 
-    const undoSale = async () => {
-      roomStatus.textContent = "Undoing sale...";
-      const body = await readJson(await fetch(roomEndpoint("undo"), jsonRequest("POST", {
-        expectedRevision: currentRevision(),
-        idempotencyKey: idempotencyKeyFor("undo", "latest"),
-      })));
-      renderRoom(body.room);
-      connectRoomUpdates();
-      roomStatus.textContent = "Sale undone.";
+    const showAuth = () => {
+      document.body.dataset.sessionState = "signed-out";
+      setHidden(bootPanel, true);
+      setHidden(appHeader, true);
+      setHidden(appShell, true);
+      setHidden(authPanel, false);
+      configureAuthMode();
+      emailInput.focus();
     };
 
-    const endRoom = async () => {
-      roomStatus.textContent = "Ending room...";
-      const body = await readJson(await fetch(roomEndpoint("end"), jsonRequest("POST", {
-        expectedRevision: currentRevision(),
-        idempotencyKey: idempotencyKeyFor("end", "room"),
-      })));
-      renderRoom(body.room);
-      connectRoomUpdates();
-      roomStatus.textContent = "Room ended.";
+    const showAppError = message => {
+      appErrorMessage.textContent = message;
+      setHidden(appError, false);
+      appStatus.textContent = "";
     };
 
-    const renderArtifact = body => {
-      const artifact = body.artifact || {};
-      const content = body.content || "";
-      if (state.artifactUrl !== null) URL.revokeObjectURL(state.artifactUrl);
-      state.artifactUrl = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
-      artifactDownloadLink.href = state.artifactUrl;
-      artifactDownloadLink.download = artifact.storageKey?.split("/").pop() || "mockd-draft-export.csv";
-      artifactDownloadLink.classList.remove("hidden");
-      artifactStatus.textContent = "Created " + (artifact.id || "CSV artifact") + ".";
-      artifactPreview.textContent = content;
+    const clearAppError = () => setHidden(appError, true);
+
+    const titleCase = value => value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
+
+    const readinessLabel = value => value === "ready" ? "Ready" : "Needs attention";
+
+    const renderReadiness = (elementId, value) => {
+      const element = byId(elementId);
+      element.textContent = readinessLabel(value);
+      element.className = value === "ready" ? "ready" : "attention";
     };
 
-    const createExportArtifact = async () => {
-      artifactStatus.textContent = "Creating artifact...";
-      const body = await readJson(await fetch(roomEndpoint("export-artifacts"), jsonRequest("POST", {
-        exportedAt: new Date().toISOString(),
-      })));
-      renderArtifact(body);
+    const draftRoomPathFor = (seasonId, roomId) => {
+      const query = new URLSearchParams({ seasonId: seasonId, roomId: roomId });
+      return "/draft-room?" + query.toString();
     };
 
-    const setSignedIn = account => {
-      state.account = account;
-      authPanel.classList.add("hidden");
-      appShell.classList.remove("hidden");
-      logoutButton.classList.remove("hidden");
-      sessionLabel.textContent = account.email;
-      syncLocalDemoButtons();
-      loadSeason().then(() => {
-        return openRoom().catch(error => {
-          roomStatus.textContent = error.message;
-        });
-      }).then(() => {
-        focusCurrentRoute();
-      }).catch(error => {
-        const message = friendlySeasonError(error);
-        renderSeason(null);
-        seasonStatus.textContent = message;
-        localMemberNotice.textContent = message;
-        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
+    const pathWithSeason = (path, seasonId) => {
+      const query = new URLSearchParams({ seasonId: seasonId });
+      return path + "?" + query.toString();
+    };
+
+    const markCurrentNavigation = () => {
+      document.querySelectorAll("[data-nav-path]").forEach(link => {
+        if (link.dataset.navPath === routePath) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
       });
     };
 
-    const setSignedOut = () => {
-      state.account = null;
-      state.season = null;
-      state.membership = null;
-      state.room = null;
-      stopRoomUpdates();
-      authPanel.classList.remove("hidden");
-      appShell.classList.add("hidden");
-      logoutButton.classList.add("hidden");
-      sessionLabel.textContent = "Signed out";
-      syncLocalDemoButtons();
-      renderSeason(null);
-      renderRoomReadModel({ status: "Not opened", revision: undefined, salesLog: [], board: [], teamSummaries: [] });
-      replaceListItems(roomEvents, [], "No room events.", value => value);
-      clearArtifact();
+    const updateNavigation = selectedLeague => {
+      navigation.forEach(item => {
+        const link = document.querySelector('[data-nav-path="' + item.path + '"]');
+        if (!link) return;
+        if (item.path === "/draft-room") {
+          const roomId = selectedLeague.liveDraft?.roomId;
+          if (roomId) {
+            link.href = draftRoomPathFor(selectedLeague.seasonId, roomId);
+            link.removeAttribute("aria-disabled");
+            link.removeAttribute("tabindex");
+          } else {
+            link.href = "/app";
+            link.setAttribute("aria-disabled", "true");
+            link.setAttribute("tabindex", "-1");
+          }
+        } else {
+          link.href = item.path === "/app" ? "/app" : pathWithSeason(item.path, selectedLeague.seasonId);
+        }
+      });
+      commissionerNavItem.href = pathWithSeason("/setup", selectedLeague.seasonId);
+      document.querySelector(".brand").href = pathWithSeason("/app", selectedLeague.seasonId);
     };
 
-    const setupEndpoint = action => {
-      const seasonId = setupSeasonIdInput.value.trim();
-      if (seasonId.length === 0) throw new Error("Season id is required.");
+    const hideWorkspaces = () => {
+      ["empty-leagues", "league-workspace", "feature-workspace", "setup-workspace", "setup-access-denied", "invite-workspace"]
+        .forEach(id => setHidden(byId(id), true));
+    };
 
-      return "/seasons/" + encodeURIComponent(seasonId) + (
-        action === "preview" ? setupPreviewSuffix : setupApplySuffix
-      );
+    const renderInvitationRows = invitations => {
+      state.invitations = invitations;
+      setupInvitations.replaceChildren();
+      if (!invitations.length) {
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "Everyone with an email address has joined or no invitations have been created.";
+        setupInvitations.append(empty);
+        return;
+      }
+
+      invitations.forEach(invitation => {
+        const row = document.createElement("div");
+        row.className = "invitation-row";
+        const copy = document.createElement("div");
+        copy.className = "invitation-copy";
+        const email = document.createElement("strong");
+        email.textContent = invitation.email;
+        const detail = document.createElement("span");
+        detail.textContent = invitation.teamDisplayName + " · " + titleCase(invitation.status);
+        copy.append(email, detail);
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        if (invitation.status === "pending" && invitation.acceptPath) {
+          const copyButton = document.createElement("button");
+          copyButton.type = "button";
+          copyButton.dataset.invitationAction = "copy";
+          copyButton.dataset.invitationId = invitation.id;
+          copyButton.textContent = "Copy invite link";
+          actions.append(copyButton);
+        }
+        if (invitation.status === "pending") {
+          const reissueButton = document.createElement("button");
+          reissueButton.type = "button";
+          reissueButton.dataset.invitationAction = "reissue";
+          reissueButton.dataset.invitationId = invitation.id;
+          reissueButton.textContent = "Reissue";
+          const revokeButton = document.createElement("button");
+          revokeButton.type = "button";
+          revokeButton.dataset.invitationAction = "revoke";
+          revokeButton.dataset.invitationId = invitation.id;
+          revokeButton.textContent = "Revoke";
+          actions.append(reissueButton, revokeButton);
+        }
+        row.append(copy, actions);
+        setupInvitations.append(row);
+      });
+    };
+
+    const selectedLeagueFor = onboarding => {
+      const requestedSeasonId = new URLSearchParams(window.location.search).get("seasonId");
+      return onboarding.leagues.find(league => league.seasonId === requestedSeasonId)
+        || onboarding.leagues[0]
+        || null;
+    };
+
+    const renderSelectedLeague = selectedLeague => {
+      state.selectedLeague = selectedLeague;
+      hideWorkspaces();
+      if (routePath === "/invite") {
+        setHidden(leagueContext, true);
+        setHidden(commissionerNavItem, true);
+        setHidden(byId("invite-workspace"), false);
+        return;
+      }
+      if (!selectedLeague) {
+        setHidden(leagueContext, true);
+        setHidden(commissionerNavItem, true);
+        setHidden(byId("empty-leagues"), false);
+        return;
+      }
+
+      const membership = selectedLeague.membership;
+      setHidden(leagueContext, false);
+      byId("my-team-name").textContent = membership.teamDisplayName || "Not assigned";
+      byId("membership-role").textContent = titleCase(membership.role);
+      commissionerNavItem.classList.toggle("hidden", !selectedLeague.canManageLeague);
+      updateNavigation(selectedLeague);
+
+      if (routePath === "/setup") {
+        if (selectedLeague.canManageLeague) {
+          byId("setup-season-id-input").value = selectedLeague.seasonId;
+          renderInvitationRows(selectedLeague.invitations || []);
+          setHidden(byId("setup-workspace"), false);
+          loadSeasonInvitations(selectedLeague.seasonId).catch(error => {
+            setupStatus.textContent = error.message;
+          });
+        } else {
+          setHidden(byId("setup-access-denied"), false);
+        }
+        return;
+      }
+
+      const feature = featureRoutes[routePath];
+      if (feature) {
+        byId("feature-eyebrow").textContent = feature[0];
+        byId("feature-title").textContent = feature[1];
+        byId("feature-description").textContent = feature[2];
+        byId("feature-empty-state").textContent = "This workspace is ready for " + selectedLeague.leagueName + ".";
+        setHidden(byId("feature-workspace"), false);
+        return;
+      }
+
+      byId("league-name").textContent = selectedLeague.leagueName;
+      byId("league-season").textContent = selectedLeague.seasonYear + " season";
+      renderReadiness("league-setup-readiness", selectedLeague.readiness.leagueSetup);
+      renderReadiness("team-claim-readiness", selectedLeague.readiness.teamClaim);
+      renderReadiness("live-draft-readiness", selectedLeague.readiness.liveDraft);
+      byId("next-draft-at").textContent = selectedLeague.nextDraftAt
+        ? new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(new Date(selectedLeague.nextDraftAt))
+        : "No draft time scheduled.";
+
+      const liveDraftButton = byId("open-live-draft-button");
+      const roomId = selectedLeague.liveDraft?.roomId;
+      if (roomId) {
+        liveDraftButton.href = draftRoomPathFor(selectedLeague.seasonId, roomId);
+        liveDraftButton.textContent = "Open live draft";
+        liveDraftButton.removeAttribute("aria-disabled");
+        liveDraftButton.removeAttribute("tabindex");
+      } else {
+        liveDraftButton.textContent = selectedLeague.canManageLeague ? "Finish draft setup" : "Draft room not ready";
+        if (selectedLeague.canManageLeague) {
+          liveDraftButton.href = "/setup?seasonId=" + encodeURIComponent(selectedLeague.seasonId);
+          liveDraftButton.removeAttribute("aria-disabled");
+          liveDraftButton.removeAttribute("tabindex");
+        } else {
+          liveDraftButton.href = "/app";
+          liveDraftButton.setAttribute("aria-disabled", "true");
+          liveDraftButton.setAttribute("tabindex", "-1");
+        }
+      }
+      setHidden(byId("league-workspace"), false);
+    };
+
+    const renderLeaguePicker = onboarding => {
+      leaguePicker.replaceChildren();
+      onboarding.leagues.forEach(league => {
+        const option = document.createElement("option");
+        option.value = league.seasonId;
+        option.textContent = league.leagueName + " · " + league.seasonYear;
+        leaguePicker.append(option);
+      });
+      if (state.selectedLeague) leaguePicker.value = state.selectedLeague.seasonId;
+    };
+
+    const loadOnboarding = async () => {
+      clearAppError();
+      appStatus.textContent = "Loading your league...";
+      const onboarding = await readJson(await fetch("/onboarding", { credentials: "same-origin" }));
+      state.onboarding = onboarding;
+      state.selectedLeague = selectedLeagueFor(onboarding);
+      renderLeaguePicker(onboarding);
+      renderSelectedLeague(state.selectedLeague);
+      appStatus.textContent = onboarding.leagues.length ? "" : "No league memberships found.";
+    };
+
+    const showSignedInApp = async account => {
+      state.account = account;
+      document.body.dataset.sessionState = "signed-in";
+      byId("account-email").textContent = account.email;
+      setHidden(bootPanel, true);
+      setHidden(authPanel, true);
+      setHidden(appHeader, false);
+      setHidden(appShell, false);
+      markCurrentNavigation();
+      await loadOnboarding();
+    };
+
+    const login = async () => {
+      const body = await readJson(await fetch("/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email: emailInput.value, password: passwordInput.value }),
+      }));
+      return body.account;
+    };
+
+    const finishAuthentication = account => {
+      if (routePath === "/login" || routePath === "/signup") {
+        window.location.assign(authenticationReturnPath());
+        return;
+      }
+      return showSignedInApp(account);
+    };
+
+    authForm.addEventListener("submit", event => {
+      event.preventDefault();
+      setHidden(authError, true);
+      authSubmitButton.disabled = true;
+      const accountRequest = signupMode
+        ? fetch("/accounts", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ email: emailInput.value, password: passwordInput.value }),
+          }).then(readJson).then(login)
+        : login();
+      accountRequest
+        .then(finishAuthentication)
+        .catch(error => {
+          authError.textContent = error.message;
+          setHidden(authError, false);
+        })
+        .finally(() => { authSubmitButton.disabled = false; });
+    });
+
+    byId("sign-out-button").addEventListener("click", () => {
+      fetch("/session", { method: "DELETE", credentials: "same-origin" })
+        .finally(() => window.location.assign("/login"));
+    });
+
+    byId("retry-onboarding-button").addEventListener("click", () => {
+      loadOnboarding().catch(error => showAppError(error.message));
+    });
+
+    leaguePicker.addEventListener("change", () => {
+      const selectedLeague = state.onboarding.leagues.find(league => league.seasonId === leaguePicker.value) || null;
+      renderSelectedLeague(selectedLeague);
+      if (selectedLeague) {
+        const query = new URLSearchParams(window.location.search);
+        query.set("seasonId", selectedLeague.seasonId);
+        window.history.replaceState(null, "", routePath + "?" + query.toString());
+      }
+    });
+
+    const setupEndpoint = action => "/seasons/" + encodeURIComponent(byId("setup-season-id-input").value) + "/setup-import/" + action;
+
+    const loadSeasonInvitations = async seasonId => {
+      const body = await readJson(await fetch("/invitations?seasonId=" + encodeURIComponent(seasonId), {
+        credentials: "same-origin",
+      }));
+      renderInvitationRows(body.invitations || []);
     };
 
     const renderSetupResult = body => {
       const setupImport = body.import || {};
       const blockers = setupImport.blockers || [];
-      const pendingInvites = body.pendingInvites || [];
-      setupApplyButton.disabled = setupImport.status !== "ready";
-      setupStatus.textContent = body.season
-        ? "Setup applied."
-        : setupImport.status === "ready"
-          ? "Ready to apply."
-          : blockers.length + " blockers";
-      replaceListItems(
-        setupBlockers,
-        blockers,
-        "No blockers.",
-        blocker => blocker.message || blocker.code || "Blocked row."
-      );
-      replaceListItems(
-        setupPendingInvites,
-        pendingInvites,
-        "No pending invites.",
-        invite => invite.email + " - " + invite.ownerDisplayName + " - " + invite.role
-      );
-      if (body.season) {
-        renderSeason(body.season);
-        state.membership = (body.memberships || []).find(membership => membership.userId === state.account?.id) || null;
-        renderTeamClaims();
-      }
+      setupApplyButton.disabled = setupImport.status !== "ready" || Boolean(body.season);
+      setupStatus.textContent = body.season ? "League setup updated." : setupImport.status === "ready" ? "Ready to apply." : "Resolve the listed rows.";
+      setupBlockers.replaceChildren();
+      blockers.forEach(blocker => {
+        const item = document.createElement("li");
+        item.textContent = blocker.message || "This row needs attention.";
+        setupBlockers.append(item);
+      });
+      if (body.invitations) renderInvitationRows(body.invitations);
     };
 
-    const submitSetupImport = async action => {
-      setupStatus.textContent = action === "preview" ? "Previewing..." : "Applying...";
-      const body = await readSetupJson(await fetch(setupEndpoint(action), {
+    const submitSetup = async action => {
+      setupStatus.textContent = action === "preview" ? "Checking owner rows..." : "Updating league setup...";
+      const body = await readJson(await fetch(setupEndpoint(action), {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ content: setupRowsInput.value }),
+        body: JSON.stringify({ content: byId("setup-rows-input").value }),
       }));
       renderSetupResult(body);
     };
 
-    const loginWithCredentials = async (email, password) => {
-      authError.textContent = "";
-      const body = await readJson(await fetch("/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      }));
-      setSignedIn(body.account);
-    };
-
-    const signIn = async () => {
-      await loginWithCredentials(emailInput.value, passwordInput.value);
-    };
-
-    const useLocalDemo = async () => {
-      await fetch("/session", { method: "DELETE" }).catch(() => undefined);
-      emailInput.value = localDemoEmail;
-      passwordInput.value = localDemoPassword;
-      await loginWithCredentials(localDemoEmail, localDemoPassword);
-    };
-
-    authForm.addEventListener("submit", event => {
-      event.preventDefault();
-      signIn().catch(error => { authError.textContent = error.message; });
-    });
-
-    createAccountButton.addEventListener("click", () => {
-      authError.textContent = "";
-      fetch("/accounts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          email: emailInput.value,
-          password: passwordInput.value,
-        }),
-      })
-        .then(response => readJson(response))
-        .then(() => signIn())
-        .catch(error => { authError.textContent = error.message; });
-    });
-
-    localDemoButton.addEventListener("click", () => {
-      useLocalDemo().catch(error => { authError.textContent = error.message; });
-    });
-
-    localDemoTopbarButton.addEventListener("click", () => {
-      useLocalDemo().catch(error => {
-        seasonStatus.textContent = error.message;
-      });
-    });
-
-    logoutButton.addEventListener("click", () => {
-      fetch("/session", { method: "DELETE" })
-        .finally(setSignedOut);
-    });
-
-    openLeagueSectionButton.addEventListener("click", () => {
-      showLeagueWorkspace();
-      loadSeason().catch(error => {
-        const message = friendlySeasonError(error);
-        seasonStatus.textContent = message;
-        localMemberNotice.textContent = message;
-        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
-      });
-    });
-
-    draftRoomLink.addEventListener("click", () => {
-      openDraftBoard();
-    });
-
-    openSetupSectionButton.addEventListener("click", () => {
-      showSetupWorkspace();
-      setupSeasonIdInput.focus({ preventScroll: true });
-    });
-
-    loadSeasonButton.addEventListener("click", () => {
-      loadSeason().catch(error => {
-        renderSeason(null);
-        const message = friendlySeasonError(error);
-        seasonStatus.textContent = message;
-        localMemberNotice.textContent = message;
-        localMemberNotice.classList.toggle("hidden", !isLoopbackHost());
-      });
-    });
-
-    openRoomButton.addEventListener("click", () => {
-      openRoom().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    createRoomButton.addEventListener("click", () => {
-      createRoom().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    startRoomButton.addEventListener("click", () => {
-      startRoom().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    saleForm.addEventListener("submit", event => {
-      event.preventDefault();
-      logSale().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    undoSaleButton.addEventListener("click", () => {
-      undoSale().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    endRoomButton.addEventListener("click", () => {
-      endRoom().catch(error => { roomStatus.textContent = error.message; });
-    });
-
-    createExportArtifactButton.addEventListener("click", () => {
-      createExportArtifact().catch(error => { artifactStatus.textContent = error.message; });
-    });
-
-    setupPreviewButton.addEventListener("click", () => {
-      submitSetupImport("preview").catch(error => {
-        setupStatus.textContent = error.message;
+    byId("setup-preview-button").addEventListener("click", () => {
+      submitSetup("preview").catch(error => {
         setupApplyButton.disabled = true;
+        setupStatus.textContent = error.message;
       });
     });
 
     setupApplyButton.addEventListener("click", () => {
-      submitSetupImport("apply").catch(error => {
-        setupStatus.textContent = error.message;
-      });
+      submitSetup("apply").catch(error => { setupStatus.textContent = error.message; });
     });
 
-    seasonIdInput.value = initialSeasonId;
-    setupSeasonIdInput.value = initialSeasonId;
-    roomIdInput.value = initialRoomId || defaultRoomIdFor(initialSeasonId);
-    playerCatalogInput.value = JSON.stringify(defaultPlayerCatalog, null, 2);
-    saleCommandInput.value = "cam puka 62";
-    syncLocalDemoButtons();
-    renderPlayerCatalog();
-    renderSeason(null);
-    renderRoomReadModel({ status: "Not opened", revision: undefined, salesLog: [], board: [], teamSummaries: [] });
-    replaceListItems(roomEvents, [], "No room events.", value => value);
+    setupInvitations.addEventListener("click", event => {
+      const button = event.target.closest("button[data-invitation-action]");
+      if (!button) return;
+      const invitation = state.invitations.find(candidate => candidate.id === button.dataset.invitationId);
+      if (!invitation) return;
+      if (button.dataset.invitationAction === "copy") {
+        navigator.clipboard.writeText(new URL(invitation.acceptPath, window.location.origin).toString())
+          .then(() => { setupStatus.textContent = "Invite link copied."; })
+          .catch(() => { setupStatus.textContent = "Could not copy the invite link."; });
+        return;
+      }
+      button.disabled = true;
+      const actionPath = button.dataset.invitationAction === "revoke"
+        ? invitation.revokePath
+        : invitation.reissuePath;
+      readJson(fetch(actionPath, { method: "POST", credentials: "same-origin" }))
+        .then(body => {
+          const updatedInvitation = body.invitation || body;
+          renderInvitationRows(state.invitations.map(candidate => candidate.id === invitation.id ? updatedInvitation : candidate));
+          setupStatus.textContent = button.dataset.invitationAction === "revoke"
+            ? "Invitation revoked."
+            : "Invitation reissued.";
+        })
+        .catch(error => { setupStatus.textContent = error.message; })
+        .finally(() => { button.disabled = false; });
+    });
 
+    byId("accept-invitation-button").addEventListener("click", () => {
+      const token = new URLSearchParams(window.location.search).get("token");
+      if (!token) {
+        byId("invite-status").textContent = "This invitation link is missing its token.";
+        return;
+      }
+      byId("invite-status").textContent = "Joining league...";
+      readJson(fetch("/invitations/accept", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ token: token }),
+      }))
+        .then(body => window.location.assign("/app?seasonId=" + encodeURIComponent(body.membership.seasonId || body.invitation.seasonId)))
+        .catch(error => { byId("invite-status").textContent = error.message; });
+    });
+
+    configureAuthMode();
     fetch("/session", { credentials: "same-origin" })
       .then(response => response.ok ? response.json() : null)
       .then(body => {
-        if (body?.account) setSignedIn(body.account);
-        else setSignedOut();
+        if (body && body.account) {
+          Promise.resolve(finishAuthentication(body.account)).catch(error => showAppError(error.message));
+        } else {
+          showAuth();
+        }
       })
-      .catch(() => setSignedOut());
-
-    void currentSessionRequest;
+      .catch(() => showAuth());
   </script>
 </body>
 </html>`;

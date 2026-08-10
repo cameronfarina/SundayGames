@@ -7,6 +7,7 @@ import type {
   LeagueSetupRepository,
   RegisterLeagueSeasonRepositoryInput,
 } from "../src/platform/leagueSetup.js";
+import { InMemoryPlatformInvitationRepository } from "../src/platform/platformInvitations.js";
 import {
   applyLeagueSetupImport,
   previewLeagueSetupImport,
@@ -329,6 +330,42 @@ describe("platform setup import HTTP helpers", () => {
     expect(sethView.teams.find(team => team.ownerDisplayName === "Seth")).toMatchObject({
       displayName: "Seth's Renamed Team",
     });
+  });
+
+  it("issues actionable invitations for setup rows without registered accounts", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const invitationRepository = new InMemoryPlatformInvitationRepository();
+
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Club,cam@example.com,owner",
+        "Seth,Seth's Champs,seth@example.com,member",
+        "Beaton,Beaton's Team,beaton@example.com,admin",
+      ].join("\n"),
+      invitationRepository,
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      invitations: [{
+        email: "beaton@example.com",
+        status: "pending",
+        acceptPath: expect.stringMatching(/^\/invite\?token=/),
+        reissuePath: expect.stringMatching(/^\/invitations\/.+\/reissue$/),
+        revokePath: expect.stringMatching(/^\/invitations\/.+\/revoke$/),
+      }],
+    });
+    expect(await invitationRepository.listForSeason(season.id)).toEqual([
+      expect.objectContaining({
+        email: "beaton@example.com",
+        invitedByUserId: cam.account.id,
+        tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    ]);
   });
 
   it("preserves repository-backed claimed memberships when setup rows omit known users", async () => {

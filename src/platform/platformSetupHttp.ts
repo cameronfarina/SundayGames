@@ -9,6 +9,12 @@ import type {
   createPlatformApp,
   PlatformLeagueMembership,
 } from "./platformApp.js";
+import {
+  issuePlatformInvitation,
+  reissuePlatformInvitation,
+  type PlatformInvitationRepository,
+  type PlatformInvitationView,
+} from "./platformInvitations.js";
 
 export interface PlatformSetupHttpErrorBody {
   error: {
@@ -34,6 +40,7 @@ export interface PlatformLeagueSetupImportInput {
   content?: string;
   rows?: readonly string[];
   knownUsers?: readonly PlatformLeagueSetupImportKnownUser[];
+  invitationRepository?: PlatformInvitationRepository;
   now?: Date | undefined;
 }
 
@@ -55,6 +62,7 @@ export interface PlatformLeagueSetupImportApplyBody extends PlatformLeagueSetupI
   season: LeagueSeason;
   memberships: readonly PlatformLeagueMembership[];
   pendingInvites: readonly PlatformLeagueSetupImportPendingInvite[];
+  invitations: readonly PlatformInvitationView[];
 }
 
 export interface PlatformLeagueSetupImportBlockedBody extends PlatformSetupHttpErrorBody {
@@ -200,6 +208,7 @@ const membershipsForAppliedImport = async (
 ): Promise<{
   memberships: readonly PlatformLeagueMembership[];
   pendingInvites: readonly PlatformLeagueSetupImportPendingInvite[];
+  actorAccountId: string | null;
 }> => {
   const membershipsByUserId = new Map<string, PlatformLeagueMembership>();
   const claimedTeamIds = new Set<string>();
@@ -243,6 +252,7 @@ const membershipsForAppliedImport = async (
   }
 
   return {
+    actorAccountId,
     memberships: [...membershipsByUserId.values()],
     pendingInvites: seeds
       .filter(seed => !claimedTeamIds.has(seed.teamId))
@@ -291,7 +301,7 @@ export const applyLeagueSetupImport = async (
   }
 
   const appliedImport = applyLeagueSetupImportToSeason(season, parsedImport.records);
-  const { memberships, pendingInvites } = await membershipsForAppliedImport(
+  const { actorAccountId, memberships, pendingInvites } = await membershipsForAppliedImport(
     app,
     input,
     season,
@@ -303,6 +313,34 @@ export const applyLeagueSetupImport = async (
     memberships,
     now: input.now,
   });
+  const invitationNow = input.now ?? new Date();
+  const expiresAt = new Date(invitationNow.getTime() + 7 * 24 * 60 * 60 * 1_000);
+  let invitations: readonly PlatformInvitationView[] = [];
+  if (input.invitationRepository !== undefined && actorAccountId !== null) {
+    const invitationRepository = input.invitationRepository;
+    const existingInvitations = await invitationRepository.listForSeason(registeredSeason.id);
+    invitations = await Promise.all(pendingInvites.map(invite => {
+      const existing = existingInvitations.find(candidate =>
+        candidate.status === "pending"
+          && candidate.teamId === invite.teamId
+          && candidate.email === normalizeEmailKey(invite.email)
+      );
+      return existing === undefined
+        ? issuePlatformInvitation(invitationRepository, {
+            ...invite,
+            seasonId: registeredSeason.id,
+            invitedByUserId: actorAccountId,
+            now: invitationNow,
+            expiresAt,
+          })
+        : reissuePlatformInvitation(invitationRepository, {
+            invitationId: existing.id,
+            invitedByUserId: actorAccountId,
+            now: invitationNow,
+            expiresAt,
+          });
+    }));
+  }
 
   return {
     status: 200,
@@ -311,6 +349,7 @@ export const applyLeagueSetupImport = async (
       import: parsedImport,
       memberships,
       pendingInvites,
+      invitations,
     },
   };
 };
