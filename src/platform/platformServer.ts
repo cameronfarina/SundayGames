@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import { FilePlatformStore } from "./filePlatformStore.js";
 import type { JobRepository } from "./jobs.js";
 import type { AuthRepository } from "./auth.js";
+import type { LeagueSetupRepository } from "./leagueSetup.js";
 import { applyPlatformPostgresMigrations } from "./platformMigrations.js";
 import {
   createPlatformApp,
@@ -17,6 +18,7 @@ import {
   type PostgresQueryClient,
 } from "./postgresPlatformStore.js";
 import { PostgresAuthRepository } from "./postgresAuth.js";
+import { PostgresLeagueSetupRepository } from "./postgresLeagueSetup.js";
 import { PostgresSimulationRepository } from "./postgresSimulations.js";
 import {
   createPlatformHttpHandler,
@@ -43,11 +45,13 @@ export interface CreatePlatformServerOptions {
   dataFilePath?: string | undefined;
   postgresClient?: PostgresQueryClient | undefined;
   postgresAuthClient?: PostgresQueryClient | undefined;
+  postgresLeagueSetupClient?: PostgresTransactionalQueryClient | undefined;
   postgresJobClient?: PostgresTransactionalQueryClient | undefined;
   postgresSimulationClient?: PostgresTransactionalQueryClient | undefined;
   postgresSnapshotKey?: string | undefined;
   initializePostgresSchema?: boolean | undefined;
   authRepository?: AuthRepository | undefined;
+  leagueSetupRepository?: LeagueSetupRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -60,6 +64,7 @@ export interface PlatformServer {
   app: PlatformApp;
   store: InMemoryPlatformStore;
   authRepository: AuthRepository;
+  leagueSetupRepository: LeagueSetupRepository;
   jobRepository: JobRepository;
   simulationRepository: SimulationRepository;
   handler: PlatformHttpHandler;
@@ -67,6 +72,7 @@ export interface PlatformServer {
   fileStore?: FilePlatformStore | undefined;
   postgresStore?: PostgresPlatformStore | undefined;
   postgresAuthRepository?: PostgresAuthRepository | undefined;
+  postgresLeagueSetupRepository?: PostgresLeagueSetupRepository | undefined;
   postgresJobQueue?: PostgresJobQueue | undefined;
   postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   persist: () => Promise<void>;
@@ -175,6 +181,28 @@ const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   }
 };
 
+const isLeagueSetupOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  const method = request.method.toUpperCase();
+  if (method !== "POST" && method !== "PUT") return false;
+
+  try {
+    const segments = new URL(request.path, "http://mockd.local").pathname
+      .split("/")
+      .filter(Boolean)
+      .map(segment => decodeURIComponent(segment));
+
+    if (method === "POST" && segments.length === 1 && segments[0] === "seasons") return true;
+    if (method === "PUT" && segments.length === 2 && segments[0] === "seasons") return true;
+
+    return method === "POST" &&
+      segments.length === 4 &&
+      segments[0] === "seasons" &&
+      segments[2] === "setup-import";
+  } catch {
+    return false;
+  }
+};
+
 const isTransactionalPostgresClient = (
   client: PostgresQueryClient,
 ): client is PostgresTransactionalQueryClient =>
@@ -186,6 +214,7 @@ const initializePostgresSchemas = async (
     | "initializePostgresSchema"
     | "postgresAuthClient"
     | "postgresClient"
+    | "postgresLeagueSetupClient"
     | "postgresJobClient"
     | "postgresSimulationClient"
   >,
@@ -196,6 +225,7 @@ const initializePostgresSchemas = async (
   const candidates = [
     options.postgresClient,
     options.postgresAuthClient,
+    options.postgresLeagueSetupClient,
     options.postgresJobClient,
     options.postgresSimulationClient,
   ];
@@ -311,6 +341,9 @@ export const createPlatformServer = async (
   if (options.authRepository !== undefined && options.postgresAuthClient !== undefined) {
     throw new Error("Configure either authRepository or postgresAuthClient, not both.");
   }
+  if (options.leagueSetupRepository !== undefined && options.postgresLeagueSetupClient !== undefined) {
+    throw new Error("Configure either leagueSetupRepository or postgresLeagueSetupClient, not both.");
+  }
   if (options.jobRepository !== undefined && options.postgresJobClient !== undefined) {
     throw new Error("Configure either jobRepository or postgresJobClient, not both.");
   }
@@ -323,6 +356,7 @@ export const createPlatformServer = async (
   interface Runtime {
     store: InMemoryPlatformStore;
     authRepository: AuthRepository;
+    leagueSetupRepository: LeagueSetupRepository;
     jobRepository: JobRepository;
     simulationRepository: SimulationRepository;
     app: PlatformApp;
@@ -331,6 +365,7 @@ export const createPlatformServer = async (
     fileStore?: FilePlatformStore | undefined;
     postgresStore?: PostgresPlatformStore | undefined;
     postgresAuthRepository?: PostgresAuthRepository | undefined;
+    postgresLeagueSetupRepository?: PostgresLeagueSetupRepository | undefined;
     postgresJobQueue?: PostgresJobQueue | undefined;
     postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   }
@@ -386,6 +421,9 @@ export const createPlatformServer = async (
     const postgresAuthRepository = options.postgresAuthClient === undefined
       ? undefined
       : new PostgresAuthRepository(options.postgresAuthClient);
+    const postgresLeagueSetupRepository = options.postgresLeagueSetupClient === undefined
+      ? undefined
+      : new PostgresLeagueSetupRepository(options.postgresLeagueSetupClient);
     const postgresJobQueue = options.postgresJobClient === undefined
       ? undefined
       : new PostgresJobQueue(options.postgresJobClient);
@@ -393,6 +431,7 @@ export const createPlatformServer = async (
       ? undefined
       : new PostgresSimulationRepository(options.postgresSimulationClient);
     const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
+    const leagueSetupRepository = options.leagueSetupRepository ?? postgresLeagueSetupRepository ?? store;
     const jobRepository = options.jobRepository ?? postgresJobQueue ?? store.jobs;
     const simulationRepository = options.simulationRepository ?? postgresSimulationRepository ?? store.simulations;
 
@@ -403,6 +442,7 @@ export const createPlatformServer = async (
     const app = createPlatformApp({
       store,
       authRepository,
+      leagueSetupRepository,
       jobRepository,
       simulationRepository,
       simulationRunner: options.simulationRunner,
@@ -417,11 +457,13 @@ export const createPlatformServer = async (
         persist: simulationRepository === store.simulations ? rawPersist : undefined,
       }),
       authRepository,
+      leagueSetupRepository,
       jobRepository,
       simulationRepository,
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
       ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
+      ...(postgresLeagueSetupRepository === undefined ? {} : { postgresLeagueSetupRepository }),
       ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),
       ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
     };
@@ -434,12 +476,17 @@ export const createPlatformServer = async (
       const requestWithNow = withTrustedNow(request, options.now);
       const response = await runtime.platformHandler(requestWithNow);
       const usesExternalAuthRepository = runtime.authRepository !== runtime.store.authRepository;
+      const usesExternalLeagueSetupRepository = runtime.leagueSetupRepository !== runtime.store;
       const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
       const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
       const skipSnapshotPersist =
         (
           usesExternalAuthRepository &&
           isAuthOnlyMutationRequest(requestWithNow)
+        ) ||
+        (
+          usesExternalLeagueSetupRepository &&
+          isLeagueSetupOnlyMutationRequest(requestWithNow)
         ) ||
         (
           usesExternalJobRepository &&
@@ -487,6 +534,9 @@ export const createPlatformServer = async (
     get authRepository() {
       return runtime.authRepository;
     },
+    get leagueSetupRepository() {
+      return runtime.leagueSetupRepository;
+    },
     get jobRepository() {
       return runtime.jobRepository;
     },
@@ -507,6 +557,9 @@ export const createPlatformServer = async (
     },
     get postgresAuthRepository() {
       return runtime.postgresAuthRepository;
+    },
+    get postgresLeagueSetupRepository() {
+      return runtime.postgresLeagueSetupRepository;
     },
     get postgresJobQueue() {
       return runtime.postgresJobQueue;
@@ -545,6 +598,9 @@ export const startPlatformServer = async (
     get authRepository() {
       return platformServer.authRepository;
     },
+    get leagueSetupRepository() {
+      return platformServer.leagueSetupRepository;
+    },
     get jobRepository() {
       return platformServer.jobRepository;
     },
@@ -563,6 +619,9 @@ export const startPlatformServer = async (
     },
     get postgresAuthRepository() {
       return platformServer.postgresAuthRepository;
+    },
+    get postgresLeagueSetupRepository() {
+      return platformServer.postgresLeagueSetupRepository;
     },
     get postgresJobQueue() {
       return platformServer.postgresJobQueue;

@@ -18,6 +18,10 @@ import {
   type UpdateJobProgressInput,
 } from "../src/platform/jobs.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import type {
+  LeagueSetupRepository,
+  RegisterLeagueSeasonRepositoryInput,
+} from "../src/platform/leagueSetup.js";
 import {
   dispatchNextPlatformJob,
   enqueueSimulationRunExecutionJob,
@@ -27,6 +31,7 @@ import {
   startPlatformServer,
   type PlatformServer,
 } from "../src/platform/platformServer.js";
+import { InMemoryPlatformStore } from "../src/platform/platformApp.js";
 import type {
   PostgresQueryClient,
   PostgresQueryResult,
@@ -387,6 +392,37 @@ class AsyncSimulationRepository implements SimulationRepository {
 
   async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
     return this.inner.complete(runId, result);
+  }
+}
+
+class AsyncLeagueSetupRepository implements LeagueSetupRepository {
+  readonly inner = new InMemoryPlatformStore();
+  readonly registerInputs: RegisterLeagueSeasonRepositoryInput[] = [];
+
+  async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput) {
+    this.registerInputs.push(structuredClone(input));
+
+    return this.inner.registerLeagueSeason(input);
+  }
+
+  async findLeagueSeason(seasonId: string) {
+    return this.inner.findLeagueSeason(seasonId);
+  }
+
+  async hasLeagueSeasonForLeague(leagueId: string) {
+    return this.inner.hasLeagueSeasonForLeague(leagueId);
+  }
+
+  async findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number) {
+    return this.inner.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
+  }
+
+  async findMembership(userId: string, leagueId: string) {
+    return this.inner.findMembership(userId, leagueId);
+  }
+
+  async membershipsForLeague(leagueId: string) {
+    return this.inner.membershipsForLeague(leagueId);
   }
 }
 
@@ -1546,6 +1582,108 @@ describe("platform server composition", () => {
     expect(platformServer.simulationRepository).toBe(platformServer.postgresSimulationRepository);
   });
 
+  it("uses an external league setup repository for season HTTP routes without snapshot setup writes", async () => {
+    const postgresClient = new FakePostgresClient();
+    const leagueSetupRepository = new AsyncLeagueSetupRepository();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+      leagueSetupRepository,
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const memberships = [
+      {
+        userId: accountId,
+        leagueId: season.leagueId,
+        role: "owner" as const,
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+      },
+    ];
+
+    const registered = await jsonFetch(baseUrl, `/seasons/${season.id}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        season,
+        memberships,
+      }),
+    });
+
+    expect(registered.status).toBe(200);
+    expect(platformServer.leagueSetupRepository).toBe(leagueSetupRepository);
+    expect(leagueSetupRepository.registerInputs.at(-1)).toMatchObject({
+      createdByUserId: accountId,
+      season: {
+        id: season.id,
+        leagueId: season.leagueId,
+      },
+      memberships,
+    });
+    expect(postgresClient.row?.snapshot_json).toMatchObject({
+      leagueSeasons: [],
+      memberships: [],
+    });
+
+    await platformServer.close();
+    const loadedServer = await createPlatformServer({
+      postgresClient,
+      leagueSetupRepository,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+    const loadedBaseUrl = await listen(loadedServer);
+
+    const loadedSeason = await jsonFetch(loadedBaseUrl, `/seasons/${season.id}`, {
+      headers: { "x-session-token": sessionToken },
+    });
+
+    expect(loadedSeason).toMatchObject({
+      status: 200,
+      body: {
+        season: {
+          id: season.id,
+          leagueId: season.leagueId,
+        },
+      },
+    });
+  });
+
+  it("creates a Postgres league setup repository when a transactional setup client is configured", async () => {
+    const postgresLeagueSetupClient = new FakeTransactionalPostgresClient();
+    const { platformServer } = await createListeningServer({ postgresLeagueSetupClient });
+
+    expect(platformServer.postgresLeagueSetupRepository).toBeDefined();
+    expect(platformServer.leagueSetupRepository).toBe(platformServer.postgresLeagueSetupRepository);
+  });
+
   it("rejects ambiguous file and Postgres persistence configuration", async () => {
     await expect(createPlatformServer({
       dataFilePath: "/tmp/mockd-platform.json",
@@ -1564,6 +1702,12 @@ describe("platform server composition", () => {
       postgresSimulationClient: new FakeTransactionalPostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either simulationRepository or postgresSimulationClient, not both.");
+
+    await expect(createPlatformServer({
+      leagueSetupRepository: new AsyncLeagueSetupRepository(),
+      postgresLeagueSetupClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either leagueSetupRepository or postgresLeagueSetupClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {

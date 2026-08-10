@@ -217,7 +217,7 @@ const membershipsForAppliedImport = async (
   }
 
   const actorAccountId = await actorAccountIdFor(app, input.actorSessionToken, input.now);
-  for (const existingMembership of app.store.membershipsForLeague(season.leagueId)) {
+  for (const existingMembership of await app.listLeagueMemberships(season.leagueId)) {
     const existingSeed = seedForExistingMembership(season, seeds, existingMembership);
     const membership = existingSeed === undefined
       ? {

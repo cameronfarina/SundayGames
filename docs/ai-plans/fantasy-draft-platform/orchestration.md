@@ -104,4 +104,5 @@ Privacy rule: league truth is shared; draft strategy is private.
 - `f10c01f` added job cancellation lifecycle controls.
 - `0689f5e` added terminal job reruns with idempotent fresh queued jobs and simulation reset semantics.
 - `77eaa71` added a normalized Postgres simulation repository so private simulation requests/results live outside the snapshot bridge while retaining in-memory/file behavior for local development.
-- The active implementation slice adds a normalized Postgres account/session repository so email/password accounts and session hashes are not stored in the transitional snapshot bridge.
+- `d800e51` added a normalized Postgres account/session repository so email/password accounts and session hashes are not stored in the transitional snapshot bridge.
+- The active implementation slice adds a normalized Postgres league setup repository for leagues, seasons, fantasy teams, roster rules, and league memberships. The web and worker runtimes now construct that repository in Postgres mode while preserving the in-memory/file repository for local development.

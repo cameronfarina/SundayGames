@@ -7,6 +7,10 @@ import {
   PlatformAppError,
   createPlatformApp,
 } from "../src/platform/platformApp.js";
+import type {
+  LeagueSetupRepository,
+  RegisterLeagueSeasonRepositoryInput,
+} from "../src/platform/leagueSetup.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
@@ -59,6 +63,37 @@ const signUpAndLogin = async (
   return login;
 };
 
+class AsyncLeagueSetupRepository implements LeagueSetupRepository {
+  readonly inner = new InMemoryPlatformStore();
+  readonly registerInputs: RegisterLeagueSeasonRepositoryInput[] = [];
+
+  async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput) {
+    this.registerInputs.push(structuredClone(input));
+
+    return this.inner.registerLeagueSeason(input);
+  }
+
+  async findLeagueSeason(seasonId: string) {
+    return this.inner.findLeagueSeason(seasonId);
+  }
+
+  async hasLeagueSeasonForLeague(leagueId: string) {
+    return this.inner.hasLeagueSeasonForLeague(leagueId);
+  }
+
+  async findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number) {
+    return this.inner.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
+  }
+
+  async findMembership(userId: string, leagueId: string) {
+    return this.inner.findMembership(userId, leagueId);
+  }
+
+  async membershipsForLeague(leagueId: string) {
+    return this.inner.membershipsForLeague(leagueId);
+  }
+}
+
 describe("platform app service", () => {
   it("requires an owner or admin actor when registering league season data", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
@@ -86,6 +121,87 @@ describe("platform app service", () => {
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
+  });
+
+  it("uses an injected async league setup repository for season reads and registration", async () => {
+    const leagueSetupRepository = new AsyncLeagueSetupRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      leagueSetupRepository,
+      simulationRunner: mockRunner,
+    });
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const nextSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      seasonYear: season.seasonYear + 1,
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const nextCamTeam = nextSeason.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined || sethTeam === undefined || nextCamTeam === undefined) {
+      throw new Error("Expected fixture teams.");
+    }
+
+    await leagueSetupRepository.registerLeagueSeason({
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+      createdByUserId: cam.account.id,
+      now,
+    });
+
+    expect(app.store.findLeagueSeason(season.id)).toBeNull();
+    await expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now })).resolves.toEqual(season);
+    await expect(
+      app.registerLeagueSeason({
+        actorSessionToken: outsider.sessionToken,
+        season: nextSeason,
+        memberships: [
+          {
+            userId: outsider.account.id,
+            leagueId: nextSeason.leagueId,
+            role: "owner",
+            ownerId: nextCamTeam.ownerId,
+            teamId: nextCamTeam.id,
+          },
+        ],
+        now,
+      }),
+    ).rejects.toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+
+    const registeredNextSeason = await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season: nextSeason,
+      memberships: [
+        {
+          userId: cam.account.id,
+          leagueId: nextSeason.leagueId,
+          role: "owner",
+          ownerId: nextCamTeam.ownerId,
+          teamId: nextCamTeam.id,
+        },
+      ],
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(registeredNextSeason).toEqual(nextSeason);
+    expect(leagueSetupRepository.registerInputs.at(-1)).toMatchObject({
+      season: nextSeason,
+      createdByUserId: cam.account.id,
+    });
+    await expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: nextSeason.id, now })).resolves.toEqual(nextSeason);
   });
 
   it("registers a league season, gates shared access by membership, and keeps prep private", async () => {

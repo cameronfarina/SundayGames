@@ -3,6 +3,10 @@ import { leagueConfig } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import { createPlatformApp, InMemoryPlatformStore } from "../src/platform/platformApp.js";
+import type {
+  LeagueSetupRepository,
+  RegisterLeagueSeasonRepositoryInput,
+} from "../src/platform/leagueSetup.js";
 import {
   applyLeagueSetupImport,
   previewLeagueSetupImport,
@@ -64,6 +68,34 @@ const setupRegisteredSeason = async () => {
 
   return { app, cam, seth, season };
 };
+
+class AsyncLeagueSetupRepository implements LeagueSetupRepository {
+  readonly inner = new InMemoryPlatformStore();
+
+  async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput) {
+    return this.inner.registerLeagueSeason(input);
+  }
+
+  async findLeagueSeason(seasonId: string) {
+    return this.inner.findLeagueSeason(seasonId);
+  }
+
+  async hasLeagueSeasonForLeague(leagueId: string) {
+    return this.inner.hasLeagueSeasonForLeague(leagueId);
+  }
+
+  async findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number) {
+    return this.inner.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
+  }
+
+  async findMembership(userId: string, leagueId: string) {
+    return this.inner.findMembership(userId, leagueId);
+  }
+
+  async membershipsForLeague(leagueId: string) {
+    return this.inner.membershipsForLeague(leagueId);
+  }
+}
 
 describe("platform setup import HTTP helpers", () => {
   it("previews malformed rows and duplicate owners as blockers using the season team count", async () => {
@@ -289,6 +321,75 @@ describe("platform setup import HTTP helpers", () => {
       teamId: expect.stringContaining("seth"),
     });
 
+    const sethView = await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now });
+    expect(sethView.teams.find(team => team.ownerDisplayName === "Seth")).toMatchObject({
+      displayName: "Seth's Renamed Team",
+    });
+  });
+
+  it("preserves repository-backed claimed memberships when setup rows omit known users", async () => {
+    const leagueSetupRepository = new AsyncLeagueSetupRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      leagueSetupRepository,
+      simulationRunner: mockRunner,
+    });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    await app.createAccount({ email: "seth@example.com", password: "seth password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
+    const seth = await app.login({ email: "seth@example.com", password: "seth password", now });
+    if (cam === null || seth === null) throw new Error("Expected fixture logins.");
+    const season = buildCurrentMockdLeagueSeason(["Cam", "Seth", "Beaton"], {
+      ...leagueConfig,
+      teams: 3,
+    }, {
+      leagueName: "Setup Import League",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    await leagueSetupRepository.registerLeagueSeason({
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+      createdByUserId: cam.account.id,
+      now,
+    });
+
+    expect(app.store.findLeagueSeason(season.id)).toBeNull();
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Club,,owner",
+        "Seth,Seth's Renamed Team,,member",
+        "Beaton,Beaton's Team,beaton@example.com,admin",
+      ].join("\n"),
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      memberships: expect.arrayContaining([
+        expect.objectContaining({
+          userId: seth.account.id,
+          role: "member",
+          ownerId: expect.stringContaining("seth"),
+          teamId: expect.stringContaining("seth"),
+        }),
+      ]),
+      pendingInvites: [
+        expect.objectContaining({
+          email: "beaton@example.com",
+          role: "admin",
+        }),
+      ],
+    });
     const sethView = await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now });
     expect(sethView.teams.find(team => team.ownerDisplayName === "Seth")).toMatchObject({
       displayName: "Seth's Renamed Team",

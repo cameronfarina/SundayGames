@@ -36,6 +36,12 @@ import {
 } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
+  membershipKeyFor,
+  type LeagueSetupRepository,
+  type PlatformLeagueMembership,
+  type RegisterLeagueSeasonRepositoryInput,
+} from "./leagueSetup.js";
+import {
   InMemoryLiveDraftRoomRepository,
   type CreateLiveDraftRoomInput,
   type LiveDraftRoom,
@@ -83,9 +89,10 @@ import {
 import {
   authorizeSharedLeagueResourceRead,
   authorizeSharedLeagueSetupMutation,
-  type LeagueMembership,
   type WorkspaceRole,
 } from "./workspacePrivacy.js";
+
+export type { PlatformLeagueMembership } from "./leagueSetup.js";
 
 export type PlatformAppErrorCode =
   | "auth_required"
@@ -108,12 +115,6 @@ export class PlatformAppError extends Error {
     this.name = "PlatformAppError";
     this.code = code;
   }
-}
-
-export interface PlatformLeagueMembership extends LeagueMembership {
-  ownerId?: string;
-  teamId?: string;
-  inviteEmail?: string;
 }
 
 export interface RegisterLeagueSeasonInput {
@@ -310,6 +311,7 @@ export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatfo
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
   authRepository?: AuthRepository | undefined;
+  leagueSetupRepository?: LeagueSetupRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -336,8 +338,6 @@ export interface InMemoryPlatformStoreSnapshot {
 const draftExportSlotKeys = new Set<string>(draftExportSlotOrder);
 const sharedMutationRoles = new Set<WorkspaceRole>(["owner", "admin"]);
 
-const membershipKeyFor = (userId: string, leagueId: string): string => `${userId}\0${leagueId}`;
-
 const cloneForRead = <T>(value: T): T => structuredClone(value);
 
 interface JobInputRecord {
@@ -359,7 +359,7 @@ const simulationRunIdForJob = (job: JobRecord): string | null => {
 
 const isExportSlotKey = (slot: string): slot is DraftExportRosterSlotKey => draftExportSlotKeys.has(slot);
 
-export class InMemoryPlatformStore {
+export class InMemoryPlatformStore implements LeagueSetupRepository {
   readonly authRepository = new InMemoryAuthRepository();
   readonly exportArtifacts = new InMemoryExportArtifactRepository();
   readonly historicalImports = new InMemoryHistoricalImportRepository();
@@ -386,11 +386,8 @@ export class InMemoryPlatformStore {
     }
   }
 
-  registerLeagueSeason(
-    season: LeagueSeason,
-    memberships: readonly PlatformLeagueMembership[],
-  ): LeagueSeason {
-    const storedSeason = cloneForRead(season);
+  registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): LeagueSeason {
+    const storedSeason = cloneForRead(input.season);
 
     this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
 
@@ -400,7 +397,7 @@ export class InMemoryPlatformStore {
       }
     }
 
-    for (const membership of memberships) {
+    for (const membership of input.memberships) {
       this.#membershipsByUserAndLeague.set(membershipKeyFor(membership.userId, membership.leagueId), {
         ...cloneForRead(membership),
       });
@@ -438,6 +435,24 @@ export class InMemoryPlatformStore {
     return [...this.#membershipsByUserAndLeague.values()]
       .filter(membership => membership.leagueId === leagueId)
       .map(membership => cloneForRead(membership));
+  }
+
+  replaceMembershipsForLeague(
+    leagueId: string,
+    memberships: readonly PlatformLeagueMembership[],
+  ): void {
+    for (const [membershipKey, membership] of this.#membershipsByUserAndLeague) {
+      if (membership.leagueId === leagueId) {
+        this.#membershipsByUserAndLeague.delete(membershipKey);
+      }
+    }
+
+    for (const membership of memberships) {
+      this.#membershipsByUserAndLeague.set(
+        membershipKeyFor(membership.userId, membership.leagueId),
+        cloneForRead(membership),
+      );
+    }
   }
 
   clearAuthSnapshotState(): void {
@@ -538,14 +553,17 @@ export class InMemoryPlatformStore {
 export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
   authRepository,
+  leagueSetupRepository,
   jobRepository,
   simulationRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
   const runtimeAuthRepository = authRepository ?? store.authRepository;
+  const leagueSetup = leagueSetupRepository ?? store;
   const auth = createAuthService({ repository: runtimeAuthRepository });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
+  const usesExternalLeagueSetup = leagueSetup !== store;
 
   const requireAccount = async (sessionToken: string, now?: Date): Promise<AccountRecord> => {
     const authenticated = await auth.lookupSession(sessionToken, now);
@@ -557,50 +575,69 @@ export const createPlatformApp = ({
     return authenticated.account;
   };
 
-  const requireSeason = (seasonId: string): LeagueSeason => {
-    const season = store.findLeagueSeason(seasonId);
-
-    if (season === null) {
-      throw new PlatformAppError("season_not_found", "League season was not found.");
+  const mirrorLeagueSetup = async (season: LeagueSeason): Promise<LeagueSeason> => {
+    if (usesExternalLeagueSetup) {
+      store.registerLeagueSeason({
+        season,
+        memberships: await leagueSetup.membershipsForLeague(season.leagueId),
+        createdByUserId: "external",
+      });
     }
 
     return season;
   };
 
-  const requireSeasonForLeagueYear = (leagueId: string, seasonYear: number): LeagueSeason => {
-    const season = store.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
+  const mirrorLeagueMemberships = (leagueId: string, memberships: readonly PlatformLeagueMembership[]): void => {
+    if (usesExternalLeagueSetup) {
+      store.replaceMembershipsForLeague(leagueId, memberships);
+    }
+  };
+
+  const requireSeason = async (seasonId: string): Promise<LeagueSeason> => {
+    const season = await leagueSetup.findLeagueSeason(seasonId);
 
     if (season === null) {
       throw new PlatformAppError("season_not_found", "League season was not found.");
     }
 
-    return season;
+    return await mirrorLeagueSetup(season);
   };
 
-  const requireSharedRead = (
+  const requireSeasonForLeagueYear = async (leagueId: string, seasonYear: number): Promise<LeagueSeason> => {
+    const season = await leagueSetup.findLeagueSeasonForLeagueYear(leagueId, seasonYear);
+
+    if (season === null) {
+      throw new PlatformAppError("season_not_found", "League season was not found.");
+    }
+
+    return await mirrorLeagueSetup(season);
+  };
+
+  const requireSharedRead = async (
     account: AccountRecord,
     leagueId: string,
-  ): PlatformLeagueMembership => {
-    const memberships = store.membershipsForLeague(leagueId);
+  ): Promise<PlatformLeagueMembership> => {
+    const memberships = await leagueSetup.membershipsForLeague(leagueId);
     const decision = authorizeSharedLeagueResourceRead({ id: account.id }, { leagueId }, memberships);
 
     if (!decision.allowed) {
       throw new PlatformAppError("membership_required", "Join this league before viewing shared league data.");
     }
 
-    const membership = store.findMembership(account.id, leagueId);
+    const membership = await leagueSetup.findMembership(account.id, leagueId);
     if (membership === null) {
       throw new PlatformAppError("membership_required", "Join this league before viewing shared league data.");
     }
+    mirrorLeagueMemberships(leagueId, memberships);
 
     return membership;
   };
 
-  const requireSharedMutation = (
+  const requireSharedMutation = async (
     account: AccountRecord,
     leagueId: string,
-  ): PlatformLeagueMembership => {
-    const memberships = store.membershipsForLeague(leagueId);
+  ): Promise<PlatformLeagueMembership> => {
+    const memberships = await leagueSetup.membershipsForLeague(leagueId);
     const decision = authorizeSharedLeagueSetupMutation({ id: account.id }, { leagueId }, memberships);
 
     if (!decision.allowed) {
@@ -614,27 +651,28 @@ export const createPlatformApp = ({
       );
     }
 
-    const membership = store.findMembership(account.id, leagueId);
+    const membership = await leagueSetup.findMembership(account.id, leagueId);
     if (membership === null) {
       throw new PlatformAppError("membership_required", "Join this league before changing shared league data.");
     }
+    mirrorLeagueMemberships(leagueId, memberships);
 
     return membership;
   };
 
-  const requireSeasonRead = (account: AccountRecord, seasonId: string): LeagueSeason => {
-    const season = requireSeason(seasonId);
-    requireSharedRead(account, season.leagueId);
+  const requireSeasonRead = async (account: AccountRecord, seasonId: string): Promise<LeagueSeason> => {
+    const season = await requireSeason(seasonId);
+    await requireSharedRead(account, season.leagueId);
 
     return season;
   };
 
-  const requirePrivateTeamContext = (
+  const requirePrivateTeamContext = async (
     account: AccountRecord,
     input: Omit<PrivateTeamContextInput, "actorSessionToken" | "now">,
-  ): LeagueSeason => {
-    const season = requireSeason(input.seasonId);
-    const membership = requireSharedRead(account, input.leagueId);
+  ): Promise<LeagueSeason> => {
+    const season = await requireSeason(input.seasonId);
+    const membership = await requireSharedRead(account, input.leagueId);
 
     if (season.leagueId !== input.leagueId) {
       throw new PlatformAppError("league_not_found", "League does not match this season.");
@@ -656,12 +694,12 @@ export const createPlatformApp = ({
     return season;
   };
 
-  const canReadPrivateTeamContext = (
+  const canReadPrivateTeamContext = async (
     account: AccountRecord,
     input: Omit<PrivateTeamContextInput, "actorSessionToken" | "now">,
-  ): boolean => {
+  ): Promise<boolean> => {
     try {
-      requirePrivateTeamContext(account, input);
+      await requirePrivateTeamContext(account, input);
 
       return true;
     } catch (error) {
@@ -671,13 +709,13 @@ export const createPlatformApp = ({
     }
   };
 
-  const assertSeasonRegistrationAllowed = (
+  const assertSeasonRegistrationAllowed = async (
     account: AccountRecord,
     season: LeagueSeason,
     memberships: readonly PlatformLeagueMembership[],
-  ): void => {
-    const existingMembership = store.findMembership(account.id, season.leagueId);
-    const leagueAlreadyRegistered = store.hasLeagueSeasonForLeague(season.leagueId);
+  ): Promise<void> => {
+    const existingMembership = await leagueSetup.findMembership(account.id, season.leagueId);
+    const leagueAlreadyRegistered = await leagueSetup.hasLeagueSeasonForLeague(season.leagueId);
     const submittedMembership = memberships.find(membership =>
       membership.userId === account.id && membership.leagueId === season.leagueId
     );
@@ -751,6 +789,7 @@ export const createPlatformApp = ({
   return {
     store,
     authRepository: runtimeAuthRepository,
+    leagueSetupRepository: leagueSetup,
 
     createAccount: async (input: CreateUserInput): Promise<AccountRecord> =>
       cloneForRead(await auth.createUser(input)),
@@ -773,19 +812,36 @@ export const createPlatformApp = ({
       return authenticated === null ? null : cloneForRead(authenticated.account);
     },
 
+    listLeagueMemberships: async (leagueId: string): Promise<readonly PlatformLeagueMembership[]> =>
+      cloneForRead(await leagueSetup.membershipsForLeague(leagueId)),
+
     registerLeagueSeason: async (input: RegisterLeagueSeasonInput): Promise<LeagueSeason> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      assertSeasonRegistrationAllowed(account, input.season, input.memberships);
+      await assertSeasonRegistrationAllowed(account, input.season, input.memberships);
+      const registeredSeason = await leagueSetup.registerLeagueSeason({
+        season: input.season,
+        memberships: input.memberships,
+        createdByUserId: account.id,
+        now: input.now,
+      });
+      if (usesExternalLeagueSetup) {
+        store.registerLeagueSeason({
+          season: registeredSeason,
+          memberships: input.memberships,
+          createdByUserId: account.id,
+          now: input.now,
+        });
+      }
 
-      return store.registerLeagueSeason(input.season, input.memberships);
+      return cloneForRead(registeredSeason);
     },
 
     getLeagueSeason: async (input: GetLeagueSeasonInput): Promise<LeagueSeason> =>
-      cloneForRead(requireSeasonRead(await requireAccount(input.actorSessionToken, input.now), input.seasonId)),
+      cloneForRead(await requireSeasonRead(await requireAccount(input.actorSessionToken, input.now), input.seasonId)),
 
     createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      requirePrivateTeamContext(account, input);
+      await requirePrivateTeamContext(account, input);
 
       return cloneForRead(await simulations.createRequest({
         userId: account.id,
@@ -807,7 +863,7 @@ export const createPlatformApp = ({
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
-      requirePrivateTeamContext(account, run.request);
+      await requirePrivateTeamContext(account, run.request);
 
       return cloneForRead(await executeSimulationRun({
         repository: simulations,
@@ -831,7 +887,7 @@ export const createPlatformApp = ({
       if (account === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to a missing account.");
       }
-      requirePrivateTeamContext(account, run.request);
+      await requirePrivateTeamContext(account, run.request);
 
       return cloneForRead(await executeSimulationRun({
         repository: simulations,
@@ -844,9 +900,14 @@ export const createPlatformApp = ({
     listSimulationRuns: async (input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
 
-      return (await simulations.listForUser(account.id))
-        .filter(run => canReadPrivateTeamContext(account, run.request))
-        .map(run => cloneForRead(run));
+      const readableRuns: SimulationRun[] = [];
+      for (const run of await simulations.listForUser(account.id)) {
+        if (await canReadPrivateTeamContext(account, run.request)) {
+          readableRuns.push(run);
+        }
+      }
+
+      return readableRuns.map(run => cloneForRead(run));
     },
 
     getSimulationRun: async (input: GetPlatformSimulationRunInput): Promise<SimulationRun> => {
@@ -856,7 +917,7 @@ export const createPlatformApp = ({
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
-      requirePrivateTeamContext(account, run.request);
+      await requirePrivateTeamContext(account, run.request);
 
       return cloneForRead(run);
     },
@@ -867,7 +928,7 @@ export const createPlatformApp = ({
       if (run === null) {
         throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
       }
-      requirePrivateTeamContext(account, run.request);
+      await requirePrivateTeamContext(account, run.request);
 
       const job = await enqueueSimulationRunExecutionJob({
         repository: jobs,
@@ -956,8 +1017,8 @@ export const createPlatformApp = ({
       input: PreviewPlatformHistoricalImportInput,
     ): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
-      requireSharedMutation(account, input.leagueId);
+      await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      await requireSharedMutation(account, input.leagueId);
 
       return cloneForRead(previewHistoricalImportSourceWorkflow({
         repository: store.historicalImports,
@@ -977,7 +1038,7 @@ export const createPlatformApp = ({
       if (batch === null) {
         throw new PlatformAppError("historical_import_not_found", "Historical import batch was not found.");
       }
-      requireSharedMutation(account, batch.leagueId);
+      await requireSharedMutation(account, batch.leagueId);
 
       return cloneForRead(commitHistoricalImportWorkflow({
         repository: store.historicalImports,
@@ -990,8 +1051,8 @@ export const createPlatformApp = ({
       input: RebuildPlatformPricingInput,
     ): Promise<RebuildLeaguePricingWorkflowResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const season = requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
-      requireSharedMutation(account, input.leagueId);
+      const season = await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      await requireSharedMutation(account, input.leagueId);
 
       return cloneForRead(rebuildLeaguePricingWorkflow({
         repository: store.pricingSnapshots,
@@ -1012,8 +1073,8 @@ export const createPlatformApp = ({
       input: ListPlatformPricingSnapshotsInput,
     ): Promise<readonly PricingSnapshot[]> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      requireSeasonForLeagueYear(input.leagueId, Number(input.seasonYear));
-      requireSharedRead(account, input.leagueId);
+      await requireSeasonForLeagueYear(input.leagueId, Number(input.seasonYear));
+      await requireSharedRead(account, input.leagueId);
 
       return listLeaguePricingSnapshotsWorkflow(store.pricingSnapshots, {
         leagueId: input.leagueId,
@@ -1033,14 +1094,14 @@ export const createPlatformApp = ({
       if (snapshot === undefined) {
         throw new PlatformAppError("pricing_snapshot_not_found", "Pricing snapshot was not found.");
       }
-      requireSharedRead(account, snapshot.leagueId);
+      await requireSharedRead(account, snapshot.leagueId);
 
       return cloneForRead(snapshot);
     },
 
     createMockDraftSession: async (input: CreatePlatformMockDraftSessionInput): Promise<MockDraftSession> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      requirePrivateTeamContext(account, input);
+      await requirePrivateTeamContext(account, input);
 
       return cloneForRead(store.mockDraftSessions.createSession({
         userId: account.id,
@@ -1058,8 +1119,8 @@ export const createPlatformApp = ({
       input: ListPlatformMockDraftSessionsInput,
     ): Promise<readonly MockDraftSession[]> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const season = requireSeason(input.seasonId);
-      const membership = requireSharedRead(account, input.leagueId);
+      const season = await requireSeason(input.seasonId);
+      const membership = await requireSharedRead(account, input.leagueId);
 
       if (season.leagueId !== input.leagueId) {
         throw new PlatformAppError("league_not_found", "League does not match this season.");
@@ -1085,7 +1146,7 @@ export const createPlatformApp = ({
     appendMockDraftCommand: async (input: AppendPlatformMockDraftCommandInput): Promise<MockDraftSession> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
-      requirePrivateTeamContext(account, session);
+      await requirePrivateTeamContext(account, session);
 
       return cloneForRead(store.mockDraftSessions.appendCommand({
         userId: account.id,
@@ -1103,7 +1164,7 @@ export const createPlatformApp = ({
     resetMockDraftSession: async (input: ResetPlatformMockDraftSessionInput): Promise<MockDraftSession> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
-      requirePrivateTeamContext(account, session);
+      await requirePrivateTeamContext(account, session);
 
       return cloneForRead(store.mockDraftSessions.resetSession({
         userId: account.id,
@@ -1115,8 +1176,8 @@ export const createPlatformApp = ({
 
     createLiveDraftRoom: async (input: CreatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const season = requireSeason(input.seasonId);
-      requireSharedMutation(account, season.leagueId);
+      const season = await requireSeason(input.seasonId);
+      await requireSharedMutation(account, season.leagueId);
 
       return cloneForRead(store.liveDraftRooms.createRoom({
         season,
@@ -1133,7 +1194,7 @@ export const createPlatformApp = ({
     getLiveDraftRoom: async (input: GetPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      const membership = requireSharedRead(account, room.leagueId);
+      const membership = await requireSharedRead(account, room.leagueId);
 
       return cloneForRead(store.liveDraftRooms.getRoomForActor({
         roomId: input.roomId,
@@ -1144,7 +1205,7 @@ export const createPlatformApp = ({
     startLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      const membership = requireSharedMutation(account, room.leagueId);
+      const membership = await requireSharedMutation(account, room.leagueId);
 
       return cloneForRead(store.liveDraftRooms.startRoom({
         roomId: input.roomId,
@@ -1158,7 +1219,7 @@ export const createPlatformApp = ({
     logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      const membership = requireSharedMutation(account, room.leagueId);
+      const membership = await requireSharedMutation(account, room.leagueId);
 
       return cloneForRead(store.liveDraftRooms.logSaleCommand({
         roomId: input.roomId,
@@ -1173,7 +1234,7 @@ export const createPlatformApp = ({
     undoLastLiveDraftSale: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      const membership = requireSharedMutation(account, room.leagueId);
+      const membership = await requireSharedMutation(account, room.leagueId);
 
       return cloneForRead(store.liveDraftRooms.undoLastSale({
         roomId: input.roomId,
@@ -1187,7 +1248,7 @@ export const createPlatformApp = ({
     endLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      const membership = requireSharedMutation(account, room.leagueId);
+      const membership = await requireSharedMutation(account, room.leagueId);
 
       return cloneForRead(store.liveDraftRooms.endRoom({
         roomId: input.roomId,
@@ -1201,7 +1262,7 @@ export const createPlatformApp = ({
     exportLiveDraftRoom: async (input: ExportPlatformLiveDraftRoomInput): Promise<DraftExportResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      requireSharedRead(account, room.leagueId);
+      await requireSharedRead(account, room.leagueId);
 
       return generateDraftExport({
         leagueName: room.season.league.name,
@@ -1219,7 +1280,7 @@ export const createPlatformApp = ({
     ): Promise<DraftExportArtifactResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = store.liveDraftRooms.getRoom(input.roomId);
-      requireSharedRead(account, room.leagueId);
+      await requireSharedRead(account, room.leagueId);
       const existingArtifactResult = store.exportArtifacts.findByRoomRevision(room.roomId, room.revision);
       if (existingArtifactResult !== undefined) {
         return {

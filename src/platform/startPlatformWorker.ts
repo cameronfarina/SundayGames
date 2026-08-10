@@ -27,6 +27,7 @@ export const startPlatformWorkerFromEnv = async (
     const platformServer = await createPlatformServer({
       postgresClient,
       postgresAuthClient: postgresClient,
+      postgresLeagueSetupClient: postgresClient,
       postgresJobClient: postgresClient,
       postgresSimulationClient: postgresClient,
       postgresSnapshotKey: config.postgresSnapshotKey,
