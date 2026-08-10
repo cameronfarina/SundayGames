@@ -36,6 +36,12 @@ export interface DraftExportArtifactResult {
   content: Buffer;
 }
 
+export type ExportArtifactRepositoryResult<T> = T | Promise<T>;
+
+export interface SaveExportArtifactOptions {
+  createdByUserId?: string | undefined;
+}
+
 export type ExportArtifactErrorCode = "artifact_conflict";
 
 export class ExportArtifactError extends Error {
@@ -49,14 +55,17 @@ export class ExportArtifactError extends Error {
 }
 
 export interface ExportArtifactRepository {
-  save(result: DraftExportArtifactResult): DraftExportArtifactResult;
-  get(id: string): DraftExportArtifactResult | undefined;
+  save(
+    result: DraftExportArtifactResult,
+    options?: SaveExportArtifactOptions | undefined,
+  ): ExportArtifactRepositoryResult<DraftExportArtifactResult>;
+  get(id: string): ExportArtifactRepositoryResult<DraftExportArtifactResult | undefined>;
   findByRoomRevision(
     roomId: string,
     sourceRevision: number,
     format?: ExportArtifactFormat,
-  ): DraftExportArtifactResult | undefined;
-  listByRoom(roomId: string): readonly ExportArtifact[];
+  ): ExportArtifactRepositoryResult<DraftExportArtifactResult | undefined>;
+  listByRoom(roomId: string): ExportArtifactRepositoryResult<readonly ExportArtifact[]>;
 }
 
 const draftExportFormat = "csv" satisfies ExportArtifactFormat;

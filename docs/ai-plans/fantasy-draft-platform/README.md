@@ -11,7 +11,7 @@ Start here:
 - `issue-slices.md`: stacked implementation slices for PR planning.
 - `epics/`: detailed plans from the ten staff-engineer slices.
 
-Current reality: the platform backend is ahead of the visible product UI. Account/session, league setup, simulation, job, and historical import repository foundations exist, but there is not yet a user-facing login/signup shell or unified league workspace. The next near-term product slice should make Mockd feel like one app around the board, not separate Real Draft, Mock Draft, My Expert, Player News, and Draft Room experiences.
+Current reality: the platform backend is still ahead of the full product UI, but this branch now has a small browser shell for signup/login, current session, seeded season loading, team claims, live-room actions, realtime updates, and final CSV artifacts. The next near-term product slice should make Mockd feel like one app around the board, not separate Real Draft, Mock Draft, My Expert, Player News, and Draft Room experiences.
 
 The most important system rule is the shared/private split:
 

@@ -31,6 +31,8 @@ export const startPlatformWorkerFromEnv = async (
       postgresHistoricalImportClient: postgresClient,
       postgresJobClient: postgresClient,
       postgresSimulationClient: postgresClient,
+      postgresLiveDraftRoomClient: postgresClient,
+      postgresExportArtifactClient: postgresClient,
       postgresSnapshotKey: config.postgresSnapshotKey,
       initializePostgresSchema: config.initializePostgresSchema,
       simulationRunner,

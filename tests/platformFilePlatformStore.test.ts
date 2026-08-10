@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -61,6 +61,19 @@ describe("file-backed platform store", () => {
 
     return join(directory, "platform-store.json");
   };
+
+  it("loads an empty file as an empty store", async () => {
+    const path = await storePath();
+    await writeFile(path, "", "utf8");
+
+    const loadedFileStore = await FilePlatformStore.load(path);
+
+    expect(loadedFileStore.store.snapshot()).toMatchObject({
+      leagueSeasons: [],
+      liveDraftRooms: [],
+      exportArtifacts: [],
+    });
+  });
 
   it("roundtrips a registered league season and active auth session", async () => {
     const path = await storePath();

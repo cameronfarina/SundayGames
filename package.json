@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:e2e": "tsx scripts/run-platform-e2e.ts",
+    "test:e2e:headed": "npm run test:e2e -- --headed",
     "test:watch": "vitest",
     "validate": "tsx src/cli.ts validate",
     "keepers": "tsx src/cli.ts keepers",
@@ -30,6 +32,7 @@
     "draft:ready": "tsx src/cli.ts draft-ready",
     "draft:ui": "tsx src/liveDraftServer.ts",
     "platform:migrate": "tsx src/platform/runPlatformMigrations.ts",
+    "platform:seed:e2e": "tsx src/platform/seedLocalE2e.ts",
     "platform:web": "tsx src/platform/startPlatformWeb.ts",
     "platform:worker": "tsx src/platform/startPlatformWorker.ts",
     "smoke": "tsx src/cli.ts smoke",
@@ -39,6 +42,7 @@
     "outputs": "tsx src/cli.ts outputs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.21.0",
     "tsx": "^4.20.0",

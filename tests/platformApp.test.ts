@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import type {
+  DraftExportArtifactResult,
+  ExportArtifact,
+  ExportArtifactFormat,
+  ExportArtifactRepository,
+  SaveExportArtifactOptions,
+} from "../src/platform/exportArtifacts.js";
 import {
   InMemoryPlatformStore,
   PlatformAppError,
@@ -11,7 +18,15 @@ import type {
   LeagueSetupRepository,
   RegisterLeagueSeasonRepositoryInput,
 } from "../src/platform/leagueSetup.js";
-import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import {
+  InMemoryLiveDraftRoomRepository,
+  type CreateLiveDraftRoomInput,
+  type LiveDraftRoom,
+  type LiveDraftRoomPlayerCatalogEntry,
+  type LiveDraftRoomRepository,
+  type LogLiveDraftRoomSaleInput,
+  type MutateLiveDraftRoomInput,
+} from "../src/platform/liveDraftRooms.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
 
@@ -95,6 +110,75 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
 
   async membershipsForLeague(leagueId: string) {
     return this.inner.membershipsForLeague(leagueId);
+  }
+}
+
+class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
+  readonly inner = new InMemoryLiveDraftRoomRepository();
+
+  async createRoom(input: CreateLiveDraftRoomInput) {
+    return this.inner.createRoom(input);
+  }
+
+  async getRoom(roomId: string) {
+    return this.inner.getRoom(roomId);
+  }
+
+  async getRoomForActor(input: { roomId: string; actor: Parameters<LiveDraftRoomRepository["getRoomForActor"]>[0]["actor"] }) {
+    return this.inner.getRoomForActor(input);
+  }
+
+  async startRoom(input: MutateLiveDraftRoomInput) {
+    return this.inner.startRoom(input);
+  }
+
+  async logSaleCommand(input: LogLiveDraftRoomSaleInput) {
+    return this.inner.logSaleCommand(input);
+  }
+
+  async undoLastSale(input: MutateLiveDraftRoomInput) {
+    return this.inner.undoLastSale(input);
+  }
+
+  async endRoom(input: MutateLiveDraftRoomInput) {
+    return this.inner.endRoom(input);
+  }
+}
+
+class RecordingExportArtifactRepository implements ExportArtifactRepository {
+  savedByUserIds: string[] = [];
+  savedResults: DraftExportArtifactResult[] = [];
+
+  async save(
+    result: DraftExportArtifactResult,
+    options?: SaveExportArtifactOptions | undefined,
+  ): Promise<DraftExportArtifactResult> {
+    this.savedByUserIds.push(options?.createdByUserId ?? "");
+    this.savedResults.push({
+      artifact: structuredClone(result.artifact),
+      content: Buffer.from(result.content),
+    });
+
+    return {
+      artifact: structuredClone(result.artifact),
+      content: Buffer.from(result.content),
+    };
+  }
+
+  async get(_id: string): Promise<DraftExportArtifactResult | undefined> {
+    return undefined;
+  }
+
+  async findByRoomRevision(
+    _roomId: string,
+    _sourceRevision: number,
+    _format?: ExportArtifactFormat | undefined,
+  ): Promise<DraftExportArtifactResult | undefined> {
+    return undefined;
+  }
+
+  async listByRoom(_roomId: string): Promise<readonly ExportArtifact[]> {
+    return [];
   }
 }
 
@@ -1148,5 +1232,76 @@ describe("platform app service", () => {
     });
     expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
     expect(replayedArtifactResult).toEqual(artifactResult);
+  });
+
+  it("can route live draft rooms and export artifacts through injected async repositories", async () => {
+    const liveDraftRoomRepository = new AsyncLiveDraftRoomRepository();
+    const exportArtifactRepository = new RecordingExportArtifactRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      liveDraftRoomRepository,
+      exportArtifactRepository,
+      simulationRunner: mockRunner,
+    });
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      ],
+    });
+    const created = await app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_async_repo",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    });
+    await app.startLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: created.roomId,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-async-repo-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await app.logLiveDraftSale({
+      actorSessionToken: cam.sessionToken,
+      roomId: created.roomId,
+      expectedRevision: 2,
+      idempotencyKey: "async-repo-sale-puka",
+      sale: "cam puka 62",
+      now: new Date(now.getTime() + 2_000),
+    });
+    const ended = await app.endLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      roomId: created.roomId,
+      expectedRevision: sold.revision,
+      idempotencyKey: "end-async-repo-room",
+      now: new Date(now.getTime() + 3_000),
+    });
+    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: seth.sessionToken,
+      roomId: created.roomId,
+      exportedAt: new Date(now.getTime() + 4_000),
+    });
+
+    expect(ended.revision).toBe(4);
+    expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
+    expect(exportArtifactRepository.savedByUserIds).toEqual([seth.account.id]);
+    expect(exportArtifactRepository.savedResults[0]?.artifact.sourceRevision).toBe(ended.revision);
+    expect(app.store.liveDraftRooms.rooms()).toEqual([]);
+    expect(app.store.exportArtifacts.artifacts()).toEqual([]);
   });
 });

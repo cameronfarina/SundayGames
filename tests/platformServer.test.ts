@@ -103,12 +103,100 @@ interface StoredAuthSessionRow {
   revoked_at: Date | null;
 }
 
+interface DraftRoomRow {
+  id: string;
+  league_id: string;
+  league_season_id: string;
+  room_type: string;
+  status: string;
+  created_by_user_id: string;
+  current_revision: number;
+  starts_at: Date | null;
+  started_at: Date | null;
+  ended_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DraftRoomEventRow {
+  id: string;
+  draft_room_id: string;
+  revision: number;
+  sequence: number;
+  event_type: string;
+  actor_user_id: string;
+  idempotency_key: string | null;
+  mutation_hash: string | null;
+  expected_revision: number | null;
+  raw_command: string | null;
+  payload_json: unknown;
+  occurred_at: Date;
+}
+
+interface DraftRoomSnapshotRow {
+  id: string;
+  draft_room_id: string;
+  revision: number;
+  snapshot_json: unknown;
+  snapshot_hash: string;
+  created_at: Date;
+}
+
+interface DraftRoomSaleRow {
+  id: string;
+  draft_room_id: string;
+  source_event_id: string;
+  fantasy_team_id: string;
+  player_name: string;
+  normalized_player_name: string;
+  position: string;
+  price: number;
+  expected_price: number | null;
+  status: string;
+  voided_by_event_id: string | null;
+  created_at: Date;
+}
+
+interface DraftRoomExportRow {
+  id: string;
+  league_id: string;
+  league_season_id: string;
+  draft_room_id: string;
+  created_by_user_id: string;
+  artifact_type: string;
+  status: string;
+  storage_key: string | null;
+  payload_hash: string;
+  content_type: string;
+  byte_length: number;
+  source_revision: number;
+  metadata_json: unknown;
+  created_at: Date;
+  completed_at: Date | null;
+}
+
+interface DraftRoomExportContentRow {
+  id: string;
+  artifact_id: string;
+  content_base64: string;
+  created_at: Date;
+}
+
 interface InsertGate {
   entered: () => void;
   release: Promise<void>;
 }
 
 const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+const cloneDate = (date: Date | null): Date | null =>
+  date === null ? null : new Date(date.getTime());
+
+const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+const jsonValue = (value: unknown): unknown => typeof value === "string"
+  ? JSON.parse(value)
+  : cloneJson(value);
 
 const cloneAuthAccountRow = (row: StoredAuthAccountRow): StoredAuthAccountRow => ({
   ...row,
@@ -121,6 +209,44 @@ const cloneAuthSessionRow = (row: StoredAuthSessionRow): StoredAuthSessionRow =>
   created_at: new Date(row.created_at.getTime()),
   expires_at: new Date(row.expires_at.getTime()),
   revoked_at: row.revoked_at === null ? null : new Date(row.revoked_at.getTime()),
+});
+
+const cloneRoomRow = (row: DraftRoomRow): DraftRoomRow => ({
+  ...row,
+  starts_at: cloneDate(row.starts_at),
+  started_at: cloneDate(row.started_at),
+  ended_at: cloneDate(row.ended_at),
+  created_at: new Date(row.created_at.getTime()),
+  updated_at: new Date(row.updated_at.getTime()),
+});
+
+const cloneEventRow = (row: DraftRoomEventRow): DraftRoomEventRow => ({
+  ...row,
+  payload_json: jsonValue(row.payload_json),
+  occurred_at: new Date(row.occurred_at.getTime()),
+});
+
+const cloneDraftRoomSnapshotRow = (row: DraftRoomSnapshotRow): DraftRoomSnapshotRow => ({
+  ...row,
+  snapshot_json: jsonValue(row.snapshot_json),
+  created_at: new Date(row.created_at.getTime()),
+});
+
+const cloneSaleRow = (row: DraftRoomSaleRow): DraftRoomSaleRow => ({
+  ...row,
+  created_at: new Date(row.created_at.getTime()),
+});
+
+const cloneExportRow = (row: DraftRoomExportRow): DraftRoomExportRow => ({
+  ...row,
+  metadata_json: jsonValue(row.metadata_json),
+  created_at: new Date(row.created_at.getTime()),
+  completed_at: cloneDate(row.completed_at),
+});
+
+const cloneContentRow = (row: DraftRoomExportContentRow): DraftRoomExportContentRow => ({
+  ...row,
+  created_at: new Date(row.created_at.getTime()),
 });
 
 class FakePostgresClient implements PostgresQueryClient {
@@ -308,6 +434,383 @@ class FakeTransactionalPostgresAuthClient
 class FakeTransactionalPostgresClient extends FakePostgresClient implements PostgresTransactionalQueryClient {
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
     return operation(this);
+  }
+}
+
+class FakeTransactionalPlatformPostgresClient
+  extends FakePostgresClient
+  implements PostgresTransactionalQueryClient {
+  readonly rooms = new Map<string, DraftRoomRow>();
+  readonly events: DraftRoomEventRow[] = [];
+  readonly roomSnapshots: DraftRoomSnapshotRow[] = [];
+  readonly sales = new Map<string, DraftRoomSaleRow>();
+  readonly exports = new Map<string, DraftRoomExportRow>();
+  readonly exportContents = new Map<string, DraftRoomExportContentRow>();
+
+  async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    const rowBackup = this.row === undefined
+      ? undefined
+      : {
+        revision: this.row.revision,
+        snapshot_json: cloneJson(this.row.snapshot_json),
+      };
+    const roomsBackup = new Map([...this.rooms].map(([id, row]) => [id, cloneRoomRow(row)]));
+    const eventsBackup = this.events.map(cloneEventRow);
+    const roomSnapshotsBackup = this.roomSnapshots.map(cloneDraftRoomSnapshotRow);
+    const salesBackup = new Map([...this.sales].map(([id, row]) => [id, cloneSaleRow(row)]));
+    const exportsBackup = new Map([...this.exports].map(([id, row]) => [id, cloneExportRow(row)]));
+    const exportContentsBackup = new Map([...this.exportContents].map(([id, row]) => [id, cloneContentRow(row)]));
+
+    try {
+      return await operation(this);
+    } catch (error) {
+      this.row = rowBackup;
+      this.rooms.clear();
+      for (const [id, row] of roomsBackup) this.rooms.set(id, row);
+      this.events.splice(0, this.events.length, ...eventsBackup);
+      this.roomSnapshots.splice(0, this.roomSnapshots.length, ...roomSnapshotsBackup);
+      this.sales.clear();
+      for (const [id, row] of salesBackup) this.sales.set(id, row);
+      this.exports.clear();
+      for (const [id, row] of exportsBackup) this.exports.set(id, row);
+      this.exportContents.clear();
+      for (const [id, row] of exportContentsBackup) this.exportContents.set(id, row);
+      throw error;
+    }
+  }
+
+  override async query<TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> {
+    const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("SELECT snapshot_json FROM draft_room_snapshots")) {
+      const [roomId] = values as readonly [string];
+      const snapshot = this.roomSnapshots
+        .filter(row => row.draft_room_id === roomId)
+        .sort((left, right) => right.revision - left.revision)[0];
+
+      return {
+        rows: snapshot === undefined
+          ? []
+          : [{ snapshot_json: cloneDraftRoomSnapshotRow(snapshot).snapshot_json } as TRow],
+      };
+    }
+
+    if (normalizedSql.startsWith("SELECT DISTINCT ON (draft_room_id) snapshot_json FROM draft_room_snapshots")) {
+      const rows = [...new Set(this.roomSnapshots.map(snapshot => snapshot.draft_room_id))]
+        .flatMap(roomId => {
+          const snapshot = this.roomSnapshots
+            .filter(row => row.draft_room_id === roomId)
+            .sort((left, right) => right.revision - left.revision)[0];
+
+          return snapshot === undefined ? [] : [{ snapshot_json: cloneDraftRoomSnapshotRow(snapshot).snapshot_json } as TRow];
+        });
+
+      return { rows };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_rooms")) {
+      const [
+        id,
+        leagueId,
+        seasonId,
+        status,
+        createdByUserId,
+        startsAt,
+        startedAt,
+        endedAt,
+        currentRevision,
+        createdAt,
+        updatedAt,
+      ] = values as readonly [
+        string,
+        string,
+        string,
+        string,
+        string,
+        Date | null,
+        Date | null,
+        Date | null,
+        number,
+        Date,
+        Date,
+      ];
+      if (this.rooms.has(id)) return { rows: [], rowCount: 0 };
+
+      this.rooms.set(id, {
+        id,
+        league_id: leagueId,
+        league_season_id: seasonId,
+        room_type: "real",
+        status,
+        created_by_user_id: createdByUserId,
+        current_revision: currentRevision,
+        starts_at: cloneDate(startsAt),
+        started_at: cloneDate(startedAt),
+        ended_at: cloneDate(endedAt),
+        created_at: new Date(createdAt.getTime()),
+        updated_at: new Date(updatedAt.getTime()),
+      });
+
+      return { rows: [{ id } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_rooms SET status = $2")) {
+      const [
+        roomId,
+        status,
+        currentRevision,
+        startedAt,
+        endedAt,
+        updatedAt,
+        expectedCurrentRevision,
+      ] = values as readonly [string, string, number, Date | null, Date | null, Date, number];
+      const room = this.rooms.get(roomId);
+      if (room === undefined || room.current_revision !== expectedCurrentRevision) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      this.rooms.set(roomId, {
+        ...room,
+        status,
+        current_revision: currentRevision,
+        started_at: cloneDate(startedAt),
+        ended_at: cloneDate(endedAt),
+        updated_at: new Date(updatedAt.getTime()),
+      });
+
+      return { rows: [{ current_revision: currentRevision } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_events")) {
+      const [
+        id,
+        roomId,
+        revision,
+        sequence,
+        eventType,
+        actorUserId,
+        idempotencyKey,
+        mutationHash,
+        expectedRevision,
+        rawCommand,
+        payloadJson,
+        occurredAt,
+      ] = values as readonly [
+        string,
+        string,
+        number,
+        number,
+        string,
+        string,
+        string | null,
+        string | null,
+        number | null,
+        string | null,
+        unknown,
+        Date,
+      ];
+
+      this.events.push({
+        id,
+        draft_room_id: roomId,
+        revision,
+        sequence,
+        event_type: eventType,
+        actor_user_id: actorUserId,
+        idempotency_key: idempotencyKey,
+        mutation_hash: mutationHash,
+        expected_revision: expectedRevision,
+        raw_command: rawCommand,
+        payload_json: jsonValue(payloadJson),
+        occurred_at: new Date(occurredAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_snapshots")) {
+      const [id, roomId, revision, snapshotJson, snapshotHash, createdAt] =
+        values as readonly [string, string, number, unknown, string, Date];
+
+      this.roomSnapshots.push({
+        id,
+        draft_room_id: roomId,
+        revision,
+        snapshot_json: jsonValue(snapshotJson),
+        snapshot_hash: snapshotHash,
+        created_at: new Date(createdAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_sales")) {
+      const [
+        id,
+        roomId,
+        sourceEventId,
+        fantasyTeamId,
+        playerName,
+        normalizedPlayerName,
+        position,
+        price,
+        expectedPrice,
+        createdAt,
+      ] = values as readonly [string, string, string, string, string, string, string, number, number, Date];
+
+      this.sales.set(id, {
+        id,
+        draft_room_id: roomId,
+        source_event_id: sourceEventId,
+        fantasy_team_id: fantasyTeamId,
+        player_name: playerName,
+        normalized_player_name: normalizedPlayerName,
+        position,
+        price,
+        expected_price: expectedPrice,
+        status: "active",
+        voided_by_event_id: null,
+        created_at: new Date(createdAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_room_sales SET status = 'voided'")) {
+      const [sourceEventId, voidedByEventId] = values as readonly [string, string];
+      const sale = [...this.sales.values()].find(candidate => candidate.source_event_id === sourceEventId);
+      if (sale === undefined) return { rows: [], rowCount: 0 };
+
+      this.sales.set(sale.id, {
+        ...sale,
+        status: "voided",
+        voided_by_event_id: voidedByEventId,
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("SELECT e.*, c.content_base64 FROM draft_room_exports e")) {
+      if (normalizedSql.includes("WHERE e.id = $1")) {
+        const [id] = values as readonly [string];
+        const row = this.exportRowWithContent(id);
+
+        return { rows: row === undefined ? [] : [row as TRow] };
+      }
+
+      if (normalizedSql.includes("WHERE e.draft_room_id = $1")) {
+        const [roomId, sourceRevision, format] = values as readonly [string, number, string];
+        const exportRow = [...this.exports.values()].find(candidate =>
+          candidate.draft_room_id === roomId &&
+          candidate.source_revision === sourceRevision &&
+          candidate.artifact_type === format &&
+          candidate.status === "completed"
+        );
+        const row = exportRow === undefined ? undefined : this.exportRowWithContent(exportRow.id);
+
+        return { rows: row === undefined ? [] : [row as TRow] };
+      }
+    }
+
+    if (normalizedSql.startsWith("SELECT * FROM draft_room_exports WHERE draft_room_id = $1")) {
+      const [roomId] = values as readonly [string];
+      const rows = [...this.exports.values()]
+        .filter(row => row.draft_room_id === roomId && row.status === "completed")
+        .sort((left, right) => {
+          const createdAtOrder = right.created_at.getTime() - left.created_at.getTime();
+          if (createdAtOrder !== 0) return createdAtOrder;
+
+          const revisionOrder = right.source_revision - left.source_revision;
+          return revisionOrder === 0 ? left.id.localeCompare(right.id) : revisionOrder;
+        })
+        .map(row => cloneExportRow(row) as TRow);
+
+      return { rows };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_exports")) {
+      const [
+        id,
+        leagueId,
+        seasonId,
+        roomId,
+        createdByUserId,
+        artifactType,
+        storageKey,
+        payloadHash,
+        contentType,
+        byteLength,
+        sourceRevision,
+        metadataJson,
+        completedAt,
+      ] = values as readonly [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        number,
+        number,
+        unknown,
+        Date,
+      ];
+      if (this.exports.has(id)) return { rows: [], rowCount: 0 };
+
+      this.exports.set(id, {
+        id,
+        league_id: leagueId,
+        league_season_id: seasonId,
+        draft_room_id: roomId,
+        created_by_user_id: createdByUserId,
+        artifact_type: artifactType,
+        status: "completed",
+        storage_key: storageKey,
+        payload_hash: payloadHash,
+        content_type: contentType,
+        byte_length: byteLength,
+        source_revision: sourceRevision,
+        metadata_json: jsonValue(metadataJson),
+        created_at: new Date(completedAt.getTime()),
+        completed_at: new Date(completedAt.getTime()),
+      });
+
+      return { rows: [{ id } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO draft_room_export_contents")) {
+      const [id, artifactId, contentBase64, createdAt] =
+        values as readonly [string, string, string, Date];
+      if (this.exportContents.has(id)) return { rows: [], rowCount: 0 };
+
+      this.exportContents.set(id, {
+        id,
+        artifact_id: artifactId,
+        content_base64: contentBase64,
+        created_at: new Date(createdAt.getTime()),
+      });
+
+      return { rows: [], rowCount: 1 };
+    }
+
+    return await super.query(text, values);
+  }
+
+  private exportRowWithContent(id: string): Record<string, unknown> | undefined {
+    const exportRow = this.exports.get(id);
+    const content = [...this.exportContents.values()].find(candidate => candidate.artifact_id === id);
+    if (exportRow === undefined || content === undefined) return undefined;
+
+    return {
+      ...cloneExportRow(exportRow),
+      content_base64: content.content_base64,
+    };
   }
 }
 
@@ -934,6 +1437,375 @@ describe("platform server composition", () => {
         email: "cam@example.com",
       },
       sessionToken: expect.any(String),
+    });
+  });
+
+  it("uses normalized Postgres live room and export artifact repositories across server restart", async () => {
+    const postgresClient = new FakeTransactionalPlatformPostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await jsonFetch(baseUrl, "/seasons", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        season,
+        memberships: [
+          {
+            userId: accountId,
+            leagueId: season.leagueId,
+            role: "owner",
+            ownerId: camTeam.ownerId,
+            teamId: camTeam.id,
+          },
+        ],
+      }),
+    });
+
+    const roomCreated = await jsonFetch(baseUrl, "/live-rooms", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        seasonId: season.id,
+        roomId: "room_postgres_normalized",
+        viewerPasswordHashRef: "viewer-password-hash",
+        playerCatalog: [
+          { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+          { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+        ],
+      }),
+    });
+    const roomStarted = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/start", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "start:room_postgres_normalized",
+      }),
+    });
+    const saleLogged = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/sales", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 2,
+        idempotencyKey: "sale:puka:62",
+        sale: "cam puka 62",
+      }),
+    });
+    const roomEnded = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/end", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 3,
+        idempotencyKey: "end:room_postgres_normalized",
+      }),
+    });
+    const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/export-artifacts", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        exportedAt: "2026-08-09T12:05:00.000Z",
+      }),
+    });
+    const artifactId = (exportArtifact.body as { artifact: { id: string } }).artifact.id;
+    const snapshot = postgresClient.row?.snapshot_json as {
+      exportArtifactContents?: readonly unknown[];
+      exportArtifacts?: readonly unknown[];
+      liveDraftRooms?: readonly unknown[];
+    } | undefined;
+
+    expect(platformServer.postgresLiveDraftRoomRepository).toBeDefined();
+    expect(platformServer.postgresExportArtifactRepository).toBeDefined();
+    expect(roomCreated.status).toBe(201);
+    expect(roomStarted).toMatchObject({
+      status: 200,
+      body: { room: { revision: 2, status: "live" } },
+    });
+    expect(saleLogged).toMatchObject({
+      status: 200,
+      body: {
+        room: {
+          revision: 3,
+          projection: {
+            sales: [
+              expect.objectContaining({
+                playerName: "Puka Nacua",
+                price: 62,
+              }),
+            ],
+          },
+        },
+      },
+    });
+    expect(roomEnded).toMatchObject({
+      status: 200,
+      body: { room: { revision: 4, status: "ended" } },
+    });
+    expect(exportArtifact).toMatchObject({
+      status: 201,
+      body: {
+        artifact: {
+          id: artifactId,
+          roomId: "room_postgres_normalized",
+          sourceRevision: 4,
+        },
+        content: expect.stringContaining("Puka Nacua,62"),
+      },
+    });
+    expect(postgresClient.events.map(event => [event.revision, event.event_type])).toEqual([
+      [1, "room_created"],
+      [2, "room_started"],
+      [3, "sale_logged"],
+      [4, "room_ended"],
+    ]);
+    expect([...postgresClient.sales.values()]).toMatchObject([
+      {
+        draft_room_id: "room_postgres_normalized",
+        player_name: "Puka Nacua",
+        status: "active",
+      },
+    ]);
+    expect(postgresClient.exports.get(artifactId)).toMatchObject({
+      created_by_user_id: accountId,
+      draft_room_id: "room_postgres_normalized",
+      source_revision: 4,
+    });
+    expect(postgresClient.exportContents).toHaveLength(1);
+    expect(postgresClient.row?.revision).toBe(3);
+    expect(snapshot).toMatchObject({
+      liveDraftRooms: [],
+      exportArtifacts: [],
+      exportArtifactContents: [],
+    });
+
+    await platformServer.close();
+    const loadedServer = await createPlatformServer({
+      postgresClient,
+      simulationRunner: mockRunner,
+      now: () => now,
+    });
+    servers.push(loadedServer);
+    const loadedBaseUrl = await listen(loadedServer);
+
+    const reloadedRoom = await jsonFetch(loadedBaseUrl, "/live-rooms/room_postgres_normalized", {
+      headers: { "x-session-token": sessionToken },
+    });
+    const retriedArtifact = await jsonFetch(loadedBaseUrl, "/live-rooms/room_postgres_normalized/export-artifacts", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        exportedAt: "2026-08-09T12:06:00.000Z",
+      }),
+    });
+
+    expect(loadedServer.postgresLiveDraftRoomRepository).toBeDefined();
+    expect(loadedServer.postgresExportArtifactRepository).toBeDefined();
+    expect(reloadedRoom).toMatchObject({
+      status: 200,
+      body: {
+        room: {
+          roomId: "room_postgres_normalized",
+          status: "ended",
+          revision: 4,
+          projection: {
+            sales: [
+              expect.objectContaining({
+                playerName: "Puka Nacua",
+                price: 62,
+              }),
+            ],
+          },
+        },
+      },
+    });
+    expect(retriedArtifact).toEqual(exportArtifact);
+    expect(postgresClient.exports).toHaveLength(1);
+    expect(postgresClient.exportContents).toHaveLength(1);
+  });
+
+  it("uses app authorization for normalized live rooms when league setup is external", async () => {
+    const postgresClient = new FakePostgresClient();
+    const leagueSetupRepository = new AsyncLeagueSetupRepository();
+    const liveDraftRoomClient = new FakeTransactionalPlatformPostgresClient();
+    const { baseUrl } = await createListeningServer({
+      postgresClient,
+      leagueSetupRepository,
+      postgresLiveDraftRoomClient: liveDraftRoomClient,
+      postgresExportArtifactClient: liveDraftRoomClient,
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "cam@example.com",
+        password: "secure password",
+      }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await jsonFetch(baseUrl, `/seasons/${season.id}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        season,
+        memberships: [
+          {
+            userId: accountId,
+            leagueId: season.leagueId,
+            role: "owner",
+            ownerId: camTeam.ownerId,
+            teamId: camTeam.id,
+          },
+        ],
+      }),
+    });
+
+    const roomCreated = await jsonFetch(baseUrl, "/live-rooms", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        seasonId: season.id,
+        roomId: "room_external_setup",
+        viewerPasswordHashRef: "viewer-password-hash",
+        playerCatalog: [
+          { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+          { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+        ],
+      }),
+    });
+    const roomStarted = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/start", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 1,
+        idempotencyKey: "start:room_external_setup",
+      }),
+    });
+    const roomEnded = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/end", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 2,
+        idempotencyKey: "end:room_external_setup",
+      }),
+    });
+    const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/export-artifacts", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        exportedAt: "2026-08-09T12:05:00.000Z",
+      }),
+    });
+    const snapshot = postgresClient.row?.snapshot_json as {
+      exportArtifactContents?: readonly unknown[];
+      exportArtifacts?: readonly unknown[];
+      leagueSeasons?: readonly unknown[];
+      liveDraftRooms?: readonly unknown[];
+      memberships?: readonly unknown[];
+    } | undefined;
+
+    expect(roomCreated.status).toBe(201);
+    expect(roomStarted).toMatchObject({
+      status: 200,
+      body: { room: { revision: 2, status: "live" } },
+    });
+    expect(roomEnded).toMatchObject({
+      status: 200,
+      body: { room: { revision: 3, status: "ended" } },
+    });
+    expect(exportArtifact).toMatchObject({
+      status: 201,
+      body: {
+        artifact: {
+          roomId: "room_external_setup",
+          sourceRevision: 3,
+        },
+      },
+    });
+    expect(snapshot).toMatchObject({
+      leagueSeasons: [],
+      memberships: [],
+      liveDraftRooms: [],
+      exportArtifacts: [],
+      exportArtifactContents: [],
     });
   });
 
@@ -2029,6 +2901,19 @@ describe("platform server composition", () => {
       postgresHistoricalImportClient: new FakeTransactionalPostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either historicalImportRepository or postgresHistoricalImportClient, not both.");
+
+    const store = new InMemoryPlatformStore();
+    await expect(createPlatformServer({
+      liveDraftRoomRepository: store.liveDraftRooms,
+      postgresLiveDraftRoomClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either liveDraftRoomRepository or postgresLiveDraftRoomClient, not both.");
+
+    await expect(createPlatformServer({
+      exportArtifactRepository: store.exportArtifacts,
+      postgresExportArtifactClient: new FakeTransactionalPostgresClient(),
+      simulationRunner: mockRunner,
+    })).rejects.toThrow("Configure either exportArtifactRepository or postgresExportArtifactClient, not both.");
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {

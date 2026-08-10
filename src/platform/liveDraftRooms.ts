@@ -74,6 +74,18 @@ export type LiveDraftRoomAuthorizer = (input: {
   room: LiveDraftRoom;
 }) => boolean;
 
+export type LiveDraftRoomRepositoryResult<T> = T | Promise<T>;
+
+export interface LiveDraftRoomRepository {
+  createRoom(input: CreateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  getRoom(roomId: string): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  logSaleCommand(input: LogLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  endRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+}
+
 export interface ParsedLiveDraftRoomSaleInput {
   ownerText?: string | undefined;
   ownerId?: string | undefined;

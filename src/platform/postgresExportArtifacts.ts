@@ -1,18 +1,16 @@
 import {
   ExportArtifactError,
+  type ExportArtifactRepository,
   type DraftExportArtifactResult,
   type ExportArtifact,
   type ExportArtifactFormat,
+  type SaveExportArtifactOptions,
 } from "./exportArtifacts.js";
 import type { PostgresTransactionalQueryClient } from "./postgresJobQueue.js";
 import type {
   PostgresQueryClient,
   PostgresQueryResult,
 } from "./postgresPlatformStore.js";
-
-interface PostgresExportArtifactOptions {
-  createdByUserId: string;
-}
 
 interface DraftRoomExportWithContentRow {
   id: string;
@@ -74,6 +72,15 @@ const assertSameArtifactContent = (
   }
 };
 
+const requireCreatedByUserId = (options: SaveExportArtifactOptions | undefined): string => {
+  const createdByUserId = options?.createdByUserId;
+  if (createdByUserId === undefined || createdByUserId.trim().length === 0) {
+    throw new Error("createdByUserId is required when saving Postgres export artifacts.");
+  }
+
+  return createdByUserId;
+};
+
 const getArtifact = async (
   client: PostgresQueryClient,
   id: string,
@@ -93,12 +100,12 @@ LIMIT 1
   return row === undefined ? undefined : resultFromRow(row);
 };
 
-export class PostgresExportArtifactRepository {
+export class PostgresExportArtifactRepository implements ExportArtifactRepository {
   constructor(readonly client: PostgresTransactionalQueryClient) {}
 
   async save(
     result: DraftExportArtifactResult,
-    options: PostgresExportArtifactOptions,
+    options?: SaveExportArtifactOptions | undefined,
   ): Promise<DraftExportArtifactResult> {
     const existing = await getArtifact(this.client, result.artifact.id);
     if (existing !== undefined) {
@@ -106,6 +113,7 @@ export class PostgresExportArtifactRepository {
 
       return existing;
     }
+    const createdByUserId = requireCreatedByUserId(options);
 
     return await this.client.transaction(async client => {
       const insertResult = await client.query<{ id: string }>(
@@ -135,7 +143,7 @@ RETURNING id
           result.artifact.leagueId,
           result.artifact.seasonId,
           result.artifact.roomId,
-          options.createdByUserId,
+          createdByUserId,
           result.artifact.format,
           result.artifact.storageKey,
           result.artifact.sha256,

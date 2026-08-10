@@ -48,6 +48,8 @@ This repository captures the reusable foundation behind the analysis previously 
 ```bash
 npm install
 npm test
+npx playwright install chromium
+npm run test:e2e
 npm run validate
 npm run profiles
 npm run rankings
@@ -81,6 +83,32 @@ npm run backtest
 npm run calibration
 npm run outputs
 npm run keepers
+```
+
+## Platform E2E
+
+Run the browser readiness smoke with:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+`npm run test:e2e` creates a temporary file-backed platform store, starts
+`npm run platform:web` with `MOCKD_PLATFORM_DATA_FILE`, and then runs the
+Playwright suite. Pass Playwright flags after `--`, for example:
+
+```bash
+npm run test:e2e -- --headed
+```
+
+Set `MOCKD_E2E_DATA_FILE=/path/to/platform-store.json` when you want to keep
+the seeded store after the run.
+
+To seed a reusable local platform store without running Playwright:
+
+```bash
+MOCKD_PLATFORM_DATA_FILE=/path/to/platform-store.json npm run platform:seed:e2e
 ```
 
 ## Historical Data

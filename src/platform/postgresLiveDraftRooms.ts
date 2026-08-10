@@ -6,6 +6,7 @@ import {
   type LiveDraftRoom,
   type LiveDraftRoomAuthorizer,
   type LiveDraftRoomEvent,
+  type LiveDraftRoomRepository,
   type LogLiveDraftRoomSaleInput,
   type MutateLiveDraftRoomInput,
 } from "./liveDraftRooms.js";
@@ -297,7 +298,7 @@ const repositoryForRoom = (
   return repository;
 };
 
-export class PostgresLiveDraftRoomRepository {
+export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository {
   constructor(
     readonly client: PostgresTransactionalQueryClient,
     readonly authorizer?: LiveDraftRoomAuthorizer | undefined,

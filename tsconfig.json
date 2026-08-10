@@ -13,5 +13,13 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "config/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "config/**/*.ts",
+    "tests/**/*.ts",
+    "e2e/**/*.ts",
+    "scripts/**/*.ts",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ]
 }

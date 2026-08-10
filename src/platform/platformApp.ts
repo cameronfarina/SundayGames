@@ -22,6 +22,7 @@ import {
   type DraftExportArtifactResult,
   type ExportArtifact,
   type ExportArtifactContent,
+  type ExportArtifactRepository,
 } from "./exportArtifacts.js";
 import {
   InMemoryHistoricalImportRepository,
@@ -48,6 +49,7 @@ import {
   type LiveDraftRoom,
   type LiveDraftRoomInitialRosterPlayer,
   type LiveDraftRoomPlayerCatalogEntry,
+  type LiveDraftRoomRepository,
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
 import {
@@ -340,6 +342,8 @@ export interface PlatformAppOptions {
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
+  liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
+  exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
 }
 
@@ -624,6 +628,8 @@ export const createPlatformApp = ({
   historicalImportRepository,
   jobRepository,
   simulationRepository,
+  liveDraftRoomRepository,
+  exportArtifactRepository,
   simulationRunner,
 }: PlatformAppOptions) => {
   const runtimeAuthRepository = authRepository ?? store.authRepository;
@@ -632,6 +638,8 @@ export const createPlatformApp = ({
   const auth = createAuthService({ repository: runtimeAuthRepository });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
+  const liveDraftRooms = liveDraftRoomRepository ?? store.liveDraftRooms;
+  const exportArtifacts = exportArtifactRepository ?? store.exportArtifacts;
   const usesExternalLeagueSetup = leagueSetup !== store;
 
   const requireAccount = async (sessionToken: string, now?: Date): Promise<AccountRecord> => {
@@ -1317,7 +1325,7 @@ export const createPlatformApp = ({
       const season = await requireSeason(input.seasonId);
       await requireSharedMutation(account, season.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.createRoom({
+      return cloneForRead(await liveDraftRooms.createRoom({
         season,
         roomId: input.roomId,
         commissionerUserId: account.id,
@@ -1331,10 +1339,10 @@ export const createPlatformApp = ({
 
     getLiveDraftRoom: async (input: GetPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedRead(account, room.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.getRoomForActor({
+      return cloneForRead(await liveDraftRooms.getRoomForActor({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
       }));
@@ -1344,9 +1352,9 @@ export const createPlatformApp = ({
       input: GetPlatformLiveDraftRoomEventsInput,
     ): Promise<LiveDraftRoomEventsAfterRevisionResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedRead(account, room.leagueId);
-      store.liveDraftRooms.getRoomForActor({
+      await liveDraftRooms.getRoomForActor({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
       });
@@ -1360,10 +1368,10 @@ export const createPlatformApp = ({
 
     startLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedMutation(account, room.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.startRoom({
+      return cloneForRead(await liveDraftRooms.startRoom({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
@@ -1374,10 +1382,10 @@ export const createPlatformApp = ({
 
     logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedMutation(account, room.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.logSaleCommand({
+      return cloneForRead(await liveDraftRooms.logSaleCommand({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
@@ -1389,10 +1397,10 @@ export const createPlatformApp = ({
 
     undoLastLiveDraftSale: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedMutation(account, room.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.undoLastSale({
+      return cloneForRead(await liveDraftRooms.undoLastSale({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
@@ -1403,10 +1411,10 @@ export const createPlatformApp = ({
 
     endLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedMutation(account, room.leagueId);
 
-      return cloneForRead(store.liveDraftRooms.endRoom({
+      return cloneForRead(await liveDraftRooms.endRoom({
         roomId: input.roomId,
         actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
@@ -1417,7 +1425,7 @@ export const createPlatformApp = ({
 
     exportLiveDraftRoom: async (input: ExportPlatformLiveDraftRoomInput): Promise<DraftExportResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       await requireSharedRead(account, room.leagueId);
 
       return generateDraftExport({
@@ -1435,7 +1443,7 @@ export const createPlatformApp = ({
       input: CreatePlatformLiveDraftExportArtifactInput,
     ): Promise<DraftExportArtifactResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const room = await liveDraftRooms.getRoom(input.roomId);
       await requireSharedRead(account, room.leagueId);
       if (room.status !== "ended") {
         throw new PlatformAppError(
@@ -1443,7 +1451,7 @@ export const createPlatformApp = ({
           "Draft room must be ended before creating a final export artifact.",
         );
       }
-      const existingArtifactResult = store.exportArtifacts.findByRoomRevision(room.roomId, room.revision);
+      const existingArtifactResult = await exportArtifacts.findByRoomRevision(room.roomId, room.revision);
       if (existingArtifactResult !== undefined) {
         return {
           artifact: cloneForRead(existingArtifactResult.artifact),
@@ -1468,7 +1476,7 @@ export const createPlatformApp = ({
         sourceRevision: room.revision,
         createdAt: input.exportedAt,
       });
-      const savedArtifactResult = store.exportArtifacts.save(artifactResult);
+      const savedArtifactResult = await exportArtifacts.save(artifactResult, { createdByUserId: account.id });
 
       return {
         artifact: cloneForRead(savedArtifactResult.artifact),

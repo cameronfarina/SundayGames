@@ -41,6 +41,7 @@ export const readPlatformStoreSnapshot = async (path: string): Promise<InMemoryP
 
     throw error;
   }
+  if (content.trim().length === 0) return emptyPlatformStoreSnapshot();
 
   return deserializePlatformStoreSnapshot(JSON.parse(content) as Partial<FilePlatformStoreSnapshot>);
 };

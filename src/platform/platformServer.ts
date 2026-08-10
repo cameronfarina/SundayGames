@@ -10,11 +10,15 @@ import {
   createPlatformApp,
   InMemoryPlatformStore,
 } from "./platformApp.js";
+import type { ExportArtifactRepository } from "./exportArtifacts.js";
 import { LiveDraftRoomRevisionNotifier } from "./liveDraftRoomRealtime.js";
+import type { LiveDraftRoomRepository } from "./liveDraftRooms.js";
 import {
   PostgresJobQueue,
   type PostgresTransactionalQueryClient,
 } from "./postgresJobQueue.js";
+import { PostgresExportArtifactRepository } from "./postgresExportArtifacts.js";
+import { PostgresLiveDraftRoomRepository } from "./postgresLiveDraftRooms.js";
 import {
   PostgresPlatformStore,
   PostgresPlatformStoreError,
@@ -54,6 +58,8 @@ export interface CreatePlatformServerOptions {
   postgresHistoricalImportClient?: PostgresTransactionalQueryClient | undefined;
   postgresJobClient?: PostgresTransactionalQueryClient | undefined;
   postgresSimulationClient?: PostgresTransactionalQueryClient | undefined;
+  postgresLiveDraftRoomClient?: PostgresTransactionalQueryClient | undefined;
+  postgresExportArtifactClient?: PostgresTransactionalQueryClient | undefined;
   postgresSnapshotKey?: string | undefined;
   initializePostgresSchema?: boolean | undefined;
   authRepository?: AuthRepository | undefined;
@@ -61,6 +67,8 @@ export interface CreatePlatformServerOptions {
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
+  liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
+  exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
   now?: PlatformClock | undefined;
@@ -75,6 +83,8 @@ export interface PlatformServer {
   historicalImportRepository: HistoricalImportRepository;
   jobRepository: JobRepository;
   simulationRepository: SimulationRepository;
+  liveDraftRoomRepository: LiveDraftRoomRepository;
+  exportArtifactRepository: ExportArtifactRepository;
   handler: PlatformHttpHandler;
   jobHandlers: PlatformJobHandlers;
   fileStore?: FilePlatformStore | undefined;
@@ -84,6 +94,8 @@ export interface PlatformServer {
   postgresHistoricalImportRepository?: PostgresHistoricalImportRepository | undefined;
   postgresJobQueue?: PostgresJobQueue | undefined;
   postgresSimulationRepository?: PostgresSimulationRepository | undefined;
+  postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
+  postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
   persist: () => Promise<void>;
   close: () => Promise<void>;
 }
@@ -248,6 +260,30 @@ const isSimulationOnlyMutationRequest = (request: PlatformHttpRequest): boolean 
     );
 };
 
+const isLiveDraftRoomOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+
+  const segments = pathSegmentsFor(request);
+  if (segments === null || segments[0] !== "live-rooms") return false;
+
+  return segments.length === 1 ||
+    (
+      segments.length === 3 &&
+      liveRoomMutationActions.has(segments[2] ?? "")
+    );
+};
+
+const isExportArtifactOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+
+  const segments = pathSegmentsFor(request);
+
+  return segments !== null &&
+    segments.length === 3 &&
+    segments[0] === "live-rooms" &&
+    (segments[2] === "export-artifacts" || segments[2] === "export-artifact");
+};
+
 const isJobAndSimulationOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   if (request.method.toUpperCase() !== "POST") return false;
 
@@ -335,6 +371,8 @@ const initializePostgresSchemas = async (
     | "postgresLeagueSetupClient"
     | "postgresJobClient"
     | "postgresSimulationClient"
+    | "postgresLiveDraftRoomClient"
+    | "postgresExportArtifactClient"
   >,
 ): Promise<void> => {
   if (options.initializePostgresSchema !== true) return;
@@ -347,6 +385,8 @@ const initializePostgresSchemas = async (
     options.postgresHistoricalImportClient,
     options.postgresJobClient,
     options.postgresSimulationClient,
+    options.postgresLiveDraftRoomClient,
+    options.postgresExportArtifactClient,
   ];
 
   for (const client of candidates) {
@@ -472,6 +512,12 @@ export const createPlatformServer = async (
   if (options.simulationRepository !== undefined && options.postgresSimulationClient !== undefined) {
     throw new Error("Configure either simulationRepository or postgresSimulationClient, not both.");
   }
+  if (options.liveDraftRoomRepository !== undefined && options.postgresLiveDraftRoomClient !== undefined) {
+    throw new Error("Configure either liveDraftRoomRepository or postgresLiveDraftRoomClient, not both.");
+  }
+  if (options.exportArtifactRepository !== undefined && options.postgresExportArtifactClient !== undefined) {
+    throw new Error("Configure either exportArtifactRepository or postgresExportArtifactClient, not both.");
+  }
 
   await initializePostgresSchemas(options);
 
@@ -482,6 +528,8 @@ export const createPlatformServer = async (
     historicalImportRepository: HistoricalImportRepository;
     jobRepository: JobRepository;
     simulationRepository: SimulationRepository;
+    liveDraftRoomRepository: LiveDraftRoomRepository;
+    exportArtifactRepository: ExportArtifactRepository;
     app: PlatformApp;
     platformHandler: PlatformHttpHandler;
     rawJobHandlers: PlatformJobHandlers;
@@ -492,6 +540,8 @@ export const createPlatformServer = async (
     postgresHistoricalImportRepository?: PostgresHistoricalImportRepository | undefined;
     postgresJobQueue?: PostgresJobQueue | undefined;
     postgresSimulationRepository?: PostgresSimulationRepository | undefined;
+    postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
+    postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
   }
 
   let runtime: Runtime;
@@ -557,11 +607,35 @@ export const createPlatformServer = async (
     const postgresSimulationRepository = options.postgresSimulationClient === undefined
       ? undefined
       : new PostgresSimulationRepository(options.postgresSimulationClient);
+    const postgresLiveDraftRoomClient = options.postgresLiveDraftRoomClient ??
+      (
+        options.liveDraftRoomRepository === undefined &&
+        options.postgresClient !== undefined &&
+        isTransactionalPostgresClient(options.postgresClient)
+          ? options.postgresClient
+          : undefined
+      );
+    const postgresExportArtifactClient = options.postgresExportArtifactClient ??
+      (
+        options.exportArtifactRepository === undefined &&
+        options.postgresClient !== undefined &&
+        isTransactionalPostgresClient(options.postgresClient)
+          ? options.postgresClient
+          : undefined
+      );
+    const postgresLiveDraftRoomRepository = postgresLiveDraftRoomClient === undefined
+      ? undefined
+      : new PostgresLiveDraftRoomRepository(postgresLiveDraftRoomClient);
+    const postgresExportArtifactRepository = postgresExportArtifactClient === undefined
+      ? undefined
+      : new PostgresExportArtifactRepository(postgresExportArtifactClient);
     const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
     const leagueSetupRepository = options.leagueSetupRepository ?? postgresLeagueSetupRepository ?? store;
     const historicalImportRepository = options.historicalImportRepository ?? postgresHistoricalImportRepository ?? store.historicalImports;
     const jobRepository = options.jobRepository ?? postgresJobQueue ?? store.jobs;
     const simulationRepository = options.simulationRepository ?? postgresSimulationRepository ?? store.simulations;
+    const liveDraftRoomRepository = options.liveDraftRoomRepository ?? postgresLiveDraftRoomRepository ?? store.liveDraftRooms;
+    const exportArtifactRepository = options.exportArtifactRepository ?? postgresExportArtifactRepository ?? store.exportArtifacts;
 
     if (authRepository !== store.authRepository) {
       store.clearAuthSnapshotState();
@@ -577,6 +651,8 @@ export const createPlatformServer = async (
       historicalImportRepository,
       jobRepository,
       simulationRepository,
+      liveDraftRoomRepository,
+      exportArtifactRepository,
       simulationRunner: options.simulationRunner,
     });
 
@@ -593,6 +669,8 @@ export const createPlatformServer = async (
       historicalImportRepository,
       jobRepository,
       simulationRepository,
+      liveDraftRoomRepository,
+      exportArtifactRepository,
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
       ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
@@ -600,6 +678,8 @@ export const createPlatformServer = async (
       ...(postgresHistoricalImportRepository === undefined ? {} : { postgresHistoricalImportRepository }),
       ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),
       ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
+      ...(postgresLiveDraftRoomRepository === undefined ? {} : { postgresLiveDraftRoomRepository }),
+      ...(postgresExportArtifactRepository === undefined ? {} : { postgresExportArtifactRepository }),
     };
   };
 
@@ -615,6 +695,8 @@ export const createPlatformServer = async (
     const usesExternalHistoricalImportRepository = runtime.historicalImportRepository !== runtime.store.historicalImports;
     const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
     const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
+    const usesExternalLiveDraftRoomRepository = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
+    const usesExternalExportArtifactRepository = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
     const skipSnapshotPersist =
       (
         usesExternalAuthRepository &&
@@ -640,6 +722,14 @@ export const createPlatformServer = async (
         usesExternalJobRepository &&
         usesExternalSimulationRepository &&
         isJobAndSimulationOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalLiveDraftRoomRepository &&
+        isLiveDraftRoomOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalExportArtifactRepository &&
+        isExportArtifactOnlyMutationRequest(requestWithNow)
       );
 
     if (
@@ -702,6 +792,12 @@ export const createPlatformServer = async (
     get simulationRepository() {
       return runtime.simulationRepository;
     },
+    get liveDraftRoomRepository() {
+      return runtime.liveDraftRoomRepository;
+    },
+    get exportArtifactRepository() {
+      return runtime.exportArtifactRepository;
+    },
     handler,
     get jobHandlers() {
       return jobHandlers;
@@ -728,6 +824,12 @@ export const createPlatformServer = async (
     },
     get postgresSimulationRepository() {
       return runtime.postgresSimulationRepository;
+    },
+    get postgresLiveDraftRoomRepository() {
+      return runtime.postgresLiveDraftRoomRepository;
+    },
+    get postgresExportArtifactRepository() {
+      return runtime.postgresExportArtifactRepository;
     },
   };
 
@@ -772,6 +874,12 @@ export const startPlatformServer = async (
     get simulationRepository() {
       return platformServer.simulationRepository;
     },
+    get liveDraftRoomRepository() {
+      return platformServer.liveDraftRoomRepository;
+    },
+    get exportArtifactRepository() {
+      return platformServer.exportArtifactRepository;
+    },
     handler: platformServer.handler,
     get jobHandlers() {
       return platformServer.jobHandlers;
@@ -796,6 +904,12 @@ export const startPlatformServer = async (
     },
     get postgresSimulationRepository() {
       return platformServer.postgresSimulationRepository;
+    },
+    get postgresLiveDraftRoomRepository() {
+      return platformServer.postgresLiveDraftRoomRepository;
+    },
+    get postgresExportArtifactRepository() {
+      return platformServer.postgresExportArtifactRepository;
     },
     persist: platformServer.persist,
     close: platformServer.close,
