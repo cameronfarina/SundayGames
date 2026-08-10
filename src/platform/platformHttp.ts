@@ -35,6 +35,10 @@ import {
   PricingSnapshotError,
   type PricingSourcePrice,
 } from "./pricingSnapshots.js";
+import {
+  clearMockdSessionCookie,
+  mockdSessionCookie,
+} from "./platformCookies.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -56,6 +60,7 @@ export interface PlatformHttpErrorBody {
 export interface PlatformHttpResponse<TBody = unknown> {
   status: number;
   body: TBody | PlatformHttpErrorBody;
+  headers?: Record<string, string | readonly string[] | undefined> | undefined;
 }
 
 export type PlatformApp = ReturnType<typeof createPlatformApp>;
@@ -77,6 +82,13 @@ const invalidCredentialsBody: PlatformHttpErrorBody = {
   error: {
     code: "invalid_credentials",
     message: "Email or password is incorrect.",
+  },
+};
+
+const authRequiredBody: PlatformHttpErrorBody = {
+  error: {
+    code: "auth_required",
+    message: "Sign in before using this workspace.",
   },
 };
 
@@ -186,6 +198,17 @@ const arrayValue = (value: unknown): readonly unknown[] =>
 const stringArrayValue = (value: unknown): readonly string[] =>
   arrayValue(value).map(stringValue);
 
+const liveDraftSaleInputFor = (
+  body: Record<string, unknown>,
+): LiveDraftRoomSaleCommandInput => {
+  if (typeof body.command === "string") return body.command;
+
+  const structuredSale = unknownRecord(body.structuredSale);
+  if (structuredSale !== null) return structuredSale as unknown as LiveDraftRoomSaleCommandInput;
+
+  return body.sale as LiveDraftRoomSaleCommandInput;
+};
+
 const bearerSessionToken = (authorization: string | undefined): string | undefined => {
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
 
@@ -249,6 +272,8 @@ const platformErrorStatus = (code: PlatformAppError["code"]): number => {
     case "season_not_found":
     case "team_not_found":
       return 404;
+    case "team_already_claimed":
+      return 409;
     case "membership_required":
     case "private_resource":
     case "private_team_required":
@@ -316,6 +341,8 @@ const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): number => {
     case "season_not_ready":
     case "stale_revision":
       return 409;
+    case "expected_revision_required":
+    case "idempotency_key_required":
     case "invalid_sale_price":
     case "owner_not_found":
     case "player_not_found":
@@ -578,6 +605,20 @@ const routeSeason = async (
 
   if (seasonAction === "pricing" || seasonAction === "pricing-snapshots") {
     return await routeSeasonPricing(app, request);
+  }
+
+  if (seasonAction === "team-claims" && request.segments.length === 3) {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    const membership = await app.claimLeagueSeasonTeam({
+      actorSessionToken: request.sessionToken,
+      seasonId: seasonId ?? "",
+      ownerId: stringValue(request.body.ownerId),
+      teamId: stringValue(request.body.teamId),
+      now: request.now,
+    });
+
+    return { status: 200, body: { membership } };
   }
 
   if (request.segments.length !== 2) return notFound();
@@ -909,6 +950,19 @@ const routeLiveRooms = async (
     };
   }
 
+  if (action === "events") {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    const events = await app.getLiveDraftRoomEvents({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      afterRevision: optionalNumber(request.query.afterRevision) ?? 0,
+      now: request.now,
+    });
+
+    return { status: 200, body: { events } };
+  }
+
   if (request.method !== "POST") return methodNotAllowed();
 
   if (action === "start") {
@@ -929,7 +983,7 @@ const routeLiveRooms = async (
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
-      sale: request.body.sale as LiveDraftRoomSaleCommandInput,
+      sale: liveDraftSaleInputFor(request.body),
       now: request.now,
     });
 
@@ -999,12 +1053,44 @@ export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler
 
         return {
           status: 200,
+          headers: {
+            "Set-Cookie": mockdSessionCookie(login.sessionToken, {
+              expires: login.session.expiresAt,
+            }),
+          },
           body: {
             account: login.account,
             session: publicSessionFor(login.session),
             sessionToken: login.sessionToken,
           },
         };
+      }
+
+      if (root === "session" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method === "GET") {
+          const account = await app.findAccountBySessionToken(parsedRequest.sessionToken, parsedRequest.now);
+
+          return account === null
+            ? { status: 401, body: authRequiredBody }
+            : { status: 200, body: { account } };
+        }
+
+        if (parsedRequest.method === "DELETE") {
+          await app.logout({
+            actorSessionToken: parsedRequest.sessionToken,
+            now: parsedRequest.now,
+          });
+
+          return {
+            status: 200,
+            headers: {
+              "Set-Cookie": clearMockdSessionCookie(),
+            },
+            body: { ok: true },
+          };
+        }
+
+        return methodNotAllowed();
       }
 
       if (root === "seasons") return await routeSeason(app, parsedRequest);

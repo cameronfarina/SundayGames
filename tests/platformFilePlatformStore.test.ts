@@ -135,6 +135,7 @@ describe("file-backed platform store", () => {
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       expectedRevision: 1,
+      idempotencyKey: "start:room_214674_2026",
       now: new Date(now.getTime() + 1_000),
     });
     const sold = await app.logLiveDraftSale({

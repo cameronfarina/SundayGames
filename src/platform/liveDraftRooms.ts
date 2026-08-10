@@ -13,7 +13,9 @@ export type LiveDraftRoomStatus = "setup" | "countdown" | "live" | "ended";
 export type LiveDraftRoomErrorCode =
   | "access_denied"
   | "duplicate_player"
+  | "expected_revision_required"
   | "idempotency_conflict"
+  | "idempotency_key_required"
   | "invalid_sale_price"
   | "max_bid_exceeded"
   | "mutation_denied"
@@ -800,6 +802,24 @@ const assertExpectedRevision = (
   }
 };
 
+const assertMutationMetadata = (
+  input: MutateLiveDraftRoomInput,
+): void => {
+  if (input.expectedRevision === undefined || !Number.isInteger(input.expectedRevision)) {
+    throw new LiveDraftRoomError(
+      "expected_revision_required",
+      "Draft room mutation requires the current revision.",
+    );
+  }
+
+  if (input.idempotencyKey === undefined || input.idempotencyKey.trim().length === 0) {
+    throw new LiveDraftRoomError(
+      "idempotency_key_required",
+      "Draft room mutation requires an idempotency key.",
+    );
+  }
+};
+
 const assertRoomNotEnded = (room: LiveDraftRoom): void => {
   if (room.status === "ended") {
     throw new LiveDraftRoomError("room_already_ended", "Draft room has already ended.");
@@ -974,6 +994,7 @@ export class InMemoryLiveDraftRoomRepository {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("start", {});
     assertWriter(room, input.actor, "start", this.authorizer);
+    assertMutationMetadata(input);
     const replayedRoom = replayIdempotentMutation(room, "start", input.idempotencyKey, mutationHash);
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);
@@ -1004,6 +1025,7 @@ export class InMemoryLiveDraftRoomRepository {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("log_sale", input.sale);
     assertWriter(room, input.actor, "log_sale", this.authorizer);
+    assertMutationMetadata(input);
     const replayedRoom = replayIdempotentMutation(room, "log_sale", input.idempotencyKey, mutationHash);
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);
@@ -1039,6 +1061,7 @@ export class InMemoryLiveDraftRoomRepository {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("undo_sale", {});
     assertWriter(room, input.actor, "undo_sale", this.authorizer);
+    assertMutationMetadata(input);
     const replayedRoom = replayIdempotentMutation(room, "undo_sale", input.idempotencyKey, mutationHash);
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);
@@ -1076,6 +1099,7 @@ export class InMemoryLiveDraftRoomRepository {
     const room = this.getRoom(input.roomId);
     const mutationHash = mutationHashFor("end", {});
     assertWriter(room, input.actor, "end", this.authorizer);
+    assertMutationMetadata(input);
     const replayedRoom = replayIdempotentMutation(room, "end", input.idempotencyKey, mutationHash);
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);

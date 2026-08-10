@@ -194,6 +194,59 @@ describe("platform HTTP contract", () => {
     });
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
     expect(JSON.stringify(login.body)).not.toContain("scrypt");
+    expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("mockd_session="));
+    expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("HttpOnly"));
+  });
+
+  it("bootstraps and clears the current browser session", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const cam = await createLoggedInAccount(handle, "cam@example.com");
+
+    const current = await handle({
+      method: "GET",
+      path: "/session",
+      sessionToken: cam.sessionToken,
+      now,
+    });
+    const loggedOut = await handle({
+      method: "DELETE",
+      path: "/session",
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 1_000),
+    });
+    const afterLogout = await handle({
+      method: "GET",
+      path: "/session",
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(current).toMatchObject({
+      status: 200,
+      body: {
+        account: {
+          id: cam.account.id,
+          email: "cam@example.com",
+        },
+      },
+    });
+    expect(loggedOut).toEqual({
+      status: 200,
+      headers: {
+        "Set-Cookie": "mockd_session=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax",
+      },
+      body: { ok: true },
+    });
+    expect(afterLogout).toEqual({
+      status: 401,
+      body: {
+        error: {
+          code: "auth_required",
+          message: "Sign in before using this workspace.",
+        },
+      },
+    });
   });
 
   it("does not authenticate protected routes with session tokens in query strings or bodies", async () => {
@@ -356,6 +409,56 @@ describe("platform HTTP contract", () => {
         error: {
           code: "position_limit",
           message: "Cam cannot buy Xavier Legette: roster limit is 6 WRs.",
+        },
+      },
+    });
+  });
+
+  it("claims a league season team for the authenticated account", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [
+          { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+          { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+        ],
+      },
+    });
+
+    const claim = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/team-claims`,
+      sessionToken: seth.sessionToken,
+      body: {
+        ownerId: sethTeam.ownerId,
+        teamId: sethTeam.id,
+      },
+    });
+
+    expect(claim).toEqual({
+      status: 200,
+      body: {
+        membership: {
+          userId: seth.account.id,
+          leagueId: season.leagueId,
+          role: "member",
+          ownerId: sethTeam.ownerId,
+          teamId: sethTeam.id,
         },
       },
     });
@@ -871,6 +974,48 @@ describe("platform HTTP contract", () => {
       room: expect.objectContaining({ status: "live", revision: 2 }),
     });
 
+    const missingSaleRevision = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/sales",
+      sessionToken: cam.sessionToken,
+      body: {
+        idempotencyKey: "sale:puka:missing-revision",
+        command: "cam puka 62",
+        now: new Date(now.getTime() + 4_500),
+      },
+    });
+
+    expect(missingSaleRevision).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: "expected_revision_required",
+          message: "Draft room mutation requires the current revision.",
+        },
+      },
+    });
+
+    const missingSaleIdempotencyKey = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/sales",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 2,
+        command: "cam puka 62",
+        now: new Date(now.getTime() + 4_600),
+      },
+    });
+
+    expect(missingSaleIdempotencyKey).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: "idempotency_key_required",
+          message: "Draft room mutation requires an idempotency key.",
+        },
+      },
+    });
+
     const soldRoom = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/sales",
@@ -878,7 +1023,7 @@ describe("platform HTTP contract", () => {
       body: {
         expectedRevision: 2,
         idempotencyKey: "sale:puka:62",
-        sale: "cam puka 62",
+        command: "cam puka 62",
         now: new Date(now.getTime() + 5_000),
       },
     });
@@ -890,6 +1035,50 @@ describe("platform HTTP contract", () => {
           sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
         }),
       }),
+    });
+
+    const retriedSoldRoom = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/sales",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 2,
+        idempotencyKey: "sale:puka:62",
+        command: "cam puka 62",
+        now: new Date(now.getTime() + 5_500),
+      },
+    });
+
+    expect(retriedSoldRoom.body).toMatchObject({
+      room: expect.objectContaining({
+        revision: 3,
+        projection: expect.objectContaining({
+          sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
+        }),
+      }),
+    });
+
+    const saleEvents = await handle({
+      method: "GET",
+      path: "/live-rooms/room_214674_2026/events?afterRevision=2",
+      sessionToken: seth.sessionToken,
+    });
+
+    expect(saleEvents.body).toMatchObject({
+      events: {
+        currentRevision: 3,
+        isStale: true,
+        requiresSnapshot: false,
+        events: [
+          expect.objectContaining({
+            event: "room.sale",
+            revision: 3,
+            data: expect.objectContaining({
+              sale: expect.objectContaining({ playerName: "Puka Nacua", price: 62 }),
+            }),
+          }),
+        ],
+      },
     });
 
     const undoneRoom = await handle({

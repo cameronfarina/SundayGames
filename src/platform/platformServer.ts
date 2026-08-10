@@ -36,6 +36,7 @@ import {
   type PlatformJobHandlers,
 } from "./platformJobOrchestrator.js";
 import { createPlatformNodeHttpAdapter } from "./platformNodeHttp.js";
+import { platformShellHtml } from "./platformShellUi.js";
 import type {
   SimulationMockBatchRunner,
   SimulationRepository,
@@ -573,6 +574,7 @@ export const createPlatformServer = async (
     return runInSnapshotCriticalSection(runRequest);
   };
   const server = createServer(createPlatformNodeHttpAdapter(handler, {
+    appHtml: platformShellHtml,
     maxBodyBytes: options.bodyLimitBytes,
   }));
   const platformServer = {

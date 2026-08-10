@@ -49,6 +49,7 @@ const startRoom = (
     roomId: "room_sunday",
     actor: commissioner,
     expectedRevision,
+    idempotencyKey: `start:room_sunday:${expectedRevision}`,
     now: new Date(now.getTime() + 1_000),
   });
 
@@ -101,9 +102,51 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 2,
+        idempotencyKey: "start:room_sunday:already-live",
         now: new Date(now.getTime() + 2_000),
       }),
     ).toThrow(new LiveDraftRoomError("room_already_live", "Draft room has already started."));
+  });
+
+  it("requires revision and idempotency metadata for live mutations", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    createRoom(repository);
+
+    expect(() =>
+      repository.startRoom({
+        roomId: "room_sunday",
+        actor: commissioner,
+        idempotencyKey: "start:missing-revision",
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "expected_revision_required",
+      "Draft room mutation requires the current revision.",
+    ));
+
+    expect(() =>
+      repository.startRoom({
+        roomId: "room_sunday",
+        actor: commissioner,
+        expectedRevision: 1,
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "idempotency_key_required",
+      "Draft room mutation requires an idempotency key.",
+    ));
+
+    startRoom(repository);
+
+    expect(() =>
+      repository.logSaleCommand({
+        roomId: "room_sunday",
+        actor: commissioner,
+        expectedRevision: 2,
+        sale: "cam puka 62",
+      }),
+    ).toThrow(new LiveDraftRoomError(
+      "idempotency_key_required",
+      "Draft room mutation requires an idempotency key.",
+    ));
   });
 
   it("parses compact sale commands and updates budget, roster, revision, and events", () => {
@@ -115,6 +158,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
       sale: "cam puka 62",
       now: new Date(now.getTime() + 2_000),
     });
@@ -211,6 +255,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 2,
+      idempotencyKey: "sale:amon-ra:50",
       sale: {
         ownerText: "Sam",
         playerName: "Amon-Ra St. Brown",
@@ -236,6 +281,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
       sale: "cam puka 62",
       now: new Date(now.getTime() + 2_000),
     });
@@ -245,6 +291,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 3,
+        idempotencyKey: "sale:puka:63",
         sale: "sam puka 63",
         now: new Date(now.getTime() + 3_000),
       }),
@@ -267,6 +314,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 2,
+        idempotencyKey: "sale:achane:51",
         sale: "sam achane 51",
         now: new Date(now.getTime() + 2_000),
       }),
@@ -294,6 +342,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 2,
+        idempotencyKey: "sale:legette:2",
         sale: "cam legette 2",
         now: new Date(now.getTime() + 2_000),
       }),
@@ -313,6 +362,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 2,
+        idempotencyKey: "sale:puka:190",
         sale: "cam puka 190",
         now: new Date(now.getTime() + 2_000),
       }),
@@ -349,6 +399,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 0,
+        idempotencyKey: "start:room_sunday:stale",
         now: new Date(now.getTime() + 1_000),
       }),
     ).toThrow(new LiveDraftRoomError(
@@ -365,6 +416,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 2,
+      idempotencyKey: "sale:puka:62",
       sale: "cam puka 62",
       now: new Date(now.getTime() + 2_000),
     });
@@ -373,6 +425,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 3,
+      idempotencyKey: "undo:puka:62",
       now: new Date(now.getTime() + 3_000),
     });
 
@@ -395,6 +448,7 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 4,
+      idempotencyKey: "end:room_sunday",
       now: new Date(now.getTime() + 4_000),
     });
 

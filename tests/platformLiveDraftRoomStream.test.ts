@@ -63,12 +63,14 @@ const buildLiveRoom = (): LiveDraftRoom => {
     roomId: "room_sunday",
     actor: commissioner,
     expectedRevision: 1,
+    idempotencyKey: "start:room_sunday",
     now: new Date(now.getTime() + 1_000),
   });
   repository.logSaleCommand({
     roomId: "room_sunday",
     actor: commissioner,
     expectedRevision: 2,
+    idempotencyKey: "sale:puka:62",
     sale: "cam puka 62",
     now: new Date(now.getTime() + 2_000),
   });
@@ -77,6 +79,7 @@ const buildLiveRoom = (): LiveDraftRoom => {
     roomId: "room_sunday",
     actor: commissioner,
     expectedRevision: 3,
+    idempotencyKey: "end:room_sunday",
     now: new Date(now.getTime() + 3_000),
   });
 };
@@ -312,24 +315,27 @@ describe("live draft room stream contract", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     createRoom(repository);
     repository.startRoom({
-      roomId: "room_sunday",
-      actor: commissioner,
-      expectedRevision: 1,
-      now: new Date(now.getTime() + 1_000),
-    });
-    repository.logSaleCommand({
-      roomId: "room_sunday",
-      actor: commissioner,
-      expectedRevision: 2,
-      sale: "cam puka 62",
-      now: new Date(now.getTime() + 2_000),
-    });
+    roomId: "room_sunday",
+    actor: commissioner,
+    expectedRevision: 1,
+    idempotencyKey: "start:room_sunday",
+    now: new Date(now.getTime() + 1_000),
+  });
+  repository.logSaleCommand({
+    roomId: "room_sunday",
+    actor: commissioner,
+    expectedRevision: 2,
+    idempotencyKey: "sale:puka:62",
+    sale: "cam puka 62",
+    now: new Date(now.getTime() + 2_000),
+  });
     const room = repository.undoLastSale({
-      roomId: "room_sunday",
-      actor: commissioner,
-      expectedRevision: 3,
-      now: new Date(now.getTime() + 3_000),
-    });
+    roomId: "room_sunday",
+    actor: commissioner,
+    expectedRevision: 3,
+    idempotencyKey: "undo:puka:62",
+    now: new Date(now.getTime() + 3_000),
+  });
 
     const nextEvents = liveDraftRoomEventsAfterRevision({
       room,

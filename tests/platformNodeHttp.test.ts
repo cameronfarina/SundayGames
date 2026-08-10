@@ -9,8 +9,12 @@ import {
 
 let server: Server | undefined;
 
-const listen = async (handle: PlatformHttpHandler, maxBodyBytes?: number): Promise<string> => {
-  server = createServer(createPlatformNodeHttpAdapter(handle, { maxBodyBytes }));
+const listen = async (
+  handle: PlatformHttpHandler,
+  maxBodyBytes?: number,
+  appHtml?: string,
+): Promise<string> => {
+  server = createServer(createPlatformNodeHttpAdapter(handle, { appHtml, maxBodyBytes }));
 
   await new Promise<void>((resolve, reject) => {
     server?.once("error", reject);
@@ -29,12 +33,13 @@ const jsonFetch = async (
   baseUrl: string,
   path: string,
   init: RequestInit = {},
-): Promise<{ status: number; contentType: string | null; body: unknown }> => {
+): Promise<{ status: number; contentType: string | null; setCookie: string | null; body: unknown }> => {
   const response = await fetch(`${baseUrl}${path}`, init);
 
   return {
     status: response.status,
     contentType: response.headers.get("content-type"),
+    setCookie: response.headers.get("set-cookie"),
     body: await response.json(),
   };
 };
@@ -79,6 +84,7 @@ describe("platform Node HTTP adapter", () => {
     expect(response).toEqual({
       status: 201,
       contentType: "application/json; charset=utf-8",
+      setCookie: null,
       body: {
         method: "POST",
         path: "/accounts?source=test",
@@ -86,6 +92,22 @@ describe("platform Node HTTP adapter", () => {
       },
     });
     expect(seenRequests).toHaveLength(1);
+  });
+
+  it("serves the configured platform shell without calling the JSON handler", async () => {
+    let callCount = 0;
+    const baseUrl = await listen(async () => {
+      callCount += 1;
+
+      return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
+    }, undefined, "<!doctype html><title>Mockd app</title>");
+
+    const response = await fetch(`${baseUrl}/login`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await response.text()).toBe("<!doctype html><title>Mockd app</title>");
+    expect(callCount).toBe(0);
   });
 
   it("extracts session tokens from bearer, x-session-token, and mockd_session cookies only", async () => {
@@ -155,6 +177,7 @@ describe("platform Node HTTP adapter", () => {
     expect(response).toEqual({
       status: 400,
       contentType: "application/json; charset=utf-8",
+      setCookie: null,
       body: {
         error: {
           code: "invalid_json",
@@ -182,6 +205,7 @@ describe("platform Node HTTP adapter", () => {
     expect(response).toEqual({
       status: 413,
       contentType: "application/json; charset=utf-8",
+      setCookie: null,
       body: {
         error: {
           code: "request_body_too_large",
@@ -203,5 +227,24 @@ describe("platform Node HTTP adapter", () => {
     expect(mockdSessionCookie("session-token", accidentalCookieOptions)).not.toContain(
       "sha256-token-hash",
     );
+  });
+
+  it("serializes platform response headers", async () => {
+    const baseUrl = await listen(async () => ({
+      status: 200,
+      headers: {
+        "Set-Cookie": mockdSessionCookie("browser-session-token", { maxAgeSeconds: 60 }),
+      },
+      body: { ok: true },
+    }));
+
+    const response = await jsonFetch(baseUrl, "/sessions", { method: "POST" });
+
+    expect(response).toEqual({
+      status: 200,
+      contentType: "application/json; charset=utf-8",
+      setCookie: "mockd_session=browser-session-token; Path=/; Max-Age=60; HttpOnly; SameSite=Lax",
+      body: { ok: true },
+    });
   });
 });

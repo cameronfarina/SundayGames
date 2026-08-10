@@ -46,11 +46,15 @@ import {
   InMemoryLiveDraftRoomRepository,
   type CreateLiveDraftRoomInput,
   type LiveDraftRoom,
-  type LiveDraftRoomActor,
   type LiveDraftRoomInitialRosterPlayer,
   type LiveDraftRoomPlayerCatalogEntry,
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
+import {
+  liveDraftRoomEventsAfterRevision,
+  type LiveDraftRoomEventsAfterRevisionResult,
+  type LiveDraftRoomStreamActor,
+} from "./liveDraftRoomStream.js";
 import {
   InMemoryMockDraftSessionRepository,
   type AppendMockDraftCommandInput,
@@ -105,6 +109,7 @@ export type PlatformAppErrorCode =
   | "pricing_snapshot_not_found"
   | "season_not_found"
   | "shared_mutation_denied"
+  | "team_already_claimed"
   | "team_claim_required"
   | "team_not_found";
 
@@ -125,9 +130,22 @@ export interface RegisterLeagueSeasonInput {
   now?: Date | undefined;
 }
 
+export interface ClaimLeagueSeasonTeamInput {
+  actorSessionToken: string;
+  seasonId: string;
+  ownerId: string;
+  teamId: string;
+  now?: Date | undefined;
+}
+
 export interface GetLeagueSeasonInput {
   actorSessionToken: string;
   seasonId: string;
+  now?: Date | undefined;
+}
+
+export interface LogoutInput {
+  actorSessionToken: string;
   now?: Date | undefined;
 }
 
@@ -288,6 +306,10 @@ export interface GetPlatformLiveDraftRoomInput {
   now?: Date | undefined;
 }
 
+export interface GetPlatformLiveDraftRoomEventsInput extends GetPlatformLiveDraftRoomInput {
+  afterRevision: number;
+}
+
 export interface MutatePlatformLiveDraftRoomInput {
   actorSessionToken: string;
   roomId: string;
@@ -407,6 +429,43 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.#syncHistoricalImportSeasons();
 
     return cloneForRead(storedSeason);
+  }
+
+  claimLeagueSeasonTeam(input: {
+    seasonId: string;
+    leagueId: string;
+    userId: string;
+    ownerId: string;
+    teamId: string;
+    now?: Date | undefined;
+  }): PlatformLeagueMembership | null {
+    const season = this.#leagueSeasonsById.get(input.seasonId);
+    if (season === undefined || season.leagueId !== input.leagueId) return null;
+
+    const team = season.teams.find(candidate =>
+      candidate.id === input.teamId && candidate.ownerId === input.ownerId
+    );
+    if (team === undefined) return null;
+
+    const membershipKey = membershipKeyFor(input.userId, input.leagueId);
+    const membership = this.#membershipsByUserAndLeague.get(membershipKey);
+    if (membership === undefined) return null;
+
+    const claimedByOther = [...this.#membershipsByUserAndLeague.values()].some(candidate =>
+      candidate.leagueId === input.leagueId &&
+      candidate.userId !== input.userId &&
+      candidate.teamId === input.teamId
+    );
+    if (claimedByOther) return null;
+
+    const claimedMembership = {
+      ...membership,
+      ownerId: input.ownerId,
+      teamId: input.teamId,
+    };
+    this.#membershipsByUserAndLeague.set(membershipKey, claimedMembership);
+
+    return cloneForRead(claimedMembership);
   }
 
   findLeagueSeason(seasonId: string): LeagueSeason | null {
@@ -762,11 +821,13 @@ export const createPlatformApp = ({
   const liveActorFor = (
     account: AccountRecord,
     leagueId: string,
-    role: WorkspaceRole,
-  ): LiveDraftRoomActor => ({
+    membership: Pick<PlatformLeagueMembership, "ownerId" | "role" | "teamId">,
+  ): LiveDraftRoomStreamActor => ({
     userId: account.id,
     leagueId,
-    role,
+    role: membership.role,
+    ...(membership.ownerId === undefined ? {} : { ownerId: membership.ownerId }),
+    ...(membership.teamId === undefined ? {} : { teamId: membership.teamId }),
   });
 
   const exportTeamStateFor = (room: LiveDraftRoom): DraftExportTeamState[] =>
@@ -820,6 +881,9 @@ export const createPlatformApp = ({
       return authenticated === null ? null : cloneForRead(authenticated.account);
     },
 
+    logout: async (input: LogoutInput): Promise<boolean> =>
+      await auth.logout(input.actorSessionToken, input.now),
+
     listLeagueMemberships: async (leagueId: string): Promise<readonly PlatformLeagueMembership[]> =>
       cloneForRead(await leagueSetup.membershipsForLeague(leagueId)),
 
@@ -842,6 +906,51 @@ export const createPlatformApp = ({
       }
 
       return cloneForRead(registeredSeason);
+    },
+
+    claimLeagueSeasonTeam: async (input: ClaimLeagueSeasonTeamInput): Promise<PlatformLeagueMembership> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const season = await requireSeason(input.seasonId);
+      await requireSharedRead(account, season.leagueId);
+      const team = season.teams.find(candidate =>
+        candidate.id === input.teamId && candidate.ownerId === input.ownerId
+      );
+      if (team === undefined) {
+        throw new PlatformAppError("team_not_found", "Team was not found in this league season.");
+      }
+
+      const memberships = await leagueSetup.membershipsForLeague(season.leagueId);
+      const claimedByOther = memberships.some(membership =>
+        membership.userId !== account.id && membership.teamId === input.teamId
+      );
+      if (claimedByOther) {
+        throw new PlatformAppError("team_already_claimed", "That team is already claimed.");
+      }
+
+      const membership = await leagueSetup.claimLeagueSeasonTeam({
+        seasonId: season.id,
+        leagueId: season.leagueId,
+        userId: account.id,
+        ownerId: team.ownerId,
+        teamId: team.id,
+        now: input.now,
+      });
+
+      if (membership === null) {
+        throw new PlatformAppError("team_already_claimed", "That team is already claimed.");
+      }
+      if (usesExternalLeagueSetup) {
+        store.claimLeagueSeasonTeam({
+          seasonId: season.id,
+          leagueId: season.leagueId,
+          userId: account.id,
+          ownerId: team.ownerId,
+          teamId: team.id,
+          now: input.now,
+        });
+      }
+
+      return cloneForRead(membership);
     },
 
     getLeagueSeason: async (input: GetLeagueSeasonInput): Promise<LeagueSeason> =>
@@ -1209,7 +1318,25 @@ export const createPlatformApp = ({
 
       return cloneForRead(store.liveDraftRooms.getRoomForActor({
         roomId: input.roomId,
-        actor: liveActorFor(account, room.leagueId, membership.role),
+        actor: liveActorFor(account, room.leagueId, membership),
+      }));
+    },
+
+    getLiveDraftRoomEvents: async (
+      input: GetPlatformLiveDraftRoomEventsInput,
+    ): Promise<LiveDraftRoomEventsAfterRevisionResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = store.liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedRead(account, room.leagueId);
+      store.liveDraftRooms.getRoomForActor({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+      });
+
+      return cloneForRead(liveDraftRoomEventsAfterRevision({
+        room,
+        actor: liveActorFor(account, room.leagueId, membership),
+        afterRevision: input.afterRevision,
       }));
     },
 
@@ -1220,7 +1347,7 @@ export const createPlatformApp = ({
 
       return cloneForRead(store.liveDraftRooms.startRoom({
         roomId: input.roomId,
-        actor: liveActorFor(account, room.leagueId, membership.role),
+        actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
         idempotencyKey: input.idempotencyKey,
         now: input.now,
@@ -1234,7 +1361,7 @@ export const createPlatformApp = ({
 
       return cloneForRead(store.liveDraftRooms.logSaleCommand({
         roomId: input.roomId,
-        actor: liveActorFor(account, room.leagueId, membership.role),
+        actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
         idempotencyKey: input.idempotencyKey,
         now: input.now,
@@ -1249,7 +1376,7 @@ export const createPlatformApp = ({
 
       return cloneForRead(store.liveDraftRooms.undoLastSale({
         roomId: input.roomId,
-        actor: liveActorFor(account, room.leagueId, membership.role),
+        actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
         idempotencyKey: input.idempotencyKey,
         now: input.now,
@@ -1263,7 +1390,7 @@ export const createPlatformApp = ({
 
       return cloneForRead(store.liveDraftRooms.endRoom({
         roomId: input.roomId,
-        actor: liveActorFor(account, room.leagueId, membership.role),
+        actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
         idempotencyKey: input.idempotencyKey,
         now: input.now,

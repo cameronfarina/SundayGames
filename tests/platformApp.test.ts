@@ -73,6 +73,10 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
     return this.inner.registerLeagueSeason(input);
   }
 
+  async claimLeagueSeasonTeam(input: Parameters<LeagueSetupRepository["claimLeagueSeasonTeam"]>[0]) {
+    return this.inner.claimLeagueSeasonTeam(input);
+  }
+
   async findLeagueSeason(seasonId: string) {
     return this.inner.findLeagueSeason(seasonId);
   }
@@ -202,6 +206,80 @@ describe("platform app service", () => {
       createdByUserId: cam.account.id,
     });
     await expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: nextSeason.id, now })).resolves.toEqual(nextSeason);
+  });
+
+  it("lets league members claim one current team without taking another user's team", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const sam = await signUpAndLogin(app, "sam@example.com", "sam password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const samTeam = season.teams.find(team => team.ownerDisplayName === "Sam");
+    if (camTeam === undefined || sethTeam === undefined || samTeam === undefined) {
+      throw new Error("Expected fixture teams.");
+    }
+
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+        { userId: sam.account.id, leagueId: season.leagueId, role: "member" },
+      ],
+    });
+
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: seth.sessionToken,
+      seasonId: season.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      now,
+    })).resolves.toMatchObject({
+      userId: seth.account.id,
+      leagueId: season.leagueId,
+      role: "member",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+    });
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: sam.sessionToken,
+      seasonId: season.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      now,
+    })).rejects.toThrow(new PlatformAppError(
+      "team_already_claimed",
+      "That team is already claimed.",
+    ));
+
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: seth.sessionToken,
+      seasonId: season.id,
+      ownerId: samTeam.ownerId,
+      teamId: samTeam.id,
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toMatchObject({
+      userId: seth.account.id,
+      ownerId: samTeam.ownerId,
+      teamId: samTeam.id,
+    });
+    await expect(app.claimLeagueSeasonTeam({
+      actorSessionToken: sam.sessionToken,
+      seasonId: season.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      now: new Date(now.getTime() + 2_000),
+    })).resolves.toMatchObject({
+      userId: sam.account.id,
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+    });
   });
 
   it("registers a league season, gates shared access by membership, and keeps prep private", async () => {

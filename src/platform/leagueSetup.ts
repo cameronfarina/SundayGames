@@ -16,8 +16,18 @@ export interface RegisterLeagueSeasonRepositoryInput {
   now?: Date | undefined;
 }
 
+export interface ClaimLeagueSeasonTeamRepositoryInput {
+  seasonId: string;
+  leagueId: string;
+  userId: string;
+  ownerId: string;
+  teamId: string;
+  now?: Date | undefined;
+}
+
 export interface LeagueSetupRepository {
   registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): MaybePromise<LeagueSeason>;
+  claimLeagueSeasonTeam(input: ClaimLeagueSeasonTeamRepositoryInput): MaybePromise<PlatformLeagueMembership | null>;
   findLeagueSeason(seasonId: string): MaybePromise<LeagueSeason | null>;
   hasLeagueSeasonForLeague(leagueId: string): MaybePromise<boolean>;
   findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number): MaybePromise<LeagueSeason | null>;

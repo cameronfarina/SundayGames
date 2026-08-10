@@ -6,27 +6,27 @@ import type {
   PlatformHttpRequest,
   PlatformHttpResponse,
 } from "./platformHttp.js";
+export {
+  clearMockdSessionCookie,
+  mockdSessionCookie,
+  mockdSessionCookieName,
+  type MockdSessionCookieOptions,
+} from "./platformCookies.js";
+import { mockdSessionCookieName } from "./platformCookies.js";
 
 export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
-export const mockdSessionCookieName = "mockd_session";
 
 export interface PlatformNodeHttpAdapterOptions {
+  appHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
-}
-
-export interface MockdSessionCookieOptions {
-  path?: string | undefined;
-  maxAgeSeconds?: number | undefined;
-  expires?: Date | undefined;
-  httpOnly?: boolean | undefined;
-  secure?: boolean | undefined;
-  sameSite?: "Lax" | "Strict" | "None" | undefined;
 }
 
 class InvalidJsonBodyError extends Error {}
 class RequestBodyTooLargeError extends Error {}
 
 const jsonContentType = "application/json; charset=utf-8";
+const htmlContentType = "text/html; charset=utf-8";
+const appShellPaths = new Set(["/", "/app", "/login", "/signup", "/draft-room"]);
 
 const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
   status: 400,
@@ -170,8 +170,36 @@ const writeJsonResponse = (
 
   response.statusCode = platformResponse.status;
   response.setHeader("Content-Type", jsonContentType);
+  for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
+    if (value !== undefined) response.setHeader(name, value);
+  }
   response.setHeader("Content-Length", Buffer.byteLength(body));
   response.end(body);
+};
+
+const writeHtmlResponse = (
+  response: ServerResponse,
+  html: string,
+): void => {
+  response.statusCode = 200;
+  response.setHeader("Content-Type", htmlContentType);
+  response.setHeader("Content-Length", Buffer.byteLength(html));
+  response.end(html);
+};
+
+const shouldServeAppShell = (
+  request: IncomingMessage,
+  appHtml: string | undefined,
+): appHtml is string => {
+  if (appHtml === undefined || request.method !== "GET") return false;
+
+  try {
+    const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+
+    return appShellPaths.has(pathname);
+  } catch {
+    return false;
+  }
 };
 
 const platformRequestFor = async (
@@ -193,10 +221,16 @@ export const createPlatformNodeHttpAdapter = (
   handle: PlatformHttpHandler,
   options: PlatformNodeHttpAdapterOptions = {},
 ): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
+  const appHtml = options.appHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
 
   return async (request, response) => {
     try {
+      if (shouldServeAppShell(request, appHtml)) {
+        writeHtmlResponse(response, appHtml);
+        return;
+      }
+
       const platformRequest = await platformRequestFor(request, maxBodyBytes);
       const platformResponse = await handle(platformRequest);
 
@@ -224,30 +258,3 @@ export const createPlatformNodeHttpAdapter = (
     }
   };
 };
-
-export const mockdSessionCookie = (
-  sessionToken: string,
-  options: MockdSessionCookieOptions = {},
-): string => {
-  const cookieParts = [
-    `${mockdSessionCookieName}=${encodeURIComponent(sessionToken)}`,
-    `Path=${options.path ?? "/"}`,
-  ];
-
-  if (options.maxAgeSeconds !== undefined) cookieParts.push(`Max-Age=${options.maxAgeSeconds}`);
-  if (options.expires !== undefined) cookieParts.push(`Expires=${options.expires.toUTCString()}`);
-  if (options.httpOnly ?? true) cookieParts.push("HttpOnly");
-  if (options.secure === true) cookieParts.push("Secure");
-  cookieParts.push(`SameSite=${options.sameSite ?? "Lax"}`);
-
-  return cookieParts.join("; ");
-};
-
-export const clearMockdSessionCookie = (
-  options: Omit<MockdSessionCookieOptions, "maxAgeSeconds" | "expires"> = {},
-): string =>
-  mockdSessionCookie("", {
-    ...options,
-    maxAgeSeconds: 0,
-    expires: new Date(0),
-  });

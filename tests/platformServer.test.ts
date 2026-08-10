@@ -409,6 +409,10 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
     return this.inner.registerLeagueSeason(input);
   }
 
+  async claimLeagueSeasonTeam(input: Parameters<LeagueSetupRepository["claimLeagueSeasonTeam"]>[0]) {
+    return this.inner.claimLeagueSeasonTeam(input);
+  }
+
   async findLeagueSeason(seasonId: string) {
     return this.inner.findLeagueSeason(seasonId);
   }
@@ -529,6 +533,19 @@ const jsonFetch = async (
   };
 };
 
+const textFetch = async (
+  baseUrl: string,
+  path: string,
+): Promise<{ status: number; contentType: string | null; body: string }> => {
+  const response = await fetch(`${baseUrl}${path}`);
+
+  return {
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.text(),
+  };
+};
+
 describe("platform server composition", () => {
   let directory: string | undefined;
   const servers: PlatformServer[] = [];
@@ -616,6 +633,17 @@ describe("platform server composition", () => {
       },
     });
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
+  });
+
+  it("serves the platform app shell from browser routes", async () => {
+    const { baseUrl } = await createListeningServer();
+
+    const response = await textFetch(baseUrl, "/login");
+
+    expect(response.status).toBe(200);
+    expect(response.contentType).toBe("text/html; charset=utf-8");
+    expect(response.body).toContain("id=\"auth-panel\"");
+    expect(response.body).toContain("Live draft room");
   });
 
   it("keeps createPlatformServer unbound and starts listening only through the start helper", async () => {
