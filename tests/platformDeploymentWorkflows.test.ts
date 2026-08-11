@@ -46,6 +46,8 @@ describe("production deployment workflows", () => {
     expect(content).toContain("docker build --tag mockd-ci .");
     expect(content).toContain("Serialize concurrent first-deploy migrations");
     expect(content).toContain("http://127.0.0.1:4319/readyz");
+    expect(content).toContain("--env MOCKD_SCREENSHOT_IMPORT_MODE=openai");
+    expect(content).toContain("--env OPENAI_API_KEY=ci-placeholder-not-used");
     expect(content).toContain(".State.Running}}' mockd-ci-web");
     expect(content).toContain(".State.Running}}' mockd-ci-worker");
     expect(content).not.toContain(".State.Health.Status");
