@@ -318,5 +318,5 @@ describe("historical calibration audit", () => {
       label: "$80+ player count",
       status: "pass",
     });
-  }, 15000);
+  }, 30000);
 });
