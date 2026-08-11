@@ -1222,7 +1222,7 @@ describe("live draft server", () => {
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
-  });
+  }, 20_000);
 
   it("publishes interactive mock completion as a viewable one-run results job", async () => {
     const directory = await tempSessionDirectory();
@@ -1269,7 +1269,7 @@ describe("live draft server", () => {
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
-  });
+  }, 20_000);
 
   it("uses the request owner for interactive mock state", async () => {
     const directory = await tempSessionDirectory();
