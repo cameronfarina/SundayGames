@@ -4,6 +4,17 @@ export const platformShellNavigation = [
   { label: "My team", path: "/my-team" },
 ] as const;
 
+export const rosterSlotDisplayOrder = [
+  "QB",
+  "RB",
+  "WR",
+  "TE",
+  "FLEX",
+  "DST",
+  "K",
+  "BENCH",
+] as const;
+
 export const draftRoomPathFor = (input: { seasonId: string; roomId: string }): string => {
   const query = new URLSearchParams({ seasonId: input.seasonId, roomId: input.roomId });
   return `/draft-room?${query.toString()}`;
@@ -1667,6 +1678,7 @@ export const platformShellHtml = `<!doctype html>
       }
     };
 
+    const leagueRosterSlotOrder = ${JSON.stringify(rosterSlotDisplayOrder)};
     const defaultLeagueRosterSlots = {
       QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7,
     };
@@ -1736,21 +1748,27 @@ export const platformShellHtml = `<!doctype html>
 
     const renderLeagueCreationRosterSlots = rosterSlots => {
       const fragment = document.createDocumentFragment();
-      Object.entries(rosterSlots).sort(([left], [right]) => left.localeCompare(right)).forEach(entry => {
-        const field = document.createElement("div");
-        const label = document.createElement("label");
-        const input = document.createElement("input");
-        label.textContent = entry[0];
-        input.type = "number";
-        input.min = "0";
-        input.step = "1";
-        input.value = String(entry[1]);
-        input.dataset.rosterSlot = entry[0];
-        label.htmlFor = "league-create-roster-slot-" + entry[0].toLowerCase();
-        input.id = label.htmlFor;
-        field.append(label, input);
-        fragment.append(field);
-      });
+      const rosterSlotRank = slot => {
+        const index = leagueRosterSlotOrder.indexOf(slot);
+        return index === -1 ? leagueRosterSlotOrder.length : index;
+      };
+      Object.entries(rosterSlots)
+        .sort(([left], [right]) => rosterSlotRank(left) - rosterSlotRank(right) || left.localeCompare(right))
+        .forEach(entry => {
+          const field = document.createElement("div");
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          label.textContent = entry[0];
+          input.type = "number";
+          input.min = "0";
+          input.step = "1";
+          input.value = String(entry[1]);
+          input.dataset.rosterSlot = entry[0];
+          label.htmlFor = "league-create-roster-slot-" + entry[0].toLowerCase();
+          input.id = label.htmlFor;
+          field.append(label, input);
+          fragment.append(field);
+        });
       leagueCreateRosterSlots.replaceChildren(fragment);
     };
 

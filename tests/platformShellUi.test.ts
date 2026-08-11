@@ -3,9 +3,27 @@ import {
   draftRoomPathFor,
   platformShellHtml,
   platformShellNavigation,
+  rosterSlotDisplayOrder,
 } from "../src/platform/platformShellUi.js";
 
 describe("platform shell UI", () => {
+  it("renders roster slots in fantasy lineup order", () => {
+    expect(rosterSlotDisplayOrder).toEqual([
+      "QB",
+      "RB",
+      "WR",
+      "TE",
+      "FLEX",
+      "DST",
+      "K",
+      "BENCH",
+    ]);
+    expect(platformShellHtml).toContain(
+      'const leagueRosterSlotOrder = ["QB","RB","WR","TE","FLEX","DST","K","BENCH"];',
+    );
+    expect(platformShellHtml).toContain("rosterSlotRank(left) - rosterSlotRank(right)");
+  });
+
   it("uses route-backed product navigation and the canonical live draft URL", () => {
     expect(platformShellNavigation.map(item => [item.label, item.path])).toEqual([
       ["Board", "/board"],
