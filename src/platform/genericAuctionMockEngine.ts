@@ -1,0 +1,1295 @@
+export type GenericAuctionMockStatus = "setup" | "active" | "completed";
+
+export type GenericAuctionMockPhase =
+  | "not_started"
+  | "awaiting_human_nomination"
+  | "awaiting_human_bid"
+  | "ready_to_complete"
+  | "completed";
+
+export interface GenericAuctionMockAiTendency {
+  bidMultiplier?: number | undefined;
+  positionBidMultipliers?: Readonly<Record<string, number>> | undefined;
+  nominationPositionWeights?: Readonly<Record<string, number>> | undefined;
+  randomness?: number | undefined;
+}
+
+export interface GenericAuctionMockTeamConfig {
+  id: string;
+  name: string;
+  aiTendency?: GenericAuctionMockAiTendency | undefined;
+}
+
+export interface GenericAuctionMockRosterSlotConfig {
+  slot: string;
+  count: number;
+  eligiblePositions: readonly string[];
+}
+
+export interface GenericAuctionMockPlayer {
+  id: string;
+  name: string;
+  position: string;
+  expectedPrice: number;
+}
+
+export interface GenericAuctionMockKeeper {
+  teamId: string;
+  playerId: string;
+  price: number;
+}
+
+export interface GenericAuctionMockAiConfig {
+  defaultBidMultiplier?: number | undefined;
+  rosterNeedDollars?: number | undefined;
+  randomness?: number | undefined;
+}
+
+export interface GenericAuctionMockConfig {
+  sessionId: string;
+  seed: string;
+  humanTeamId: string;
+  budgetDollars: number;
+  minimumBidDollars: number;
+  teams: readonly GenericAuctionMockTeamConfig[];
+  rosterSlots: readonly GenericAuctionMockRosterSlotConfig[];
+  positionMaximums: Readonly<Record<string, number>>;
+  players: readonly GenericAuctionMockPlayer[];
+  keepers?: readonly GenericAuctionMockKeeper[] | undefined;
+  ai?: GenericAuctionMockAiConfig | undefined;
+}
+
+export type GenericAuctionMockPlayerStatus = "available" | "nominated" | "sold";
+
+export interface GenericAuctionMockBoardPlayer extends GenericAuctionMockPlayer {
+  status: GenericAuctionMockPlayerStatus;
+  available: boolean;
+}
+
+export interface GenericAuctionMockRosterPlayer {
+  playerId: string;
+  playerName: string;
+  position: string;
+  expectedPrice: number;
+  price: number;
+  source: "keeper" | "human" | "ai";
+  rosterSlot: string;
+}
+
+export interface GenericAuctionMockRosterSlot {
+  slot: string;
+  eligiblePositions: readonly string[];
+  playerId: string | undefined;
+}
+
+export interface GenericAuctionMockTeamReadModel {
+  id: string;
+  name: string;
+  isHuman: boolean;
+  budgetDollars: number;
+  spent: number;
+  budgetRemaining: number;
+  rosterSlotsRemaining: number;
+  maxBid: number;
+  positionCounts: Readonly<Record<string, number>>;
+  roster: readonly GenericAuctionMockRosterPlayer[];
+  slots: readonly GenericAuctionMockRosterSlot[];
+}
+
+export interface GenericAuctionMockSale {
+  number: number;
+  nominationNumber: number;
+  playerId: string;
+  playerName: string;
+  position: string;
+  expectedPrice: number;
+  teamId: string;
+  teamName: string;
+  nominatedByTeamId: string;
+  nominatedByTeamName: string;
+  price: number;
+  source: "keeper" | "human" | "ai";
+}
+
+export interface GenericAuctionMockNomination {
+  number: number;
+  playerId: string;
+  playerName: string;
+  position: string;
+  expectedPrice: number;
+  nominatedByTeamId: string;
+  nominatedByTeamName: string;
+  highestBidderTeamId: string;
+  highestBidderTeamName: string;
+  currentPrice: number;
+  nextBid: number;
+  humanCanBuy: boolean;
+  humanCanPass: boolean;
+  humanPassed: boolean;
+}
+
+export type GenericAuctionMockCommand =
+  | {
+    type: "start";
+    expectedRevision: number;
+  }
+  | {
+    type: "nominate";
+    expectedRevision: number;
+    playerId: string;
+    openingBid?: number | undefined;
+  }
+  | {
+    type: "buy";
+    expectedRevision: number;
+    price: number;
+  }
+  | {
+    type: "pass";
+    expectedRevision: number;
+  }
+  | {
+    type: "undo";
+    expectedRevision: number;
+  }
+  | {
+    type: "complete";
+    expectedRevision: number;
+  };
+
+export interface GenericAuctionMockSessionReadModel {
+  id: string;
+  status: GenericAuctionMockStatus;
+  phase: GenericAuctionMockPhase;
+  revision: number;
+  seed: string;
+  humanTeamId: string;
+  nextNominatorTeamId: string | undefined;
+  currentNomination: GenericAuctionMockNomination | undefined;
+  nominationsCompleted: number;
+  canUndo: boolean;
+  canComplete: boolean;
+  commandLog: readonly GenericAuctionMockCommand[];
+}
+
+export interface GenericAuctionMockBoardReadModel {
+  players: readonly GenericAuctionMockBoardPlayer[];
+}
+
+interface GenericAuctionMockSnapshot {
+  session: Pick<
+    GenericAuctionMockSessionReadModel,
+    | "status"
+    | "phase"
+    | "nextNominatorTeamId"
+    | "currentNomination"
+    | "nominationsCompleted"
+    | "canComplete"
+  > & { nextNominatorIndex: number };
+  board: GenericAuctionMockBoardReadModel;
+  teams: readonly GenericAuctionMockTeamReadModel[];
+  sales: readonly GenericAuctionMockSale[];
+}
+
+export interface GenericAuctionMockState {
+  readonly configuration: GenericAuctionMockConfig;
+  session: GenericAuctionMockSessionReadModel;
+  board: GenericAuctionMockBoardReadModel;
+  teams: readonly GenericAuctionMockTeamReadModel[];
+  sales: readonly GenericAuctionMockSale[];
+  readonly decisionHistory: readonly GenericAuctionMockSnapshot[];
+  readonly nextNominatorIndex: number;
+}
+
+export type GenericAuctionMockErrorCode =
+  | "draft_incomplete"
+  | "duplicate_player"
+  | "invalid_config"
+  | "invalid_decision"
+  | "invalid_keeper"
+  | "invalid_price"
+  | "invalid_status"
+  | "max_bid_exceeded"
+  | "no_decision_to_undo"
+  | "no_eligible_player"
+  | "player_not_found"
+  | "position_limit"
+  | "roster_full"
+  | "roster_limit"
+  | "stale_revision"
+  | "team_not_found";
+
+export class GenericAuctionMockError extends Error {
+  readonly code: GenericAuctionMockErrorCode;
+
+  constructor(code: GenericAuctionMockErrorCode, message: string) {
+    super(message);
+    this.name = "GenericAuctionMockError";
+    this.code = code;
+  }
+}
+
+const isNonBlank = (value: string): boolean => value.trim().length > 0;
+
+const isNonNegativeFinite = (value: number): boolean => Number.isFinite(value) && value >= 0;
+
+const assertNonNegativeMap = (values: Readonly<Record<string, number>>, label: string): void => {
+  for (const [key, value] of Object.entries(values)) {
+    if (!isNonBlank(key) || !isNonNegativeFinite(value)) {
+      throw new GenericAuctionMockError(
+        "invalid_config",
+        `${label} must use non-blank keys and non-negative finite values.`,
+      );
+    }
+  }
+};
+
+const expandedRosterSlotName = (
+  slot: GenericAuctionMockRosterSlotConfig,
+  index: number,
+): string => slot.count === 1 ? slot.slot : `${slot.slot}${index + 1}`;
+
+const rosterCapacityFor = (config: GenericAuctionMockConfig): number =>
+  config.rosterSlots.reduce((total, slot) => total + slot.count, 0);
+
+const assertConfiguration = (config: GenericAuctionMockConfig): void => {
+  if (!isNonBlank(config.sessionId) || !isNonBlank(config.seed)) {
+    throw new GenericAuctionMockError("invalid_config", "Auction session id and seed are required.");
+  }
+
+  if (config.teams.length < 4 || config.teams.length > 20) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Auction mocks require between 4 and 20 teams.",
+    );
+  }
+
+  const teamIds = config.teams.map(team => team.id);
+  if (
+    new Set(teamIds).size !== teamIds.length
+    || config.teams.some(team => !isNonBlank(team.id) || !isNonBlank(team.name))
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Every auction team needs a unique non-blank id and a non-blank name.",
+    );
+  }
+
+  if (!teamIds.includes(config.humanTeamId)) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Human team id must identify a configured team.",
+    );
+  }
+
+  if (
+    !Number.isInteger(config.minimumBidDollars)
+    || config.minimumBidDollars <= 0
+    || !Number.isInteger(config.budgetDollars)
+    || config.budgetDollars <= 0
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Auction budget and minimum bid must be positive whole-dollar amounts.",
+    );
+  }
+
+  if (
+    config.rosterSlots.length === 0
+    || config.rosterSlots.some(slot =>
+      !isNonBlank(slot.slot)
+      || !Number.isInteger(slot.count)
+      || slot.count <= 0
+      || slot.eligiblePositions.length === 0
+      || slot.eligiblePositions.some(position => !isNonBlank(position))
+      || new Set(slot.eligiblePositions).size !== slot.eligiblePositions.length
+    )
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Roster slots require a name, positive count, and unique eligible positions.",
+    );
+  }
+
+  const slotNames = config.rosterSlots.map(slot => slot.slot);
+  const expandedSlotNames = config.rosterSlots.flatMap(slot =>
+    Array.from({ length: slot.count }, (_, index) => expandedRosterSlotName(slot, index)),
+  );
+  if (
+    new Set(slotNames).size !== slotNames.length
+    || new Set(expandedSlotNames).size !== expandedSlotNames.length
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Roster slot names must remain unique after their counts are expanded.",
+    );
+  }
+
+  const rosterCapacity = rosterCapacityFor(config);
+  if (config.budgetDollars < rosterCapacity * config.minimumBidDollars) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Auction budget must reserve the minimum bid for every roster slot.",
+    );
+  }
+
+  if (Object.keys(config.positionMaximums).length === 0) {
+    throw new GenericAuctionMockError("invalid_config", "At least one position maximum is required.");
+  }
+  for (const [position, maximum] of Object.entries(config.positionMaximums)) {
+    if (!isNonBlank(position) || !Number.isInteger(maximum) || maximum < 0) {
+      throw new GenericAuctionMockError(
+        "invalid_config",
+        "Position maximums must be non-negative whole numbers keyed by position.",
+      );
+    }
+  }
+
+  const eligiblePositions = new Set(config.rosterSlots.flatMap(slot => slot.eligiblePositions));
+  const playerIds = config.players.map(player => player.id);
+  if (
+    new Set(playerIds).size !== playerIds.length
+    || config.players.some(player =>
+      !isNonBlank(player.id)
+      || !isNonBlank(player.name)
+      || !isNonBlank(player.position)
+      || !isNonNegativeFinite(player.expectedPrice)
+    )
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Every player needs a unique id, name, position, and non-negative expected price.",
+    );
+  }
+
+  const configuredPositions = new Set(Object.keys(config.positionMaximums));
+  if (
+    [...eligiblePositions].some(position => !configuredPositions.has(position))
+    || config.players.some(player => !configuredPositions.has(player.position))
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Every roster and player position must have an explicit position maximum.",
+    );
+  }
+
+  if (config.players.length < config.teams.length * rosterCapacity) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "The player catalog cannot fill every team's roster.",
+    );
+  }
+
+  const aiValues = [
+    config.ai?.defaultBidMultiplier,
+    config.ai?.rosterNeedDollars,
+    config.ai?.randomness,
+  ].filter((value): value is number => value !== undefined);
+  if (aiValues.some(value => !isNonNegativeFinite(value))) {
+    throw new GenericAuctionMockError("invalid_config", "AI settings must be non-negative finite numbers.");
+  }
+
+  for (const team of config.teams) {
+    const tendency = team.aiTendency;
+    if (
+      tendency?.bidMultiplier !== undefined
+      && !isNonNegativeFinite(tendency.bidMultiplier)
+    ) {
+      throw new GenericAuctionMockError(
+        "invalid_config",
+        "AI bid multipliers must be non-negative finite numbers.",
+      );
+    }
+    if (tendency?.randomness !== undefined && !isNonNegativeFinite(tendency.randomness)) {
+      throw new GenericAuctionMockError(
+        "invalid_config",
+        "AI randomness must be a non-negative finite number.",
+      );
+    }
+    if (tendency?.positionBidMultipliers !== undefined) {
+      assertNonNegativeMap(tendency.positionBidMultipliers, "AI position bid multipliers");
+    }
+    if (tendency?.nominationPositionWeights !== undefined) {
+      assertNonNegativeMap(tendency.nominationPositionWeights, "AI nomination weights");
+    }
+  }
+};
+
+const maxBidFor = (
+  budgetRemaining: number,
+  rosterSlotsRemaining: number,
+  minimumBid: number,
+): number => rosterSlotsRemaining <= 0
+  ? 0
+  : Math.max(0, budgetRemaining - Math.max(0, rosterSlotsRemaining - 1) * minimumBid);
+
+const positionKeysFor = (config: GenericAuctionMockConfig): readonly string[] =>
+  Object.keys(config.positionMaximums);
+
+const emptyPositionCounts = (
+  config: GenericAuctionMockConfig,
+): Readonly<Record<string, number>> => Object.fromEntries(
+  positionKeysFor(config).map(position => [position, 0]),
+);
+
+const buildRosterSlots = (
+  config: GenericAuctionMockConfig,
+): readonly GenericAuctionMockRosterSlot[] => config.rosterSlots.flatMap(slot =>
+  Array.from({ length: slot.count }, (_, index) => ({
+    slot: expandedRosterSlotName(slot, index),
+    eligiblePositions: [...slot.eligiblePositions],
+    playerId: undefined,
+  })),
+);
+
+const deterministicFraction = (value: string): number => {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+
+  return (hash >>> 0) / 4_294_967_296;
+};
+
+const teamFor = (
+  state: GenericAuctionMockState,
+  teamId: string,
+): GenericAuctionMockTeamReadModel => {
+  const team = state.teams.find(candidate => candidate.id === teamId);
+  if (team === undefined) {
+    throw new GenericAuctionMockError("team_not_found", `Unknown auction team "${teamId}".`);
+  }
+
+  return team;
+};
+
+const playerFor = (
+  state: GenericAuctionMockState,
+  playerId: string,
+): GenericAuctionMockBoardPlayer => {
+  const player = state.board.players.find(candidate => candidate.id === playerId);
+  if (player === undefined) {
+    throw new GenericAuctionMockError("player_not_found", `Unknown auction player "${playerId}".`);
+  }
+
+  return player;
+};
+
+const assignableSlotFor = (
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+): GenericAuctionMockRosterSlot | undefined => team.slots
+  .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(player.position))
+  .sort((left, right) =>
+    left.eligiblePositions.length - right.eligiblePositions.length
+    || left.slot.localeCompare(right.slot)
+  )[0];
+
+const canAcquire = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+  price: number,
+): boolean => Number.isInteger(price)
+  && price >= state.configuration.minimumBidDollars
+  && team.rosterSlotsRemaining > 0
+  && price <= team.maxBid
+  && (team.positionCounts[player.position] ?? 0)
+    < (state.configuration.positionMaximums[player.position] ?? 0)
+  && assignableSlotFor(team, player) !== undefined;
+
+const assertPrice = (state: GenericAuctionMockState, price: number): void => {
+  if (!Number.isInteger(price) || price < state.configuration.minimumBidDollars) {
+    throw new GenericAuctionMockError(
+      "invalid_price",
+      `Auction bids must be whole-dollar amounts of at least $${state.configuration.minimumBidDollars}.`,
+    );
+  }
+};
+
+const assertCanAcquire = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+  price: number,
+): GenericAuctionMockRosterSlot => {
+  assertPrice(state, price);
+
+  if (team.rosterSlotsRemaining <= 0) {
+    throw new GenericAuctionMockError("roster_full", `${team.name} has no open roster slots.`);
+  }
+  if (price > team.maxBid) {
+    throw new GenericAuctionMockError(
+      "max_bid_exceeded",
+      `${team.name} cannot bid $${price}; its max bid is $${team.maxBid}.`,
+    );
+  }
+
+  const maximum = state.configuration.positionMaximums[player.position] ?? 0;
+  if ((team.positionCounts[player.position] ?? 0) >= maximum) {
+    throw new GenericAuctionMockError(
+      "position_limit",
+      `${team.name} has reached its ${player.position} maximum of ${maximum}.`,
+    );
+  }
+
+  const slot = assignableSlotFor(team, player);
+  if (slot === undefined) {
+    throw new GenericAuctionMockError(
+      "roster_limit",
+      `${team.name} has no open roster slot eligible for ${player.position}.`,
+    );
+  }
+
+  return slot;
+};
+
+const rosterNeedFor = (
+  team: GenericAuctionMockTeamReadModel,
+  position: string,
+): number => team.slots
+  .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
+  .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
+
+const aiMaxBidFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+  nominationNumber: number,
+): number => {
+  if (!canAcquire(state, team, player, state.configuration.minimumBidDollars)) return 0;
+
+  const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
+  const bidMultiplier = tendency?.bidMultiplier
+    ?? state.configuration.ai?.defaultBidMultiplier
+    ?? 1;
+  const positionMultiplier = tendency?.positionBidMultipliers?.[player.position] ?? 1;
+  const needDollars = state.configuration.ai?.rosterNeedDollars ?? 1;
+  const randomness = tendency?.randomness ?? state.configuration.ai?.randomness ?? 0.08;
+  const noise = (
+    deterministicFraction(
+      `${state.session.seed}:bid:${nominationNumber}:${team.id}:${player.id}`,
+    ) * 2 - 1
+  ) * player.expectedPrice * randomness;
+  const willingness = Math.max(0, Math.round(
+    player.expectedPrice * bidMultiplier * positionMultiplier
+    + rosterNeedFor(team, player.position) * needDollars
+    + noise,
+  ));
+
+  return Math.min(team.maxBid, willingness);
+};
+
+const nominationScoreFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+  nominationNumber: number,
+): number => {
+  const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
+  const positionWeight = tendency?.nominationPositionWeights?.[player.position] ?? 1;
+  const needWeight = state.configuration.ai?.rosterNeedDollars ?? 1;
+
+  return player.expectedPrice * positionWeight
+    + rosterNeedFor(team, player.position) * needWeight
+    + deterministicFraction(
+      `${state.session.seed}:nomination:${nominationNumber}:${team.id}:${player.id}`,
+    ) * 0.001;
+};
+
+const nextNominator = (
+  state: GenericAuctionMockState,
+): { team: GenericAuctionMockTeamReadModel; index: number } | undefined => {
+  for (let offset = 0; offset < state.teams.length; offset += 1) {
+    const index = (state.nextNominatorIndex + offset) % state.teams.length;
+    const team = state.teams[index];
+    if (team !== undefined && team.rosterSlotsRemaining > 0) return { team, index };
+  }
+
+  return undefined;
+};
+
+const availableNominationPlayersFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+): readonly GenericAuctionMockBoardPlayer[] => state.board.players.filter(player =>
+  player.status === "available"
+  && canAcquire(state, team, player, state.configuration.minimumBidDollars),
+);
+
+const selectAiNomination = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+): GenericAuctionMockBoardPlayer => {
+  const nominationNumber = state.session.nominationsCompleted + 1;
+  const selected = availableNominationPlayersFor(state, team)
+    .map(player => ({
+      player,
+      score: nominationScoreFor(state, team, player, nominationNumber),
+    }))
+    .sort((left, right) =>
+      right.score - left.score
+      || right.player.expectedPrice - left.player.expectedPrice
+      || left.player.id.localeCompare(right.player.id)
+    )[0]?.player;
+
+  if (selected === undefined) {
+    throw new GenericAuctionMockError(
+      "no_eligible_player",
+      `${team.name} cannot fill its remaining roster slots from the available player catalog.`,
+    );
+  }
+
+  return selected;
+};
+
+const setBoardPlayerStatus = (
+  state: GenericAuctionMockState,
+  playerId: string,
+  status: GenericAuctionMockPlayerStatus,
+): GenericAuctionMockBoardReadModel => ({
+  players: state.board.players.map(player => player.id === playerId ? {
+    ...player,
+    status,
+    available: status === "available",
+  } : player),
+});
+
+const nominationFor = ({
+  state,
+  player,
+  nominatedByTeam,
+  highestBidderTeam,
+  currentPrice,
+  humanPassed,
+  humanCanBuy = false,
+}: {
+  state: GenericAuctionMockState;
+  player: GenericAuctionMockPlayer;
+  nominatedByTeam: GenericAuctionMockTeamReadModel;
+  highestBidderTeam: GenericAuctionMockTeamReadModel;
+  currentPrice: number;
+  humanPassed: boolean;
+  humanCanBuy?: boolean | undefined;
+}): GenericAuctionMockNomination => ({
+  number: state.session.nominationsCompleted + 1,
+  playerId: player.id,
+  playerName: player.name,
+  position: player.position,
+  expectedPrice: player.expectedPrice,
+  nominatedByTeamId: nominatedByTeam.id,
+  nominatedByTeamName: nominatedByTeam.name,
+  highestBidderTeamId: highestBidderTeam.id,
+  highestBidderTeamName: highestBidderTeam.name,
+  currentPrice,
+  nextBid: currentPrice + 1,
+  humanCanBuy,
+  humanCanPass: humanCanBuy,
+  humanPassed,
+});
+
+const openNomination = (
+  state: GenericAuctionMockState,
+  nominator: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockBoardPlayer,
+  openingBid: number,
+): GenericAuctionMockState => {
+  if (player.status !== "available") {
+    throw new GenericAuctionMockError("duplicate_player", `${player.name} is already unavailable.`);
+  }
+  assertCanAcquire(state, nominator, player, openingBid);
+
+  return {
+    ...state,
+    board: setBoardPlayerStatus(state, player.id, "nominated"),
+    session: {
+      ...state.session,
+      nextNominatorTeamId: undefined,
+      currentNomination: nominationFor({
+        state,
+        player,
+        nominatedByTeam: nominator,
+        highestBidderTeam: nominator,
+        currentPrice: openingBid,
+        humanPassed: false,
+      }),
+    },
+  };
+};
+
+const addAcquisition = ({
+  state,
+  player,
+  team,
+  price,
+  source,
+  nominatedByTeam,
+  nominationNumber,
+}: {
+  state: GenericAuctionMockState;
+  player: GenericAuctionMockBoardPlayer;
+  team: GenericAuctionMockTeamReadModel;
+  price: number;
+  source: GenericAuctionMockSale["source"];
+  nominatedByTeam: GenericAuctionMockTeamReadModel;
+  nominationNumber: number;
+}): GenericAuctionMockState => {
+  if (player.status === "sold") {
+    throw new GenericAuctionMockError("duplicate_player", `${player.name} is already unavailable.`);
+  }
+  const slot = assertCanAcquire(state, team, player, price);
+  const rosterPlayer: GenericAuctionMockRosterPlayer = {
+    playerId: player.id,
+    playerName: player.name,
+    position: player.position,
+    expectedPrice: player.expectedPrice,
+    price,
+    source,
+    rosterSlot: slot.slot,
+  };
+  const roster = [...team.roster, rosterPlayer];
+  const spent = team.spent + price;
+  const rosterSlotsRemaining = team.rosterSlotsRemaining - 1;
+  const positionCounts = {
+    ...team.positionCounts,
+    [player.position]: (team.positionCounts[player.position] ?? 0) + 1,
+  };
+  const nextTeam: GenericAuctionMockTeamReadModel = {
+    ...team,
+    spent,
+    budgetRemaining: team.budgetDollars - spent,
+    rosterSlotsRemaining,
+    maxBid: maxBidFor(
+      team.budgetDollars - spent,
+      rosterSlotsRemaining,
+      state.configuration.minimumBidDollars,
+    ),
+    positionCounts,
+    roster,
+    slots: team.slots.map(candidate => candidate.slot === slot.slot
+      ? { ...candidate, playerId: player.id }
+      : candidate),
+  };
+  const sale: GenericAuctionMockSale = {
+    number: state.sales.length + 1,
+    nominationNumber,
+    playerId: player.id,
+    playerName: player.name,
+    position: player.position,
+    expectedPrice: player.expectedPrice,
+    teamId: team.id,
+    teamName: team.name,
+    nominatedByTeamId: nominatedByTeam.id,
+    nominatedByTeamName: nominatedByTeam.name,
+    price,
+    source,
+  };
+
+  return {
+    ...state,
+    board: setBoardPlayerStatus(state, player.id, "sold"),
+    teams: state.teams.map(candidate => candidate.id === team.id ? nextTeam : candidate),
+    sales: [...state.sales, sale],
+  };
+};
+
+const applyKeepers = (state: GenericAuctionMockState): GenericAuctionMockState => {
+  let nextState = state;
+
+  for (const keeper of state.configuration.keepers ?? []) {
+    if (!Number.isInteger(keeper.price) || keeper.price < state.configuration.minimumBidDollars) {
+      throw new GenericAuctionMockError(
+        "invalid_keeper",
+        `Keeper prices must be at least $${state.configuration.minimumBidDollars} in whole dollars.`,
+      );
+    }
+
+    const team = teamFor(nextState, keeper.teamId);
+    const player = playerFor(nextState, keeper.playerId);
+    nextState = addAcquisition({
+      state: nextState,
+      player,
+      team,
+      price: keeper.price,
+      source: "keeper",
+      nominatedByTeam: team,
+      nominationNumber: 0,
+    });
+  }
+
+  return nextState;
+};
+
+interface AiMaximum {
+  team: GenericAuctionMockTeamReadModel;
+  maximum: number;
+}
+
+const aiMaximumsFor = (
+  state: GenericAuctionMockState,
+  nomination: GenericAuctionMockNomination,
+): readonly AiMaximum[] => {
+  const player = playerFor(state, nomination.playerId);
+
+  return state.teams
+    .filter(team => !team.isHuman)
+    .map(team => ({
+      team,
+      maximum: Math.max(
+        aiMaxBidFor(state, team, player, nomination.number),
+        nomination.highestBidderTeamId === team.id ? nomination.currentPrice : 0,
+      ),
+    }))
+    .filter(entry => entry.maximum >= state.configuration.minimumBidDollars)
+    .sort((left, right) => {
+      const maximumDifference = right.maximum - left.maximum;
+      if (maximumDifference !== 0) return maximumDifference;
+
+      const leftIsStanding = left.team.id === nomination.highestBidderTeamId;
+      const rightIsStanding = right.team.id === nomination.highestBidderTeamId;
+      if (leftIsStanding !== rightIsStanding) return leftIsStanding ? -1 : 1;
+
+      return left.team.id.localeCompare(right.team.id);
+    });
+};
+
+const settleNomination = (state: GenericAuctionMockState): GenericAuctionMockState => {
+  const nomination = state.session.currentNomination;
+  if (nomination === undefined) {
+    throw new GenericAuctionMockError("invalid_decision", "There is no current nomination to sell.");
+  }
+
+  const player = playerFor(state, nomination.playerId);
+  const winningTeam = teamFor(state, nomination.highestBidderTeamId);
+  const nominatingTeam = teamFor(state, nomination.nominatedByTeamId);
+  const sold = addAcquisition({
+    state,
+    player,
+    team: winningTeam,
+    price: nomination.currentPrice,
+    source: winningTeam.isHuman ? "human" : "ai",
+    nominatedByTeam: nominatingTeam,
+    nominationNumber: nomination.number,
+  });
+  const nominatorIndex = state.teams.findIndex(team => team.id === nomination.nominatedByTeamId);
+
+  return {
+    ...sold,
+    nextNominatorIndex: (nominatorIndex + 1) % state.teams.length,
+    session: {
+      ...sold.session,
+      currentNomination: undefined,
+      nominationsCompleted: state.session.nominationsCompleted + 1,
+    },
+  };
+};
+
+const progressCurrentNomination = (
+  state: GenericAuctionMockState,
+): { state: GenericAuctionMockState; waitingForHuman: boolean } => {
+  const nomination = state.session.currentNomination;
+  if (nomination === undefined) return { state, waitingForHuman: false };
+
+  const humanTeam = teamFor(state, state.configuration.humanTeamId);
+  const player = playerFor(state, nomination.playerId);
+  const aiMaximums = aiMaximumsFor(state, nomination);
+  let nextNomination = nomination;
+
+  if (nomination.highestBidderTeamId === humanTeam.id) {
+    const challenger = aiMaximums.find(entry => entry.maximum >= nomination.currentPrice + 1);
+    if (challenger === undefined) {
+      return { state: settleNomination(state), waitingForHuman: false };
+    }
+
+    const secondMaximum = aiMaximums
+      .filter(entry => entry.team.id !== challenger.team.id)
+      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
+    const counterPrice = Math.min(
+      challenger.maximum,
+      Math.max(nomination.currentPrice + 1, secondMaximum + 1),
+    );
+    nextNomination = nominationFor({
+      state,
+      player,
+      nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
+      highestBidderTeam: challenger.team,
+      currentPrice: counterPrice,
+      humanPassed: nomination.humanPassed,
+    });
+  } else {
+    const leader = aiMaximums[0];
+    if (leader === undefined) {
+      throw new GenericAuctionMockError(
+        "no_eligible_player",
+        `No AI team can retain the current bid for ${player.name}.`,
+      );
+    }
+    const secondMaximum = aiMaximums
+      .slice(1)
+      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
+    const requiredPrice = leader.team.id === nomination.highestBidderTeamId
+      ? nomination.currentPrice
+      : nomination.currentPrice + 1;
+    const marketPrice = Math.min(
+      leader.maximum,
+      Math.max(requiredPrice, secondMaximum + 1),
+    );
+    nextNomination = nominationFor({
+      state,
+      player,
+      nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
+      highestBidderTeam: leader.team,
+      currentPrice: marketPrice,
+      humanPassed: nomination.humanPassed,
+    });
+  }
+
+  const humanCanBuy = !nextNomination.humanPassed
+    && canAcquire(state, humanTeam, player, nextNomination.nextBid);
+  const withStandingBid: GenericAuctionMockState = {
+    ...state,
+    session: {
+      ...state.session,
+      currentNomination: {
+        ...nextNomination,
+        humanCanBuy,
+        humanCanPass: humanCanBuy,
+      },
+    },
+  };
+
+  if (humanCanBuy) {
+    return {
+      state: {
+        ...withStandingBid,
+        session: {
+          ...withStandingBid.session,
+          phase: "awaiting_human_bid",
+          nextNominatorTeamId: undefined,
+        },
+      },
+      waitingForHuman: true,
+    };
+  }
+
+  return { state: settleNomination(withStandingBid), waitingForHuman: false };
+};
+
+const advanceToHumanDecision = (state: GenericAuctionMockState): GenericAuctionMockState => {
+  let nextState = state;
+  const maximumIterations = state.configuration.teams.length * rosterCapacityFor(state.configuration) * 3;
+
+  for (let iteration = 0; iteration <= maximumIterations; iteration += 1) {
+    if (nextState.session.currentNomination !== undefined) {
+      const progressed = progressCurrentNomination(nextState);
+      nextState = progressed.state;
+      if (progressed.waitingForHuman) return nextState;
+      continue;
+    }
+
+    const nominator = nextNominator(nextState);
+    if (nominator === undefined) {
+      return {
+        ...nextState,
+        session: {
+          ...nextState.session,
+          phase: "ready_to_complete",
+          nextNominatorTeamId: undefined,
+          currentNomination: undefined,
+          canComplete: true,
+        },
+      };
+    }
+
+    if (availableNominationPlayersFor(nextState, nominator.team).length === 0) {
+      throw new GenericAuctionMockError(
+        "no_eligible_player",
+        `${nominator.team.name} cannot fill its remaining roster slots from the available player catalog.`,
+      );
+    }
+
+    if (nominator.team.isHuman) {
+      return {
+        ...nextState,
+        nextNominatorIndex: nominator.index,
+        session: {
+          ...nextState.session,
+          phase: "awaiting_human_nomination",
+          nextNominatorTeamId: nominator.team.id,
+          currentNomination: undefined,
+          canComplete: false,
+        },
+      };
+    }
+
+    const player = selectAiNomination(nextState, nominator.team);
+    nextState = {
+      ...openNomination(
+        nextState,
+        nominator.team,
+        player,
+        nextState.configuration.minimumBidDollars,
+      ),
+      nextNominatorIndex: nominator.index,
+    };
+  }
+
+  throw new GenericAuctionMockError(
+    "no_eligible_player",
+    "Auction mock could not reach another human decision or a completed roster state.",
+  );
+};
+
+const snapshotFor = (state: GenericAuctionMockState): GenericAuctionMockSnapshot => ({
+  session: {
+    status: state.session.status,
+    phase: state.session.phase,
+    nextNominatorTeamId: state.session.nextNominatorTeamId,
+    currentNomination: state.session.currentNomination,
+    nominationsCompleted: state.session.nominationsCompleted,
+    canComplete: state.session.canComplete,
+    nextNominatorIndex: state.nextNominatorIndex,
+  },
+  board: state.board,
+  teams: state.teams,
+  sales: state.sales,
+});
+
+const withDecisionSnapshot = (state: GenericAuctionMockState): GenericAuctionMockState => ({
+  ...state,
+  decisionHistory: [...state.decisionHistory, snapshotFor(state)],
+});
+
+const finalizeCommand = (
+  previousState: GenericAuctionMockState,
+  nextState: GenericAuctionMockState,
+  command: GenericAuctionMockCommand,
+): GenericAuctionMockState => ({
+  ...nextState,
+  session: {
+    ...nextState.session,
+    revision: previousState.session.revision + 1,
+    canUndo: nextState.session.status === "active" && nextState.decisionHistory.length > 0,
+    commandLog: [...previousState.session.commandLog, { ...command }],
+  },
+});
+
+const restoreLastDecision = (state: GenericAuctionMockState): GenericAuctionMockState => {
+  const snapshot = state.decisionHistory.at(-1);
+  if (snapshot === undefined) {
+    throw new GenericAuctionMockError(
+      "no_decision_to_undo",
+      "There is no confirmed human auction decision to undo.",
+    );
+  }
+
+  const remainingHistory = state.decisionHistory.slice(0, -1);
+  return {
+    ...state,
+    nextNominatorIndex: snapshot.session.nextNominatorIndex,
+    session: {
+      ...state.session,
+      status: snapshot.session.status,
+      phase: snapshot.session.phase,
+      nextNominatorTeamId: snapshot.session.nextNominatorTeamId,
+      currentNomination: snapshot.session.currentNomination,
+      nominationsCompleted: snapshot.session.nominationsCompleted,
+      canComplete: snapshot.session.canComplete,
+    },
+    board: snapshot.board,
+    teams: snapshot.teams,
+    sales: snapshot.sales,
+    decisionHistory: remainingHistory,
+  };
+};
+
+export const createGenericAuctionMockState = (
+  config: GenericAuctionMockConfig,
+): GenericAuctionMockState => {
+  assertConfiguration(config);
+  const rosterCapacity = rosterCapacityFor(config);
+
+  return {
+    configuration: config,
+    nextNominatorIndex: 0,
+    decisionHistory: [],
+    session: {
+      id: config.sessionId,
+      status: "setup",
+      phase: "not_started",
+      revision: 0,
+      seed: config.seed,
+      humanTeamId: config.humanTeamId,
+      nextNominatorTeamId: undefined,
+      currentNomination: undefined,
+      nominationsCompleted: 0,
+      canUndo: false,
+      canComplete: false,
+      commandLog: [],
+    },
+    board: {
+      players: config.players.map(player => ({
+        ...player,
+        status: "available",
+        available: true,
+      })),
+    },
+    teams: config.teams.map(team => ({
+      id: team.id,
+      name: team.name,
+      isHuman: team.id === config.humanTeamId,
+      budgetDollars: config.budgetDollars,
+      spent: 0,
+      budgetRemaining: config.budgetDollars,
+      rosterSlotsRemaining: rosterCapacity,
+      maxBid: maxBidFor(config.budgetDollars, rosterCapacity, config.minimumBidDollars),
+      positionCounts: emptyPositionCounts(config),
+      roster: [],
+      slots: buildRosterSlots(config),
+    })),
+    sales: [],
+  };
+};
+
+export const applyGenericAuctionMockCommand = (
+  state: GenericAuctionMockState,
+  command: GenericAuctionMockCommand,
+): GenericAuctionMockState => {
+  if (command.expectedRevision !== state.session.revision) {
+    throw new GenericAuctionMockError(
+      "stale_revision",
+      `Expected revision ${command.expectedRevision}, but the auction mock is at revision ${state.session.revision}.`,
+    );
+  }
+
+  if (command.type === "start") {
+    if (state.session.status !== "setup") {
+      throw new GenericAuctionMockError("invalid_status", "The auction mock has already started.");
+    }
+    const started = advanceToHumanDecision(applyKeepers({
+      ...state,
+      session: {
+        ...state.session,
+        status: "active",
+      },
+    }));
+
+    return finalizeCommand(state, started, command);
+  }
+
+  if (state.session.status !== "active") {
+    throw new GenericAuctionMockError(
+      "invalid_status",
+      "Auction decisions require an active mock draft.",
+    );
+  }
+
+  if (command.type === "undo") {
+    return finalizeCommand(state, restoreLastDecision(state), command);
+  }
+
+  if (command.type === "complete") {
+    if (!state.session.canComplete || state.teams.some(team => team.rosterSlotsRemaining > 0)) {
+      throw new GenericAuctionMockError(
+        "draft_incomplete",
+        "Every team roster must be full before completing the auction mock.",
+      );
+    }
+
+    return finalizeCommand(state, {
+      ...state,
+      decisionHistory: [],
+      session: {
+        ...state.session,
+        status: "completed",
+        phase: "completed",
+        nextNominatorTeamId: undefined,
+        currentNomination: undefined,
+        canComplete: false,
+      },
+    }, command);
+  }
+
+  if (command.type === "nominate") {
+    if (state.session.phase !== "awaiting_human_nomination") {
+      throw new GenericAuctionMockError(
+        "invalid_decision",
+        "The human team does not have the current nomination.",
+      );
+    }
+    const humanTeam = teamFor(state, state.configuration.humanTeamId);
+    const player = playerFor(state, command.playerId);
+    const openingBid = command.openingBid ?? state.configuration.minimumBidDollars;
+    const decided = withDecisionSnapshot(state);
+    const progressed = advanceToHumanDecision(openNomination(
+      decided,
+      humanTeam,
+      player,
+      openingBid,
+    ));
+
+    return finalizeCommand(state, progressed, command);
+  }
+
+  const nomination = state.session.currentNomination;
+  if (state.session.phase !== "awaiting_human_bid" || nomination === undefined) {
+    throw new GenericAuctionMockError(
+      "invalid_decision",
+      "There is no current nomination awaiting a human bid or pass.",
+    );
+  }
+
+  if (command.type === "pass") {
+    const decided = withDecisionSnapshot(state);
+    const progressed = advanceToHumanDecision({
+      ...decided,
+      session: {
+        ...decided.session,
+        currentNomination: {
+          ...nomination,
+          humanPassed: true,
+          humanCanBuy: false,
+          humanCanPass: false,
+        },
+      },
+    });
+
+    return finalizeCommand(state, progressed, command);
+  }
+
+  if (command.price < nomination.nextBid) {
+    throw new GenericAuctionMockError(
+      "invalid_price",
+      `The next bid for ${nomination.playerName} is $${nomination.nextBid}.`,
+    );
+  }
+  const humanTeam = teamFor(state, state.configuration.humanTeamId);
+  const player = playerFor(state, nomination.playerId);
+  assertCanAcquire(state, humanTeam, player, command.price);
+  const decided = withDecisionSnapshot(state);
+  const progressed = advanceToHumanDecision({
+    ...decided,
+    session: {
+      ...decided.session,
+      currentNomination: nominationFor({
+        state: decided,
+        player,
+        nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
+        highestBidderTeam: humanTeam,
+        currentPrice: command.price,
+        humanPassed: false,
+      }),
+    },
+  });
+
+  return finalizeCommand(state, progressed, command);
+};
+
+export const replayGenericAuctionMock = (
+  config: GenericAuctionMockConfig,
+  commands: readonly GenericAuctionMockCommand[],
+): GenericAuctionMockState => commands.reduce(
+  (state, command) => applyGenericAuctionMockCommand(state, command),
+  createGenericAuctionMockState(config),
+);

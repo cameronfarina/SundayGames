@@ -22,6 +22,9 @@ const platformInvitationsMigrationId = "platform-invitations-v3";
 const liveRoomSetupMigrationId = "platform-live-room-setup-v4";
 const authVersionMigrationId = "platform-auth-version-v5";
 const teamIdentitiesMigrationId = "platform-team-identities-v6";
+const leagueFormatsMigrationId = "platform-league-formats-v7";
+const authOwnershipMigrationId = "platform-auth-ownership-v8";
+const historicalPricingOwnershipMigrationId = "platform-historical-pricing-ownership-v9";
 const platformMigrationAdvisoryLockKeys = [1_297_040_203, 1_146_113_113] as const;
 
 const migrationStatementStartingWith = (prefix: string): string => {
@@ -40,6 +43,15 @@ const liveRoomSetupMigrationStatements = [
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
   migrationStatementStartingWith("CREATE UNIQUE INDEX draft_rooms_real_season_key")
     .replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"),
+] as const;
+
+const authTokenTableMigrationStatements = [
+  migrationStatementStartingWith("CREATE TABLE account_auth_tokens")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX account_auth_tokens_account_purpose_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX account_auth_tokens_expires_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ] as const;
 
 interface PlatformSchemaMigration {
@@ -105,6 +117,38 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
     statements: [
       "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS abbreviation text;",
       "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS manager_names_json jsonb NOT NULL DEFAULT '[]'::jsonb;",
+    ],
+  },
+  {
+    id: leagueFormatsMigrationId,
+    statements: [
+      "ALTER TABLE roster_rule_sets ADD COLUMN IF NOT EXISTS draft_format text NOT NULL DEFAULT 'auction';",
+      "ALTER TABLE roster_rule_sets ADD COLUMN IF NOT EXISTS snake_json jsonb;",
+      "ALTER TABLE roster_rule_sets ALTER COLUMN budget DROP NOT NULL;",
+      "ALTER TABLE roster_rule_sets ALTER COLUMN minimum_bid DROP NOT NULL;",
+      "ALTER TABLE roster_rule_sets DROP CONSTRAINT IF EXISTS roster_rule_sets_budget_check;",
+      "ALTER TABLE roster_rule_sets DROP CONSTRAINT IF EXISTS roster_rule_sets_minimum_bid_check;",
+      "ALTER TABLE roster_rule_sets DROP CONSTRAINT IF EXISTS roster_rule_sets_draft_format_check;",
+      "ALTER TABLE roster_rule_sets DROP CONSTRAINT IF EXISTS roster_rule_sets_format_settings_check;",
+      "ALTER TABLE roster_rule_sets ADD CONSTRAINT roster_rule_sets_draft_format_check CHECK (draft_format IN ('auction', 'snake'));",
+      "ALTER TABLE roster_rule_sets ADD CONSTRAINT roster_rule_sets_format_settings_check CHECK ((draft_format = 'auction' AND budget IS NOT NULL AND minimum_bid IS NOT NULL AND budget > 0 AND minimum_bid > 0 AND snake_json IS NULL) OR (draft_format = 'snake' AND budget IS NULL AND minimum_bid IS NULL AND snake_json IS NOT NULL));",
+    ],
+  },
+  {
+    id: authOwnershipMigrationId,
+    statements: [
+      "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;",
+      "UPDATE accounts SET email_verified_at = created_at WHERE email_verified_at IS NULL;",
+      ...authTokenTableMigrationStatements,
+    ],
+  },
+  {
+    id: historicalPricingOwnershipMigrationId,
+    statements: [
+      "DROP INDEX IF EXISTS leagues_provider_league_id_key;",
+      "ALTER TABLE historical_draft_sales ADD COLUMN IF NOT EXISTS public_price_dollars integer;",
+      "ALTER TABLE historical_draft_sales DROP CONSTRAINT IF EXISTS historical_draft_sales_public_price_check;",
+      "ALTER TABLE historical_draft_sales ADD CONSTRAINT historical_draft_sales_public_price_check CHECK (public_price_dollars IS NULL OR public_price_dollars > 0);",
     ],
   },
 ];

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  buildCurrentMockdLeagueSeason,
+  type AnyLeagueSeason,
+} from "../src/platform/leagueSeason.js";
 import {
   InMemoryHistoricalImportRepository,
+  type HistoricalImportPlayerCatalogEntry,
 } from "../src/platform/historicalImports.js";
 import {
   commitHistoricalImportWorkflow,
@@ -14,6 +18,12 @@ const leagueSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
   seasonYear: 2025,
   setupStatus: "locked",
 });
+
+const playerCatalog = [
+  { playerId: "player-jamarr-chase", name: "Ja'Marr Chase", position: "WR" },
+  { name: "De'Von Achane", position: "RB" },
+] as const satisfies readonly HistoricalImportPlayerCatalogEntry[];
+const camTeam = leagueSeason.teams.find(team => team.ownerDisplayName === "Cam");
 
 const sourceText = (
   overrides: {
@@ -40,6 +50,350 @@ const sourceText = (
 ].join("\n");
 
 describe("platform historical import workflow", () => {
+  it("resolves an ordinary no-ID spreadsheet row against the current catalog", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: [
+        "owner,player,position,price",
+        "Cam,Ja'Marr Chase,WR,$61",
+        "Sam,Devon Achane,RB,$50",
+      ].join("\n"),
+      playerCatalog,
+      now,
+    });
+
+    expect(preview.source.playerResolutionIssues).toEqual([]);
+    expect(preview.batch).toMatchObject({ status: "previewed", blockers: [] });
+    expect(preview.batch.rows).toEqual([
+      expect.objectContaining({
+        status: "ready",
+        record: expect.objectContaining({
+          ownerId: "owner-cam",
+          playerId: "player-jamarr-chase",
+          playerName: "Ja'Marr Chase",
+        }),
+      }),
+      expect.objectContaining({
+        status: "ready",
+        record: expect.objectContaining({
+          ownerId: "owner-sam",
+          playerId: "player-devon-achane-rb",
+          playerName: "De'Von Achane",
+        }),
+      }),
+    ]);
+  });
+
+  it.each([
+    {
+      label: "is absent from the catalog",
+      source: sourceText({ playerId: "bogus-id" }),
+      message: "Player ID \"bogus-id\" is not in the current player catalog.",
+    },
+    {
+      label: "does not match the row name",
+      source: sourceText({ player: "De'Von Achane" }),
+      message: "Player ID \"player-jamarr-chase\" belongs to Ja'Marr Chase, not \"De'Von Achane\".",
+    },
+    {
+      label: "does not match the row position",
+      source: sourceText({ position: "RB" }),
+      message: "Player ID \"player-jamarr-chase\" is a WR, not RB.",
+    },
+  ])("blocks a supplied player ID that $label", async ({ source, message }) => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: source,
+      playerCatalog,
+      now,
+    });
+
+    expect(preview.batch.status).toBe("blocked");
+    expect(preview.source.playerResolutionIssues).toEqual([
+      expect.objectContaining({
+        code: "player_unresolved",
+        rowNumber: 2,
+        message: expect.stringContaining(message),
+      }),
+    ]);
+    expect(preview.batch.rows[0]).toMatchObject({
+      status: "blocked",
+      record: null,
+      blockers: [expect.objectContaining({ code: "player_unresolved", rowNumber: 2 })],
+    });
+  });
+
+  it("blocks an ambiguous no-ID player with explicit catalog candidates", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: [
+        "owner,player,position,price",
+        "Cam,Chris Jones,WR,$4",
+      ].join("\n"),
+      playerCatalog: [
+        { playerId: "player-chris-jones-a", name: "Chris Jones", position: "WR" },
+        { playerId: "player-chris-jones-b", name: "Chris Jones", position: "WR" },
+      ],
+      now,
+    });
+
+    expect(preview.batch.status).toBe("blocked");
+    expect(preview.batch.blockers).toEqual([
+      expect.objectContaining({
+        code: "player_ambiguous",
+        rowNumber: 2,
+        candidates: [
+          expect.objectContaining({ playerId: "player-chris-jones-a" }),
+          expect.objectContaining({ playerId: "player-chris-jones-b" }),
+        ],
+      }),
+    ]);
+    expect(preview.source.playerResolutionIssues).toEqual([
+      expect.objectContaining({ code: "player_ambiguous", rowNumber: 2 }),
+    ]);
+
+    const mapped = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: [
+        "owner,player,position,price",
+        "Cam,Chris Jones,WR,$4",
+      ].join("\n"),
+      playerCatalog: [
+        { playerId: "player-chris-jones-a", name: "Chris Jones", position: "WR" },
+        { playerId: "player-chris-jones-b", name: "Chris Jones", position: "WR" },
+      ],
+      playerMappings: [{ rowNumber: 2, playerId: "player-chris-jones-b" }],
+      now,
+    });
+
+    expect(mapped.batch).toMatchObject({ status: "previewed", blockers: [] });
+    expect(mapped.batch.rows[0]?.record).toEqual(expect.objectContaining({
+      playerId: "player-chris-jones-b",
+      playerName: "Chris Jones",
+    }));
+  });
+
+  it("does not collapse duplicate catalog rows that both need generated player IDs", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: [
+        "owner,player,position,price",
+        "Cam,Chris Jones,WR,$4",
+      ].join("\n"),
+      playerCatalog: [
+        { name: "Chris Jones", position: "WR" },
+        { name: "Chris Jones", position: "WR" },
+      ],
+      now,
+    });
+
+    expect(preview.batch.blockers[0]).toEqual(expect.objectContaining({
+      code: "player_ambiguous",
+      candidates: [
+        expect.objectContaining({ playerId: "player-chris-jones-wr-1" }),
+        expect.objectContaining({ playerId: "player-chris-jones-wr-2" }),
+      ],
+    }));
+  });
+
+  it("preserves renamed historical owner labels and requires an explicit current-team mapping", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const source = [
+      "team,player,position,price",
+      "Cam's Old Team,Ja'Marr Chase,WR,$61",
+    ].join("\n");
+    const blocked = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: source,
+      playerCatalog,
+      now,
+    });
+
+    expect(blocked.batch.blockers).toEqual([
+      expect.objectContaining({ code: "owner_unknown", sourceValue: "Cam's Old Team" }),
+    ]);
+    expect(blocked.batch.rows[0]?.identityAudit).toEqual(expect.objectContaining({
+      sourceOwnerOrTeamLabel: "Cam's Old Team",
+      resolution: "unresolved",
+    }));
+
+    const mapped = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: source,
+      playerCatalog,
+      ownerMappings: [{
+        sourceOwnerOrTeamLabel: "Cam's Old Team",
+        teamId: camTeam?.id ?? "missing-team",
+      }],
+      now,
+    });
+
+    expect(mapped.batch).toMatchObject({ status: "previewed", blockers: [] });
+    expect(mapped.batch.id).toBe(blocked.batch.id);
+    expect(mapped.batch.rows[0]).toEqual(expect.objectContaining({
+      identityAudit: expect.objectContaining({
+        sourceOwnerOrTeamLabel: "Cam's Old Team",
+        resolution: "explicit",
+        mappedTeamId: camTeam?.id,
+        mappedCurrentOwnerDisplayName: "Cam",
+      }),
+      record: expect.objectContaining({
+        ownerId: "owner-cam",
+        ownerDisplayName: "Cam's Old Team",
+      }),
+    }));
+  });
+
+  it("requires an explicit mapping when an owner label matches multiple teams", async () => {
+    const cam = leagueSeason.teams.find(team => team.ownerDisplayName === "Cam");
+    const sam = leagueSeason.teams.find(team => team.ownerDisplayName === "Sam");
+    expect(cam).toBeDefined();
+    expect(sam).toBeDefined();
+    const ambiguousSeason = {
+      ...leagueSeason,
+      teams: leagueSeason.teams.map(team =>
+        team.id === sam?.id ? { ...team, managerDisplayNames: ["Cam"] } : team
+      ),
+    };
+    const repository = new InMemoryHistoricalImportRepository([ambiguousSeason]);
+    const source = [
+      "owner,player,position,price",
+      "Cam,Ja'Marr Chase,WR,$61",
+    ].join("\n");
+    const blocked = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: ambiguousSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: source,
+      playerCatalog,
+      now,
+    });
+
+    expect(blocked.batch.blockers).toEqual([
+      expect.objectContaining({
+        code: "owner_ambiguous",
+        candidates: expect.arrayContaining([
+          expect.objectContaining({ teamId: cam?.id }),
+          expect.objectContaining({ teamId: sam?.id }),
+        ]),
+      }),
+    ]);
+
+    const mapped = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: ambiguousSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: source,
+      playerCatalog,
+      ownerMappings: [{ sourceOwnerOrTeamLabel: "Cam", teamId: cam?.id ?? "missing-team" }],
+      now,
+    });
+    expect(mapped.batch).toMatchObject({ status: "previewed", blockers: [] });
+    expect(mapped.batch.rows[0]?.record).toEqual(expect.objectContaining({ ownerId: "owner-cam" }));
+  });
+
+  it("imports a prior draft year using the current season as its validation template", async () => {
+    const currentLeagueSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      seasonYear: 2026,
+      setupStatus: "draft",
+    });
+    const repository = new InMemoryHistoricalImportRepository([currentLeagueSeason]);
+
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: currentLeagueSeason.leagueId,
+      seasonYear: 2025,
+      seasonContext: { currentLeagueSeason },
+      sourceText: sourceText(),
+      now,
+    });
+    const commit = await commitHistoricalImportWorkflow({
+      repository,
+      batchId: preview.batch.id,
+      now: new Date("2026-08-09T12:01:00.000Z"),
+    });
+
+    expect(preview.batch).toMatchObject({
+      leagueId: currentLeagueSeason.leagueId,
+      leagueSeasonId: currentLeagueSeason.id,
+      seasonYear: 2025,
+      status: "previewed",
+    });
+    expect(preview.batch.warnings).toEqual([
+      expect.objectContaining({
+        code: "season_spend_mismatch",
+        message: "Imported spend is $61, expected $2800.",
+      }),
+    ]);
+    expect(commit.committedRecords).toEqual([
+      expect.objectContaining({
+        leagueSeasonId: currentLeagueSeason.id,
+        seasonYear: 2025,
+        ownerId: "owner-cam",
+      }),
+    ]);
+    expect(repository.findLeagueSeason(currentLeagueSeason.leagueId, 2025)).toBeNull();
+    expect(repository.currentRecords(currentLeagueSeason.leagueId, 2025)).toHaveLength(1);
+    expect(repository.currentRecords(currentLeagueSeason.leagueId, 2026)).toEqual([]);
+  });
+
+  it("uses a snake current-season template without calculating auction spend", async () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      seasonYear: 2026,
+      setupStatus: "draft",
+    });
+    const currentLeagueSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: auctionSeason.settings.roster.rosterSize,
+          order: auctionSeason.teams.map(team => team.id),
+          reversal: "standard",
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+    const repository = new InMemoryHistoricalImportRepository([currentLeagueSeason]);
+
+    const preview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: currentLeagueSeason.leagueId,
+      seasonYear: 2025,
+      seasonContext: { currentLeagueSeason },
+      sourceText: sourceText(),
+      now,
+    });
+
+    expect(preview.batch).toMatchObject({
+      leagueSeasonId: currentLeagueSeason.id,
+      seasonYear: 2025,
+      status: "previewed",
+      warnings: [],
+    });
+  });
+
   it("previews source text and commits the ready batch records", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 

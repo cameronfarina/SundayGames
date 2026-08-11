@@ -206,12 +206,12 @@ const sendText = (
   response.end(body);
 };
 
-const sendHtml = (response: ServerResponse): void => {
+const sendHtml = (response: ServerResponse, html: string): void => {
   response.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
   });
-  response.end(liveDraftHtml);
+  response.end(html);
 };
 
 interface YahooOAuthState {
@@ -682,6 +682,7 @@ interface MockBatchJob {
 }
 
 export interface CreateLiveDraftServerOptions {
+  workspaceHtml?: string;
   sessionDirectory?: string;
   projections?: readonly ProjectionRecord[];
   keepers?: readonly KeeperDeclaration[];
@@ -1295,6 +1296,7 @@ const mockDraftRoundForPick = (pickNumber: number): number =>
 export const createLiveDraftServer = async (
   options: CreateLiveDraftServerOptions = {},
 ): Promise<LiveDraftServerApp> => {
+  const workspaceHtml = options.workspaceHtml ?? liveDraftHtml;
   const projections = options.projections ?? (await loadEspnWeeksOneToFour(projectionPath));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
   const draftRoomRankings = options.draftRoomRankings ?? (await loadDraftRoomRankings(defaultDraftRoomRankingPath));
@@ -2289,27 +2291,27 @@ export const createLiveDraftServer = async (
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
       if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/draft-room")) {
-        sendHtml(response);
+        sendHtml(response, workspaceHtml);
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/mock-results") {
-        sendHtml(response);
+        sendHtml(response, workspaceHtml);
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/mock-simulations") {
-        sendHtml(response);
+        sendHtml(response, workspaceHtml);
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/my-expert") {
-        sendHtml(response);
+        sendHtml(response, workspaceHtml);
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/player-news") {
-        sendHtml(response);
+        sendHtml(response, workspaceHtml);
         return;
       }
 

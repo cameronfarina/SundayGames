@@ -1,4 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import { AuthError, normalizeEmail } from "./auth.js";
 import type {
   ClientAddressRateLimiter,
@@ -7,8 +8,20 @@ import type {
 import type { SessionRecord } from "./auth.js";
 import { DraftExportError } from "./draftExport.js";
 import { ExportArtifactError } from "./exportArtifacts.js";
+import type {
+  EspnLeagueSettingsImportInput,
+  EspnLeagueSettingsImportOutcome,
+} from "./espnLeagueSettingsImport.js";
 import { JobError } from "./jobs.js";
-import type { LeagueSeason } from "./leagueSeason.js";
+import {
+  confirmedLeagueCreationInputFromUnknown,
+  createLeagueSeasonFromConfirmedSetup,
+  LeagueCreationError,
+} from "./leagueCreation.js";
+import {
+  assessLeagueSeasonReadiness,
+  type LeagueSeason,
+} from "./leagueSeason.js";
 import { LeagueSetupWriteConflictError } from "./leagueSetup.js";
 import {
   LiveDraftRoomError,
@@ -17,11 +30,23 @@ import {
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
 import { formatLiveDraftRoomSsePayloads } from "./liveDraftRoomStream.js";
+import type {
+  LiveDraftRoomSetup,
+  LiveDraftRoomSetupRepository,
+} from "./liveDraftRoomSetups.js";
+import { liveDraftRoomSetupContentHash } from "./liveDraftRoomSetups.js";
 import {
   MockDraftSessionError,
   type MockDraftModeMetadata,
   type MockDraftResultReference,
+  type MockDraftSession,
 } from "./mockSessions.js";
+import {
+  createSeasonMockConfigurationSnapshot,
+  seasonMockReplayConfiguration,
+  SeasonMockConfigurationSnapshotError,
+  type SeasonMockConfigurationSnapshotV1,
+} from "./seasonMockSnapshot.js";
 import {
   createPlatformApp,
   PlatformAppError,
@@ -47,7 +72,16 @@ import {
   SimulationError,
   type SimulationStrategyInput,
 } from "./simulations.js";
-import { HistoricalImportError } from "./historicalImports.js";
+import {
+  HistoricalImportError,
+  HistoricalImportTargetError,
+  type HistoricalOwnerMapping,
+  type HistoricalSaleRecord,
+} from "./historicalImports.js";
+import {
+  historicalSpreadsheetUploadToSourceText,
+  HistoricalSpreadsheetUploadError,
+} from "./historicalSpreadsheetImport.js";
 import {
   PricingSnapshotError,
   type PricingSourcePrice,
@@ -71,6 +105,38 @@ import {
   loadPlatformOnboarding,
   type PlatformOnboardingRepository,
 } from "./platformOnboarding.js";
+import {
+  analyzeEndedLiveDraftRoomTeam,
+  PostDraftLiveRoomAdapterError,
+} from "./postDraftLiveRoomAdapter.js";
+import type { PostDraftProjectionSnapshot } from "./postDraftTeamAnalysis.js";
+import {
+  applySeasonKeeperCommand,
+  listSeasonKeepers,
+  previewSeasonKeeperCommand,
+  removeSeasonKeeper,
+  SeasonKeeperSetupError,
+} from "./seasonKeeperSetup.js";
+import {
+  buildSeasonSnakeMockConfig,
+  replaySeasonSnakeMockCommands,
+  SeasonSnakeMockError,
+} from "./seasonSnakeMock.js";
+import { SnakeDraftError, type SnakeDraftState } from "./snakeDraftEngine.js";
+import {
+  buildSeasonAuctionMockConfig,
+  replaySeasonAuctionMockCommands,
+  SeasonAuctionMockError,
+} from "./seasonAuctionMock.js";
+import {
+  GenericAuctionMockError,
+  type GenericAuctionMockState,
+} from "./genericAuctionMockEngine.js";
+import {
+  runSeasonSimulations,
+  SeasonSimulationError,
+} from "./seasonSimulationEngine.js";
+import type { SeasonSimulationRunner } from "./seasonSimulationWorkerRunner.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -82,6 +148,7 @@ export interface PlatformHttpRequest {
   headers?: Record<string, string | undefined> | undefined;
   isSecure?: boolean | undefined;
   clientAddress?: string | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 export interface PlatformHttpErrorBody {
@@ -103,6 +170,10 @@ export type PlatformHttpHandler = (request: PlatformHttpRequest) => Promise<Plat
 
 export interface PlatformHttpServices {
   onboardingRepository?: PlatformOnboardingRepository | undefined;
+  currentPlayerCatalogProvider?: (() => Promise<readonly LiveDraftRoomPlayerCatalogEntry[]>) | undefined;
+  espnLeagueSettingsImporter?: ((
+    input: EspnLeagueSettingsImportInput,
+  ) => Promise<EspnLeagueSettingsImportOutcome>) | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;
   applyAcceptedMembership?: ((result: AcceptedPlatformInvitation) => void | Promise<void>) | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
@@ -110,13 +181,26 @@ export interface PlatformHttpServices {
     playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
     initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
   } | null>) | undefined;
+  liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
+  postDraftProjectionProvider?: ((
+    season: LeagueSeason,
+    playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+    now: Date,
+  ) => Promise<PostDraftProjectionSnapshot>) | undefined;
   provisioningToken?: string | undefined;
   allowPublicSignup?: boolean | undefined;
+  emailVerificationRequired?: boolean | undefined;
   accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
   loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  verificationRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  passwordResetRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  passwordResetConsumeRateLimiter?: ClientAddressRateLimiter | undefined;
   authClientRateLimiter?: ClientAddressRateLimiter | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
+  leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
+  simulationRateLimiter?: ClientAddressRateLimiter | undefined;
+  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
 }
 
 interface ParsedPlatformHttpRequest {
@@ -128,6 +212,7 @@ interface ParsedPlatformHttpRequest {
   clientAddress: string;
   now?: Date | undefined;
   sessionToken: string;
+  signal?: AbortSignal | undefined;
 }
 
 type PublicSessionRecord = Omit<SessionRecord, "tokenHash">;
@@ -356,6 +441,7 @@ const parsedRequestFor = (request: PlatformHttpRequest): ParsedPlatformHttpReque
     clientAddress: request.clientAddress ?? "unknown",
     now: request.now,
     sessionToken: sessionTokenFor(request),
+    signal: request.signal,
   };
 };
 
@@ -491,6 +577,46 @@ const mockSessionErrorStatus = (code: MockDraftSessionError["code"]): number => 
   }
 };
 
+const snakeDraftErrorStatus = (code: SnakeDraftError["code"]): number => {
+  switch (code) {
+    case "draft_incomplete":
+    case "duplicate_player":
+    case "invalid_status":
+    case "no_pick_to_undo":
+    case "not_human_turn":
+    case "roster_limit":
+    case "stale_revision":
+      return 409;
+    case "invalid_config":
+    case "invalid_keeper":
+    case "player_not_found":
+      return 400;
+  }
+};
+
+const auctionMockErrorStatus = (code: GenericAuctionMockError["code"]): number => {
+  switch (code) {
+    case "draft_incomplete":
+    case "duplicate_player":
+    case "invalid_decision":
+    case "invalid_status":
+    case "max_bid_exceeded":
+    case "no_decision_to_undo":
+    case "no_eligible_player":
+    case "position_limit":
+    case "roster_full":
+    case "roster_limit":
+    case "stale_revision":
+      return 409;
+    case "invalid_config":
+    case "invalid_keeper":
+    case "invalid_price":
+    case "player_not_found":
+    case "team_not_found":
+      return 400;
+  }
+};
+
 const simulationErrorStatus = (code: SimulationError["code"]): number => {
   switch (code) {
     case "simulation_not_found":
@@ -525,6 +651,7 @@ const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): number => {
     case "room_already_exists":
     case "room_already_live":
     case "room_not_live":
+    case "room_not_cancellable":
     case "room_not_paused":
     case "room_paused":
     case "roster_full":
@@ -601,7 +728,7 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
   if (error instanceof AuthError) {
     const status = error.code === "auth_required"
       ? 401
-      : error.code === "invalid_current_password"
+      : error.code === "invalid_current_password" || error.code === "email_unverified"
         ? 403
         : error.code === "duplicate_email" || error.code === "password_change_conflict"
           ? 409
@@ -615,6 +742,58 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof MockDraftSessionError) {
     return knownError(mockSessionErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof SeasonMockConfigurationSnapshotError) {
+    return knownError(
+      error.code === "snapshot_migration_required" ? 409 : 400,
+      error.code,
+      error.message,
+    );
+  }
+
+  if (error instanceof SeasonSnakeMockError) {
+    const status = error.code === "human_team_missing"
+      ? 403
+      : error.code === "invalid_command_log"
+        ? 400
+        : 409;
+    return knownError(status, error.code, error.message);
+  }
+
+  if (error instanceof SeasonAuctionMockError) {
+    const status = error.code === "human_team_missing"
+      ? 403
+      : error.code === "invalid_command_log"
+        ? 400
+        : 409;
+    return knownError(status, error.code, error.message);
+  }
+
+  if (error instanceof SnakeDraftError) {
+    return knownError(snakeDraftErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof GenericAuctionMockError) {
+    return knownError(auctionMockErrorStatus(error.code), error.code, error.message);
+  }
+
+  if (error instanceof SeasonSimulationError) {
+    const status = error.code === "human_team_missing"
+      ? 403
+      : error.code === "invalid_configuration"
+        ? 409
+        : error.code === "simulation_busy" || error.code === "simulation_timeout"
+          ? 503
+          : error.code === "simulation_canceled"
+            ? 408
+        : error.code === "simulation_failed"
+          ? 500
+          : 400;
+    const response = knownError(status, error.code, error.message);
+    return error.code === "simulation_busy"
+      ? { ...response, headers: { "Retry-After": "5" } }
+      : response;
   }
 
   if (error instanceof SimulationError) {
@@ -641,6 +820,25 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
     return knownError(historicalImportErrorStatus(error.code), error.code, error.message);
   }
 
+  if (error instanceof HistoricalImportTargetError) {
+    return knownError(409, error.code, error.message);
+  }
+
+  if (error instanceof HistoricalSpreadsheetUploadError) {
+    return knownError(400, "invalid_historical_upload", error.message);
+  }
+
+  if (error instanceof SeasonKeeperSetupError) {
+    return knownError(409, error.code, error.message);
+  }
+
+  if (error instanceof PostDraftLiveRoomAdapterError) {
+    const status = error.code === "private_owner_mismatch" || error.code === "owned_team_mismatch"
+      ? 403
+      : 409;
+    return knownError(status, error.code, error.message);
+  }
+
   if (error instanceof PricingSnapshotError) {
     return knownError(409, error.code, error.message);
   }
@@ -659,6 +857,10 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof LeagueSetupWriteConflictError) {
     return knownError(409, "league_setup_write_conflict", error.message);
+  }
+
+  if (error instanceof LeagueCreationError) {
+    return knownError(400, "invalid_league_setup", error.message);
   }
 
   return {
@@ -755,6 +957,22 @@ const screenshotRateLimitResponse = (
   };
 };
 
+const actionRateLimitResponse = (
+  request: ParsedPlatformHttpRequest,
+  limiter: ClientAddressRateLimiter | undefined,
+  key: string,
+  message: string,
+): PlatformHttpResponse<PlatformHttpErrorBody> | null => {
+  const decision = limiter?.consume(key, request.now);
+  if (decision === undefined || decision.allowed) return null;
+
+  return {
+    status: 429,
+    headers: { "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))) },
+    body: { error: { code: "rate_limited", message } },
+  };
+};
+
 const routeSeasonSetupImport = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -825,29 +1043,100 @@ const routeSeasonSetupImport = async (
   return notFound();
 };
 
+const historicalOwnerMappingsFrom = (value: unknown): readonly HistoricalOwnerMapping[] =>
+  arrayValue(value).map(mappingValue => {
+    const mapping = unknownRecord(mappingValue);
+    if (mapping === null) {
+      throw new HistoricalImportTargetError("Historical owner mappings must be objects.");
+    }
+
+    return {
+      sourceOwnerOrTeamLabel: stringValue(mapping.sourceOwnerOrTeamLabel),
+      teamId: stringValue(mapping.teamId),
+    };
+  });
+
+const historicalPlayerMappingsFrom = (value: unknown): readonly { rowNumber: number; playerId: string }[] =>
+  arrayValue(value).flatMap(candidate => {
+    const mapping = unknownRecord(candidate);
+    const rowNumber = optionalNumber(mapping?.rowNumber);
+    const playerId = optionalString(mapping?.playerId);
+    if (rowNumber === undefined || !Number.isSafeInteger(rowNumber) || rowNumber < 1 || playerId === undefined) {
+      return [];
+    }
+
+    return [{ rowNumber, playerId }];
+  });
+
+const historicalDraftSetupFor = async (
+  season: LeagueSeason,
+  services: PlatformHttpServices,
+  now: Date,
+): Promise<LiveDraftRoomSetup | null> => {
+  const storedSetup = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
+  if (storedSetup !== null) return storedSetup;
+  const fallbackSetup = await services.liveDraftRoomSetupProvider?.(season) ?? null;
+  const playerCatalog = fallbackSetup?.playerCatalog
+    ?? await services.currentPlayerCatalogProvider?.()
+    ?? null;
+  if (playerCatalog !== null) {
+    const setupInput = {
+      seasonId: season.id,
+      sourceVersion: `current-catalog-${season.seasonYear}`,
+      playerCatalog,
+      initialRosters: fallbackSetup?.initialRosters ?? [],
+      updatedAt: now,
+    };
+
+    return {
+      ...setupInput,
+      contentHash: liveDraftRoomSetupContentHash(setupInput),
+    };
+  }
+
+  return null;
+};
+
 const routeSeasonHistoricalImports = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
   if (request.segments.length !== 4) return notFound();
-  if (action !== "preview") return notFound();
+  if (action !== "preview" && action !== "upload-preview") return notFound();
   if (request.method !== "POST") return methodNotAllowed();
 
+  await requireSeasonManager(app, request, seasonId ?? "");
   const season = await app.getLeagueSeason({
     actorSessionToken: request.sessionToken,
     seasonId: seasonId ?? "",
     now: request.now,
   });
-  const sourceText = optionalString(request.body.sourceText)
-    ?? optionalString(request.body.content)
-    ?? "";
+  const sourceText = action === "upload-preview"
+    ? await historicalSpreadsheetUploadToSourceText({
+        fileName: stringValue(request.body.fileName),
+        mimeType: stringValue(request.body.mimeType),
+        base64: stringValue(request.body.base64),
+      })
+    : optionalString(request.body.sourceText)
+      ?? optionalString(request.body.content)
+      ?? "";
+  const historicalSetup = await historicalDraftSetupFor(
+    season,
+    services,
+    request.now ?? new Date(),
+  );
   const result = await app.previewHistoricalImportSource({
     actorSessionToken: request.sessionToken,
     leagueId: season.leagueId,
-    seasonYear: season.seasonYear,
+    seasonYear: optionalNumber(request.body.seasonYear) ?? season.seasonYear,
+    currentSeasonId: season.id,
     sourceText,
     replacementRequested: optionalBoolean(request.body.replacementRequested),
+    ...(historicalSetup === null ? {} : { playerCatalog: historicalSetup.playerCatalog }),
+    ownerMappings: historicalOwnerMappingsFrom(request.body.ownerMappings),
+    playerMappings: historicalPlayerMappingsFrom(request.body.playerMappings),
     now: request.now,
   });
 
@@ -900,6 +1189,213 @@ const routeSeasonPricing = async (
   return notFound();
 };
 
+const seasonDraftSetupForKeeperEditing = async (
+  season: LeagueSeason,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
+  if (services.liveDraftRoomSetupRepository === undefined) {
+    return knownError(503, "keeper_setup_unavailable", "Keeper setup is unavailable.");
+  }
+  const repository = services.liveDraftRoomSetupRepository;
+  const stored = await repository.findForSeason(season.id);
+  if (stored !== null) return stored;
+  const fallback = await services.liveDraftRoomSetupProvider?.(season) ?? null;
+  if (fallback === null) {
+    return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
+  }
+  const setupInput = {
+    seasonId: season.id,
+    sourceVersion: `current-catalog-${season.seasonYear}`,
+    playerCatalog: fallback.playerCatalog,
+    initialRosters: fallback.initialRosters,
+    updatedAt: request.now ?? new Date(),
+  };
+
+  return {
+    ...setupInput,
+    contentHash: liveDraftRoomSetupContentHash(setupInput),
+  };
+};
+
+const isPlatformHttpResponse = (
+  value: LiveDraftRoomSetup | PlatformHttpResponse,
+): value is PlatformHttpResponse => "status" in value;
+
+const rebuildPricingAfterKeeperChange = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  season: LeagueSeason,
+  setup: LiveDraftRoomSetup,
+  options: {
+    preflight?: boolean;
+    historicalSaleRecords?: readonly HistoricalSaleRecord[];
+    modelVersion?: string;
+  } = {},
+): Promise<unknown | undefined> => {
+  if (season.settings.draftFormat === "snake") return undefined;
+  const keepers = listSeasonKeepers(setup);
+  const keeperPlayerKeys = new Set(keepers.map(keeper => canonicalPlayerIdentityKey(keeper.playerName)));
+
+  const input = {
+    actorSessionToken: request.sessionToken,
+    leagueId: season.leagueId,
+    seasonYear: season.seasonYear,
+    modelVersion: options.modelVersion ?? "league-history-keepers-v1",
+    scenarioIds: ["expected"],
+    baselinePrices: setup.playerCatalog
+      .filter(player => !keeperPlayerKeys.has(canonicalPlayerIdentityKey(player.name)))
+      .map(player => ({
+        name: player.name,
+        normalizedName: canonicalPlayerIdentityKey(player.name),
+        position: player.position,
+        price: player.expectedPrice,
+      })),
+    currentKeeperCount: keepers.length,
+    keeperLockedSpend: keepers.reduce((total, keeper) => total + keeper.price, 0),
+    now: request.now,
+    ...(options.historicalSaleRecords === undefined
+      ? {}
+      : { historicalSaleRecords: options.historicalSaleRecords }),
+  };
+
+  return options.preflight === true
+    ? await app.preflightLeaguePricing(input)
+    : await app.rebuildLeaguePricing(input);
+};
+
+const routeSeasonKeepers = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse> => {
+  const [, seasonId, , action] = request.segments;
+  if (request.segments.length !== 3 && request.segments.length !== 4) return notFound();
+  const season = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId: seasonId ?? "",
+    now: request.now,
+  });
+  const setup = await seasonDraftSetupForKeeperEditing(season, request, services);
+  if (isPlatformHttpResponse(setup)) return setup;
+  const repository = services.liveDraftRoomSetupRepository;
+  if (repository === undefined) {
+    return knownError(503, "keeper_setup_unavailable", "Keeper setup is unavailable.");
+  }
+
+  if (request.segments.length === 3 && request.method === "GET") {
+    return { status: 200, body: { keepers: listSeasonKeepers(setup) } };
+  }
+
+  await requireSeasonManager(app, request, season.id);
+  if (await app.hasLiveDraftRoomForSeason(season.id)) {
+    return knownError(409, "keeper_setup_locked", "Keepers are locked after the live draft room is created.");
+  }
+
+  if (request.segments.length === 4 && action === "preview") {
+    if (request.method !== "POST") return methodNotAllowed();
+    const result = previewSeasonKeeperCommand({
+      season,
+      playerCatalog: setup.playerCatalog,
+      command: stringValue(request.body.command),
+    });
+
+    return { status: result.kind === "preview" ? 200 : 422, body: result };
+  }
+
+  if (request.segments.length === 4 && action === "apply") {
+    if (request.method !== "POST") return methodNotAllowed();
+    if (request.body.confirmed !== true) {
+      return knownError(400, "keeper_confirmation_required", "Review and confirm this keeper before applying it.");
+    }
+    const preview = previewSeasonKeeperCommand({
+      season,
+      playerCatalog: setup.playerCatalog,
+      command: stringValue(request.body.command),
+    });
+    if (preview.kind === "error") return { status: 422, body: preview };
+    const proposedInput = applySeasonKeeperCommand({
+      season,
+      setup,
+      preview,
+      now: request.now,
+    });
+    const proposed = {
+      ...proposedInput,
+      contentHash: liveDraftRoomSetupContentHash(proposedInput),
+      updatedAt: proposedInput.updatedAt ?? request.now ?? new Date(),
+    };
+    await rebuildPricingAfterKeeperChange(app, request, season, proposed, { preflight: true });
+    const saved = await repository.save(proposed);
+    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, saved);
+
+    return {
+      status: 200,
+      body: {
+        preview,
+        keepers: listSeasonKeepers(saved),
+        ...(pricing === undefined ? {} : { pricing }),
+      },
+    };
+  }
+
+  if (request.segments.length === 3 && request.method === "DELETE") {
+    const proposedInput = removeSeasonKeeper(setup, {
+      teamId: stringValue(request.body.teamId),
+      playerId: stringValue(request.body.playerId),
+      now: request.now,
+    });
+    const proposed = {
+      ...proposedInput,
+      contentHash: liveDraftRoomSetupContentHash(proposedInput),
+      updatedAt: proposedInput.updatedAt ?? request.now ?? new Date(),
+    };
+    await rebuildPricingAfterKeeperChange(app, request, season, proposed, { preflight: true });
+    const saved = await repository.save(proposed);
+    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, saved);
+
+    return {
+      status: 200,
+      body: {
+        keepers: listSeasonKeepers(saved),
+        ...(pricing === undefined ? {} : { pricing }),
+      },
+    };
+  }
+
+  return methodNotAllowed();
+};
+
+const liveRoomCatalogForSeason = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  season: LeagueSeason,
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
+  if (season.settings.draftFormat !== "auction") return playerCatalog;
+  const snapshots = await app.listLeaguePricingSnapshots({
+    actorSessionToken: request.sessionToken,
+    leagueId: season.leagueId,
+    seasonYear: season.seasonYear,
+    scenarioId: "expected",
+    now: request.now,
+  });
+  const rowsByPlayer = new Map(
+    (snapshots.at(-1)?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
+  );
+
+  return playerCatalog.map(player => {
+    const pricing = rowsByPlayer.get(canonicalPlayerIdentityKey(player.name));
+    if (pricing === undefined) return player;
+
+    return {
+      ...player,
+      marketPrice: player.expectedPrice,
+      expectedPrice: Math.max(1, Math.round(pricing.personalValue)),
+    };
+  });
+};
+
 const routeSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -920,22 +1416,87 @@ const routeSeason = async (
   }
 
   if (seasonAction === "historical-imports") {
-    return await routeSeasonHistoricalImports(app, request);
+    return await routeSeasonHistoricalImports(app, request, services);
   }
 
   if (seasonAction === "pricing" || seasonAction === "pricing-snapshots") {
     return await routeSeasonPricing(app, request);
   }
 
-  if (seasonAction === "live-room" && request.segments.length === 3) {
-    if (request.method !== "POST") return methodNotAllowed();
+  if (seasonAction === "keepers") {
+    return await routeSeasonKeepers(app, request, services);
+  }
 
+  if (seasonAction === "publish" && request.segments.length === 3) {
+    if (request.method !== "POST") return methodNotAllowed();
     await requireSeasonManager(app, request, seasonId ?? "");
     const season = await app.getLeagueSeason({
       actorSessionToken: request.sessionToken,
       seasonId: seasonId ?? "",
       now: request.now,
     });
+    if (season.setupStatus === "published") return { status: 200, body: { season } };
+    if (request.body.confirmed !== true) {
+      return knownError(
+        400,
+        "season_review_confirmation_required",
+        "Review teams, scoring, roster rules, draft history, and keepers before publishing.",
+      );
+    }
+    const readiness = assessLeagueSeasonReadiness(season);
+    if (!readiness.canPublish) {
+      return knownError(
+        409,
+        "season_not_ready",
+        readiness.blockers[0] ?? "Resolve league setup blockers before publishing.",
+      );
+    }
+    const publishedSeason = await app.registerLeagueSeason({
+      actorSessionToken: request.sessionToken,
+      season: { ...season, setupStatus: "published" },
+      memberships: await app.listLeagueMemberships(season.leagueId),
+      membershipWriteMode: "preserve",
+      now: request.now,
+    });
+
+    return { status: 200, body: { season: publishedSeason } };
+  }
+
+  if (seasonAction === "live-room" && request.segments.length === 3) {
+    await requireSeasonManager(app, request, seasonId ?? "");
+    const season = await app.getLeagueSeason({
+      actorSessionToken: request.sessionToken,
+      seasonId: seasonId ?? "",
+      now: request.now,
+    });
+    if (request.method === "DELETE") {
+      const roomId = `room-${season.id}-real`;
+      const room = await app.getLiveDraftRoom({
+        actorSessionToken: request.sessionToken,
+        roomId,
+        now: request.now,
+      });
+      if (room.seasonId !== season.id) {
+        return knownError(409, "season_room_mismatch", "That draft room does not belong to this season.");
+      }
+      await app.cancelLiveDraftRoom({
+        actorSessionToken: request.sessionToken,
+        roomId,
+        expectedRevision: room.revision,
+        idempotencyKey: `cancel:${roomId}:${room.revision}`,
+        now: request.now,
+      });
+
+      return { status: 200, body: { ok: true } };
+    }
+    if (request.method !== "POST") return methodNotAllowed();
+    if (season.settings.draftFormat === "snake") {
+      return knownError(
+        409,
+        "snake_live_room_unavailable",
+        "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+      );
+    }
     const startsAt = dateValue(request.body.startsAt);
     if (request.body.startsAt !== undefined && startsAt === undefined) {
       return knownError(400, "invalid_draft_time", "Choose a valid draft date and time.");
@@ -948,13 +1509,14 @@ const routeSeason = async (
         "Publish this season's player catalog and keepers before creating its live room.",
       );
     }
+    const playerCatalog = await liveRoomCatalogForSeason(app, request, season, setup.playerCatalog);
     const room = await app.createLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       seasonId: season.id,
       roomId: `room-${season.id}-real`,
       viewerPasswordHashRef: `account-membership:${season.id}`,
       ...(startsAt === undefined ? {} : { startsAt }),
-      playerCatalog: setup.playerCatalog,
+      playerCatalog,
       initialRosters: setup.initialRosters,
       now: request.now,
     });
@@ -984,8 +1546,19 @@ const routeSeason = async (
       seasonId: seasonId ?? "",
       now: request.now,
     });
+    const claimedTeamIds = new Set(
+      (await app.listLeagueMemberships(season.leagueId))
+        .map(membership => membership.teamId)
+        .filter((teamId): teamId is string => teamId !== undefined),
+    );
 
-    return { status: 200, body: { season } };
+    return {
+      status: 200,
+      body: {
+        season,
+        claimableTeams: season.teams.filter(team => !claimedTeamIds.has(team.id)),
+      },
+    };
   }
 
   if (request.method === "PUT") {
@@ -998,6 +1571,7 @@ const routeSeason = async (
 const routeSimulations = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [, runId, action] = request.segments;
 
@@ -1045,6 +1619,14 @@ const routeSimulations = async (
 
   if (request.segments.length === 3 && action === "execute") {
     if (request.method !== "POST") return methodNotAllowed();
+    const account = await requireRequestAccount(app, request);
+    const limited = actionRateLimitResponse(
+      request,
+      services.simulationRateLimiter,
+      `${account.id}:legacy-simulation`,
+      "Too many simulation runs. Try again later.",
+    );
+    if (limited !== null) return limited;
 
     const simulation = await app.executeSimulationRun({
       actorSessionToken: request.sessionToken,
@@ -1074,16 +1656,63 @@ const routeSimulations = async (
 const routeHistoricalImports = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [, batchId, action] = request.segments;
   if (request.segments.length !== 3 || action !== "commit") return notFound();
   if (request.method !== "POST") return methodNotAllowed();
 
+  const seasonId = stringValue(request.body.seasonId).trim();
+  const historicalSeasonYear = optionalNumber(request.body.seasonYear) ?? Number.NaN;
+  if (seasonId.length === 0 || !Number.isInteger(historicalSeasonYear)) {
+    return knownError(
+      400,
+      "historical_import_target_required",
+      "Choose the league season and historical draft year before importing.",
+    );
+  }
+  const season = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  });
+  const setup = season.settings.draftFormat === "auction"
+    ? await historicalDraftSetupFor(season, services, request.now ?? new Date())
+    : null;
+
+  const prepared = await app.prepareHistoricalImportCommit({
+    actorSessionToken: request.sessionToken,
+    batchId: batchId ?? "",
+    expectedLeagueId: season.leagueId,
+    expectedLeagueSeasonId: season.id,
+    expectedSeasonYear: historicalSeasonYear,
+    pricingSeasonYear: season.seasonYear,
+    now: request.now,
+  });
+
+  if (season.settings.draftFormat !== "snake" && setup !== null) {
+    await rebuildPricingAfterKeeperChange(app, request, season, setup, {
+      preflight: true,
+      historicalSaleRecords: prepared.projectedHistoricalSaleRecords,
+      modelVersion: "league-history-v1",
+    });
+  }
+
   const result = await app.commitHistoricalImport({
     actorSessionToken: request.sessionToken,
     batchId: batchId ?? "",
+    expectedLeagueId: season.leagueId,
+    expectedLeagueSeasonId: season.id,
+    expectedSeasonYear: historicalSeasonYear,
     now: request.now,
   });
+
+  if (season.settings.draftFormat !== "snake" && setup !== null) {
+    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, setup, {
+      modelVersion: "league-history-v1",
+    });
+    return { status: 200, body: { ...result, pricing } };
+  }
 
   return { status: 200, body: result };
 };
@@ -1234,6 +1863,348 @@ const routeMockSessions = async (
   return notFound();
 };
 
+interface SeasonMockDraftContext {
+  membership: PlatformLeagueMembership & { ownerId: string; teamId: string };
+  season: LeagueSeason;
+  setup: LiveDraftRoomSetup;
+}
+
+const seasonMockConfigurationSnapshotFor = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  context: SeasonMockDraftContext,
+): Promise<SeasonMockConfigurationSnapshotV1> => {
+  const snapshots = context.season.settings.draftFormat === "auction"
+    ? await app.listLeaguePricingSnapshots({
+        actorSessionToken: request.sessionToken,
+        leagueId: context.season.leagueId,
+        seasonYear: context.season.seasonYear,
+        scenarioId: "expected",
+        now: request.now,
+      })
+    : [];
+  const playerExpectedPrices = Object.fromEntries(
+    (snapshots.at(-1)?.rows ?? []).map(row => [
+      canonicalPlayerIdentityKey(row.playerName),
+      row.personalValue,
+    ]),
+  );
+  return createSeasonMockConfigurationSnapshot({
+    season: context.season,
+    setup: context.setup,
+    humanTeamId: context.membership.teamId,
+    playerExpectedPrices,
+    capturedAt: request.now,
+  });
+};
+
+const seasonMockDraftSetupFor = async (
+  season: LeagueSeason,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
+  const stored = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
+  if (stored !== null) return stored;
+  const fallback = await services.liveDraftRoomSetupProvider?.(season) ?? null;
+  if (fallback === null) {
+    return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
+  }
+  const setupInput = {
+    seasonId: season.id,
+    sourceVersion: `current-catalog-${season.seasonYear}`,
+    playerCatalog: fallback.playerCatalog,
+    initialRosters: fallback.initialRosters,
+    updatedAt: request.now ?? new Date(),
+  };
+
+  return {
+    ...setupInput,
+    contentHash: liveDraftRoomSetupContentHash(setupInput),
+  };
+};
+
+const seasonMockDraftContextFor = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+  seasonId: string,
+): Promise<SeasonMockDraftContext | PlatformHttpResponse> => {
+  const account = await requireRequestAccount(app, request);
+  const season = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  });
+  const membership = (await app.listLeagueMemberships(season.leagueId))
+    .find(candidate => candidate.userId === account.id);
+  if (membership?.ownerId === undefined || membership.teamId === undefined) {
+    throw new PlatformAppError("team_claim_required", "Claim your team before starting a mock draft.");
+  }
+  const setup = await seasonMockDraftSetupFor(season, request, services);
+  if (isPlatformHttpResponse(setup)) return setup;
+
+  return {
+    membership: { ...membership, ownerId: membership.ownerId, teamId: membership.teamId },
+    season,
+    setup,
+  };
+};
+
+const isSeasonMockDraftContext = (
+  value: SeasonMockDraftContext | PlatformHttpResponse,
+): value is SeasonMockDraftContext => "membership" in value;
+
+const findSeasonMockDraftSession = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  context: SeasonMockDraftContext,
+  sessionId: string,
+): Promise<MockDraftSession> => {
+  const sessions = await app.listMockDraftSessions({
+    actorSessionToken: request.sessionToken,
+    leagueId: context.season.leagueId,
+    seasonId: context.season.id,
+    ownerId: context.membership.ownerId,
+    teamId: context.membership.teamId,
+    now: request.now,
+  });
+  const session = sessions.find(candidate => candidate.id === sessionId);
+  if (session === undefined) {
+    throw new MockDraftSessionError("session_not_found", "Mock draft session was not found.");
+  }
+
+  return session;
+};
+
+const snakeStateForSeasonMock = (
+  context: SeasonMockDraftContext,
+  session: MockDraftSession,
+  additionalCommand?: string,
+): SnakeDraftState => {
+  const config = buildSeasonSnakeMockConfig({
+    season: context.season,
+    setup: context.setup,
+    humanTeamId: context.membership.teamId,
+    sessionId: session.id,
+    seed: session.id,
+  });
+  const commandLog = session.commandLog.map(command => command.command);
+
+  return replaySeasonSnakeMockCommands(
+    config,
+    additionalCommand === undefined ? commandLog : [...commandLog, additionalCommand],
+  );
+};
+
+const auctionStateForSeasonMock = async (
+  context: SeasonMockDraftContext,
+  session: MockDraftSession,
+  playerExpectedPrices: Readonly<Record<string, number>>,
+  additionalCommand?: string,
+): Promise<GenericAuctionMockState> => {
+  const config = buildSeasonAuctionMockConfig({
+    season: context.season,
+    setup: context.setup,
+    humanTeamId: context.membership.teamId,
+    sessionId: session.id,
+    seed: session.id,
+    playerExpectedPrices,
+  });
+  const commandLog = session.commandLog.map(command => command.command);
+
+  return replaySeasonAuctionMockCommands(
+    config,
+    additionalCommand === undefined ? commandLog : [...commandLog, additionalCommand],
+  );
+};
+
+const stateForSeasonMock = async (
+  context: SeasonMockDraftContext,
+  session: MockDraftSession,
+  additionalCommand?: string,
+): Promise<SnakeDraftState | GenericAuctionMockState> => {
+  const snapshot = seasonMockReplayConfiguration(session.configurationSnapshot);
+  const replayContext = {
+    ...context,
+    membership: { ...context.membership, teamId: snapshot.humanTeamId },
+    season: snapshot.season,
+    setup: snapshot.setup,
+  };
+  return snapshot.season.settings.draftFormat === "snake"
+    ? snakeStateForSeasonMock(replayContext, session, additionalCommand)
+    : await auctionStateForSeasonMock(
+        replayContext,
+        session,
+        snapshot.playerExpectedPrices,
+        additionalCommand,
+      );
+};
+
+const serializedSeasonMockCommand = (value: unknown): string => {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    throw new SeasonSnakeMockError("invalid_command_log", "Snake mock command log is invalid.");
+  }
+
+  return serialized;
+};
+
+const routeSeasonMockDrafts = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse> => {
+  const [, sessionId, action] = request.segments;
+  const seasonId = request.segments.length === 1
+    ? stringValue(request.body.seasonId)
+    : request.method === "GET"
+      ? stringValue(request.query.seasonId)
+      : stringValue(request.body.seasonId);
+  const context = await seasonMockDraftContextFor(app, request, services, seasonId);
+  if (!isSeasonMockDraftContext(context)) return context;
+
+  if (request.segments.length === 1) {
+    if (request.method !== "POST") return methodNotAllowed();
+    const mockSession = await app.createMockDraftSession({
+      actorSessionToken: request.sessionToken,
+      leagueId: context.season.leagueId,
+      seasonId: context.season.id,
+      ownerId: context.membership.ownerId,
+      teamId: context.membership.teamId,
+      draftMode: {
+        format: context.season.settings.draftFormat,
+        mockCount: 1,
+        label: `${context.season.league.name} mock draft`,
+      },
+      configurationSnapshot: await seasonMockConfigurationSnapshotFor(app, request, context),
+      status: "setup",
+      now: request.now,
+    });
+
+    return {
+      status: 201,
+      body: { mockSession, state: await stateForSeasonMock(context, mockSession) },
+    };
+  }
+
+  const mockSession = await findSeasonMockDraftSession(app, request, context, sessionId ?? "");
+  if (request.segments.length === 2) {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    return {
+      status: 200,
+      body: { mockSession, state: await stateForSeasonMock(context, mockSession) },
+    };
+  }
+
+  if (request.segments.length === 3 && action === "commands") {
+    if (request.method !== "POST") return methodNotAllowed();
+    const command = serializedSeasonMockCommand(request.body.command);
+    const commandId = stringValue(request.body.commandId).trim();
+    const idempotencyKey = optionalString(request.body.idempotencyKey)?.trim() || commandId;
+    const storedRetry = await app.findStoredMockDraftCommandForRetry({
+      actorSessionToken: request.sessionToken,
+      sessionId: mockSession.id,
+      commandId,
+      command,
+      idempotencyKey,
+      now: request.now,
+    });
+    if (storedRetry !== undefined) {
+      return {
+        status: 200,
+        body: {
+          mockSession: storedRetry.session,
+          state: await stateForSeasonMock(context, storedRetry.session),
+        },
+      };
+    }
+    const state = await stateForSeasonMock(context, mockSession, command);
+    let updatedMockSession = await app.appendMockDraftCommand({
+      actorSessionToken: request.sessionToken,
+      sessionId: mockSession.id,
+      expectedRevision: mockSession.revision,
+      expectedCommandCount: mockSession.commandLog.length,
+      commandId,
+      command,
+      idempotencyKey,
+      now: request.now,
+    });
+    if (state.session.status === "completed") {
+      updatedMockSession = await app.completeMockDraftSession({
+        actorSessionToken: request.sessionToken,
+        sessionId: updatedMockSession.id,
+        expectedRevision: updatedMockSession.revision,
+        now: request.now,
+      });
+    }
+
+    return { status: 200, body: { mockSession: updatedMockSession, state } };
+  }
+
+  return notFound();
+};
+
+const routeSeasonSimulations = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse> => {
+  if (request.segments.length !== 1 || request.method !== "POST") {
+    return request.segments.length === 1 ? methodNotAllowed() : notFound();
+  }
+  const runCount = optionalNumber(request.body.count) ?? Number.NaN;
+  if (!Number.isInteger(runCount) || runCount < 1 || runCount > 25) {
+    throw new SeasonSimulationError(
+      "invalid_run_count",
+      "Simulation run count must be a whole number from 1 through 25.",
+    );
+  }
+  const context = await seasonMockDraftContextFor(
+    app,
+    request,
+    services,
+    stringValue(request.body.seasonId),
+  );
+  if (!isSeasonMockDraftContext(context)) return context;
+  const limited = actionRateLimitResponse(
+    request,
+    services.simulationRateLimiter,
+    `${context.membership.userId}:season-simulation`,
+    "Too many simulation runs. Try again later.",
+  );
+  if (limited !== null) return limited;
+  const snapshots = context.season.settings.draftFormat === "auction"
+    ? await app.listLeaguePricingSnapshots({
+        actorSessionToken: request.sessionToken,
+        leagueId: context.season.leagueId,
+        seasonYear: context.season.seasonYear,
+        scenarioId: "expected",
+        now: request.now,
+      })
+    : [];
+  const playerExpectedPrices = Object.fromEntries(
+    (snapshots.at(-1)?.rows ?? []).map(row => [
+      canonicalPlayerIdentityKey(row.playerName),
+      row.personalValue,
+    ]),
+  );
+  const simulationInput = {
+    season: context.season,
+    setup: context.setup,
+    humanTeamId: context.membership.teamId,
+    runCount,
+    strategyInput: optionalString(request.body.strategy) ?? "",
+    seedPrefix: `season-simulation:${context.season.id}:${randomUUID()}`,
+    ...(context.season.settings.draftFormat === "auction" ? { playerExpectedPrices } : {}),
+  };
+  const simulation = services.seasonSimulationRunner === undefined
+    ? runSeasonSimulations(simulationInput)
+    : await services.seasonSimulationRunner(simulationInput, { signal: request.signal });
+
+  return { status: 200, body: { simulation } };
+};
+
 const routeLiveRooms = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -1274,6 +2245,46 @@ const routeLiveRooms = async (
   }
 
   if (request.segments.length !== 3) return notFound();
+
+  if (action === "my-team") {
+    if (request.method !== "GET") return methodNotAllowed();
+    if (services.postDraftProjectionProvider === undefined) {
+      return knownError(503, "post_draft_analysis_unavailable", "My Team analysis is unavailable.");
+    }
+    const account = await requireRequestAccount(app, request);
+    const room = await app.getLiveDraftRoom({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      now: request.now,
+    });
+    const membership = (await app.listLeagueMemberships(room.leagueId))
+      .find(candidate => candidate.userId === account.id);
+    if (membership?.ownerId === undefined || membership.teamId === undefined) {
+      throw new PlatformAppError("private_team_required", "Claim your team before opening My Team.");
+    }
+    const evaluatedAt = request.now ?? new Date();
+    const projectionSnapshot = await services.postDraftProjectionProvider(
+      room.season,
+      room.playerCatalog,
+      evaluatedAt,
+    );
+    const result = analyzeEndedLiveDraftRoomTeam({
+      room,
+      ownership: {
+        userId: account.id,
+        privateOwnerUserId: account.id,
+        leagueId: room.leagueId,
+        seasonId: room.seasonId,
+        teamId: membership.teamId,
+        ownerId: membership.ownerId,
+      },
+      projectionSnapshot,
+      evaluatedAt,
+      currentWeek: projectionSnapshot.metadata.week ?? 1,
+    });
+
+    return { status: 200, body: result };
+  }
 
   if (action === "state") {
     if (request.method !== "GET") return methodNotAllowed();
@@ -1720,10 +2731,88 @@ export const createPlatformHttpHandler = (
         const account = await app.createAccount({
           email: stringValue(parsedRequest.body.email),
           password: stringValue(parsedRequest.body.password),
+          verificationReturnTo: optionalString(parsedRequest.body.returnTo),
           now: parsedRequest.now,
         });
 
-        return { status: 201, body: { account } };
+        return services.emailVerificationRequired === true
+          ? {
+              status: 202,
+              body: {
+                accepted: true,
+                message: "If this email can be registered, a verification link is on its way.",
+              },
+            }
+          : { status: 201, body: { account } };
+      }
+
+      if (root === "email-verifications" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const rateLimited = authRateLimitResponse(
+          stringValue(parsedRequest.body.email),
+          parsedRequest,
+          services.verificationRateLimiter,
+          services.authClientRateLimiter,
+        );
+        if (rateLimited !== null) return rateLimited;
+        await app.requestEmailVerification({
+          email: stringValue(parsedRequest.body.email),
+          verificationReturnTo: optionalString(parsedRequest.body.returnTo),
+          now: parsedRequest.now,
+        });
+        return {
+          status: 202,
+          body: {
+            accepted: true,
+            message: "If this email is awaiting verification, a new link is on its way.",
+          },
+        };
+      }
+
+      if (root === "email-verifications" && parsedRequest.segments[1] === "consume") {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        await app.verifyEmail({ token: stringValue(parsedRequest.body.token), now: parsedRequest.now });
+        return { status: 200, body: { verified: true } };
+      }
+
+      if (root === "password-resets" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const rateLimited = authRateLimitResponse(
+          stringValue(parsedRequest.body.email),
+          parsedRequest,
+          services.passwordResetRateLimiter,
+          services.authClientRateLimiter,
+        );
+        if (rateLimited !== null) return rateLimited;
+        await app.requestPasswordReset({
+          email: stringValue(parsedRequest.body.email),
+          now: parsedRequest.now,
+        });
+        return {
+          status: 202,
+          body: {
+            accepted: true,
+            message: "If an account exists for this email, a password reset link is on its way.",
+          },
+        };
+      }
+
+      if (root === "password-resets" && parsedRequest.segments[1] === "consume") {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const limited = actionRateLimitResponse(
+          parsedRequest,
+          services.passwordResetConsumeRateLimiter,
+          parsedRequest.clientAddress,
+          "Too many password reset attempts. Try again later.",
+        );
+        if (limited !== null) return limited;
+        await app.resetPasswordWithToken({
+          token: stringValue(parsedRequest.body.token),
+          newPassword: stringValue(parsedRequest.body.newPassword),
+          newPasswordConfirmation: stringValue(parsedRequest.body.newPasswordConfirmation),
+          now: parsedRequest.now,
+        });
+        return { status: 200, body: { reset: true } };
       }
 
       if (root === "sessions" && parsedRequest.segments.length === 1) {
@@ -1830,13 +2919,154 @@ export const createPlatformHttpHandler = (
       if (root === "onboarding") {
         return await routeOnboarding(app, parsedRequest, services.onboardingRepository);
       }
+      if (root === "player-catalog" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method !== "GET") return methodNotAllowed();
+        const account = await requireRequestAccount(app, parsedRequest);
+        if (services.currentPlayerCatalogProvider === undefined) {
+          return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
+        }
+        const players = await services.currentPlayerCatalogProvider();
+        const seasonId = optionalString(parsedRequest.query.seasonId);
+        if (seasonId === undefined) return { status: 200, body: { players } };
+        const season = await app.getLeagueSeason({
+          actorSessionToken: parsedRequest.sessionToken,
+          seasonId,
+          now: parsedRequest.now,
+        });
+        if (season.settings.draftFormat === "snake") {
+          return {
+            status: 200,
+            body: {
+              draftFormat: "snake",
+              personalized: false,
+              players: players.map((player, index) => ({
+                ...player,
+                marketRank: index + 1,
+                leagueRank: index + 1,
+              })),
+            },
+          };
+        }
+        const snapshots = await app.listLeaguePricingSnapshots({
+          actorSessionToken: parsedRequest.sessionToken,
+          leagueId: season.leagueId,
+          seasonYear: season.seasonYear,
+          scenarioId: "expected",
+          now: parsedRequest.now,
+        });
+        const latest = snapshots.at(-1);
+        const pricingByPlayer = new Map(
+          (latest?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
+        );
+
+        return {
+          status: 200,
+          body: {
+            draftFormat: "auction",
+            personalized: latest !== undefined,
+            ...(latest === undefined ? {} : { pricingModelRunId: latest.modelRunId }),
+            players: players.map(player => {
+              const pricing = pricingByPlayer.get(canonicalPlayerIdentityKey(player.name));
+
+              return {
+                ...player,
+                marketPrice: player.expectedPrice,
+                leagueValue: pricing?.personalValue ?? player.expectedPrice,
+                recommendedMaxBid: pricing?.recommendedMaxBid ?? player.expectedPrice,
+                pricingWarnings: pricing?.warnings ?? [],
+              };
+            }),
+          },
+        };
+      }
+      if (
+        root === "league-imports" &&
+        parsedRequest.segments.length === 3 &&
+        parsedRequest.segments[1] === "espn" &&
+        parsedRequest.segments[2] === "review"
+      ) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const account = await requireRequestAccount(app, parsedRequest);
+        if (services.espnLeagueSettingsImporter === undefined) {
+          return knownError(503, "league_import_unavailable", "ESPN league import is unavailable.");
+        }
+        const season = optionalNumber(parsedRequest.body.season);
+        if (season === undefined || !Number.isSafeInteger(season) || season <= 0) {
+          return knownError(400, "invalid_season", "Choose a valid ESPN season.");
+        }
+        const limited = actionRateLimitResponse(
+          parsedRequest,
+          services.leagueImportRateLimiter,
+          `${account.id}:espn-review`,
+          "Too many ESPN league checks. Try again later.",
+        );
+        if (limited !== null) return limited;
+
+        return {
+          status: 200,
+          body: await services.espnLeagueSettingsImporter({
+            leagueIdOrUrl: stringValue(parsedRequest.body.leagueIdOrUrl),
+            season,
+          }),
+        };
+      }
+      if (
+        root === "league-imports" &&
+        parsedRequest.segments.length === 3 &&
+        parsedRequest.segments[1] === "espn" &&
+        parsedRequest.segments[2] === "members-screenshot-review"
+      ) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const account = await requireRequestAccount(app, parsedRequest);
+        const analyzer = services.leagueMembersScreenshotAnalyzer;
+        if (analyzer === undefined) {
+          return knownError(503, "screenshot_import_unavailable", "Screenshot import is not configured.");
+        }
+        const limited = screenshotRateLimitResponse(
+          parsedRequest,
+          services.screenshotImportRateLimiter,
+          `${account.id}:league-create`,
+        );
+        if (limited !== null) return limited;
+
+        return {
+          status: 200,
+          body: {
+            import: await analyzer.analyze({
+              mimeType: optionalString(parsedRequest.body.mimeType) ?? "",
+              base64: optionalString(parsedRequest.body.base64) ?? "",
+            }),
+          },
+        };
+      }
+      if (root === "leagues" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const account = await requireRequestAccount(app, parsedRequest);
+        const season = createLeagueSeasonFromConfirmedSetup(
+          confirmedLeagueCreationInputFromUnknown(parsedRequest.body.setup),
+        );
+        const registeredSeason = await app.registerLeagueSeason({
+          actorSessionToken: parsedRequest.sessionToken,
+          season,
+          memberships: [{
+            userId: account.id,
+            leagueId: season.leagueId,
+            role: "owner",
+          }],
+          now: parsedRequest.now,
+        });
+
+        return { status: 201, body: { season: registeredSeason } };
+      }
       if (root === "invitations") return await routeInvitations(app, parsedRequest, services);
       if (root === "seasons") return await routeSeason(app, parsedRequest, services);
-      if (root === "simulations") return routeSimulations(app, parsedRequest);
-      if (root === "historical-imports") return await routeHistoricalImports(app, parsedRequest);
+      if (root === "simulations") return routeSimulations(app, parsedRequest, services);
+      if (root === "historical-imports") return await routeHistoricalImports(app, parsedRequest, services);
       if (root === "pricing-snapshots") return await routePricingSnapshots(app, parsedRequest);
       if (root === "jobs") return await routeJobs(app, parsedRequest);
       if (root === "mock-sessions") return await routeMockSessions(app, parsedRequest);
+      if (root === "season-mock-drafts") return await routeSeasonMockDrafts(app, parsedRequest, services);
+      if (root === "season-simulations") return await routeSeasonSimulations(app, parsedRequest, services);
       if (root === "live-rooms") return await routeLiveRooms(app, parsedRequest, services);
 
       return notFound();

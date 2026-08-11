@@ -47,6 +47,7 @@ interface HistoricalSaleRow {
   player_name: string;
   position: string;
   price_dollars: number;
+  public_price_dollars: number | null;
   keeper: boolean;
   acquisition_type: string;
   row_number: number;
@@ -145,6 +146,9 @@ const saleRecordFromRow = (row: HistoricalSaleRow): HistoricalSaleRecord => ({
   playerName: row.player_name,
   position: row.position as HistoricalSaleRecord["position"],
   priceDollars: Number(row.price_dollars),
+  ...(row.public_price_dollars === null
+    ? {}
+    : { publicPriceDollars: Number(row.public_price_dollars) }),
   keeper: row.keeper,
   acquisitionType: row.acquisition_type as HistoricalSaleRecord["acquisitionType"],
 });
@@ -182,6 +186,7 @@ SELECT
   historical_draft_sales.player_name,
   historical_draft_sales.position,
   historical_draft_sales.price_dollars,
+  historical_draft_sales.public_price_dollars,
   historical_draft_sales.keeper,
   historical_draft_sales.acquisition_type,
   historical_draft_sales.row_number
@@ -304,10 +309,11 @@ INSERT INTO historical_draft_sales (
   player_name,
   position,
   price_dollars,
+  public_price_dollars,
   keeper,
   acquisition_type,
   row_number
-) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT ON CONSTRAINT historical_draft_sales_batch_row_key DO NOTHING;
 `.trim(),
         [
@@ -322,6 +328,7 @@ ON CONFLICT ON CONSTRAINT historical_draft_sales_batch_row_key DO NOTHING;
           record.playerName,
           record.position,
           record.priceDollars,
+          record.publicPriceDollars ?? null,
           record.keeper,
           record.acquisitionType,
           record.rowNumber,

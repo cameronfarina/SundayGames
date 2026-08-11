@@ -95,38 +95,28 @@ describe("Render production blueprint", () => {
     expect(envFor(web!, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY")?.value)
       .toBe("/var/lib/mockd/draft-tools");
     expect(envFor(web!, "MOCKD_LIVE_DRAFT_DATA_MODE")?.value).toBe("postgres");
-    expect(envFor(web!, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("false");
+    expect(envFor(web!, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("true");
+    expect(envFor(web!, "MOCKD_AUTH_EMAIL_MODE")?.value).toBe("resend");
+    expect(envFor(web!, "RESEND_API_KEY")).toEqual({ key: "RESEND_API_KEY", sync: false });
+    expect(envFor(web!, "MOCKD_EMAIL_FROM")).toEqual({ key: "MOCKD_EMAIL_FROM", sync: false });
+    expect(envFor(web!, "MOCKD_PUBLIC_BASE_URL")).toEqual({ key: "MOCKD_PUBLIC_BASE_URL", sync: false });
     expect(envFor(web!, "MOCKD_TRUST_PROXY")?.value).toBe("true");
     expect(envFor(web!, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
     expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("openai");
     expect(envFor(web!, "OPENAI_API_KEY")).toEqual({ key: "OPENAI_API_KEY", sync: false });
   });
 
-  it("deploys the simulation worker against the same database", async () => {
+  it("does not deploy the legacy fixture-backed simulation worker", async () => {
     const blueprint = await loadBlueprint();
     const worker = blueprint.services.find(service => service.name === "mockd-worker");
 
-    expect(worker).toEqual(expect.objectContaining({
-      type: "worker",
-      runtime: "docker",
-      plan: "starter",
-      region: "virginia",
-      autoDeployTrigger: "off",
-      preDeployCommand: "npm run platform:migrate",
-      dockerCommand: "node dist/src/platform/startPlatformWorker.js",
-    }));
-    expect(envFor(worker!, "DATABASE_URL")?.fromDatabase).toEqual({
-      name: "mockd-postgres",
-      property: "connectionString",
-    });
-    expect(envFor(worker!, "MOCKD_WORKER_JOB_KINDS")?.value).toBe("simulation");
-    expect(envFor(worker!, "MOCKD_SIMULATION_DATA_MODE")?.value).toBe("local-fixtures");
-    expect(envFor(worker!, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
+    expect(worker).toBeUndefined();
+    expect(blueprint.services).toHaveLength(1);
   });
 
-  it("contains no provisioning secret or public-signup escape hatch", async () => {
+  it("contains no provisioning or password secrets", async () => {
     const blueprintText = await readFile("render.yaml", "utf8");
 
-    expect(blueprintText).not.toMatch(/PROVISIONING_TOKEN|PASSWORD_HASH|ALLOW_PUBLIC_SIGNUP:\s*true/i);
+    expect(blueprintText).not.toMatch(/PROVISIONING_TOKEN|PASSWORD_HASH/i);
   });
 });

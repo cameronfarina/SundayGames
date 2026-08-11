@@ -50,6 +50,7 @@ interface SaleRow {
   player_name: string;
   position: string;
   price_dollars: number;
+  public_price_dollars: number | null;
   keeper: boolean;
   acquisition_type: string;
   row_number: number;
@@ -238,6 +239,7 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
         playerName,
         position,
         priceDollars,
+        publicPriceDollars,
         keeper,
         acquisitionType,
         rowNumber,
@@ -253,6 +255,7 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
         string,
         string,
         number,
+        number | null,
         boolean,
         string,
         number,
@@ -270,6 +273,7 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
           player_name: playerName,
           position,
           price_dollars: priceDollars,
+          public_price_dollars: publicPriceDollars,
           keeper,
           acquisition_type: acquisitionType,
           row_number: rowNumber,
@@ -358,6 +362,7 @@ const row = (
     playerId,
     position: "WR",
     priceDollars: 61,
+    publicPriceDollars: 54,
     playerResolution: { status: "resolved", playerId },
     keeper: false,
     acquisitionType: "auction",
@@ -402,6 +407,7 @@ describe("Postgres historical import repository", () => {
         batchId: preview.id,
         playerId: "player-jamarr-chase",
         priceDollars: 61,
+        publicPriceDollars: 54,
       }),
     ] satisfies HistoricalSaleRecord[]);
   });

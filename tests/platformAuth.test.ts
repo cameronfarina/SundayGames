@@ -93,6 +93,7 @@ describe("platform auth foundation", () => {
     expect(account).toEqual({
       id: expect.stringMatching(/^acct_/),
       email: "cameron.farina+mockd@example.com",
+      emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     });

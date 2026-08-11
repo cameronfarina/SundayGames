@@ -1,6 +1,7 @@
 import type { Position } from "../../config/league.js";
 import type {
   AuctionSettings,
+  ExplicitLeagueSeasonSettings,
   FantasyTeam,
   KeeperPolicy,
   League,
@@ -11,6 +12,12 @@ import type {
   LineupSettings,
   RosterMaximums,
   RosterRules,
+  ScoringSettings,
+  SnakeSettings,
+} from "./leagueSeason.js";
+import {
+  defaultScoringSettings,
+  normalizeLeagueSeasonSettings,
 } from "./leagueSeason.js";
 import {
   type ClaimLeagueSeasonTeamRepositoryInput,
@@ -37,10 +44,13 @@ interface LeagueSeasonRow {
   league_name: string;
   provider: string | null;
   provider_league_id: string | null;
+  draft_format: string | null;
   budget: number | null;
   minimum_bid: number | null;
+  snake_json: unknown;
   slots_json: unknown;
   position_maximums_json: unknown;
+  scoring_json: unknown;
 }
 
 interface FantasyTeamRow {
@@ -107,6 +117,8 @@ const isTeamClaimUniqueViolation = (error: unknown): boolean =>
   "constraint" in error &&
   error.code === "23505" &&
   error.constraint === teamClaimUniqueConstraint;
+
+class TeamClaimUnavailableError extends Error {}
 
 const jsonbParameter = (value: unknown): string => JSON.stringify(value);
 
@@ -229,6 +241,31 @@ const keeperPolicyFromDb = (value: unknown): KeeperPolicy => {
   return { ...defaultKeeperPolicy };
 };
 
+const scoringFromDb = (value: unknown): ScoringSettings => {
+  const record = jsonObjectFromDb(value);
+
+  return {
+    passingYards: numberFromObject(record, "passingYards", defaultScoringSettings.passingYards),
+    passingTouchdown: numberFromObject(record, "passingTouchdown", defaultScoringSettings.passingTouchdown),
+    rushingYards: numberFromObject(record, "rushingYards", defaultScoringSettings.rushingYards),
+    rushingTouchdown: numberFromObject(record, "rushingTouchdown", defaultScoringSettings.rushingTouchdown),
+    receivingYards: numberFromObject(record, "receivingYards", defaultScoringSettings.receivingYards),
+    receivingTouchdown: numberFromObject(record, "receivingTouchdown", defaultScoringSettings.receivingTouchdown),
+    reception: numberFromObject(record, "reception", defaultScoringSettings.reception),
+  };
+};
+
+const snakeSettingsFromDb = (value: unknown): SnakeSettings => {
+  const record = jsonObjectFromDb(value);
+  const reversal = record.reversal === "third-round" ? "third-round" : "standard";
+
+  return {
+    rounds: numberFromObject(record, "rounds", 0),
+    order: stringArrayFromDb(record.order),
+    reversal,
+  };
+};
+
 const draftScheduleFromDb = (value: unknown): LeagueSeasonDraftSchedule | undefined => {
   const record = jsonObjectFromDb(value);
   const draft = jsonObjectFromDb(record.draft);
@@ -281,10 +318,13 @@ SELECT
   l.name AS league_name,
   l.provider,
   l.provider_league_id,
+  r.draft_format,
   r.budget,
   r.minimum_bid,
+  r.snake_json,
   r.slots_json,
-  r.position_maximums_json
+  r.position_maximums_json,
+  r.scoring_json
 FROM league_seasons s
 JOIN leagues l ON l.id = s.league_id
 LEFT JOIN roster_rule_sets r ON r.league_season_id = s.id
@@ -300,6 +340,7 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
   async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): Promise<LeagueSeason> {
     const now = input.now ?? new Date();
     const season = cloneJson(input.season);
+    season.settings = normalizeLeagueSeasonSettings(season.settings);
 
     return await this.#client.transaction(async transactionClient => {
       if (input.expectedSetupRevision !== undefined) {
@@ -392,7 +433,7 @@ RETURNING owner_user_id, team_key AS owner_id, id AS team_id;
           [input.seasonId, input.teamId, input.ownerId, input.userId, now],
         );
         const claim = firstRow(claimedResult);
-        if (claim === undefined) return null;
+        if (claim === undefined) throw new TeamClaimUnavailableError();
 
         return {
           userId: membership.user_id,
@@ -403,7 +444,7 @@ RETURNING owner_user_id, team_key AS owner_id, id AS team_id;
         };
       });
     } catch (error) {
-      if (isTeamClaimUniqueViolation(error)) return null;
+      if (error instanceof TeamClaimUnavailableError || isTeamClaimUniqueViolation(error)) return null;
 
       throw error;
     }
@@ -643,28 +684,36 @@ WHERE league_season_id = $1;
 INSERT INTO roster_rule_sets (
   id,
   league_season_id,
+  draft_format,
   budget,
   minimum_bid,
+  snake_json,
   slots_json,
   position_maximums_json,
   scoring_json,
   created_at,
   updated_at
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, '{}'::jsonb, $7, $7)
+) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, $10)
 ON CONFLICT ON CONSTRAINT roster_rule_sets_league_season_key DO UPDATE SET
+  draft_format = EXCLUDED.draft_format,
   budget = EXCLUDED.budget,
   minimum_bid = EXCLUDED.minimum_bid,
+  snake_json = EXCLUDED.snake_json,
   slots_json = EXCLUDED.slots_json,
   position_maximums_json = EXCLUDED.position_maximums_json,
+  scoring_json = EXCLUDED.scoring_json,
   updated_at = EXCLUDED.updated_at;
 `.trim(),
       [
         rosterRuleSetIdFor(season.id),
         season.id,
-        season.settings.auction.budgetDollars,
-        season.settings.auction.minimumBidDollars,
+        season.settings.draftFormat,
+        season.settings.draftFormat === "auction" ? season.settings.auction.budgetDollars : null,
+        season.settings.draftFormat === "auction" ? season.settings.auction.minimumBidDollars : null,
+        season.settings.draftFormat === "snake" ? jsonbParameter(season.settings.snake) : null,
         jsonbParameter(slotsJsonFor(season.settings.roster)),
         jsonbParameter(season.settings.roster.rosterMaximums),
+        jsonbParameter(season.settings.scoring),
         now,
       ],
     );
@@ -731,10 +780,6 @@ INSERT INTO league_memberships (
       lineupSlotCount,
       rosterMaximums: rosterMaximumsFromDb(row.position_maximums_json),
     };
-    const auction: AuctionSettings = {
-      budgetDollars: row.budget ?? 200,
-      minimumBidDollars: row.minimum_bid ?? 1,
-    };
     const league: League = {
       id: row.league_id,
       externalLeagueId: row.provider_league_id ?? row.league_id,
@@ -742,6 +787,29 @@ INSERT INTO league_memberships (
       provider: providerFromDb(row.provider),
     };
     const draft = draftScheduleFromDb(row.settings_json);
+    const expectedTeamCount = numberFromObject(settingsJson, "expectedTeamCount", teams.length);
+    const scoring = scoringFromDb(row.scoring_json);
+    const keeperPolicy = keeperPolicyFromDb(settingsJson);
+    const settings: ExplicitLeagueSeasonSettings = row.draft_format === "snake"
+      ? {
+        expectedTeamCount,
+        draftFormat: "snake",
+        scoring,
+        snake: snakeSettingsFromDb(row.snake_json),
+        roster,
+        keeperPolicy,
+      }
+      : {
+        expectedTeamCount,
+        draftFormat: "auction",
+        scoring,
+        auction: {
+          budgetDollars: row.budget ?? 200,
+          minimumBidDollars: row.minimum_bid ?? 1,
+        } satisfies AuctionSettings,
+        roster,
+        keeperPolicy,
+      };
 
     return {
       id: row.id,
@@ -749,12 +817,7 @@ INSERT INTO league_memberships (
       leagueId: row.league_id,
       seasonYear: Number(row.season_year),
       teams,
-      settings: {
-        expectedTeamCount: numberFromObject(settingsJson, "expectedTeamCount", teams.length),
-        auction,
-        roster,
-        keeperPolicy: keeperPolicyFromDb(settingsJson),
-      },
+      settings,
       setupStatus: statusFromDb(row.status),
       ...(draft === undefined ? {} : { draft }),
     };

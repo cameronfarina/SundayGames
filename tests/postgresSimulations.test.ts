@@ -422,7 +422,7 @@ describe("Postgres simulation repository", () => {
 
     await expect(repository.createRequest({
       ...baseRequestInput,
-      count: 50,
+      count: 24,
       createdAt: new Date(now.getTime() + 1_000),
     })).rejects.toThrow(new SimulationError(
       "idempotency_conflict",

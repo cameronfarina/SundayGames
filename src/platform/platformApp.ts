@@ -4,9 +4,15 @@ import {
   type AccountCredentialRecord,
   type AccountRecord,
   type AuthRepository,
+  type AuthMailSender,
+  type AcceptedAuthRequest,
   type CreateUserInput,
   type LoginInput,
   type LoginResult,
+  type RequestEmailVerificationInput,
+  type RequestPasswordResetInput,
+  type ResetPasswordWithTokenInput,
+  type VerifyEmailInput,
   type PasswordReplacementResult,
   type SessionRecord,
 } from "./auth.js";
@@ -27,10 +33,14 @@ import {
 } from "./exportArtifacts.js";
 import {
   InMemoryHistoricalImportRepository,
+  prepareHistoricalImportBatchCommit,
   type HistoricalImportBatch,
+  type HistoricalImportPlayerCatalogEntry,
   type HistoricalImportRepository,
+  type HistoricalOwnerMapping,
   type HistoricalSaleRecord,
 } from "./historicalImports.js";
+import type { HistoricalPlayerMapping } from "./platformHistoricalImportWorkflow.js";
 import {
   InMemoryJobQueue,
   jobRerunIdempotencyKeyFor,
@@ -48,6 +58,7 @@ import {
 } from "./leagueSetup.js";
 import {
   InMemoryLiveDraftRoomRepository,
+  LiveDraftRoomError,
   type CreateLiveDraftRoomInput,
   type LiveDraftRoom,
   type LiveDraftRoomInitialRosterPlayer,
@@ -65,10 +76,13 @@ import {
 import {
   InMemoryMockDraftSessionRepository,
   type AppendMockDraftCommandInput,
+  type FindStoredMockDraftCommandForRetryInput,
   type MockDraftSession,
   type MockDraftModeMetadata,
   type MockDraftResultReference,
+  type StoredMockDraftCommandRetry,
 } from "./mockSessions.js";
+import type { SeasonMockConfigurationSnapshotV1 } from "./seasonMockSnapshot.js";
 import {
   InMemorySimulationRepository,
   executeSimulationRun,
@@ -91,6 +105,8 @@ import {
   listLeaguePricingSnapshotsWorkflow,
   readLatestPricingSnapshotWorkflow,
   rebuildLeaguePricingWorkflow,
+  preflightLeaguePricingWorkflow,
+  type PreflightLeaguePricingWorkflowResult,
   type RebuildLeaguePricingWorkflowResult,
 } from "./platformPricingWorkflow.js";
 import {
@@ -246,15 +262,31 @@ export interface PreviewPlatformHistoricalImportInput {
   actorSessionToken: string;
   leagueId: string;
   seasonYear: number;
+  currentSeasonId?: string | undefined;
   sourceText: string;
   replacementRequested?: boolean | undefined;
+  playerCatalog?: readonly HistoricalImportPlayerCatalogEntry[] | undefined;
+  ownerMappings?: readonly HistoricalOwnerMapping[] | undefined;
+  playerMappings?: readonly HistoricalPlayerMapping[] | undefined;
   now?: Date | undefined;
 }
 
 export interface CommitPlatformHistoricalImportInput {
   actorSessionToken: string;
   batchId: string;
+  expectedLeagueId?: string | undefined;
+  expectedLeagueSeasonId?: string | undefined;
+  expectedSeasonYear?: number | undefined;
   now?: Date | undefined;
+}
+
+export interface PreparePlatformHistoricalImportCommitInput extends CommitPlatformHistoricalImportInput {
+  pricingSeasonYear: number;
+}
+
+export interface PreparePlatformHistoricalImportCommitResult {
+  batch: HistoricalImportBatch;
+  projectedHistoricalSaleRecords: readonly HistoricalSaleRecord[];
 }
 
 export interface RebuildPlatformPricingInput {
@@ -264,8 +296,13 @@ export interface RebuildPlatformPricingInput {
   modelVersion: string;
   scenarioIds: readonly string[];
   baselinePrices: readonly PricingSourcePrice[];
+  currentKeeperCount?: number | undefined;
+  keeperLockedSpend?: number | undefined;
+  historicalSaleRecords?: readonly HistoricalSaleRecord[] | undefined;
   now?: Date | undefined;
 }
+
+export interface PreflightPlatformPricingInput extends RebuildPlatformPricingInput {}
 
 export interface ListPlatformPricingSnapshotsInput {
   actorSessionToken: string;
@@ -285,6 +322,7 @@ export interface GetPlatformPricingSnapshotInput {
 
 export interface CreatePlatformMockDraftSessionInput extends PrivateTeamContextInput {
   draftMode: MockDraftModeMetadata;
+  configurationSnapshot?: SeasonMockConfigurationSnapshotV1 | undefined;
   status?: "setup" | "active" | undefined;
 }
 
@@ -302,10 +340,26 @@ export interface AppendPlatformMockDraftCommandInput extends Omit<AppendMockDraf
   now?: Date | undefined;
 }
 
+export interface FindStoredPlatformMockDraftCommandForRetryInput extends Omit<
+  FindStoredMockDraftCommandForRetryInput,
+  "userId"
+> {
+  actorSessionToken: string;
+  now?: Date | undefined;
+}
+
 export interface ResetPlatformMockDraftSessionInput {
   actorSessionToken: string;
   sessionId: string;
   expectedRevision: number;
+  now?: Date | undefined;
+}
+
+export interface CompletePlatformMockDraftSessionInput {
+  actorSessionToken: string;
+  sessionId: string;
+  expectedRevision: number;
+  latestResultRef?: MockDraftResultReference | undefined;
   now?: Date | undefined;
 }
 
@@ -365,6 +419,11 @@ export interface CreatePlatformLiveDraftExportArtifactInput extends ExportPlatfo
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
   authRepository?: AuthRepository | undefined;
+  authEmail?: {
+    verificationRequired: boolean;
+    mailSender?: AuthMailSender | undefined;
+    publicBaseUrl?: string | undefined;
+  } | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
@@ -660,6 +719,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
 export const createPlatformApp = ({
   store = new InMemoryPlatformStore(),
   authRepository,
+  authEmail,
   leagueSetupRepository,
   historicalImportRepository,
   jobRepository,
@@ -671,7 +731,12 @@ export const createPlatformApp = ({
   const runtimeAuthRepository = authRepository ?? store.authRepository;
   const leagueSetup = leagueSetupRepository ?? store;
   const historicalImports = historicalImportRepository ?? store.historicalImports;
-  const auth = createAuthService({ repository: runtimeAuthRepository });
+  const auth = createAuthService({
+    repository: runtimeAuthRepository,
+    emailVerificationRequired: authEmail?.verificationRequired ?? false,
+    ...(authEmail?.mailSender === undefined ? {} : { mailSender: authEmail.mailSender }),
+    ...(authEmail?.publicBaseUrl === undefined ? {} : { publicBaseUrl: authEmail.publicBaseUrl }),
+  });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
   const liveDraftRooms = liveDraftRoomRepository ?? store.liveDraftRooms;
@@ -929,6 +994,21 @@ export const createPlatformApp = ({
 
       return login === null ? null : cloneForRead(login);
     },
+
+    requestEmailVerification: async (
+      input: RequestEmailVerificationInput,
+    ): Promise<AcceptedAuthRequest> => await auth.requestEmailVerification(input),
+
+    verifyEmail: async (input: VerifyEmailInput): Promise<AccountRecord> =>
+      cloneForRead(await auth.verifyEmail(input)),
+
+    requestPasswordReset: async (
+      input: RequestPasswordResetInput,
+    ): Promise<AcceptedAuthRequest> => await auth.requestPasswordReset(input),
+
+    resetPasswordWithToken: async (
+      input: ResetPasswordWithTokenInput,
+    ): Promise<PasswordReplacementResult> => cloneForRead(await auth.resetPasswordWithToken(input)),
 
     findAccountByEmail: async (email: string): Promise<AccountRecord | null> => {
       const credential = await runtimeAuthRepository.findAccountCredentialByEmail(email.trim().toLowerCase());
@@ -1223,16 +1303,27 @@ export const createPlatformApp = ({
       input: PreviewPlatformHistoricalImportInput,
     ): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
-      await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      const currentLeagueSeason = input.currentSeasonId === undefined
+        ? await requireSeasonForLeagueYear(input.leagueId, input.seasonYear)
+        : await requireSeason(input.currentSeasonId);
+      if (currentLeagueSeason.leagueId !== input.leagueId) {
+        throw new PlatformAppError("season_not_found", "League season was not found.");
+      }
       await requireSharedMutation(account, input.leagueId);
 
       return cloneForRead(await previewHistoricalImportSourceWorkflow({
         repository: historicalImports,
         leagueId: input.leagueId,
         seasonYear: input.seasonYear,
+        ...(input.currentSeasonId === undefined
+          ? {}
+          : { seasonContext: { currentLeagueSeason } }),
         sourceText: input.sourceText,
         uploadedByUserId: account.id,
         ...(input.replacementRequested === undefined ? {} : { replacementRequested: input.replacementRequested }),
+        ...(input.playerCatalog === undefined ? {} : { playerCatalog: input.playerCatalog }),
+        ...(input.ownerMappings === undefined ? {} : { ownerMappings: input.ownerMappings }),
+        ...(input.playerMappings === undefined ? {} : { playerMappings: input.playerMappings }),
         ...(input.now === undefined ? {} : { now: input.now }),
       }));
     },
@@ -1250,7 +1341,73 @@ export const createPlatformApp = ({
       return cloneForRead(await commitHistoricalImportWorkflow({
         repository: historicalImports,
         batchId: input.batchId,
+        ...(input.expectedLeagueId === undefined ? {} : { expectedLeagueId: input.expectedLeagueId }),
+        ...(input.expectedLeagueSeasonId === undefined
+          ? {}
+          : { expectedLeagueSeasonId: input.expectedLeagueSeasonId }),
+        ...(input.expectedSeasonYear === undefined ? {} : { expectedSeasonYear: input.expectedSeasonYear }),
         ...(input.now === undefined ? {} : { now: input.now }),
+      }));
+    },
+
+    prepareHistoricalImportCommit: async (
+      input: PreparePlatformHistoricalImportCommitInput,
+    ): Promise<PreparePlatformHistoricalImportCommitResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const prepared = await prepareHistoricalImportBatchCommit({
+        repository: historicalImports,
+        batchId: input.batchId,
+        ...(input.expectedLeagueId === undefined ? {} : { expectedLeagueId: input.expectedLeagueId }),
+        ...(input.expectedLeagueSeasonId === undefined
+          ? {}
+          : { expectedLeagueSeasonId: input.expectedLeagueSeasonId }),
+        ...(input.expectedSeasonYear === undefined ? {} : { expectedSeasonYear: input.expectedSeasonYear }),
+      });
+      await requireSharedMutation(account, prepared.batch.leagueId);
+      const currentRecords = await historicalImports.currentRecordsThroughSeason(
+        prepared.batch.leagueId,
+        input.pricingSeasonYear,
+      );
+
+      return cloneForRead({
+        batch: prepared.batch,
+        projectedHistoricalSaleRecords: [
+          ...currentRecords.filter(record => record.seasonYear !== prepared.batch.seasonYear),
+          ...prepared.committedRecords,
+        ],
+      });
+    },
+
+    preflightLeaguePricing: async (
+      input: PreflightPlatformPricingInput,
+    ): Promise<PreflightLeaguePricingWorkflowResult> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const season = await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
+      await requireSharedMutation(account, input.leagueId);
+      if (season.settings.draftFormat === "snake") {
+        throw new PlatformAppError(
+          "shared_mutation_denied",
+          "Auction price rebuilding is not available for snake league seasons.",
+        );
+      }
+      const historicalSaleRecords = input.historicalSaleRecords
+        ?? await historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear);
+
+      return cloneForRead(preflightLeaguePricingWorkflow({
+        repository: store.pricingSnapshots,
+        leagueId: input.leagueId,
+        seasonYear: input.seasonYear,
+        modelVersion: input.modelVersion,
+        scenarioIds: input.scenarioIds,
+        baselinePrices: input.baselinePrices,
+        historicalSaleRecords,
+        currentAuctionBudget: season.settings.auction.budgetDollars,
+        currentTeamCount: season.teams.length,
+        currentRosterSize: season.settings.roster.rosterSize,
+        currentMinimumBidDollars: season.settings.auction.minimumBidDollars,
+        currentKeeperCount: input.currentKeeperCount ?? 0,
+        keeperLockedSpend: input.keeperLockedSpend ?? 0,
+        ...(input.now === undefined ? {} : { createdAt: input.now.toISOString() }),
       }));
     },
 
@@ -1261,7 +1418,14 @@ export const createPlatformApp = ({
       const season = await requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
       await requireSharedMutation(account, input.leagueId);
 
-      const historicalSaleRecords = await historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear);
+      const historicalSaleRecords = input.historicalSaleRecords
+        ?? await historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear);
+      if (season.settings.draftFormat === "snake") {
+        throw new PlatformAppError(
+          "shared_mutation_denied",
+          "Auction price rebuilding is not available for snake league seasons.",
+        );
+      }
 
       return cloneForRead(rebuildLeaguePricingWorkflow({
         repository: store.pricingSnapshots,
@@ -1273,7 +1437,10 @@ export const createPlatformApp = ({
         historicalSaleRecords,
         currentAuctionBudget: season.settings.auction.budgetDollars,
         currentTeamCount: season.teams.length,
-        keeperLockedSpend: 0,
+        currentRosterSize: season.settings.roster.rosterSize,
+        currentMinimumBidDollars: season.settings.auction.minimumBidDollars,
+        currentKeeperCount: input.currentKeeperCount ?? 0,
+        keeperLockedSpend: input.keeperLockedSpend ?? 0,
         ...(input.now === undefined ? {} : { createdAt: input.now.toISOString() }),
       }));
     },
@@ -1319,6 +1486,7 @@ export const createPlatformApp = ({
         ownerId: input.ownerId,
         teamId: input.teamId,
         draftMode: input.draftMode,
+        configurationSnapshot: input.configurationSnapshot,
         status: input.status,
         now: input.now,
       }));
@@ -1371,6 +1539,23 @@ export const createPlatformApp = ({
       }));
     },
 
+    findStoredMockDraftCommandForRetry: async (
+      input: FindStoredPlatformMockDraftCommandForRetryInput,
+    ): Promise<StoredMockDraftCommandRetry | undefined> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      await requirePrivateTeamContext(account, session);
+      const retry = store.mockDraftSessions.findStoredCommandForRetry({
+        userId: account.id,
+        sessionId: input.sessionId,
+        commandId: input.commandId,
+        command: input.command,
+        idempotencyKey: input.idempotencyKey,
+      });
+
+      return retry === undefined ? undefined : cloneForRead(retry);
+    },
+
     resetMockDraftSession: async (input: ResetPlatformMockDraftSessionInput): Promise<MockDraftSession> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
@@ -1380,6 +1565,23 @@ export const createPlatformApp = ({
         userId: account.id,
         sessionId: input.sessionId,
         expectedRevision: input.expectedRevision,
+        now: input.now,
+      }));
+    },
+
+    completeMockDraftSession: async (
+      input: CompletePlatformMockDraftSessionInput,
+    ): Promise<MockDraftSession> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      await requirePrivateTeamContext(account, session);
+      const latestResultRef = await requireReadableMockDraftResultReference(account, input.latestResultRef);
+
+      return cloneForRead(store.mockDraftSessions.markCompleted({
+        userId: account.id,
+        sessionId: input.sessionId,
+        expectedRevision: input.expectedRevision,
+        latestResultRef,
         now: input.now,
       }));
     },
@@ -1403,6 +1605,35 @@ export const createPlatformApp = ({
 
     hasLiveDraftRoomForSeason: async (seasonId: string): Promise<boolean> =>
       await liveDraftRooms.hasRoomForSeason(seasonId),
+
+    cancelLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<void> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      let room: LiveDraftRoom;
+      try {
+        room = await liveDraftRooms.getRoom(input.roomId);
+      } catch (error) {
+        if (error instanceof LiveDraftRoomError && error.code === "room_not_found") {
+          await liveDraftRooms.cancelRoom({
+            roomId: input.roomId,
+            actor: { userId: account.id, leagueId: "" },
+            expectedRevision: input.expectedRevision,
+            idempotencyKey: input.idempotencyKey,
+            now: input.now,
+          });
+          return;
+        }
+        throw error;
+      }
+      const membership = await requireSharedMutation(account, room.leagueId);
+
+      await liveDraftRooms.cancelRoom({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      });
+    },
 
     getLiveDraftRoom: async (input: GetPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);

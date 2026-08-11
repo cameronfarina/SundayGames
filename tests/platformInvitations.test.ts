@@ -83,14 +83,21 @@ describe("platform invitations", () => {
       tokenFactory: () => "raw invite token",
     });
 
-    await expect(acceptPlatformInvitation(repository, {
-      token: "raw invite token",
-      account: { id: "acct_other", email: "other@example.com" },
-      now,
-    })).rejects.toThrow(new PlatformInvitationError(
-      "invitation_email_mismatch",
-      "Sign in with seth@example.com to accept this invitation.",
-    ));
+    let mismatchError: unknown;
+    try {
+      await acceptPlatformInvitation(repository, {
+        token: "raw invite token",
+        account: { id: "acct_other", email: "other@example.com" },
+        now,
+      });
+    } catch (error) {
+      mismatchError = error;
+    }
+    expect(mismatchError).toMatchObject({
+      code: "invitation_email_mismatch",
+      message: "This invitation cannot be accepted by the signed-in account.",
+    });
+    expect((mismatchError as Error).message).not.toContain(invitationInput.email);
     await expect(acceptPlatformInvitation(repository, {
       token: "raw invite token",
       account: { id: "acct_seth", email: "seth@example.com" },

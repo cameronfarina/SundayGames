@@ -11,6 +11,7 @@ type HistoricalImportSourceColumn =
   | "player"
   | "position"
   | "price"
+  | "publicPrice"
   | "seasonYear"
   | "playerId"
   | "keeper"
@@ -20,6 +21,7 @@ export type HistoricalImportSourceWarningCode =
   | "duplicate_header"
   | "invalid_acquisition_type"
   | "invalid_keeper"
+  | "invalid_public_price"
   | "invalid_season_year"
   | "malformed_row"
   | "required_header_missing"
@@ -62,6 +64,7 @@ const sourceColumns = [
   "player",
   "position",
   "price",
+  "publicPrice",
   "seasonYear",
   "playerId",
   "keeper",
@@ -74,6 +77,14 @@ const headerAliases: Record<HistoricalImportSourceColumn, ReadonlySet<string>> =
   player: new Set(["player", "playername", "name"]),
   position: new Set(["pos", "position"]),
   price: new Set(["price", "amount", "cost", "salary"]),
+  publicPrice: new Set([
+    "publicvalue",
+    "marketvalue",
+    "projectedvalue",
+    "espnvalue",
+    "espnaav",
+    "aav",
+  ]),
   seasonYear: new Set(["year", "season", "seasonyear"]),
   playerId: new Set(["playerid", "espnid"]),
   keeper: new Set(["keeper", "iskeeper"]),
@@ -344,6 +355,8 @@ const rowFor = (
   const playerId = cellValue(row, headerMap, "playerId");
   const position = cellValue(row, headerMap, "position");
   const priceDollars = parsePriceDollars(cellValue(row, headerMap, "price"));
+  const publicPriceValue = cellValue(row, headerMap, "publicPrice");
+  const publicPriceDollars = parsePriceDollars(publicPriceValue);
   const seasonYearValue = cellValue(row, headerMap, "seasonYear");
   const seasonYear = parseIntegerCell(seasonYearValue);
   const keeperValue = cellValue(row, headerMap, "keeper");
@@ -356,6 +369,7 @@ const rowFor = (
   if (playerId.length > 0) sourceRow.playerId = playerId;
   if (position.length > 0) sourceRow.position = position;
   if (priceDollars !== undefined) sourceRow.priceDollars = priceDollars;
+  if (publicPriceDollars !== undefined) sourceRow.publicPriceDollars = publicPriceDollars;
   if (seasonYear !== undefined) sourceRow.seasonYear = seasonYear;
   if (keeper !== undefined) sourceRow.keeper = keeper;
   if (acquisitionType !== undefined) sourceRow.acquisitionType = acquisitionType;
@@ -366,6 +380,15 @@ const rowFor = (
       `Row ${row.rowNumber} has an invalid season year "${seasonYearValue}".`,
       row.rowNumber,
       "seasonYear",
+    ));
+  }
+
+  if (publicPriceValue.length > 0 && publicPriceDollars === undefined) {
+    warnings.push(warning(
+      "invalid_public_price",
+      `Row ${row.rowNumber} has an invalid same-season public value "${publicPriceValue}".`,
+      row.rowNumber,
+      "publicPrice",
     ));
   }
 

@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { FilePlatformStore } from "./filePlatformStore.js";
 import type { JobRepository } from "./jobs.js";
-import type { AuthRepository } from "./auth.js";
+import type { AuthMailSender, AuthRepository } from "./auth.js";
 import {
   createClientAddressRateLimiter,
   createNormalizedEmailRateLimiter,
@@ -18,7 +18,10 @@ import {
 } from "./platformApp.js";
 import type { ExportArtifactRepository } from "./exportArtifacts.js";
 import { LiveDraftRoomRevisionNotifier } from "./liveDraftRoomRealtime.js";
-import type { LiveDraftRoomRepository } from "./liveDraftRooms.js";
+import type {
+  LiveDraftRoomPlayerCatalogEntry,
+  LiveDraftRoomRepository,
+} from "./liveDraftRooms.js";
 import {
   PostgresJobQueue,
   type PostgresTransactionalQueryClient,
@@ -65,6 +68,8 @@ import {
 } from "./platformInvitations.js";
 import { PostgresPlatformInvitationRepository } from "./postgresPlatformInvitations.js";
 import {
+  InMemoryLiveDraftRoomSetupRepository,
+  liveDraftRoomSetupContentHash,
   PostgresLiveDraftRoomSetupRepository,
   type LiveDraftRoomSetup,
   type LiveDraftRoomSetupRepository,
@@ -79,6 +84,15 @@ import type {
   SimulationRepository,
 } from "./simulations.js";
 import type { LeagueMembersScreenshotAnalyzer } from "./openAiLeagueMembersScreenshotAnalyzer.js";
+import type {
+  EspnLeagueSettingsImportInput,
+  EspnLeagueSettingsImportOutcome,
+} from "./espnLeagueSettingsImport.js";
+import type { PostDraftProjectionSnapshot } from "./postDraftTeamAnalysis.js";
+import {
+  createNodeSeasonSimulationRunner,
+  type SeasonSimulationRunner,
+} from "./seasonSimulationWorkerRunner.js";
 
 export type PlatformClock = () => Date;
 
@@ -103,16 +117,34 @@ export interface CreatePlatformServerOptions {
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;
   onboardingRepository?: PlatformOnboardingRepository | undefined;
+  currentPlayerCatalogProvider?: (() => Promise<readonly LiveDraftRoomPlayerCatalogEntry[]>) | undefined;
+  espnLeagueSettingsImporter?: ((
+    input: EspnLeagueSettingsImportInput,
+  ) => Promise<EspnLeagueSettingsImportOutcome>) | undefined;
   liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
   liveDraftRoomSetupProvider?: ((season: LeagueSeason) => Promise<LiveDraftRoomSetup | null>) | undefined;
+  postDraftProjectionProvider?: ((
+    season: LeagueSeason,
+    playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+    now: Date,
+  ) => Promise<PostDraftProjectionSnapshot>) | undefined;
   provisioningToken?: string | undefined;
   allowPublicSignup?: boolean | undefined;
+  emailVerificationRequired?: boolean | undefined;
+  authMailSender?: AuthMailSender | undefined;
+  publicBaseUrl?: string | undefined;
   trustProxy?: boolean | undefined;
   accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
   loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  verificationRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  passwordResetRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  passwordResetConsumeRateLimiter?: ClientAddressRateLimiter | undefined;
   authClientRateLimiter?: ClientAddressRateLimiter | undefined;
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
   screenshotImportIngressRateLimiter?: ClientAddressRateLimiter | undefined;
+  leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
+  simulationRateLimiter?: ClientAddressRateLimiter | undefined;
+  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
@@ -368,7 +400,16 @@ const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
 
-    return segments.length === 1 && (segments[0] === "accounts" || segments[0] === "sessions");
+    if (segments.length === 1) {
+      return segments[0] === "accounts" ||
+        segments[0] === "sessions" ||
+        segments[0] === "email-verifications" ||
+        segments[0] === "password-resets";
+    }
+
+    return segments.length === 2 &&
+      (segments[0] === "email-verifications" || segments[0] === "password-resets") &&
+      segments[1] === "consume";
   } catch {
     return false;
   }
@@ -384,8 +425,18 @@ const isLeagueSetupOnlyMutationRequest = (request: PlatformHttpRequest): boolean
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
 
-    if (method === "POST" && segments.length === 1 && segments[0] === "seasons") return true;
+    if (
+      method === "POST" &&
+      segments.length === 1 &&
+      (segments[0] === "seasons" || segments[0] === "leagues")
+    ) return true;
     if (method === "PUT" && segments.length === 2 && segments[0] === "seasons") return true;
+    if (
+      method === "POST" &&
+      segments.length === 3 &&
+      segments[0] === "seasons" &&
+      segments[2] === "publish"
+    ) return true;
 
     return method === "POST" &&
       segments.length === 4 &&
@@ -400,11 +451,26 @@ const isLeagueMembersScreenshotAnalysisRequest = (request: PlatformHttpRequest):
   if (request.method.toUpperCase() !== "POST") return false;
   const segments = pathSegmentsFor(request);
 
-  return segments !== null &&
+  if (segments === null) return false;
+
+  return (
     segments.length === 4 &&
     segments[0] === "seasons" &&
     segments[2] === "setup-import" &&
-    segments[3] === "screenshot-analyze";
+    segments[3] === "screenshot-analyze"
+  ) || (
+    segments.length === 3 &&
+    segments[0] === "league-imports" &&
+    segments[1] === "espn" &&
+    segments[2] === "members-screenshot-review"
+  );
+};
+
+const isSeasonSimulationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+  const segments = pathSegmentsFor(request);
+
+  return segments !== null && segments.length === 1 && segments[0] === "season-simulations";
 };
 
 const isHistoricalImportOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
@@ -416,16 +482,10 @@ const isHistoricalImportOnlyMutationRequest = (request: PlatformHttpRequest): bo
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
 
-    return (
-      segments.length === 4 &&
+    return segments.length === 4 &&
       segments[0] === "seasons" &&
       segments[2] === "historical-imports" &&
-      segments[3] === "preview"
-    ) || (
-      segments.length === 3 &&
-      segments[0] === "historical-imports" &&
-      segments[2] === "commit"
-    );
+      segments[3] === "preview";
   } catch {
     return false;
   }
@@ -572,6 +632,12 @@ const hostForUrl = (host: string): string => host.includes(":") ? `[${host}]` : 
 export const createPlatformServer = async (
   options: CreatePlatformServerOptions,
 ): Promise<PlatformServer> => {
+  if (
+    options.emailVerificationRequired === true &&
+    (options.authMailSender === undefined || options.publicBaseUrl === undefined)
+  ) {
+    throw new Error("Email verification requires an auth mail sender and public base URL.");
+  }
   if (options.authRepository !== undefined && options.postgresAuthClient !== undefined) {
     throw new Error("Configure either authRepository or postgresAuthClient, not both.");
   }
@@ -608,6 +674,7 @@ export const createPlatformServer = async (
     invitationRepository: PlatformInvitationRepository;
     onboardingRepository: PlatformOnboardingRepository;
     liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
+    liveDraftRoomSetupProvider?: ((season: LeagueSeason) => Promise<LiveDraftRoomSetup | null>) | undefined;
     app: PlatformApp;
     platformHandler: PlatformHttpHandler;
     rawJobHandlers: PlatformJobHandlers;
@@ -635,8 +702,24 @@ export const createPlatformServer = async (
     windowMs: 15 * 60 * 1_000,
     maxTrackedEmails: 10_000,
   });
+  const verificationRateLimiter = options.verificationRateLimiter ?? createNormalizedEmailRateLimiter({
+    maxAttempts: 3,
+    windowMs: 60 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const passwordResetRateLimiter = options.passwordResetRateLimiter ?? createNormalizedEmailRateLimiter({
+    maxAttempts: 3,
+    windowMs: 60 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const passwordResetConsumeRateLimiter = options.passwordResetConsumeRateLimiter
+    ?? createClientAddressRateLimiter({
+      maxAttempts: 5,
+      windowMs: 15 * 60 * 1_000,
+      maxTrackedEmails: 10_000,
+    });
   const authClientRateLimiter = options.authClientRateLimiter ?? createClientAddressRateLimiter({
-    maxAttempts: 30,
+    maxAttempts: 120,
     windowMs: 15 * 60 * 1_000,
     maxTrackedEmails: 10_000,
   });
@@ -651,6 +734,22 @@ export const createPlatformServer = async (
       windowMs: 60 * 60 * 1_000,
       maxTrackedEmails: 10_000,
     });
+  const leagueImportRateLimiter = options.leagueImportRateLimiter ?? createClientAddressRateLimiter({
+    maxAttempts: 10,
+    windowMs: 15 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const simulationRateLimiter = options.simulationRateLimiter ?? createClientAddressRateLimiter({
+    maxAttempts: 10,
+    windowMs: 15 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const seasonSimulationRunner = options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner();
+  let activeSeasonSimulationCapture: (() => void) | undefined;
+  const httpSeasonSimulationRunner: SeasonSimulationRunner = (input, runOptions) => {
+    activeSeasonSimulationCapture?.();
+    return seasonSimulationRunner(input, runOptions);
+  };
   const runSerializedForSnapshotStore = serializeAsyncOperations();
   const runInSnapshotCriticalSection = async <T>(operation: () => Promise<T>): Promise<T> =>
     runtime.postgresStore === undefined
@@ -757,11 +856,26 @@ export const createPlatformServer = async (
         ? new InMemoryPlatformOnboardingRepository(() => store.snapshot())
         : new PostgresPlatformOnboardingRepository(options.postgresClient));
     const liveDraftRoomSetupRepository = options.liveDraftRoomSetupRepository ??
-      postgresLiveDraftRoomSetupRepository;
-    const liveDraftRoomSetupProvider = options.liveDraftRoomSetupProvider ??
-      (liveDraftRoomSetupRepository === undefined
-        ? undefined
-        : (season: LeagueSeason) => liveDraftRoomSetupRepository.findForSeason(season.id));
+      postgresLiveDraftRoomSetupRepository ??
+      new InMemoryLiveDraftRoomSetupRepository();
+    const liveDraftRoomSetupProvider = async (season: LeagueSeason): Promise<LiveDraftRoomSetup | null> => {
+      const storedSetup = await liveDraftRoomSetupRepository.findForSeason(season.id);
+      if (storedSetup !== null) return storedSetup;
+      const configuredSetup = await options.liveDraftRoomSetupProvider?.(season) ?? null;
+      if (configuredSetup !== null) return configuredSetup;
+      if (options.currentPlayerCatalogProvider === undefined) return null;
+      const input = {
+        seasonId: season.id,
+        sourceVersion: `current-catalog-${season.seasonYear}`,
+        playerCatalog: await options.currentPlayerCatalogProvider(),
+        initialRosters: [],
+      };
+      return {
+        ...input,
+        contentHash: liveDraftRoomSetupContentHash(input),
+        updatedAt: options.now?.() ?? new Date(),
+      };
+    };
 
     if (authRepository !== store.authRepository) {
       store.clearAuthSnapshotState();
@@ -773,6 +887,11 @@ export const createPlatformServer = async (
     const app = createPlatformApp({
       store,
       authRepository,
+      authEmail: {
+        verificationRequired: options.emailVerificationRequired ?? false,
+        ...(options.authMailSender === undefined ? {} : { mailSender: options.authMailSender }),
+        ...(options.publicBaseUrl === undefined ? {} : { publicBaseUrl: options.publicBaseUrl }),
+      },
       leagueSetupRepository,
       historicalImportRepository,
       jobRepository,
@@ -813,17 +932,32 @@ export const createPlatformServer = async (
       platformHandler: createPlatformHttpHandler(app, {
         invitationRepository,
         onboardingRepository,
-        ...(liveDraftRoomSetupProvider === undefined
+        ...(options.currentPlayerCatalogProvider === undefined
           ? {}
-          : {
-              liveDraftRoomSetupProvider,
-            }),
+          : { currentPlayerCatalogProvider: options.currentPlayerCatalogProvider }),
+        ...(options.espnLeagueSettingsImporter === undefined
+          ? {}
+          : { espnLeagueSettingsImporter: options.espnLeagueSettingsImporter }),
+        liveDraftRoomSetupProvider,
+        liveDraftRoomSetupRepository,
+        ...(options.postDraftProjectionProvider === undefined
+          ? {}
+          : { postDraftProjectionProvider: options.postDraftProjectionProvider }),
         ...(options.provisioningToken === undefined ? {} : { provisioningToken: options.provisioningToken }),
         ...(options.allowPublicSignup === undefined ? {} : { allowPublicSignup: options.allowPublicSignup }),
+        ...(options.emailVerificationRequired === undefined
+          ? {}
+          : { emailVerificationRequired: options.emailVerificationRequired }),
         accountRateLimiter,
         loginRateLimiter,
+        verificationRateLimiter,
+        passwordResetRateLimiter,
+        passwordResetConsumeRateLimiter,
         authClientRateLimiter,
         screenshotImportRateLimiter,
+        leagueImportRateLimiter,
+        simulationRateLimiter,
+        seasonSimulationRunner: httpSeasonSimulationRunner,
         ...(options.leagueMembersScreenshotAnalyzer === undefined
           ? {}
           : { leagueMembersScreenshotAnalyzer: options.leagueMembersScreenshotAnalyzer }),
@@ -844,6 +978,7 @@ export const createPlatformServer = async (
       invitationRepository,
       onboardingRepository,
       ...(liveDraftRoomSetupRepository === undefined ? {} : { liveDraftRoomSetupRepository }),
+      ...(liveDraftRoomSetupProvider === undefined ? {} : { liveDraftRoomSetupProvider }),
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
       ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
@@ -876,6 +1011,7 @@ export const createPlatformServer = async (
     const usesExternalExportArtifactRepository = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
     const skipSnapshotPersist =
       isLeagueMembersScreenshotAnalysisRequest(requestWithNow) ||
+      isSeasonSimulationRequest(requestWithNow) ||
       (
         usesExternalAuthRepository &&
         isAuthOnlyMutationRequest(requestWithNow)
@@ -933,6 +1069,25 @@ export const createPlatformServer = async (
     if (isLeagueMembersScreenshotAnalysisRequest(requestWithNow)) {
       return await runRequest(requestWithNow);
     }
+    if (isSeasonSimulationRequest(requestWithNow)) {
+      let markCaptured!: () => void;
+      const captured = new Promise<void>(resolve => {
+        markCaptured = resolve;
+      });
+      const prepared = await runInSnapshotCriticalSection(async () => {
+        activeSeasonSimulationCapture = markCaptured;
+        const response = runRequest(requestWithNow);
+        try {
+          await Promise.race([captured, response.then(() => undefined)]);
+        } finally {
+          activeSeasonSimulationCapture = undefined;
+        }
+
+        return { response };
+      });
+
+      return await prepared.response;
+    }
     const eventStreamRequest = liveDraftRoomEventStreamRequestFor(requestWithNow);
     if (eventStreamRequest !== null) {
       const initialResponse = await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
@@ -956,8 +1111,7 @@ export const createPlatformServer = async (
     resolveSeasonOptions: async seasonId => {
       const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
       if (season === null) return null;
-      const storedSetup = await runtime.liveDraftRoomSetupRepository?.findForSeason(seasonId) ?? null;
-      const setup = storedSetup ?? await options.liveDraftRoomSetupProvider?.(season) ?? null;
+      const setup = await runtime.liveDraftRoomSetupProvider?.(season) ?? null;
       if (setup === null) return null;
 
       return await buildSeasonDraftToolsOptions(season, setup);
@@ -976,7 +1130,6 @@ export const createPlatformServer = async (
     screenshotImportMaxBodyBytes: options.screenshotImportBodyLimitBytes,
     screenshotImportPreflight: async request => {
       const segments = pathSegmentsFor(request);
-      const seasonId = segments?.[1] ?? "";
       const sessionToken = request.sessionToken;
       const account = sessionToken === undefined
         ? null
@@ -992,6 +1145,32 @@ export const createPlatformServer = async (
           },
         };
       }
+
+      const isLeagueCreationScreenshot = segments?.length === 3 &&
+        segments[0] === "league-imports" &&
+        segments[1] === "espn" &&
+        segments[2] === "members-screenshot-review";
+      if (isLeagueCreationScreenshot) {
+        const ingressKey = `${account.id}:league-create:${request.clientAddress ?? "unknown"}`;
+        const decision = screenshotImportIngressRateLimiter.consume(ingressKey, options.now?.());
+        if (!decision.allowed) {
+          return {
+            status: 429,
+            headers: {
+              "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))),
+            },
+            body: {
+              error: {
+                code: "rate_limited",
+                message: "Too many screenshot analyses. Try again later.",
+              },
+            },
+          };
+        }
+        return null;
+      }
+
+      const seasonId = segments?.[1] ?? "";
 
       const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
       if (season === null) {

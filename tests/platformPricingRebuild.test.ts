@@ -15,6 +15,14 @@ const baselinePrices = [
   },
 ] satisfies readonly PricingSourcePrice[];
 
+const economicBaselinePrices = [
+  { name: "Alpha Runner", normalizedName: "alpha runner", position: "RB", price: 80 },
+  { name: "Bravo Runner", normalizedName: "bravo runner", position: "RB", price: 50 },
+  { name: "Charlie Receiver", normalizedName: "charlie receiver", position: "WR", price: 25 },
+  { name: "Delta Receiver", normalizedName: "delta receiver", position: "WR", price: 10 },
+  { name: "Echo Tight End", normalizedName: "echo tight end", position: "TE", price: 5 },
+] satisfies readonly PricingSourcePrice[];
+
 const historicalSale = (
   overrides: Partial<HistoricalSaleRecord> = {},
 ): HistoricalSaleRecord => ({
@@ -30,6 +38,7 @@ const historicalSale = (
   playerName: "Bijan Robinson",
   position: "RB",
   priceDollars: 70,
+  publicPriceDollars: 50,
   keeper: false,
   acquisitionType: "auction",
   ...overrides,
@@ -60,11 +69,15 @@ describe("league-calibrated pricing rebuild", () => {
       recommendedMaxBid: 60,
       confidence: 0.92,
       tier: "elite",
-      warnings: ["baseline note", "historical inflation moved price by $10"],
+      warnings: [
+        "baseline note",
+        "league auction allocation unavailable; team count, budget, roster size, minimum bid, and keeper count were not fully provided",
+        "historical inflation moved price by $10",
+      ],
     });
   });
 
-  it("falls back to position-level historical inflation when a player has no matching sale", () => {
+  it("normalizes position inflation against matching player anchors", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
       leagueId: "league-214674",
       seasonYear: 2026,
@@ -77,6 +90,12 @@ describe("league-calibrated pricing rebuild", () => {
           position: "WR",
           price: 40,
         },
+        {
+          name: "Puka Nacua",
+          normalizedName: "puka nacua",
+          position: "WR",
+          price: 60,
+        },
       ],
       historicalSaleRecords: [
         historicalSale({
@@ -84,17 +103,63 @@ describe("league-calibrated pricing rebuild", () => {
           playerId: "player-puka-nacua",
           playerName: "Puka Nacua",
           position: "WR",
-          priceDollars: 60,
+          priceDollars: 72,
+          publicPriceDollars: 60,
         }),
       ],
     });
 
-    expect(snapshot?.rows[0]).toMatchObject({
+    const garrett = snapshot?.rows.find(row => row.playerName === "Garrett Wilson");
+
+    expect(garrett).toMatchObject({
       playerName: "Garrett Wilson",
       position: "WR",
+      marketPrice: 44,
+      scenarioPrice: 44,
+      warnings: expect.not.arrayContaining([
+        "same-season public auction values unavailable; using baseline market prices",
+      ]),
+    });
+  });
+
+  it("applies historical sale-to-public ratios to the current player baseline", () => {
+    const [snapshot] = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["balanced"],
+      baselinePrices: [{
+        name: "Bijan Robinson",
+        normalizedName: "bijan robinson",
+        position: "RB",
+        price: 80,
+      }],
+      historicalSaleRecords: [historicalSale({
+        priceDollars: 70,
+        publicPriceDollars: 50,
+      })],
+    });
+
+    expect(snapshot?.rows[0]).toMatchObject({ marketPrice: 96, scenarioPrice: 96 });
+  });
+
+  it("does not invent inflation when same-season public values are absent", () => {
+    const saleWithoutPublicValue = historicalSale();
+    delete saleWithoutPublicValue.publicPriceDollars;
+    const [snapshot] = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["balanced"],
+      baselinePrices,
+      historicalSaleRecords: [saleWithoutPublicValue],
+    });
+
+    expect(snapshot?.rows[0]).toMatchObject({
       marketPrice: 50,
-      scenarioPrice: 50,
-      warnings: ["historical inflation moved price by $10"],
+      warnings: expect.arrayContaining([
+        "same-season public auction values unavailable; using baseline market prices",
+      ]),
     });
   });
 
@@ -115,6 +180,14 @@ describe("league-calibrated pricing rebuild", () => {
       baselinePrices,
       historicalSaleRecords: [historicalSale()],
     });
+    const differentlyNamedScenario = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["a label that must not move prices"],
+      baselinePrices,
+      historicalSaleRecords: [historicalSale()],
+    })[0];
 
     expect(firstSnapshots.map(snapshot => snapshot.scenarioId)).toEqual(["balanced", "upside"]);
     expect(firstSnapshots[0]?.modelRunId).toBe(firstSnapshots[1]?.modelRunId);
@@ -124,9 +197,57 @@ describe("league-calibrated pricing rebuild", () => {
     });
     expect(firstSnapshots[1]?.rows[0]).toMatchObject({
       marketPrice: 60,
-      scenarioPrice: 63,
+      scenarioPrice: 60,
+      warnings: expect.arrayContaining([
+        "scenario-specific assumptions unavailable; using the league-calibrated value",
+      ]),
     });
+    expect(differentlyNamedScenario?.modelRunId).toBe(firstSnapshots[0]?.modelRunId);
+    expect(differentlyNamedScenario?.rows[0]?.scenarioPrice).toBe(60);
     expect(secondSnapshots).toEqual(firstSnapshots);
+  });
+
+  it("allocates current league dollars after keeper spend and minimum-bid reserves", () => {
+    const createSnapshot = (
+      keeperLockedSpend: number,
+      currentMinimumBidDollars: number,
+      currentTeamCount = 2,
+    ) => createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["expected"],
+      baselinePrices: economicBaselinePrices,
+      historicalSaleRecords: [],
+      currentAuctionBudget: 100,
+      currentTeamCount,
+      currentRosterSize: 2,
+      currentMinimumBidDollars,
+      currentKeeperCount: 1,
+      keeperLockedSpend,
+    })[0];
+
+    const cheapKeeper = createSnapshot(10, 1);
+    const expensiveKeeper = createSnapshot(50, 1);
+    const higherMinimumBid = createSnapshot(10, 10);
+    const largerLeague = createSnapshot(10, 1, 3);
+    const scenarioTotal = (snapshot: NonNullable<typeof cheapKeeper>) =>
+      snapshot.rows.reduce((total, row) => total + row.scenarioPrice, 0);
+    const discretionaryTotal = (
+      snapshot: NonNullable<typeof cheapKeeper>,
+      minimumBid: number,
+    ) => snapshot.rows.reduce(
+      (total, row) => total + (row.scenarioPrice === 0 ? 0 : row.scenarioPrice - minimumBid),
+      0,
+    );
+
+    expect(scenarioTotal(cheapKeeper!)).toBe(190);
+    expect(scenarioTotal(expensiveKeeper!)).toBe(150);
+    expect(scenarioTotal(largerLeague!)).toBe(290);
+    expect(discretionaryTotal(cheapKeeper!, 1)).toBe(187);
+    expect(discretionaryTotal(higherMinimumBid!, 10)).toBe(160);
+    expect(cheapKeeper?.rows.every(row => Number.isInteger(row.scenarioPrice))).toBe(true);
+    expect(cheapKeeper?.rows.every(row => row.scenarioPrice >= 0 && row.scenarioPrice <= 100)).toBe(true);
   });
 
   it("uses historical record identity and price in stable input hashes", () => {
@@ -225,7 +346,11 @@ describe("league-calibrated pricing rebuild", () => {
       recommendedMaxBid: 50,
       confidence: 0.92,
       tier: "elite",
-      warnings: ["baseline note"],
+      warnings: [
+        "baseline note",
+        "league auction history unavailable; using baseline market prices",
+        "league auction allocation unavailable; team count, budget, roster size, minimum bid, and keeper count were not fully provided",
+      ],
     });
   });
 

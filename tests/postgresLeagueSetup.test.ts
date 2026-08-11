@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import {
   buildCurrentMockdLeagueSeason,
+  type AnyLeagueSeason,
   type LeagueSeason,
 } from "../src/platform/leagueSeason.js";
 import type {
@@ -59,8 +60,10 @@ interface TeamRow {
 interface RosterRuleRow {
   id: string;
   league_season_id: string;
-  budget: number;
-  minimum_bid: number;
+  draft_format: string;
+  budget: number | null;
+  minimum_bid: number | null;
+  snake_json: unknown;
   slots_json: unknown;
   position_maximums_json: unknown;
   scoring_json: unknown;
@@ -111,6 +114,7 @@ const cloneTeam = (row: TeamRow): TeamRow => ({
 
 const cloneRosterRule = (row: RosterRuleRow): RosterRuleRow => ({
   ...row,
+  snake_json: jsonValue(row.snake_json),
   slots_json: jsonValue(row.slots_json),
   position_maximums_json: jsonValue(row.position_maximums_json),
   scoring_json: jsonValue(row.scoring_json),
@@ -139,9 +143,30 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
 
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
     this.transactionCount += 1;
+    const leagues = new Map([...this.leagues].map(([id, row]) => [id, cloneLeague(row)]));
+    const seasons = new Map([...this.seasons].map(([id, row]) => [id, cloneSeason(row)]));
+    const teams = new Map([...this.teams].map(([id, row]) => [id, cloneTeam(row)]));
+    const rosterRules = new Map(
+      [...this.rosterRulesBySeason].map(([id, row]) => [id, cloneRosterRule(row)]),
+    );
+    const memberships = new Map(
+      [...this.memberships].map(([id, row]) => [id, cloneMembership(row)]),
+    );
     this.#inTransaction = true;
     try {
       return await operation(this);
+    } catch (error) {
+      this.leagues.clear();
+      this.seasons.clear();
+      this.teams.clear();
+      this.rosterRulesBySeason.clear();
+      this.memberships.clear();
+      for (const [id, row] of leagues) this.leagues.set(id, row);
+      for (const [id, row] of seasons) this.seasons.set(id, row);
+      for (const [id, row] of teams) this.teams.set(id, row);
+      for (const [id, row] of rosterRules) this.rosterRulesBySeason.set(id, row);
+      for (const [id, row] of memberships) this.memberships.set(id, row);
+      throw error;
     } finally {
       this.#inTransaction = false;
     }
@@ -253,17 +278,40 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
     }
 
     if (normalizedSql.startsWith("INSERT INTO roster_rule_sets")) {
-      const [id, seasonId, budget, minimumBid, slotsJson, positionMaximumsJson, updatedAt] =
-        values as readonly [string, string, number, number, string, string, Date];
+      const [
+        id,
+        seasonId,
+        draftFormat,
+        budget,
+        minimumBid,
+        snakeJson,
+        slotsJson,
+        positionMaximumsJson,
+        scoringJson,
+        updatedAt,
+      ] = values as readonly [
+        string,
+        string,
+        string,
+        number | null,
+        number | null,
+        string | null,
+        string,
+        string,
+        string,
+        Date,
+      ];
       const existing = this.rosterRulesBySeason.get(seasonId);
       this.rosterRulesBySeason.set(seasonId, {
         id,
         league_season_id: seasonId,
+        draft_format: draftFormat,
         budget,
         minimum_bid: minimumBid,
+        snake_json: jsonValue(snakeJson),
         slots_json: jsonValue(slotsJson),
         position_maximums_json: jsonValue(positionMaximumsJson),
-        scoring_json: {},
+        scoring_json: jsonValue(scoringJson),
         created_at: existing?.created_at ?? updatedAt,
         updated_at: updatedAt,
       });
@@ -453,10 +501,13 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       league_name: league.name,
       provider: league.provider,
       provider_league_id: league.provider_league_id,
+      draft_format: rosterRules?.draft_format ?? null,
       budget: rosterRules?.budget ?? null,
       minimum_bid: rosterRules?.minimum_bid ?? null,
+      snake_json: rosterRules === undefined ? null : cloneRosterRule(rosterRules).snake_json,
       slots_json: rosterRules === undefined ? null : cloneRosterRule(rosterRules).slots_json,
       position_maximums_json: rosterRules === undefined ? null : cloneRosterRule(rosterRules).position_maximums_json,
+      scoring_json: rosterRules === undefined ? null : cloneRosterRule(rosterRules).scoring_json,
     };
   }
 }
@@ -471,10 +522,13 @@ interface LeagueSeasonRow {
   league_name: string;
   provider: string | null;
   provider_league_id: string | null;
+  draft_format: string | null;
   budget: number | null;
   minimum_bid: number | null;
+  snake_json: unknown;
   slots_json: unknown;
   position_maximums_json: unknown;
+  scoring_json: unknown;
 }
 
 const buildSeason = (options: { seasonYear?: number; leagueName?: string } = {}): LeagueSeason =>
@@ -550,6 +604,72 @@ describe("Postgres league setup repository", () => {
     await expect(repository.hasLeagueSeasonForLeague(season.leagueId)).resolves.toBe(true);
     await expect(repository.findMembership("acct_cam", season.leagueId)).resolves.toEqual(memberships[0]);
     await expect(repository.membershipsForLeague(season.leagueId)).resolves.toEqual(memberships);
+  });
+
+  it("round trips snake format, scoring, order, and reversal without auction settings", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const auctionSeason = buildSeason();
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: {
+          ...auctionSeason.settings.scoring,
+          passingTouchdown: 6,
+          reception: 1,
+        },
+        snake: {
+          rounds: 18,
+          order: auctionSeason.teams.map(team => team.id),
+          reversal: "third-round",
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    await repository.registerLeagueSeason({
+      season: snakeSeason,
+      memberships: [],
+      createdByUserId: "acct_cam",
+      now,
+    });
+
+    await expect(repository.findLeagueSeason(snakeSeason.id)).resolves.toEqual(snakeSeason);
+    expect(client.rosterRulesBySeason.get(snakeSeason.id)).toMatchObject({
+      budget: null,
+      minimum_bid: null,
+      draft_format: "snake",
+      snake_json: snakeSeason.settings.snake,
+      scoring_json: snakeSeason.settings.scoring,
+    });
+  });
+
+  it("normalizes legacy auction settings before writing normalized rows", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const { draftFormat: _draftFormat, scoring: _scoring, ...legacySettings } = season.settings;
+    const legacySeason: LeagueSeason = {
+      ...season,
+      settings: legacySettings,
+    };
+
+    const registered = await repository.registerLeagueSeason({
+      season: legacySeason,
+      memberships: [],
+      createdByUserId: "acct_cam",
+      now,
+    });
+
+    expect(registered).toEqual(season);
+    expect(client.rosterRulesBySeason.get(season.id)).toMatchObject({
+      draft_format: "auction",
+      snake_json: null,
+      scoring_json: leagueConfig.scoring,
+    });
   });
 
   it("replaces same-league memberships and same-season teams without deleting other seasons", async () => {
@@ -753,5 +873,42 @@ describe("Postgres league setup repository", () => {
       teamId: camTeam.id,
       now: new Date(now.getTime() + 1_000),
     })).resolves.toBeNull();
+  });
+
+  it("keeps the existing team claim when switching to an unavailable team", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
+    await repository.registerLeagueSeason({
+      season,
+      memberships: [{ userId: "acct_cam", leagueId: season.leagueId, role: "owner" }],
+      createdByUserId: "acct_cam",
+      now,
+    });
+    await repository.claimLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_cam",
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      now,
+    });
+    const unavailableTeam = client.teams.get(sethTeam.id);
+    if (unavailableTeam === undefined) throw new Error("Expected target team row.");
+    client.teams.set(sethTeam.id, { ...unavailableTeam, owner_user_id: "acct_seth" });
+
+    await expect(repository.claimLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_cam",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toBeNull();
+    expect(client.teams.get(camTeam.id)?.owner_user_id).toBe("acct_cam");
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
   });
 });

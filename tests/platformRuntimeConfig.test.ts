@@ -49,6 +49,12 @@ describe("platform runtime config", () => {
       trustProxy: true,
       liveDraftDataMode: "postgres",
       provisioningToken: "production-provisioning-token",
+      authEmail: {
+        mode: "auto-verify",
+        resendApiKey: undefined,
+        from: undefined,
+        publicBaseUrl: undefined,
+      },
       simulationDataMode: "local-fixtures",
       screenshotImport: {
         mode: "openai",
@@ -195,14 +201,44 @@ describe("platform runtime config", () => {
     ).toThrow("DATABASE_URL must be a postgres:// or postgresql:// connection string.");
   });
 
+  it("requires production email verification delivery and an HTTPS public origin", () => {
+    const base = {
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+    };
+    expect(() => readPlatformWebRuntimeConfig(base)).toThrow(
+      "MOCKD_AUTH_EMAIL_MODE=resend is required in production.",
+    );
+    expect(() => readPlatformWebRuntimeConfig({
+      ...base,
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "secret",
+      MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
+      MOCKD_PUBLIC_BASE_URL: "http://mockd.example.com/path",
+    })).toThrow("MOCKD_PUBLIC_BASE_URL must be a valid HTTPS origin.");
+    expect(readPlatformWebRuntimeConfig({
+      ...base,
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "secret",
+      MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
+      MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+    }).authEmail.mode).toBe("resend");
+  });
+
   it("reports production/domain readiness for a Postgres-backed deploy target", () => {
     const report = assessPlatformProductionReadiness({
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
       HOST: "0.0.0.0",
       PORT: "443",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
       MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
       OPENAI_API_KEY: "production-openai-key",
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "production-resend-key",
+      MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
+      MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
     });
 
     expect(report).toMatchObject({
@@ -227,8 +263,13 @@ describe("platform runtime config", () => {
       },
       {
         status: "pass",
-        label: "Invite-only signup",
-        detail: "Public account creation is restricted to valid league invitations.",
+        label: "Account creation",
+        detail: "Public account creation is enabled; league access still requires membership or an invitation.",
+      },
+      {
+        status: "pass",
+        label: "Account email delivery",
+        detail: "Resend delivery, sender identity, and the public HTTPS origin are configured.",
       },
       {
         status: "pass",
@@ -253,7 +294,7 @@ describe("platform runtime config", () => {
     ]);
     expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
     expect(report.nextSteps.join("\n")).toContain("persistent volume");
-    expect(report.nextSteps.join("\n")).toContain("Seed or verify");
+    expect(report.nextSteps.join("\n")).toContain("Create a commissioner account");
     expect(report.nextSteps.join("\n")).toContain("npm run smoke");
     expect(platformProductionReadinessExitCode(report)).toBe(0);
 

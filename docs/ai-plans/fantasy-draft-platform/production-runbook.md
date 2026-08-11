@@ -4,7 +4,7 @@ This runbook is the launch architecture for Mockd as a league-calibrated fantasy
 
 Domain readiness is a go/no-go gate. Do not point a public domain at Mockd until the checklist at the end of this runbook is all pass.
 
-The concrete first-host procedure is [Render Production Launch](../../render-production-launch.md). It covers Blueprint creation, real-owner provisioning, backup rehearsal, monitoring activation, deployed smoke, and DNS cutover.
+The concrete first-host procedure is [Render Production Launch](../../render-production-launch.md). It covers Blueprint creation, commissioner-led product setup, backup rehearsal, monitoring activation, deployed smoke, and DNS cutover.
 
 ## Production Topology
 
@@ -12,9 +12,10 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
   - Serves the authenticated app, API routes, live draft reads/writes, SSE streams, and polling fallback.
   - Uses secure HttpOnly cookies for sessions.
   - Performs all membership, role, and privacy checks server-side.
-- Worker process:
-  - Runs historical imports, player resolution tasks, pricing/model runs, private simulations, exports, cleanup, and scheduled checks.
-  - Claims jobs from Postgres with row locks and idempotency keys.
+- Interactive simulation execution:
+  - Captures one consistent league snapshot, then runs bounded 1-25 draft batches in a two-worker thread pool for the claimed team.
+  - Admits at most eight pending batches, cancels disconnected requests, and stops active work after 30 seconds.
+  - Supports auction and snake league shapes without the current-league fixture runner.
 - Postgres:
   - Source of truth for accounts, leagues, shared league state, private prep, live draft events/projections, jobs, and exports.
   - Browser `localStorage` is only for harmless UI preferences.
@@ -25,58 +26,55 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
 ## Local Dev Topology
 
 - One local web server for app/API traffic.
-- One local worker process for jobs.
 - One local Postgres database.
 - File imports and generated exports can use local disk in dev, but production should use durable object storage.
-- Seed data should include the current Mockd league, teams, keepers, rules, one pricing snapshot, and at least one live draft room fixture.
+- Local E2E seed data should include a representative league, teams, keepers, rules, one pricing snapshot, and at least one live draft room fixture.
 
 ## Deploy Units
 
-- `web`: HTTP app plus SSE endpoints and a persistent volume for account-isolated board and mock sessions. Run one web replica for the first release.
-- `worker`: background job runner.
-- `migrate`: one-off migration task before web/worker deploy.
-- `scheduler`: low-frequency job enqueuer for cleanup, backup verification, and stale job checks.
+- `web`: HTTP app plus SSE endpoints and a persistent volume for account-isolated board preferences and private artifacts. Durable unified mock sessions and shared league state are persisted through the platform store. Run one web replica for the first release.
+- `migrate`: one-off migration task before the web deploy.
 - `postgres`: managed database with automated backups and PITR where possible.
-- `object-storage`: uploaded import files and generated export artifacts.
+- Future scale units, not part of the first release: background workers, a scheduler, and object storage.
 
 Current npm entrypoints:
 
 - `npm run platform:ready`: runs the compiled readiness CLI, verifies required migration IDs, and probes private draft storage with a flushed write and delete.
 - `npm run platform:migrate`: runs the compiled migration task and applies the snapshot bridge schema plus the normalized platform schema contract with a migration ledger.
-- `npm run platform:provision -- <production.json>`: idempotently provisions real accounts, one league season, memberships, teams, roster rules, the season player catalog and initial rosters, keepers, and an audit receipt. It requires Postgres. Use `--dry-run` before apply and `--verify` after apply.
+- `npm run platform:provision -- <production.json>`: optional operator recovery/import path for an externally reviewed environment snapshot. Normal league creation and setup happen in the product.
 - `npm run platform:web` or `npm start`: starts the compiled platform HTTP server.
-- `npm run platform:worker`: starts the compiled background job worker loop.
+- `npm run platform:worker`: legacy background job entrypoint retained for non-launch tooling; the first production topology does not run it.
 - `npm run platform:seed:e2e`: seeds local E2E fixture users, a published season, and a live room. Use only for local or throwaway staging smoke.
 - `npm run test:e2e`: starts a temporary file-backed web process and runs the Playwright platform smoke.
 - `npm run test:e2e:deployed`: runs the same browser/API smoke against an already deployed base URL without starting a local server.
 
-Build `dist` in the build stage, then prune or install production dependencies only in the runtime stage. The hosted scripts use `node`, not the development-only `tsx` package. Run `platform:ready` after migrations and before deploy. It requires Postgres-backed shared storage and an explicit persistent private-draft directory, rejects the local platform file store, verifies the migration ledger and directory write access, prints the web bind target, and lists the seed/verification, web/worker, and smoke-test steps that still need human confirmation. The web process runs the same dependency checks for `/readyz`; `/healthz` remains a process-liveness check.
+Build `dist` in the build stage, then prune or install production dependencies only in the runtime stage. The hosted scripts use `node`, not the development-only `tsx` package. Run `platform:ready` after migrations and before deploy. It requires Postgres-backed shared storage and an explicit persistent private-draft directory, rejects the local platform file store, verifies the migration ledger and directory write access, prints the web bind target, and lists the setup, web, and smoke-test steps that still need human confirmation. The web process runs the same dependency checks for `/readyz`; `/healthz` remains a process-liveness check.
 
-The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path. In Postgres mode, web and worker construct normalized repositories for accounts, sessions, league setup, historical imports, jobs, and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only, league-setup-only, and historical-import-only HTTP mutations skip snapshot persistence when their external repositories are configured, so those direct writes remain owned by their normalized repositories. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
+The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before the web rollout; do not rely on web startup as the production migration path. In Postgres mode, the web process constructs normalized repositories for accounts, sessions, league setup, historical imports, jobs, and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only, league-setup-only, and historical-import-only HTTP mutations skip snapshot persistence when their external repositories are configured, so those direct writes remain owned by their normalized repositories. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
 
 League setup Postgres mode persists leagues, league seasons, fantasy teams, roster rule sets, and league memberships in normalized tables. The current app layer mirrors registered seasons and memberships into the in-memory store only as a compatibility bridge for existing live-room authorization and read-model code; setup route writes themselves remain owned by the league setup repository. Until the remaining legacy modules move to normalized repositories, non-setup mutations that save bridge-owned state may still serialize that mirrored league setup as compatibility data.
 
-The first production release is scoped to the configured 14-owner Mockd auction league, owner order, roster rules, and budget. Board, mock, and simulation workspaces load the provisioned season catalog and initial rosters, then fail closed when a season uses another league shape. Supporting arbitrary league sizes or rules is a later product milestone and is not part of this launch gate.
+The board and interactive mock engines support auction and snake leagues with 4 to 20 teams, league-specific roster rules, keepers, and values. Hosted real draft rooms are auction-only for this release. Historical auction imports feed calibrated pricing; historical snake draft calibration is not yet available and the product must say so explicitly. Do not advertise hosted snake drafting or historical snake calibration until their production checks pass.
 
 Historical import Postgres mode persists preview batches in `historical_import_batches` and committed auction sale rows in `historical_draft_sales`. Preview row validation state is stored in the batch JSON payload until commit, then committed records are inserted inside the same repository transaction that marks the batch committed or supersedes the replaced batch. Current calibration reads join sale rows to committed batches so superseded imports remain auditable but do not feed active pricing.
 
 HTTP auth timestamps are server-controlled. Client body/query `now` values are ignored for account creation, login, session lookup, and protected route authorization; tests and server composition inject trusted request time through the platform server clock.
 
-## Domain Provisioning Gate
+## Domain Readiness Gate
 
-Provision these before sending public domain traffic to Mockd:
+Complete these before sending public domain traffic to Mockd:
 
 - DNS owner and deploy owner are named, with access tested.
-- Hosting can run separate `web`, `worker`, and one-off `migrate` tasks from the same commit.
+- Hosting can run the `web` service and one-off `migrate` task from the same commit.
 - Managed Postgres exists for production, with SSL required, automated backups, a confirmed PITR window, and an on-demand logical export from the provider Recovery page.
 - A non-production restore target exists for rehearsals.
 - Secret store has production values for the implemented runtime variables below.
 - Production uses `DATABASE_URL`; `MOCKD_PLATFORM_DATA_FILE` is absent.
 - A persistent volume is mounted and `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` points to it. The first release runs one web replica because private board/mock sessions are account-isolated files on that volume.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA` is unset or false in production.
-- `MOCKD_WORKER_JOB_KINDS` is only `simulation` until more launch job kinds are implemented.
-- If the worker claims `simulation`, `MOCKD_SIMULATION_DATA_MODE=local-fixtures` is set only if checked-in current-league fixture-backed simulations are accepted for launch. Otherwise, do not start a simulation worker and mark the domain gate no-go until the production simulation runner exists.
-- Production league provisioning uses the reviewed `mockd.production-provisioning/v1` JSON file and `platform:provision`; `platform:seed:e2e` must not be run against production.
+- `MOCKD_ALLOW_PUBLIC_SIGNUP=true` so users can create accounts and commissioners can create leagues through the product.
+- `MOCKD_AUTH_EMAIL_MODE=resend`, `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`, and `MOCKD_PUBLIC_BASE_URL` are configured so account ownership and recovery require mailbox proof.
+- Production leagues are created and configured through the reviewed in-product flow; `platform:seed:e2e` must not be run against production.
 - Logs, error alerts, uptime checks, backup alerts, and draft-window contacts are configured.
 - Domain, TLS, canonical host, and redirect behavior are verified in staging before DNS cutover.
 - A rollback target exists: previous app version, current DB backup/PITR target, and DNS TTL low enough to move traffic back.
@@ -88,10 +86,10 @@ Conceptual required configuration:
 - Database: `DATABASE_URL`, connection pool size, statement timeout.
 - Local fallback only: `MOCKD_PLATFORM_DATA_FILE`.
 - Auth/session: cookie name, session secret or signing key, session TTL, secure cookie flag.
-- App URLs: public app URL, allowed origins, internal worker URL if needed.
+- App URLs: public app URL and allowed origins.
 - Proxy: explicit trusted-proxy mode when a load balancer terminates public connections.
 - Storage: import bucket, export bucket, object storage credentials.
-- Jobs: worker concurrency, max retries, stale lock timeout, default job timeout.
+- Future asynchronous jobs: worker concurrency, max retries, stale lock timeout, and default job timeout when that deploy unit is introduced.
 - Realtime: SSE heartbeat interval, reconnect retention window, polling fallback interval.
 - Rate limits: auth, import, model run, simulation, export, draft mutation, SSE connection, polling.
 - Observability: log level, error-reporting DSN, metrics endpoint/key.
@@ -100,23 +98,24 @@ Secrets belong in the hosting provider secret store. They should never be commit
 
 Implemented bootstrap variables:
 
-- `DATABASE_URL`: Postgres connection string for web, worker, and migrate.
+- `DATABASE_URL`: Postgres connection string for web and migrate.
 - `MOCKD_DATABASE_URL`: fallback Postgres connection string alias. Prefer `DATABASE_URL` in production.
 - `HOST` / `PORT`: web bind address.
 - `MOCKD_POSTGRES_POOL_SIZE`: Postgres pool size.
 - `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
 - `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
-- `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web/worker startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
+- `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
 - `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: persistent directory for account-isolated board, shortlist, strategy, and interactive mock sessions. Required by `platform:ready` for a domain deployment.
-- `MOCKD_ALLOW_PUBLIC_SIGNUP`: defaults to `false`. Keep it unset or false in production so only invited league members can create accounts.
+- `MOCKD_ALLOW_PUBLIC_SIGNUP`: defaults to `false`. Set it to `true` for the public Mockd product so a signed-in user can create or join a league. Account-creation rate limits remain mandatory; invitations still bind invited managers to league teams.
+- `MOCKD_AUTH_EMAIL_MODE`: defaults to `auto-verify` for local development. Production requires `resend`.
+- `RESEND_API_KEY`: production Resend API credential. It is sent only in the HTTPS authorization header.
+- `MOCKD_EMAIL_FROM`: verified Resend sender, such as `Mockd <accounts@example.com>`.
+- `MOCKD_PUBLIC_BASE_URL`: public HTTPS origin used for verification and reset links. It must not contain a path, query, or fragment.
 - `MOCKD_TRUST_PROXY`: defaults to `false`. Set it to `true` only when the web process is network-restricted behind a trusted proxy. Trusted mode prefers Cloudflare's overwritten `CF-Connecting-IP`, then supports validated standard forwarding headers for other trusted proxy deployments; malformed values fall back to the socket address. Render routes public traffic through Cloudflare and documents `CF-Connecting-IP` as the trusted client-address header.
 - `MOCKD_LIVE_DRAFT_DATA_MODE`: defaults to `postgres`. Production startup and readiness reject `local-fixtures`.
-- `MOCKD_PROVISIONING_TOKEN`: optional secret for deployment-only HTTP bootstrap routes. Normal production provisioning writes through `platform:provision`, so leave this unset unless an approved internal deployment workflow needs those routes.
-- `MOCKD_WORKER_ID`: stable worker identifier for job locks.
-- `MOCKD_WORKER_JOB_KINDS`: comma-separated job kinds the worker may claim. Defaults to `simulation` so unsupported import/pricing/export jobs are not accidentally failed.
-- `MOCKD_WORKER_POLL_INTERVAL_MS`: idle/error poll delay.
-- `MOCKD_WORKER_LOCK_TTL_MS`: claimed-job lock TTL.
-- `MOCKD_SIMULATION_DATA_MODE`: `disabled` by default. Set `local-fixtures` only when intentionally backing simulations with the checked-in current-league fixture files. The worker refuses to start while claiming simulation jobs unless this is runnable.
+- `MOCKD_PROVISIONING_TOKEN`: optional secret for deployment-only HTTP bootstrap routes. Normal production setup happens in the product, so leave this unset unless an approved recovery workflow needs those routes.
+- `MOCKD_WORKER_ID`, `MOCKD_WORKER_JOB_KINDS`, `MOCKD_WORKER_POLL_INTERVAL_MS`, and `MOCKD_WORKER_LOCK_TTL_MS`: legacy worker settings; leave them unset in the first production topology.
+- `MOCKD_SIMULATION_DATA_MODE`: legacy fixture-runner switch. Keep it `disabled` in production; league-aware interactive simulations do not use it.
 
 Local and smoke-only variables:
 
@@ -136,7 +135,7 @@ Optional read-only provider variables:
 
 Production variables still missing from code:
 
-- No implemented public app URL, allowed-origin, cookie-domain, object-storage, rate-limit tuning, metrics, or alert env names exist yet. Auth endpoints have bounded in-process email and client-address limits; keep one web replica for the first release and add shared edge limits before scaling horizontally. If the chosen host requires any missing setting to make the public domain safe, domain readiness is no-go until code exposes and verifies it.
+- No implemented allowed-origin, cookie-domain, object-storage, rate-limit tuning, metrics, or alert env names exist yet. Auth endpoints have bounded in-process email and client-address limits; keep one web replica for the first release and add shared edge limits before scaling horizontally. If the chosen host requires any missing setting to make the public domain safe, domain readiness is no-go until code exposes and verifies it.
 
 ## Migrate, Seed, And Smoke
 
@@ -153,7 +152,7 @@ Run these against the exact commit that will serve the domain.
 
    A multi-stage image may instead copy `dist`, `package.json`, and `package-lock.json` into the runtime stage before running `npm ci --omit=dev`.
 
-2. Apply migrations before web/worker rollout:
+2. Apply migrations before the web rollout:
 
    ```bash
    DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate
@@ -164,14 +163,24 @@ Run these against the exact commit that will serve the domain.
 3. Check production/domain runtime readiness:
 
    ```bash
-   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:ready
+   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" \
+   MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools \
+   MOCKD_ALLOW_PUBLIC_SIGNUP=true MOCKD_AUTH_EMAIL_MODE=resend \
+   RESEND_API_KEY="$RESEND_API_KEY" MOCKD_EMAIL_FROM="$MOCKD_EMAIL_FROM" \
+   MOCKD_PUBLIC_BASE_URL="$MOCKD_PUBLIC_BASE_URL" npm run platform:ready
    ```
 
-   This preflight checks runtime config, Postgres connectivity, required migration IDs, and writable private draft storage. The human checklist below still gates backups, seed data, DNS, smoke, and rollback.
+   This preflight checks runtime config, Postgres connectivity, required migration IDs, and writable private draft storage. The human checklist below still gates league setup, backups, DNS, smoke, and rollback.
 
-4. Seed or verify data:
+4. Create and verify a staging league:
 
-   - Production provisioning is a reviewed, declarative operation. Keep the JSON file outside fixture/E2E directories, keep password hashes in the secret store, and run:
+   - Create the commissioner account, verify it from the delivered email, sign in, and complete one forgot-password/reset cycle.
+   - Create a league in the product and import its ESPN league URL or ID.
+   - Review the detected team count, scoring, draft format, budget, roster slots, and position limits.
+   - Import team and manager names from the ESPN members screenshot, import historical draft results, enter keepers, and publish only after the final review passes.
+   - Use `platform:provision` only as an operator-controlled recovery or migration path. Never use `platform:seed:e2e` in production.
+
+   The optional declarative recovery path requires a reviewed document outside fixture/E2E directories and password hashes in the secret store:
 
      ```bash
      DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:provision -- /secure/mockd-production-2026.json --dry-run
@@ -275,7 +284,7 @@ Run these against the exact commit that will serve the domain.
      }
      ```
 
-     Use the exact configured 14-owner order and current Mockd settings plus all real teams and catalog players; the one-team example only shows field names. Account emails and IDs must be unique. `actorAccountId` must have an owner or admin membership. Membership team/owner IDs, initial rosters, and keepers must reference records in the same document. Active/published keepers must match a `source: "keeper"` initial-roster row and price. `provisioningId` becomes the immutable source version for `league_season_draft_setups`. The command rejects fixture paths and known local E2E identifiers even if the document says `production`.
+     Use the reviewed real league shape, with 4 to 20 teams, its exact draft and roster settings, and all real catalog players; the one-team example only shows field names. Account emails and IDs must be unique. `actorAccountId` must have an owner or admin membership. Membership team/owner IDs, initial rosters, and keepers must reference records in the same document. Active/published keepers must match a `source: "keeper"` initial-roster row and price. `provisioningId` becomes the immutable source version for `league_season_draft_setups`. The command rejects fixture paths and known local E2E identifiers even if the document says `production`.
 
      The command covers the normalized account, league setup, `players`, `keeper_declarations`, `league_season_draft_setups`, and `audit_events` records. Continue to use the approved admin/UI/API path for historical imports and the active pricing snapshot, then verify both before launch.
 
@@ -291,11 +300,10 @@ Run these against the exact commit that will serve the domain.
      DATABASE_URL="$STAGING_DATABASE_URL" npm run platform:seed:e2e
      ```
 
-5. Start runtime processes:
+5. Start the web service:
 
    ```bash
    HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:web
-   DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_SIMULATION_DATA_MODE=local-fixtures npm run platform:worker
    ```
 
 6. Run smoke:
@@ -318,7 +326,7 @@ Run these against the exact commit that will serve the domain.
    npm run test:e2e:deployed -- --base-url=https://staging.example.com
    ```
 
-   Provision the smoke accounts and season with the reviewed production provisioning command before the run. The commissioner must have owner or admin access, both accounts must have distinct assigned teams, and the season must include its stored draft setup without an existing real room. The deployed runner refuses local fixture bootstrap variables, signs in through invite-only auth, and uses only normal authenticated product actions. It creates, starts, mutates, ends, and exports the dedicated room, so provision a fresh smoke season before every run. No public signup or HTTP provisioning token is required.
+   Create the smoke accounts and staging season through the normal product flow before the run. The commissioner must have owner or admin access, both accounts must have distinct assigned teams, and the season must include its stored draft setup without an existing real room. The deployed runner refuses local fixture bootstrap variables, signs in through normal authentication, and uses only authenticated product actions. The read-only production smoke must not mutate the real room; use an isolated rehearsal environment for mutation-heavy checks. No HTTP provisioning token is required.
 
 ## Realtime Decision
 
@@ -441,7 +449,6 @@ Metrics:
 - Auth failures and rate-limit hits.
 - Active SSE connections, reconnect rate, heartbeat failures, polling fallback rate.
 - Draft mutation latency, validation failures, stale revision conflicts.
-- Worker queue depth, job duration, retries, dead jobs, canceled jobs.
 - Import, model run, simulation, and export success/failure counts.
 - Postgres connection usage, slow queries, backup success/failure.
 
@@ -450,16 +457,15 @@ Alerts:
 - App unavailable or elevated 5xx.
 - Postgres unavailable or pool exhaustion.
 - Backup failure.
-- Worker queue stalled.
 - Repeated import/model/simulation/export failures.
 - Live draft mutation failures during a scheduled draft window.
 - SSE reconnect/fallback spike during draft night.
 
 ## Draft-Night Rehearsal
 
-Run the mutation-heavy checks against an isolated rehearsal deployment and database created from the reviewed provisioning document. Never create a disposable room or log test sales in the real production season. After the isolated rehearsal passes, run the read-only deployed smoke with commissioner and member accounts against production.
+Run the mutation-heavy checks against an isolated rehearsal deployment and database configured through the same product flow commissioners will use. Never create a disposable room or log test sales in the real production season. After the isolated rehearsal passes, run the read-only deployed smoke with commissioner and member accounts against production.
 
-- Before distributing launch passwords, run `platform:provision --verify` for the reviewed production file and confirm the league, accounts, memberships, teams, rules, catalog, initial rosters, keepers, and audit receipt all match. Do not rerun immutable credential provisioning after an owner changes or resets a password.
+- Confirm the staging league review shows the intended accounts, memberships, teams, rules, catalog, historical imports, keepers, and active pricing snapshot.
 - Import at least one historical draft sheet and verify totals.
 - Publish a pricing snapshot.
 - Create a test live room.
@@ -477,12 +483,6 @@ If SSE fails:
 - Keep normal `POST` mutations active.
 - Switch clients to polling fallback with `afterRevision`.
 - Show a visible degraded realtime banner.
-
-If workers fail:
-
-- Live draft sale logging can continue because it is synchronous Postgres mutation plus projection.
-- Imports, simulations, model runs, and exports may pause.
-- Restart workers and retry failed jobs from Postgres.
 
 If export fails:
 
@@ -511,14 +511,14 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | --- | --- |
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
-| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web/worker rollout, repeat-run output is safe, and `league_season_draft_setups` exists. |
-| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, worker settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, invite-only signup, a persistent `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
-| Seed data | `platform:provision --verify` passes for the reviewed real-data file; historical imports and an active pricing snapshot also exist; no `platform:seed:e2e` fixture accounts are present in production. |
-| Worker | Worker starts, claims only supported job kinds, and does not run simulation jobs unless the fixture-backed launch constraint is accepted. |
+| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, `platform-auth-ownership-v8` is applied, and `league_season_draft_setups` exists. |
+| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, a persistent `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
+| Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
+| League setup | A commissioner created and published the staging league through the product; settings, team mappings, historical imports, keepers, and active pricing are correct; no `platform:seed:e2e` fixture accounts are present in production. |
 | Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |
 | Draft commands | Sale, undo, end, idempotency, stale revision, budget, roster, and position maximum validation pass in staging. |
 | Export | Final export artifact is created after room end and content is readable after restore. |
 | Backups | Automated backups and alerts are enabled, the pre-cutover UTC recovery point and logical export are recorded, and restore rehearsal has passed within 7 days. |
-| Monitoring | Uptime, 5xx, Postgres availability, queue stall, backup failure, and draft-window mutation alerts route to named owners. |
+| Monitoring | Uptime, 5xx, Postgres availability, backup failure, and draft-window mutation alerts route to named owners. |
 | Provider risk | Yahoo/ESPN sync is either disabled or read-only configured. ESPN cookies are not collected in hosted production. |
 | Degraded mode | Manual draft board fallback, recovery owner, and user comms are ready for draft night. |

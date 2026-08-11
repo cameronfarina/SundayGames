@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Owner } from "../../config/league.js";
 import type { ForcedAuctionSale, MockBatch } from "../modeling/mockBatch.js";
 
-export const maxSimulationCount = 500;
+export const maxSimulationCount = 25;
 
 export type SimulationPriceMode = "exact" | "ceiling";
 export type SimulationRunStatus = "requested" | "running" | "completed" | "failed" | "canceled";

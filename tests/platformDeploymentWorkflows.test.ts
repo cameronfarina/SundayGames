@@ -48,8 +48,14 @@ describe("production deployment workflows", () => {
     expect(content).toContain("http://127.0.0.1:4319/readyz");
     expect(content).toContain("--env MOCKD_SCREENSHOT_IMPORT_MODE=openai");
     expect(content).toContain("--env OPENAI_API_KEY=ci-placeholder-not-used");
+    expect(content).toContain("--env MOCKD_ALLOW_PUBLIC_SIGNUP=true");
+    expect(content).toContain("--env MOCKD_AUTH_EMAIL_MODE=resend");
+    expect(content).toContain("--env RESEND_API_KEY=ci-placeholder-not-used");
+    expect(content).toContain("--env MOCKD_EMAIL_FROM=accounts@mockd.example.com");
+    expect(content).toContain("--env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com");
     expect(content).toContain(".State.Running}}' mockd-ci-web");
-    expect(content).toContain(".State.Running}}' mockd-ci-worker");
+    expect(content).not.toContain("mockd-ci-worker");
+    expect(content).not.toContain("MOCKD_SIMULATION_DATA_MODE=local-fixtures");
     expect(content).not.toContain(".State.Health.Status");
     expect(content).toContain("platform:render:validate");
   });

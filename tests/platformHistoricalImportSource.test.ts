@@ -4,8 +4,8 @@ import { parseHistoricalImportSource } from "../src/platform/historicalImportSou
 describe("platform historical import source parsing", () => {
   it("auto-detects tab and semicolon delimiters from alias headers", () => {
     const tabResult = parseHistoricalImportSource([
-      "team\tname\tposition\tamount\tyear\tplayer id\tis keeper\tacquisition",
-      " Cam \t Ja'Marr Chase \t WR \t $62 \t 2025 \t player-jamarr-chase \t y \t keeper ",
+      "team\tname\tposition\tamount\tespn aav\tyear\tplayer id\tis keeper\tacquisition",
+      " Cam \t Ja'Marr Chase \t WR \t $62 \t $55 \t 2025 \t player-jamarr-chase \t y \t keeper ",
     ].join("\n"));
     const semicolonResult = parseHistoricalImportSource([
       "owner name;player name;pos;salary;season year;espn id;type",
@@ -23,6 +23,7 @@ describe("platform historical import source parsing", () => {
         playerId: "player-jamarr-chase",
         position: "WR",
         priceDollars: 62,
+        publicPriceDollars: 55,
         keeper: true,
         acquisitionType: "keeper",
       },

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
+import { CapturingAuthMailSender } from "../src/platform/auth.js";
 import {
   InMemoryJobQueue,
   type CancelJobAtRunBoundaryInput,
@@ -18,7 +19,10 @@ import {
   type SubmitJobInput,
   type UpdateJobProgressInput,
 } from "../src/platform/jobs.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  buildCurrentMockdLeagueSeason,
+  defaultScoringSettings,
+} from "../src/platform/leagueSeason.js";
 import {
   currentLeagueInitialRostersFor,
   loadCurrentPlayerCatalog,
@@ -55,6 +59,7 @@ import {
   type SimulationResult,
   type SimulationRun,
 } from "../src/platform/simulations.js";
+import { runSeasonSimulations } from "../src/platform/seasonSimulationEngine.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -95,6 +100,7 @@ interface StoredAuthAccountRow {
   email: string;
   email_normalized: string;
   password_hash: string;
+  email_verified_at: Date | null;
   auth_version: number;
   status: string;
   created_at: Date;
@@ -313,7 +319,13 @@ class FakePostgresAuthClient implements PostgresQueryClient {
     const normalizedSql = normalizeSql(text);
 
     if (normalizedSql.startsWith("INSERT INTO accounts")) {
-      const [id, email, passwordHash, createdAt] = values as readonly [string, string, string, Date];
+      const [id, email, passwordHash, emailVerifiedAt, createdAt] = values as readonly [
+        string,
+        string,
+        string,
+        Date,
+        Date,
+      ];
       const existing = [...this.accounts.values()].find(account => account.email_normalized === email);
       if (existing !== undefined) return { rows: [], rowCount: 0 };
 
@@ -322,6 +334,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         email,
         email_normalized: email,
         password_hash: passwordHash,
+        email_verified_at: emailVerifiedAt,
         auth_version: 1,
         status: "active",
         created_at: createdAt,
@@ -433,7 +446,9 @@ class FakeTransactionalPostgresAuthClient
       normalizedSql.startsWith("CREATE TABLE") ||
       normalizedSql.startsWith("CREATE INDEX") ||
       normalizedSql.startsWith("CREATE UNIQUE INDEX") ||
-      normalizedSql.startsWith("ALTER TABLE")
+      normalizedSql.startsWith("ALTER TABLE") ||
+      normalizedSql.startsWith("DROP INDEX") ||
+      normalizedSql.startsWith("UPDATE accounts SET email_verified_at")
     ) {
       return { rows: [] };
     }
@@ -1254,6 +1269,123 @@ describe("platform server composition", () => {
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
   });
 
+  it("verifies and recovers a production-style account through the real HTTP server", async () => {
+    const authMailSender = new CapturingAuthMailSender();
+    const { baseUrl } = await createListeningServer({
+      emailVerificationRequired: true,
+      authMailSender,
+      publicBaseUrl: "https://mockd.example.com",
+    });
+
+    const signup = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "owner@example.com", password: "secure password" }),
+    });
+    expect(signup).toMatchObject({ status: 202, body: { accepted: true } });
+    const verificationMessage = authMailSender.messages[0];
+    const verificationToken = new URL(
+      verificationMessage?.actionUrl ?? "https://invalid.local",
+    ).searchParams.get("token") ?? "";
+
+    await expect(jsonFetch(baseUrl, "/email-verifications/consume", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: verificationToken }),
+    })).resolves.toMatchObject({ status: 200, body: { verified: true } });
+    await expect(jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "owner@example.com", password: "secure password" }),
+    })).resolves.toMatchObject({ status: 200 });
+
+    await jsonFetch(baseUrl, "/password-resets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "owner@example.com" }),
+    });
+    const resetMessage = authMailSender.messages[1];
+    const resetToken = new URL(resetMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
+    await expect(jsonFetch(baseUrl, "/password-resets/consume", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: resetToken,
+        newPassword: "replacement password",
+        newPasswordConfirmation: "replacement password",
+      }),
+    })).resolves.toMatchObject({ status: 200, body: { reset: true } });
+  });
+
+  it("creates, publishes, and provisions a new league from the current catalog", async () => {
+    const currentPlayerCatalog = await loadCurrentPlayerCatalog();
+    const { baseUrl } = await createListeningServer({
+      currentPlayerCatalogProvider: async () => currentPlayerCatalog,
+    });
+    await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password" }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password" }),
+    });
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const headers = {
+      "content-type": "application/json",
+      "x-session-token": sessionToken,
+    };
+    const created = await jsonFetch(baseUrl, "/leagues", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        setup: {
+          provider: "espn",
+          externalLeagueId: "new-22",
+          leagueName: "New League",
+          seasonYear: 2026,
+          expectedTeamCount: 4,
+          teams: [
+            { externalTeamId: "1", displayName: "One", managerNames: ["Cam"] },
+            { externalTeamId: "2", displayName: "Two", managerNames: ["Beaton"] },
+            { externalTeamId: "3", displayName: "Three", managerNames: ["Seth"] },
+            { externalTeamId: "4", displayName: "Four", managerNames: ["Nick"] },
+          ],
+          draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+          scoring: { ...defaultScoringSettings },
+          rosterSlots: { QB: 1, RB: 1 },
+        },
+      }),
+    });
+    const seasonId = (created.body as { season: { id: string } }).season.id;
+
+    expect(created.status).toBe(201);
+    expect((await jsonFetch(baseUrl, `/seasons/${seasonId}/publish`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ confirmed: true }),
+    })).status).toBe(200);
+    const liveRoom = await jsonFetch(baseUrl, `/seasons/${seasonId}/live-room`, {
+      method: "POST",
+      headers,
+      body: "{}",
+    });
+
+    expect(liveRoom).toMatchObject({
+      status: 201,
+      body: {
+        room: {
+          season: { id: seasonId },
+          projection: { board: expect.any(Array) },
+        },
+      },
+    });
+    expect((liveRoom.body as { room: { projection: { board: unknown[] } } })
+      .room.projection.board).toHaveLength(currentPlayerCatalog.length);
+  });
+
   it("passes the trusted proxy client address to auth rate limiting", async () => {
     const seenClientAddresses: string[] = [];
     const { baseUrl } = await createListeningServer({
@@ -1294,6 +1426,12 @@ describe("platform server composition", () => {
     expect(response.body).toContain("id=\"auth-panel\"");
     expect(response.body).toContain("League home");
     expect(response.body).toContain("Open live draft");
+
+    for (const path of ["/verify-email", "/forgot-password", "/reset-password"]) {
+      const recovery = await textFetch(baseUrl, path);
+      expect(recovery.status).toBe(200);
+      expect(recovery.body).toContain("id=\"auth-panel\"");
+    }
   });
 
   it("serves the dedicated draft room from the production draft route", async () => {
@@ -1314,7 +1452,7 @@ describe("platform server composition", () => {
     expect(draftRoom.body).not.toContain("id=\"draft-room-link\"");
   });
 
-  it("serves season-scoped prep and mock workspaces only to league members", async () => {
+  it("serves the board before league selection and keeps private prep scoped to members", async () => {
     directory = await mkdtemp(join(tmpdir(), "mockd-platform-draft-tools-"));
     const draftSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
     const { platformServer, baseUrl } = await createListeningServer({
@@ -1332,10 +1470,8 @@ describe("platform server composition", () => {
         redirect: "manual",
       },
     );
-    expect(anonymousBoard.status).toBe(302);
-    expect(anonymousBoard.headers.get("location")).toBe(
-      `/login?returnTo=%2Fboard%3FseasonId%3D${season.id}%26strategy%3Dbalanced`,
-    );
+    expect(anonymousBoard.status).toBe(200);
+    expect(await anonymousBoard.text()).toContain("id=\"auth-panel\"");
 
     const prepAccount = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
@@ -1386,19 +1522,21 @@ describe("platform server composition", () => {
     const missingSeason = await fetch(`${baseUrl}/board`, {
       headers: { "x-session-token": sessionToken },
     });
-    expect(missingSeason.status).toBe(400);
+    expect(missingSeason.status).toBe(200);
+    expect(await missingSeason.text()).toContain("id=\"standalone-board\"");
 
     const outsiderBoard = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
       headers: { "x-session-token": outsiderSessionToken },
     });
-    expect(outsiderBoard.status).toBe(403);
+    expect(outsiderBoard.status).toBe(200);
+    expect(await outsiderBoard.text()).toContain("id=\"standalone-board\"");
 
     const board = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
       headers: { "x-session-token": sessionToken },
     });
     expect(board.status).toBe(200);
     expect(board.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(await board.text()).toContain("id=\"draft-room-view\"");
+    expect(await board.text()).toContain("id=\"standalone-board\"");
 
     const mockState = await jsonFetch(
       baseUrl,
@@ -2620,6 +2758,250 @@ describe("platform server composition", () => {
     await expect(analysis).resolves.toMatchObject({ status: 200 });
   });
 
+  it("keeps health checks responsive during league-creation screenshot analysis", async () => {
+    const analysisEntered = deferred();
+    const releaseAnalysis = deferred();
+    const { platformServer } = await createListeningServer({
+      postgresClient: new FakePostgresClient(),
+      leagueMembersScreenshotAnalyzer: {
+        analyze: async () => {
+          analysisEntered.resolve();
+          await releaseAnalysis.promise;
+          return {
+            leagueName: "League 214674",
+            externalLeagueId: "214674",
+            teams: ownerOrder.map((manager, index) => ({
+              draftOrderPosition: index + 1,
+              abbreviation: manager.slice(0, 4).toUpperCase(),
+              teamDisplayName: `${manager} Team`,
+              managerDisplayNames: [manager],
+              confidence: "high" as const,
+              issues: [],
+              confirmed: false,
+            })),
+          };
+        },
+      },
+    });
+    const account = await platformServer.app.createAccount({
+      email: "league-create-screenshot-health@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected league-creation screenshot fixture login.");
+
+    const analysis = platformServer.handler({
+      method: "POST",
+      path: "/league-imports/espn/members-screenshot-review",
+      sessionToken: login.sessionToken,
+      body: { mimeType: "image/png", base64: "fixture" },
+      now,
+    });
+    await analysisEntered.promise;
+
+    await expect(Promise.race([
+      platformServer.handler({ method: "GET", path: "/healthz", now }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Health check was blocked.")), 100)),
+    ])).resolves.toMatchObject({ status: 200 });
+    releaseAnalysis.resolve();
+    await expect(analysis).resolves.toMatchObject({ status: 200 });
+  });
+
+  it("keeps health checks responsive while a season simulation runs outside the snapshot queue", async () => {
+    const setupReadEntered = deferred();
+    const releaseSetupRead = deferred();
+    const simulationEntered = deferred();
+    const releaseSimulation = deferred();
+    const playerCatalog = await loadCurrentPlayerCatalog();
+    const { platformServer } = await createListeningServer({
+      postgresClient: new FakePostgresClient(),
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      liveDraftRoomSetupProvider: async season => {
+        setupReadEntered.resolve();
+        await releaseSetupRead.promise;
+        return {
+          seasonId: season.id,
+          sourceVersion: "simulation-health-test",
+          playerCatalog,
+          initialRosters: currentLeagueInitialRostersFor(season),
+          contentHash: "simulation-health-test-hash",
+          updatedAt: now,
+        };
+      },
+      seasonSimulationRunner: async input => {
+        simulationEntered.resolve();
+        await releaseSimulation.promise;
+        return runSeasonSimulations(input);
+      },
+    });
+    const account = await platformServer.app.createAccount({
+      email: "simulation-health@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected simulation health fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const claimedTeam = season.teams[0];
+    if (claimedTeam === undefined) throw new Error("Expected a simulation health fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+      now,
+    });
+
+    const simulation = platformServer.handler({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: login.sessionToken,
+      body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
+      now,
+    });
+    await setupReadEntered.promise;
+    const queuedMutation = platformServer.handler({
+      method: "POST",
+      path: "/accounts",
+      body: { email: "after-simulation-capture@example.com", password: "secure password" },
+      now,
+    });
+    await expect(Promise.race([
+      queuedMutation.then(() => "completed"),
+      new Promise(resolve => setTimeout(() => resolve("still-queued"), 50)),
+    ])).resolves.toBe("still-queued");
+    releaseSetupRead.resolve();
+    await expect(Promise.race([
+      simulationEntered.promise.then(() => ({ entered: true })),
+      simulation.then(response => ({ response })),
+    ])).resolves.toEqual({ entered: true });
+
+    await expect(Promise.race([
+      queuedMutation,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Mutation remained blocked.")), 100)),
+    ])).resolves.toMatchObject({ status: 201 });
+
+    await expect(Promise.race([
+      platformServer.handler({ method: "GET", path: "/healthz", now }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Health check was blocked.")), 100)),
+    ])).resolves.toMatchObject({ status: 200 });
+    releaseSimulation.resolve();
+    await expect(simulation).resolves.toMatchObject({ status: 200 });
+  });
+
+  it("keeps concurrent simulation input handoffs request-scoped", async () => {
+    const firstSetupReadEntered = deferred();
+    const releaseFirstSetupRead = deferred();
+    const firstSimulationEntered = deferred();
+    const secondSimulationEntered = deferred();
+    const releaseFirstSimulation = deferred();
+    const releaseSecondSimulation = deferred();
+    const playerCatalog = await loadCurrentPlayerCatalog();
+    let setupReadCount = 0;
+    let simulationCount = 0;
+    const { platformServer } = await createListeningServer({
+      postgresClient: new FakePostgresClient(),
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      liveDraftRoomSetupProvider: async season => {
+        setupReadCount += 1;
+        if (setupReadCount === 1) {
+          firstSetupReadEntered.resolve();
+          await releaseFirstSetupRead.promise;
+        }
+        return {
+          seasonId: season.id,
+          sourceVersion: `concurrent-simulation-${setupReadCount}`,
+          playerCatalog,
+          initialRosters: currentLeagueInitialRostersFor(season),
+          contentHash: `concurrent-simulation-hash-${setupReadCount}`,
+          updatedAt: now,
+        };
+      },
+      seasonSimulationRunner: async input => {
+        simulationCount += 1;
+        if (simulationCount === 1) {
+          firstSimulationEntered.resolve();
+          await releaseFirstSimulation.promise;
+        } else {
+          secondSimulationEntered.resolve();
+          await releaseSecondSimulation.promise;
+        }
+        return runSeasonSimulations(input);
+      },
+    });
+    const account = await platformServer.app.createAccount({
+      email: "concurrent-simulations@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected concurrent simulation fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Concurrent simulation league",
+      setupStatus: "published",
+    });
+    const claimedTeam = season.teams[0];
+    if (claimedTeam === undefined) throw new Error("Expected a concurrent simulation fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+      now,
+    });
+    const request = () => platformServer.handler({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: login.sessionToken,
+      body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
+      now,
+    });
+
+    const first = request();
+    await firstSetupReadEntered.promise;
+    const second = request();
+    releaseFirstSetupRead.resolve();
+    await firstSimulationEntered.promise;
+
+    await expect(Promise.race([
+      secondSimulationEntered.promise.then(() => "started"),
+      new Promise(resolve => setTimeout(() => resolve("blocked"), 100)),
+    ])).resolves.toBe("started");
+
+    releaseFirstSimulation.resolve();
+    releaseSecondSimulation.resolve();
+    await expect(Promise.all([first, second])).resolves.toMatchObject([
+      { status: 200 },
+      { status: 200 },
+    ]);
+  });
+
   it("serializes Postgres snapshot-backed worker mutations with HTTP mutations", async () => {
     const postgresClient = new FakePostgresClient();
     const { platformServer, baseUrl } = await createListeningServer({
@@ -3229,6 +3611,8 @@ describe("platform server composition", () => {
     const { baseUrl } = await createListeningServer({
       postgresClient,
       historicalImportRepository,
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
     });
     const created = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
@@ -3276,17 +3660,11 @@ describe("platform server composition", () => {
       },
       body: JSON.stringify({
         sourceText: [
-          "owner,player,position,price,year,player id,keeper,acquisition",
-          "Cam,Ja'Marr Chase,WR,$61,2026,player-jamarr-chase,false,auction",
+          "owner,player,position,price,year,keeper,acquisition",
+          "Cam,Ja'Marr Chase,WR,$61,2026,false,auction",
         ].join("\n"),
       }),
     });
-    const batchId = (preview.body as { batch: { id: string } }).batch.id;
-    const commit = await jsonFetch(baseUrl, `/historical-imports/${batchId}/commit`, {
-      method: "POST",
-      headers: { "x-session-token": sessionToken },
-    });
-
     expect(preview).toMatchObject({
       status: 200,
       body: {
@@ -3294,6 +3672,15 @@ describe("platform server composition", () => {
           status: "previewed",
         },
       },
+    });
+    const batchId = (preview.body as { batch: { id: string } }).batch.id;
+    const commit = await jsonFetch(baseUrl, `/historical-imports/${batchId}/commit`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({ seasonId: season.id, seasonYear: 2026 }),
     });
     expect(commit).toMatchObject({
       status: 200,
@@ -3308,6 +3695,11 @@ describe("platform server composition", () => {
     expect(postgresClient.row?.snapshot_json).toMatchObject({
       historicalImportBatches: [],
       historicalSaleRecords: [],
+      pricingSnapshots: [expect.objectContaining({
+        leagueId: season.leagueId,
+        seasonYear: season.seasonYear,
+        scenarioId: "expected",
+      })],
     });
   });
 

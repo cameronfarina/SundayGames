@@ -330,6 +330,38 @@ describe("platform Node HTTP adapter", () => {
     expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
   });
 
+  it("aborts a platform request when its client disconnects", async () => {
+    let requestStarted!: () => void;
+    const started = new Promise<void>(resolve => {
+      requestStarted = resolve;
+    });
+    let requestAborted!: () => void;
+    const aborted = new Promise<void>(resolve => {
+      requestAborted = resolve;
+    });
+    const baseUrl = await listen(async request => {
+      requestStarted();
+      if (request.signal?.aborted === true) requestAborted();
+      else request.signal?.addEventListener("abort", requestAborted, { once: true });
+      await aborted;
+      return { status: 499, body: { canceled: true } };
+    });
+    const clientRequest = httpRequest(`${baseUrl}/season-simulations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    });
+    clientRequest.on("error", () => undefined);
+    clientRequest.end(JSON.stringify({ seasonId: "season-1", count: 25 }));
+    await started;
+
+    clientRequest.destroy();
+
+    await expect(Promise.race([
+      aborted.then(() => undefined),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Request was not aborted.")), 100)),
+    ])).resolves.toBeUndefined();
+  });
+
   it("ignores proxy client-address headers unless the proxy is explicitly trusted", async () => {
     const seenRequests: PlatformHttpRequest[] = [];
     const baseUrl = await listen(async request => {
@@ -474,16 +506,15 @@ describe("platform Node HTTP adapter", () => {
     for (const path of [
       "/login",
       "/signup",
+      "/verify-email?token=test",
+      "/forgot-password",
+      "/reset-password?token=test",
       "/invite?token=test",
       "/setup",
       "/league",
       "/board",
+      "/my-team",
       "/mock-drafts",
-      "/mock-results",
-      "/simulations",
-      "/strategy",
-      "/my-expert",
-      "/player-news",
     ]) {
       const response = await fetch(`${baseUrl}${path}`);
 
@@ -498,6 +529,26 @@ describe("platform Node HTTP adapter", () => {
     expect(await draftRoomResponse.text()).toBe(draftRoomHtml);
 
     expect(callCount).toBe(0);
+  });
+
+  it("redirects superseded product pages into the unified workspace", async () => {
+    const baseUrl = await listen(async () => ({ status: 404, body: {} }), {
+      appHtml: "<!doctype html><title>Mockd app</title>",
+    });
+    const cases = [
+      ["/simulations?seasonId=season-1&strategy=rb", "/board?strategy=rb&contextSeasonId=season-1"],
+      ["/player-news?seasonId=season-1", "/board?contextSeasonId=season-1"],
+      ["/strategy?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
+      ["/mock-results?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
+      ["/my-expert?seasonId=season-1", "/my-team?seasonId=season-1"],
+    ] as const;
+
+    for (const [source, target] of cases) {
+      const response = await fetch(`${baseUrl}${source}`, { redirect: "manual" });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(target);
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    }
   });
 
   it("extracts session tokens from bearer, x-session-token, and mockd_session cookies only", async () => {
@@ -622,6 +673,16 @@ describe("platform Node HTTP adapter", () => {
       "/seasons/season-1/setup-import/screenshot-analyze",
       { method: "POST", headers: { "content-type": "application/json" }, body },
     );
+    const leagueCreationScreenshot = await jsonFetch(
+      baseUrl,
+      "/league-imports/espn/members-screenshot-review",
+      { method: "POST", headers: { "content-type": "application/json" }, body },
+    );
+    const historicalSpreadsheet = await jsonFetch(
+      baseUrl,
+      "/seasons/season-1/historical-imports/upload-preview",
+      { method: "POST", headers: { "content-type": "application/json" }, body },
+    );
     const ordinary = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -629,8 +690,14 @@ describe("platform Node HTTP adapter", () => {
     });
 
     expect(screenshot.status).toBe(200);
+    expect(leagueCreationScreenshot.status).toBe(200);
+    expect(historicalSpreadsheet.status).toBe(200);
     expect(ordinary.status).toBe(413);
-    expect(seenPaths).toEqual(["/seasons/season-1/setup-import/screenshot-analyze"]);
+    expect(seenPaths).toEqual([
+      "/seasons/season-1/setup-import/screenshot-analyze",
+      "/league-imports/espn/members-screenshot-review",
+      "/seasons/season-1/historical-imports/upload-preview",
+    ]);
   });
 
   it("rejects screenshot uploads before consuming the body or calling the handler", async () => {

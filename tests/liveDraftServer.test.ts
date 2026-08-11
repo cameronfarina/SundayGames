@@ -388,6 +388,29 @@ describe("live draft server", () => {
     }
   });
 
+  it("serves an injected workspace document without changing draft APIs", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const workspaceHtml = '<!doctype html><main id="unified-draft-workspace"></main>';
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+        workspaceHtml,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const response = await fetch(`${baseUrl}/draft-room`);
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(workspaceHtml);
+      expect((await fetch(`${baseUrl}/api/state`)).status).toBe(200);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it("serves the draft board with the same default sourced evidence as prep commands", async () => {
     const directory = await tempSessionDirectory();
     try {

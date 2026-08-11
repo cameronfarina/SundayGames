@@ -7,6 +7,7 @@ import {
 
 const expectedTableOrder = [
   "accounts",
+  "account_auth_tokens",
   "sessions",
   "leagues",
   "league_memberships",
@@ -192,6 +193,7 @@ describe("platform Postgres schema contract", () => {
 
   it("declares critical uniqueness and idempotency contracts", () => {
     expectUniqueContract("accounts", "accounts_email_normalized_key", ["email_normalized"]);
+    expectUniqueContract("account_auth_tokens", "account_auth_tokens_token_hash_key", ["token_hash"]);
     expectUniqueContract("sessions", "sessions_token_hash_key", ["token_hash"]);
     expectUniqueContract("league_seasons", "league_seasons_league_year_key", ["league_id", "season_year"]);
     expectUniqueContract("league_memberships", "league_memberships_league_user_key", ["league_id", "user_id"]);
@@ -255,6 +257,10 @@ describe("platform Postgres schema contract", () => {
   });
 
   it("declares indexes used by common auth, private, job, and live-room reads", () => {
+    expect(tableByName("account_auth_tokens").indexes).toContainEqual({
+      name: "account_auth_tokens_account_purpose_idx",
+      columns: ["account_id", "purpose"],
+    });
     expectIndexContract("sessions", "sessions_account_id_idx", ["account_id"]);
     expectIndexContract("sessions", "sessions_expires_at_idx", ["expires_at"]);
     expectIndexContract("league_memberships", "league_memberships_user_status_idx", ["user_id", "status"]);
@@ -308,6 +314,33 @@ describe("platform Postgres schema contract", () => {
     });
     expectForeignKeyContract("sessions", "sessions_account_id_fkey", ["account_id"], "accounts", ["id"]);
 
+    expectColumn("roster_rule_sets", "draft_format", {
+      type: "text",
+      default: "'auction'",
+    });
+    expectColumn("roster_rule_sets", "budget", {
+      type: "integer",
+      nullable: true,
+    });
+    expectColumn("roster_rule_sets", "minimum_bid", {
+      type: "integer",
+      nullable: true,
+    });
+    expectColumn("roster_rule_sets", "snake_json", {
+      type: "jsonb",
+      nullable: true,
+    });
+    expectCheckContract(
+      "roster_rule_sets",
+      "roster_rule_sets_draft_format_check",
+      "draft_format IN ('auction', 'snake')",
+    );
+    expectCheckContract(
+      "roster_rule_sets",
+      "roster_rule_sets_format_settings_check",
+      "(draft_format = 'auction' AND budget IS NOT NULL AND minimum_bid IS NOT NULL AND budget > 0 AND minimum_bid > 0 AND snake_json IS NULL) OR (draft_format = 'snake' AND budget IS NULL AND minimum_bid IS NULL AND snake_json IS NOT NULL)",
+    );
+
     expectColumn("historical_import_batches", "replacement_requested", {
       type: "boolean",
       default: "false",
@@ -321,6 +354,10 @@ describe("platform Postgres schema contract", () => {
     expectColumn("historical_draft_sales", "owner_display_name", { type: "text" });
     expectColumn("historical_draft_sales", "player_name", { type: "text" });
     expectColumn("historical_draft_sales", "price_dollars", { type: "integer" });
+    expectColumn("historical_draft_sales", "public_price_dollars", {
+      type: "integer",
+      nullable: true,
+    });
     expectColumn("historical_draft_sales", "keeper", {
       type: "boolean",
       default: "false",
@@ -328,9 +365,16 @@ describe("platform Postgres schema contract", () => {
     expectColumn("historical_draft_sales", "acquisition_type", { type: "text" });
     expectCheckContract(
       "historical_draft_sales",
+      "historical_draft_sales_public_price_check",
+      "public_price_dollars IS NULL OR public_price_dollars > 0",
+    );
+    expectCheckContract(
+      "historical_draft_sales",
       "historical_draft_sales_acquisition_type_check",
       "acquisition_type IN ('auction', 'keeper')",
     );
+    expect(uniqueContractsFor("leagues").map(contract => contract.name))
+      .not.toContain("leagues_provider_league_id_key");
 
     expectColumn("player_prices", "player_id", {
       type: "text",

@@ -189,6 +189,16 @@ const expectNoControlOverlap = async (controls: readonly Locator[]): Promise<voi
   }
 };
 
+const expectBoundedScrollRegion = async (region: Locator): Promise<void> => {
+  await expect(region).toBeVisible();
+  const dimensions = await region.evaluate(element => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(dimensions.clientHeight).toBeLessThanOrEqual(520);
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+};
+
 test.use({
   viewport: mobileViewport,
   hasTouch: true,
@@ -237,6 +247,24 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
     },
   }));
 
+  await page.route(
+    url => url.pathname === "/player-catalog" && url.searchParams.has("seasonId"),
+    async route => {
+      const response = await route.fetch();
+      const body = await response.json() as {
+        personalized?: boolean;
+        players?: Array<Record<string, unknown>>;
+      };
+      body.personalized = true;
+      body.players = (body.players || []).map((player, index) => ({
+        ...player,
+        ...(index === 0 ? { pricingWarnings: ["Limited league history; value confidence is lower."] } : {}),
+      }));
+      await route.fulfill({ response, json: body });
+    },
+    { times: 1 },
+  );
+
   await page.goto(`/app?seasonId=${encodeURIComponent(season.id)}`);
   await expect(page.locator("#league-name")).toHaveText(leagueName);
   await expect(page.locator("#my-team-name")).toHaveText("Cam");
@@ -248,6 +276,60 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
     page.locator("#league-picker"),
     page.locator("#open-live-draft-button"),
   ]);
+
+  await page.getByRole("link", { name: "Board", exact: true }).click();
+  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
+  expect(new URL(page.url()).searchParams.get("contextSeasonId")).toBe(season.id);
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expect(page.locator("#standalone-board-status")).toContainText("500 shown / 500 loaded");
+  await expect(page.locator("#standalone-board-sort")).toHaveValue("our");
+  await expect(page.locator("#standalone-pricing-source")).toContainText("Mockd league model");
+  await expect(page.locator("#standalone-pricing-warnings")).toContainText(
+    "Limited league history; value confidence is lower.",
+  );
+  const rankedTarget = page.locator("#standalone-player-rows tr").nth(7);
+  const targetName = (await rankedTarget.locator(".player-name").textContent())?.trim();
+  const targetRank = (await rankedTarget.locator('[data-label="Rank"]').textContent())?.trim();
+  expect(targetName).toBeTruthy();
+  expect(targetRank).toBeTruthy();
+  await page.locator("#standalone-player-search").fill(targetName || "");
+  await expect(page.locator('#standalone-player-rows tr [data-label="Rank"]')).toHaveText(targetRank || "");
+  await page.locator("#standalone-player-search").fill("");
+  await page.locator("#standalone-board-sort").selectOption("rank");
+  await expect(page.locator('#standalone-player-rows tr').first().locator('[data-label="Rank"]')).toHaveText("1");
+  await expectBoundedScrollRegion(page.locator("#standalone-player-scroll"));
+  await expectNoHorizontalPageOverflow(page);
+
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
+  const mockSessionId = new URL(page.url()).searchParams.get("mockSessionId");
+  expect(mockSessionId).toBeTruthy();
+  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  await expect(page.locator("#mock-draft-title")).toHaveText("Auction mock draft");
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-player-rows tr").first()).toBeVisible();
+  await expectBoundedScrollRegion(page.locator("#mock-draft-player-scroll"));
+  const mobileWorkspaceOrder = await page.evaluate(() => ({
+    rosterTop: document.querySelector(".mock-roster-panel")?.getBoundingClientRect().top ?? 0,
+    boardTop: document.querySelector("#mock-draft-player-scroll")?.getBoundingClientRect().top ?? 0,
+  }));
+  expect(mobileWorkspaceOrder.rosterTop).toBeLessThan(mobileWorkspaceOrder.boardTop);
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoControlOverlap([
+    page.locator("#mock-draft-start"),
+    page.locator("#mock-draft-buy"),
+    page.locator("#mock-draft-pass"),
+    page.locator("#mock-draft-undo"),
+    page.locator("#mock-draft-complete"),
+  ]);
+  await page.reload();
+  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBe(mockSessionId);
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+
+  await page.getByRole("link", { name: "League", exact: true }).click();
+  await expect(page.locator("#league-workspace")).toBeVisible();
 
   await page.locator("#open-live-draft-button").click();
   await expect(page.locator("#draft-room-view")).toBeVisible();
@@ -277,7 +359,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
 
   await page.reload();
   await expect(page.locator("#draft-room-status")).toHaveText("Live");
-  await expect(page.locator("#draft-connection-label")).toHaveText("Live");
+  await expect(page.locator("#draft-connection-label")).toHaveText("Connected");
   await expect(page.locator("#draft-sales")).toContainText("Puka Nacua");
   await expect(page.locator("#draft-team-budget")).toHaveText("$88");
   await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
@@ -303,7 +385,9 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   ]);
 
   await page.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(page.locator("#draft-room-view")).toBeVisible();
-  await expect(page.locator("#board .player-name").first()).toBeVisible();
+  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
   await expectNoHorizontalPageOverflow(page);
 });

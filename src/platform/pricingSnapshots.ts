@@ -296,31 +296,42 @@ const freezeDeep = <T>(value: T): T => {
 const immutableSnapshot = (snapshot: PricingSnapshot): PricingSnapshot =>
   freezeDeep(structuredClone(snapshot));
 
-const snapshotPayloadHash = (snapshot: PricingSnapshot): string =>
-  hashPricingSnapshotInputs(snapshot);
+const snapshotPayloadHash = (snapshot: PricingSnapshot): string => {
+  const { createdAt: _createdAt, ...immutablePayload } = snapshot;
+
+  return hashPricingSnapshotInputs(immutablePayload);
+};
 
 const snapshotStorageKey = (modelRunId: string, scenarioId: string): string =>
   `${modelRunId}\0${scenarioId}`;
+
+export const assertPricingSnapshotCanBeSaved = (
+  repository: PricingSnapshotRepository,
+  snapshot: PricingSnapshot,
+): void => {
+  const existing = repository.get(snapshot.modelRunId, snapshot.scenarioId);
+  if (existing !== undefined && snapshotPayloadHash(existing) !== snapshotPayloadHash(snapshot)) {
+    throw new PricingSnapshotError(
+      "pricing_snapshot_conflict",
+      `Cannot overwrite pricing snapshot for modelRunId ${snapshot.modelRunId} and scenarioId ${snapshot.scenarioId} with a different payload.`,
+    );
+  }
+};
 
 export const createInMemoryPricingSnapshotRepository = (): PricingSnapshotRepository => {
   const snapshots = new Map<string, { readonly hash: string; readonly snapshot: PricingSnapshot }>();
 
   return {
     save(snapshot) {
-      const hash = snapshotPayloadHash(snapshot);
       const key = snapshotStorageKey(snapshot.modelRunId, snapshot.scenarioId);
       const existing = snapshots.get(key);
       if (existing) {
-        if (existing.hash !== hash) {
-          throw new PricingSnapshotError(
-            "pricing_snapshot_conflict",
-            `Cannot overwrite pricing snapshot for modelRunId ${snapshot.modelRunId} and scenarioId ${snapshot.scenarioId} with a different payload.`,
-          );
-        }
+        assertPricingSnapshotCanBeSaved(this, snapshot);
 
         return immutableSnapshot(existing.snapshot);
       }
 
+      const hash = snapshotPayloadHash(snapshot);
       const immutable = immutableSnapshot(snapshot);
       snapshots.set(key, {
         hash,

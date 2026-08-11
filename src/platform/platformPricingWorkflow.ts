@@ -6,6 +6,7 @@ import type {
   PricingSnapshot,
   PricingSnapshotRepository,
 } from "./pricingSnapshots.js";
+import { assertPricingSnapshotCanBeSaved } from "./pricingSnapshots.js";
 
 export interface RebuildLeaguePricingWorkflowInput extends CreateLeagueCalibratedPricingSnapshotsInput {
   repository: PricingSnapshotRepository;
@@ -15,6 +16,11 @@ export interface RebuildLeaguePricingWorkflowResult {
   modelRunId: string;
   snapshots: readonly PricingSnapshot[];
   savedSnapshotIds: readonly string[];
+}
+
+export interface PreflightLeaguePricingWorkflowResult {
+  modelRunId: string;
+  snapshots: readonly PricingSnapshot[];
 }
 
 export interface PricingSnapshotReadWorkflowFilters {
@@ -35,9 +41,8 @@ const sameSeasonYear = (left: number | string, right: number | string): boolean 
 export const rebuildLeaguePricingWorkflow = (
   input: RebuildLeaguePricingWorkflowInput,
 ): RebuildLeaguePricingWorkflowResult => {
-  const { repository, ...pricingInput } = input;
-  const snapshots = createLeagueCalibratedPricingSnapshots(pricingInput);
-  const savedSnapshots = snapshots.map(snapshot => repository.save(snapshot));
+  const prepared = preflightLeaguePricingWorkflow(input);
+  const savedSnapshots = prepared.snapshots.map(snapshot => input.repository.save(snapshot));
   const firstSnapshot = savedSnapshots[0];
   if (firstSnapshot === undefined) {
     throw new Error("Pricing rebuild workflow did not create any snapshots.");
@@ -47,6 +52,23 @@ export const rebuildLeaguePricingWorkflow = (
     modelRunId: firstSnapshot.modelRunId,
     snapshots: savedSnapshots,
     savedSnapshotIds: savedSnapshots.map(snapshot => snapshot.snapshotId),
+  };
+};
+
+export const preflightLeaguePricingWorkflow = (
+  input: RebuildLeaguePricingWorkflowInput,
+): PreflightLeaguePricingWorkflowResult => {
+  const { repository, ...pricingInput } = input;
+  const snapshots = createLeagueCalibratedPricingSnapshots(pricingInput);
+  snapshots.forEach(snapshot => assertPricingSnapshotCanBeSaved(repository, snapshot));
+  const firstSnapshot = snapshots[0];
+  if (firstSnapshot === undefined) {
+    throw new Error("Pricing rebuild workflow did not create any snapshots.");
+  }
+
+  return {
+    modelRunId: firstSnapshot.modelRunId,
+    snapshots,
   };
 };
 

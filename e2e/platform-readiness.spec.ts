@@ -304,7 +304,7 @@ const seedSeasonFromBrowser = async (
 ): Promise<LeagueSeason> => {
   const season = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName,
-    setupStatus: "published",
+    setupStatus: "draft",
   }));
   const camTeam = teamByOwner(season, "Cam");
 
@@ -347,7 +347,115 @@ const applyCommissionerSetup = async (
   await sethInvitation.getByRole("button", { name: "Copy invite link" }).click();
   await expect(page.locator("#setup-status")).toHaveText("Invite link copied.");
 
+  const finalReview = page.locator("#setup-final-review");
+  const publishButton = page.getByRole("button", { name: "Publish league" });
+  const createRoomButton = page.getByRole("button", { name: "Create draft room" });
+  await expect(page.locator("#setup-settings-summary")).toContainText("$200 auction");
+  await expect(finalReview).not.toBeChecked();
+  await expect(publishButton).toBeDisabled();
+  await expect(createRoomButton).toBeDisabled();
+  await finalReview.check();
+  await expect(publishButton).toBeEnabled();
+  await publishButton.click();
+  await expect(page.locator("#live-room-setup-status")).toHaveText(
+    "League setup published. The shared draft room can now be created.",
+  );
+  await expect(finalReview).toBeChecked();
+  await expect(finalReview).toBeDisabled();
+  await expect(createRoomButton).toBeEnabled();
+
   return await page.evaluate(() => navigator.clipboard.readText());
+};
+
+const openUnifiedBoard = async (
+  page: Page,
+  seasonId: string,
+  expectedPlayerCount?: number,
+): Promise<void> => {
+  await page.getByRole("link", { name: "Board", exact: true }).click();
+  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
+  expect(new URL(page.url()).searchParams.get("contextSeasonId")).toBe(seasonId);
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
+  await expect(page.locator("#standalone-board-sort")).toHaveValue(/market|our/);
+  await expect(page.locator("#standalone-pricing-source")).toContainText("Pricing source:");
+  const boardViewport = await page.locator("#standalone-player-scroll").evaluate(element => ({
+    clientHeight: element.clientHeight,
+    maxHeight: getComputedStyle(element).maxHeight,
+  }));
+  expect(boardViewport.clientHeight).toBeLessThanOrEqual(720);
+  expect(boardViewport.maxHeight).not.toBe("none");
+  if (expectedPlayerCount !== undefined) {
+    await expect(page.locator("#standalone-player-rows tr")).toHaveCount(expectedPlayerCount);
+    await expect(page.locator("#standalone-board-status")).toContainText(
+      `${expectedPlayerCount} shown / ${expectedPlayerCount} loaded`,
+    );
+  }
+};
+
+const exerciseDurableMockWorkspace = async (
+  page: Page,
+  season: LeagueSeason,
+): Promise<void> => {
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
+  const mockUrl = new URL(page.url());
+  expect(mockUrl.searchParams.get("seasonId")).toBe(season.id);
+  expect(mockUrl.searchParams.get("mockSessionId")).toBeTruthy();
+  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  await expect(page.locator("#mock-draft-title")).toHaveText(
+    season.settings.draftFormat === "auction" ? "Auction mock draft" : "Snake mock draft",
+  );
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-player-rows tr").first()).toBeVisible();
+  const mockViewport = await page.locator("#mock-draft-player-scroll").evaluate(element => ({
+    clientHeight: element.clientHeight,
+    maxHeight: getComputedStyle(element).maxHeight,
+  }));
+  expect(mockViewport.clientHeight).toBeLessThanOrEqual(720);
+  expect(mockViewport.maxHeight).not.toBe("none");
+
+  await page.locator("#mock-draft-start").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
+
+  const passButton = page.locator("#mock-draft-pass");
+  if (await passButton.isEnabled()) {
+    await passButton.click();
+  } else {
+    const availableDecision = page.locator("#mock-draft-player-rows .mock-player-action:enabled").first();
+    await expect(availableDecision).toBeVisible();
+    await availableDecision.click();
+  }
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
+
+  const persistedState = await page.locator("#mock-draft-state").textContent();
+  const persistedProgress = await page.locator("#mock-draft-progress").textContent();
+  const persistedOnClock = await page.locator("#mock-draft-on-clock").textContent();
+  const persistedRoster = await page.locator("#mock-draft-roster").textContent();
+  const persistedSessionId = new URL(page.url()).searchParams.get("mockSessionId");
+  await page.reload();
+  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBe(persistedSessionId);
+  await expect(page.locator("#mock-draft-state")).toHaveText(persistedState ?? "");
+  await expect(page.locator("#mock-draft-progress")).toHaveText(persistedProgress ?? "");
+  await expect(page.locator("#mock-draft-on-clock")).toHaveText(persistedOnClock ?? "");
+  await expect(page.locator("#mock-draft-roster")).toHaveText(persistedRoster ?? "");
+};
+
+const exerciseBoardSimulations = async (page: Page): Promise<void> => {
+  const panel = page.locator("#simulation-panel");
+  await expect(panel).toBeVisible();
+  await panel.locator("summary").click();
+  await page.locator("#simulation-count").fill("2");
+  await page.locator("#simulation-strategy").fill("Target an elite RB");
+  await page.locator("#simulation-run").click();
+  await expect(page.locator("#simulation-results")).toBeVisible();
+  await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
+  await expect(page.locator("#simulation-format")).toHaveText(/Auction|Snake/);
+  await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
+  await expect(page.locator("#simulation-exposure-body tr").first()).toBeVisible();
 };
 
 const createLiveRoomFromSetup = async (
@@ -534,24 +642,13 @@ const exerciseDeployedWorkspace = async (browser: Browser): Promise<void> => {
   await expect(commissionerPage.locator("#my-team-name")).toHaveText(commissionerIdentity.teamName);
   await expect(memberPage.locator("#my-team-name")).toHaveText(memberIdentity.teamName);
 
-  await commissionerPage.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(commissionerPage).toHaveURL(/\/board\?seasonId=/);
-  expect(new URL(commissionerPage.url()).searchParams.get("owner")).toBe(commissionerIdentity.ownerName);
-  await expect(commissionerPage.locator("#draft-room-view")).toBeVisible();
-  await expect(commissionerPage.locator("#room-title")).toHaveText("Draft Board");
-  await expect(commissionerPage.locator("#board .player-name").first()).toBeVisible();
-
-  await memberPage.getByRole("link", { name: "Mock drafts", exact: true }).click();
-  await expect(memberPage).toHaveURL(/\/mock-drafts\?seasonId=/);
-  expect(new URL(memberPage.url()).searchParams.get("owner")).toBe(memberIdentity.ownerName);
-  await expect(memberPage.locator("#draft-room-view")).toBeVisible();
-  await expect(memberPage.locator("#draft-mode-status")).toContainText("Mock draft");
-  await expect(memberPage.locator("#roster-owner")).toHaveValue(memberIdentity.ownerName);
-
-  await memberPage.goto(`/app?seasonId=${encodeURIComponent(season.id)}`);
-  await memberPage.getByRole("link", { name: "Simulations", exact: true }).click();
-  await expect(memberPage).toHaveURL(/\/simulations\?seasonId=/);
-  await expect(memberPage.locator("#mock-simulations-view")).toBeVisible();
+  await openUnifiedBoard(commissionerPage, season.id);
+  await openUnifiedBoard(memberPage, season.id);
+  await exerciseBoardSimulations(memberPage);
+  await expect(memberPage.locator("#standalone-board-open-mock")).toHaveAttribute(
+    "href",
+    `/mock-drafts?seasonId=${encodeURIComponent(season.id)}`,
+  );
 
   await commissionerPage.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
   await expect(commissionerPage.locator("#setup-season-id-input")).toHaveValue(season.id);
@@ -564,7 +661,6 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
     season: appliedSeason,
     room: createdRoom,
     commissionerOwnerName,
-    memberOwnerName,
     memberTeamName,
     salePlayerName,
     salePrice,
@@ -580,34 +676,19 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await expect(sethPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
   await expect(sethPage.locator("#my-team-name")).toHaveText(memberTeamName);
 
-  await camPage.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(camPage).toHaveURL(/\/board\?seasonId=/);
-  expect(new URL(camPage.url()).searchParams.get("owner")).toBe(commissionerOwnerName);
-  await expect(camPage.locator("#draft-room-view")).toBeVisible();
-  await expect(camPage.locator("#room-title")).toHaveText("Draft Board");
-  await expect(camPage.locator("#draft-room-view")).toHaveClass(/platform-prep/);
-  await expect(camPage.locator("#quick-sale-form")).not.toBeVisible();
-  await expect(camPage.locator("#board-count")).toContainText(`${createdRoom.projection.board.length} loaded`);
-  await expect(camPage.locator("#board .player-name").first()).toBeVisible();
-  expect(await camPage.locator("#board .player-name").count()).toBe(120);
-  await camPage.locator("#app-menu-button").click();
-  await camPage.getByRole("menuitem", { name: "League home" }).click();
-  await expect(camPage).toHaveURL(new RegExp(`/app\\?seasonId=`));
+  await openUnifiedBoard(camPage, appliedSeason.id, createdRoom.playerCatalog.length);
+  await expect(camPage.locator("#standalone-board-open-live")).toHaveText("Live draft");
+  await camPage.getByRole("link", { name: "League", exact: true }).click();
+  await expect(camPage).toHaveURL(/\/league\?seasonId=/);
   await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
+  await expect(camPage.locator("#create-league-nav-item")).toBeVisible();
+  await camPage.locator("#create-league-nav-item").click();
+  await expect(camPage).toHaveURL(/\/league\?create=1$/);
+  await expect(camPage.locator("#empty-leagues")).toBeVisible();
+  await expect(camPage.locator("#league-context")).toBeHidden();
 
-  await sethPage.getByRole("link", { name: "Mock drafts", exact: true }).click();
-  await expect(sethPage).toHaveURL(/\/mock-drafts\?seasonId=/);
-  expect(new URL(sethPage.url()).searchParams.get("owner")).toBe(memberOwnerName);
-  await expect(sethPage.locator("#draft-room-view")).toBeVisible();
-  await expect(sethPage.locator("#draft-mode-status")).toContainText("Mock draft");
-  await expect(sethPage.locator("#roster-owner")).toHaveValue(memberOwnerName);
-  await expect(sethPage.locator("#board-count")).toContainText(`${createdRoom.projection.board.length} loaded`);
-
-  await sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`);
-  await sethPage.getByRole("link", { name: "Simulations", exact: true }).click();
-  await expect(sethPage).toHaveURL(/\/simulations\?seasonId=/);
-  expect(new URL(sethPage.url()).searchParams.get("owner")).toBe(memberOwnerName);
-  await expect(sethPage.locator("#mock-simulations-view")).toBeVisible();
+  await openUnifiedBoard(sethPage, appliedSeason.id, createdRoom.playerCatalog.length);
+  await exerciseDurableMockWorkspace(sethPage, appliedSeason);
 
   await Promise.all([
     camPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
@@ -1013,7 +1094,7 @@ test("commissioner league switching discards stale setup responses", async ({ br
   await expect(page.locator("#setup-season-id-input")).toHaveValue(seasonA.id);
 });
 
-test("deployed platform supports pre-provisioned invite-only workspaces without mutating the real draft", async ({ browser }) => {
+test("deployed platform supports authenticated workspaces without mutating the real draft", async ({ browser }) => {
   test.skip(!isDeployedSmoke, "Deployed smoke credentials are not used by local E2E.");
   await exerciseDeployedWorkspace(browser);
 });

@@ -6,6 +6,7 @@ import {
 import { createSimulationRunnerForRuntime } from "./currentLeagueSimulationRunner.js";
 import {
   currentLeagueInitialRostersFor,
+  loadCurrentPlayerCatalog,
   loadLocalDemoPlayerCatalog,
 } from "./localDemoFixtures.js";
 import { liveDraftRoomSetupContentHash, type LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
@@ -18,6 +19,13 @@ import {
 } from "./platformRuntimeConfig.js";
 import { startPlatformServer, type StartedPlatformServer } from "./platformServer.js";
 import { createOpenAiLeagueMembersScreenshotAnalyzer } from "./openAiLeagueMembersScreenshotAnalyzer.js";
+import {
+  importEspnLeagueSettings,
+  type EspnLeagueSettingsImportInput,
+  type EspnLeagueSettingsImportOutcome,
+} from "./espnLeagueSettingsImport.js";
+import { loadCurrentPostDraftProjectionSnapshot } from "./currentPostDraftProjectionSnapshot.js";
+import { createResendAuthMailSender } from "./resendAuthMailSender.js";
 
 export interface StartedPlatformWebProcess {
   server: StartedPlatformServer;
@@ -58,6 +66,26 @@ const localFixtureDraftSetupFor = async (season: LeagueSeason): Promise<LiveDraf
   };
 };
 
+const importEspnLeagueSettingsForRuntime = (
+  input: EspnLeagueSettingsImportInput,
+): Promise<EspnLeagueSettingsImportOutcome> =>
+  importEspnLeagueSettings(input, async request => {
+    const response = await fetch(request.url, {
+      method: request.method,
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await response.text();
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      // The importer maps authorization status before it examines an ESPN response body.
+    }
+
+    return { code: response.status, body };
+  });
+
 export const startPlatformWebFromEnv = async (
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<StartedPlatformWebProcess> => {
@@ -71,6 +99,11 @@ export const startPlatformWebFromEnv = async (
       statementTimeoutMs: config.postgresStatementTimeoutMs,
     });
   const readinessProbe = createPlatformWebReadinessProbe(config, postgresClient);
+  const authMailSender = config.authEmail.mode === "resend"
+    && config.authEmail.resendApiKey !== undefined
+    && config.authEmail.from !== undefined
+      ? createResendAuthMailSender({ apiKey: config.authEmail.resendApiKey, from: config.authEmail.from })
+      : undefined;
   const screenshotAnalyzer = config.screenshotImport.mode === "openai" && config.screenshotImport.apiKey !== undefined
     ? createOpenAiLeagueMembersScreenshotAnalyzer({
         apiKey: config.screenshotImport.apiKey,
@@ -98,10 +131,16 @@ export const startPlatformWebFromEnv = async (
       initializePostgresSchema: config.initializePostgresSchema,
       draftToolsSessionDirectory: config.draftToolsSessionDirectory,
       allowPublicSignup: config.allowPublicSignup,
+      emailVerificationRequired: config.authEmail.mode === "resend",
+      ...(authMailSender === undefined ? {} : { authMailSender }),
+      ...(config.authEmail.publicBaseUrl === undefined ? {} : { publicBaseUrl: config.authEmail.publicBaseUrl }),
       trustProxy: config.trustProxy,
       provisioningToken: config.provisioningToken,
       screenshotImportBodyLimitBytes:
         Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
+      currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
+      postDraftProjectionProvider: loadCurrentPostDraftProjectionSnapshot,
+      espnLeagueSettingsImporter: importEspnLeagueSettingsForRuntime,
       ...(screenshotAnalyzer === undefined
         ? {}
         : { leagueMembersScreenshotAnalyzer: screenshotAnalyzer }),

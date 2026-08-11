@@ -61,6 +61,91 @@ const teamByOwner = (season: LeagueSeason, ownerDisplayName: string) => {
 };
 
 describe("live draft rooms", () => {
+  it("cancels only setup rooms and unlocks their season for replacement", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const room = createRoom(repository);
+    const cancellation = {
+      roomId: room.roomId,
+      actor: commissioner,
+      expectedRevision: room.revision,
+      idempotencyKey: "cancel:room_sunday",
+      now: new Date(now.getTime() + 1_000),
+    } as const;
+
+    expect(repository.hasRoomForSeason(room.seasonId)).toBe(true);
+    expect(repository.cancelRoom(cancellation)).toBeUndefined();
+    expect(repository.hasRoomForSeason(room.seasonId)).toBe(false);
+    expect(repository.rooms()).toEqual([]);
+    expect(() => repository.getRoom(room.roomId)).toThrow(new LiveDraftRoomError(
+      "room_not_found",
+      'Live draft room "room_sunday" was not found.',
+    ));
+
+    expect(repository.cancelRoom(cancellation)).toBeUndefined();
+    expect(createRoom(repository)).toMatchObject({ roomId: room.roomId, seasonId: room.seasonId });
+  });
+
+  it("authorizes setup-room cancellation and preserves revision checks", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const room = createRoom(repository);
+
+    expect(() => repository.cancelRoom({
+      roomId: room.roomId,
+      actor: member,
+      expectedRevision: room.revision,
+      idempotencyKey: "cancel:member",
+    })).toThrow(new LiveDraftRoomError(
+      "mutation_denied",
+      "Only the commissioner or league admins can change this draft room.",
+    ));
+    expect(() => repository.cancelRoom({
+      roomId: room.roomId,
+      actor: commissioner,
+      expectedRevision: room.revision - 1,
+      idempotencyKey: "cancel:stale",
+    })).toThrow(new LiveDraftRoomError(
+      "stale_revision",
+      "Draft room changed since this action was prepared. Refresh and try again.",
+    ));
+    expect(repository.cancelRoom({
+      roomId: room.roomId,
+      actor: { ...commissioner, role: "member" },
+      expectedRevision: room.revision,
+      idempotencyKey: "cancel:commissioner",
+    })).toBeUndefined();
+    expect(repository.hasRoomForSeason(room.seasonId)).toBe(false);
+  });
+
+  it("allows cancellation during countdown but rejects it after a start event", () => {
+    const countdownRepository = new InMemoryLiveDraftRoomRepository();
+    const countdownRoom = createRoom(countdownRepository, {
+      startsAt: new Date(now.getTime() + 60_000),
+    });
+
+    expect(countdownRepository.cancelRoom({
+      roomId: countdownRoom.roomId,
+      actor: commissioner,
+      expectedRevision: countdownRoom.revision,
+      idempotencyKey: "cancel:countdown",
+    })).toBeUndefined();
+    expect(countdownRepository.hasRoomForSeason(countdownRoom.seasonId)).toBe(false);
+
+    const liveRepository = new InMemoryLiveDraftRoomRepository();
+    createRoom(liveRepository);
+    const started = startRoom(liveRepository);
+
+    expect(() => liveRepository.cancelRoom({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "cancel:started",
+    })).toThrow(new LiveDraftRoomError(
+      "room_not_cancellable",
+      "Only a draft room that has never started can be cancelled.",
+    ));
+    expect(liveRepository.hasRoomForSeason(started.seasonId)).toBe(true);
+  });
+
   it("creates rooms only from ready published seasons and starts with revisioned events", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const room = createRoom(repository);
@@ -217,6 +302,24 @@ describe("live draft rooms", () => {
   it("requires revision and idempotency metadata for live mutations", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     createRoom(repository);
+
+    expect(() => repository.cancelRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      idempotencyKey: "cancel:missing-revision",
+    })).toThrow(new LiveDraftRoomError(
+      "expected_revision_required",
+      "Draft room mutation requires the current revision.",
+    ));
+
+    expect(() => repository.cancelRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 1,
+    })).toThrow(new LiveDraftRoomError(
+      "idempotency_key_required",
+      "Draft room mutation requires an idempotency key.",
+    ));
 
     expect(() =>
       repository.startRoom({
@@ -495,9 +598,10 @@ describe("live draft rooms", () => {
       "QB", "QB", "QB",
       "RB", "RB", "RB", "RB", "RB", "RB",
       "WR", "WR", "WR", "WR",
-      "TE", "TE",
+      "TE",
       "K",
       "DST",
+      "WR",
     ] as const;
 
     expect(() =>
@@ -604,6 +708,115 @@ describe("live draft rooms", () => {
     ).toThrow(new LiveDraftRoomError(
       "position_limit",
       "Cam cannot buy Xavier Legette: roster limit is 6 WRs.",
+    ));
+  });
+
+  it("uses hybrid slot eligibility and excludes IR from live draft capacity", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const baseSeason = publishedSeason();
+    const hybridSeason: LeagueSeason = {
+      ...baseSeason,
+      settings: {
+        ...baseSeason.settings,
+        roster: {
+          rosterSize: 7,
+          lineup: { QB: 1, OP: 1, RB_WR: 1, WR_TE: 1, FLEX: 1, IR: 2 },
+          lineupSlotCount: 7,
+          rosterMaximums: { QB: 7, RB: 7, WR: 7, TE: 7, K: 7, DST: 7 },
+        },
+      },
+    };
+    const camTeam = teamByOwner(hybridSeason, "Cam");
+    const hybridCatalog = [
+      { name: "QB One", position: "QB", expectedPrice: 10 },
+      { name: "QB Two", position: "QB", expectedPrice: 9 },
+      { name: "QB Three", position: "QB", expectedPrice: 8 },
+      { name: "RB One", position: "RB", expectedPrice: 7 },
+      { name: "WR One", position: "WR", expectedPrice: 6 },
+      { name: "TE One", position: "TE", expectedPrice: 5 },
+    ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+    const room = createRoom(repository, {
+      season: hybridSeason,
+      playerCatalog: hybridCatalog,
+      initialRosters: [
+        { teamId: camTeam.id, playerName: "QB One", position: "QB", price: 1 },
+        { teamId: camTeam.id, playerName: "QB Two", position: "QB", price: 1 },
+        { teamId: camTeam.id, playerName: "RB One", position: "RB", price: 1 },
+        { teamId: camTeam.id, playerName: "WR One", position: "WR", price: 1 },
+        { teamId: camTeam.id, playerName: "TE One", position: "TE", price: 1 },
+      ],
+    });
+    const cam = room.projection.teams.find(team => team.teamId === camTeam.id);
+
+    expect(cam?.rosterSlotsRemaining).toBe(0);
+    expect(cam?.slots.map(slot => slot.slot)).toEqual(["QB", "OP", "RB_WR", "WR_TE", "FLEX"]);
+    expect(cam?.slots.every(slot => slot.player !== undefined)).toBe(true);
+
+    expect(() => createRoom(new InMemoryLiveDraftRoomRepository(), {
+      roomId: "room_too_many_qbs",
+      season: hybridSeason,
+      playerCatalog: hybridCatalog,
+      initialRosters: [
+        { teamId: camTeam.id, playerName: "QB One", position: "QB", price: 1 },
+        { teamId: camTeam.id, playerName: "QB Two", position: "QB", price: 1 },
+        { teamId: camTeam.id, playerName: "QB Three", position: "QB", price: 1 },
+      ],
+    })).toThrow(new LiveDraftRoomError(
+      "position_limit",
+      "Cam cannot roster QB Three: roster limit is 2 QBs.",
+    ));
+  });
+
+  it("rejects a roster when two positions compete for the same hybrid slot", () => {
+    const baseSeason = publishedSeason();
+    const constrainedSeason: LeagueSeason = {
+      ...baseSeason,
+      settings: {
+        ...baseSeason.settings,
+        roster: {
+          rosterSize: 2,
+          lineup: { OP: 1, RB_WR: 1 },
+          lineupSlotCount: 2,
+          rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 2, DST: 2 },
+        },
+      },
+    };
+    const camTeam = teamByOwner(constrainedSeason, "Cam");
+
+    expect(() => createRoom(new InMemoryLiveDraftRoomRepository(), {
+      season: constrainedSeason,
+      playerCatalog: [
+        { name: "QB One", position: "QB", expectedPrice: 10 },
+        { name: "TE One", position: "TE", expectedPrice: 9 },
+      ],
+      initialRosters: [
+        { teamId: camTeam.id, playerName: "QB One", position: "QB", price: 1 },
+        { teamId: camTeam.id, playerName: "TE One", position: "TE", price: 1 },
+      ],
+    })).toThrow(new LiveDraftRoomError(
+      "position_limit",
+      "Cam cannot roster TE One: no open roster slot accepts TE.",
+    ));
+  });
+
+  it("blocks live rooms for seasons with unknown roster slots", () => {
+    const baseSeason = publishedSeason();
+    const unsupportedSeason: LeagueSeason = {
+      ...baseSeason,
+      settings: {
+        ...baseSeason.settings,
+        roster: {
+          ...baseSeason.settings.roster,
+          lineup: { QB: 1, MYSTERY: 1 },
+        },
+      },
+    };
+
+    expect(() => createRoom(new InMemoryLiveDraftRoomRepository(), {
+      season: unsupportedSeason,
+    })).toThrow(new LiveDraftRoomError(
+      "season_not_ready",
+      "Roster slot MYSTERY is unsupported. Review the league roster settings before creating a live draft room.",
     ));
   });
 

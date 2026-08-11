@@ -89,18 +89,18 @@ describe("platform pricing workflow", () => {
     );
   });
 
-  it("rejects repository overwrite conflicts for an existing model run scenario", () => {
+  it("keeps retries idempotent when only the creation timestamp changes", () => {
     const repository = createInMemoryPricingSnapshotRepository();
 
-    rebuildLeaguePricingWorkflow(workflowInput(repository, {
+    const first = rebuildLeaguePricingWorkflow(workflowInput(repository, {
       createdAt: "2026-08-09T12:00:00.000Z",
     }));
+    const retry = rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      createdAt: "2026-08-09T12:01:00.000Z",
+    }));
 
-    expect(() =>
-      rebuildLeaguePricingWorkflow(workflowInput(repository, {
-        createdAt: "2026-08-09T12:01:00.000Z",
-      })),
-    ).toThrow("Cannot overwrite pricing snapshot");
+    expect(retry).toEqual(first);
+    expect(repository.list()).toHaveLength(1);
   });
 
   it("filters saved snapshots by model run scenario and league season", () => {

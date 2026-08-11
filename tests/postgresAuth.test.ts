@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AuthError,
+  CapturingAuthMailSender,
   createAuthService,
   type AccountRecord,
   type SessionRecord,
@@ -18,6 +19,7 @@ interface StoredAccountRow {
   email: string;
   email_normalized: string;
   password_hash: string;
+  email_verified_at: Date | null;
   auth_version: number;
   display_name: string | null;
   status: string;
@@ -34,6 +36,16 @@ interface StoredSessionRow {
   revoked_at: Date | null;
   last_used_at: Date | null;
   created_at: Date;
+}
+
+interface StoredAuthTokenRow {
+  id: string;
+  account_id: string;
+  purpose: "email_verification" | "password_reset";
+  token_hash: string;
+  created_at: Date;
+  expires_at: Date;
+  consumed_at: Date | null;
 }
 
 const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
@@ -72,6 +84,7 @@ const expectSession = (session: SessionRecord | null): SessionRecord => {
 class FakePostgresAuthClient implements PostgresQueryClient {
   readonly accounts = new Map<string, StoredAccountRow>();
   readonly sessions = new Map<string, StoredSessionRow>();
+  readonly authTokens = new Map<string, StoredAuthTokenRow>();
 
   async query<TRow = Record<string, unknown>>(
     text: string,
@@ -80,7 +93,35 @@ class FakePostgresAuthClient implements PostgresQueryClient {
     const normalizedSql = normalizeSql(text);
 
     if (normalizedSql.startsWith("INSERT INTO accounts")) {
-      const [id, email, passwordHash, createdAt] = values as readonly [string, string, string, Date];
+      if (normalizedSql.includes("ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO UPDATE")) {
+        const [id, email, passwordHash, createdAt] = values as readonly [string, string, string, Date];
+        const existing = [...this.accounts.values()].find(row => row.email_normalized === email);
+        if (existing !== undefined && existing.email_verified_at !== null) return { rows: [], rowCount: 0 };
+        if (existing !== undefined) {
+          return { rows: [{ ...cloneAccountRow(existing), was_inserted: false } as TRow], rowCount: 1 };
+        }
+        const pending: StoredAccountRow = {
+          id,
+          email,
+          email_normalized: email,
+          password_hash: passwordHash,
+          email_verified_at: null,
+          auth_version: 1,
+          display_name: null,
+          status: "active",
+          created_at: createdAt,
+          updated_at: createdAt,
+        };
+        this.accounts.set(id, pending);
+        return { rows: [{ ...cloneAccountRow(pending), was_inserted: true } as TRow], rowCount: 1 };
+      }
+      const [id, email, passwordHash, emailVerifiedAt, createdAt] = values as readonly [
+        string,
+        string,
+        string,
+        Date,
+        Date,
+      ];
       const existing = [...this.accounts.values()]
         .find(row => row.email_normalized === email);
 
@@ -91,6 +132,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         email,
         email_normalized: email,
         password_hash: passwordHash,
+        email_verified_at: emailVerifiedAt,
         auth_version: 1,
         display_name: null,
         status: "active",
@@ -100,6 +142,87 @@ class FakePostgresAuthClient implements PostgresQueryClient {
       this.accounts.set(id, row);
 
       return { rows: [cloneAccountRow(row) as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("WITH consumed_tokens AS")) {
+      const [id, accountId, purpose, tokenHash, createdAt, expiresAt] = values as readonly [
+        string,
+        string,
+        StoredAuthTokenRow["purpose"],
+        string,
+        Date,
+        Date,
+      ];
+      for (const token of this.authTokens.values()) {
+        if (token.account_id === accountId && token.purpose === purpose && token.consumed_at === null) {
+          token.consumed_at = createdAt;
+        }
+      }
+      const token: StoredAuthTokenRow = {
+        id,
+        account_id: accountId,
+        purpose,
+        token_hash: tokenHash,
+        created_at: createdAt,
+        expires_at: expiresAt,
+        consumed_at: null,
+      };
+      this.authTokens.set(tokenHash, token);
+      return { rows: [{ ...token } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("SELECT TRUE AS usable FROM account_auth_tokens")) {
+      const [tokenHash, purpose, checkedAt] = values as readonly [
+        string,
+        StoredAuthTokenRow["purpose"],
+        Date,
+      ];
+      const token = this.authTokens.get(tokenHash);
+      const usable = token !== undefined &&
+        token.purpose === purpose &&
+        token.consumed_at === null &&
+        token.expires_at > checkedAt;
+
+      return { rows: usable ? [{ usable: true } as TRow] : [], rowCount: usable ? 1 : 0 };
+    }
+
+    if (normalizedSql.startsWith("WITH consumed_token AS") && normalizedSql.includes("email_verification")) {
+      const [tokenHash, verifiedAt] = values as readonly [string, Date];
+      const token = this.authTokens.get(tokenHash);
+      if (token === undefined || token.consumed_at !== null || token.expires_at <= verifiedAt) {
+        return { rows: [], rowCount: 0 };
+      }
+      const account = this.accounts.get(token.account_id);
+      if (account === undefined || account.email_verified_at !== null) return { rows: [], rowCount: 0 };
+      token.consumed_at = verifiedAt;
+      account.email_verified_at = verifiedAt;
+      account.updated_at = verifiedAt;
+      return { rows: [cloneAccountRow(account) as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("WITH consumed_token AS") && normalizedSql.includes("password_reset")) {
+      const [tokenHash, passwordHash, resetAt] = values as readonly [string, string, Date];
+      const token = this.authTokens.get(tokenHash);
+      if (token === undefined || token.consumed_at !== null || token.expires_at <= resetAt) {
+        return { rows: [], rowCount: 0 };
+      }
+      const account = this.accounts.get(token.account_id);
+      if (account === undefined || account.email_verified_at === null) return { rows: [], rowCount: 0 };
+      token.consumed_at = resetAt;
+      account.password_hash = passwordHash;
+      account.auth_version += 1;
+      account.updated_at = resetAt;
+      let revokedSessionCount = 0;
+      for (const session of this.sessions.values()) {
+        if (session.account_id === account.id && session.revoked_at === null) {
+          session.revoked_at = resetAt;
+          revokedSessionCount += 1;
+        }
+      }
+      return {
+        rows: [{ ...cloneAccountRow(account), revoked_session_count: String(revokedSessionCount) } as TRow],
+        rowCount: 1,
+      };
     }
 
     if (normalizedSql.includes("FROM accounts") && normalizedSql.includes("WHERE email_normalized = $1")) {
@@ -221,6 +344,63 @@ class FakePostgresAuthClient implements PostgresQueryClient {
 }
 
 describe("Postgres auth repository", () => {
+  it("persists pending signup and single-use recovery tokens as hashes", async () => {
+    const client = new FakePostgresAuthClient();
+    const repository = new PostgresAuthRepository(client);
+    const mailSender = new CapturingAuthMailSender();
+    const auth = createAuthService({
+      repository,
+      emailVerificationRequired: true,
+      mailSender,
+      publicBaseUrl: "https://mockd.example.com",
+    });
+
+    await auth.createUser({ email: "owner@example.com", password: "first secure password", now });
+    const firstMessage = mailSender.messages[0];
+    expect(firstMessage).toBeDefined();
+    const firstToken = new URL(firstMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
+    expect(firstToken).not.toBe("");
+    expect(JSON.stringify([...client.authTokens.values()])).not.toContain(firstToken);
+
+    await auth.createUser({
+      email: "OWNER@example.com",
+      password: "replacement secure password",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const secondMessage = mailSender.messages[1];
+    const secondToken = new URL(secondMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
+    await expect(auth.verifyEmail({ token: firstToken, now: new Date(now.getTime() + 2_000) }))
+      .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
+    await expect(auth.verifyEmail({ token: secondToken, now: new Date(now.getTime() + 2_000) }))
+      .resolves.toMatchObject({ emailVerifiedAt: new Date(now.getTime() + 2_000) });
+    await expect(auth.login({
+      email: "owner@example.com",
+      password: "first secure password",
+      now: new Date(now.getTime() + 2_001),
+    })).resolves.not.toBeNull();
+    await expect(auth.login({
+      email: "owner@example.com",
+      password: "replacement secure password",
+      now: new Date(now.getTime() + 2_001),
+    })).resolves.toBeNull();
+
+    await auth.requestPasswordReset({ email: "owner@example.com", now: new Date(now.getTime() + 3_000) });
+    const resetMessage = mailSender.messages[2];
+    const resetToken = new URL(resetMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
+    await expect(auth.resetPasswordWithToken({
+      token: resetToken,
+      newPassword: "final secure password",
+      newPasswordConfirmation: "final secure password",
+      now: new Date(now.getTime() + 4_000),
+    })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
+    await expect(auth.resetPasswordWithToken({
+      token: resetToken,
+      newPassword: "another secure password",
+      newPasswordConfirmation: "another secure password",
+      now: new Date(now.getTime() + 5_000),
+    })).rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
+  });
+
   it("creates normalized unique accounts and keeps raw passwords out of storage", async () => {
     const client = new FakePostgresAuthClient();
     const repository = new PostgresAuthRepository(client);
@@ -235,6 +415,7 @@ describe("Postgres auth repository", () => {
     expect(account).toEqual({
       id: expect.stringMatching(/^acct_/),
       email: "cam@example.com",
+      emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     });
@@ -243,6 +424,7 @@ describe("Postgres auth repository", () => {
     expect([...client.accounts.values()][0]).toMatchObject({
       email: "cam@example.com",
       email_normalized: "cam@example.com",
+      email_verified_at: now,
       password_hash: expect.stringMatching(/^scrypt\$/),
     });
     expect(JSON.stringify([...client.accounts.values()])).not.toContain("correct horse battery staple");

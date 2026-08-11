@@ -31,6 +31,10 @@ interface StartedRoomRow {
   has_started_room: boolean;
 }
 
+interface DeletedRoomRow {
+  id: string;
+}
+
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
 
 const jsonbParameter = (value: unknown): string => JSON.stringify(value);
@@ -191,6 +195,32 @@ RETURNING current_revision
       "Draft room changed since this action was prepared. Refresh and try again.",
     );
   }
+};
+
+const deleteDraftRoom = async (
+  client: PostgresQueryClient,
+  roomId: string,
+  expectedRevision: number,
+): Promise<boolean> => {
+  const result = await client.query<DeletedRoomRow>(
+    `
+DELETE FROM draft_rooms
+WHERE id = $1
+  AND current_revision = $2
+  AND status IN ('setup', 'countdown')
+  AND started_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM draft_room_events
+    WHERE draft_room_id = $1
+      AND event_type IN ('room_started', 'sale_logged', 'sale_corrected', 'sale_undone')
+  )
+RETURNING id
+`.trim(),
+    [roomId, expectedRevision],
+  );
+
+  return firstRow(result) !== undefined;
 };
 
 const insertDraftRoomEvent = async (
@@ -425,6 +455,28 @@ SELECT EXISTS (
     );
 
     return result.rows[0]?.has_room === true;
+  }
+
+  async cancelRoom(input: MutateLiveDraftRoomInput): Promise<void> {
+    await this.client.transaction(async client => {
+      const currentRoom = await latestRoomSnapshot(client, input.roomId);
+      const memoryRepository = currentRoom === undefined
+        ? new InMemoryLiveDraftRoomRepository(this.authorizer)
+        : repositoryForRoom(currentRoom, this.authorizer);
+      memoryRepository.cancelRoom(input);
+      if (currentRoom === undefined) return;
+
+      const deleted = await deleteDraftRoom(client, currentRoom.roomId, currentRoom.revision);
+      if (deleted) return;
+
+      const concurrentRoom = await latestRoomSnapshot(client, input.roomId);
+      if (concurrentRoom === undefined) return;
+
+      throw new LiveDraftRoomError(
+        "stale_revision",
+        "Draft room changed since this action was prepared. Refresh and try again.",
+      );
+    });
   }
 
   async startRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {

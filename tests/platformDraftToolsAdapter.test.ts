@@ -103,7 +103,7 @@ afterEach(async () => {
 });
 
 describe("platform draft tools adapter", () => {
-  it("maps authenticated product pages to the classic draft workspace", async () => {
+  it("leaves every product page to the unified platform shell", async () => {
     const baseSessionDirectory = await temporaryDirectory();
     const delegatedRequests: DelegatedRequest[] = [];
     const createClassicServer = vi.fn(async () => recordingClassicServer(delegatedRequests));
@@ -117,8 +117,6 @@ describe("platform draft tools adapter", () => {
     const baseUrl = await listen(adapter);
 
     const paths = [
-      `/board?seasonId=${seasonId}&mode=interactive-mock&strategy=balanced`,
-      `/mock-drafts?seasonId=${seasonId}&mode=real&draftSession=practice-3rb`,
       `/mock-results?seasonId=${seasonId}&owner=Cam`,
       `/simulations?seasonId=${seasonId}&strategy=three-rb`,
       `/strategy?seasonId=${seasonId}&owner=Cam`,
@@ -130,20 +128,40 @@ describe("platform draft tools adapter", () => {
       const response = await fetch(`${baseUrl}${path}`, {
         headers: { "x-test-account-id": "account-cam" },
       });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: "platform fallback" });
     }
 
-    expect(delegatedRequests.map(request => request.url)).toEqual([
-      `/draft-room?mode=real&seasonId=${seasonId}&strategy=balanced`,
-      `/draft-room?mode=interactive-mock&seasonId=${seasonId}&draftSession=practice-3rb`,
-      `/mock-results?seasonId=${seasonId}&owner=Cam`,
-      `/mock-simulations?seasonId=${seasonId}&strategy=three-rb`,
-      `/draft-room?mode=interactive-mock&seasonId=${seasonId}&owner=Cam`,
-      `/my-expert?seasonId=${seasonId}&week=5`,
-      `/player-news?seasonId=${seasonId}&category=Injury`,
-    ]);
-    expect(resolveAccount).toHaveBeenCalledTimes(paths.length);
-    expect(createClassicServer).toHaveBeenCalledTimes(1);
+    expect(delegatedRequests).toEqual([]);
+    expect(resolveAccount).not.toHaveBeenCalled();
+    expect(createClassicServer).not.toHaveBeenCalled();
+  });
+
+  it("leaves canonical board and mock draft routes to the platform shell", async () => {
+    const baseSessionDirectory = await temporaryDirectory();
+    const resolveAccount = vi.fn(async () => ({ id: "account-cam" }));
+    const createClassicServer = vi.fn(async () => recordingClassicServer([]));
+    const adapter = createPlatformDraftToolsAdapter({
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory,
+      createLiveDraftServer: createClassicServer,
+      resolveAccount,
+    });
+    const baseUrl = await listen(adapter);
+
+    for (const path of [
+      "/board",
+      `/board?seasonId=${seasonId}`,
+      "/mock-drafts",
+      `/mock-drafts?seasonId=${seasonId}`,
+    ]) {
+      const response = await fetch(`${baseUrl}${path}`);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: "platform fallback" });
+    }
+
+    expect(resolveAccount).not.toHaveBeenCalled();
+    expect(createClassicServer).not.toHaveBeenCalled();
   });
 
   it("delegates API methods and bodies to one isolated unbound app per account and season", async () => {
@@ -291,11 +309,9 @@ describe("platform draft tools adapter", () => {
     }
   });
 
-  it("fails closed when the requested season has no draft tools options", async () => {
+  it("returns a typed unavailable response when a legacy route has no draft tools options", async () => {
     const baseSessionDirectory = await temporaryDirectory();
-    const resolveSeasonOptions = vi.fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ projections: [] } satisfies CreateLiveDraftServerOptions);
+    const resolveSeasonOptions = vi.fn(async () => null);
     const createClassicServer = vi.fn(async () => recordingClassicServer([]));
     const adapter = createPlatformDraftToolsAdapter({
       authorizeSeason: authorizeEverySeason,
@@ -306,21 +322,20 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    const unavailableResponse = await fetch(`${baseUrl}/board?seasonId=${seasonId}`);
-
-    expect(unavailableResponse.status).toBe(500);
+    const unavailableResponse = await fetch(`${baseUrl}/api/state?seasonId=${seasonId}`);
+    expect(unavailableResponse.status).toBe(503);
+    expect(unavailableResponse.headers.get("content-type")).toBe(
+      "application/json; charset=utf-8",
+    );
     expect(await unavailableResponse.json()).toEqual({
       error: {
-        code: "internal_error",
-        message: "Something went wrong.",
+        code: "draft_tools_unavailable",
+        message: "Draft tools are not available for this league yet.",
       },
     });
-    expect(createClassicServer).not.toHaveBeenCalled();
 
-    const retryResponse = await fetch(`${baseUrl}/board?seasonId=${seasonId}`);
-    expect(retryResponse.status).toBe(200);
-    expect(resolveSeasonOptions).toHaveBeenCalledTimes(2);
-    expect(createClassicServer).toHaveBeenCalledTimes(1);
+    expect(resolveSeasonOptions).toHaveBeenCalledOnce();
+    expect(createClassicServer).not.toHaveBeenCalled();
   });
 
   it("authenticates every concurrent request while creating one app for the account", async () => {
@@ -343,7 +358,7 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    const boardRequest = fetch(`${baseUrl}/board?seasonId=${seasonId}`);
+    const boardRequest = fetch(`${baseUrl}/api/board?seasonId=${seasonId}`);
     const stateRequest = fetch(`${baseUrl}/api/state?seasonId=${seasonId}`);
     await vi.waitFor(() => expect(createClassicServer).toHaveBeenCalledTimes(1));
     releaseCreation?.();
@@ -361,7 +376,7 @@ describe("platform draft tools adapter", () => {
     });
   });
 
-  it("redirects unauthenticated page requests and returns JSON for unauthenticated APIs", async () => {
+  it("returns JSON for unauthenticated legacy APIs", async () => {
     const baseSessionDirectory = await temporaryDirectory();
     const createClassicServer = vi.fn(async () => recordingClassicServer([]));
     const resolveAccount = vi.fn(async () => null);
@@ -373,17 +388,8 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    const pageResponse = await fetch(
-      `${baseUrl}/board?seasonId=${seasonId}&strategy=three-rb`,
-      { redirect: "manual" },
-    );
     const apiResponse = await fetch(`${baseUrl}/api/state?seasonId=${seasonId}`);
 
-    expect(pageResponse.status).toBe(302);
-    expect(pageResponse.headers.get("location")).toBe(
-      `/login?returnTo=%2Fboard%3FseasonId%3D${seasonId}%26strategy%3Dthree-rb`,
-    );
-    expect(pageResponse.headers.get("cache-control")).toBe("no-store");
     expect(apiResponse.status).toBe(401);
     expect(apiResponse.headers.get("content-type")).toBe("application/json; charset=utf-8");
     expect(await apiResponse.json()).toEqual({
@@ -392,7 +398,7 @@ describe("platform draft tools adapter", () => {
         message: "Sign in to continue.",
       },
     });
-    expect(resolveAccount).toHaveBeenCalledTimes(2);
+    expect(resolveAccount).toHaveBeenCalledOnce();
     expect(createClassicServer).not.toHaveBeenCalled();
   });
 
@@ -450,10 +456,7 @@ describe("platform draft tools adapter", () => {
     });
     const factoryBaseUrl = await listen(factoryAdapter);
 
-    const factoryResponse = await fetch(
-      `${factoryBaseUrl}/board?seasonId=${seasonId}`,
-      { redirect: "manual" },
-    );
+    const factoryResponse = await fetch(`${factoryBaseUrl}/api/state?seasonId=${seasonId}`);
     const factoryBody = await factoryResponse.text();
 
     expect(factoryResponse.status).toBe(500);
@@ -466,7 +469,7 @@ describe("platform draft tools adapter", () => {
     });
     expect(factoryBody).not.toContain("filesystem location");
 
-    const retryResponse = await fetch(`${factoryBaseUrl}/board?seasonId=${seasonId}`);
+    const retryResponse = await fetch(`${factoryBaseUrl}/api/state?seasonId=${seasonId}`);
     expect(retryResponse.status).toBe(200);
     expect(createClassicServer).toHaveBeenCalledTimes(2);
   });
@@ -533,7 +536,6 @@ describe("platform draft tools adapter", () => {
     const baseUrl = await listen(adapter);
 
     for (const path of [
-      "/board",
       "/api/state?seasonId=",
       "/api/state?seasonId=season-a&seasonId=season-b",
       "/api/state?seasonId=not%20valid",
@@ -564,10 +566,8 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    const pageResponse = await fetch(`${baseUrl}/board?seasonId=${seasonId}`);
     const apiResponse = await fetch(`${baseUrl}/api/state?seasonId=${seasonId}`);
 
-    expect(pageResponse.status).toBe(403);
     expect(apiResponse.status).toBe(403);
     expect(await apiResponse.json()).toEqual({
       error: {
@@ -575,7 +575,7 @@ describe("platform draft tools adapter", () => {
         message: "Join this league before opening its draft tools.",
       },
     });
-    expect(authorizeSeason).toHaveBeenCalledTimes(2);
+    expect(authorizeSeason).toHaveBeenCalledOnce();
     expect(authorizeSeason).toHaveBeenCalledWith(
       { id: "account-outsider" },
       seasonId,

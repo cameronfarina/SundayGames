@@ -7,21 +7,22 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
   <style>
     :root {
       color-scheme: dark;
-      --page: #08090d;
-      --surface: #101117;
-      --surface-raised: #151720;
-      --surface-soft: #0c1016;
-      --line: #2a2d39;
-      --line-strong: #454a5c;
-      --text: #f5f4f7;
-      --muted: #a7a9b4;
-      --accent: #c778ff;
-      --accent-soft: #25172f;
-      --cyan: #68d8f5;
-      --green: #42d6a4;
-      --amber: #f1c75b;
-      --red: #ff737b;
-      --focus: #91ddff;
+      --page: #08090b;
+      --surface: #101216;
+      --surface-raised: #171a20;
+      --surface-soft: #0c1014;
+      --line: #2b3039;
+      --line-strong: #454b57;
+      --text: #f3f5f7;
+      --muted: #a5acb8;
+      --accent: #67d8b0;
+      --accent-strong: #88edc8;
+      --accent-soft: #10281f;
+      --cyan: #71b7ff;
+      --green: #67d8b0;
+      --amber: #f4c86b;
+      --red: #ff8c9b;
+      --focus: #71b7ff;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -90,20 +91,54 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     }
 
     .draft-shell {
-      width: min(1540px, calc(100% - 32px));
+      width: min(1540px, 100%);
       margin: 0 auto;
-      padding: 16px 0 32px;
+      padding: 0 16px 32px;
     }
 
-    .draft-header {
+    .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
-      padding: 13px 0 16px;
+      gap: 16px;
+      min-height: 64px;
+      padding: 12px 0;
       border-bottom: 1px solid var(--line);
     }
 
+    .brand {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 850;
+      text-decoration: none;
+    }
+
+    .product-nav {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: thin;
+    }
+
+    .product-nav-link {
+      flex: 0 0 auto;
+      padding: 14px 10px 11px;
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .product-nav-link:hover { color: var(--text); }
+
+    .product-nav-link[aria-current="page"] {
+      border-bottom-color: var(--accent);
+      color: var(--text);
+    }
+
+    .draft-heading { padding: 16px 0 2px; }
     .draft-header-main { min-width: 0; }
 
     .eyebrow {
@@ -190,7 +225,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       z-index: 5;
       top: 0;
       margin: 14px 0;
-      border-color: #4b3159;
+      border-color: #31594c;
       box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
     }
 
@@ -215,6 +250,27 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       gap: 8px;
       flex-wrap: wrap;
       margin-top: 10px;
+    }
+
+    .complete-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .complete-copy {
+      display: grid;
+      gap: 4px;
+    }
+
+    .complete-copy span { color: var(--muted); line-height: 1.45; }
+
+    .complete-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .member-command-note {
@@ -378,6 +434,16 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     .sale-meta { margin-top: 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .sale-price { color: var(--green); font-weight: 800; }
 
+    .sales-filter { margin-bottom: 10px; }
+
+    .sales-scroll {
+      max-height: 420px;
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding-right: 4px;
+      scrollbar-width: thin;
+    }
+
     .correction-form {
       display: grid;
       gap: 9px;
@@ -395,12 +461,33 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     }
 
     .fatal-error {
-      margin: 14px 0;
-      padding: 12px 14px;
+      width: min(680px, 100%);
+      margin: 32px auto;
+      padding: 28px;
       border: 1px solid #87323d;
       border-radius: 6px;
       background: #241014;
+    }
+
+    .fatal-error h2 { margin-top: 4px; font-size: 20px; }
+
+    .fatal-error-message {
+      margin-top: 10px;
       color: #ffb8bd;
+      line-height: 1.5;
+    }
+
+    .fatal-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .primary-link {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #0b0710;
     }
 
     .download-link { display: none; }
@@ -421,9 +508,10 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         padding: 0 0 24px;
       }
 
-      .draft-header { align-items: flex-start; flex-direction: column; gap: 10px; padding: 12px; }
-
-      .draft-header-meta { justify-content: flex-start; width: 100%; }
+      .topbar { padding: 10px 12px; }
+      .product-nav { padding: 0 4px; }
+      .draft-heading { padding: 14px 12px 2px; }
+      .draft-header-meta { gap: 7px; }
       .header-link { min-height: 44px; }
       .account-chip { display: none; }
       h1 { font-size: 22px; }
@@ -440,6 +528,9 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       .sale-form-row { grid-template-columns: minmax(0, 1fr); }
       .sale-form-row .primary { width: 100%; }
       .command-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .complete-actions { align-items: stretch; flex-direction: column; }
+      .complete-buttons { display: grid; grid-template-columns: minmax(0, 1fr); }
+      .complete-buttons > * { justify-content: center; width: 100%; }
 
       .draft-main-grid {
         grid-template-columns: minmax(0, 1fr);
@@ -475,8 +566,10 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 
       .player-card-actionable { grid-template-columns: 40px minmax(0, 1fr) auto; }
 
+      .player-card-prices { display: grid; gap: 2px; justify-items: end; }
       .player-card-price { font-weight: 800; font-variant-numeric: tabular-nums; }
-      .sales-panel .panel-body { max-height: 280px; overflow: auto; }
+      .player-card-market { color: var(--muted); font-size: 11px; }
+      .sales-scroll { max-height: 320px; }
       .roster-list { max-height: 240px; overflow: auto; }
     }
 
@@ -487,13 +580,9 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 </head>
 <body>
   <main class="draft-shell" id="draft-room-view" data-platform-live-room aria-labelledby="draft-room-title">
-    <header class="draft-header">
-      <div class="draft-header-main">
-        <p class="eyebrow">Mockd live draft</p>
-        <h1 id="draft-room-title">Opening draft room</h1>
-      </div>
+    <header class="topbar">
+      <a class="brand" id="draft-brand" href="/app">Mockd</a>
       <div class="draft-header-meta">
-        <a class="header-link" id="draft-league-home" href="/app">League home</a>
         <span class="status-chip account-chip" id="draft-account">Checking account</span>
         <span class="status-chip" id="draft-connection-status" role="status" aria-live="polite" data-state="reconnecting">
           <span class="connection-dot" aria-hidden="true"></span>
@@ -502,13 +591,29 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         <button id="draft-sign-out" type="button" hidden>Sign out</button>
       </div>
     </header>
-
-    <div class="fatal-error" id="draft-fatal-error" role="alert" hidden>
-      <span id="draft-fatal-message"></span>
-      <a class="header-link" id="draft-sign-in-link" href="/login" hidden>Sign in</a>
+    <nav class="product-nav" aria-label="Primary">
+      <a class="product-nav-link" id="draft-nav-board" href="/board">Board</a>
+      <a class="product-nav-link" id="draft-league-home" href="/league">League</a>
+      <a class="product-nav-link" id="draft-nav-my-team" href="/my-team">My Team</a>
+      <span class="product-nav-link" aria-current="page">Live draft</span>
+    </nav>
+    <div class="draft-heading draft-header-main">
+      <p class="eyebrow">Live draft room</p>
+      <h1 id="draft-room-title">Opening draft room</h1>
     </div>
 
-    <section class="panel draft-command-panel" aria-labelledby="draft-command-heading">
+    <section class="fatal-error" id="draft-fatal-error" role="alert" hidden aria-labelledby="draft-fatal-heading">
+      <p class="eyebrow">Draft room unavailable</p>
+      <h2 id="draft-fatal-heading">We could not open this room</h2>
+      <p class="fatal-error-message" id="draft-fatal-message"></p>
+      <div class="fatal-actions">
+        <a class="header-link primary-link" id="draft-sign-in-link" href="/login">Sign in</a>
+        <a class="header-link" id="draft-fatal-league-home" href="/app">League home</a>
+      </div>
+    </section>
+
+    <div id="draft-room-content">
+      <section class="panel draft-command-panel" aria-labelledby="draft-command-heading">
       <div class="panel-header">
         <h2 id="draft-command-heading">Draft command</h2>
         <span class="quiet" id="draft-access-label">Loading access</span>
@@ -529,16 +634,25 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
             <button id="draft-pause" type="button" disabled>Pause draft</button>
             <button id="draft-undo" type="button" disabled>Undo latest sale</button>
             <button class="danger" id="draft-end" type="button" disabled>End draft</button>
-            <button id="draft-export" type="button" disabled>Export final CSV</button>
+          </div>
+        </div>
+        <div class="complete-actions" id="draft-complete-actions" hidden>
+          <div class="complete-copy">
+            <strong>Draft complete</strong>
+            <span>Open My Team to see your final roster and which analysis is available.</span>
+          </div>
+          <div class="complete-buttons">
+            <a class="header-link primary-link" id="draft-view-my-team" href="/my-team">View My Team</a>
+            <button id="draft-export" type="button" disabled hidden>Export results CSV</button>
           </div>
         </div>
         <p class="member-command-note" id="draft-member-note">League members can follow the live board, sales, budgets, and rosters here.</p>
         <p class="feedback" id="draft-action-feedback" role="status" aria-live="polite"></p>
         <a class="download-link" id="draft-export-download" href="#">Download draft export</a>
       </div>
-    </section>
+      </section>
 
-    <div class="draft-main-grid">
+      <div class="draft-main-grid">
       <section class="panel status-panel" aria-label="Draft status">
         <div class="room-status-grid">
           <div class="status-metric">
@@ -554,21 +668,27 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
             <strong id="draft-available-count">--</strong>
           </div>
           <div class="status-metric">
-            <span>Revision</span>
-            <strong id="draft-revision">--</strong>
+            <span>Draft progress</span>
+            <strong id="draft-progress">--</strong>
           </div>
         </div>
       </section>
 
       <section class="panel sales-panel" aria-labelledby="draft-sales-heading">
         <div class="panel-header">
-          <h2 id="draft-sales-heading">Recent sales</h2>
+          <h2 id="draft-sales-heading">All sales</h2>
           <span class="quiet" id="draft-sales-count">0</span>
         </div>
         <div class="panel-body">
-          <ol class="sales-list" id="draft-sales" aria-live="polite">
-            <li class="empty-state">Sales will appear here for everyone.</li>
-          </ol>
+          <div class="sales-filter">
+            <label class="visually-hidden" for="draft-sales-search">Search all sales</label>
+            <input id="draft-sales-search" type="search" autocomplete="off" placeholder="Search player, owner, team, or price">
+          </div>
+          <div class="sales-scroll" tabindex="0" aria-label="Complete sale ledger">
+            <ol class="sales-list" id="draft-sales" aria-live="polite">
+              <li class="empty-state">Sales will appear here for everyone.</li>
+            </ol>
+          </div>
           <form class="correction-form" id="draft-correction-form" hidden>
             <input id="draft-correction-sale-id" name="sale-id" type="hidden">
             <label class="field-label" for="draft-correction-command">
@@ -629,15 +749,16 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         <div class="board-scroll desktop-board" tabindex="0" aria-label="Available player board">
           <table>
             <thead>
-              <tr id="draft-board-head-row"><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Market</th></tr>
+              <tr id="draft-board-head-row"><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Market</th><th class="money" scope="col">Our</th></tr>
             </thead>
             <tbody id="draft-board-rows">
-              <tr><td colspan="5" class="loading-state">Loading players</td></tr>
+              <tr><td colspan="6" class="loading-state">Loading players</td></tr>
             </tbody>
           </table>
         </div>
         <div class="mobile-board" id="draft-board-cards" aria-label="Available player board"></div>
       </section>
+      </div>
     </div>
   </main>
 
@@ -664,9 +785,16 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 
     const byId = id => document.getElementById(id);
     if (seasonId) {
-      byId("draft-league-home").href = "/app?seasonId=" + encodeURIComponent(seasonId);
+      const seasonQuery = "?seasonId=" + encodeURIComponent(seasonId);
+      byId("draft-brand").href = "/app" + seasonQuery;
+      byId("draft-nav-board").href = "/board" + seasonQuery;
+      byId("draft-league-home").href = "/league" + seasonQuery;
+      byId("draft-nav-my-team").href = "/my-team" + seasonQuery;
+      byId("draft-fatal-league-home").href = "/league" + seasonQuery;
+      byId("draft-view-my-team").href = "/my-team?seasonId=" + encodeURIComponent(seasonId);
     }
     const roomTitle = byId("draft-room-title");
+    const roomContent = byId("draft-room-content");
     const accountLabel = byId("draft-account");
     const connectionStatus = byId("draft-connection-status");
     const connectionLabel = byId("draft-connection-label");
@@ -675,11 +803,13 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const signInLink = byId("draft-sign-in-link");
     const signOutButton = byId("draft-sign-out");
     const roomStatus = byId("draft-room-status");
-    const revisionLabel = byId("draft-revision");
+    const draftProgress = byId("draft-progress");
     const availableCount = byId("draft-available-count");
     const latestSale = byId("draft-latest-sale");
     const accessLabel = byId("draft-access-label");
     const commissionerControls = byId("draft-commissioner-controls");
+    const completeActions = byId("draft-complete-actions");
+    const viewMyTeamLink = byId("draft-view-my-team");
     const memberNote = byId("draft-member-note");
     const actionFeedback = byId("draft-action-feedback");
     const saleForm = byId("draft-sale-form");
@@ -693,6 +823,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const exportDownload = byId("draft-export-download");
     const salesList = byId("draft-sales");
     const salesCount = byId("draft-sales-count");
+    const salesSearch = byId("draft-sales-search");
     const correctionForm = byId("draft-correction-form");
     const correctionSaleId = byId("draft-correction-sale-id");
     const correctionCommand = byId("draft-correction-command");
@@ -749,12 +880,15 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       actionFeedback.dataset.tone = tone || "neutral";
     };
 
-    const showFatalError = (message, requiresSignIn) => {
+    const showFatalError = message => {
+      stopUpdates();
+      roomContent.hidden = true;
       fatalError.hidden = false;
       fatalMessage.textContent = message;
       const returnTo = window.location.pathname + window.location.search;
       signInLink.href = "/login?returnTo=" + encodeURIComponent(returnTo);
-      signInLink.hidden = requiresSignIn !== true;
+      signInLink.hidden = false;
+      roomTitle.textContent = "Draft room unavailable";
       roomStatus.textContent = "Unavailable";
     };
 
@@ -796,8 +930,11 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       const isPaused = model.status === "paused";
       const isComplete = model.status === "ended" || model.status === "complete";
       const hasSales = model.salesLog.length > 0;
-      commissionerControls.hidden = !canManage;
-      memberNote.hidden = canManage;
+      commissionerControls.hidden = !canManage || isComplete;
+      completeActions.hidden = !isComplete;
+      memberNote.hidden = canManage || isComplete;
+      viewMyTeamLink.hidden = model.role === "observer";
+      exportButton.hidden = !canManage || !isComplete;
       if (canManage) accessLabel.textContent = "Commissioner";
       else if (model.role === "observer") accessLabel.textContent = "Observer";
       else accessLabel.textContent = "League member";
@@ -814,8 +951,16 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const renderStatus = model => {
       const sales = model.salesLog || [];
       const lastSale = sales.at(-1);
+      const totalRosterSpots = model.teamSummaries.reduce(
+        (total, team) => total + team.roster.length + team.rosterSlotsRemaining,
+        0,
+      );
+      const filledRosterSpots = model.teamSummaries.reduce(
+        (total, team) => total + team.roster.length,
+        0,
+      );
       roomStatus.textContent = statusLabelFor(model.status);
-      revisionLabel.textContent = String(model.revision);
+      draftProgress.textContent = sales.length + " sales · " + filledRosterSpots + " of " + totalRosterSpots + " spots filled";
       availableCount.textContent = String(model.board.length);
       latestSale.textContent = lastSale
         ? lastSale.playerName + " to " + lastSale.ownerDisplayName + " for " + dollars(lastSale.price)
@@ -857,11 +1002,17 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         row.className = "player-card";
         row.classList.toggle("player-card-actionable", canManage);
         row.dataset.playerName = player.name;
+        const prices = document.createElement("span");
+        const market = document.createElement("span");
         const price = document.createElement("span");
+        prices.className = "player-card-prices";
+        market.className = "player-card-market";
+        market.textContent = "Market " + dollars(player.marketPrice ?? player.expectedPrice);
         price.className = "player-card-price";
-        price.textContent = dollars(player.expectedPrice);
+        price.textContent = "Our " + dollars(player.expectedPrice);
+        prices.append(market, price);
         if (canManage) row.appendChild(usePlayerButtonFor(player));
-        row.append(playerIdentityFor(player), price);
+        row.append(playerIdentityFor(player), prices);
         return row;
       }
 
@@ -871,6 +1022,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       const positionCell = document.createElement("td");
       const nflTeamCell = document.createElement("td");
       const byeCell = document.createElement("td");
+      const marketCell = document.createElement("td");
       const priceCell = document.createElement("td");
       if (canManage) {
         const useCell = document.createElement("td");
@@ -882,9 +1034,11 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       positionCell.textContent = player.position;
       nflTeamCell.textContent = player.teamAbbreviation || "FA";
       byeCell.textContent = player.byeWeek === undefined ? "--" : String(player.byeWeek);
+      marketCell.className = "money";
+      marketCell.textContent = dollars(player.marketPrice ?? player.expectedPrice);
       priceCell.className = "money";
       priceCell.textContent = dollars(player.expectedPrice);
-      row.append(playerCell, positionCell, nflTeamCell, byeCell, priceCell);
+      row.append(playerCell, positionCell, nflTeamCell, byeCell, marketCell, priceCell);
       return row;
     };
 
@@ -896,6 +1050,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         { label: "NFL", className: "" },
         { label: "Bye", className: "" },
         { label: "Market", className: "money" },
+        { label: "Our", className: "money" },
       ];
       const columns = columnDefinitions.map(column => {
         const heading = document.createElement("th");
@@ -928,7 +1083,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       if (visiblePlayers.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = canManage ? 6 : 5;
+        cell.colSpan = canManage ? 7 : 6;
         cell.className = "empty-state";
         cell.textContent = "No available players match these filters.";
         row.appendChild(cell);
@@ -1010,7 +1165,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       player.className = "sale-player";
       player.textContent = sale.playerName;
       meta.className = "sale-meta";
-      meta.textContent = sale.ownerDisplayName + " · " + sale.teamDisplayName + (sale.revision ? " · r" + sale.revision : "");
+      meta.textContent = sale.ownerDisplayName + " · " + sale.teamDisplayName;
       price.className = "sale-price";
       price.textContent = dollars(sale.price);
       detail.append(player, meta);
@@ -1028,13 +1183,27 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     };
 
     const renderSales = model => {
-      const recentSales = (model.salesLog || []).slice().reverse().slice(0, 12);
+      const allSales = (model.salesLog || []).slice().reverse();
+      const search = normalizedText(salesSearch.value);
+      const visibleSales = allSales.filter(sale =>
+        search.length === 0 || normalizedText([
+          sale.playerName,
+          sale.ownerDisplayName,
+          sale.teamDisplayName,
+          sale.price,
+        ].join(" ")).includes(search)
+      );
       const canCorrect = model.canMutateRoom === true && model.status === "live" && !state.mutationPending;
-      salesCount.textContent = String(model.salesLog.length);
-      salesList.replaceChildren(...(recentSales.length === 0
-        ? [emptyItem("Sales will appear here for everyone.")]
-        : recentSales.map(sale => saleRowFor(sale, canCorrect))));
-      const correctionIsActive = recentSales.some(sale => sale.saleEventId === state.correctionSaleId);
+      salesCount.textContent = search.length === 0
+        ? String(allSales.length)
+        : visibleSales.length + " of " + allSales.length;
+      const emptyMessage = allSales.length === 0
+        ? "Sales will appear here for everyone."
+        : "No sales match this search.";
+      salesList.replaceChildren(...(visibleSales.length === 0
+        ? [emptyItem(emptyMessage)]
+        : visibleSales.map(sale => saleRowFor(sale, canCorrect))));
+      const correctionIsActive = allSales.some(sale => sale.saleEventId === state.correctionSaleId);
       if (!canCorrect || (state.correctionSaleId !== null && !correctionIsActive)) {
         closeCorrection();
       }
@@ -1103,7 +1272,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
           await loadSnapshot();
         }
         state.reconnectAttempts = 0;
-        setConnectionState("connected", "Live");
+        setConnectionState("connected", "Connected");
         connectRoomUpdates();
       } catch (error) {
         state.reconnectAttempts += 1;
@@ -1132,13 +1301,13 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       }
       if (event.type === "room.snapshot") {
         renderModel(payload);
-        setConnectionState("connected", "Live");
+        setConnectionState("connected", "Connected");
         return;
       }
       stopUpdates();
       loadSnapshot()
         .then(() => {
-          setConnectionState("connected", "Live");
+          setConnectionState("connected", "Connected");
           connectRoomUpdates();
         })
         .catch(() => {
@@ -1163,7 +1332,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       state.eventSource = eventSource;
       eventSource.onopen = () => {
         state.reconnectAttempts = 0;
-        setConnectionState("connected", "Live");
+        setConnectionState("connected", "Connected");
       };
       eventSource.addEventListener("room.snapshot", refreshFromStream);
       eventSource.addEventListener("room.sale", refreshFromStream);
@@ -1250,7 +1419,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
           throw new Error("This draft room does not belong to the requested league season.");
         }
         await loadSnapshot();
-        setConnectionState("connected", "Live");
+        setConnectionState("connected", "Connected");
         connectRoomUpdates();
       } catch (error) {
         let message = "The draft room could not be opened.";
@@ -1259,7 +1428,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         } else if (error instanceof Error) {
           message = error.message;
         }
-        showFatalError(message, error?.code === "auth_required");
+        showFatalError(message);
         setConnectionState("offline", "Unavailable");
       }
     };
@@ -1334,6 +1503,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     exportButton.addEventListener("click", () => exportDraft().catch(error => setFeedback(error.message, "error")));
     playerSearch.addEventListener("input", () => state.model && renderBoard(state.model));
     positionFilter.addEventListener("change", () => state.model && renderBoard(state.model));
+    salesSearch.addEventListener("input", () => state.model && renderSales(state.model));
     teamSelect.addEventListener("change", () => {
       state.viewedTeamId = teamSelect.value;
       if (state.model) renderTeam(state.model);
@@ -1344,7 +1514,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       stopUpdates();
       loadSnapshot()
         .then(() => {
-          setConnectionState("connected", "Live");
+          setConnectionState("connected", "Connected");
           connectRoomUpdates();
         })
         .catch(scheduleRecovery);

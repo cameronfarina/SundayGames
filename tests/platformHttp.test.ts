@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
+import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
-import type { AccountRecord } from "../src/platform/auth.js";
+import { CapturingAuthMailSender, type AccountRecord } from "../src/platform/auth.js";
 import {
   createClientAddressRateLimiter,
   createNormalizedEmailRateLimiter,
 } from "../src/platform/authRateLimit.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  buildCurrentMockdLeagueSeason,
+  defaultScoringSettings,
+  type LeagueSeason,
+} from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import { InMemoryLiveDraftRoomSetupRepository } from "../src/platform/liveDraftRoomSetups.js";
+import { postDraftScoringSettingsIdForSeason } from "../src/platform/postDraftLiveRoomAdapter.js";
 import {
   InMemoryPlatformInvitationRepository,
   hashPlatformInvitationToken,
@@ -30,6 +37,58 @@ const playerCatalog = [
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
   { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
 ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const snakePlayerCatalog = [
+  { name: "Player 1", position: "RB", expectedPrice: 50 },
+  { name: "Player 2", position: "WR", expectedPrice: 49 },
+  { name: "Player 3", position: "TE", expectedPrice: 48 },
+  { name: "Player 4", position: "QB", expectedPrice: 47 },
+  { name: "Player 5", position: "RB", expectedPrice: 46 },
+  { name: "Player 6", position: "WR", expectedPrice: 45 },
+  { name: "Player 7", position: "TE", expectedPrice: 44 },
+  { name: "Player 8", position: "QB", expectedPrice: 43 },
+] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const snakeSeason = (): LeagueSeason => ({
+  id: "snake-season-2026",
+  leagueId: "snake-league",
+  league: { id: "snake-league", externalLeagueId: "snake-1", name: "Snake League", provider: "espn" },
+  seasonYear: 2026,
+  setupStatus: "published",
+  teams: ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
+    id: `snake-team-${index + 1}`,
+    leagueSeasonId: "snake-season-2026",
+    ownerId: `snake-owner-${index + 1}`,
+    ownerDisplayName: name,
+    displayName: `${name} Team`,
+    draftOrderPosition: index + 1,
+  })),
+  settings: {
+    expectedTeamCount: 4,
+    draftFormat: "snake",
+    scoring: {
+      passingYards: 0.04,
+      passingTouchdown: 4,
+      rushingYards: 0.1,
+      rushingTouchdown: 6,
+      receivingYards: 0.1,
+      receivingTouchdown: 6,
+      reception: 0.5,
+    },
+    snake: {
+      rounds: 2,
+      order: ["snake-team-1", "snake-team-2", "snake-team-3", "snake-team-4"],
+      reversal: "standard",
+    },
+    roster: {
+      rosterSize: 2,
+      lineup: { BENCH: 2 },
+      lineupSlotCount: 2,
+      rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 1, DST: 1 },
+    },
+    keeperPolicy: { mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil" },
+  },
+});
 
 const mockRunner: SimulationMockBatchRunner = ({
   runsPerScenario,
@@ -118,6 +177,990 @@ const createLoggedInAccount = async (
 };
 
 describe("platform HTTP contract", () => {
+  it("verifies production signups and resets passwords without enumerating accounts", async () => {
+    const mailSender = new CapturingAuthMailSender();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      simulationRunner: mockRunner,
+      authEmail: {
+        verificationRequired: true,
+        mailSender,
+        publicBaseUrl: "https://mockd.example.com",
+      },
+    });
+    const handle = createPlatformHttpHandler(app, { emailVerificationRequired: true });
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      now,
+      body: {
+        email: "owner@example.com",
+        password: "secure password",
+        returnTo: "/invite?token=league-invite",
+      },
+    })).resolves.toEqual({
+      status: 202,
+      body: {
+        accepted: true,
+        message: "If this email can be registered, a verification link is on its way.",
+      },
+    });
+    await expect(handle({
+      method: "POST",
+      path: "/sessions",
+      now,
+      body: { email: "owner@example.com", password: "secure password" },
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "email_unverified" } },
+    });
+
+    const verificationToken = new URL(mailSender.messages[0]!.actionUrl).searchParams.get("token")!;
+    expect(new URL(mailSender.messages[0]!.actionUrl).searchParams.get("returnTo"))
+      .toBe("/invite?token=league-invite");
+    await expect(handle({
+      method: "POST",
+      path: "/email-verifications/consume",
+      now: new Date(now.getTime() + 1_000),
+      body: { token: verificationToken },
+    })).resolves.toEqual({ status: 200, body: { verified: true } });
+    const mailCountAfterVerification = mailSender.messages.length;
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      now: new Date(now.getTime() + 1_500),
+      body: { email: "OWNER@example.com", password: "attacker replacement password" },
+    })).resolves.toMatchObject({ status: 202, body: { accepted: true } });
+    expect(mailSender.messages).toHaveLength(mailCountAfterVerification);
+    await expect(handle({
+      method: "POST",
+      path: "/sessions",
+      now: new Date(now.getTime() + 2_000),
+      body: { email: "owner@example.com", password: "secure password" },
+    })).resolves.toMatchObject({ status: 200 });
+
+    const missingReset = await handle({
+      method: "POST",
+      path: "/password-resets",
+      now,
+      body: { email: "missing@example.com" },
+    });
+    const existingReset = await handle({
+      method: "POST",
+      path: "/password-resets",
+      now,
+      body: { email: "owner@example.com" },
+    });
+    expect(existingReset).toEqual(missingReset);
+    const resetToken = new URL(mailSender.messages.at(-1)!.actionUrl).searchParams.get("token")!;
+    await expect(handle({
+      method: "POST",
+      path: "/password-resets/consume",
+      now: new Date(now.getTime() + 3_000),
+      body: {
+        token: resetToken,
+        newPassword: "replacement password",
+        newPasswordConfirmation: "replacement password",
+      },
+    })).resolves.toEqual({ status: 200, body: { reset: true } });
+  });
+
+  it("rate limits verification and password reset requests by normalized email", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      verificationRateLimiter: createNormalizedEmailRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+      passwordResetRateLimiter: createNormalizedEmailRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: "/email-verifications",
+      clientAddress: "127.0.0.1",
+      now,
+      body: { email: "Owner@Example.com" },
+    })).resolves.toMatchObject({ status: 202 });
+    await expect(handle({
+      method: "POST",
+      path: "/email-verifications",
+      clientAddress: "127.0.0.1",
+      now,
+      body: { email: " owner@example.COM " },
+    })).resolves.toMatchObject({ status: 429, body: { error: { code: "auth_rate_limited" } } });
+
+    await expect(handle({
+      method: "POST",
+      path: "/password-resets",
+      clientAddress: "127.0.0.2",
+      now,
+      body: { email: "Owner@Example.com" },
+    })).resolves.toMatchObject({ status: 202 });
+    await expect(handle({
+      method: "POST",
+      path: "/password-resets",
+      clientAddress: "127.0.0.2",
+      now,
+      body: { email: " owner@example.COM " },
+    })).resolves.toMatchObject({ status: 429, body: { error: { code: "auth_rate_limited" } } });
+  });
+
+  it("rate limits password reset consumption by client address", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      passwordResetConsumeRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+    const request = {
+      method: "POST",
+      path: "/password-resets/consume",
+      clientAddress: "127.0.0.3",
+      now,
+      body: {
+        token: "invalid-token",
+        newPassword: "replacement secure password",
+        newPasswordConfirmation: "replacement secure password",
+      },
+    } as const;
+
+    await expect(handle(request)).resolves.toMatchObject({ status: 400 });
+    await expect(handle(request)).resolves.toMatchObject({
+      status: 429,
+      body: { error: { code: "rate_limited" } },
+    });
+  });
+
+  it("serves the current player catalog to signed-in users without requiring a league", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const currentPlayerCatalogProvider = vi.fn(async () => playerCatalog);
+    const handle = createPlatformHttpHandler(app, { currentPlayerCatalogProvider });
+    const login = await createLoggedInAccount(handle, "board-first@example.com");
+
+    await expect(handle({ method: "GET", path: "/player-catalog" })).resolves.toMatchObject({
+      status: 401,
+      body: { error: { code: "auth_required" } },
+    });
+    await expect(handle({
+      method: "GET",
+      path: "/player-catalog",
+      sessionToken: login.sessionToken,
+    })).resolves.toEqual({
+      status: 200,
+      body: { players: playerCatalog },
+    });
+    await expect(handle({
+      method: "POST",
+      path: "/player-catalog",
+      sessionToken: login.sessionToken,
+    })).resolves.toMatchObject({ status: 405 });
+    expect(currentPlayerCatalogProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("reviews ESPN league settings for a signed-in commissioner before creating anything", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const outcome = {
+      kind: "manual-review-required",
+      provider: "espn",
+      confirmationRequired: true,
+      reason: "private_or_unauthorized",
+      externalLeagueId: "214674",
+      season: 2026,
+      confirmationMethods: ["screenshot", "manual"],
+      message: "This ESPN league is private. Confirm its settings from screenshots or enter them manually.",
+    } as const;
+    const espnLeagueSettingsImporter = vi.fn(async () => outcome);
+    const handle = createPlatformHttpHandler(app, {
+      espnLeagueSettingsImporter,
+      leagueImportRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 10,
+      }),
+    });
+    const login = await createLoggedInAccount(handle, "espn-review@example.com");
+
+    await expect(handle({
+      method: "POST",
+      path: "/league-imports/espn/review",
+      body: { leagueIdOrUrl: "214674", season: 2026 },
+    })).resolves.toMatchObject({ status: 401, body: { error: { code: "auth_required" } } });
+
+    await expect(handle({
+      method: "POST",
+      path: "/league-imports/espn/review",
+      sessionToken: login.sessionToken,
+      body: { leagueIdOrUrl: "214674", season: 2026 },
+    })).resolves.toEqual({ status: 200, body: outcome });
+    await expect(handle({
+      method: "POST",
+      path: "/league-imports/espn/review",
+      sessionToken: login.sessionToken,
+      body: { leagueIdOrUrl: "214674", season: 2026 },
+    })).resolves.toMatchObject({
+      status: 429,
+      body: { error: { code: "rate_limited" } },
+      headers: { "Retry-After": "60" },
+    });
+    expect(espnLeagueSettingsImporter).toHaveBeenCalledWith({ leagueIdOrUrl: "214674", season: 2026 });
+    expect(espnLeagueSettingsImporter).toHaveBeenCalledTimes(1);
+  });
+
+  it("extracts team and manager identities before a private ESPN league is created", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const leagueMembersScreenshotAnalyzer = {
+      analyze: vi.fn(async () => ({
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        teams: [{
+          draftOrderPosition: 1,
+          abbreviation: "Mack",
+          teamDisplayName: "Short King",
+          managerDisplayNames: ["Cam Farina"],
+          confidence: "high" as const,
+          issues: [],
+          confirmed: false,
+        }],
+      })),
+    };
+    const handle = createPlatformHttpHandler(app, { leagueMembersScreenshotAnalyzer });
+    const login = await createLoggedInAccount(handle, "private-espn@example.com");
+
+    const response = await handle({
+      method: "POST",
+      path: "/league-imports/espn/members-screenshot-review",
+      sessionToken: login.sessionToken,
+      body: { mimeType: "image/png", base64: "encoded-image" },
+    });
+
+    expect(response).toEqual({
+      status: 200,
+      body: {
+        import: {
+          leagueName: "The Sunday Games",
+          externalLeagueId: "214674",
+          teams: [expect.objectContaining({
+            teamDisplayName: "Short King",
+            managerDisplayNames: ["Cam Farina"],
+          })],
+        },
+      },
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/email|status|invite/i);
+  });
+
+  it("creates a confirmed league for the signed-in commissioner with generated ids", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const login = await createLoggedInAccount(handle, "league-creator@example.com");
+    const setup = {
+      provider: "espn",
+      externalLeagueId: "214674",
+      leagueName: "The Sunday Games",
+      seasonYear: 2026,
+      expectedTeamCount: 4,
+      teams: [
+        { externalTeamId: "1", displayName: "Short King", managerNames: ["Cam"] },
+        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Beaton"] },
+        { externalTeamId: "3", displayName: "Old Dogs", managerNames: ["Jacob"] },
+        { externalTeamId: "4", displayName: "Peace Bridge", managerNames: ["Nick"] },
+      ],
+      draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+      scoring: { ...defaultScoringSettings },
+      rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7 },
+    };
+
+    await expect(handle({ method: "POST", path: "/leagues", body: { setup } }))
+      .resolves.toMatchObject({ status: 401 });
+    const response = await handle({
+      method: "POST",
+      path: "/leagues",
+      sessionToken: login.sessionToken,
+      body: { setup },
+    });
+
+    expect(response).toMatchObject({
+      status: 201,
+      body: {
+        season: {
+          id: expect.stringMatching(/^season-/),
+          leagueId: expect.stringMatching(/^league-/),
+          setupStatus: "draft",
+          settings: { draftFormat: "auction" },
+        },
+      },
+    });
+    const season = expectBodyRecord(response.body).season as { leagueId: string };
+    expect(await app.listLeagueMemberships(season.leagueId)).toEqual([
+      expect.objectContaining({ userId: login.account.id, leagueId: season.leagueId, role: "owner" }),
+    ]);
+    const createdSeason = expectBodyRecord(response.body).season as { id: string };
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${createdSeason.id}/publish`,
+      sessionToken: login.sessionToken,
+      body: {},
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "season_review_confirmation_required" } },
+    });
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${createdSeason.id}/publish`,
+      sessionToken: login.sessionToken,
+      body: { confirmed: true },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { season: { id: createdSeason.id, setupStatus: "published" } },
+    });
+  });
+
+  it("previews, persists, lists, and removes commissioner keeper commands", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
+    const handle = createPlatformHttpHandler(app, {
+      currentPlayerCatalogProvider: async () => playerCatalog,
+      liveDraftRoomSetupRepository,
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "keeper-commissioner@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        }],
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/keepers/preview`,
+      sessionToken: cam.sessionToken,
+      body: { command: "cam keeping achane 50" },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        kind: "preview",
+        team: { id: camTeam.id },
+        player: { name: "De'Von Achane", position: "RB" },
+        keeper: { auctionCostDollars: 50 },
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/keepers/apply`,
+      sessionToken: cam.sessionToken,
+      body: { command: "cam keeping achane 50", confirmed: false },
+    })).resolves.toMatchObject({ status: 400, body: { error: { code: "keeper_confirmation_required" } } });
+
+    const applied = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/keepers/apply`,
+      sessionToken: cam.sessionToken,
+      body: { command: "cam keeping achane 50", confirmed: true },
+    });
+    expect(applied).toMatchObject({
+      status: 200,
+      body: {
+        keepers: [{ teamId: camTeam.id, playerId: "devon achane", price: 50 }],
+        pricing: { snapshots: [{ rows: expect.any(Array) }] },
+      },
+    });
+    await expect(handle({
+      method: "GET",
+      path: "/player-catalog",
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        draftFormat: "auction",
+        personalized: true,
+        players: expect.arrayContaining([
+          expect.objectContaining({ marketPrice: 73, leagueValue: 73 }),
+        ]),
+      },
+    });
+    await expect(liveDraftRoomSetupRepository.findForSeason(season.id)).resolves.toMatchObject({
+      initialRosters: [{ teamId: camTeam.id, playerName: "De'Von Achane", price: 50 }],
+    });
+
+    await expect(handle({
+      method: "GET",
+      path: `/seasons/${season.id}/keepers`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({ status: 200, body: { keepers: [{ playerName: "De'Von Achane" }] } });
+
+    await expect(handle({
+      method: "DELETE",
+      path: `/seasons/${season.id}/keepers`,
+      sessionToken: cam.sessionToken,
+      body: { teamId: camTeam.id, playerId: "devon achane" },
+    })).resolves.toMatchObject({ status: 200, body: { keepers: [] } });
+
+    await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/keepers/apply`,
+      sessionToken: cam.sessionToken,
+      body: { command: "cam keeping achane 50", confirmed: true },
+    });
+    await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/publish`,
+      sessionToken: cam.sessionToken,
+      body: { confirmed: true },
+    });
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: cam.sessionToken,
+      body: {},
+    })).resolves.toMatchObject({
+      status: 201,
+      body: {
+        room: {
+          playerCatalog: expect.arrayContaining([
+            expect.objectContaining({ name: "Puka Nacua", marketPrice: 73, expectedPrice: 73 }),
+          ]),
+        },
+      },
+    });
+  });
+
+  it("does not save a keeper when the resulting pricing snapshot would conflict", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupRepository,
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "keeper-conflict@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        }],
+      },
+    });
+    const prepared = await app.preflightLeaguePricing({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: "league-history-keepers-v1",
+      scenarioIds: ["expected"],
+      baselinePrices: playerCatalog
+        .filter(player => player.name !== "De'Von Achane")
+        .map(player => ({
+          name: player.name,
+          normalizedName: canonicalPlayerIdentityKey(player.name),
+          position: player.position,
+          price: player.expectedPrice,
+        })),
+      currentKeeperCount: 1,
+      keeperLockedSpend: 50,
+      now,
+    });
+    const snapshot = prepared.snapshots[0];
+    if (snapshot === undefined) throw new Error("Expected prepared pricing snapshot.");
+    store.pricingSnapshots.save({
+      ...snapshot,
+      rows: snapshot.rows.map((row, index) => index === 0 ? { ...row, livePrice: row.livePrice + 1 } : row),
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/keepers/apply`,
+      sessionToken: cam.sessionToken,
+      body: { command: "cam keeping achane 50", confirmed: true },
+    })).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "pricing_snapshot_conflict" } },
+    });
+    await expect(liveDraftRoomSetupRepository.findForSeason(season.id)).resolves.toBeNull();
+  });
+
+  it("does not commit historical records when the resulting pricing snapshot would conflict", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "history-conflict@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        }],
+      },
+    });
+    const preview = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/preview`,
+      sessionToken: cam.sessionToken,
+      body: {
+        sourceText: "owner,player,position,price,year\nCam,Puka Nacua,WR,70,2025",
+        seasonYear: 2025,
+      },
+    });
+    const batchId = expectString(expectBodyRecord(expectBodyRecord(preview.body).batch).id);
+    const proposed = await app.prepareHistoricalImportCommit({
+      actorSessionToken: cam.sessionToken,
+      batchId,
+      expectedLeagueId: season.leagueId,
+      expectedLeagueSeasonId: season.id,
+      expectedSeasonYear: 2025,
+      pricingSeasonYear: season.seasonYear,
+      now,
+    });
+    const prepared = await app.preflightLeaguePricing({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: "league-history-v1",
+      scenarioIds: ["expected"],
+      baselinePrices: playerCatalog.map(player => ({
+        name: player.name,
+        normalizedName: canonicalPlayerIdentityKey(player.name),
+        position: player.position,
+        price: player.expectedPrice,
+      })),
+      historicalSaleRecords: proposed.projectedHistoricalSaleRecords,
+      currentKeeperCount: 0,
+      keeperLockedSpend: 0,
+      now,
+    });
+    const snapshot = prepared.snapshots[0];
+    if (snapshot === undefined) throw new Error("Expected prepared pricing snapshot.");
+    store.pricingSnapshots.save({
+      ...snapshot,
+      rows: snapshot.rows.map((row, index) => index === 0 ? { ...row, livePrice: row.livePrice + 1 } : row),
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/historical-imports/${batchId}/commit`,
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, seasonYear: 2025 },
+    })).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "pricing_snapshot_conflict" } },
+    });
+    expect(store.historicalImports.findBatchById(batchId)).toMatchObject({ status: "previewed" });
+    expect(store.historicalImports.currentRecords(season.leagueId, 2025)).toEqual([]);
+  });
+
+  it("authorizes commissioner spreadsheet imports before parsing the upload", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const owner = await createLoggedInAccount(handle, "history-owner@example.com");
+    const member = await createLoggedInAccount(handle, "history-member@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: owner.sessionToken,
+      body: {
+        season,
+        memberships: [
+          { userId: owner.account.id, leagueId: season.leagueId, role: "owner" },
+          { userId: member.account.id, leagueId: season.leagueId, role: "member" },
+        ],
+      },
+    });
+    const upload = {
+      fileName: "draft.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      base64: Buffer.from("not an xlsx archive").toString("base64"),
+      seasonYear: 2025,
+    };
+
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/upload-preview`,
+      sessionToken: member.sessionToken,
+      body: upload,
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "shared_mutation_denied" } },
+    });
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/upload-preview`,
+      sessionToken: owner.sessionToken,
+      body: upload,
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_historical_upload" } },
+    });
+  });
+
+  it("creates and replays a league-aware snake mock for the claimed team", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    let currentSnakeCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = snakePlayerCatalog;
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentSnakeCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "snake-mock@example.com");
+    const season = snakeSeason();
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+
+    const created = await handle({
+      method: "POST",
+      path: "/season-mock-drafts",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id },
+    });
+    expect(created).toMatchObject({
+      status: 201,
+      body: {
+        mockSession: {
+          seasonId: season.id,
+          teamId: "snake-team-1",
+          draftMode: {
+            format: "snake",
+          },
+          configurationSnapshot: {
+            status: "ready",
+            schema: "mockd-season-mock",
+            version: 1,
+          },
+        },
+        state: { session: { status: "setup", revision: 0 } },
+      },
+    });
+    const mockSession = expectBodyRecord(created.body).mockSession as { id: string };
+
+    const started = await handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "start-1",
+        command: { type: "start", expectedRevision: 0 },
+      },
+    });
+    expect(started).toMatchObject({
+      status: 200,
+      body: { state: { session: { status: "active", revision: 1, currentPick: { teamId: "snake-team-1" } } } },
+    });
+
+    const picked = await handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "pick-1",
+        command: { type: "pick", expectedRevision: 1, playerId: "player 1" },
+      },
+    });
+    expect(picked).toMatchObject({
+      status: 200,
+      body: {
+        state: {
+          session: { revision: 2, currentPick: { overall: 8, teamId: "snake-team-1" } },
+          board: {
+            picks: expect.arrayContaining([
+              expect.objectContaining({ selection: expect.objectContaining({ source: "ai" }) }),
+            ]),
+          },
+        },
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "pick-1",
+        command: { type: "pick", expectedRevision: 1, playerId: "player 1" },
+      },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        mockSession: { commandLog: [{}, {}] },
+        state: { session: { revision: 2 } },
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "stale-pick",
+        command: { type: "pick", expectedRevision: 1, playerId: "player 8" },
+      },
+    })).resolves.toMatchObject({ status: 409, body: { error: { code: "stale_revision" } } });
+
+    currentSnakeCatalog = [{ name: "Replacement Player", position: "RB", expectedPrice: 1 }];
+    await expect(handle({
+      method: "GET",
+      path: `/season-mock-drafts/${mockSession.id}`,
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        state: {
+          session: { revision: 2, commandLog: expect.any(Array) },
+          board: { players: expect.arrayContaining([expect.objectContaining({ name: "Player 1" })]) },
+        },
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "pick-2",
+        command: { type: "pick", expectedRevision: 2, playerId: "player 8" },
+      },
+    })).resolves.toMatchObject({ body: { state: { session: { canComplete: true, revision: 3 } } } });
+    await expect(handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "complete-1",
+        command: { type: "complete", expectedRevision: 3 },
+      },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        mockSession: { status: "completed" },
+        state: { session: { status: "completed", revision: 4 } },
+      },
+    });
+
+    const legacySession = await app.createMockDraftSession({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: season.teams[0]?.ownerId ?? "",
+      teamId: season.teams[0]?.id ?? "",
+      draftMode: { format: "snake", mockCount: 1, label: "Legacy mock" },
+      status: "setup",
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/season-mock-drafts/${legacySession.id}`,
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "snapshot_migration_required" } },
+    });
+  });
+
+  it("uses the same durable mock contract for auction leagues", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "auction-mock@example.com");
+    const snake = snakeSeason();
+    const season: LeagueSeason = {
+      ...snake,
+      id: "auction-season-2026",
+      teams: snake.teams.map(team => ({ ...team, leagueSeasonId: "auction-season-2026" })),
+      settings: {
+        ...snake.settings,
+        draftFormat: "auction",
+        snake: undefined,
+        auction: { budgetDollars: 200, minimumBidDollars: 1 },
+      },
+    };
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+    const created = await handle({
+      method: "POST",
+      path: "/season-mock-drafts",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id },
+    });
+    expect(created).toMatchObject({
+      status: 201,
+      body: {
+        mockSession: { draftMode: { format: "auction" } },
+        state: { session: { status: "setup", phase: "not_started" } },
+      },
+    });
+    const mockSession = expectBodyRecord(created.body).mockSession as { id: string };
+    await expect(handle({
+      method: "POST",
+      path: `/season-mock-drafts/${mockSession.id}/commands`,
+      sessionToken: cam.sessionToken,
+      body: {
+        seasonId: season.id,
+        commandId: "start-auction",
+        command: { type: "start", expectedRevision: 0 },
+      },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { state: { session: { status: "active", phase: "awaiting_human_nomination" } } },
+    });
+  });
+
+  it("runs private league-aware simulations for a claimed team", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
+      simulationRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 10,
+      }),
+    });
+    const cam = await createLoggedInAccount(handle, "snake-simulations@example.com");
+    const outsider = await createLoggedInAccount(handle, "simulation-outsider@example.com");
+    const season = snakeSeason();
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
+    })).resolves.toMatchObject({ status: 401, body: { error: { code: "auth_required" } } });
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: outsider.sessionToken,
+      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
+    })).resolves.toMatchObject({ status: 403, body: { error: { code: "membership_required" } } });
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, count: 26, strategy: "Draft Player 1 by round 1" },
+    })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_run_count" } } });
+
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        simulation: {
+          draftFormat: "snake",
+          runCount: 2,
+          completedCount: 2,
+          strategy: {
+            target: { playerName: "Player 1", maxSnakeRound: 1 },
+            warnings: [],
+          },
+          targetOutcome: { playerName: "Player 1", hitCount: 2, hitRate: 1 },
+          representativeRoster: expect.any(Array),
+        },
+      },
+    });
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
+    })).resolves.toMatchObject({
+      status: 429,
+      body: { error: { code: "rate_limited" } },
+      headers: { "Retry-After": "60" },
+    });
+  });
+
   it("changes a signed-in password, clears the cookie, and requires every device to sign in again", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
@@ -568,6 +1611,7 @@ describe("platform HTTP contract", () => {
         },
       },
     });
+
   });
 
   it("reports unavailable when a readiness dependency fails", async () => {
@@ -1012,6 +2056,25 @@ describe("platform HTTP contract", () => {
     const handle = createPlatformHttpHandler(app, {
       allowPublicSignup: true,
       provisioningToken: "test-provisioning-token",
+      currentPlayerCatalogProvider: async () => playerCatalog,
+      postDraftProjectionProvider: async (projectionSeason, catalog, evaluatedAt) => ({
+        metadata: {
+          snapshotId: "test-projections",
+          leagueId: projectionSeason.leagueId,
+          seasonId: projectionSeason.id,
+          scoringSettingsId: postDraftScoringSettingsIdForSeason(projectionSeason),
+          generatedAt: evaluatedAt.toISOString(),
+          validThrough: new Date(evaluatedAt.getTime() + 60_000).toISOString(),
+          week: 1,
+        },
+        projections: catalog.map((player, index) => ({
+          playerId: `player-${index + 1}`,
+          playerName: player.name,
+          position: player.position,
+          seasonProjectedPoints: Math.max(1, player.expectedPrice) * 4,
+          weeklyProjectedPoints: Math.max(1, player.expectedPrice),
+        })),
+      }),
     });
     const cam = await createLoggedInAccount(handle, "cam@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -1122,6 +2185,24 @@ describe("platform HTTP contract", () => {
       },
     });
 
+    await expect(handle({
+      method: "GET",
+      path: `/seasons/${season.id}`,
+      sessionToken: seth.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        claimableTeams: expect.arrayContaining([expect.objectContaining({ id: sethTeam.id })]),
+      },
+    });
+    const beforeClaim = await handle({
+      method: "GET",
+      path: `/seasons/${season.id}`,
+      sessionToken: seth.sessionToken,
+    });
+    expect((expectBodyRecord(beforeClaim.body).claimableTeams as Array<{ id: string }>).map(team => team.id))
+      .not.toContain(camTeam.id);
+
     const claim = await handle({
       method: "POST",
       path: `/seasons/${season.id}/team-claims`,
@@ -1144,6 +2225,13 @@ describe("platform HTTP contract", () => {
         },
       },
     });
+    const afterClaim = await handle({
+      method: "GET",
+      path: `/seasons/${season.id}`,
+      sessionToken: seth.sessionToken,
+    });
+    expect((expectBodyRecord(afterClaim.body).claimableTeams as Array<{ id: string }>).map(team => team.id))
+      .not.toContain(sethTeam.id);
   });
 
   it("provisions a season live room from the server-owned draft setup", async () => {
@@ -1225,6 +2313,26 @@ describe("platform HTTP contract", () => {
         },
       },
     });
+    await expect(handle({
+      method: "DELETE",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: seth.sessionToken,
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "shared_mutation_denied" } },
+    });
+    await expect(handle({
+      method: "DELETE",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toEqual({ status: 200, body: { ok: true } });
+    await expect(app.hasLiveDraftRoomForSeason(season.id)).resolves.toBe(false);
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: cam.sessionToken,
+      body: {},
+    })).resolves.toMatchObject({ status: 201 });
   });
 
   it("routes season, simulation, mock session, live room, and export calls through PlatformApp", async () => {
@@ -1232,6 +2340,25 @@ describe("platform HTTP contract", () => {
     const handle = createPlatformHttpHandler(app, {
       allowPublicSignup: true,
       provisioningToken: "test-provisioning-token",
+      currentPlayerCatalogProvider: async () => playerCatalog,
+      postDraftProjectionProvider: async (projectionSeason, catalog, evaluatedAt) => ({
+        metadata: {
+          snapshotId: "test-projections",
+          leagueId: projectionSeason.leagueId,
+          seasonId: projectionSeason.id,
+          scoringSettingsId: postDraftScoringSettingsIdForSeason(projectionSeason),
+          generatedAt: evaluatedAt.toISOString(),
+          validThrough: new Date(evaluatedAt.getTime() + 60_000).toISOString(),
+          week: 1,
+        },
+        projections: catalog.map((player, index) => ({
+          playerId: `player-${index + 1}`,
+          playerName: player.name,
+          position: player.position,
+          seasonProjectedPoints: Math.max(1, player.expectedPrice) * 4,
+          weeklyProjectedPoints: Math.max(1, player.expectedPrice),
+        })),
+      }),
     });
     const cam = await createLoggedInAccount(handle, "cam@example.com");
     const seth = await createLoggedInAccount(handle, "seth@example.com");
@@ -1314,10 +2441,15 @@ describe("platform HTTP contract", () => {
 
     const importPreview = await handle({
       method: "POST",
-      path: `/seasons/${season.id}/historical-imports/preview`,
+      path: `/seasons/${season.id}/historical-imports/upload-preview`,
       sessionToken: cam.sessionToken,
       body: {
-        sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2026,player-puka",
+        fileName: "draft-2025.csv",
+        mimeType: "text/csv",
+        base64: Buffer.from(
+          "owner,player,position,price,year\nCam,Puka Nacua,WR,70,2025",
+        ).toString("base64"),
+        seasonYear: 2025,
         now,
       },
     });
@@ -1339,12 +2471,16 @@ describe("platform HTTP contract", () => {
       path: `/historical-imports/${previewBatchId}/commit`,
       sessionToken: cam.sessionToken,
       body: {
+        seasonId: season.id,
+        seasonYear: 2025,
         now: new Date(now.getTime() + 250).toISOString(),
       },
     });
 
     expect(committedImport.body).toMatchObject({
       committedRecords: [expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 })],
+      batch: expect.objectContaining({ seasonYear: 2025, leagueSeasonId: season.id }),
+      pricing: expect.objectContaining({ snapshots: [expect.objectContaining({ scenarioId: "expected" })] }),
     });
 
     const secondImportPreview = await handle({
@@ -1352,7 +2488,8 @@ describe("platform HTTP contract", () => {
       path: `/seasons/${season.id}/historical-imports/preview`,
       sessionToken: cam.sessionToken,
       body: {
-        sourceText: "owner,player,position,price,year,player id\nCam,Jahmyr Gibbs,RB,72,2026,player-gibbs",
+        sourceText: "owner,player,position,price,year\nCam,Jahmyr Gibbs,RB,72,2025",
+        seasonYear: 2025,
         now: new Date(now.getTime() + 300).toISOString(),
       },
     });
@@ -1364,6 +2501,8 @@ describe("platform HTTP contract", () => {
       path: `/historical-imports/${secondPreviewBatchId}/commit`,
       sessionToken: cam.sessionToken,
       body: {
+        seasonId: season.id,
+        seasonYear: 2025,
         now: new Date(now.getTime() + 350).toISOString(),
       },
     });
@@ -1399,7 +2538,7 @@ describe("platform HTTP contract", () => {
       snapshots: [
         expect.objectContaining({
           scenarioId: "balanced",
-          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 60 })],
+          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 50 })],
         }),
       ],
     });
@@ -1418,13 +2557,15 @@ describe("platform HTTP contract", () => {
       },
     });
 
-    expect(conflictingPricingRebuild).toEqual({
-      status: 409,
+    expect(conflictingPricingRebuild).toMatchObject({
+      status: 201,
       body: {
-        error: {
-          code: "pricing_snapshot_conflict",
-          message: `Cannot overwrite pricing snapshot for modelRunId ${modelRunId} and scenarioId balanced with a different payload.`,
-        },
+        modelRunId,
+        snapshots: [expect.objectContaining({
+          modelRunId,
+          scenarioId: "balanced",
+          createdAt: new Date(now.getTime() + 500).toISOString(),
+        })],
       },
     });
 
@@ -2129,6 +3270,26 @@ describe("platform HTTP contract", () => {
 
     expect(endedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "ended", revision: 10 }),
+    });
+
+    const myTeam = await handle({
+      method: "GET",
+      path: "/live-rooms/room_214674_2026/my-team",
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 8_500),
+    });
+    expect(myTeam).toMatchObject({
+      status: 200,
+      body: {
+        roster: {
+          teamId: camTeam.id,
+          players: expect.arrayContaining([expect.objectContaining({ playerName: "De'Von Achane" })]),
+        },
+        analysis: {
+          ownership: { userId: cam.account.id, teamId: camTeam.id },
+          ranking: expect.objectContaining({ teamCount: season.teams.length }),
+        },
+      },
     });
 
     const exportedRoom = await handle({

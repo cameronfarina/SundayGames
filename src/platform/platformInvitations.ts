@@ -238,7 +238,7 @@ export const acceptPlatformInvitation = async (
   if (normalizedEmail(input.account.email) !== normalizedEmail(invitation.email)) {
     throw new PlatformInvitationError(
       "invitation_email_mismatch",
-      `Sign in with ${invitation.email} to accept this invitation.`,
+      "This invitation cannot be accepted by the signed-in account.",
     );
   }
   if (input.now.getTime() > invitation.expiresAt.getTime()) {

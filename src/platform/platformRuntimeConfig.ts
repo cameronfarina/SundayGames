@@ -25,6 +25,12 @@ export interface PlatformRuntimeConfig {
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
   provisioningToken: string | undefined;
+  authEmail: {
+    mode: "auto-verify" | "resend";
+    resendApiKey: string | undefined;
+    from: string | undefined;
+    publicBaseUrl: string | undefined;
+  };
   simulationDataMode: "disabled" | "local-fixtures";
   screenshotImport: {
     mode: "disabled" | "openai";
@@ -83,10 +89,11 @@ const defaultScreenshotImportMaxImageBytes = 5 * 1024 * 1024;
 const defaultScreenshotImportMaxConcurrency = 2;
 const launchWorkerJobKinds = ["simulation"] as const satisfies readonly JobKind[];
 const productionReadinessNextSteps = [
-  "Run `npm run platform:migrate` against the production DATABASE_URL before starting web or worker processes.",
+  "Run `npm run platform:migrate` against the production DATABASE_URL before starting the web process.",
   "Mount a persistent volume and set `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to its draft-tools directory.",
-  "Seed or verify production league, users, memberships, pricing, and a test live room; use `npm run platform:seed:e2e` only for rehearsal fixtures.",
-  "Start `npm run platform:web` behind the domain/proxy and `npm run platform:worker` for background jobs.",
+  "Verify a Resend sender and configure `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`, and `MOCKD_PUBLIC_BASE_URL`.",
+  "Create a commissioner account, import a staging league, and verify its settings, members, keepers, and pricing; use `npm run platform:seed:e2e` only for local rehearsal fixtures.",
+  "Start `npm run platform:web` behind the domain/proxy.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",
   "Configure OPENAI_API_KEY for commissioner screenshot imports and monitor provider usage.",
 ] as const;
@@ -95,6 +102,35 @@ const optionalEnvString = (env: PlatformRuntimeEnv, key: string): string | undef
   const value = env[key]?.trim();
 
   return value === undefined || value.length === 0 ? undefined : value;
+};
+
+const authEmailConfig = (env: PlatformRuntimeEnv): PlatformRuntimeConfig["authEmail"] => {
+  const mode = optionalEnvString(env, "MOCKD_AUTH_EMAIL_MODE") ?? "auto-verify";
+  if (mode !== "auto-verify" && mode !== "resend") {
+    throw new Error("MOCKD_AUTH_EMAIL_MODE must be auto-verify or resend.");
+  }
+  return {
+    mode,
+    resendApiKey: optionalEnvString(env, "RESEND_API_KEY"),
+    from: optionalEnvString(env, "MOCKD_EMAIL_FROM"),
+    publicBaseUrl: optionalEnvString(env, "MOCKD_PUBLIC_BASE_URL"),
+  };
+};
+
+const assertProductionAuthEmailConfig = (config: PlatformRuntimeConfig["authEmail"]): void => {
+  if (config.mode !== "resend") throw new Error("MOCKD_AUTH_EMAIL_MODE=resend is required in production.");
+  if (config.resendApiKey === undefined) throw new Error("RESEND_API_KEY is required in production.");
+  if (config.from === undefined) throw new Error("MOCKD_EMAIL_FROM is required in production.");
+  if (config.publicBaseUrl === undefined) throw new Error("MOCKD_PUBLIC_BASE_URL is required in production.");
+  let url: URL;
+  try {
+    url = new URL(config.publicBaseUrl);
+  } catch {
+    throw new Error("MOCKD_PUBLIC_BASE_URL must be a valid HTTPS origin.");
+  }
+  if (url.protocol !== "https:" || url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+    throw new Error("MOCKD_PUBLIC_BASE_URL must be a valid HTTPS origin.");
+  }
 };
 
 const positiveIntegerEnv = (
@@ -269,6 +305,7 @@ export const readPlatformRuntimeConfig = (
 
   const parsedSimulationDataMode = simulationDataMode(env);
   const parsedScreenshotImport = screenshotImportConfig(env);
+  const parsedAuthEmail = authEmailConfig(env);
   const parsedWorkerJobKinds = workerJobKinds(env);
   if (
     options.requireRunnableWorker === true &&
@@ -292,6 +329,7 @@ export const readPlatformRuntimeConfig = (
     trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
     liveDraftDataMode: parsedLiveDraftDataMode,
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
+    authEmail: parsedAuthEmail,
     simulationDataMode: parsedSimulationDataMode,
     screenshotImport: parsedScreenshotImport,
     worker: {
@@ -326,6 +364,9 @@ export const readPlatformWebRuntimeConfig = (
     throw new Error(
       "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY is required for Postgres-backed web startup.",
     );
+  }
+  if (optionalEnvString(env, "NODE_ENV") === "production") {
+    assertProductionAuthEmailConfig(config.authEmail);
   }
 
   return config;
@@ -397,15 +438,31 @@ export const assessPlatformProductionReadiness = (
 
   if (booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP")) {
     checks.push({
-      status: "fail",
-      label: "Invite-only signup",
-      detail: "MOCKD_ALLOW_PUBLIC_SIGNUP must be unset or false in production.",
+      status: "pass",
+      label: "Account creation",
+      detail: "Public account creation is enabled; league access still requires membership or an invitation.",
     });
   } else {
     checks.push({
+      status: "fail",
+      label: "Account creation",
+      detail: "MOCKD_ALLOW_PUBLIC_SIGNUP must be true so new users can create an account.",
+    });
+  }
+
+  try {
+    const authEmail = authEmailConfig(env);
+    assertProductionAuthEmailConfig(authEmail);
+    checks.push({
       status: "pass",
-      label: "Invite-only signup",
-      detail: "Public account creation is restricted to valid league invitations.",
+      label: "Account email delivery",
+      detail: "Resend delivery, sender identity, and the public HTTPS origin are configured.",
+    });
+  } catch (error) {
+    checks.push({
+      status: "fail",
+      label: "Account email delivery",
+      detail: errorMessage(error),
     });
   }
 

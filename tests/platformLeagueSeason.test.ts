@@ -4,6 +4,7 @@ import {
   assessLeagueSeasonReadiness,
   buildCurrentMockdLeagueSeason,
   calculateKeeperCost,
+  type AnyLeagueSeason,
 } from "../src/platform/leagueSeason.js";
 
 describe("buildCurrentMockdLeagueSeason", () => {
@@ -29,7 +30,10 @@ describe("buildCurrentMockdLeagueSeason", () => {
       draftOrderPosition: 1,
     });
     expect(season.teams.map(team => team.ownerDisplayName)).toEqual([...ownerOrder]);
+    expect(season.settings.draftFormat).toBe("auction");
     expect(season.settings.auction.budgetDollars).toBe(200);
+    expect(season.settings).not.toHaveProperty("snake");
+    expect(season.settings.scoring).toEqual(leagueConfig.scoring);
     expect(season.settings.roster.rosterSize).toBe(16);
   });
 
@@ -136,5 +140,172 @@ describe("assessLeagueSeasonReadiness", () => {
       blockers: [],
       warnings: [],
     });
+  });
+
+  it("validates snake settings without requiring auction settings", () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: 16,
+          order: auctionSeason.teams.map(team => team.id),
+          reversal: "standard",
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    const readiness = assessLeagueSeasonReadiness(snakeSeason);
+
+    expect(readiness.canPublish).toBe(true);
+    expect(readiness.blockers).toEqual([]);
+    expect(readiness.checks.map(check => check.key)).toContain("snake-draft");
+    expect(readiness.checks.map(check => check.key)).not.toContain("auction-budget");
+    expect(snakeSeason.settings).not.toHaveProperty("auction");
+  });
+
+  it("blocks invalid active-format and scoring settings", () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: {
+          ...auctionSeason.settings.scoring,
+          passingTouchdown: 0,
+          reception: -0.5,
+        },
+        snake: {
+          rounds: 0,
+          order: auctionSeason.teams.map(team => team.id).slice(1),
+          reversal: "standard",
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    const readiness = assessLeagueSeasonReadiness(snakeSeason);
+
+    expect(readiness.canPublish).toBe(false);
+    expect(readiness.blockers).toEqual([
+      "Snake drafts must have at least one round and include every team exactly once in draft order.",
+      "Touchdown points must be greater than 0, and reception points cannot be negative.",
+    ]);
+  });
+
+  it("accepts standard scoring with zero reception points", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, {
+      ...leagueConfig,
+      scoring: {
+        ...leagueConfig.scoring,
+        reception: 0,
+      },
+    });
+
+    expect(assessLeagueSeasonReadiness(season).canPublish).toBe(true);
+  });
+
+  it("blocks invalid auction minimum bids", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    season.settings.auction.minimumBidDollars = 0;
+
+    expect(assessLeagueSeasonReadiness(season).blockers).toContain(
+      "Auction minimum bid must be greater than $0 and no more than the budget.",
+    );
+  });
+
+  it("requires the engine-supported range of four to twenty teams", () => {
+    const tooSmall = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 2), {
+      ...leagueConfig,
+      teams: 2,
+    });
+    const tooLargeOwners = Array.from({ length: 21 }, (_, index) => `Owner ${index + 1}`);
+    const tooLarge = buildCurrentMockdLeagueSeason(tooLargeOwners, {
+      ...leagueConfig,
+      teams: 21,
+    });
+
+    expect(assessLeagueSeasonReadiness(tooSmall).blockers).toContain(
+      "Leagues require between 4 and 20 teams.",
+    );
+    expect(assessLeagueSeasonReadiness(tooLarge).blockers).toContain(
+      "Leagues require between 4 and 20 teams.",
+    );
+  });
+
+  it("requires unique non-blank team identities", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    season.teams[1] = {
+      ...season.teams[1]!,
+      id: season.teams[0]!.id,
+    };
+
+    expect(assessLeagueSeasonReadiness(season).blockers).toContain(
+      "Every team needs a unique non-blank ID and a non-blank name.",
+    );
+  });
+
+  it("requires whole-dollar auction currency and minimum-bid reserves", () => {
+    const fractional = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    fractional.settings.auction.budgetDollars = 200.5;
+    const underfunded = buildCurrentMockdLeagueSeason(ownerOrder, {
+      ...leagueConfig,
+      auctionBudget: 15,
+    });
+
+    expect(assessLeagueSeasonReadiness(fractional).blockers).toContain(
+      "Auction budget and minimum bid must be positive whole-dollar amounts.",
+    );
+    expect(assessLeagueSeasonReadiness(underfunded).blockers).toContain(
+      "Auction budget must reserve the $1 minimum bid for all 16 roster slots.",
+    );
+  });
+
+  it("requires positive whole roster slots that match the declared capacity", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    season.settings.roster.lineup.RB = 1.5;
+
+    expect(assessLeagueSeasonReadiness(season).blockers).toContain(
+      "Roster size and every lineup slot must be positive whole numbers, and lineup slots must total the roster size.",
+    );
+  });
+
+  it("requires usable whole-number positional maximums", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    season.settings.roster.rosterMaximums.RB = 1.5;
+
+    expect(assessLeagueSeasonReadiness(season).blockers).toContain(
+      "Roster maximums must be non-negative whole numbers and must support a full roster.",
+    );
+  });
+
+  it("blocks snake rounds beyond each team's roster capacity", () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: 17,
+          order: auctionSeason.teams.map(team => team.id),
+          reversal: "standard",
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    expect(assessLeagueSeasonReadiness(snakeSeason).blockers).toContain(
+      "Snake draft rounds cannot exceed the 16-player roster capacity.",
+    );
   });
 });

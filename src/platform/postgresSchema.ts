@@ -76,6 +76,7 @@ const platformPostgresTables = [
       { name: "email", type: "text" },
       { name: "email_normalized", type: "text" },
       { name: "password_hash", type: "text" },
+      { name: "email_verified_at", type: "timestamptz", nullable: true },
       { name: "auth_version", type: "bigint", default: "1" },
       { name: "display_name", type: "text", nullable: true },
       { name: "status", type: "text", default: "'active'" },
@@ -88,6 +89,38 @@ const platformPostgresTables = [
     checkConstraints: [
       { name: "accounts_email_normalized_not_blank", expression: "length(trim(email_normalized)) > 0" },
       { name: "accounts_status_check", expression: "status IN ('active', 'disabled', 'deleted')" },
+    ],
+  },
+  {
+    name: "account_auth_tokens",
+    columns: [
+      { name: "id", type: "text" },
+      { name: "account_id", type: "text" },
+      { name: "purpose", type: "text" },
+      { name: "token_hash", type: "text" },
+      { name: "expires_at", type: "timestamptz" },
+      { name: "consumed_at", type: "timestamptz", nullable: true },
+      createdAtColumn,
+    ],
+    primaryKey: ["id"],
+    uniqueConstraints: [
+      { name: "account_auth_tokens_token_hash_key", columns: ["token_hash"] },
+    ],
+    checkConstraints: [
+      { name: "account_auth_tokens_purpose_check", expression: "purpose IN ('email_verification', 'password_reset')" },
+      { name: "account_auth_tokens_expiry_check", expression: "expires_at > created_at" },
+    ],
+    foreignKeys: [
+      {
+        name: "account_auth_tokens_account_id_fkey",
+        columns: ["account_id"],
+        references: { table: "accounts", columns: ["id"] },
+        onDelete: "CASCADE",
+      },
+    ],
+    indexes: [
+      { name: "account_auth_tokens_account_purpose_idx", columns: ["account_id", "purpose"] },
+      { name: "account_auth_tokens_expires_at_idx", columns: ["expires_at"] },
     ],
   },
   {
@@ -144,12 +177,6 @@ const platformPostgresTables = [
       },
     ],
     indexes: [
-      {
-        name: "leagues_provider_league_id_key",
-        columns: ["provider", "provider_league_id"],
-        unique: true,
-        where: "provider IS NOT NULL AND provider_league_id IS NOT NULL",
-      },
       { name: "leagues_created_by_user_id_idx", columns: ["created_by_user_id"] },
     ],
   },
@@ -276,8 +303,10 @@ const platformPostgresTables = [
     columns: [
       { name: "id", type: "text" },
       { name: "league_season_id", type: "text" },
-      { name: "budget", type: "integer" },
-      { name: "minimum_bid", type: "integer" },
+      { name: "draft_format", type: "text", default: "'auction'" },
+      { name: "budget", type: "integer", nullable: true },
+      { name: "minimum_bid", type: "integer", nullable: true },
+      { name: "snake_json", type: "jsonb", nullable: true },
       { name: "slots_json", type: "jsonb", default: jsonbDefault },
       { name: "position_maximums_json", type: "jsonb", default: jsonbDefault },
       { name: "scoring_json", type: "jsonb", default: jsonbDefault },
@@ -288,8 +317,11 @@ const platformPostgresTables = [
       { name: "roster_rule_sets_league_season_key", columns: ["league_season_id"] },
     ],
     checkConstraints: [
-      { name: "roster_rule_sets_budget_check", expression: "budget > 0" },
-      { name: "roster_rule_sets_minimum_bid_check", expression: "minimum_bid > 0" },
+      { name: "roster_rule_sets_draft_format_check", expression: "draft_format IN ('auction', 'snake')" },
+      {
+        name: "roster_rule_sets_format_settings_check",
+        expression: "(draft_format = 'auction' AND budget IS NOT NULL AND minimum_bid IS NOT NULL AND budget > 0 AND minimum_bid > 0 AND snake_json IS NULL) OR (draft_format = 'snake' AND budget IS NULL AND minimum_bid IS NULL AND snake_json IS NOT NULL)",
+      },
     ],
     foreignKeys: [
       {
@@ -493,6 +525,7 @@ const platformPostgresTables = [
       { name: "player_name", type: "text" },
       { name: "position", type: "text" },
       { name: "price_dollars", type: "integer" },
+      { name: "public_price_dollars", type: "integer", nullable: true },
       { name: "keeper", type: "boolean", default: "false" },
       { name: "acquisition_type", type: "text" },
       { name: "row_number", type: "integer" },
@@ -504,6 +537,10 @@ const platformPostgresTables = [
     ],
     checkConstraints: [
       { name: "historical_draft_sales_price_check", expression: "price_dollars >= 0" },
+      {
+        name: "historical_draft_sales_public_price_check",
+        expression: "public_price_dollars IS NULL OR public_price_dollars > 0",
+      },
       { name: "historical_draft_sales_row_number_check", expression: "row_number > 0" },
       { name: "historical_draft_sales_acquisition_type_check", expression: "acquisition_type IN ('auction', 'keeper')" },
     ],

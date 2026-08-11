@@ -3,6 +3,9 @@ import {
   InMemoryMockDraftSessionRepository,
   MockDraftSessionError,
 } from "../src/platform/mockSessions.js";
+import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import { createSeasonMockConfigurationSnapshot } from "../src/platform/seasonMockSnapshot.js";
+import { leagueConfig, ownerOrder } from "../config/league.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 const leagueId = "league_home";
@@ -28,6 +31,55 @@ const createCamSession = (
   });
 
 describe("platform mock draft sessions", () => {
+  it("stores immutable configuration snapshots and marks unsnapshotted sessions for migration", () => {
+    const repository = new InMemoryMockDraftSessionRepository();
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const teamId = season.teams[0]?.id ?? "missing-team";
+    const configurationSnapshot = createSeasonMockConfigurationSnapshot({
+      season,
+      setup: {
+        seasonId: season.id,
+        sourceVersion: "rankings-2026.1",
+        playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
+        initialRosters: [],
+        contentHash: "setup-hash",
+        updatedAt: now,
+      },
+      humanTeamId: teamId,
+      playerExpectedPrices: { "puka-nacua": 69 },
+      capturedAt: now,
+    });
+    const snapped = repository.createSession({
+      userId: "user_cam",
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: "owner_cam",
+      teamId,
+      draftMode,
+      configurationSnapshot,
+      now,
+    });
+    const legacy = createCamSession(repository);
+
+    expect(snapped.configurationSnapshot).toEqual(configurationSnapshot);
+    expect(Object.isFrozen(snapped.configurationSnapshot)).toBe(true);
+    expect(legacy.configurationSnapshot).toEqual({
+      status: "migration-required",
+      schema: "mockd-season-mock",
+      reason: "missing-snapshot",
+    });
+    expect(() => repository.createSession({
+      userId: "user_cam",
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: "owner_cam",
+      teamId: season.teams[1]?.id ?? "other-team",
+      draftMode,
+      configurationSnapshot,
+      now,
+    })).toThrow("Mock draft configuration snapshot is malformed.");
+  });
+
   it("creates active private sessions and lists only the creating user's owner sessions", () => {
     const repository = new InMemoryMockDraftSessionRepository();
     const camSession = createCamSession(repository);
@@ -50,6 +102,11 @@ describe("platform mock draft sessions", () => {
       teamId: "team_cam",
       status: "active",
       draftMode,
+      configurationSnapshot: {
+        status: "migration-required",
+        schema: "mockd-season-mock",
+        reason: "missing-snapshot",
+      },
       revision: 1,
       commandLog: [],
       latestResultRef: undefined,
@@ -213,6 +270,79 @@ describe("platform mock draft sessions", () => {
     ));
   });
 
+  it("finds stored command retries before replay while preserving privacy and conflict checks", () => {
+    const repository = new InMemoryMockDraftSessionRepository();
+    const session = createCamSession(repository);
+    const appended = repository.appendCommand({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+      now,
+    });
+
+    expect(repository.findStoredCommandForRetry({
+      userId: "user_cam",
+      sessionId: session.id,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+    })).toEqual({
+      session: appended,
+      command: appended.commandLog[0],
+    });
+    const completed = repository.markCompleted({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: session.revision,
+      now: new Date(now.getTime() + 1_000),
+    });
+    expect(repository.findStoredCommandForRetry({
+      userId: "user_cam",
+      sessionId: session.id,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+    })?.session).toBe(completed);
+    expect(repository.appendCommand({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 0,
+      expectedCommandCount: 0,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+      now: new Date(now.getTime() + 2_000),
+    })).toBe(completed);
+    expect(repository.findStoredCommandForRetry({
+      userId: "user_cam",
+      sessionId: session.id,
+      commandId: "cmd_ladd",
+      idempotencyKey: "sale:ladd:21",
+      command: "draft Ladd McConkey for $21",
+    })).toBeUndefined();
+    expect(() => repository.findStoredCommandForRetry({
+      userId: "user_cam",
+      sessionId: session.id,
+      commandId: "cmd_changed",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $61",
+    })).toThrow(new MockDraftSessionError(
+      "command_idempotency_conflict",
+      "A command already exists for this idempotency key with different input.",
+    ));
+    expect(() => repository.findStoredCommandForRetry({
+      userId: "user_rival",
+      sessionId: session.id,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+    })).toThrow(new MockDraftSessionError("access_denied", "Mock draft session belongs to another user."));
+  });
+
   it("rejects command writes after completion while keeping the result reference", () => {
     const repository = new InMemoryMockDraftSessionRepository();
     const session = createCamSession(repository);
@@ -302,6 +432,11 @@ describe("platform mock draft sessions", () => {
       teamId: "team_cam",
       status: "active",
       draftMode,
+      configurationSnapshot: {
+        status: "migration-required",
+        schema: "mockd-season-mock",
+        reason: "missing-snapshot",
+      },
       revision: 2,
       commandLog: [],
       latestResultRef: undefined,

@@ -1,4 +1,5 @@
 import { positions, type Position } from "../../config/league.js";
+import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import type { FantasyTeam, LeagueSeason } from "./leagueSeason.js";
 
 type MaybePromise<T> = T | Promise<T>;
@@ -21,21 +22,70 @@ export class HistoricalImportError extends Error {
   }
 }
 
+export class HistoricalImportTargetError extends Error {
+  readonly code = "batch_target_mismatch" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "HistoricalImportTargetError";
+  }
+}
+
 export type HistoricalImportIssueCode =
   | "season_missing"
   | "owner_unknown"
+  | "owner_ambiguous"
   | "position_invalid"
   | "player_missing"
   | "price_invalid"
+  | "public_price_invalid"
   | "player_duplicate"
+  | "player_ambiguous"
   | "player_unresolved"
   | "season_spend_mismatch"
   | "keeper_inferred"
   | "acquisition_type_inferred";
 
+export interface HistoricalImportPlayerCatalogEntry {
+  playerId?: string;
+  name: string;
+  position: Position | string;
+  aliases?: readonly string[];
+}
+
+export interface HistoricalPlayerResolutionCandidate {
+  playerId: string;
+  playerName: string;
+  position: string;
+}
+
+export interface HistoricalOwnerResolutionCandidate {
+  teamId: string;
+  teamDisplayName: string;
+  ownerDisplayName: string;
+}
+
+export type HistoricalImportReviewCandidate =
+  | HistoricalPlayerResolutionCandidate
+  | HistoricalOwnerResolutionCandidate;
+
 export type PlayerResolution =
-  | { status: "resolved"; playerId: string }
-  | { status: "unresolved"; required: true; candidates?: readonly string[] };
+  | {
+      status: "resolved";
+      playerId: string;
+      playerName?: string;
+      position?: string;
+    }
+  | {
+      status: "unresolved";
+      required: true;
+      candidates?: readonly (HistoricalPlayerResolutionCandidate | string)[];
+    }
+  | {
+      status: "ambiguous";
+      required: true;
+      candidates: readonly HistoricalPlayerResolutionCandidate[];
+    };
 
 export type HistoricalAcquisitionType = "auction" | "keeper";
 
@@ -44,6 +94,22 @@ export interface HistoricalImportIssue {
   severity: HistoricalImportIssueSeverity;
   message: string;
   rowNumber?: number;
+  sourceValue?: string;
+  candidates?: readonly HistoricalImportReviewCandidate[];
+}
+
+export interface HistoricalOwnerMapping {
+  sourceOwnerOrTeamLabel: string;
+  teamId: string;
+}
+
+export interface HistoricalImportIdentityAudit {
+  sourceOwnerOrTeamLabel: string;
+  resolution: "exact" | "explicit" | "ambiguous" | "unresolved";
+  mappedTeamId?: string;
+  mappedCurrentOwnerDisplayName?: string;
+  mappedCurrentTeamDisplayName?: string;
+  candidates?: readonly HistoricalOwnerResolutionCandidate[];
 }
 
 export interface NormalizedHistoricalImportRow {
@@ -54,6 +120,7 @@ export interface NormalizedHistoricalImportRow {
   playerId?: string;
   position?: string;
   priceDollars?: number;
+  publicPriceDollars?: number;
   playerResolution?: PlayerResolution;
   keeper?: boolean;
   acquisitionType?: HistoricalAcquisitionType;
@@ -72,6 +139,7 @@ export interface HistoricalSaleRecord {
   playerName: string;
   position: Position;
   priceDollars: number;
+  publicPriceDollars?: number;
   keeper: boolean;
   acquisitionType: HistoricalAcquisitionType;
 }
@@ -82,6 +150,7 @@ export interface HistoricalImportRowPreview {
   blockers: HistoricalImportIssue[];
   warnings: HistoricalImportIssue[];
   record: HistoricalSaleRecord | null;
+  identityAudit?: HistoricalImportIdentityAudit;
 }
 
 export interface HistoricalImportBatch {
@@ -102,13 +171,19 @@ export interface HistoricalImportBatch {
   rows: HistoricalImportRowPreview[];
 }
 
+export interface HistoricalImportSeasonContext {
+  currentLeagueSeason: LeagueSeason;
+}
+
 export interface PreviewHistoricalImportBatchInput {
   repository: HistoricalImportRepository;
   leagueId: string;
   seasonYear: number;
+  seasonContext?: HistoricalImportSeasonContext;
   fileHash: string;
   uploadedByUserId?: string;
   replacementRequested?: boolean;
+  ownerMappings?: readonly HistoricalOwnerMapping[];
   rows: readonly NormalizedHistoricalImportRow[];
   now?: Date;
 }
@@ -116,7 +191,15 @@ export interface PreviewHistoricalImportBatchInput {
 export interface CommitHistoricalImportBatchInput {
   repository: HistoricalImportRepository;
   batchId: string;
+  expectedLeagueId?: string;
+  expectedLeagueSeasonId?: string;
+  expectedSeasonYear?: number;
   now?: Date;
+}
+
+export interface PreparedHistoricalImportCommit {
+  batch: HistoricalImportBatch;
+  committedRecords: readonly HistoricalSaleRecord[];
 }
 
 export interface HistoricalImportRepository {
@@ -148,24 +231,119 @@ const issue = (
   severity: HistoricalImportIssueSeverity,
   message: string,
   rowNumber?: number,
+  details: Pick<HistoricalImportIssue, "sourceValue" | "candidates"> = {},
 ): HistoricalImportIssue => ({
   code,
   severity,
   message,
   ...(rowNumber === undefined ? {} : { rowNumber }),
+  ...details,
 });
 
-const teamForOwner = (
+const normalizeIdentityLabel = (value: string | undefined): string =>
+  (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase()
+    .replace(/\s+/gu, " ")
+    .trim();
+
+const ownerCandidateFor = (team: FantasyTeam): HistoricalOwnerResolutionCandidate => ({
+  teamId: team.id,
+  teamDisplayName: team.displayName,
+  ownerDisplayName: team.ownerDisplayName,
+});
+
+const identityLabelsFor = (team: FantasyTeam): readonly string[] => [
+  team.ownerDisplayName,
+  team.displayName,
+  ...(team.abbreviation === undefined ? [] : [team.abbreviation]),
+  ...(team.managerDisplayNames ?? []),
+];
+
+const uniqueTeams = (teams: readonly FantasyTeam[]): FantasyTeam[] =>
+  [...new Map(teams.map(team => [team.id, team])).values()];
+
+const teamResolutionForOwner = (
   ownerDisplayName: string | undefined,
   teams: readonly FantasyTeam[],
-): FantasyTeam | null => {
-  const normalizedOwner = ownerDisplayName?.trim().toLowerCase();
+  mappings: readonly HistoricalOwnerMapping[],
+): { team: FantasyTeam | null; audit: HistoricalImportIdentityAudit } => {
+  const sourceOwnerOrTeamLabel = ownerDisplayName?.trim() ?? "";
+  const normalizedOwner = normalizeIdentityLabel(sourceOwnerOrTeamLabel);
+  const allCandidates = teams.map(ownerCandidateFor);
 
-  if (normalizedOwner === undefined || normalizedOwner.length === 0) {
-    return null;
+  if (normalizedOwner.length === 0) {
+    return {
+      team: null,
+      audit: {
+        sourceOwnerOrTeamLabel,
+        resolution: "unresolved",
+        candidates: allCandidates,
+      },
+    };
   }
 
-  return teams.find(team => team.ownerDisplayName.trim().toLowerCase() === normalizedOwner) ?? null;
+  const mappedTeamIds = new Set(
+    mappings
+      .filter(mapping => normalizeIdentityLabel(mapping.sourceOwnerOrTeamLabel) === normalizedOwner)
+      .map(mapping => mapping.teamId),
+  );
+  if (mappedTeamIds.size > 0) {
+    const mappedTeams = uniqueTeams(teams.filter(team => mappedTeamIds.has(team.id)));
+    if (mappedTeams.length === 1) {
+      const team = mappedTeams[0];
+      if (team !== undefined) {
+        return {
+          team,
+          audit: {
+            sourceOwnerOrTeamLabel,
+            resolution: "explicit",
+            mappedTeamId: team.id,
+            mappedCurrentOwnerDisplayName: team.ownerDisplayName,
+            mappedCurrentTeamDisplayName: team.displayName,
+          },
+        };
+      }
+    }
+
+    return {
+      team: null,
+      audit: {
+        sourceOwnerOrTeamLabel,
+        resolution: mappedTeams.length > 1 ? "ambiguous" : "unresolved",
+        candidates: mappedTeams.length > 0 ? mappedTeams.map(ownerCandidateFor) : allCandidates,
+      },
+    };
+  }
+
+  const exactTeams = uniqueTeams(teams.filter(team =>
+    identityLabelsFor(team).some(label => normalizeIdentityLabel(label) === normalizedOwner)
+  ));
+  if (exactTeams.length === 1) {
+    const team = exactTeams[0];
+    if (team !== undefined) {
+      return {
+        team,
+        audit: {
+          sourceOwnerOrTeamLabel,
+          resolution: "exact",
+          mappedTeamId: team.id,
+          mappedCurrentOwnerDisplayName: team.ownerDisplayName,
+          mappedCurrentTeamDisplayName: team.displayName,
+        },
+      };
+    }
+  }
+
+  return {
+    team: null,
+    audit: {
+      sourceOwnerOrTeamLabel,
+      resolution: exactTeams.length > 1 ? "ambiguous" : "unresolved",
+      candidates: exactTeams.length > 1 ? exactTeams.map(ownerCandidateFor) : allCandidates,
+    },
+  };
 };
 
 const resolvePosition = (position: string | undefined): Position | null => {
@@ -180,6 +358,180 @@ const normalizePlayerId = (playerId: string | undefined): string | null => {
   const normalizedPlayerId = playerId?.trim() ?? "";
 
   return normalizedPlayerId.length > 0 ? normalizedPlayerId : null;
+};
+
+const basePlayerIdForCatalogEntry = (entry: HistoricalImportPlayerCatalogEntry): string => {
+  const providedId = normalizePlayerId(entry.playerId);
+  if (providedId !== null) return providedId;
+
+  const nameSegment = canonicalPlayerIdentityKey(entry.name).replace(/[^a-z0-9]+/gu, "-");
+  const positionSegment = entry.position.trim().toLowerCase().replace(/[^a-z0-9]+/gu, "-");
+
+  return `player-${nameSegment}-${positionSegment}`;
+};
+
+const playerCandidateFor = (
+  entry: HistoricalImportPlayerCatalogEntry,
+  playerId: string,
+): HistoricalPlayerResolutionCandidate => ({
+  playerId,
+  playerName: entry.name.trim(),
+  position: entry.position.trim().toUpperCase(),
+});
+
+const catalogCandidatesFor = (
+  playerCatalog: readonly HistoricalImportPlayerCatalogEntry[],
+): HistoricalPlayerResolutionCandidate[] => {
+  const baseIds = playerCatalog.map(basePlayerIdForCatalogEntry);
+  const baseIdCounts = baseIds.reduce<Map<string, number>>((counts, playerId) => {
+    counts.set(playerId, (counts.get(playerId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const seenBaseIds = new Map<string, number>();
+
+  return playerCatalog.map((entry, index) => {
+    const baseId = baseIds[index] ?? basePlayerIdForCatalogEntry(entry);
+    const occurrence = (seenBaseIds.get(baseId) ?? 0) + 1;
+    seenBaseIds.set(baseId, occurrence);
+    const playerId = normalizePlayerId(entry.playerId) !== null || baseIdCounts.get(baseId) === 1
+      ? baseId
+      : `${baseId}-${occurrence}`;
+
+    return playerCandidateFor(entry, playerId);
+  });
+};
+
+export interface ResolveHistoricalImportPlayersInput {
+  rows: readonly NormalizedHistoricalImportRow[];
+  playerCatalog: readonly HistoricalImportPlayerCatalogEntry[];
+}
+
+export interface ResolveHistoricalImportPlayersResult {
+  rows: NormalizedHistoricalImportRow[];
+  issues: HistoricalImportIssue[];
+}
+
+export const resolveHistoricalImportPlayers = ({
+  rows,
+  playerCatalog,
+}: ResolveHistoricalImportPlayersInput): ResolveHistoricalImportPlayersResult => {
+  const issues: HistoricalImportIssue[] = [];
+  const catalogCandidates = catalogCandidatesFor(playerCatalog);
+  const catalog = playerCatalog.map((entry, index) => ({
+    entry,
+    candidate: catalogCandidates[index] ?? playerCandidateFor(entry, basePlayerIdForCatalogEntry(entry)),
+    nameKeys: new Set([entry.name, ...(entry.aliases ?? [])].map(canonicalPlayerIdentityKey)),
+  }));
+  const resolvedRows = rows.map(row => {
+    const playerName = row.playerName?.trim() ?? "";
+    const position = resolvePosition(row.position);
+    const suppliedPlayerId = normalizePlayerId(row.playerId);
+
+    if (suppliedPlayerId !== null) {
+      const idMatches = catalog.filter(candidate => candidate.candidate.playerId === suppliedPlayerId);
+      const match = idMatches.length === 1 ? idMatches[0] : undefined;
+      const nameMatches = match?.nameKeys.has(canonicalPlayerIdentityKey(playerName)) ?? false;
+      const catalogPosition = match === undefined ? null : resolvePosition(match.entry.position);
+      const positionMatches = position !== null && catalogPosition === position;
+
+      if (match !== undefined && nameMatches && positionMatches) {
+        return {
+          ...row,
+          playerId: match.candidate.playerId,
+          playerName: match.candidate.playerName,
+          position: match.candidate.position,
+          playerResolution: {
+            status: "resolved" as const,
+            playerId: match.candidate.playerId,
+            playerName: match.candidate.playerName,
+            position: match.candidate.position,
+          },
+        };
+      }
+
+      const message = match === undefined
+        ? `Player ID "${suppliedPlayerId}" is not in the current player catalog.`
+        : !nameMatches
+          ? `Player ID "${suppliedPlayerId}" belongs to ${match.candidate.playerName}, not "${playerName}".`
+          : `Player ID "${suppliedPlayerId}" is a ${match.candidate.position}, not ${row.position?.trim().toUpperCase() ?? "the supplied position"}.`;
+      issues.push(issue(
+        "player_unresolved",
+        "blocker",
+        `${message} Correct the row or remove the player ID to match by name and position.`,
+        row.sourceRowNumber,
+        {
+          sourceValue: suppliedPlayerId,
+          ...(match === undefined ? {} : { candidates: [match.candidate] }),
+        },
+      ));
+
+      return {
+        ...row,
+        playerResolution: {
+          status: "unresolved" as const,
+          required: true as const,
+          ...(match === undefined ? {} : { candidates: [match.candidate] }),
+        },
+      };
+    }
+
+    if (playerName.length === 0 || position === null) return { ...row };
+
+    const nameKey = canonicalPlayerIdentityKey(playerName);
+    const sameName = catalog.filter(candidate => candidate.nameKeys.has(nameKey));
+    const exactCandidates = sameName
+      .filter(candidate => resolvePosition(candidate.entry.position) === position)
+      .map(candidate => candidate.candidate);
+
+    if (exactCandidates.length === 1) {
+      const match = exactCandidates[0];
+      if (match !== undefined) {
+        return {
+          ...row,
+          playerId: match.playerId,
+          playerName: match.playerName,
+          position: match.position,
+          playerResolution: {
+            status: "resolved" as const,
+            playerId: match.playerId,
+            playerName: match.playerName,
+            position: match.position,
+          },
+        };
+      }
+    }
+
+    const candidates = exactCandidates.length > 1
+      ? exactCandidates
+      : sameName.map(candidate => candidate.candidate);
+    const resolution: PlayerResolution = exactCandidates.length > 1
+      ? { status: "ambiguous", required: true, candidates }
+      : {
+          status: "unresolved",
+          required: true,
+          ...(candidates.length === 0 ? {} : { candidates }),
+        };
+    const resolutionIssue = issue(
+      exactCandidates.length > 1 ? "player_ambiguous" : "player_unresolved",
+      "blocker",
+      exactCandidates.length > 1
+        ? `Multiple ${position} players match "${playerName}". Choose the intended player.`
+        : `No ${position} player in the current catalog matches "${playerName}".`,
+      row.sourceRowNumber,
+      {
+        sourceValue: playerName,
+        ...(candidates.length === 0 ? {} : { candidates }),
+      },
+    );
+    issues.push(resolutionIssue);
+
+    return {
+      ...row,
+      playerResolution: resolution,
+    };
+  });
+
+  return { rows: resolvedRows, issues };
 };
 
 const resolvePlayerId = (row: NormalizedHistoricalImportRow): string | null => {
@@ -353,9 +705,11 @@ export const previewHistoricalImportBatch = async ({
   repository,
   leagueId,
   seasonYear,
+  seasonContext,
   fileHash,
   uploadedByUserId,
   replacementRequested = false,
+  ownerMappings = [],
   rows,
   now = new Date(),
 }: PreviewHistoricalImportBatchInput): Promise<HistoricalImportBatch> => {
@@ -363,28 +717,44 @@ export const previewHistoricalImportBatch = async ({
     ? null
     : await repository.findBatchByFileHash(leagueId, seasonYear, fileHash);
 
-  if (existingBatch !== null) {
+  if (existingBatch !== null && existingBatch.status !== "blocked") {
     return existingBatch;
   }
 
-  const season = await repository.findLeagueSeason(leagueId, seasonYear);
-  const batchId = [
-    batchBaseId(leagueId, seasonYear, fileHash),
-    String(await repository.nextBatchOrdinal(leagueId, seasonYear, fileHash)).padStart(3, "0"),
-  ].join("-");
+  const exactSeason = seasonContext === undefined
+    ? await repository.findLeagueSeason(leagueId, seasonYear)
+    : null;
+  const season = seasonContext?.currentLeagueSeason ?? exactSeason;
+  const seasonTemplateIsValid = season !== null
+    && season.leagueId === leagueId
+    && season.seasonYear >= seasonYear;
+  const batchId = existingBatch?.id ?? [
+      batchBaseId(leagueId, seasonYear, fileHash),
+      String(await repository.nextBatchOrdinal(leagueId, seasonYear, fileHash)).padStart(3, "0"),
+    ].join("-");
+  const persistBatch = async (batch: HistoricalImportBatch): Promise<HistoricalImportBatch> =>
+    existingBatch === null
+      ? await repository.createBatch(batch)
+      : await repository.updateBatch(batch);
+  const batchCreatedAt = existingBatch?.createdAt ?? now;
+  const batchUploader = uploadedByUserId ?? existingBatch?.uploadedByUserId;
 
-  if (season === null) {
-    return await repository.createBatch({
+  if (!seasonTemplateIsValid || season === null) {
+    const blockerMessage = seasonContext === undefined
+      ? `No season ${seasonYear} is configured for league ${leagueId}.`
+      : `Current season context must belong to league ${leagueId} and cannot predate historical season ${seasonYear}.`;
+
+    return await persistBatch({
       id: batchId,
       leagueId,
       leagueSeasonId: null,
       seasonYear,
       fileHash,
-      ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
+      ...(batchUploader === undefined ? {} : { uploadedByUserId: batchUploader }),
       status: "blocked",
       replacementRequested,
-      createdAt: now,
-      blockers: [issue("season_missing", "blocker", `No season ${seasonYear} is configured for league ${leagueId}.`)],
+      createdAt: batchCreatedAt,
+      blockers: [issue("season_missing", "blocker", blockerMessage)],
       warnings: [],
       rows: rows.map(importRow => ({
         rowNumber: importRow.sourceRowNumber,
@@ -392,6 +762,10 @@ export const previewHistoricalImportBatch = async ({
         blockers: [],
         warnings: [],
         record: null,
+        identityAudit: {
+          sourceOwnerOrTeamLabel: importRow.ownerDisplayName?.trim() ?? "",
+          resolution: "unresolved",
+        },
       })),
     });
   }
@@ -400,7 +774,8 @@ export const previewHistoricalImportBatch = async ({
     const rowBlockers: HistoricalImportIssue[] = [];
     const rowWarnings: HistoricalImportIssue[] = [];
     const rowNumber = importRow.sourceRowNumber;
-    const team = teamForOwner(importRow.ownerDisplayName, season.teams);
+    const teamResolution = teamResolutionForOwner(importRow.ownerDisplayName, season.teams, ownerMappings);
+    const team = teamResolution.team;
     const position = resolvePosition(importRow.position);
     const playerName = importRow.playerName?.trim() ?? "";
     const playerId = resolvePlayerId(importRow);
@@ -420,7 +795,23 @@ export const previewHistoricalImportBatch = async ({
     }
 
     if (team === null) {
-      rowBlockers.push(issue("owner_unknown", "blocker", "Owner does not belong to this league season.", rowNumber));
+      const ownerIssueCode = teamResolution.audit.resolution === "ambiguous"
+        ? "owner_ambiguous"
+        : "owner_unknown";
+      rowBlockers.push(issue(
+        ownerIssueCode,
+        "blocker",
+        ownerIssueCode === "owner_ambiguous"
+          ? "Owner or team label matches multiple current teams. Choose the intended team."
+          : "Owner or team label needs an explicit mapping to a current team.",
+        rowNumber,
+        {
+          sourceValue: teamResolution.audit.sourceOwnerOrTeamLabel,
+          ...(teamResolution.audit.candidates === undefined
+            ? {}
+            : { candidates: teamResolution.audit.candidates }),
+        },
+      ));
     }
 
     if (position === null) {
@@ -435,11 +826,53 @@ export const previewHistoricalImportBatch = async ({
       rowBlockers.push(issue("price_invalid", "blocker", "Price must be a non-negative whole dollar amount.", rowNumber));
     }
 
-    if (importRow.playerResolution?.status === "unresolved" && importRow.playerResolution.required) {
-      rowBlockers.push(issue("player_unresolved", "blocker", "Player must be resolved before import commit.", rowNumber));
+    if (
+      importRow.publicPriceDollars !== undefined
+      && (!Number.isInteger(importRow.publicPriceDollars) || importRow.publicPriceDollars <= 0)
+    ) {
+      rowBlockers.push(issue(
+        "public_price_invalid",
+        "blocker",
+        "Same-season public value must be a positive whole dollar amount.",
+        rowNumber,
+      ));
     }
 
-    if (playerName.length > 0 && playerId === null && !rowBlockers.some(blocker => blocker.code === "player_unresolved")) {
+    if (importRow.playerResolution?.status === "ambiguous" && importRow.playerResolution.required) {
+      rowBlockers.push(issue(
+        "player_ambiguous",
+        "blocker",
+        "Multiple catalog players match this row. Choose the intended player before import.",
+        rowNumber,
+        {
+          sourceValue: playerName,
+          candidates: importRow.playerResolution.candidates,
+        },
+      ));
+    }
+
+    if (importRow.playerResolution?.status === "unresolved" && importRow.playerResolution.required) {
+      const candidates = (importRow.playerResolution.candidates ?? [])
+        .filter((candidate): candidate is HistoricalPlayerResolutionCandidate => typeof candidate !== "string");
+      rowBlockers.push(issue(
+        "player_unresolved",
+        "blocker",
+        "Player must be resolved before import commit.",
+        rowNumber,
+        {
+          sourceValue: playerName,
+          ...(candidates.length === 0 ? {} : { candidates }),
+        },
+      ));
+    }
+
+    if (
+      playerName.length > 0
+      && playerId === null
+      && !rowBlockers.some(blocker =>
+        blocker.code === "player_unresolved" || blocker.code === "player_ambiguous"
+      )
+    ) {
       rowBlockers.push(issue("player_unresolved", "blocker", "Player must be resolved before import commit.", rowNumber));
     }
 
@@ -450,6 +883,7 @@ export const previewHistoricalImportBatch = async ({
         blockers: rowBlockers,
         warnings: rowWarnings,
         record: null,
+        identityAudit: teamResolution.audit,
       };
     }
 
@@ -458,6 +892,7 @@ export const previewHistoricalImportBatch = async ({
       status: "ready",
       blockers: rowBlockers,
       warnings: rowWarnings,
+      identityAudit: teamResolution.audit,
       record: {
         id: `${batchId}-row-${String(index + 1).padStart(3, "0")}`,
         batchId,
@@ -466,11 +901,14 @@ export const previewHistoricalImportBatch = async ({
         seasonYear,
         rowNumber,
         ownerId: team.ownerId,
-        ownerDisplayName: team.ownerDisplayName,
+        ownerDisplayName: teamResolution.audit.sourceOwnerOrTeamLabel,
         playerId,
         playerName,
         position,
         priceDollars: importRow.priceDollars,
+        ...(importRow.publicPriceDollars === undefined
+          ? {}
+          : { publicPriceDollars: importRow.publicPriceDollars }),
         keeper,
         acquisitionType,
       },
@@ -502,21 +940,26 @@ export const previewHistoricalImportBatch = async ({
     (total, rowPreview) => total + (rowPreview.record?.priceDollars ?? 0),
     0,
   );
-  const expectedSpend = season.teams.length * season.settings.auction.budgetDollars;
-  const warnings = actualSpend === expectedSpend
+  const auctionBudget = season.settings.draftFormat === "snake"
+    ? null
+    : season.settings.auction.budgetDollars;
+  const expectedSpend = auctionBudget === null
+    ? null
+    : season.teams.length * auctionBudget;
+  const warnings = expectedSpend === null || actualSpend === expectedSpend
     ? []
     : [issue("season_spend_mismatch", "warning", `Imported spend is $${actualSpend}, expected $${expectedSpend}.`)];
 
-  return await repository.createBatch({
+  return await persistBatch({
     id: batchId,
     leagueId,
     leagueSeasonId: season.id,
     seasonYear,
     fileHash,
-    ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
+    ...(batchUploader === undefined ? {} : { uploadedByUserId: batchUploader }),
     status: blockers.length > 0 ? "blocked" : "previewed",
     replacementRequested,
-    createdAt: now,
+    createdAt: batchCreatedAt,
     blockers,
     warnings,
     rows: rowPreviews,
@@ -532,9 +975,64 @@ const runHistoricalImportTransaction = async <T>(
   return await repository.withTransaction(operation);
 };
 
+export const prepareHistoricalImportBatchCommit = async ({
+  repository,
+  batchId,
+  expectedLeagueId,
+  expectedLeagueSeasonId,
+  expectedSeasonYear,
+}: Omit<CommitHistoricalImportBatchInput, "now">): Promise<PreparedHistoricalImportCommit> => {
+  const batch = await repository.findBatchById(batchId);
+  if (batch === null) {
+    throw new HistoricalImportError("batch_not_found", `Historical import batch ${batchId} was not found.`);
+  }
+
+  const targetMismatches = [
+    expectedLeagueId !== undefined && batch.leagueId !== expectedLeagueId
+      ? `league ${expectedLeagueId}`
+      : null,
+    expectedLeagueSeasonId !== undefined && batch.leagueSeasonId !== expectedLeagueSeasonId
+      ? `league season ${expectedLeagueSeasonId}`
+      : null,
+    expectedSeasonYear !== undefined && batch.seasonYear !== expectedSeasonYear
+      ? `historical season ${expectedSeasonYear}`
+      : null,
+  ].filter((mismatch): mismatch is string => mismatch !== null);
+  if (targetMismatches.length > 0) {
+    throw new HistoricalImportTargetError(
+      `Historical import batch ${batchId} does not belong to the requested ${targetMismatches.join(" or ")}.`,
+    );
+  }
+
+  if (batch.status === "blocked" || batch.blockers.length > 0) {
+    throw new HistoricalImportError("batch_blocked", "Cannot commit historical import batch with blockers.");
+  }
+
+  const effectiveBatch = batch.status === "committed" || batch.status === "superseded"
+    ? batch
+    : await repository.findCommittedBatchByFileHash(batch.leagueId, batch.seasonYear, batch.fileHash) ?? batch;
+  if (effectiveBatch.status !== "committed" && effectiveBatch.status !== "superseded") {
+    const currentCommittedBatch = await repository.findCurrentCommittedBatch(batch.leagueId, batch.seasonYear);
+    if (currentCommittedBatch !== null && !batch.replacementRequested) {
+      throw new HistoricalImportError(
+        "season_import_conflict",
+        "Historical import batch already exists for this league season. Request replacement to supersede it.",
+      );
+    }
+  }
+
+  return {
+    batch: effectiveBatch,
+    committedRecords: effectiveBatch.rows.flatMap(row => row.record === null ? [] : [row.record]),
+  };
+};
+
 export const commitHistoricalImportBatch = ({
   repository,
   batchId,
+  expectedLeagueId,
+  expectedLeagueSeasonId,
+  expectedSeasonYear,
   now = new Date(),
 }: CommitHistoricalImportBatchInput): Promise<HistoricalImportBatch> =>
   runHistoricalImportTransaction(repository, async transactionalRepository => {
@@ -542,6 +1040,23 @@ export const commitHistoricalImportBatch = ({
 
     if (batch === null) {
       throw new HistoricalImportError("batch_not_found", `Historical import batch ${batchId} was not found.`);
+    }
+
+    const targetMismatches = [
+      expectedLeagueId !== undefined && batch.leagueId !== expectedLeagueId
+        ? `league ${expectedLeagueId}`
+        : null,
+      expectedLeagueSeasonId !== undefined && batch.leagueSeasonId !== expectedLeagueSeasonId
+        ? `league season ${expectedLeagueSeasonId}`
+        : null,
+      expectedSeasonYear !== undefined && batch.seasonYear !== expectedSeasonYear
+        ? `historical season ${expectedSeasonYear}`
+        : null,
+    ].filter((mismatch): mismatch is string => mismatch !== null);
+    if (targetMismatches.length > 0) {
+      throw new HistoricalImportTargetError(
+        `Historical import batch ${batchId} does not belong to the requested ${targetMismatches.join(" or ")}.`,
+      );
     }
 
     if (batch.status === "committed" || batch.status === "superseded") {

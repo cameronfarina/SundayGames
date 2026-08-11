@@ -224,6 +224,31 @@ describe("platform historical imports", () => {
     ]);
   });
 
+  it("validates the intended season target before mutating import state", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const batch = await previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:target-guard",
+      rows: [row()],
+      now,
+    });
+
+    await expect(commitHistoricalImportBatch({
+      repository,
+      batchId: batch.id,
+      expectedLeagueSeasonId: "another-season",
+      expectedSeasonYear: 2024,
+      now: new Date("2026-08-09T12:01:00.000Z"),
+    })).rejects.toMatchObject({ code: "batch_target_mismatch" });
+
+    const unchangedBatch = repository.findBatchById(batch.id);
+    expect(unchangedBatch).toEqual(expect.objectContaining({ status: "previewed" }));
+    expect(unchangedBatch).not.toHaveProperty("committedAt");
+    expect(repository.records()).toEqual([]);
+  });
+
   it("requires explicit replacement before superseding a committed batch for a season", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
     const firstBatch = await previewHistoricalImportBatch({

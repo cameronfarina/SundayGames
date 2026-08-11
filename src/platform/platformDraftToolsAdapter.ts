@@ -62,16 +62,6 @@ interface RetainedDraftToolsApp {
   lastUsedAt: number;
 }
 
-const productPageMappings = new Map<string, { path: string; mode?: string }>([
-  ["/board", { path: "/draft-room", mode: "real" }],
-  ["/mock-drafts", { path: "/draft-room", mode: "interactive-mock" }],
-  ["/mock-results", { path: "/mock-results" }],
-  ["/simulations", { path: "/mock-simulations" }],
-  ["/strategy", { path: "/draft-room", mode: "interactive-mock" }],
-  ["/my-expert", { path: "/my-expert" }],
-  ["/player-news", { path: "/player-news" }],
-]);
-
 const jsonContentType = "application/json; charset=utf-8";
 const defaultIdleTimeoutMs = 30 * 60 * 1_000;
 const defaultMaxRetainedApps = 32;
@@ -103,12 +93,21 @@ const membershipRequiredBody = {
   },
 } as const;
 
+const draftToolsUnavailableBody = {
+  error: {
+    code: "draft_tools_unavailable",
+    message: "Draft tools are not available for this league yet.",
+  },
+} as const;
+
 const internalErrorBody = {
   error: {
     code: "internal_error",
     message: "Something went wrong.",
   },
 } as const;
+
+class DraftToolsUnavailableError extends Error {}
 
 const writeJson = (response: ServerResponse, statusCode: number, body: unknown): void => {
   if (response.writableEnded) return;
@@ -132,18 +131,6 @@ const redirectToLogin = (request: IncomingMessage, response: ServerResponse): vo
   response.end();
 };
 
-const mappedProductUrl = (source: URL, mapping: { path: string; mode?: string }): string => {
-  if (mapping.mode === undefined) return `${mapping.path}${source.search}`;
-
-  const target = new URL(mapping.path, "http://mockd.local");
-  target.searchParams.set("mode", mapping.mode);
-  for (const [name, value] of source.searchParams) {
-    if (name !== "mode") target.searchParams.append(name, value);
-  }
-
-  return `${target.pathname}${target.search}`;
-};
-
 const routeFor = (request: IncomingMessage): DraftToolsRoute | undefined => {
   let url: URL;
   try {
@@ -162,15 +149,7 @@ const routeFor = (request: IncomingMessage): DraftToolsRoute | undefined => {
     return { isApi: true, seasonId, targetUrl: `${url.pathname}${url.search}` };
   }
 
-  if (request.method !== "GET") return undefined;
-  const mapping = productPageMappings.get(url.pathname);
-  if (mapping === undefined) return undefined;
-
-  return {
-    isApi: false,
-    seasonId,
-    targetUrl: mappedProductUrl(url, mapping),
-  };
+  return undefined;
 };
 
 const scopedSessionDirectory = (
@@ -302,7 +281,7 @@ export const createPlatformDraftToolsAdapter = (
       if (options.resolveSeasonOptions !== undefined) {
         const resolvedSeasonOptions = await options.resolveSeasonOptions(seasonId);
         if (resolvedSeasonOptions === null) {
-          throw new Error("Draft tools configuration is unavailable for this season.");
+          throw new DraftToolsUnavailableError();
         }
         seasonOptions = resolvedSeasonOptions;
       }
@@ -425,8 +404,11 @@ export const createPlatformDraftToolsAdapter = (
         release();
         throw error;
       }
-    } catch {
+    } catch (error) {
       if (response.headersSent) response.destroy();
+      else if (error instanceof DraftToolsUnavailableError) {
+        writeJson(response, 503, draftToolsUnavailableBody);
+      }
       else writeJson(response, 500, internalErrorBody);
     }
 

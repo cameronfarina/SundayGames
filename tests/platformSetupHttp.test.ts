@@ -72,6 +72,38 @@ const setupRegisteredSeason = async () => {
   return { app, cam, seth, season };
 };
 
+const makeSeasonReadyForLiveRoom = async (
+  app: ReturnType<typeof createPlatformApp>,
+  cam: { sessionToken: string },
+  season: ReturnType<typeof buildCurrentMockdLeagueSeason>,
+) => {
+  const readySeason = buildCurrentMockdLeagueSeason(["Cam", "Seth", "Beaton", "Nick"], {
+    ...leagueConfig,
+    teams: 4,
+  }, {
+    leagueName: "Setup Import League",
+    setupStatus: "published",
+  });
+  const memberships = (await app.listLeagueMemberships(season.leagueId)).map(membership => {
+    const previousTeam = season.teams.find(team => team.id === membership.teamId);
+    const readyTeam = readySeason.teams.find(team =>
+      team.ownerDisplayName === previousTeam?.ownerDisplayName
+    );
+
+    return readyTeam === undefined
+      ? membership
+      : { ...membership, ownerId: readyTeam.ownerId, teamId: readyTeam.id };
+  });
+  await app.registerLeagueSeason({
+    actorSessionToken: cam.sessionToken,
+    season: readySeason,
+    memberships,
+    now,
+  });
+
+  return readySeason;
+};
+
 class AsyncLeagueSetupRepository implements LeagueSetupRepository {
   readonly inner = new InMemoryPlatformStore();
 
@@ -141,9 +173,10 @@ describe("platform setup import HTTP helpers", () => {
 
   it("keeps setup import preview available after the live draft room is created", async () => {
     const { app, cam, season } = await setupRegisteredSeason();
+    const readySeason = await makeSeasonReadyForLiveRoom(app, cam, season);
     await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
-      seasonId: season.id,
+      seasonId: readySeason.id,
       roomId: "room-existing-preview",
       viewerPasswordHashRef: `account-membership:${season.id}`,
       playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
@@ -158,6 +191,7 @@ describe("platform setup import HTTP helpers", () => {
         "Cam,Cam's Club,cam@example.com,owner",
         "Seth,Seth's Champs,seth@example.com,member",
         "Beaton,Beaton's Team,beaton@example.com,member",
+        "Nick,Nick's Team,nick@example.com,member",
       ].join("\n"),
       now,
     });
@@ -172,15 +206,16 @@ describe("platform setup import HTTP helpers", () => {
 
   it("rejects setup import apply after the live draft room is created", async () => {
     const { app, cam, season } = await setupRegisteredSeason();
+    const readySeason = await makeSeasonReadyForLiveRoom(app, cam, season);
     const existingSeason = await app.getLeagueSeason({
       actorSessionToken: cam.sessionToken,
-      seasonId: season.id,
+      seasonId: readySeason.id,
       now,
     });
-    const existingMemberships = await app.listLeagueMemberships(season.leagueId);
+    const existingMemberships = await app.listLeagueMemberships(readySeason.leagueId);
     await app.createLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
-      seasonId: season.id,
+      seasonId: readySeason.id,
       roomId: "room-existing-setup-lock",
       viewerPasswordHashRef: `account-membership:${season.id}`,
       playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
@@ -189,7 +224,7 @@ describe("platform setup import HTTP helpers", () => {
 
     const response = await applyLeagueSetupImport(app, {
       actorSessionToken: cam.sessionToken,
-      seasonId: season.id,
+      seasonId: readySeason.id,
       content: [
         "owner,team,email,role",
         "Cam,Cam's Renamed Club,cam@example.com,owner",

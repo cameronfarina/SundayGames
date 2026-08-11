@@ -62,10 +62,14 @@ const appShellPaths = new Set([
   "/app",
   "/login",
   "/signup",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
   "/invite",
   "/setup",
   "/league",
   "/board",
+  "/my-team",
   "/mock-drafts",
   "/mock-results",
   "/simulations",
@@ -73,20 +77,34 @@ const appShellPaths = new Set([
   "/my-expert",
   "/player-news",
 ]);
+const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
+  ["/mock-results", "/mock-drafts"],
+  ["/simulations", "/board"],
+  ["/strategy", "/mock-drafts"],
+  ["/my-expert", "/my-team"],
+  ["/player-news", "/board"],
+]);
 const draftWorkspacePaths = new Set(["/draft-room"]);
 const observableRouteRoots = new Set([
   ...[...appShellPaths].map(path => path.slice(1)),
   ...[...draftWorkspacePaths].map(path => path.slice(1)),
   "accounts",
+  "email-verifications",
   "healthz",
   "historical-imports",
   "invitations",
   "jobs",
+  "league-imports",
+  "leagues",
   "live-rooms",
   "mock-sessions",
   "onboarding",
+  "player-catalog",
+  "password-resets",
   "pricing-snapshots",
   "readyz",
+  "season-mock-drafts",
+  "season-simulations",
   "seasons",
   "session",
   "sessions",
@@ -482,9 +500,29 @@ const htmlForBrowserRequest = (
   }
 };
 
+const redirectForBrowserRequest = (request: IncomingMessage): string | undefined => {
+  if (request.method !== "GET") return undefined;
+
+  try {
+    const source = new URL(request.url ?? "/", "http://mockd.local");
+    const targetPath = legacyProductRedirects.get(source.pathname);
+    if (targetPath === undefined) return undefined;
+    if (targetPath === "/board" && source.searchParams.has("seasonId")) {
+      const seasonId = source.searchParams.get("seasonId");
+      source.searchParams.delete("seasonId");
+      if (seasonId !== null) source.searchParams.set("contextSeasonId", seasonId);
+    }
+
+    return `${targetPath}${source.search}`;
+  } catch {
+    return undefined;
+  }
+};
+
 const platformRequestMetadataFor = (
   request: IncomingMessage,
   trustProxy: boolean,
+  signal?: AbortSignal,
 ): PlatformHttpRequest => {
   const sessionToken = platformSessionTokenForHeaders(request.headers);
 
@@ -495,6 +533,7 @@ const platformRequestMetadataFor = (
     headers: platformHeadersFor(request.headers),
     isSecure: isDirectSecureRequest(request),
     clientAddress: clientAddressFor(request, trustProxy),
+    ...(signal === undefined ? {} : { signal }),
   };
 };
 
@@ -502,8 +541,9 @@ const platformRequestFor = async (
   request: IncomingMessage,
   maxBodyBytes: number,
   trustProxy: boolean,
+  signal?: AbortSignal,
 ): Promise<PlatformHttpRequest> => ({
-  ...platformRequestMetadataFor(request, trustProxy),
+  ...platformRequestMetadataFor(request, trustProxy, signal),
   body: await readJsonBody(request, maxBodyBytes),
 });
 
@@ -512,7 +552,18 @@ const isScreenshotImportAnalysisRequest = (request: IncomingMessage): boolean =>
 
   try {
     const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
-    return /^\/seasons\/[^/]+\/setup-import\/screenshot-analyze$/u.test(pathname);
+    return /^\/seasons\/[^/]+\/setup-import\/screenshot-analyze$/u.test(pathname) ||
+      pathname === "/league-imports/espn/members-screenshot-review";
+  } catch {
+    return false;
+  }
+};
+
+const isHistoricalSpreadsheetUploadRequest = (request: IncomingMessage): boolean => {
+  if (request.method?.toUpperCase() !== "POST") return false;
+  try {
+    const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+    return /^\/seasons\/[^/]+\/historical-imports\/upload-preview$/u.test(pathname);
   } catch {
     return false;
   }
@@ -523,8 +574,9 @@ const bodyLimitForRequest = (
   defaultLimit: number,
   screenshotImportLimit: number,
 ): number => isScreenshotImportAnalysisRequest(request)
-  ? screenshotImportLimit
-  : defaultLimit;
+  || isHistoricalSpreadsheetUploadRequest(request)
+    ? screenshotImportLimit
+    : defaultLimit;
 
 export const createPlatformNodeHttpAdapter = (
   handle: PlatformHttpHandler,
@@ -542,6 +594,13 @@ export const createPlatformNodeHttpAdapter = (
     ensurePlatformRequestId(request, response);
 
     try {
+      const browserRedirect = redirectForBrowserRequest(request);
+      if (browserRedirect !== undefined) {
+        setDefaultSecurityHeaders(response);
+        response.writeHead(302, { "Content-Length": "0", Location: browserRedirect });
+        response.end();
+        return;
+      }
       const browserHtml = htmlForBrowserRequest(request, appHtml, draftRoomHtml);
       if (browserHtml !== undefined) {
         writeHtmlResponse(response, browserHtml);
@@ -560,14 +619,27 @@ export const createPlatformNodeHttpAdapter = (
         }
       }
 
-      const platformRequest = await platformRequestFor(
-        request,
-        bodyLimitForRequest(request, maxBodyBytes, screenshotImportMaxBodyBytes),
-        trustProxy,
-      );
-      const platformResponse = await handle(platformRequest);
+      const requestAbort = new AbortController();
+      const abortForIncompleteRequest = (): void => requestAbort.abort();
+      const abortForClosedResponse = (): void => {
+        if (!response.writableEnded) requestAbort.abort();
+      };
+      request.once("aborted", abortForIncompleteRequest);
+      response.once("close", abortForClosedResponse);
+      try {
+        const platformRequest = await platformRequestFor(
+          request,
+          bodyLimitForRequest(request, maxBodyBytes, screenshotImportMaxBodyBytes),
+          trustProxy,
+          requestAbort.signal,
+        );
+        const platformResponse = await handle(platformRequest);
 
-      writeJsonResponse(response, platformResponse);
+        if (!response.destroyed) writeJsonResponse(response, platformResponse);
+      } finally {
+        request.removeListener("aborted", abortForIncompleteRequest);
+        response.removeListener("close", abortForClosedResponse);
+      }
     } catch (error) {
       if (error instanceof RequestBodyTooLargeError) {
         writeJsonResponse(response, requestBodyTooLargeResponse);

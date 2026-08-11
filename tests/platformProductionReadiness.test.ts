@@ -12,8 +12,13 @@ const productionEnv = {
   HOST: "0.0.0.0",
   PORT: "443",
   MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+  MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
   MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
   OPENAI_API_KEY: "test-openai-key",
+  MOCKD_AUTH_EMAIL_MODE: "resend",
+  RESEND_API_KEY: "test-resend-key",
+  MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
+  MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
 };
 
 describe("platform production readiness check", () => {
@@ -46,6 +51,7 @@ describe("platform production readiness check", () => {
     expect(JSON.stringify(report)).not.toContain("secret");
     expect(JSON.stringify(report)).not.toContain("database.invalid");
     expect(JSON.stringify(report)).not.toContain(productionEnv.OPENAI_API_KEY);
+    expect(JSON.stringify(report)).not.toContain(productionEnv.RESEND_API_KEY);
   });
 
   it("requires every platform migration to be applied", async () => {

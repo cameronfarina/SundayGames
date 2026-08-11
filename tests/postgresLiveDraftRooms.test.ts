@@ -253,6 +253,41 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       return { rows: [{ current_revision: currentRevision } as TRow], rowCount: 1 };
     }
 
+    if (normalizedSql.startsWith("DELETE FROM draft_rooms")) {
+      const [roomId, expectedRevision] = values as readonly [string, number];
+      const room = this.rooms.get(roomId);
+      const hasStartedOrSaleEvent = this.events.some(event =>
+        event.draft_room_id === roomId && [
+          "room_started",
+          "sale_logged",
+          "sale_corrected",
+          "sale_undone",
+        ].includes(event.event_type)
+      );
+      if (
+        room === undefined
+        || room.current_revision !== expectedRevision
+        || (room.status !== "setup" && room.status !== "countdown")
+        || room.started_at !== null
+        || hasStartedOrSaleEvent
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      this.rooms.delete(roomId);
+      this.events.splice(0, this.events.length, ...this.events.filter(event => event.draft_room_id !== roomId));
+      this.snapshots.splice(
+        0,
+        this.snapshots.length,
+        ...this.snapshots.filter(snapshot => snapshot.draft_room_id !== roomId),
+      );
+      for (const [saleId, sale] of this.sales) {
+        if (sale.draft_room_id === roomId) this.sales.delete(saleId);
+      }
+
+      return { rows: [{ id: roomId } as TRow], rowCount: 1 };
+    }
+
     if (normalizedSql.startsWith("INSERT INTO draft_room_events")) {
       const [
         id,
@@ -402,6 +437,117 @@ const publishedSeason = (): LeagueSeason =>
   });
 
 describe("Postgres live draft rooms", () => {
+  it("transactionally cancels a setup room, unlocks its season, and permits recreation", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const cancellation = {
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "cancel-room",
+      now: new Date(now.getTime() + 1_000),
+    } as const;
+
+    await expect(repository.cancelRoom(cancellation)).resolves.toBeUndefined();
+    await expect(repository.cancelRoom(cancellation)).resolves.toBeUndefined();
+    await expect(repository.hasRoomForSeason(created.seasonId)).resolves.toBe(false);
+    await expect(repository.getRoom(created.roomId)).rejects.toThrow(new LiveDraftRoomError(
+      "room_not_found",
+      'Live draft room "room_sunday" was not found.',
+    ));
+    expect(client.rooms).toHaveLength(0);
+    expect(client.events).toHaveLength(0);
+    expect(client.snapshots).toHaveLength(0);
+    expect(client.queries.find(query => query.text.startsWith("DELETE FROM draft_rooms"))).toMatchObject({
+      values: [created.roomId, created.revision],
+      inTransaction: true,
+    });
+
+    await expect(repository.createRoom({
+      season: publishedSeason(),
+      roomId: created.roomId,
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: new Date(now.getTime() + 2_000),
+    })).resolves.toMatchObject({ roomId: created.roomId, seasonId: created.seasonId });
+  });
+
+  it("transactionally cancels a room while its scheduled start is counting down", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_countdown",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      startsAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    });
+
+    expect(created.status).toBe("countdown");
+    await expect(repository.cancelRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "cancel-countdown",
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toBeUndefined();
+    await expect(repository.hasRoomForSeason(created.seasonId)).resolves.toBe(false);
+  });
+
+  it("rejects stale or started Postgres room cancellation without deleting state", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+
+    await expect(repository.cancelRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision - 1,
+      idempotencyKey: "cancel-stale",
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "stale_revision",
+      "Draft room changed since this action was prepared. Refresh and try again.",
+    ));
+
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    await expect(repository.cancelRoom({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "cancel-started",
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "room_not_cancellable",
+      "Only a draft room that has never started can be cancelled.",
+    ));
+    await expect(repository.hasRoomForSeason(started.seasonId)).resolves.toBe(true);
+    expect(client.rooms).toHaveLength(1);
+    expect(client.events.map(event => event.event_type)).toEqual(["room_created", "room_started"]);
+  });
+
   it("creates, mutates, and reloads a live draft room from dedicated Postgres rows", async () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);

@@ -1,9 +1,7 @@
 export const platformShellNavigation = [
-  { label: "League", path: "/app" },
   { label: "Board", path: "/board" },
-  { label: "Mock drafts", path: "/mock-drafts" },
-  { label: "Simulations", path: "/simulations" },
-  { label: "Live draft", path: "/draft-room" },
+  { label: "League", path: "/league" },
+  { label: "My team", path: "/my-team" },
 ] as const;
 
 export const draftRoomPathFor = (input: { seasonId: string; roomId: string }): string => {
@@ -129,6 +127,11 @@ export const platformShellHtml = `<!doctype html>
     .product-nav-link[aria-disabled="true"] {
       cursor: not-allowed;
       opacity: .48;
+    }
+
+    .create-league-link {
+      color: var(--accent-strong);
+      margin-left: auto;
     }
 
     .shell-main {
@@ -318,6 +321,16 @@ export const platformShellHtml = `<!doctype html>
 
     .setup-task h3 { font-size: 15px; margin: 0; }
     .setup-task .lede { font-size: 14px; margin-top: -6px; }
+    .setup-wide { grid-column: 1 / -1; }
+    .keeper-list { display: grid; gap: 8px; margin-top: 12px; }
+    .keeper-row {
+      align-items: center;
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      padding: 10px 12px;
+    }
     .upload-actions { align-items: end; display: grid; gap: 10px; }
     .setup-fields { display: grid; gap: 12px; }
     .review-cell { min-width: 150px; }
@@ -368,6 +381,19 @@ export const platformShellHtml = `<!doctype html>
     }
 
     .table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; }
+    .player-board-scroll {
+      border-bottom: 1px solid var(--line);
+      border-top: 1px solid var(--line);
+      max-height: min(68vh, 720px);
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .player-board-scroll .player-board thead th {
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
     .setup-preview-table { border-collapse: collapse; min-width: 620px; width: 100%; }
     .setup-preview-table th, .setup-preview-table td {
       border-bottom: 1px solid var(--line);
@@ -375,6 +401,71 @@ export const platformShellHtml = `<!doctype html>
       text-align: left;
     }
     .setup-preview-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+
+    .board-controls {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .board-pricing-context {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      display: grid;
+      gap: 8px;
+      padding: 12px 14px;
+    }
+    .board-pricing-context strong { font-size: 14px; }
+    .board-pricing-context ul { margin: 0; padding-left: 20px; }
+    .board-pricing-context li { color: var(--warning); font-size: 13px; line-height: 1.45; }
+
+    .player-board {
+      border-collapse: collapse;
+      min-width: 760px;
+      width: 100%;
+    }
+
+    .player-board th, .player-board td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+    }
+
+    .player-board th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .player-board .numeric { text-align: right; }
+    .player-name { font-weight: 760; }
+    .player-meta { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+
+    .mock-layout { display: grid; gap: 24px; min-width: 0; }
+    .mock-toolbar {
+      align-items: end;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .mock-roster {
+      display: grid;
+      gap: 1px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .mock-roster li {
+      align-items: center;
+      background: var(--surface);
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      min-height: 44px;
+      padding: 10px 12px;
+    }
+    .mock-roster span { color: var(--muted); font-size: 13px; }
+    .mock-player-action { min-height: 34px; padding: 5px 10px; }
 
     .invitation-row {
       align-items: center;
@@ -408,7 +499,50 @@ export const platformShellHtml = `<!doctype html>
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
       .upload-actions { grid-template-columns: minmax(0, 1fr) auto; }
       .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
+      .board-controls { grid-template-columns: minmax(0, 1fr) 180px 180px; }
+      .mock-layout { grid-template-columns: minmax(0, 1fr) minmax(280px, .36fr); }
+      .mock-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+      .mock-roster-panel { order: 0; }
       .room-setup { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 700px) {
+      .player-board-scroll { max-height: min(58vh, 520px); }
+      .mock-roster-panel { order: -1; }
+      .player-board { min-width: 0; }
+      .player-board thead { display: none; }
+      .player-board tbody, .player-board tr, .player-board td { display: block; width: 100%; }
+      .player-board tr {
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        gap: 6px;
+        padding: 12px;
+      }
+      .player-board td, .player-board td.numeric {
+        align-items: center;
+        border: 0;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 0;
+        text-align: right;
+      }
+      .player-board td[data-label]::before {
+        color: var(--muted);
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .player-board td.player-name {
+        align-items: start;
+        font-size: 16px;
+        grid-row: 1;
+        text-align: left;
+      }
+      .player-board td.player-name::before { display: none; }
     }
   </style>
 </head>
@@ -424,7 +558,7 @@ export const platformShellHtml = `<!doctype html>
         <button id="sign-out-button" class="text-button" type="button">Sign out</button>
       </div>
     </div>
-    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
+    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a><a id="create-league-nav-item" class="product-nav-link create-league-link" href="/league?create=1">Create league</a></nav>
   </header>
 
   <dialog id="password-dialog" aria-labelledby="password-dialog-title" aria-describedby="password-dialog-description">
@@ -475,11 +609,16 @@ export const platformShellHtml = `<!doctype html>
           <label for="password-input">Password</label>
           <input id="password-input" name="password" type="password" autocomplete="new-password" minlength="8" required>
         </div>
+        <div id="password-confirmation-field" class="hidden">
+          <label for="password-confirmation-input">Confirm password</label>
+          <input id="password-confirmation-input" name="passwordConfirmation" type="password" autocomplete="new-password" minlength="8">
+        </div>
         <button id="auth-submit-button" class="primary" type="submit">Sign in</button>
       </form>
       <p id="auth-error" class="error hidden" role="alert"></p>
       <p id="auth-notice" class="notice hidden" role="status"></p>
-      <p><span id="auth-mode-prompt">Need access? Ask your commissioner for an invitation.</span> <a id="auth-mode-link" class="hidden" href="/login">Sign in</a></p>
+      <p><span id="auth-mode-prompt">New to Mockd?</span> <a id="auth-mode-link" href="/signup">Create account</a></p>
+      <p id="auth-recovery-link"><a href="/forgot-password">Forgot password?</a></p>
     </section>
 
     <div id="app-shell" class="hidden">
@@ -504,15 +643,182 @@ export const platformShellHtml = `<!doctype html>
         </div>
       </section>
 
+      <section id="standalone-board" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Draft board</p>
+            <h1>Player board</h1>
+            <p class="lede">Explore the current player pool now. League history and keepers personalize these values after setup.</p>
+          </div>
+          <div class="actions">
+            <a id="standalone-board-create-league" class="button" href="/league?create=1">Create league</a>
+            <a id="standalone-board-open-mock" class="button hidden">Mock draft</a>
+            <button id="standalone-board-open-simulations" class="button hidden" type="button">Simulations</button>
+            <a id="standalone-board-open-live" class="button primary hidden">Live draft</a>
+          </div>
+        </div>
+        <div class="board-controls">
+          <div>
+            <label for="standalone-player-search">Search players</label>
+            <input id="standalone-player-search" type="search" placeholder="Player, position, or NFL team" autocomplete="off">
+          </div>
+          <div>
+            <label for="standalone-position-filter">Position</label>
+            <select id="standalone-position-filter"><option value="">All positions</option></select>
+          </div>
+          <div>
+            <label for="standalone-board-sort">Sort</label>
+            <select id="standalone-board-sort">
+              <option value="our">Our value</option>
+              <option value="market">Market value</option>
+              <option value="rank">Rank</option>
+            </select>
+          </div>
+        </div>
+        <p id="standalone-board-status" class="status" role="status" aria-live="polite"></p>
+        <section id="standalone-pricing-context" class="board-pricing-context" aria-labelledby="standalone-pricing-source">
+          <strong id="standalone-pricing-source">Pricing source: current market board</strong>
+          <ul id="standalone-pricing-warnings" class="hidden"></ul>
+        </section>
+        <details id="simulation-panel" class="workspace-section hidden">
+          <summary>Run simulations</summary>
+          <div class="compact-stack" style="margin-top: 16px">
+            <div class="setup-fields">
+              <div>
+                <label for="simulation-strategy">Draft strategy</label>
+                <input id="simulation-strategy" autocomplete="off" placeholder="Draft Jadarian Price for no more than $20 and target an elite RB">
+              </div>
+              <div>
+                <label for="simulation-count">Runs</label>
+                <input id="simulation-count" type="number" min="1" max="25" step="1" value="25">
+              </div>
+            </div>
+            <div class="actions"><button id="simulation-run" class="primary" type="button">Run simulations</button></div>
+            <p id="simulation-status" class="status" role="status" aria-live="polite"></p>
+            <div id="simulation-results" class="compact-stack hidden">
+              <p id="simulation-strategy-summary" class="lede"></p>
+              <ul id="simulation-warnings" class="result-list hidden"></ul>
+              <div class="facts">
+                <div class="fact"><span>Completed</span><strong id="simulation-completed">-</strong></div>
+                <div class="fact"><span>Target hit rate</span><strong id="simulation-target-rate">-</strong></div>
+                <div class="fact"><span>Format</span><strong id="simulation-format">-</strong></div>
+              </div>
+              <div class="setup-layout">
+                <section class="workspace-section">
+                  <h2>Most drafted</h2>
+                  <div class="table-scroll">
+                    <table class="setup-preview-table">
+                      <thead><tr><th>Player</th><th>Pos</th><th>Exposure</th><th>Average</th></tr></thead>
+                      <tbody id="simulation-exposure-body"></tbody>
+                    </table>
+                  </div>
+                </section>
+                <section class="workspace-section">
+                  <h2>Representative roster</h2>
+                  <div class="table-scroll">
+                    <table class="setup-preview-table">
+                      <thead><tr><th>Player</th><th>Pos</th><th>Result</th></tr></thead>
+                      <tbody id="simulation-roster-body"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </details>
+        <div id="standalone-player-scroll" class="table-scroll player-board-scroll" tabindex="0" aria-label="Player board results">
+          <table class="player-board">
+            <thead><tr><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th class="numeric">Bye</th><th class="numeric">Market</th><th class="numeric">Our</th></tr></thead>
+            <tbody id="standalone-player-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="empty-leagues" class="workspace hidden">
         <div class="workspace-header">
           <div>
             <p class="eyebrow">League</p>
-            <h1>No league yet</h1>
-            <p class="lede">Accept an invitation from your commissioner to join your league.</p>
+            <h1>Create a league</h1>
+            <p class="lede">Start with an ESPN league ID. Review every setting before Mockd creates anything.</p>
           </div>
         </div>
-        <div class="empty-state">Invitation links open the correct league automatically.</div>
+        <section class="workspace-section compact-stack" aria-labelledby="espn-import-title">
+          <h2 id="espn-import-title">Import from ESPN</h2>
+          <div class="setup-fields">
+            <div>
+              <label for="league-create-espn-id">League ID or URL</label>
+              <input id="league-create-espn-id" placeholder="214674 or an ESPN league URL" autocomplete="off">
+            </div>
+            <div>
+              <label for="league-create-season">Season</label>
+              <input id="league-create-season" type="number" min="2000" max="2100" step="1">
+            </div>
+            <div>
+              <label for="league-create-team-count">Team count</label>
+              <input id="league-create-team-count" type="number" min="4" max="20" step="1" value="12">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="league-create-review-espn" type="button">Review ESPN settings</button>
+            <button id="league-create-manual" type="button">Enter settings manually</button>
+          </div>
+          <p id="league-create-import-status" class="status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="workspace-section compact-stack" aria-labelledby="league-members-upload-title">
+          <h2 id="league-members-upload-title">Import teams and managers</h2>
+          <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
+          <div class="upload-actions">
+            <div>
+              <label for="league-create-members-file">League Members screenshot</label>
+              <input id="league-create-members-file" type="file" accept="image/png,image/jpeg,image/webp">
+            </div>
+            <button id="league-create-analyze-members" type="button">Analyze screenshot</button>
+          </div>
+        </section>
+        <form id="league-create-review" class="workspace-section compact-stack hidden">
+          <h2>Confirm league setup</h2>
+          <div class="setup-fields">
+            <div><label for="league-create-name">League name</label><input id="league-create-name" required></div>
+            <div><label for="league-create-external-id">ESPN league ID</label><input id="league-create-external-id" required></div>
+          </div>
+          <div class="setup-fields">
+            <div>
+              <label for="league-create-draft-format">Draft format</label>
+              <select id="league-create-draft-format"><option value="auction">Auction</option><option value="snake">Snake (prep beta)</option></select>
+            </div>
+            <div id="league-create-auction-budget-field"><label for="league-create-auction-budget">Auction budget</label><input id="league-create-auction-budget" type="number" min="1" step="1" value="200"></div>
+            <div id="league-create-auction-minimum-bid-field"><label for="league-create-auction-minimum-bid">Minimum bid</label><input id="league-create-auction-minimum-bid" type="number" min="1" step="1" value="1"></div>
+            <div id="league-create-snake-rounds-field" class="hidden"><label for="league-create-snake-rounds">Snake rounds</label><input id="league-create-snake-rounds" type="number" min="1" step="1" value="16"></div>
+          </div>
+          <p id="league-create-format-note" class="lede"></p>
+          <ul id="league-create-warnings" class="result-list hidden"></ul>
+          <div class="setup-fields">
+            <div><label for="league-create-pass-yard">Points per passing yard</label><input id="league-create-pass-yard" type="number" min="0" step="0.01" value="0.04"></div>
+            <div><label for="league-create-pass-td">Points per passing TD</label><input id="league-create-pass-td" type="number" min="1" step="1" value="4"></div>
+            <div><label for="league-create-rush-yard">Points per rushing yard</label><input id="league-create-rush-yard" type="number" min="0" step="0.01" value="0.1"></div>
+            <div><label for="league-create-rush-td">Points per rushing TD</label><input id="league-create-rush-td" type="number" min="1" step="1" value="6"></div>
+            <div><label for="league-create-receive-yard">Points per receiving yard</label><input id="league-create-receive-yard" type="number" min="0" step="0.01" value="0.1"></div>
+            <div><label for="league-create-receive-td">Points per receiving TD</label><input id="league-create-receive-td" type="number" min="1" step="1" value="6"></div>
+            <div><label for="league-create-ppr">Points per reception</label><input id="league-create-ppr" type="number" min="0" step="0.1" value="0.5"></div>
+          </div>
+          <div>
+            <h3>Roster slots</h3>
+            <div id="league-create-roster-slots" class="setup-fields"></div>
+          </div>
+          <div class="table-scroll">
+            <table class="setup-preview-table">
+              <thead><tr><th>Order</th><th>Team</th><th>Managers</th><th>Abbreviation</th><th>Review</th></tr></thead>
+              <tbody id="league-create-team-rows"></tbody>
+            </table>
+          </div>
+          <label class="confirmation-label" for="league-create-confirmed">
+            <input id="league-create-confirmed" type="checkbox">
+            <span>I reviewed the league, teams, draft format, scoring, and roster settings.</span>
+          </label>
+          <div class="actions"><button id="league-create-submit" class="primary" type="submit" disabled>Create league</button></div>
+          <p id="league-create-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+        <div class="empty-state">Already invited? Open the invitation link from your commissioner. Your player board remains available before setup.</div>
       </section>
 
       <section id="league-workspace" class="workspace hidden">
@@ -529,6 +835,17 @@ export const platformShellHtml = `<!doctype html>
           <div class="fact"><span>My team</span><strong id="team-claim-readiness"></strong></div>
           <div class="fact"><span>Live draft</span><strong id="live-draft-readiness"></strong></div>
         </div>
+        <section class="workspace-section compact-stack" aria-labelledby="league-overview-title">
+          <h2 id="league-overview-title">League settings</h2>
+          <div id="league-overview-settings" class="facts" aria-label="League draft and scoring settings"></div>
+          <p id="league-overview-team-summary" class="lede">Loading league teams...</p>
+          <div id="league-overview-team-table" class="table-scroll hidden">
+            <table class="setup-preview-table">
+              <thead><tr><th>Team #</th><th>Team</th><th>Managers</th></tr></thead>
+              <tbody id="league-overview-team-body"></tbody>
+            </table>
+          </div>
+        </section>
         <section id="team-claim-panel" class="workspace-section hidden" aria-labelledby="team-claim-title">
           <h2 id="team-claim-title">Claim your team</h2>
           <p class="lede">Choose your team before opening private draft prep.</p>
@@ -542,6 +859,83 @@ export const platformShellHtml = `<!doctype html>
           <h2>Draft schedule</h2>
           <p id="next-draft-at" class="lede">No draft time scheduled.</p>
         </section>
+      </section>
+
+      <section id="my-team-workspace" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">My team</p>
+            <h1>Post-draft review</h1>
+            <p class="lede">Your roster, private draft rank, strengths, risks, and coach readiness.</p>
+          </div>
+          <a id="my-team-claim-link" class="button hidden" href="/league">Claim team</a>
+        </div>
+        <p id="my-team-status" class="status" role="status" aria-live="polite"></p>
+        <div id="my-team-results" class="stack hidden">
+          <div class="facts">
+            <div class="fact"><span>Draft rank</span><strong id="my-team-rank">-</strong></div>
+            <div class="fact"><span>Teams ranked</span><strong id="my-team-count">-</strong></div>
+            <div class="fact"><span>Coach</span><strong id="my-team-coach">-</strong></div>
+          </div>
+          <div class="setup-layout">
+            <section class="workspace-section">
+              <h2>Roster</h2>
+              <div class="table-scroll">
+                <table class="setup-preview-table">
+                  <thead><tr><th>Player</th><th>Position</th></tr></thead>
+                  <tbody id="my-team-roster-body"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="workspace-section">
+              <h2>What stands out</h2>
+              <ul id="my-team-findings" class="result-list"></ul>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="mock-draft-workspace" class="workspace hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Mock draft</p>
+            <h1 id="mock-draft-title">League mock room</h1>
+            <p class="lede">Draft for your claimed team while Mockd runs the rest of your league.</p>
+          </div>
+          <div class="actions">
+            <button id="mock-draft-start" class="primary" type="button">Start draft</button>
+            <button id="mock-draft-buy" class="primary" type="button">Buy</button>
+            <button id="mock-draft-pass" type="button">Pass</button>
+            <button id="mock-draft-undo" type="button">Undo pick</button>
+            <button id="mock-draft-complete" type="button">Finish mock</button>
+          </div>
+        </div>
+        <div class="facts">
+          <div class="fact"><span>Status</span><strong id="mock-draft-state">Loading</strong></div>
+          <div class="fact"><span>On the clock</span><strong id="mock-draft-on-clock">-</strong></div>
+          <div class="fact"><span>Progress</span><strong id="mock-draft-progress">-</strong></div>
+        </div>
+        <p id="mock-draft-status" class="status" role="status" aria-live="polite"></p>
+        <div class="mock-layout">
+          <section class="workspace-section">
+            <div class="mock-toolbar">
+              <div>
+                <label for="mock-draft-search">Search available players</label>
+                <input id="mock-draft-search" type="search" placeholder="Player or position" autocomplete="off">
+              </div>
+            </div>
+            <div id="mock-draft-player-scroll" class="table-scroll player-board-scroll" tabindex="0" aria-label="Available players">
+              <table class="player-board">
+                <thead><tr><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="mock-draft-player-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <aside class="workspace-section mock-roster-panel">
+            <h2>My roster</h2>
+            <ul id="mock-draft-roster" class="mock-roster"></ul>
+          </aside>
+        </div>
       </section>
 
       <section id="feature-workspace" class="workspace hidden">
@@ -569,7 +963,7 @@ export const platformShellHtml = `<!doctype html>
             <input id="setup-season-id-input" type="hidden">
             <div class="setup-task" aria-labelledby="screenshot-import-title">
               <h3 id="screenshot-import-title">Import from ESPN screenshot</h3>
-              <p class="lede">Upload the League Members page, then verify every team and manager before applying.</p>
+              <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
               <div class="upload-actions">
                 <div>
                   <label for="screenshot-import-file">League Members screenshot</label>
@@ -609,6 +1003,7 @@ export const platformShellHtml = `<!doctype html>
                 <tbody id="setup-team-body"></tbody>
               </table>
             </div>
+            <div id="setup-settings-summary" class="facts" aria-label="Imported league settings"></div>
             <details>
               <summary>Advanced: paste a team list</summary>
               <div class="stack" style="margin-top: 16px">
@@ -630,6 +1025,50 @@ export const platformShellHtml = `<!doctype html>
                 <tbody id="setup-preview-body"></tbody>
               </table>
             </div>
+          </section>
+          <section class="workspace-section" aria-labelledby="history-title">
+            <h2 id="history-title">Draft history</h2>
+            <p id="historical-import-description" class="lede">Upload a prior auction draft as CSV, TSV, or XLSX with Team, Player, Position, and Price columns. Add a Public value, ESPN value, or AAV column so Mockd can measure league inflation and recalibrate values.</p>
+            <div class="setup-fields" style="margin-top: 16px">
+              <div>
+                <label for="historical-import-file">Draft results file</label>
+                <input id="historical-import-file" type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+              </div>
+              <div>
+                <label for="historical-import-year">Draft year</label>
+                <input id="historical-import-year" type="number" min="2000" max="2100" step="1">
+              </div>
+            </div>
+            <div class="actions" style="margin-top: 12px">
+              <button id="historical-preview-button" type="button">Review file</button>
+              <button id="historical-commit-button" class="primary" type="button" disabled>Import and update values</button>
+            </div>
+            <label class="confirmation-label" for="historical-replace-input" style="margin-top: 12px">
+              <input id="historical-replace-input" type="checkbox">
+              <span>Replace an existing import for this draft year.</span>
+            </label>
+            <p id="historical-import-status" class="status" role="status" aria-live="polite"></p>
+            <ul id="historical-import-issues" class="result-list"></ul>
+            <div id="historical-import-preview-table" class="table-scroll hidden">
+              <table class="setup-preview-table">
+                <thead><tr><th>Row</th><th>Team</th><th>Player</th><th>Pos</th><th>Price</th><th>Public value</th><th>Status</th></tr></thead>
+                <tbody id="historical-import-preview-body"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="workspace-section" aria-labelledby="keepers-title">
+            <h2 id="keepers-title">Keepers</h2>
+            <p class="lede">Enter one keeper at a time using a team or manager name, player, and auction cost or snake round.</p>
+            <div style="margin-top: 16px">
+              <label for="keeper-command-input">Keeper command</label>
+              <input id="keeper-command-input" placeholder="Cam keeping Achane 50" autocomplete="off">
+            </div>
+            <div class="actions" style="margin-top: 12px">
+              <button id="keeper-preview-button" type="button">Review keeper</button>
+              <button id="keeper-apply-button" class="primary" type="button" disabled>Confirm keeper</button>
+            </div>
+            <p id="keeper-status" class="status" role="status" aria-live="polite"></p>
+            <div id="keeper-list" class="keeper-list"></div>
           </section>
           <section class="workspace-section" aria-labelledby="invitations-title">
             <h2 id="invitations-title">Invitations</h2>
@@ -658,9 +1097,15 @@ export const platformShellHtml = `<!doctype html>
                 <label for="draft-starts-at-input">Draft time (optional)</label>
                 <input id="draft-starts-at-input" type="datetime-local">
               </div>
+              <label class="confirmation-label" for="setup-final-review">
+                <input id="setup-final-review" type="checkbox">
+                <span>I reviewed the teams, draft settings, roster rules, history, and keepers. History and keepers may be empty.</span>
+              </label>
               <div class="actions">
+                <button id="publish-season-button" type="button">Publish league</button>
                 <button id="create-live-room-button" class="primary" type="button">Create draft room</button>
                 <a id="open-setup-live-room" class="button primary hidden" href="/draft-room">Open draft room</a>
+                <button id="cancel-live-room-button" class="hidden" type="button">Cancel room</button>
               </div>
               <p id="live-room-setup-status" class="status" role="status" aria-live="polite"></p>
             </div>
@@ -694,12 +1139,10 @@ export const platformShellHtml = `<!doctype html>
   <script>
     const routePath = window.location.pathname;
     const signupMode = window.location.pathname === "/signup";
+    const verificationMode = window.location.pathname === "/verify-email";
+    const forgotPasswordMode = window.location.pathname === "/forgot-password";
+    const resetPasswordMode = window.location.pathname === "/reset-password";
     const navigation = ${JSON.stringify(platformShellNavigation)};
-    const featureRoutes = {
-      "/board": ["Draft prep", "Board", "Rank, filter, and shortlist players for your selected league."],
-      "/mock-drafts": ["Practice", "Mock drafts", "Run a draft against your league settings and keep the results."],
-      "/simulations": ["Modeling", "Simulations", "Compare strategy outcomes for your selected team."],
-    };
     const state = {
       account: null,
       onboarding: null,
@@ -714,6 +1157,18 @@ export const platformShellHtml = `<!doctype html>
       workspaceRequestGeneration: 0,
       currentSeason: null,
       claimedTeamIds: new Set(),
+      playerCatalog: null,
+      playerCatalogSeasonId: null,
+      playerCatalogMeta: null,
+      playerBoardSort: null,
+      leagueCreation: null,
+      historicalImportBatchId: null,
+      historicalOwnerMappings: {},
+      historicalPlayerMappings: {},
+      keeperPreviewCommand: null,
+      mockSession: null,
+      mockDraft: null,
+      mockRequestGeneration: 0,
     };
 
     const byId = id => document.getElementById(id);
@@ -729,6 +1184,9 @@ export const platformShellHtml = `<!doctype html>
     const authNotice = byId("auth-notice");
     const emailInput = byId("email-input");
     const passwordInput = byId("password-input");
+    const passwordConfirmationField = byId("password-confirmation-field");
+    const passwordConfirmationInput = byId("password-confirmation-input");
+    const authRecoveryLink = byId("auth-recovery-link");
     const appHeader = byId("app-header");
     const appShell = byId("app-shell");
     const appStatus = byId("app-status");
@@ -741,6 +1199,10 @@ export const platformShellHtml = `<!doctype html>
     const teamClaimPicker = byId("team-claim-picker");
     const teamClaimButton = byId("team-claim-button");
     const teamClaimStatus = byId("team-claim-status");
+    const leagueOverviewSettings = byId("league-overview-settings");
+    const leagueOverviewTeamSummary = byId("league-overview-team-summary");
+    const leagueOverviewTeamTable = byId("league-overview-team-table");
+    const leagueOverviewTeamBody = byId("league-overview-team-body");
     const setupRowsInput = byId("setup-rows-input");
     const setupPreviewButton = byId("setup-preview-button");
     const setupApplyButton = byId("setup-apply-button");
@@ -749,6 +1211,7 @@ export const platformShellHtml = `<!doctype html>
     const setupTeamSummary = byId("setup-team-summary");
     const setupTeamTable = byId("setup-team-table");
     const setupTeamBody = byId("setup-team-body");
+    const setupSettingsSummary = byId("setup-settings-summary");
     const setupPreviewTable = byId("setup-preview-table");
     const setupPreviewBody = byId("setup-preview-body");
     const setupInvitations = byId("setup-invitations");
@@ -762,6 +1225,26 @@ export const platformShellHtml = `<!doctype html>
     const screenshotImportBlockers = byId("screenshot-import-blockers");
     const screenshotReviewBody = byId("screenshot-review-body");
     const screenshotApplyButton = byId("screenshot-apply-button");
+    const historicalImportFile = byId("historical-import-file");
+    const historicalImportYear = byId("historical-import-year");
+    const historicalPreviewButton = byId("historical-preview-button");
+    const historicalCommitButton = byId("historical-commit-button");
+    const historicalReplaceInput = byId("historical-replace-input");
+    const historicalImportStatus = byId("historical-import-status");
+    const historicalImportIssues = byId("historical-import-issues");
+    const historicalImportPreviewTable = byId("historical-import-preview-table");
+    const historicalImportPreviewBody = byId("historical-import-preview-body");
+    const historicalImportDescription = byId("historical-import-description");
+    const keeperCommandInput = byId("keeper-command-input");
+    const keeperPreviewButton = byId("keeper-preview-button");
+    const keeperApplyButton = byId("keeper-apply-button");
+    const keeperStatus = byId("keeper-status");
+    const keeperList = byId("keeper-list");
+    const myTeamStatus = byId("my-team-status");
+    const myTeamClaimLink = byId("my-team-claim-link");
+    const myTeamResults = byId("my-team-results");
+    const myTeamRosterBody = byId("my-team-roster-body");
+    const myTeamFindings = byId("my-team-findings");
     const invitationForm = byId("create-invitation-form");
     const invitationTeamPicker = byId("invitation-team-picker");
     const invitationEmailInput = byId("invitation-email-input");
@@ -769,7 +1252,10 @@ export const platformShellHtml = `<!doctype html>
     const invitationCreateStatus = byId("invitation-create-status");
     const draftStartsAtInput = byId("draft-starts-at-input");
     const createLiveRoomButton = byId("create-live-room-button");
+    const publishSeasonButton = byId("publish-season-button");
+    const setupFinalReview = byId("setup-final-review");
     const openSetupLiveRoom = byId("open-setup-live-room");
+    const cancelLiveRoomButton = byId("cancel-live-room-button");
     const liveRoomSetupStatus = byId("live-room-setup-status");
     const passwordDialog = byId("password-dialog");
     const passwordChangeForm = byId("password-change-form");
@@ -778,6 +1264,57 @@ export const platformShellHtml = `<!doctype html>
     const confirmPasswordInput = byId("confirm-password-input");
     const passwordChangeStatus = byId("password-change-status");
     const passwordChangeSubmit = byId("password-change-submit");
+    const standalonePlayerSearch = byId("standalone-player-search");
+    const standalonePositionFilter = byId("standalone-position-filter");
+    const standaloneBoardSort = byId("standalone-board-sort");
+    const standaloneBoardStatus = byId("standalone-board-status");
+    const standalonePlayerRows = byId("standalone-player-rows");
+    const standalonePricingSource = byId("standalone-pricing-source");
+    const standalonePricingWarnings = byId("standalone-pricing-warnings");
+    const simulationPanel = byId("simulation-panel");
+    const simulationStrategy = byId("simulation-strategy");
+    const simulationCount = byId("simulation-count");
+    const simulationRun = byId("simulation-run");
+    const simulationStatus = byId("simulation-status");
+    const simulationResults = byId("simulation-results");
+    const simulationWarnings = byId("simulation-warnings");
+    const simulationExposureBody = byId("simulation-exposure-body");
+    const simulationRosterBody = byId("simulation-roster-body");
+    const mockDraftStatus = byId("mock-draft-status");
+    const mockDraftSearch = byId("mock-draft-search");
+    const mockDraftPlayerRows = byId("mock-draft-player-rows");
+    const mockDraftRoster = byId("mock-draft-roster");
+    const mockDraftStart = byId("mock-draft-start");
+    const mockDraftBuy = byId("mock-draft-buy");
+    const mockDraftPass = byId("mock-draft-pass");
+    const mockDraftUndo = byId("mock-draft-undo");
+    const mockDraftComplete = byId("mock-draft-complete");
+    const leagueCreateEspnId = byId("league-create-espn-id");
+    const leagueCreateSeason = byId("league-create-season");
+    const leagueCreateTeamCount = byId("league-create-team-count");
+    const leagueCreateImportStatus = byId("league-create-import-status");
+    const leagueCreateMembersFile = byId("league-create-members-file");
+    const leagueCreateReview = byId("league-create-review");
+    const leagueCreateName = byId("league-create-name");
+    const leagueCreateExternalId = byId("league-create-external-id");
+    const leagueCreateDraftFormat = byId("league-create-draft-format");
+    const leagueCreateAuctionBudget = byId("league-create-auction-budget");
+    const leagueCreateAuctionMinimumBid = byId("league-create-auction-minimum-bid");
+    const leagueCreateSnakeRounds = byId("league-create-snake-rounds");
+    const leagueCreateFormatNote = byId("league-create-format-note");
+    const leagueCreateWarnings = byId("league-create-warnings");
+    const leagueCreateRosterSlots = byId("league-create-roster-slots");
+    const leagueCreatePassYard = byId("league-create-pass-yard");
+    const leagueCreatePassTd = byId("league-create-pass-td");
+    const leagueCreateRushYard = byId("league-create-rush-yard");
+    const leagueCreateRushTd = byId("league-create-rush-td");
+    const leagueCreateReceiveYard = byId("league-create-receive-yard");
+    const leagueCreateReceiveTd = byId("league-create-receive-td");
+    const leagueCreatePpr = byId("league-create-ppr");
+    const leagueCreateTeamRows = byId("league-create-team-rows");
+    const leagueCreateConfirmed = byId("league-create-confirmed");
+    const leagueCreateSubmit = byId("league-create-submit");
+    const leagueCreateStatus = byId("league-create-status");
 
     const setHidden = (element, hidden) => element.classList.toggle("hidden", hidden);
 
@@ -802,25 +1339,63 @@ export const platformShellHtml = `<!doctype html>
       const requestedPath = new URLSearchParams(window.location.search).get("returnTo");
       return requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
         ? requestedPath
-        : "/app";
+        : "/board";
     };
 
     const configureAuthMode = () => {
-      authTitle.textContent = signupMode ? "Create your account" : "Sign in";
+      authTitle.textContent = signupMode
+        ? "Create your account"
+        : verificationMode
+          ? "Verify your email"
+          : forgotPasswordMode
+            ? "Reset your password"
+            : resetPasswordMode
+              ? "Choose a new password"
+              : "Sign in";
       authDescription.textContent = signupMode
-        ? "Use the email address where your league invitation was sent."
-        : "Open your league, draft tools, and live room.";
-      authSubmitButton.textContent = signupMode ? "Create account" : "Sign in";
-      authModePrompt.textContent = signupMode
-        ? "Already have an account?"
-        : "Need access? Ask your commissioner for an invitation.";
-      authModeLink.textContent = "Sign in";
-      setHidden(authModeLink, !signupMode);
+        ? "Create a league as commissioner, or join one from an invitation."
+        : verificationMode
+          ? "Open the link from your email, or request a new one."
+          : forgotPasswordMode
+            ? "Enter your account email. We'll send a reset link if an account exists."
+            : resetPasswordMode
+              ? "Choose a new password for your Mockd account."
+              : "Open your league, draft tools, and live room.";
+      authSubmitButton.textContent = signupMode
+        ? "Create account"
+        : verificationMode
+          ? "Send verification link"
+          : forgotPasswordMode
+            ? "Send reset link"
+            : resetPasswordMode
+              ? "Update password"
+              : "Sign in";
+      const recoveryMode = verificationMode || forgotPasswordMode || resetPasswordMode;
+      authModePrompt.textContent = recoveryMode
+        ? "Ready to sign in?"
+        : signupMode
+          ? "Already have an account?"
+          : "New to Mockd?";
+      authModeLink.textContent = recoveryMode ? "Back to sign in" : signupMode ? "Sign in" : "Create account";
+      setHidden(authModePrompt, false);
+      setHidden(authModeLink, false);
       const modeReturnPath = routePath === "/login" || routePath === "/signup"
         ? authenticationReturnPath()
         : returnPath();
-      authModeLink.href = "/login?returnTo=" + encodeURIComponent(modeReturnPath);
-      passwordInput.autocomplete = signupMode ? "new-password" : "current-password";
+      authModeLink.href = recoveryMode
+        ? "/login?returnTo=" + encodeURIComponent(authenticationReturnPath())
+        : (signupMode ? "/login?returnTo=" : "/signup?returnTo=") + encodeURIComponent(modeReturnPath);
+      const emailOnlyMode = verificationMode || forgotPasswordMode;
+      setHidden(emailInput.closest("div"), resetPasswordMode);
+      emailInput.required = !resetPasswordMode;
+      setHidden(passwordInput.closest("div"), emailOnlyMode);
+      passwordInput.required = !emailOnlyMode;
+      passwordInput.autocomplete = signupMode || resetPasswordMode ? "new-password" : "current-password";
+      setHidden(passwordConfirmationField, !resetPasswordMode);
+      passwordConfirmationInput.required = resetPasswordMode;
+      setHidden(authRecoveryLink, signupMode || verificationMode || forgotPasswordMode || resetPasswordMode);
+      const requestedEmail = new URLSearchParams(window.location.search).get("email");
+      if ((verificationMode || forgotPasswordMode) && requestedEmail) emailInput.value = requestedEmail;
       const passwordChanged = new URLSearchParams(window.location.search).get("passwordChanged") === "1";
       authNotice.textContent = passwordChanged ? "Password changed. Sign in with your new password." : "";
       setHidden(authNotice, !passwordChanged);
@@ -833,7 +1408,29 @@ export const platformShellHtml = `<!doctype html>
       setHidden(appShell, true);
       setHidden(authPanel, false);
       configureAuthMode();
-      emailInput.focus();
+      const verificationToken = verificationMode
+        ? new URLSearchParams(window.location.search).get("token")
+        : null;
+      if (verificationToken) {
+        setHidden(authForm, true);
+        authNotice.textContent = "Verifying your email...";
+        setHidden(authNotice, false);
+        fetch("/email-verifications/consume", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ token: verificationToken }),
+        }).then(readJson).then(() => {
+          authNotice.textContent = "Email verified. You can sign in now.";
+        }).catch(error => {
+          authNotice.textContent = "";
+          setHidden(authNotice, true);
+          authError.textContent = error.message;
+          setHidden(authError, false);
+        });
+        return;
+      }
+      (resetPasswordMode ? passwordInput : emailInput).focus();
     };
 
     const showAppError = message => {
@@ -854,6 +1451,433 @@ export const platformShellHtml = `<!doctype html>
       element.className = value === "ready" ? "ready" : "attention";
     };
 
+    const renderStandaloneBoard = () => {
+      const playerCatalog = state.playerCatalog || [];
+      const search = standalonePlayerSearch.value.trim().toLowerCase();
+      const position = standalonePositionFilter.value;
+      const snake = state.playerCatalogMeta?.draftFormat === "snake";
+      const sortMode = standaloneBoardSort.value || state.playerBoardSort || "market";
+      const numericValue = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+      const sortValue = player => {
+        if (sortMode === "rank") return numericValue(player.marketRank || player.rank);
+        if (sortMode === "our") {
+          return snake
+            ? numericValue(player.leagueRank || player.marketRank || player.rank)
+            : numericValue(player.leagueValue ?? player.expectedPrice);
+        }
+        return snake
+          ? numericValue(player.marketRank || player.rank)
+          : numericValue(player.marketPrice ?? player.expectedPrice);
+      };
+      const sortedPlayers = playerCatalog.slice().sort((left, right) => {
+        const difference = sortMode === "rank" || snake
+          ? sortValue(left) - sortValue(right)
+          : sortValue(right) - sortValue(left);
+        return difference
+          || numericValue(left.rank) - numericValue(right.rank)
+          || String(left.name).localeCompare(String(right.name));
+      }).map((player, index) => ({ player: player, displayRank: index + 1 }));
+      const visiblePlayers = sortedPlayers.filter(entry => {
+        const player = entry.player;
+        if (position && player.position !== position) return false;
+        if (!search) return true;
+        return [player.name, player.position, player.teamAbbreviation]
+          .filter(Boolean)
+          .some(value => String(value).toLowerCase().includes(search));
+      });
+      const fragment = document.createDocumentFragment();
+      visiblePlayers.forEach(entry => {
+        const player = entry.player;
+        const row = document.createElement("tr");
+        const values = [
+          { label: "Rank", value: String(entry.displayRank), className: "numeric" },
+          { label: "Player", value: player.name, className: "player-name" },
+          { label: "Position", value: player.position || "-" },
+          { label: "NFL team", value: player.teamAbbreviation || "FA" },
+          { label: "Bye", value: player.byeWeek == null ? "-" : String(player.byeWeek), className: "numeric" },
+          { label: "Market", value: snake ? String(player.marketRank || "-") : "$" + Math.round(Number(player.marketPrice ?? player.expectedPrice ?? 0)), className: "numeric" },
+          { label: "Our value", value: snake ? String(player.leagueRank || player.marketRank || "-") : "$" + Math.round(Number(player.leagueValue ?? player.expectedPrice ?? 0)), className: "numeric" },
+        ];
+        values.forEach(cellValue => {
+          const cell = document.createElement("td");
+          cell.textContent = cellValue.value;
+          cell.dataset.label = cellValue.label;
+          if (cellValue.className) cell.className = cellValue.className;
+          row.append(cell);
+        });
+        fragment.append(row);
+      });
+      standalonePlayerRows.replaceChildren(fragment);
+      const personalized = state.playerCatalogMeta?.personalized === true;
+      standalonePricingSource.textContent = personalized
+        ? "Pricing source: Mockd league model using imported draft history and current keepers."
+        : state.playerCatalogMeta?.draftFormat
+          ? "Pricing source: current market board. Import draft history to personalize Our value."
+          : "Pricing source: current market board. Create a league to add history and keeper context.";
+      const warnings = state.playerCatalogMeta?.pricingWarnings || [];
+      standalonePricingWarnings.replaceChildren();
+      warnings.slice(0, 6).forEach(warning => {
+        const item = document.createElement("li");
+        item.textContent = warning;
+        standalonePricingWarnings.append(item);
+      });
+      if (warnings.length > 6) {
+        const item = document.createElement("li");
+        item.textContent = String(warnings.length - 6) + " more pricing warnings apply.";
+        standalonePricingWarnings.append(item);
+      }
+      setHidden(standalonePricingWarnings, warnings.length === 0);
+      const valueStatus = state.playerCatalogMeta?.personalized
+        ? " · league values active"
+        : state.playerCatalogMeta?.draftFormat
+          ? " · baseline values until history is imported"
+          : "";
+      standaloneBoardStatus.textContent = visiblePlayers.length + " shown / " + playerCatalog.length + " loaded" + valueStatus;
+    };
+
+    const loadStandaloneBoard = async () => {
+      setHidden(byId("standalone-board"), false);
+      const seasonId = state.selectedLeague?.seasonId || null;
+      if (state.playerCatalog === null || state.playerCatalogSeasonId !== seasonId) {
+        standaloneBoardStatus.textContent = "Loading players...";
+        const endpoint = seasonId
+          ? "/player-catalog?seasonId=" + encodeURIComponent(seasonId)
+          : "/player-catalog";
+        const body = await readJson(await fetch(endpoint, { credentials: "same-origin" }));
+        state.playerCatalog = (body.players || []).map((player, index) => ({ ...player, rank: index + 1 }));
+        state.playerCatalogSeasonId = seasonId;
+        const pricingWarnings = [...new Set((body.players || []).flatMap(player =>
+          Array.isArray(player.pricingWarnings)
+            ? player.pricingWarnings.filter(warning => typeof warning === "string" && warning.trim())
+            : [],
+        ))];
+        state.playerCatalogMeta = {
+          draftFormat: body.draftFormat || null,
+          personalized: body.personalized === true,
+          pricingWarnings: pricingWarnings,
+        };
+        state.playerBoardSort = body.personalized === true ? "our" : "market";
+        standaloneBoardSort.value = state.playerBoardSort;
+        standalonePositionFilter.replaceChildren();
+        const allPositionsOption = document.createElement("option");
+        allPositionsOption.value = "";
+        allPositionsOption.textContent = "All positions";
+        standalonePositionFilter.append(allPositionsOption);
+        const positions = [...new Set(state.playerCatalog.map(player => player.position).filter(Boolean))].sort();
+        positions.forEach(position => {
+          const option = document.createElement("option");
+          option.value = position;
+          option.textContent = position;
+          standalonePositionFilter.append(option);
+        });
+      }
+      renderStandaloneBoard();
+    };
+
+    const configureSimulationPanel = selectedLeague => {
+      setHidden(simulationPanel, false);
+      setHidden(simulationResults, true);
+      simulationExposureBody.replaceChildren();
+      simulationRosterBody.replaceChildren();
+      simulationWarnings.replaceChildren();
+      const canRun = Boolean(selectedLeague.membership?.teamId);
+      simulationRun.disabled = !canRun;
+      simulationStatus.textContent = canRun
+        ? ""
+        : "Claim your team from League before running private simulations.";
+      const requestedStrategy = new URLSearchParams(window.location.search).get("strategy");
+      if (!simulationStrategy.value && requestedStrategy) simulationStrategy.value = requestedStrategy;
+    };
+
+    const renderSimulationResult = simulation => {
+      byId("simulation-strategy-summary").textContent = simulation.strategy?.summary || "Best available roster fit.";
+      simulationWarnings.replaceChildren();
+      (simulation.strategy?.warnings || []).forEach(warning => {
+        const item = document.createElement("li");
+        item.textContent = warning;
+        simulationWarnings.append(item);
+      });
+      setHidden(simulationWarnings, simulationWarnings.childElementCount === 0);
+      byId("simulation-completed").textContent = simulation.completedCount + " / " + simulation.runCount;
+      byId("simulation-target-rate").textContent = simulation.targetOutcome
+        ? Math.round(simulation.targetOutcome.hitRate * 100) + "% · " + simulation.targetOutcome.playerName
+        : "No named target";
+      byId("simulation-format").textContent = titleCase(simulation.draftFormat);
+
+      const exposureFragment = document.createDocumentFragment();
+      (simulation.playerExposure || []).slice(0, 10).forEach(player => {
+        const row = document.createElement("tr");
+        const average = player.averagePrice !== undefined
+          ? "$" + Number(player.averagePrice).toFixed(1)
+          : player.averagePick !== undefined
+            ? "Pick " + Number(player.averagePick).toFixed(1)
+            : "-";
+        [player.playerName, player.position, Math.round(player.rate * 100) + "%", average].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+        exposureFragment.append(row);
+      });
+      simulationExposureBody.replaceChildren(exposureFragment);
+
+      const rosterFragment = document.createDocumentFragment();
+      (simulation.representativeRoster || []).forEach(player => {
+        const row = document.createElement("tr");
+        const result = player.price !== undefined
+          ? "$" + player.price
+          : player.overallPick !== undefined
+            ? "Pick " + player.overallPick
+            : titleCase(player.source || "drafted");
+        [player.playerName, player.position, result].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+        rosterFragment.append(row);
+      });
+      simulationRosterBody.replaceChildren(rosterFragment);
+      simulationStatus.textContent = "Simulation results are private to your account.";
+      setHidden(simulationResults, false);
+    };
+
+    const runBoardSimulations = async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague?.membership?.teamId) return;
+      const count = Number(simulationCount.value);
+      simulationRun.disabled = true;
+      setHidden(simulationResults, true);
+      simulationStatus.textContent = "Running " + count + " league drafts...";
+      try {
+        const body = await readJson(await fetch("/season-simulations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            seasonId: selectedLeague.seasonId,
+            count: count,
+            strategy: simulationStrategy.value.trim(),
+          }),
+        }));
+        renderSimulationResult(body.simulation);
+      } catch (error) {
+        simulationStatus.textContent = error.message;
+      } finally {
+        simulationRun.disabled = false;
+      }
+    };
+
+    const defaultLeagueRosterSlots = {
+      QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7,
+    };
+
+    const updateLeagueCreationFormatFields = () => {
+      const isSnake = leagueCreateDraftFormat.value === "snake";
+      setHidden(byId("league-create-auction-budget-field"), isSnake);
+      setHidden(byId("league-create-auction-minimum-bid-field"), isSnake);
+      setHidden(byId("league-create-snake-rounds-field"), !isSnake);
+      leagueCreateFormatNote.textContent = isSnake
+        ? "Snake values, simulations, and mock drafts are available in beta. Hosted live drafting is currently auction-only."
+        : "Auction values, simulations, mock drafts, and hosted live drafting are available.";
+    };
+
+    const leagueCreationCanSubmit = () => leagueCreateConfirmed.checked
+      && state.leagueCreation !== null
+      && ![...leagueCreateTeamRows.querySelectorAll('[data-field="rowConfirmed"]')]
+        .some(input => !input.checked);
+
+    const updateLeagueCreationSubmit = () => {
+      leagueCreateSubmit.disabled = !leagueCreationCanSubmit();
+    };
+
+    const renderLeagueCreationTeamRows = teams => {
+      const fragment = document.createDocumentFragment();
+      teams.forEach((team, index) => {
+        const row = document.createElement("tr");
+        row.dataset.teamIndex = String(index);
+        const orderCell = document.createElement("td");
+        orderCell.textContent = String(index + 1);
+        const fieldCell = (field, value, label) => {
+          const cell = document.createElement("td");
+          const input = document.createElement("input");
+          input.value = value;
+          input.dataset.field = field;
+          input.setAttribute("aria-label", label + " for team " + String(index + 1));
+          cell.append(input);
+          return cell;
+        };
+        const reviewCell = document.createElement("td");
+        const needsReview = team.confidence !== "high" || (team.issues || []).length > 0;
+        if (needsReview) {
+          const note = document.createElement("span");
+          note.className = "review-note";
+          note.textContent = (team.issues || []).join(" ") || "Check this extracted row before creating the league.";
+          const label = document.createElement("label");
+          label.className = "confirmation-label";
+          const confirmation = document.createElement("input");
+          confirmation.type = "checkbox";
+          confirmation.dataset.field = "rowConfirmed";
+          label.append(confirmation, document.createTextNode("Checked"));
+          reviewCell.append(note, label);
+        } else {
+          reviewCell.textContent = "Ready";
+        }
+        row.append(
+          orderCell,
+          fieldCell("displayName", team.displayName, "Team name"),
+          fieldCell("managerNames", (team.managerNames || []).join("; "), "Managers"),
+          fieldCell("abbreviation", team.abbreviation || "", "Abbreviation"),
+          reviewCell,
+        );
+        fragment.append(row);
+      });
+      leagueCreateTeamRows.replaceChildren(fragment);
+    };
+
+    const renderLeagueCreationRosterSlots = rosterSlots => {
+      const fragment = document.createDocumentFragment();
+      Object.entries(rosterSlots).sort(([left], [right]) => left.localeCompare(right)).forEach(entry => {
+        const field = document.createElement("div");
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        label.textContent = entry[0];
+        input.type = "number";
+        input.min = "0";
+        input.step = "1";
+        input.value = String(entry[1]);
+        input.dataset.rosterSlot = entry[0];
+        label.htmlFor = "league-create-roster-slot-" + entry[0].toLowerCase();
+        input.id = label.htmlFor;
+        field.append(label, input);
+        fragment.append(field);
+      });
+      leagueCreateRosterSlots.replaceChildren(fragment);
+    };
+
+    const showLeagueCreationReview = review => {
+      state.leagueCreation = review;
+      leagueCreateName.value = review.leagueName || "";
+      leagueCreateExternalId.value = review.externalLeagueId || leagueCreateEspnId.value.trim();
+      leagueCreateDraftFormat.value = review.draft.type;
+      if (review.draft.type === "auction") {
+        leagueCreateAuctionBudget.value = String(review.draft.budgetDollars);
+        leagueCreateAuctionMinimumBid.value = String(review.draft.minimumBidDollars);
+      }
+      if (review.draft.type === "snake") leagueCreateSnakeRounds.value = String(review.draft.rounds);
+      leagueCreatePassYard.value = String(review.scoring.passingYards);
+      leagueCreatePassTd.value = String(review.scoring.passingTouchdown);
+      leagueCreateRushYard.value = String(review.scoring.rushingYards);
+      leagueCreateRushTd.value = String(review.scoring.rushingTouchdown);
+      leagueCreateReceiveYard.value = String(review.scoring.receivingYards);
+      leagueCreateReceiveTd.value = String(review.scoring.receivingTouchdown);
+      leagueCreatePpr.value = String(review.scoring.reception);
+      leagueCreateWarnings.replaceChildren();
+      (review.warnings || []).forEach(warning => {
+        const item = document.createElement("li");
+        item.textContent = warning.message || warning;
+        leagueCreateWarnings.append(item);
+      });
+      setHidden(leagueCreateWarnings, leagueCreateWarnings.childElementCount === 0);
+      renderLeagueCreationRosterSlots(review.rosterSlots);
+      renderLeagueCreationTeamRows(review.teams);
+      leagueCreateConfirmed.checked = false;
+      leagueCreateSubmit.disabled = true;
+      updateLeagueCreationFormatFields();
+      setHidden(leagueCreateReview, false);
+      leagueCreateReview.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const leagueCreationReviewFromEspn = outcome => {
+      const review = outcome.review;
+      return {
+        leagueName: review.leagueName || "",
+        externalLeagueId: review.externalLeagueId,
+        seasonYear: review.season,
+        teams: review.teams.map(team => ({
+          externalTeamId: team.externalTeamId,
+          displayName: team.displayName,
+          abbreviation: team.abbreviation || "",
+          managerNames: [],
+          confidence: "high",
+          issues: [],
+        })),
+        draft: review.draft,
+        scoring: {
+          passingYards: review.scoring.pointsPerPassingYard,
+          passingTouchdown: review.scoring.pointsPerPassingTouchdown,
+          rushingYards: review.scoring.pointsPerRushingYard,
+          rushingTouchdown: review.scoring.pointsPerRushingTouchdown,
+          receivingYards: review.scoring.pointsPerReceivingYard,
+          receivingTouchdown: review.scoring.pointsPerReceivingTouchdown,
+          reception: review.scoring.pointsPerReception,
+        },
+        rosterSlots: review.rosterSlots,
+        warnings: outcome.warnings || [],
+      };
+    };
+
+    const leagueCreationReviewFromScreenshot = screenshotImport => {
+      const previous = state.leagueCreation;
+      return {
+        leagueName: screenshotImport.leagueName || previous?.leagueName || "",
+        externalLeagueId: screenshotImport.externalLeagueId || previous?.externalLeagueId || leagueCreateEspnId.value.trim(),
+        seasonYear: Number(leagueCreateSeason.value),
+        teams: (screenshotImport.teams || [])
+          .slice()
+          .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
+          .map(team => ({
+            externalTeamId: String(team.draftOrderPosition),
+            displayName: team.teamDisplayName,
+            abbreviation: team.abbreviation,
+            managerNames: team.managerDisplayNames || [],
+            confidence: team.confidence,
+            issues: team.issues || [],
+          })),
+        draft: previous?.draft || { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+        scoring: previous?.scoring || {
+          passingYards: 0.04,
+          passingTouchdown: 4,
+          rushingYards: 0.1,
+          rushingTouchdown: 6,
+          receivingYards: 0.1,
+          receivingTouchdown: 6,
+          reception: 0.5,
+        },
+        rosterSlots: previous?.rosterSlots || defaultLeagueRosterSlots,
+        warnings: previous?.warnings || [],
+      };
+    };
+
+    const manualLeagueCreationReview = outcome => {
+      const teamCount = Math.max(4, Math.min(20, Number(leagueCreateTeamCount.value) || 12));
+      leagueCreateTeamCount.value = String(teamCount);
+      return {
+        leagueName: "",
+        externalLeagueId: outcome?.externalLeagueId || leagueCreateEspnId.value.trim(),
+        seasonYear: outcome?.season || Number(leagueCreateSeason.value),
+        teams: Array.from({ length: teamCount }, (_, index) => ({
+          externalTeamId: String(index + 1),
+          displayName: "",
+          abbreviation: "",
+          managerNames: [],
+          confidence: "low",
+          issues: ["Enter this team's name before creating the league."],
+        })),
+        draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+        scoring: {
+          passingYards: 0.04,
+          passingTouchdown: 4,
+          rushingYards: 0.1,
+          rushingTouchdown: 6,
+          receivingYards: 0.1,
+          receivingTouchdown: 6,
+          reception: 0.5,
+        },
+        rosterSlots: defaultLeagueRosterSlots,
+        warnings: [{ message: "ESPN settings were not imported. Confirm every setting below." }],
+      };
+    };
+
     const draftRoomPathFor = (seasonId, roomId) => {
       const query = new URLSearchParams({ seasonId: seasonId, roomId: roomId });
       return "/draft-room?" + query.toString();
@@ -864,10 +1888,14 @@ export const platformShellHtml = `<!doctype html>
       return path + "?" + query.toString();
     };
 
-    const ownerScopedPaths = new Set(["/board", "/mock-drafts", "/simulations"]);
+    const ownerScopedPaths = new Set();
 
     const productPathFor = (path, selectedLeague) => {
-      const query = new URLSearchParams({ seasonId: selectedLeague.seasonId });
+      const query = new URLSearchParams(
+        path === "/board"
+          ? { contextSeasonId: selectedLeague.seasonId }
+          : { seasonId: selectedLeague.seasonId },
+      );
       const ownerDisplayName = selectedLeague.membership?.ownerDisplayName;
       if (ownerScopedPaths.has(path) && ownerDisplayName) query.set("owner", ownerDisplayName);
       return path + "?" + query.toString();
@@ -884,27 +1912,12 @@ export const platformShellHtml = `<!doctype html>
       navigation.forEach(item => {
         const link = document.querySelector('[data-nav-path="' + item.path + '"]');
         if (!link) return;
-        if (item.path === "/draft-room") {
-          const roomId = selectedLeague.liveDraft?.roomId;
-          if (roomId) {
-            link.href = draftRoomPathFor(selectedLeague.seasonId, roomId);
-            link.removeAttribute("aria-disabled");
-            link.removeAttribute("tabindex");
-          } else if (selectedLeague.canManageLeague) {
-            link.href = pathWithSeason("/setup", selectedLeague.seasonId);
-            link.removeAttribute("aria-disabled");
-            link.removeAttribute("tabindex");
-          } else {
-            link.removeAttribute("href");
-            link.setAttribute("aria-disabled", "true");
-            link.setAttribute("tabindex", "-1");
-          }
-        } else if (ownerScopedPaths.has(item.path) && !selectedLeague.membership?.ownerDisplayName) {
+        if (ownerScopedPaths.has(item.path) && !selectedLeague.membership?.ownerDisplayName) {
           link.removeAttribute("href");
           link.setAttribute("aria-disabled", "true");
           link.setAttribute("tabindex", "-1");
         } else {
-          link.href = item.path === "/app" ? "/app" : productPathFor(item.path, selectedLeague);
+          link.href = productPathFor(item.path, selectedLeague);
           link.removeAttribute("aria-disabled");
           link.removeAttribute("tabindex");
         }
@@ -913,8 +1926,25 @@ export const platformShellHtml = `<!doctype html>
       document.querySelector(".brand").href = pathWithSeason("/app", selectedLeague.seasonId);
     };
 
+    const updateNavigationForNoLeague = () => {
+      navigation.forEach(item => {
+        const link = document.querySelector('[data-nav-path="' + item.path + '"]');
+        if (!link) return;
+        if (item.path === "/my-team") {
+          link.removeAttribute("href");
+          link.setAttribute("aria-disabled", "true");
+          link.setAttribute("tabindex", "-1");
+          return;
+        }
+        link.href = item.path === "/league" ? "/league?create=1" : item.path;
+        link.removeAttribute("aria-disabled");
+        link.removeAttribute("tabindex");
+      });
+      document.querySelector(".brand").href = "/board";
+    };
+
     const hideWorkspaces = () => {
-      ["empty-leagues", "league-workspace", "feature-workspace", "setup-workspace", "setup-access-denied", "invite-workspace"]
+      ["standalone-board", "empty-leagues", "league-workspace", "my-team-workspace", "mock-draft-workspace", "feature-workspace", "setup-workspace", "setup-access-denied", "invite-workspace"]
         .forEach(id => setHidden(byId(id), true));
     };
 
@@ -967,6 +1997,59 @@ export const platformShellHtml = `<!doctype html>
       });
     };
 
+    const summariesForSettings = settings => {
+      if (!settings) return [];
+      const lineup = Object.entries(settings.roster?.lineup || {})
+        .filter(([, count]) => Number(count) > 0)
+        .map(([slot, count]) => count + " " + slot)
+        .join(", ");
+
+      return [
+        ["Draft", settings.draftFormat === "auction"
+          ? "$" + settings.auction.budgetDollars + " auction · $" + settings.auction.minimumBidDollars + " minimum"
+          : settings.snake.rounds + "-round snake"],
+        ["Scoring", settings.scoring.reception + " PPR · " + settings.scoring.passingTouchdown + " point pass TD"],
+        ["Roster", settings.roster.rosterSize + " players · " + lineup],
+      ];
+    };
+
+    const renderSettingsFacts = (container, settings) => {
+      container.replaceChildren();
+      summariesForSettings(settings).forEach(([label, value]) => {
+        const fact = document.createElement("div");
+        fact.className = "fact";
+        const factLabel = document.createElement("span");
+        const factValue = document.createElement("strong");
+        factLabel.textContent = label;
+        factValue.textContent = value;
+        fact.append(factLabel, factValue);
+        container.append(fact);
+      });
+    };
+
+    const renderLeagueOverview = season => {
+      renderSettingsFacts(leagueOverviewSettings, season?.settings);
+      const teams = [...(season?.teams || [])]
+        .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+      leagueOverviewTeamBody.replaceChildren();
+      teams.forEach(team => {
+        const row = document.createElement("tr");
+        const managers = team.managerDisplayNames?.length
+          ? team.managerDisplayNames.join(", ")
+          : team.ownerDisplayName;
+        [team.draftOrderPosition, team.displayName, managers].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+        leagueOverviewTeamBody.append(row);
+      });
+      leagueOverviewTeamSummary.textContent = teams.length
+        ? teams.length + " teams in this league."
+        : "No teams have been configured for this season.";
+      setHidden(leagueOverviewTeamTable, teams.length === 0);
+    };
+
     const renderSeasonTeams = season => {
       state.currentSeason = season || null;
       const teams = [...(season?.teams || [])]
@@ -1002,6 +2085,30 @@ export const platformShellHtml = `<!doctype html>
         ? teams.length + " teams configured."
         : "No teams have been configured for this season.";
       setHidden(setupTeamTable, teams.length === 0);
+      const settings = season?.settings;
+      renderSettingsFacts(setupSettingsSummary, settings);
+      const isDraftSetup = season?.setupStatus === "draft";
+      if (!historicalImportYear.value && season?.seasonYear) {
+        historicalImportYear.value = String(season.seasonYear - 1);
+      }
+      setHidden(publishSeasonButton, !isDraftSetup || state.setupLocked);
+      const isSnake = season?.settings?.draftFormat === "snake";
+      setupFinalReview.disabled = !isDraftSetup || state.setupLocked;
+      if (!isDraftSetup) setupFinalReview.checked = true;
+      publishSeasonButton.disabled = !setupFinalReview.checked;
+      historicalImportDescription.textContent = isSnake
+        ? "Historical snake draft imports are not available yet. This does not block league mocks."
+        : "Upload a prior auction draft as CSV, TSV, or XLSX with Team, Player, Position, and Price columns. Add a Public value, ESPN value, or AAV column so Mockd can measure league inflation and recalibrate values.";
+      historicalImportFile.disabled = isSnake || state.setupLocked;
+      historicalImportYear.disabled = isSnake || state.setupLocked;
+      historicalPreviewButton.disabled = isSnake || state.setupLocked;
+      historicalReplaceInput.disabled = isSnake || state.setupLocked;
+      createLiveRoomButton.disabled = isDraftSetup || isSnake;
+      if (isSnake && !state.setupLocked) {
+        liveRoomSetupStatus.textContent = "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.";
+      } else if (isDraftSetup && !state.setupLocked) {
+        liveRoomSetupStatus.textContent = "Publish the reviewed league setup before creating its shared draft room.";
+      }
     };
 
     const loadClaimableTeams = async selectedLeague => {
@@ -1009,7 +2116,7 @@ export const platformShellHtml = `<!doctype html>
         "/seasons/" + encodeURIComponent(selectedLeague.seasonId),
         { credentials: "same-origin" },
       ));
-      const teams = [...(body.season?.teams || [])]
+      const teams = [...(body.claimableTeams || [])]
         .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
       teamClaimPicker.replaceChildren();
       teams.forEach(team => {
@@ -1029,6 +2136,8 @@ export const platformShellHtml = `<!doctype html>
       state.setupLocked = hasRoom;
       setHidden(createLiveRoomButton, hasRoom);
       setHidden(openSetupLiveRoom, !hasRoom);
+      setHidden(cancelLiveRoomButton, !hasRoom || (room.status !== "setup" && room.status !== "countdown"));
+      cancelLiveRoomButton.disabled = !hasRoom;
       draftStartsAtInput.disabled = hasRoom;
       setupRowsInput.disabled = hasRoom;
       setupPreviewButton.disabled = hasRoom;
@@ -1039,6 +2148,14 @@ export const platformShellHtml = `<!doctype html>
       screenshotLeagueName.disabled = hasRoom;
       screenshotLeagueId.disabled = hasRoom;
       screenshotReviewBody.querySelectorAll("input, select").forEach(control => { control.disabled = hasRoom; });
+      historicalImportFile.disabled = hasRoom;
+      historicalImportYear.disabled = hasRoom;
+      historicalPreviewButton.disabled = hasRoom;
+      historicalReplaceInput.disabled = hasRoom;
+      historicalCommitButton.disabled = hasRoom || state.historicalImportBatchId === null;
+      keeperCommandInput.disabled = hasRoom;
+      keeperPreviewButton.disabled = hasRoom;
+      keeperApplyButton.disabled = hasRoom || state.keeperPreviewCommand === null;
       if (hasRoom) {
         openSetupLiveRoom.href = draftRoomPathFor(selectedLeague.seasonId, room.roomId);
         liveRoomSetupStatus.textContent = "The shared draft room is ready.";
@@ -1050,8 +2167,282 @@ export const platformShellHtml = `<!doctype html>
       }
     };
 
+    const loadMyTeam = async selectedLeague => {
+      setHidden(myTeamResults, true);
+      setHidden(myTeamClaimLink, true);
+      myTeamRosterBody.replaceChildren();
+      myTeamFindings.replaceChildren();
+      if (!selectedLeague.membership?.teamId) {
+        myTeamStatus.textContent = "Claim your team from League before opening private roster analysis.";
+        myTeamClaimLink.href = pathWithSeason("/league", selectedLeague.seasonId);
+        setHidden(myTeamClaimLink, false);
+        return;
+      }
+      if (!selectedLeague.liveDraft?.roomId) {
+        myTeamStatus.textContent = "Your roster and draft rank will appear here after the league draft ends.";
+        return;
+      }
+
+      myTeamStatus.textContent = "Loading your private post-draft review...";
+      const body = await readJson(await fetch(
+        "/live-rooms/" + encodeURIComponent(selectedLeague.liveDraft.roomId) + "/my-team",
+        { credentials: "same-origin" },
+      ));
+      const ranking = body.analysis?.ranking || { status: "unavailable", teamCount: 0, reasons: [] };
+      byId("my-team-rank").textContent = ranking.status === "available" ? "#" + ranking.rank : "Unavailable";
+      byId("my-team-count").textContent = String(ranking.teamCount || 0);
+      const startSitRecommendations = body.analysis?.recommendations?.startSit
+        || body.analysis?.recommendationReadiness?.startSit
+        || { status: "unavailable", reasons: [], records: [] };
+      const pickupDropRecommendations = body.analysis?.recommendations?.pickupDrop
+        || body.analysis?.recommendationReadiness?.pickupDrop
+        || { status: "unavailable", reasons: [], records: [] };
+      const startSit = startSitRecommendations.status;
+      const pickupDrop = pickupDropRecommendations.status;
+      byId("my-team-coach").textContent = startSit === "ready" && pickupDrop === "ready"
+        ? "Ready"
+        : "Unavailable";
+
+      (body.roster?.players || []).forEach(player => {
+        const row = document.createElement("tr");
+        [player.playerName, player.position].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.append(cell);
+        });
+        myTeamRosterBody.append(row);
+      });
+      const findings = [
+        ...(body.analysis?.strengths || []).map(finding => ({ label: "Strength", finding })),
+        ...(body.analysis?.risks || []).map(finding => ({ label: "Risk", finding })),
+        ...(ranking.status === "unavailable"
+          ? (ranking.reasons || []).map(reason => ({ label: "Ranking", finding: { summary: reason.message, evidence: "" } }))
+          : []),
+        ...(startSitRecommendations.records || []).map(record => ({
+          label: "Start/sit",
+          finding: { summary: record.explanation, evidence: "" },
+        })),
+        ...(pickupDropRecommendations.records || []).map(record => ({
+          label: "Pickup/drop",
+          finding: { summary: record.explanation, evidence: "" },
+        })),
+        ...(startSit !== "ready"
+          ? (startSitRecommendations.reasons || []).map(reason => ({
+              label: "Start/sit",
+              finding: { summary: reason.message, evidence: "" },
+            }))
+          : []),
+        ...(pickupDrop !== "ready"
+          ? (pickupDropRecommendations.reasons || []).map(reason => ({
+              label: "Pickup/drop",
+              finding: { summary: reason.message, evidence: "" },
+            }))
+          : []),
+      ];
+      if (!findings.length) {
+        const item = document.createElement("li");
+        item.textContent = "No major roster risks were detected.";
+        myTeamFindings.append(item);
+      } else {
+        findings.forEach(({ label, finding }) => {
+          const item = document.createElement("li");
+          item.textContent = label + ": " + finding.summary + (finding.evidence ? " " + finding.evidence : "");
+          myTeamFindings.append(item);
+        });
+      }
+      const projectionSource = body.analysis?.projectionProvenance?.source;
+      myTeamStatus.textContent = projectionSource?.kind === "static_fallback"
+        ? "Roster loaded. Rankings and coach advice need current league-scoring projections."
+        : "Private analysis generated from the completed league draft.";
+      setHidden(myTeamResults, false);
+    };
+
+    const mockDraftPlayerName = playerId =>
+      state.mockDraft?.board?.players?.find(player => player.id === playerId)?.name || playerId;
+
+    const renderMockDraft = () => {
+      const draft = state.mockDraft;
+      const session = state.mockSession;
+      if (!draft || !session) return;
+      const sessionState = draft.session || {};
+      const auction = session.draftMode?.format === "auction";
+      const picks = draft.board?.picks || [];
+      const completedPicks = picks.filter(pick => pick.selection).length;
+      byId("mock-draft-title").textContent = auction ? "Auction mock draft" : "Snake mock draft";
+      byId("mock-draft-state").textContent = titleCase(sessionState.status || session.status || "setup");
+      const currentPick = sessionState.currentPick;
+      const decisionTeamId = auction ? sessionState.nextNominatorTeamId : currentPick?.teamId;
+      const currentTeam = decisionTeamId
+        ? draft.teams?.find(team => team.id === decisionTeamId)
+        : null;
+      const nomination = sessionState.currentNomination;
+      byId("mock-draft-on-clock").textContent = nomination
+        ? nomination.playerName + " · $" + nomination.currentPrice
+        : currentTeam?.name || (sessionState.status === "completed" ? "Complete" : "Not started");
+      const auctionCapacity = (draft.teams || []).reduce(
+        (total, team) => total + (team.roster?.length || 0) + (team.rosterSlotsRemaining || 0),
+        0,
+      );
+      byId("mock-draft-progress").textContent = auction
+        ? (draft.sales?.length || 0) + " / " + auctionCapacity + " rostered"
+        : completedPicks + " / " + picks.length + " picks";
+      mockDraftStart.disabled = sessionState.status !== "setup";
+      mockDraftBuy.disabled = !auction || nomination?.humanCanBuy !== true;
+      mockDraftBuy.textContent = nomination?.nextBid ? "Buy $" + nomination.nextBid : "Buy";
+      mockDraftPass.disabled = !auction || nomination?.humanCanPass !== true;
+      mockDraftUndo.disabled = sessionState.canUndo !== true;
+      mockDraftComplete.disabled = sessionState.canComplete !== true;
+
+      const search = mockDraftSearch.value.trim().toLowerCase();
+      const players = (draft.board?.players || []).filter(player => {
+        if (!player.available) return false;
+        if (!search) return true;
+        return [player.name, player.position].some(value => String(value || "").toLowerCase().includes(search));
+      });
+      const canPick = sessionState.status === "active" && (auction
+        ? sessionState.phase === "awaiting_human_nomination"
+        : currentPick?.teamId === session.teamId);
+      const fragment = document.createDocumentFragment();
+      players.forEach(player => {
+        const row = document.createElement("tr");
+        const values = [
+          { label: auction ? "Value" : "Rank", value: auction
+              ? "$" + Math.round(Number(player.expectedPrice || 0))
+              : String(player.personalRank || player.leagueExpectedPick || player.rank || "-"), className: "numeric" },
+          { label: "Player", value: player.name, className: "player-name" },
+          { label: "Position", value: player.position || "-" },
+          { label: "Status", value: "Available" },
+        ];
+        values.forEach(value => {
+          const cell = document.createElement("td");
+          cell.dataset.label = value.label;
+          cell.textContent = value.value;
+          if (value.className) cell.className = value.className;
+          row.append(cell);
+        });
+        const actionCell = document.createElement("td");
+        actionCell.dataset.label = "Action";
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "mock-player-action";
+        actionButton.dataset.mockPlayerId = player.id;
+        actionButton.textContent = auction ? "Nominate" : "Draft";
+        actionButton.disabled = !canPick;
+        actionCell.append(actionButton);
+        row.append(actionCell);
+        fragment.append(row);
+      });
+      mockDraftPlayerRows.replaceChildren(fragment);
+
+      const myTeam = draft.teams?.find(team => team.id === session.teamId);
+      const rosterFragment = document.createDocumentFragment();
+      (myTeam?.slots || []).forEach(slot => {
+        const item = document.createElement("li");
+        const slotName = document.createElement("span");
+        slotName.textContent = slot.slot;
+        const playerName = document.createElement("strong");
+        playerName.textContent = slot.playerId ? mockDraftPlayerName(slot.playerId) : "Open";
+        item.append(slotName, playerName);
+        rosterFragment.append(item);
+      });
+      if (!rosterFragment.childNodes.length) {
+        const item = document.createElement("li");
+        item.textContent = "Your roster will fill as the mock runs.";
+        rosterFragment.append(item);
+      }
+      mockDraftRoster.replaceChildren(rosterFragment);
+      mockDraftStatus.textContent = canPick
+        ? auction
+          ? "Choose a player to nominate."
+          : "You are on the clock. Choose a player from the board."
+        : auction && nomination?.humanCanBuy
+          ? "Buy at the next bid or pass."
+        : sessionState.status === "setup"
+          ? "Ready when you are."
+          : sessionState.status === "completed"
+            ? "Mock complete. Review your roster or start another mock from the Board."
+            : "Mockd is ready for your next turn.";
+    };
+
+    const mockCommandId = type => {
+      const randomId = window.crypto?.randomUUID?.();
+      return type + ":" + (randomId || String(Date.now()));
+    };
+
+    const sendMockDraftCommand = async command => {
+      const selectedLeague = state.selectedLeague;
+      const session = state.mockSession;
+      if (!selectedLeague || !session) return;
+      const controls = [
+        mockDraftStart,
+        mockDraftBuy,
+        mockDraftPass,
+        mockDraftUndo,
+        mockDraftComplete,
+        ...mockDraftPlayerRows.querySelectorAll("button"),
+      ];
+      controls.forEach(control => { control.disabled = true; });
+      mockDraftStatus.textContent = "Updating the mock draft...";
+      try {
+        const body = await readJson(await fetch(
+          "/season-mock-drafts/" + encodeURIComponent(session.id) + "/commands",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              seasonId: selectedLeague.seasonId,
+              commandId: mockCommandId(command.type),
+              command: command,
+            }),
+          },
+        ));
+        state.mockSession = body.mockSession;
+        state.mockDraft = body.state;
+        renderMockDraft();
+      } catch (error) {
+        mockDraftStatus.textContent = error.message;
+        renderMockDraft();
+      }
+    };
+
+    const loadMockDraft = async selectedLeague => {
+      const requestGeneration = ++state.mockRequestGeneration;
+      state.mockSession = null;
+      state.mockDraft = null;
+      mockDraftPlayerRows.replaceChildren();
+      mockDraftRoster.replaceChildren();
+      mockDraftStatus.textContent = "Opening your league mock...";
+      const query = new URLSearchParams(window.location.search);
+      const requestedSessionId = query.get("mockSessionId");
+      const response = requestedSessionId
+        ? await fetch(
+            "/season-mock-drafts/" + encodeURIComponent(requestedSessionId)
+              + "?seasonId=" + encodeURIComponent(selectedLeague.seasonId),
+            { credentials: "same-origin" },
+          )
+        : await fetch("/season-mock-drafts", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ seasonId: selectedLeague.seasonId }),
+          });
+      const body = await readJson(response);
+      if (requestGeneration !== state.mockRequestGeneration) return;
+      state.mockSession = body.mockSession;
+      state.mockDraft = body.state;
+      if (!requestedSessionId) {
+        query.set("seasonId", selectedLeague.seasonId);
+        query.set("mockSessionId", body.mockSession.id);
+        window.history.replaceState(null, "", routePath + "?" + query.toString());
+      }
+      renderMockDraft();
+    };
+
     const selectedLeagueFor = onboarding => {
-      const requestedSeasonId = new URLSearchParams(window.location.search).get("seasonId");
+      const search = new URLSearchParams(window.location.search);
+      if (routePath === "/league" && search.get("create") === "1") return null;
+      const requestedSeasonId = search.get("seasonId") || search.get("contextSeasonId");
       return onboarding.leagues.find(league => league.seasonId === requestedSeasonId)
         || onboarding.leagues[0]
         || null;
@@ -1063,6 +2454,20 @@ export const platformShellHtml = `<!doctype html>
         resetScreenshotReview({ clearFile: true, clearStatus: true });
         state.currentSeason = null;
         state.claimedTeamIds = new Set();
+        state.historicalImportBatchId = null;
+        state.keeperPreviewCommand = null;
+        state.mockRequestGeneration += 1;
+        state.mockSession = null;
+        state.mockDraft = null;
+        historicalCommitButton.disabled = true;
+        historicalImportStatus.textContent = "";
+        historicalImportIssues.replaceChildren();
+        keeperApplyButton.disabled = true;
+        keeperStatus.textContent = "";
+        keeperList.replaceChildren();
+        setupFinalReview.checked = false;
+        setHidden(simulationResults, true);
+        simulationStatus.textContent = "";
       }
       state.selectedLeague = selectedLeague;
       hideWorkspaces();
@@ -1075,7 +2480,19 @@ export const platformShellHtml = `<!doctype html>
       if (!selectedLeague) {
         setHidden(leagueContext, true);
         setHidden(commissionerNavItem, true);
-        setHidden(byId("empty-leagues"), false);
+        updateNavigationForNoLeague();
+        if (routePath === "/board") {
+          setHidden(simulationPanel, true);
+          setHidden(byId("standalone-board-create-league"), false);
+          setHidden(byId("standalone-board-open-mock"), true);
+          setHidden(byId("standalone-board-open-simulations"), true);
+          setHidden(byId("standalone-board-open-live"), true);
+          loadStandaloneBoard().catch(error => {
+            standaloneBoardStatus.textContent = error.message;
+          });
+        } else {
+          setHidden(byId("empty-leagues"), false);
+        }
         return;
       }
 
@@ -1085,6 +2502,31 @@ export const platformShellHtml = `<!doctype html>
       byId("membership-role").textContent = titleCase(membership.role);
       commissionerNavItem.classList.toggle("hidden", !selectedLeague.canManageLeague);
       updateNavigation(selectedLeague);
+
+      if (routePath === "/board") {
+        configureSimulationPanel(selectedLeague);
+        setHidden(byId("standalone-board-create-league"), true);
+        const mockLink = byId("standalone-board-open-mock");
+        mockLink.href = pathWithSeason("/mock-drafts", selectedLeague.seasonId);
+        setHidden(mockLink, false);
+        setHidden(byId("standalone-board-open-simulations"), false);
+        const liveLink = byId("standalone-board-open-live");
+        if (selectedLeague.liveDraft?.roomId) {
+          liveLink.href = draftRoomPathFor(selectedLeague.seasonId, selectedLeague.liveDraft.roomId);
+          liveLink.textContent = "Live draft";
+          setHidden(liveLink, false);
+        } else if (selectedLeague.canManageLeague) {
+          liveLink.href = pathWithSeason("/setup", selectedLeague.seasonId);
+          liveLink.textContent = "Set up live draft";
+          setHidden(liveLink, false);
+        } else {
+          setHidden(liveLink, true);
+        }
+        loadStandaloneBoard().catch(error => {
+          standaloneBoardStatus.textContent = error.message;
+        });
+        return;
+      }
 
       if (routePath === "/setup") {
         if (selectedLeague.canManageLeague) {
@@ -1105,19 +2547,43 @@ export const platformShellHtml = `<!doctype html>
           loadSeasonInvitations(seasonId, requestGeneration).catch(error => {
             if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = error.message;
           });
+          loadSeasonKeepers(seasonId, requestGeneration).catch(error => {
+            if (isCurrentSetupRequest(seasonId, requestGeneration)) keeperStatus.textContent = error.message;
+          });
         } else {
           setHidden(byId("setup-access-denied"), false);
         }
         return;
       }
 
-      const feature = featureRoutes[routePath];
-      if (feature) {
-        byId("feature-eyebrow").textContent = feature[0];
-        byId("feature-title").textContent = feature[1];
-        byId("feature-description").textContent = feature[2];
-        byId("feature-empty-state").textContent = "This workspace is ready for " + selectedLeague.leagueName + ".";
-        setHidden(byId("feature-workspace"), false);
+      if (routePath === "/mock-drafts") {
+        setHidden(byId("mock-draft-workspace"), false);
+        if (!membership.teamId) {
+          mockDraftStart.disabled = true;
+          mockDraftBuy.disabled = true;
+          mockDraftPass.disabled = true;
+          mockDraftUndo.disabled = true;
+          mockDraftComplete.disabled = true;
+          mockDraftStatus.textContent = "Claim your team from League before starting a private mock draft.";
+        } else {
+          loadMockDraft(selectedLeague).catch(error => {
+            mockDraftStatus.textContent = error.message;
+            mockDraftStart.disabled = true;
+            mockDraftBuy.disabled = true;
+            mockDraftPass.disabled = true;
+            mockDraftUndo.disabled = true;
+            mockDraftComplete.disabled = true;
+          });
+        }
+        return;
+      }
+
+      if (routePath === "/my-team") {
+        setHidden(byId("my-team-workspace"), false);
+        loadMyTeam(selectedLeague).catch(error => {
+          myTeamStatus.textContent = error.message;
+          setHidden(myTeamResults, true);
+        });
         return;
       }
 
@@ -1129,6 +2595,22 @@ export const platformShellHtml = `<!doctype html>
       byId("next-draft-at").textContent = selectedLeague.nextDraftAt
         ? new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(new Date(selectedLeague.nextDraftAt))
         : "No draft time scheduled.";
+
+      const overviewRequestGeneration = state.workspaceRequestGeneration;
+      const overviewSeasonId = selectedLeague.seasonId;
+      leagueOverviewTeamSummary.textContent = "Loading league teams...";
+      fetch("/seasons/" + encodeURIComponent(overviewSeasonId), { credentials: "same-origin" })
+        .then(readJson)
+        .then(body => {
+          if (isCurrentWorkspaceRequest(overviewSeasonId, overviewRequestGeneration)) {
+            renderLeagueOverview(body.season);
+          }
+        })
+        .catch(error => {
+          if (isCurrentWorkspaceRequest(overviewSeasonId, overviewRequestGeneration)) {
+            leagueOverviewTeamSummary.textContent = error.message;
+          }
+        });
 
       const needsTeamClaim = !membership.teamId;
       setHidden(teamClaimPanel, !needsTeamClaim);
@@ -1224,7 +2706,7 @@ export const platformShellHtml = `<!doctype html>
       event.preventDefault();
       setHidden(authError, true);
       authSubmitButton.disabled = true;
-      const accountRequest = signupMode
+      const authRequest = signupMode
         ? fetch("/accounts", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -1233,14 +2715,65 @@ export const platformShellHtml = `<!doctype html>
               email: emailInput.value,
               password: passwordInput.value,
               invitationToken: signupInvitationToken(),
+              returnTo: authenticationReturnPath(),
             }),
-          }).then(readJson).then(login)
-        : login();
-      accountRequest
-        .then(finishAuthentication)
+          }).then(readJson).then(body => {
+            if (body.account) return login();
+            authNotice.textContent = body.message;
+            setHidden(authNotice, false);
+            return null;
+          })
+        : verificationMode
+          ? fetch("/email-verifications", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                email: emailInput.value,
+                returnTo: authenticationReturnPath(),
+              }),
+            }).then(readJson).then(body => {
+              authNotice.textContent = body.message;
+              setHidden(authNotice, false);
+              return null;
+            })
+          : forgotPasswordMode
+            ? fetch("/password-resets", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ email: emailInput.value }),
+              }).then(readJson).then(body => {
+                authNotice.textContent = body.message;
+                setHidden(authNotice, false);
+                return null;
+              })
+            : resetPasswordMode
+              ? fetch("/password-resets/consume", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({
+                    token: new URLSearchParams(window.location.search).get("token") || "",
+                    newPassword: passwordInput.value,
+                    newPasswordConfirmation: passwordConfirmationInput.value,
+                  }),
+                }).then(readJson).then(() => {
+                  window.location.assign("/login?passwordChanged=1");
+                  return null;
+                })
+              : login();
+      authRequest
+        .then(account => account ? finishAuthentication(account) : undefined)
         .catch(error => {
           authError.textContent = error.message;
           setHidden(authError, false);
+          if (error.body && error.body.error && error.body.error.code === "email_unverified") {
+            authModePrompt.textContent = "Need a new verification link?";
+            authModeLink.textContent = "Resend verification";
+            authModeLink.href = "/verify-email?email=" + encodeURIComponent(emailInput.value)
+              + "&returnTo=" + encodeURIComponent(authenticationReturnPath());
+          }
         })
         .finally(() => { authSubmitButton.disabled = false; });
     });
@@ -1298,7 +2831,12 @@ export const platformShellHtml = `<!doctype html>
       renderSelectedLeague(selectedLeague);
       if (selectedLeague) {
         const query = new URLSearchParams(window.location.search);
-        query.set("seasonId", selectedLeague.seasonId);
+        if (routePath === "/board") {
+          query.delete("seasonId");
+          query.set("contextSeasonId", selectedLeague.seasonId);
+        } else {
+          query.set("seasonId", selectedLeague.seasonId);
+        }
         window.history.replaceState(null, "", routePath + "?" + query.toString());
       }
     });
@@ -1307,9 +2845,12 @@ export const platformShellHtml = `<!doctype html>
     const screenshotMaxBytes = 5 * 1024 * 1024;
     const screenshotMimeTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 
-    const isCurrentSetupRequest = (seasonId, requestGeneration) =>
+    const isCurrentWorkspaceRequest = (seasonId, requestGeneration) =>
       state.workspaceRequestGeneration === requestGeneration &&
-      state.selectedLeague?.seasonId === seasonId &&
+      state.selectedLeague?.seasonId === seasonId;
+
+    const isCurrentSetupRequest = (seasonId, requestGeneration) =>
+      isCurrentWorkspaceRequest(seasonId, requestGeneration) &&
       byId("setup-season-id-input").value === seasonId;
 
     const resetScreenshotReview = (options = {}) => {
@@ -1628,6 +3169,354 @@ export const platformShellHtml = `<!doctype html>
       }
     });
 
+    const renderHistoricalIssues = issues => {
+      historicalImportIssues.replaceChildren();
+      (issues || []).forEach(issue => {
+        const item = document.createElement("li");
+        const message = document.createElement("span");
+        message.textContent = issue.message || "This import row needs attention.";
+        item.append(message);
+        if (
+          (issue.code === "owner_unknown" || issue.code === "owner_ambiguous")
+          && issue.sourceValue
+          && state.currentSeason?.teams?.length
+        ) {
+          const picker = document.createElement("select");
+          picker.setAttribute("aria-label", "Map " + issue.sourceValue + " to a current team");
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = "Choose current team";
+          picker.append(placeholder);
+          state.currentSeason.teams.forEach(team => {
+            const option = document.createElement("option");
+            option.value = team.id;
+            option.textContent = team.displayName + " (" + team.ownerDisplayName + ")";
+            picker.append(option);
+          });
+          picker.value = state.historicalOwnerMappings[issue.sourceValue] || "";
+          picker.addEventListener("change", () => {
+            if (picker.value) state.historicalOwnerMappings[issue.sourceValue] = picker.value;
+            else delete state.historicalOwnerMappings[issue.sourceValue];
+            state.historicalImportBatchId = null;
+            historicalCommitButton.disabled = true;
+            historicalImportStatus.textContent = "Review the file again with the selected team mapping.";
+          });
+          item.append(picker);
+        }
+        if (
+          (issue.code === "player_ambiguous" || issue.code === "player_unresolved")
+          && issue.rowNumber
+          && (issue.candidates || []).some(candidate => candidate.playerId)
+        ) {
+          const picker = document.createElement("select");
+          picker.setAttribute("aria-label", "Resolve player on row " + issue.rowNumber);
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = "Choose player";
+          picker.append(placeholder);
+          (issue.candidates || []).filter(candidate => candidate.playerId).forEach(candidate => {
+            const option = document.createElement("option");
+            option.value = candidate.playerId;
+            option.textContent = candidate.playerName + " (" + candidate.position + ")";
+            picker.append(option);
+          });
+          picker.value = state.historicalPlayerMappings[issue.rowNumber] || "";
+          picker.addEventListener("change", () => {
+            if (picker.value) state.historicalPlayerMappings[issue.rowNumber] = picker.value;
+            else delete state.historicalPlayerMappings[issue.rowNumber];
+            state.historicalImportBatchId = null;
+            historicalCommitButton.disabled = true;
+            historicalImportStatus.textContent = "Review the file again with the selected player mapping.";
+          });
+          item.append(picker);
+        }
+        historicalImportIssues.append(item);
+      });
+    };
+
+    const renderHistoricalRows = rows => {
+      const fragment = document.createDocumentFragment();
+      (rows || []).forEach(rowPreview => {
+        const row = document.createElement("tr");
+        const record = rowPreview.record;
+        const playerIssue = (rowPreview.blockers || []).find(issue =>
+          issue.code === "player_ambiguous" || issue.code === "player_unresolved"
+        );
+        const values = [
+          rowPreview.rowNumber,
+          record?.ownerDisplayName || rowPreview.identityAudit?.sourceOwnerOrTeamLabel || "-",
+          record?.playerName || playerIssue?.sourceValue || "-",
+          record?.position || "-",
+          record ? "$" + record.priceDollars : "-",
+          record?.publicPriceDollars ? "$" + record.publicPriceDollars : "-",
+          rowPreview.status === "ready" ? "Ready" : "Needs review",
+        ];
+        values.forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+        fragment.append(row);
+      });
+      historicalImportPreviewBody.replaceChildren(fragment);
+      setHidden(historicalImportPreviewTable, !rows?.length);
+    };
+
+    historicalImportFile.addEventListener("change", () => {
+      state.historicalImportBatchId = null;
+      state.historicalOwnerMappings = {};
+      state.historicalPlayerMappings = {};
+      historicalCommitButton.disabled = true;
+      historicalImportStatus.textContent = "";
+      renderHistoricalIssues([]);
+      renderHistoricalRows([]);
+    });
+
+    historicalPreviewButton.addEventListener("click", async () => {
+      const seasonId = byId("setup-season-id-input").value;
+      const file = historicalImportFile.files?.[0];
+      const seasonYear = Number(historicalImportYear.value);
+      if (!file) {
+        historicalImportStatus.textContent = "Choose a CSV, TSV, or XLSX draft file first.";
+        historicalImportFile.focus();
+        return;
+      }
+      if (!Number.isInteger(seasonYear) || seasonYear < 2000 || seasonYear > 2100) {
+        historicalImportStatus.textContent = "Choose the year these draft results came from.";
+        historicalImportYear.focus();
+        return;
+      }
+
+      state.historicalImportBatchId = null;
+      historicalPreviewButton.disabled = true;
+      historicalCommitButton.disabled = true;
+      historicalImportStatus.textContent = "Checking draft history...";
+      renderHistoricalIssues([]);
+      try {
+        const body = await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(seasonId) + "/historical-imports/upload-preview",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              fileName: file.name,
+              mimeType: file.type || "application/octet-stream",
+              base64: await imageBase64For(file),
+              seasonYear: seasonYear,
+              replacementRequested: historicalReplaceInput.checked,
+              ownerMappings: Object.entries(state.historicalOwnerMappings).map(entry => ({
+                sourceOwnerOrTeamLabel: entry[0],
+                teamId: entry[1],
+              })),
+              playerMappings: Object.entries(state.historicalPlayerMappings).map(entry => ({
+                rowNumber: Number(entry[0]),
+                playerId: entry[1],
+              })),
+            }),
+          },
+        ));
+        const batch = body.batch || {};
+        const issues = [
+          ...(body.source?.sourceWarnings || []),
+          ...(batch.blockers || []),
+          ...(batch.warnings || []),
+        ];
+        renderHistoricalIssues(issues);
+        renderHistoricalRows(batch.rows || []);
+        if (batch.status === "previewed") {
+          state.historicalImportBatchId = batch.id;
+          historicalCommitButton.disabled = state.setupLocked;
+          const readyRows = (batch.rows || []).filter(row => row.status === "ready");
+          const publicValueRows = readyRows.filter(row => row.record?.publicPriceDollars).length;
+          historicalImportStatus.textContent = publicValueRows
+            ? readyRows.length + " draft rows are ready; " + publicValueRows + " can calibrate league inflation."
+            : readyRows.length + " draft rows are ready. History will be saved, but values cannot be recalibrated without a Public value, ESPN value, or AAV column.";
+        } else {
+          historicalImportStatus.textContent = "Resolve the import issues before continuing.";
+        }
+      } catch (error) {
+        historicalImportStatus.textContent = error.message;
+      } finally {
+        historicalPreviewButton.disabled = state.setupLocked;
+      }
+    });
+
+    historicalCommitButton.addEventListener("click", async () => {
+      const seasonId = byId("setup-season-id-input").value;
+      const batchId = state.historicalImportBatchId;
+      if (!batchId) return;
+      historicalCommitButton.disabled = true;
+      historicalImportStatus.textContent = "Importing draft history and updating league values...";
+      try {
+        const body = await readJson(await fetch(
+          "/historical-imports/" + encodeURIComponent(batchId) + "/commit",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              seasonId: seasonId,
+              seasonYear: Number(historicalImportYear.value),
+            }),
+          },
+        ));
+        const importedYear = body.batch?.seasonYear;
+        const importedRecords = body.committedRecords || [];
+        const rowCount = importedRecords.length;
+        const publicValueRows = importedRecords.filter(record => record.publicPriceDollars).length;
+        historicalImportStatus.textContent = publicValueRows
+          ? rowCount + " draft rows imported for " + importedYear + ". League values were recalibrated from " + publicValueRows + " public-value comparisons."
+          : rowCount + " draft rows imported for " + importedYear + ". History was saved, but values were not recalibrated because the file had no public-value column.";
+        state.historicalImportBatchId = null;
+        state.playerCatalog = null;
+        state.playerCatalogSeasonId = null;
+        historicalImportFile.value = "";
+      } catch (error) {
+        historicalImportStatus.textContent = error.message;
+        historicalCommitButton.disabled = state.setupLocked;
+      }
+    });
+
+    const renderSeasonKeepers = keepers => {
+      keeperList.replaceChildren();
+      if (!keepers.length) {
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "No keepers added yet.";
+        keeperList.append(empty);
+        return;
+      }
+      const teams = new Map((state.currentSeason?.teams || []).map(team => [team.id, team.displayName]));
+      keepers.forEach(keeper => {
+        const row = document.createElement("div");
+        row.className = "keeper-row";
+        const identity = document.createElement("strong");
+        identity.textContent = (teams.get(keeper.teamId) || "Team") + " · " + keeper.playerName;
+        const value = document.createElement("span");
+        value.textContent = keeper.keeperRound
+          ? "Round " + keeper.keeperRound
+          : "$" + keeper.price;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.dataset.keeperAction = "remove";
+        remove.dataset.teamId = keeper.teamId;
+        remove.dataset.playerId = keeper.playerId || "";
+        remove.disabled = state.setupLocked;
+        row.append(identity, value, remove);
+        keeperList.append(row);
+      });
+    };
+
+    const loadSeasonKeepers = async (seasonId, requestGeneration = state.workspaceRequestGeneration) => {
+      const body = await readJson(await fetch(
+        "/seasons/" + encodeURIComponent(seasonId) + "/keepers",
+        { credentials: "same-origin" },
+      ));
+      if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
+      renderSeasonKeepers(body.keepers || []);
+    };
+
+    keeperCommandInput.addEventListener("input", () => {
+      state.keeperPreviewCommand = null;
+      keeperApplyButton.disabled = true;
+      keeperStatus.textContent = "";
+    });
+
+    keeperPreviewButton.addEventListener("click", async () => {
+      const seasonId = byId("setup-season-id-input").value;
+      const command = keeperCommandInput.value.trim();
+      if (!command) {
+        keeperStatus.textContent = "Enter a keeper command first.";
+        keeperCommandInput.focus();
+        return;
+      }
+      keeperPreviewButton.disabled = true;
+      keeperApplyButton.disabled = true;
+      keeperStatus.textContent = "Checking keeper...";
+      try {
+        const response = await fetch(
+          "/seasons/" + encodeURIComponent(seasonId) + "/keepers/preview",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ command: command }),
+          },
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body.kind !== "preview") {
+          throw new Error(body.error?.message || errorMessageFor(body));
+        }
+        state.keeperPreviewCommand = command;
+        const value = body.keeper.draftType === "snake"
+          ? "round " + body.keeper.keeperRound
+          : "$" + body.keeper.auctionCostDollars;
+        keeperStatus.textContent = body.team.name + " keeps " + body.player.name + " for " + value + ".";
+        keeperApplyButton.disabled = state.setupLocked;
+      } catch (error) {
+        state.keeperPreviewCommand = null;
+        keeperStatus.textContent = error.message;
+      } finally {
+        keeperPreviewButton.disabled = state.setupLocked;
+      }
+    });
+
+    keeperApplyButton.addEventListener("click", async () => {
+      const seasonId = byId("setup-season-id-input").value;
+      const command = state.keeperPreviewCommand;
+      if (!command) return;
+      keeperApplyButton.disabled = true;
+      keeperStatus.textContent = "Adding keeper and updating league values...";
+      try {
+        const body = await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(seasonId) + "/keepers/apply",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ command: command, confirmed: true }),
+          },
+        ));
+        renderSeasonKeepers(body.keepers || []);
+        keeperCommandInput.value = "";
+        state.keeperPreviewCommand = null;
+        state.playerCatalog = null;
+        state.playerCatalogSeasonId = null;
+        keeperStatus.textContent = "Keeper added. League values are updated.";
+      } catch (error) {
+        keeperStatus.textContent = error.message;
+        keeperApplyButton.disabled = state.setupLocked;
+      }
+    });
+
+    keeperList.addEventListener("click", async event => {
+      const button = event.target.closest('button[data-keeper-action="remove"]');
+      if (!button) return;
+      const seasonId = byId("setup-season-id-input").value;
+      button.disabled = true;
+      keeperStatus.textContent = "Removing keeper...";
+      try {
+        const body = await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(seasonId) + "/keepers",
+          {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ teamId: button.dataset.teamId, playerId: button.dataset.playerId }),
+          },
+        ));
+        renderSeasonKeepers(body.keepers || []);
+        state.playerCatalog = null;
+        state.playerCatalogSeasonId = null;
+        keeperStatus.textContent = "Keeper removed. League values are updated.";
+      } catch (error) {
+        keeperStatus.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+
     const loadSeasonInvitations = async (seasonId, requestGeneration = state.workspaceRequestGeneration) => {
       const body = await readJson(await fetch("/invitations?seasonId=" + encodeURIComponent(seasonId), {
         credentials: "same-origin",
@@ -1758,6 +3647,50 @@ export const platformShellHtml = `<!doctype html>
       }
     });
 
+    cancelLiveRoomButton.addEventListener("click", async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague?.liveDraft?.roomId) return;
+      if (!window.confirm("Cancel this unstarted draft room? League setup and keepers will become editable again.")) return;
+      cancelLiveRoomButton.disabled = true;
+      liveRoomSetupStatus.textContent = "Cancelling the draft room...";
+      try {
+        await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(selectedLeague.seasonId) + "/live-room",
+          { method: "DELETE", credentials: "same-origin" },
+        ));
+        await loadOnboarding();
+      } catch (error) {
+        liveRoomSetupStatus.textContent = error.message;
+        cancelLiveRoomButton.disabled = false;
+      }
+    });
+
+    publishSeasonButton.addEventListener("click", async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) return;
+      publishSeasonButton.disabled = true;
+      liveRoomSetupStatus.textContent = "Publishing league setup...";
+      try {
+        const body = await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(selectedLeague.seasonId) + "/publish",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ confirmed: setupFinalReview.checked }),
+          },
+        ));
+        renderSeasonTeams(body.season);
+        liveRoomSetupStatus.textContent = "League setup published. The shared draft room can now be created.";
+      } catch (error) {
+        liveRoomSetupStatus.textContent = error.message;
+        publishSeasonButton.disabled = !setupFinalReview.checked;
+      }
+    });
+    setupFinalReview.addEventListener("change", () => {
+      publishSeasonButton.disabled = !setupFinalReview.checked || state.setupLocked;
+    });
+
     invitationForm.addEventListener("submit", async event => {
       event.preventDefault();
       const seasonId = byId("setup-season-id-input").value;
@@ -1850,7 +3783,197 @@ export const platformShellHtml = `<!doctype html>
         body: JSON.stringify({ token: token }),
       }).then(readJson)
         .then(body => window.location.assign("/app?seasonId=" + encodeURIComponent(body.membership.seasonId || body.invitation.seasonId)))
-        .catch(error => { byId("invite-status").textContent = error.message; });
+         .catch(error => { byId("invite-status").textContent = error.message; });
+    });
+
+    leagueCreateSeason.value = String(new Date().getFullYear());
+    byId("league-create-review-espn").addEventListener("click", async () => {
+      const leagueIdOrUrl = leagueCreateEspnId.value.trim();
+      if (!leagueIdOrUrl) {
+        leagueCreateImportStatus.textContent = "Enter an ESPN league ID or URL.";
+        leagueCreateEspnId.focus();
+        return;
+      }
+      leagueCreateImportStatus.textContent = "Checking ESPN settings...";
+      try {
+        const outcome = await readJson(await fetch("/league-imports/espn/review", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            leagueIdOrUrl: leagueIdOrUrl,
+            season: Number(leagueCreateSeason.value),
+          }),
+        }));
+        if (outcome.kind === "manual-review-required") {
+          showLeagueCreationReview(manualLeagueCreationReview(outcome));
+          leagueCreateImportStatus.textContent = outcome.message + " Enter the settings below or upload the League Members screenshot to fill team and manager names.";
+          return;
+        }
+        showLeagueCreationReview(leagueCreationReviewFromEspn(outcome));
+        leagueCreateImportStatus.textContent = "ESPN settings loaded. Review every field before creating the league.";
+      } catch (error) {
+        leagueCreateImportStatus.textContent = error.message;
+      }
+    });
+
+    byId("league-create-manual").addEventListener("click", () => {
+      if (!leagueCreateEspnId.value.trim()) {
+        leagueCreateImportStatus.textContent = "Enter an ESPN league ID or URL first.";
+        leagueCreateEspnId.focus();
+        return;
+      }
+      showLeagueCreationReview(manualLeagueCreationReview());
+      leagueCreateImportStatus.textContent = "Enter the league settings below or upload a screenshot to fill team and manager names.";
+    });
+
+    byId("league-create-analyze-members").addEventListener("click", async () => {
+      const file = leagueCreateMembersFile.files?.[0];
+      if (!file) {
+        leagueCreateImportStatus.textContent = "Choose a League Members screenshot first.";
+        leagueCreateMembersFile.focus();
+        return;
+      }
+      if (file.size > screenshotMaxBytes) {
+        leagueCreateImportStatus.textContent = "Screenshots must be 5 MB or smaller.";
+        return;
+      }
+      leagueCreateImportStatus.textContent = "Reading teams and managers...";
+      try {
+        const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ mimeType: file.type, base64: await imageBase64For(file) }),
+        }));
+        showLeagueCreationReview(leagueCreationReviewFromScreenshot(body.import));
+        leagueCreateImportStatus.textContent = "Teams and managers extracted. Fix any truncated names, then confirm the league settings.";
+      } catch (error) {
+        leagueCreateImportStatus.textContent = error.message;
+      }
+    });
+
+    leagueCreateDraftFormat.addEventListener("change", updateLeagueCreationFormatFields);
+    leagueCreateTeamRows.addEventListener("change", updateLeagueCreationSubmit);
+    leagueCreateConfirmed.addEventListener("change", () => {
+      updateLeagueCreationSubmit();
+    });
+    leagueCreateReview.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!state.leagueCreation || !leagueCreationCanSubmit()) return;
+      const teams = [...leagueCreateTeamRows.querySelectorAll("tr")].map((row, index) => {
+        const valueFor = field => row.querySelector('[data-field="' + field + '"]').value.trim();
+        return {
+          externalTeamId: state.leagueCreation.teams[index].externalTeamId,
+          displayName: valueFor("displayName"),
+          abbreviation: valueFor("abbreviation"),
+          managerNames: valueFor("managerNames").split(/[;,]/u).map(value => value.trim()).filter(Boolean),
+        };
+      });
+      const draft = leagueCreateDraftFormat.value === "snake"
+        ? {
+            type: "snake",
+            rounds: Number(leagueCreateSnakeRounds.value),
+            order: teams.map(team => team.externalTeamId),
+            reversal: "standard",
+          }
+        : {
+            type: "auction",
+            budgetDollars: Number(leagueCreateAuctionBudget.value),
+            minimumBidDollars: Number(leagueCreateAuctionMinimumBid.value),
+          };
+      leagueCreateSubmit.disabled = true;
+      leagueCreateStatus.textContent = "Creating league...";
+      try {
+        const body = await readJson(await fetch("/leagues", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            setup: {
+              provider: "espn",
+              externalLeagueId: leagueCreateExternalId.value.trim(),
+              leagueName: leagueCreateName.value.trim(),
+              seasonYear: Number(leagueCreateSeason.value),
+              expectedTeamCount: teams.length,
+              teams: teams,
+              draft: draft,
+              scoring: {
+                passingYards: Number(leagueCreatePassYard.value),
+                passingTouchdown: Number(leagueCreatePassTd.value),
+                rushingYards: Number(leagueCreateRushYard.value),
+                rushingTouchdown: Number(leagueCreateRushTd.value),
+                receivingYards: Number(leagueCreateReceiveYard.value),
+                receivingTouchdown: Number(leagueCreateReceiveTd.value),
+                reception: Number(leagueCreatePpr.value),
+              },
+              rosterSlots: Object.fromEntries(
+                [...leagueCreateRosterSlots.querySelectorAll("[data-roster-slot]")]
+                  .map(input => [input.dataset.rosterSlot, Number(input.value)]),
+              ),
+            },
+          }),
+        }));
+        window.location.assign("/league?seasonId=" + encodeURIComponent(body.season.id));
+      } catch (error) {
+        leagueCreateStatus.textContent = error.message;
+        updateLeagueCreationSubmit();
+      }
+    });
+
+    standalonePlayerSearch.addEventListener("input", renderStandaloneBoard);
+    standalonePositionFilter.addEventListener("change", renderStandaloneBoard);
+    standaloneBoardSort.addEventListener("change", () => {
+      state.playerBoardSort = standaloneBoardSort.value;
+      renderStandaloneBoard();
+    });
+    simulationRun.addEventListener("click", runBoardSimulations);
+    byId("standalone-board-open-simulations").addEventListener("click", () => {
+      simulationPanel.open = true;
+      simulationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      simulationStrategy.focus();
+    });
+    mockDraftSearch.addEventListener("input", renderMockDraft);
+    mockDraftStart.addEventListener("click", () => {
+      if (!state.mockDraft) return;
+      sendMockDraftCommand({ type: "start", expectedRevision: state.mockDraft.session.revision });
+    });
+    mockDraftBuy.addEventListener("click", () => {
+      const nomination = state.mockDraft?.session?.currentNomination;
+      if (!state.mockDraft || !nomination) return;
+      sendMockDraftCommand({
+        type: "buy",
+        expectedRevision: state.mockDraft.session.revision,
+        price: nomination.nextBid,
+      });
+    });
+    mockDraftPass.addEventListener("click", () => {
+      if (!state.mockDraft) return;
+      sendMockDraftCommand({ type: "pass", expectedRevision: state.mockDraft.session.revision });
+    });
+    mockDraftUndo.addEventListener("click", () => {
+      if (!state.mockDraft) return;
+      sendMockDraftCommand({ type: "undo", expectedRevision: state.mockDraft.session.revision });
+    });
+    mockDraftComplete.addEventListener("click", () => {
+      if (!state.mockDraft) return;
+      sendMockDraftCommand({ type: "complete", expectedRevision: state.mockDraft.session.revision });
+    });
+    mockDraftPlayerRows.addEventListener("click", event => {
+      const button = event.target.closest("[data-mock-player-id]");
+      if (!button || !state.mockDraft) return;
+      const command = state.mockSession?.draftMode?.format === "auction"
+        ? {
+            type: "nominate",
+            expectedRevision: state.mockDraft.session.revision,
+            playerId: button.dataset.mockPlayerId,
+          }
+        : {
+            type: "pick",
+            expectedRevision: state.mockDraft.session.revision,
+            playerId: button.dataset.mockPlayerId,
+          };
+      sendMockDraftCommand(command);
     });
 
     configureAuthMode();

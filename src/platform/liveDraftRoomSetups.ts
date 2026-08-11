@@ -117,7 +117,6 @@ ON CONFLICT (league_season_id) DO UPDATE SET
   initial_rosters_json = EXCLUDED.initial_rosters_json,
   content_hash = EXCLUDED.content_hash,
   updated_at = EXCLUDED.updated_at
-WHERE league_season_draft_setups.content_hash = EXCLUDED.content_hash
 RETURNING league_season_id, source_version, player_catalog_json, initial_rosters_json,
           content_hash, updated_at;
 `.trim(), [
@@ -129,11 +128,7 @@ RETURNING league_season_id, source_version, player_catalog_json, initial_rosters
       setup.updatedAt,
     ]);
     const row = result.rows[0];
-    if (row === undefined) {
-      throw new Error(
-        `Draft setup for season "${setup.seasonId}" already exists with different content. Use a new source version.`,
-      );
-    }
+    if (row === undefined) throw new Error(`Draft setup for season "${setup.seasonId}" could not be saved.`);
     return setupFromRow(row);
   }
 }

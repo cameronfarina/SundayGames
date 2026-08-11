@@ -43,7 +43,15 @@ services:
       - key: MOCKD_LIVE_DRAFT_DATA_MODE
         value: postgres
       - key: MOCKD_ALLOW_PUBLIC_SIGNUP
-        value: "false"
+        value: "true"
+      - key: MOCKD_AUTH_EMAIL_MODE
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MOCKD_EMAIL_FROM
+        sync: false
+      - key: MOCKD_PUBLIC_BASE_URL
+        sync: false
       - key: MOCKD_TRUST_PROXY
         value: "true"
       - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA
@@ -60,34 +68,3 @@ services:
         value: gpt-5.6-terra
       - key: OPENAI_API_KEY
         sync: false
-
-  - type: worker
-    name: mockd-worker
-    runtime: docker
-    plan: starter
-    region: virginia
-    autoDeployTrigger: off
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    preDeployCommand: npm run platform:migrate
-    dockerCommand: node dist/src/platform/startPlatformWorker.js
-    maxShutdownDelaySeconds: 60
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mockd-postgres
-          property: connectionString
-      - key: MOCKD_WORKER_JOB_KINDS
-        value: simulation
-      - key: MOCKD_SIMULATION_DATA_MODE
-        value: local-fixtures
-      - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA
-        value: "false"
-      - key: MOCKD_POSTGRES_POOL_SIZE
-        value: "3"
-      - key: MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS
-        value: "15000"
-      - key: MOCKD_POSTGRES_SNAPSHOT_KEY
-        value: mockd-production

@@ -161,6 +161,9 @@ describe("platform Postgres migrations", () => {
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
       "platform-team-identities-v6",
+      "platform-league-formats-v7",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -180,6 +183,9 @@ describe("platform Postgres migrations", () => {
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
       "platform-auth-version-v5",
+      "platform-league-formats-v7",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -189,6 +195,61 @@ describe("platform Postgres migrations", () => {
     expect(client.statements).toContain(
       "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS manager_names_json jsonb NOT NULL DEFAULT '[]'::jsonb;",
     );
+  });
+
+  it("adds format-aware roster settings to existing auction seasons", async () => {
+    const client = new RecordingPostgresClient();
+    [
+      "platform-schema-v1",
+      "platform-live-room-paused-v2",
+      "platform-invitations-v3",
+      "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
+      "platform-team-identities-v6",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
+    ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE roster_rule_sets ADD COLUMN IF NOT EXISTS draft_format text NOT NULL DEFAULT 'auction';",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE roster_rule_sets ADD COLUMN IF NOT EXISTS snake_json jsonb;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE roster_rule_sets ALTER COLUMN budget DROP NOT NULL;",
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("roster_rule_sets_format_settings_check"),
+    );
+  });
+
+  it("adds verified ownership and single-use auth tokens to existing accounts", async () => {
+    const client = new RecordingPostgresClient();
+    [
+      "platform-schema-v1",
+      "platform-live-room-paused-v2",
+      "platform-invitations-v3",
+      "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
+      "platform-team-identities-v6",
+      "platform-league-formats-v7",
+      "platform-historical-pricing-ownership-v9",
+    ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;",
+    );
+    expect(client.statements).toContain(
+      "UPDATE accounts SET email_verified_at = created_at WHERE email_verified_at IS NULL;",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining("account_auth_tokens"));
   });
 
   it("reports every required migration missing from the migration ledger", async () => {
@@ -201,6 +262,9 @@ describe("platform Postgres migrations", () => {
       "platform-live-room-setup-v4",
       "platform-auth-version-v5",
       "platform-team-identities-v6",
+      "platform-league-formats-v7",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -209,6 +273,27 @@ describe("platform Postgres migrations", () => {
       "platform-live-room-setup-v4",
       "platform-auth-version-v5",
       "platform-team-identities-v6",
+      "platform-league-formats-v7",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
     ]);
+  });
+
+  it("stores historical public values and lets users import the same provider league independently", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-historical-pricing-ownership-v9")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain("DROP INDEX IF EXISTS leagues_provider_league_id_key;");
+    expect(client.statements).toContain(
+      "ALTER TABLE historical_draft_sales ADD COLUMN IF NOT EXISTS public_price_dollars integer;",
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("historical_draft_sales_public_price_check"),
+    );
   });
 });

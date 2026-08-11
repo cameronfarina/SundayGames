@@ -120,7 +120,7 @@ jobs:
           wait "$first_pid"
           wait "$second_pid"
 
-      - name: Start production web and worker
+      - name: Start production web
         env:
           DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
         run: |
@@ -132,20 +132,17 @@ jobs:
             --env PORT=4319 \
             --env MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools \
             --env MOCKD_LIVE_DRAFT_DATA_MODE=postgres \
-            --env MOCKD_ALLOW_PUBLIC_SIGNUP=false \
+            --env MOCKD_ALLOW_PUBLIC_SIGNUP=true \
+            --env MOCKD_AUTH_EMAIL_MODE=resend \
+            --env RESEND_API_KEY=ci-placeholder-not-used \
+            --env MOCKD_EMAIL_FROM=accounts@mockd.example.com \
+            --env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com \
             --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
             --env MOCKD_SCREENSHOT_IMPORT_MODE=openai \
             --env OPENAI_API_KEY=ci-placeholder-not-used \
             --volume mockd-ci-draft-tools:/var/lib/mockd/draft-tools \
             mockd-ci /bin/sh -c \
             'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'
-          docker run --detach --name mockd-ci-worker --network host \
-            --env NODE_ENV=production \
-            --env DATABASE_URL \
-            --env MOCKD_WORKER_JOB_KINDS=simulation \
-            --env MOCKD_SIMULATION_DATA_MODE=local-fixtures \
-            --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
-            mockd-ci node dist/src/platform/startPlatformWorker.js
 
       - name: Require healthy production processes
         run: |
@@ -160,10 +157,9 @@ jobs:
             sleep 1
           done
           test "$(docker inspect --format '{{.State.Running}}' mockd-ci-web)" = true
-          test "$(docker inspect --format '{{.State.Running}}' mockd-ci-worker)" = true
 
       - name: Clean up production processes
         if: ${{ always() }}
         run: |
-          docker rm --force mockd-ci-web mockd-ci-worker 2>/dev/null || true
+          docker rm --force mockd-ci-web 2>/dev/null || true
           docker volume rm mockd-ci-draft-tools 2>/dev/null || true

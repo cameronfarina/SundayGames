@@ -10,6 +10,7 @@ import {
   type FantasyTeam,
   type LeagueSeason,
 } from "./leagueSeason.js";
+import { analyzeRosterSlots } from "./leagueCreation.js";
 import type { WorkspaceRole } from "./workspacePrivacy.js";
 
 export type LiveDraftRoomStatus = "setup" | "countdown" | "live" | "paused" | "ended";
@@ -29,6 +30,7 @@ export type LiveDraftRoomErrorCode =
   | "player_not_found"
   | "position_limit"
   | "room_not_found"
+  | "room_not_cancellable"
   | "room_not_live"
   | "room_not_paused"
   | "room_paused"
@@ -55,15 +57,18 @@ export interface LiveDraftRoomPlayerCatalogEntry {
   name: string;
   position: Position;
   expectedPrice: number;
+  marketPrice?: number | undefined;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
 }
 
 export interface LiveDraftRoomInitialRosterPlayer {
   teamId: string;
+  playerId?: string | undefined;
   playerName: string;
   position: Position;
   price: number;
+  keeperRound?: number | undefined;
   expectedPrice?: number | undefined;
   source?: "keeper" | "imported" | undefined;
 }
@@ -76,6 +81,7 @@ export interface LiveDraftRoomActor {
 
 export type LiveDraftRoomMutationAction =
   | "read"
+  | "cancel"
   | "start"
   | "pause"
   | "resume"
@@ -98,6 +104,7 @@ export interface LiveDraftRoomRepository {
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   hasRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   hasStartedRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
+  cancelRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<void>;
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   resumeRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
@@ -172,6 +179,7 @@ export interface LiveDraftRoomBoardPlayer {
   normalizedPlayerName: string;
   position: Position;
   expectedPrice: number;
+  marketPrice?: number | undefined;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
 }
@@ -344,7 +352,6 @@ export interface CorrectLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput 
 }
 
 const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
-const flexEligiblePositions = new Set<Position>(["RB", "WR", "TE"]);
 const writerRoles = new Set<WorkspaceRole>(["owner", "admin"]);
 const teamAbbreviationPattern = /^[A-Z]{2,3}$/;
 const minimumByeWeek = 1;
@@ -380,6 +387,14 @@ const assertPositiveWholeDollar = (
 
 const assertSeasonReady = (season: LeagueSeason): void => {
   const readiness = assessLeagueSeasonReadiness(season);
+  const unsupportedSlot = analyzeRosterSlots(season.settings.roster.lineup).unsupportedSlots[0];
+
+  if (unsupportedSlot !== undefined) {
+    throw new LiveDraftRoomError(
+      "season_not_ready",
+      `Roster slot ${unsupportedSlot} is unsupported. Review the league roster settings before creating a live draft room.`,
+    );
+  }
 
   if (season.setupStatus === "draft" || readiness.blockers.length > 0) {
     throw new LiveDraftRoomError(
@@ -437,6 +452,17 @@ const normalizeCatalog = (
       );
     }
 
+    const marketPrice: unknown = player.marketPrice;
+    if (
+      marketPrice !== undefined
+      && (typeof marketPrice !== "number" || !Number.isFinite(marketPrice) || !Number.isInteger(marketPrice) || marketPrice < 1)
+    ) {
+      throw new LiveDraftRoomError(
+        "invalid_sale_price",
+        `Player catalog entry "${name}" must have a market price of at least $1 in whole dollars.`,
+      );
+    }
+
     const teamAbbreviation: unknown = player.teamAbbreviation;
     if (
       teamAbbreviation !== undefined &&
@@ -470,6 +496,7 @@ const normalizeCatalog = (
       normalizedPlayerName,
       position: rawPosition,
       expectedPrice,
+      ...(marketPrice === undefined ? {} : { marketPrice }),
       ...(teamAbbreviation === undefined ? {} : { teamAbbreviation }),
       ...(byeWeek === undefined ? {} : { byeWeek }),
     };
@@ -501,29 +528,39 @@ const countPositions = (
   return counts;
 };
 
-const rosterSlotNamesFor = (season: LeagueSeason): string[] => {
-  const slotNames: string[] = [];
-  const lineup = season.settings.roster.lineup;
+const draftRosterCapacityFor = (season: LeagueSeason): number =>
+  analyzeRosterSlots(season.settings.roster.lineup).draftCapacity;
 
-  for (const position of positions) {
-    const count = lineup[position] ?? 0;
-    for (let index = 1; index <= count; index += 1) {
-      slotNames.push(count === 1 ? position : `${position}${index}`);
-    }
-  }
+const positionMaximumsFor = (season: LeagueSeason): Record<Position, number> => {
+  const derived = analyzeRosterSlots(season.settings.roster.lineup).rosterMaximums;
+  const maximumFor = (position: Position): number => {
+    const configured = season.settings.roster.rosterMaximums[position];
+    return Number.isInteger(configured) && configured >= 0
+      ? Math.min(configured, derived[position])
+      : derived[position];
+  };
 
-  const flexCount = lineup.FLEX ?? 0;
-  for (let index = 1; index <= flexCount; index += 1) {
-    slotNames.push(flexCount === 1 ? "FLEX" : `FLEX${index}`);
-  }
-
-  const benchCount = lineup.BENCH ?? 0;
-  for (let index = 1; index <= benchCount; index += 1) {
-    slotNames.push(`BENCH${index}`);
-  }
-
-  return slotNames;
+  return {
+    QB: maximumFor("QB"),
+    RB: maximumFor("RB"),
+    WR: maximumFor("WR"),
+    TE: maximumFor("TE"),
+    K: maximumFor("K"),
+    DST: maximumFor("DST"),
+  };
 };
+
+interface AssignableRosterSlot extends LiveDraftRoomRosterSlot {
+  eligiblePositions: readonly Position[];
+}
+
+const emptyRosterSlotsFor = (season: LeagueSeason): AssignableRosterSlot[] =>
+  analyzeRosterSlots(season.settings.roster.lineup).draftableSlots.flatMap(slot =>
+    Array.from({ length: slot.count }, (_, index) => ({
+      slot: slot.count === 1 ? slot.slot : `${slot.slot}${index + 1}`,
+      eligiblePositions: slot.eligiblePositions,
+    })),
+  );
 
 const sortedRoster = (
   roster: readonly LiveDraftRoomRosterPlayer[],
@@ -539,47 +576,49 @@ const rosterSlotsFor = (
   season: LeagueSeason,
   roster: readonly LiveDraftRoomRosterPlayer[],
 ): readonly LiveDraftRoomRosterSlot[] => {
-  const slots: LiveDraftRoomRosterSlot[] = rosterSlotNamesFor(season).map(slot => ({ slot }));
-  const used = new Set<LiveDraftRoomRosterPlayer>();
+  const slots = emptyRosterSlotsFor(season);
+  const assignedPlayers: Array<LiveDraftRoomRosterPlayer | undefined> = slots.map(() => undefined);
+  const eligibleSlotCountFor = (player: LiveDraftRoomRosterPlayer): number =>
+    slots.filter(slot => slot.eligiblePositions.includes(player.position)).length;
+  const players = sortedRoster(roster).sort((left, right) =>
+    eligibleSlotCountFor(left) - eligibleSlotCountFor(right)
+    || right.price - left.price
+    || left.name.localeCompare(right.name),
+  );
+  const assign = (player: LiveDraftRoomRosterPlayer, visited: Set<number>): boolean => {
+    const eligibleSlotIndexes = slots
+      .map((slot, index) => ({ slot, index }))
+      .filter(candidate => candidate.slot.eligiblePositions.includes(player.position))
+      .sort((left, right) =>
+        left.slot.eligiblePositions.length - right.slot.eligiblePositions.length
+        || left.index - right.index,
+      );
 
-  const place = (slotPrefix: string, player: LiveDraftRoomRosterPlayer | undefined): void => {
-    if (player === undefined) return;
-    const index = slots.findIndex(slot => slot.slot === slotPrefix && slot.player === undefined);
-    if (index >= 0) {
-      slots[index] = { slot: slotPrefix, player };
-      used.add(player);
+    for (const { index } of eligibleSlotIndexes) {
+      if (visited.has(index)) continue;
+      visited.add(index);
+      const previousPlayer = assignedPlayers[index];
+      if (previousPlayer === undefined || assign(previousPlayer, visited)) {
+        assignedPlayers[index] = player;
+        return true;
+      }
     }
+
+    return false;
   };
 
-  for (const position of positions) {
-    const positionPlayers = sortedRoster(roster.filter(player => player.position === position));
-    const positionSlotNames = slots
-      .filter(slot => slot.slot === position || new RegExp(`^${position}\\d+$`).test(slot.slot))
-      .map(slot => slot.slot);
+  for (const player of players) assign(player, new Set());
 
-    for (let index = 0; index < positionSlotNames.length; index += 1) {
-      place(positionSlotNames[index] ?? position, positionPlayers[index]);
-    }
-  }
-
-  const flexPlayers = sortedRoster(
-    roster.filter(player => flexEligiblePositions.has(player.position) && !used.has(player)),
-  );
-  const flexSlotNames = slots
-    .filter(slot => slot.slot.startsWith("FLEX"))
-    .map(slot => slot.slot);
-  for (let index = 0; index < flexSlotNames.length; index += 1) {
-    place(flexSlotNames[index] ?? "FLEX", flexPlayers[index]);
-  }
-
-  for (const player of sortedRoster(roster.filter(candidate => !used.has(candidate)))) {
-    const benchIndex = slots.findIndex(slot => slot.slot.startsWith("BENCH") && slot.player === undefined);
-    if (benchIndex < 0) break;
-    slots[benchIndex] = { slot: slots[benchIndex]?.slot ?? "BENCH", player };
-  }
-
-  return slots;
+  return slots.map((slot, index) => ({
+    slot: slot.slot,
+    ...(assignedPlayers[index] === undefined ? {} : { player: assignedPlayers[index] }),
+  }));
 };
+
+const rosterFitsDraftSlots = (
+  season: LeagueSeason,
+  roster: readonly LiveDraftRoomRosterPlayer[],
+): boolean => rosterSlotsFor(season, roster).filter(slot => slot.player !== undefined).length === roster.length;
 
 const teamLabelFor = (team: FantasyTeam): string => `${team.ownerDisplayName} - ${team.displayName}`;
 
@@ -893,12 +932,13 @@ const validateInitialRosters = (
       throw new LiveDraftRoomError("duplicate_player", `${rosterPlayer.name} is already unavailable.`);
     }
 
-    if (roster.length >= season.settings.roster.rosterSize) {
+    const rosterCapacity = draftRosterCapacityFor(season);
+    if (roster.length >= rosterCapacity) {
       throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
     }
 
     const spent = roster.reduce((total, rosteredPlayer) => total + rosteredPlayer.price, 0);
-    const rosterSlotsRemaining = season.settings.roster.rosterSize - roster.length;
+    const rosterSlotsRemaining = rosterCapacity - roster.length;
     const budgetRemaining = season.settings.auction.budgetDollars - spent;
     const maxBid = maxBidFor(
       budgetRemaining,
@@ -912,11 +952,17 @@ const validateInitialRosters = (
       );
     }
 
-    const positionMaximum = season.settings.roster.rosterMaximums[rosterPlayer.position];
+    const positionMaximum = positionMaximumsFor(season)[rosterPlayer.position];
     if (countPositions(roster)[rosterPlayer.position] >= positionMaximum) {
       throw new LiveDraftRoomError(
         "position_limit",
         `${team.ownerDisplayName} cannot roster ${rosterPlayer.name}: roster limit is ${positionMaximum} ${pluralPosition(rosterPlayer.position)}.`,
+      );
+    }
+    if (!rosterFitsDraftSlots(season, [...roster, rosterPlayer])) {
+      throw new LiveDraftRoomError(
+        "position_limit",
+        `${team.ownerDisplayName} cannot roster ${rosterPlayer.name}: no open roster slot accepts ${rosterPlayer.position}.`,
       );
     }
 
@@ -931,7 +977,7 @@ const teamStateFor = (
   roster: readonly LiveDraftRoomRosterPlayer[],
 ): LiveDraftRoomTeamState => {
   const spent = roster.reduce((total, player) => total + player.price, 0);
-  const rosterSlotsRemaining = Math.max(0, season.settings.roster.rosterSize - roster.length);
+  const rosterSlotsRemaining = Math.max(0, draftRosterCapacityFor(season) - roster.length);
   const budgetRemaining = season.settings.auction.budgetDollars - spent;
 
   return {
@@ -1080,6 +1126,21 @@ const assertRoomNotEnded = (room: LiveDraftRoom): void => {
   }
 };
 
+const assertRoomCanBeCancelled = (room: LiveDraftRoom): void => {
+  const hasStartedOrSaleEvent = room.events.some(event =>
+    event.type === "room_started"
+    || event.type === "sale_logged"
+    || event.type === "sale_corrected"
+    || event.type === "sale_undone"
+  );
+  if ((room.status !== "setup" && room.status !== "countdown") || hasStartedOrSaleEvent) {
+    throw new LiveDraftRoomError(
+      "room_not_cancellable",
+      "Only a draft room that has never started can be cancelled.",
+    );
+  }
+};
+
 const assertRoomCanStart = (room: LiveDraftRoom): void => {
   if (room.status === "live" || room.status === "paused") {
     throw new LiveDraftRoomError("room_already_live", "Draft room has already started.");
@@ -1134,11 +1195,17 @@ const validateSale = (
     );
   }
 
-  const positionMaximum = room.season.settings.roster.rosterMaximums[sale.position];
+  const positionMaximum = positionMaximumsFor(room.season)[sale.position];
   if (team.positionCounts[sale.position] >= positionMaximum) {
     throw new LiveDraftRoomError(
       "position_limit",
       `${team.ownerDisplayName} cannot buy ${sale.playerName}: roster limit is ${positionMaximum} ${pluralPosition(sale.position)}.`,
+    );
+  }
+  if (!rosterFitsDraftSlots(room.season, [...team.roster, rosterPlayerFromSale(sale)])) {
+    throw new LiveDraftRoomError(
+      "position_limit",
+      `${team.ownerDisplayName} cannot buy ${sale.playerName}: no open roster slot accepts ${sale.position}.`,
     );
   }
 };
@@ -1271,6 +1338,17 @@ export class InMemoryLiveDraftRoomRepository {
 
   hasRoomForSeason(seasonId: string): boolean {
     return [...this.#roomsById.values()].some(room => room.seasonId === seasonId);
+  }
+
+  cancelRoom(input: MutateLiveDraftRoomInput): void {
+    assertMutationMetadata(input);
+    const room = this.#roomsById.get(input.roomId);
+    if (room === undefined) return;
+
+    assertWriter(room, input.actor, "cancel", this.authorizer);
+    assertExpectedRevision(room, input.expectedRevision);
+    assertRoomCanBeCancelled(room);
+    this.#roomsById.delete(room.roomId);
   }
 
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {

@@ -2,12 +2,19 @@ import {
   AuthError,
   type AccountCredentialRecord,
   type AccountRecord,
+  type AuthTokenRecord,
   type AuthRepository,
+  type ConsumeAuthTokenInput,
   type CreateAccountRecordInput,
+  type CreateOrReplacePendingAccountInput,
   type CreateCredentialSessionRecordInput,
   type CreateSessionRecordInput,
+  type FindUsableAuthTokenInput,
   type PasswordReplacementResult,
+  type PendingAccountRegistrationResult,
+  type ReplaceAuthTokenInput,
   type ReplacePasswordInput,
+  type ResetPasswordByTokenInput,
   type SessionRecord,
 } from "./auth.js";
 import type {
@@ -19,9 +26,24 @@ interface AccountRow {
   id: string;
   email: string;
   password_hash: string;
+  email_verified_at: Date | string | null;
   status: string;
   created_at: Date | string;
   updated_at: Date | string;
+}
+
+interface PendingAccountRow extends AccountRow {
+  was_inserted: boolean;
+}
+
+interface AuthTokenRow {
+  id: string;
+  account_id: string;
+  purpose: "email_verification" | "password_reset";
+  token_hash: string;
+  created_at: Date | string;
+  expires_at: Date | string;
+  consumed_at: Date | string | null;
 }
 
 interface SessionRow {
@@ -55,11 +77,25 @@ const requiredDateFromDb = (table: string, field: string, value: Date | string):
   return date;
 };
 
-const accountFromRow = (row: AccountRow): AccountRecord => ({
+const accountFromRow = (row: AccountRow): AccountRecord => {
+  const emailVerifiedAt = dateFromDb(row.email_verified_at);
+  return {
+    id: row.id,
+    email: row.email,
+    ...(emailVerifiedAt === undefined ? {} : { emailVerifiedAt }),
+    createdAt: requiredDateFromDb("accounts", "created_at", row.created_at),
+    updatedAt: requiredDateFromDb("accounts", "updated_at", row.updated_at),
+  };
+};
+
+const authTokenFromRow = (row: AuthTokenRow): AuthTokenRecord => ({
   id: row.id,
-  email: row.email,
-  createdAt: requiredDateFromDb("accounts", "created_at", row.created_at),
-  updatedAt: requiredDateFromDb("accounts", "updated_at", row.updated_at),
+  accountId: row.account_id,
+  purpose: row.purpose,
+  tokenHash: row.token_hash,
+  createdAt: requiredDateFromDb("account_auth_tokens", "created_at", row.created_at),
+  expiresAt: requiredDateFromDb("account_auth_tokens", "expires_at", row.expires_at),
+  consumedAt: dateFromDb(row.consumed_at),
 });
 
 const accountCredentialFromRow = (row: AccountRow): AccountCredentialRecord => ({
@@ -77,7 +113,7 @@ const sessionFromRow = (row: SessionRow): SessionRecord => ({
 });
 
 const selectAccountSql = `
-SELECT id, email, password_hash, status, created_at, updated_at
+SELECT id, email, password_hash, email_verified_at, status, created_at, updated_at
 FROM accounts
 `.trim();
 
@@ -102,13 +138,14 @@ INSERT INTO accounts (
   email,
   email_normalized,
   password_hash,
+  email_verified_at,
   created_at,
   updated_at
-) VALUES ($1, $2, $2, $3, $4, $4)
+) VALUES ($1, $2, $2, $3, $4, $5, $5)
 ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO NOTHING
-RETURNING id, email, password_hash, status, created_at, updated_at;
+RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
 `.trim(),
-      [input.id, input.email, input.passwordHash, input.now],
+      [input.id, input.email, input.passwordHash, input.emailVerifiedAt ?? input.now, input.now],
     );
     const row = firstRow(result);
 
@@ -117,6 +154,31 @@ RETURNING id, email, password_hash, status, created_at, updated_at;
     }
 
     return accountFromRow(row);
+  }
+
+  async createOrReplacePendingAccount(
+    input: CreateOrReplacePendingAccountInput,
+  ): Promise<PendingAccountRegistrationResult> {
+    const result = await this.#client.query<PendingAccountRow>(
+      `
+INSERT INTO accounts (
+  id, email, email_normalized, password_hash, email_verified_at, created_at, updated_at
+) VALUES ($1, $2, $2, $3, NULL, $4, $4)
+ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO UPDATE
+SET updated_at = accounts.updated_at
+WHERE accounts.email_verified_at IS NULL
+RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at,
+  (xmax = 0) AS was_inserted;
+`.trim(),
+      [input.id, input.email, input.passwordHash, input.now],
+    );
+    const row = firstRow(result);
+    if (row !== undefined) {
+      return { account: accountFromRow(row), status: row.was_inserted ? "created" : "reissued" };
+    }
+    const existing = await this.findAccountCredentialByEmail(input.email);
+    if (existing === null) throw new Error("Postgres pending account upsert did not return an account.");
+    return { account: existing.account, status: "verified" };
   }
 
   async findAccountCredentialByEmail(normalizedEmail: string): Promise<AccountCredentialRecord | null> {
@@ -252,7 +314,7 @@ WITH updated_account AS (
   WHERE id = $1
     AND status = 'active'
     AND ($2::text IS NULL OR password_hash = $2)
-  RETURNING id, email, password_hash, status, created_at, updated_at
+  RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at
 ),
 revoked_sessions AS (
   UPDATE sessions
@@ -278,5 +340,109 @@ FROM updated_account;
       account: accountFromRow(row),
       revokedSessionCount,
     };
+  }
+
+  async replaceAuthToken(input: ReplaceAuthTokenInput): Promise<AuthTokenRecord> {
+    const result = await this.#client.query<AuthTokenRow>(
+      `
+WITH consumed_tokens AS (
+  UPDATE account_auth_tokens
+  SET consumed_at = $5
+  WHERE account_id = $2 AND purpose = $3 AND consumed_at IS NULL
+)
+INSERT INTO account_auth_tokens (
+  id, account_id, purpose, token_hash, created_at, expires_at
+) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, account_id, purpose, token_hash, created_at, expires_at, consumed_at;
+`.trim(),
+      [input.id, input.accountId, input.purpose, input.tokenHash, input.createdAt, input.expiresAt],
+    );
+    const row = firstRow(result);
+    if (row === undefined) throw new Error("Postgres auth token insert did not return a row.");
+    return authTokenFromRow(row);
+  }
+
+  async hasUsableAuthToken(input: FindUsableAuthTokenInput): Promise<boolean> {
+    const result = await this.#client.query<{ usable: boolean }>(
+      `
+SELECT TRUE AS usable
+FROM account_auth_tokens
+WHERE token_hash = $1
+  AND purpose = $2
+  AND consumed_at IS NULL
+  AND expires_at > $3
+LIMIT 1;
+`.trim(),
+      [input.tokenHash, input.purpose, input.now],
+    );
+
+    return firstRow(result)?.usable === true;
+  }
+
+  async verifyEmailByToken(input: ConsumeAuthTokenInput): Promise<AccountRecord | null> {
+    const result = await this.#client.query<AccountRow>(
+      `
+WITH consumed_token AS (
+  UPDATE account_auth_tokens
+  SET consumed_at = $2
+  WHERE token_hash = $1
+    AND purpose = 'email_verification'
+    AND consumed_at IS NULL
+    AND expires_at > $2
+  RETURNING account_id
+)
+UPDATE accounts
+SET email_verified_at = $2, updated_at = $2
+WHERE id IN (SELECT account_id FROM consumed_token)
+  AND status = 'active'
+  AND email_verified_at IS NULL
+RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
+`.trim(),
+      [input.tokenHash, input.now],
+    );
+    const row = firstRow(result);
+    return row === undefined ? null : accountFromRow(row);
+  }
+
+  async resetPasswordByToken(input: ResetPasswordByTokenInput): Promise<PasswordReplacementResult | null> {
+    const result = await this.#client.query<PasswordReplacementRow>(
+      `
+WITH consumed_token AS (
+  UPDATE account_auth_tokens
+  SET consumed_at = $3
+  WHERE token_hash = $1
+    AND purpose = 'password_reset'
+    AND consumed_at IS NULL
+    AND expires_at > $3
+  RETURNING account_id
+),
+updated_account AS (
+  UPDATE accounts
+  SET password_hash = $2, auth_version = auth_version + 1, updated_at = $3
+  WHERE id IN (SELECT account_id FROM consumed_token)
+    AND status = 'active'
+    AND email_verified_at IS NOT NULL
+  RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at
+),
+revoked_sessions AS (
+  UPDATE sessions
+  SET revoked_at = $3
+  WHERE account_id IN (SELECT id FROM updated_account)
+    AND revoked_at IS NULL
+  RETURNING id
+)
+SELECT updated_account.*,
+  (SELECT COUNT(*)::text FROM revoked_sessions) AS revoked_session_count
+FROM updated_account;
+`.trim(),
+      [input.tokenHash, input.passwordHash, input.now],
+    );
+    const row = firstRow(result);
+    if (row === undefined) return null;
+    const revokedSessionCount = Number(row.revoked_session_count);
+    if (!Number.isSafeInteger(revokedSessionCount) || revokedSessionCount < 0) {
+      throw new Error("Postgres password reset returned an invalid revoked session count.");
+    }
+    return { account: accountFromRow(row), revokedSessionCount };
   }
 }

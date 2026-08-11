@@ -1,5 +1,10 @@
 import type { JobRecord, JsonValue } from "./jobs.js";
+import {
+  normalizeLeagueSeasonSettings,
+  type LeagueSeason,
+} from "./leagueSeason.js";
 import type { InMemoryPlatformStoreSnapshot } from "./platformApp.js";
+import { normalizePersistedMockDraftSession } from "./mockSessions.js";
 
 export interface SerializedPlatformStoreSnapshot extends InMemoryPlatformStoreSnapshot {
   schemaVersion: 1;
@@ -95,6 +100,11 @@ const normalizePricingSnapshot = (snapshot: PricingSnapshot): PricingSnapshot =>
     : snapshot;
 };
 
+const normalizeLeagueSeason = (season: LeagueSeason): LeagueSeason => ({
+  ...season,
+  settings: normalizeLeagueSeasonSettings(season.settings),
+});
+
 const reviveSnapshotValue = (value: unknown): Partial<SerializedPlatformStoreSnapshot> =>
   JSON.parse(JSON.stringify(value), reviveDate) as Partial<SerializedPlatformStoreSnapshot>;
 
@@ -103,6 +113,8 @@ export const serializePlatformStoreSnapshot = (
 ): SerializedPlatformStoreSnapshot => ({
   schemaVersion: 1,
   ...snapshot,
+  leagueSeasons: snapshot.leagueSeasons.map(normalizeLeagueSeason),
+  mockDraftSessions: snapshot.mockDraftSessions.map(normalizePersistedMockDraftSession),
 });
 
 export const deserializePlatformStoreSnapshot = (
@@ -113,9 +125,9 @@ export const deserializePlatformStoreSnapshot = (
 
   return {
     auth: file.auth ?? empty.auth,
-    leagueSeasons: file.leagueSeasons ?? empty.leagueSeasons,
+    leagueSeasons: (file.leagueSeasons ?? empty.leagueSeasons).map(normalizeLeagueSeason),
     memberships: file.memberships ?? empty.memberships,
-    mockDraftSessions: file.mockDraftSessions ?? empty.mockDraftSessions,
+    mockDraftSessions: (file.mockDraftSessions ?? empty.mockDraftSessions).map(normalizePersistedMockDraftSession),
     simulationRuns: file.simulationRuns ?? empty.simulationRuns,
     liveDraftRooms: file.liveDraftRooms ?? empty.liveDraftRooms,
     historicalImportBatches: file.historicalImportBatches ?? empty.historicalImportBatches,

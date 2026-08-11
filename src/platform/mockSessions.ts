@@ -1,4 +1,10 @@
 import { randomBytes } from "node:crypto";
+import {
+  normalizeSeasonMockConfigurationSnapshot,
+  SeasonMockConfigurationSnapshotError,
+  type SeasonMockConfigurationSnapshotState,
+  type SeasonMockConfigurationSnapshotV1,
+} from "./seasonMockSnapshot.js";
 
 export type MockDraftSessionStatus = "setup" | "active" | "completed" | "abandoned";
 export type MockDraftFormat = "auction" | "snake";
@@ -65,6 +71,7 @@ export interface MockDraftSession {
   teamId: string;
   status: MockDraftSessionStatus;
   draftMode: MockDraftModeMetadata;
+  configurationSnapshot: SeasonMockConfigurationSnapshotState;
   revision: number;
   commandLog: readonly MockDraftCommand[];
   latestResultRef: MockDraftResultReference | undefined;
@@ -82,6 +89,7 @@ export interface CreateMockDraftSessionInput {
   ownerId: string;
   teamId: string;
   draftMode: MockDraftModeMetadata;
+  configurationSnapshot?: SeasonMockConfigurationSnapshotV1 | undefined;
   status?: Extract<MockDraftSessionStatus, "setup" | "active"> | undefined;
   now?: Date | undefined;
 }
@@ -109,6 +117,19 @@ export interface AppendMockDraftCommandInput {
   idempotencyKey?: string | undefined;
   latestResultRef?: MockDraftResultReference | undefined;
   now?: Date | undefined;
+}
+
+export interface FindStoredMockDraftCommandForRetryInput {
+  userId: string;
+  sessionId: string;
+  commandId: string;
+  command: string;
+  idempotencyKey?: string | undefined;
+}
+
+export interface StoredMockDraftCommandRetry {
+  session: MockDraftSession;
+  command: MockDraftCommand;
 }
 
 export interface MarkMockDraftSessionCompletedInput {
@@ -166,6 +187,32 @@ const validateDraftMode = (draftMode: MockDraftModeMetadata): MockDraftModeMetad
   };
 };
 
+const normalizedSessionConfigurationSnapshot = (
+  session: Pick<MockDraftSession, "leagueId" | "seasonId" | "teamId" | "draftMode">,
+  value: unknown,
+): SeasonMockConfigurationSnapshotState => {
+  const snapshot = normalizeSeasonMockConfigurationSnapshot(value);
+  if (snapshot.status === "migration-required") return snapshot;
+  const { payload } = snapshot;
+  if (
+    payload.season.leagueId !== session.leagueId
+    || payload.season.id !== session.seasonId
+    || payload.humanTeamId !== session.teamId
+    || payload.season.settings.draftFormat !== session.draftMode.format
+  ) {
+    throw new SeasonMockConfigurationSnapshotError(
+      "snapshot_malformed",
+      "Mock draft configuration snapshot is malformed.",
+    );
+  }
+  return snapshot;
+};
+
+export const normalizePersistedMockDraftSession = (session: MockDraftSession): MockDraftSession => ({
+  ...session,
+  configurationSnapshot: normalizedSessionConfigurationSnapshot(session, session.configurationSnapshot),
+});
+
 const assertWritableForCommand = (session: MockDraftSession): void => {
   if (session.status === "completed" || session.status === "abandoned") {
     throw new MockDraftSessionError(
@@ -212,6 +259,15 @@ export class InMemoryMockDraftSessionRepository {
       teamId: requireNonEmpty(input.teamId, "team_required", "Team id is required."),
       status,
       draftMode: validateDraftMode(input.draftMode),
+      configurationSnapshot: normalizedSessionConfigurationSnapshot(
+        {
+          leagueId: input.leagueId,
+          seasonId: input.seasonId,
+          teamId: input.teamId,
+          draftMode: input.draftMode,
+        },
+        input.configurationSnapshot,
+      ),
       revision: 1,
       commandLog: [],
       latestResultRef: undefined,
@@ -252,25 +308,17 @@ export class InMemoryMockDraftSessionRepository {
     const commandId = requireNonEmpty(input.commandId, "command_key_required", "Command id is required.");
     const command = requireNonEmpty(input.command, "command_required", "Command cannot be empty.");
     const idempotencyKey = input.idempotencyKey?.trim() || commandId;
+    const storedRetry = this.findStoredCommandForRetry({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      commandId,
+      command,
+      idempotencyKey,
+    });
+    if (storedRetry !== undefined) return storedRetry.session;
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
 
     assertWritableForCommand(session);
-
-    const existingCommand = session.commandLog.find(
-      loggedCommand =>
-        loggedCommand.revision === session.revision && loggedCommand.idempotencyKey === idempotencyKey,
-    );
-
-    if (existingCommand !== undefined) {
-      if (existingCommand.id !== commandId || existingCommand.command !== command) {
-        throw new MockDraftSessionError(
-          "command_idempotency_conflict",
-          "A command already exists for this idempotency key with different input.",
-        );
-      }
-
-      return session;
-    }
 
     assertExpectedRevision(session, input.expectedRevision);
     assertExpectedCommandCount(session, input.expectedCommandCount);
@@ -296,6 +344,26 @@ export class InMemoryMockDraftSessionRepository {
     this.#sessionsById.set(updatedSession.id, updatedSession);
 
     return updatedSession;
+  }
+
+  findStoredCommandForRetry(
+    input: FindStoredMockDraftCommandForRetryInput,
+  ): StoredMockDraftCommandRetry | undefined {
+    const commandId = requireNonEmpty(input.commandId, "command_key_required", "Command id is required.");
+    const command = requireNonEmpty(input.command, "command_required", "Command cannot be empty.");
+    const idempotencyKey = input.idempotencyKey?.trim() || commandId;
+    const session = this.#findAuthorizedSession(input.userId, input.sessionId);
+    const storedCommand = session.commandLog.find(candidate =>
+      candidate.revision === session.revision && candidate.idempotencyKey === idempotencyKey
+    );
+    if (storedCommand === undefined) return undefined;
+    if (storedCommand.id !== commandId || storedCommand.command !== command) {
+      throw new MockDraftSessionError(
+        "command_idempotency_conflict",
+        "A command already exists for this idempotency key with different input.",
+      );
+    }
+    return { session, command: storedCommand };
   }
 
   markCompleted(input: MarkMockDraftSessionCompletedInput): MockDraftSession {
@@ -379,7 +447,8 @@ export class InMemoryMockDraftSessionRepository {
     this.#sessionsById.clear();
 
     for (const session of sessions) {
-      this.#sessionsById.set(session.id, structuredClone(session));
+      const normalizedSession = normalizePersistedMockDraftSession(structuredClone(session));
+      this.#sessionsById.set(normalizedSession.id, normalizedSession);
     }
   }
 
