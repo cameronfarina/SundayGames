@@ -51,6 +51,12 @@ This does not need a database for the first real draft night. A database becomes
 9. Practice mock sessions that are isolated from live draft sessions by default.
 10. Export/import APIs for backup, support, and user trust.
 
+## Hosted Setup Available
+
+Commissioners can now import the ESPN League Members table from a PNG, JPEG, or WebP screenshot. The server extracts only league identity, team number, team abbreviation, team name, and one or more manager names. Every extraction is editable, every row must map to one unique existing Mockd profile, uncertain rows require explicit confirmation, and apply uses a setup revision guard so an older review cannot overwrite newer league changes. Profile mapping preserves account assignments, keepers, and historical behavior even when ESPN rows are reordered. Manager email and invitation state stay out of screenshot processing and are handled in a separate team-specific invitation flow; claimed teams and existing league members cannot receive another invitation.
+
+Production enables this workflow only when `MOCKD_SCREENSHOT_IMPORT_MODE=openai` and `OPENAI_API_KEY` are configured. Images are limited to 5 MB, analysis is rate-limited and concurrency-limited, OpenAI request storage is disabled, and screenshot analysis does not block health checks or snapshot writes.
+
 ## Hosted Domain Gate
 
 A public domain is no-go until `docs/ai-plans/fantasy-draft-platform/production-runbook.md` is all pass.
@@ -61,5 +67,6 @@ Minimum blockers to clear:
 2. Real production league data is created through an approved path; `platform:seed:e2e` is not a production seed.
 3. Automated backups are enabled, a pre-cutover snapshot exists, and restore has been rehearsed into an isolated database within 7 days.
 4. DNS, TLS, monitoring, alerts, rollback, and draft-night degraded mode have named owners.
+5. A sanitized staging screenshot import and manager invitation have passed against the production build, and the deploy owner has confirmed the OpenAI project key, spend limits, and usage monitoring.
 
 The key architectural rule stays the same in both local and hosted modes: the engine should rebuild from explicit inputs and command history. Hidden mutable model state is how a draft tool becomes impossible to trust.

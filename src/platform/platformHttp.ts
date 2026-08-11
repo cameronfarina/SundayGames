@@ -9,6 +9,7 @@ import { DraftExportError } from "./draftExport.js";
 import { ExportArtifactError } from "./exportArtifacts.js";
 import { JobError } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
+import { LeagueSetupWriteConflictError } from "./leagueSetup.js";
 import {
   LiveDraftRoomError,
   type LiveDraftRoomInitialRosterPlayer,
@@ -27,11 +28,21 @@ import {
   type PlatformLeagueMembership,
 } from "./platformApp.js";
 import {
+  analyzeLeagueMembersScreenshot,
+  applyLeagueMembersScreenshotImport,
   applyLeagueSetupImport,
   previewLeagueSetupImport,
   type PlatformLeagueSetupImportInput,
   type PlatformLeagueSetupImportKnownUser,
 } from "./platformSetupHttp.js";
+import type {
+  LeagueMembersScreenshotConfidence,
+  LeagueMembersScreenshotImportInput,
+} from "./leagueMembersScreenshotImport.js";
+import {
+  LeagueMembersScreenshotAnalyzerError,
+  type LeagueMembersScreenshotAnalyzer,
+} from "./openAiLeagueMembersScreenshotAnalyzer.js";
 import {
   SimulationError,
   type SimulationStrategyInput,
@@ -47,6 +58,7 @@ import {
 } from "./platformCookies.js";
 import {
   acceptPlatformInvitation,
+  issuePlatformInvitation,
   listPlatformInvitations,
   hashPlatformInvitationToken,
   PlatformInvitationError,
@@ -103,6 +115,8 @@ export interface PlatformHttpServices {
   accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
   loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
   authClientRateLimiter?: ClientAddressRateLimiter | undefined;
+  leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
+  screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
 }
 
 interface ParsedPlatformHttpRequest {
@@ -635,6 +649,18 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
     return knownError(platformInvitationErrorStatus(error.code), error.code, error.message);
   }
 
+  if (error instanceof LeagueMembersScreenshotAnalyzerError) {
+    return knownError(
+      error.code === "invalid_image" ? 400 : error.code === "provider_unavailable" ? 503 : 422,
+      error.code,
+      error.message,
+    );
+  }
+
+  if (error instanceof LeagueSetupWriteConflictError) {
+    return knownError(409, "league_setup_write_conflict", error.message);
+  }
+
   return {
     status: 500,
     body: {
@@ -685,10 +711,57 @@ const setupImportKnownUsers = (value: unknown): readonly PlatformLeagueSetupImpo
     }];
   });
 
+const screenshotConfidence = (value: unknown): LeagueMembersScreenshotConfidence =>
+  value === "high" || value === "medium" || value === "low" ? value : "low";
+
+const leagueMembersScreenshotImportInput = (
+  body: Record<string, unknown>,
+): LeagueMembersScreenshotImportInput => ({
+  leagueName: optionalString(body.leagueName) ?? null,
+  externalLeagueId: optionalString(body.externalLeagueId) ?? null,
+  teams: arrayValue(body.teams).map(candidate => {
+    const team = unknownRecord(candidate) ?? {};
+
+    return {
+      draftOrderPosition: optionalNumber(team.draftOrderPosition) ?? 0,
+      abbreviation: optionalString(team.abbreviation) ?? "",
+      teamDisplayName: optionalString(team.teamDisplayName) ?? "",
+      managerDisplayNames: stringArrayValue(team.managerDisplayNames),
+      confidence: screenshotConfidence(team.confidence),
+      issues: stringArrayValue(team.issues),
+      confirmed: optionalBoolean(team.confirmed) ?? false,
+      targetTeamId: optionalString(team.targetTeamId) ?? null,
+    };
+  }),
+});
+
+const screenshotRateLimitResponse = (
+  request: ParsedPlatformHttpRequest,
+  limiter: ClientAddressRateLimiter | undefined,
+  key: string,
+): PlatformHttpResponse<PlatformHttpErrorBody> | null => {
+  const decision = limiter?.consume(key, request.now);
+  if (decision === undefined || decision.allowed) return null;
+
+  return {
+    status: 429,
+    headers: { "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))) },
+    body: {
+      error: {
+        code: "rate_limited",
+        message: "Too many screenshot analyses. Try again later.",
+      },
+    },
+  };
+};
+
 const routeSeasonSetupImport = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-  invitationRepository?: PlatformInvitationRepository | undefined,
+  services: Pick<
+    PlatformHttpServices,
+    "invitationRepository" | "leagueMembersScreenshotAnalyzer" | "screenshotImportRateLimiter"
+  >,
 ): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
   if (request.segments.length !== 4) return notFound();
@@ -703,11 +776,51 @@ const routeSeasonSetupImport = async (
     knownUsers: setupImportKnownUsers(request.body.knownUsers),
     ...(content === undefined ? {} : { content }),
     ...(now === undefined ? {} : { now }),
-    ...(invitationRepository === undefined ? {} : { invitationRepository }),
+    ...(services.invitationRepository === undefined ? {} : { invitationRepository: services.invitationRepository }),
   };
 
   if (action === "preview") return await previewLeagueSetupImport(app, input);
   if (action === "apply") return await applyLeagueSetupImport(app, input);
+  if (action === "screenshot-analyze") {
+    const account = await requireSeasonManager(app, request, seasonId ?? "");
+    const analyzer = services.leagueMembersScreenshotAnalyzer;
+    if (analyzer === undefined) {
+      return knownError(
+        503,
+        "screenshot_import_unavailable",
+        "Screenshot import is not configured for this deployment.",
+      );
+    }
+    const limited = screenshotRateLimitResponse(
+      request,
+      services.screenshotImportRateLimiter,
+      `${account.id}:${seasonId ?? ""}`,
+    );
+    if (limited !== null) return limited;
+
+    return await analyzeLeagueMembersScreenshot(app, {
+      actorSessionToken: request.sessionToken,
+      seasonId: seasonId ?? "",
+      image: {
+        mimeType: optionalString(request.body.mimeType) ?? "",
+        base64: optionalString(request.body.base64) ?? "",
+      },
+      analyzer,
+      now,
+    });
+  }
+  if (action === "screenshot-apply") {
+    await requireSeasonManager(app, request, seasonId ?? "");
+    const setupRevision = optionalString(request.body.setupRevision);
+
+    return await applyLeagueMembersScreenshotImport(app, {
+      actorSessionToken: request.sessionToken,
+      seasonId: seasonId ?? "",
+      ...(setupRevision === undefined ? {} : { setupRevision }),
+      import: leagueMembersScreenshotImportInput(request.body),
+      now,
+    });
+  }
 
   return notFound();
 };
@@ -803,7 +916,7 @@ const routeSeason = async (
   }
 
   if (seasonAction === "setup-import") {
-    return await routeSeasonSetupImport(app, request, services.invitationRepository);
+    return await routeSeasonSetupImport(app, request, services);
   }
 
   if (seasonAction === "historical-imports") {
@@ -1364,7 +1477,7 @@ const requireSeasonManager = async (
   if (membership?.role !== "owner" && membership?.role !== "admin") {
     throw new PlatformAppError(
       "shared_mutation_denied",
-      "Only league owners and admins can manage invitations.",
+      "Only league owners and admins can manage league setup.",
     );
   }
 
@@ -1401,20 +1514,131 @@ const routeInvitations = async (
 
   const [, invitationId, action] = request.segments;
   if (request.segments.length === 1) {
-    if (request.method !== "GET") return methodNotAllowed();
     const seasonId = stringValue(request.query.seasonId);
-    await requireSeasonManager(app, request, seasonId);
-    return {
-      status: 200,
-      body: { invitations: await listPlatformInvitations(repository, seasonId) },
-    };
+    if (request.method === "GET") {
+      await requireSeasonManager(app, request, seasonId);
+      const season = await app.getLeagueSeason({
+        actorSessionToken: request.sessionToken,
+        seasonId,
+        now: request.now,
+      });
+      const claimedTeamIds = (await app.listLeagueMemberships(season.leagueId))
+        .flatMap(membership => membership.teamId === undefined ? [] : [membership.teamId]);
+      return {
+        status: 200,
+        body: {
+          invitations: await listPlatformInvitations(repository, seasonId),
+          claimedTeamIds,
+        },
+      };
+    }
+    if (request.method === "POST") {
+      const submittedSeasonId = stringValue(request.body.seasonId);
+      const account = await requireSeasonManager(app, request, submittedSeasonId);
+      const season = await app.getLeagueSeason({
+        actorSessionToken: request.sessionToken,
+        seasonId: submittedSeasonId,
+        now: request.now,
+      });
+      const teamId = stringValue(request.body.teamId);
+      const team = season.teams.find(candidate => candidate.id === teamId);
+      if (team === undefined) {
+        throw new PlatformAppError("team_not_found", "Choose a team from this league season.");
+      }
+      const email = normalizeEmail(stringValue(request.body.email));
+      const memberships = await app.listLeagueMemberships(season.leagueId);
+      if (memberships.some(membership => membership.teamId === team.id)) {
+        return knownError(
+          409,
+          "invitation_team_claimed",
+          "That team is already claimed by a league member.",
+        );
+      }
+      const invitedAccount = await app.findAccountByEmail(email);
+      if (
+        invitedAccount !== null &&
+        memberships.some(membership => membership.userId === invitedAccount.id)
+      ) {
+        return knownError(
+          409,
+          "invitation_existing_member",
+          "That account is already an active member of this league.",
+        );
+      }
+      const existingInvitations = await repository.listForSeason(season.id);
+      const pendingForEmail = existingInvitations.find(candidate =>
+        candidate.status === "pending" && candidate.email === email
+      );
+      if (pendingForEmail !== undefined && pendingForEmail.teamId !== team.id) {
+        return knownError(
+          409,
+          "invitation_email_conflict",
+          "That email already has a pending invitation for another team.",
+        );
+      }
+      const pendingForTeam = existingInvitations.find(candidate =>
+        candidate.status === "pending" && candidate.teamId === team.id
+      );
+      if (pendingForTeam !== undefined && pendingForTeam.email !== email) {
+        return knownError(
+          409,
+          "invitation_team_conflict",
+          "That team already has a pending invitation for another email.",
+        );
+      }
+      const invitationNow = request.now ?? new Date();
+      const expiresAt = new Date(invitationNow.getTime() + 7 * 24 * 60 * 60 * 1_000);
+      const invitation = pendingForEmail === undefined
+        ? await issuePlatformInvitation(repository, {
+            leagueId: season.leagueId,
+            seasonId: season.id,
+            email,
+            role: "member",
+            ownerId: team.ownerId,
+            teamId: team.id,
+            ownerDisplayName: team.ownerDisplayName,
+            teamDisplayName: team.displayName,
+            invitedByUserId: account.id,
+            now: invitationNow,
+            expiresAt,
+          })
+        : await reissuePlatformInvitation(repository, {
+            invitationId: pendingForEmail.id,
+            invitedByUserId: account.id,
+            now: invitationNow,
+            expiresAt,
+          });
+
+      return { status: pendingForEmail === undefined ? 201 : 200, body: { invitation } };
+    }
+
+    return methodNotAllowed();
   }
 
   if (invitationId === "accept" && request.segments.length === 2) {
     if (request.method !== "POST") return methodNotAllowed();
     const account = await requireRequestAccount(app, request);
+    const token = stringValue(request.body.token);
+    const pendingInvitation = await repository.findByTokenHash(hashPlatformInvitationToken(token));
+    if (pendingInvitation !== null) {
+      const memberships = await app.listLeagueMemberships(pendingInvitation.leagueId);
+      if (memberships.some(membership => membership.userId === account.id)) {
+        return knownError(
+          409,
+          "invitation_existing_member",
+          "This account is already an active member of the league.",
+        );
+      }
+      if (memberships.some(membership => membership.teamId === pendingInvitation.teamId)) {
+        return knownError(
+          409,
+          "invitation_team_claimed",
+          "The invited team is already claimed by a league member.",
+        );
+      }
+    }
     const result = await acceptPlatformInvitation(repository, {
-      token: stringValue(request.body.token),
+      token,
       account,
       now: request.now ?? new Date(),
     });

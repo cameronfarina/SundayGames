@@ -26,6 +26,14 @@ export interface PlatformRuntimeConfig {
   liveDraftDataMode: "postgres" | "local-fixtures";
   provisioningToken: string | undefined;
   simulationDataMode: "disabled" | "local-fixtures";
+  screenshotImport: {
+    mode: "disabled" | "openai";
+    apiKey: string | undefined;
+    model: string;
+    timeoutMs: number;
+    maxImageBytes: number;
+    maxConcurrentRequests: number;
+  };
   worker: {
     workerId: string;
     jobKinds: readonly JobKind[];
@@ -69,6 +77,10 @@ const defaultWorkerJobKinds: readonly JobKind[] = ["simulation"];
 const defaultWorkerPollIntervalMs = 1_000;
 const defaultWorkerLockTtlMs = 60_000;
 const defaultDraftToolsSessionDirectory = "data/platform-draft-tools";
+const defaultScreenshotImportModel = "gpt-5.6-terra";
+const defaultScreenshotImportTimeoutMs = 30_000;
+const defaultScreenshotImportMaxImageBytes = 5 * 1024 * 1024;
+const defaultScreenshotImportMaxConcurrency = 2;
 const launchWorkerJobKinds = ["simulation"] as const satisfies readonly JobKind[];
 const productionReadinessNextSteps = [
   "Run `npm run platform:migrate` against the production DATABASE_URL before starting web or worker processes.",
@@ -76,6 +88,7 @@ const productionReadinessNextSteps = [
   "Seed or verify production league, users, memberships, pricing, and a test live room; use `npm run platform:seed:e2e` only for rehearsal fixtures.",
   "Start `npm run platform:web` behind the domain/proxy and `npm run platform:worker` for background jobs.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",
+  "Configure OPENAI_API_KEY for commissioner screenshot imports and monitor provider usage.",
 ] as const;
 
 const optionalEnvString = (env: PlatformRuntimeEnv, key: string): string | undefined => {
@@ -157,6 +170,40 @@ const liveDraftDataMode = (
   return value;
 };
 
+const screenshotImportConfig = (
+  env: PlatformRuntimeEnv,
+): PlatformRuntimeConfig["screenshotImport"] => {
+  const mode = optionalEnvString(env, "MOCKD_SCREENSHOT_IMPORT_MODE") ?? "disabled";
+  if (mode !== "disabled" && mode !== "openai") {
+    throw new Error("MOCKD_SCREENSHOT_IMPORT_MODE must be disabled or openai.");
+  }
+  const apiKey = optionalEnvString(env, "OPENAI_API_KEY");
+  if (mode === "openai" && apiKey === undefined) {
+    throw new Error("OPENAI_API_KEY is required when screenshot import mode is openai.");
+  }
+
+  return {
+    mode,
+    apiKey,
+    model: optionalEnvString(env, "MOCKD_SCREENSHOT_IMPORT_MODEL") ?? defaultScreenshotImportModel,
+    timeoutMs: positiveIntegerEnv(
+      env,
+      "MOCKD_SCREENSHOT_IMPORT_TIMEOUT_MS",
+      defaultScreenshotImportTimeoutMs,
+    ),
+    maxImageBytes: positiveIntegerEnv(
+      env,
+      "MOCKD_SCREENSHOT_IMPORT_MAX_IMAGE_BYTES",
+      defaultScreenshotImportMaxImageBytes,
+    ),
+    maxConcurrentRequests: positiveIntegerEnv(
+      env,
+      "MOCKD_SCREENSHOT_IMPORT_MAX_CONCURRENCY",
+      defaultScreenshotImportMaxConcurrency,
+    ),
+  };
+};
+
 const workerJobKinds = (env: PlatformRuntimeEnv): readonly JobKind[] => {
   const value = optionalEnvString(env, "MOCKD_WORKER_JOB_KINDS");
   if (value === undefined) return defaultWorkerJobKinds;
@@ -221,6 +268,7 @@ export const readPlatformRuntimeConfig = (
   }
 
   const parsedSimulationDataMode = simulationDataMode(env);
+  const parsedScreenshotImport = screenshotImportConfig(env);
   const parsedWorkerJobKinds = workerJobKinds(env);
   if (
     options.requireRunnableWorker === true &&
@@ -245,6 +293,7 @@ export const readPlatformRuntimeConfig = (
     liveDraftDataMode: parsedLiveDraftDataMode,
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
     simulationDataMode: parsedSimulationDataMode,
+    screenshotImport: parsedScreenshotImport,
     worker: {
       workerId: runtimeWorkerId(env),
       jobKinds: parsedWorkerJobKinds,
@@ -416,6 +465,23 @@ export const assessPlatformProductionReadiness = (
         detail: errorMessage(error),
       });
     }
+  }
+
+  if (
+    optionalEnvString(env, "MOCKD_SCREENSHOT_IMPORT_MODE") === "openai" &&
+    optionalEnvString(env, "OPENAI_API_KEY") !== undefined
+  ) {
+    checks.push({
+      status: "pass",
+      label: "Screenshot import",
+      detail: "OpenAI screenshot analysis is configured.",
+    });
+  } else {
+    checks.push({
+      status: "fail",
+      label: "Screenshot import",
+      detail: "Set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY.",
+    });
   }
 
   if (storage.kind === "postgres" && databaseUsesPostgresScheme && port !== undefined) {

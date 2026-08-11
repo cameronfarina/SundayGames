@@ -43,6 +43,8 @@ import {
   type LeagueSetupRepository,
   type PlatformLeagueMembership,
   type RegisterLeagueSeasonRepositoryInput,
+  LeagueSetupWriteConflictError,
+  leagueSeasonSetupRevision,
 } from "./leagueSetup.js";
 import {
   InMemoryLiveDraftRoomRepository,
@@ -135,6 +137,8 @@ export interface RegisterLeagueSeasonInput {
   actorSessionToken: string;
   season: LeagueSeason;
   memberships: readonly PlatformLeagueMembership[];
+  expectedSetupRevision?: string;
+  membershipWriteMode?: "replace" | "preserve";
   now?: Date | undefined;
 }
 
@@ -440,20 +444,29 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   }
 
   registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): LeagueSeason {
+    const currentSeason = this.#leagueSeasonsById.get(input.season.id);
+    if (
+      input.expectedSetupRevision !== undefined &&
+      (currentSeason === undefined || leagueSeasonSetupRevision(currentSeason) !== input.expectedSetupRevision)
+    ) {
+      throw new LeagueSetupWriteConflictError();
+    }
     const storedSeason = cloneForRead(input.season);
 
     this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
 
-    for (const [membershipKey, membership] of this.#membershipsByUserAndLeague) {
-      if (membership.leagueId === storedSeason.leagueId) {
-        this.#membershipsByUserAndLeague.delete(membershipKey);
+    if (input.membershipWriteMode !== "preserve") {
+      for (const [membershipKey, membership] of this.#membershipsByUserAndLeague) {
+        if (membership.leagueId === storedSeason.leagueId) {
+          this.#membershipsByUserAndLeague.delete(membershipKey);
+        }
       }
-    }
 
-    for (const membership of input.memberships) {
-      this.#membershipsByUserAndLeague.set(membershipKeyFor(membership.userId, membership.leagueId), {
-        ...cloneForRead(membership),
-      });
+      for (const membership of input.memberships) {
+        this.#membershipsByUserAndLeague.set(membershipKeyFor(membership.userId, membership.leagueId), {
+          ...cloneForRead(membership),
+        });
+      }
     }
     this.#syncHistoricalImportSeasons();
 
@@ -951,6 +964,12 @@ export const createPlatformApp = ({
         season: input.season,
         memberships: input.memberships,
         createdByUserId: account.id,
+        ...(input.expectedSetupRevision === undefined
+          ? {}
+          : { expectedSetupRevision: input.expectedSetupRevision }),
+        ...(input.membershipWriteMode === undefined
+          ? {}
+          : { membershipWriteMode: input.membershipWriteMode }),
         now: input.now,
       });
       if (usesExternalLeagueSetup) {
@@ -958,6 +977,9 @@ export const createPlatformApp = ({
           season: registeredSeason,
           memberships: input.memberships,
           createdByUserId: account.id,
+          ...(input.membershipWriteMode === undefined
+            ? {}
+            : { membershipWriteMode: input.membershipWriteMode }),
           now: input.now,
         });
       }

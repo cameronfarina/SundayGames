@@ -160,6 +160,7 @@ describe("platform Postgres migrations", () => {
       "platform-live-room-paused-v2",
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
+      "platform-team-identities-v6",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -168,6 +169,25 @@ describe("platform Postgres migrations", () => {
     );
     expect(client.statements).toContain(
       "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    );
+  });
+
+  it("adds imported team identity fields to existing fantasy teams", async () => {
+    const client = new RecordingPostgresClient();
+    [
+      "platform-schema-v1",
+      "platform-live-room-paused-v2",
+      "platform-invitations-v3",
+      "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
+    ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
+    expect(client.statements).toContain(
+      "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS abbreviation text;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS manager_names_json jsonb NOT NULL DEFAULT '[]'::jsonb;",
     );
   });
 
@@ -180,6 +200,7 @@ describe("platform Postgres migrations", () => {
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
       "platform-auth-version-v5",
+      "platform-team-identities-v6",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -187,6 +208,7 @@ describe("platform Postgres migrations", () => {
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
       "platform-auth-version-v5",
+      "platform-team-identities-v6",
     ]);
   });
 });

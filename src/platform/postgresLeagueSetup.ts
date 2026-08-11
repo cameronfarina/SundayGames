@@ -14,7 +14,9 @@ import type {
 } from "./leagueSeason.js";
 import {
   type ClaimLeagueSeasonTeamRepositoryInput,
+  LeagueSetupWriteConflictError,
   type LeagueSetupRepository,
+  leagueSeasonSetupRevision,
   type PlatformLeagueMembership,
   type RegisterLeagueSeasonRepositoryInput,
 } from "./leagueSetup.js";
@@ -47,6 +49,8 @@ interface FantasyTeamRow {
   team_key: string;
   team_name: string;
   owner_name: string;
+  abbreviation: string | null;
+  manager_names_json: unknown;
   display_order: number;
 }
 
@@ -125,6 +129,21 @@ const jsonObjectFromDb = (value: unknown): Record<string, unknown> => {
   }
 
   return {};
+};
+
+const stringArrayFromDb = (value: unknown): string[] => {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+
+  return Array.isArray(parsed)
+    ? parsed.filter((candidate): candidate is string => typeof candidate === "string")
+    : [];
 };
 
 const providerFromDb = (value: string | null): LeagueProvider => {
@@ -283,11 +302,32 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
     const season = cloneJson(input.season);
 
     return await this.#client.transaction(async transactionClient => {
+      if (input.expectedSetupRevision !== undefined) {
+        await transactionClient.query(
+          "SELECT id FROM league_seasons WHERE id = $1 FOR UPDATE",
+          [season.id],
+        );
+        const currentSeason = await this.#findLeagueSeason(transactionClient, season.id);
+        if (
+          currentSeason === null ||
+          leagueSeasonSetupRevision(currentSeason) !== input.expectedSetupRevision
+        ) {
+          throw new LeagueSetupWriteConflictError();
+        }
+      }
       await this.#upsertLeague(transactionClient, season, input.createdByUserId, now);
       await this.#upsertSeason(transactionClient, season, now);
-      await this.#replaceTeams(transactionClient, season, input.memberships, now);
+      await this.#replaceTeams(
+        transactionClient,
+        season,
+        input.memberships,
+        input.membershipWriteMode === "preserve",
+        now,
+      );
       await this.#upsertRosterRules(transactionClient, season, now);
-      await this.#replaceMemberships(transactionClient, season.leagueId, input.memberships, now);
+      if (input.membershipWriteMode !== "preserve") {
+        await this.#replaceMemberships(transactionClient, season.leagueId, input.memberships, now);
+      }
 
       const registeredSeason = await this.#findLeagueSeason(transactionClient, season.id);
       if (registeredSeason === null) {
@@ -503,6 +543,7 @@ ON CONFLICT (id) DO UPDATE SET
     client: PostgresQueryClient,
     season: LeagueSeason,
     memberships: readonly PlatformLeagueMembership[],
+    preserveTeamClaims: boolean,
     now: Date,
   ): Promise<void> {
     await this.#shiftExistingTeamDisplayOrders(client, season, now);
@@ -516,18 +557,22 @@ INSERT INTO fantasy_teams (
   team_key,
   team_name,
   owner_name,
+  abbreviation,
+  manager_names_json,
   owner_user_id,
   display_order,
   aliases_json,
   created_at,
   updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, '[]'::jsonb, $8, $8)
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, '[]'::jsonb, $10, $10)
 ON CONFLICT (id) DO UPDATE SET
   league_season_id = EXCLUDED.league_season_id,
   team_key = EXCLUDED.team_key,
   team_name = EXCLUDED.team_name,
   owner_name = EXCLUDED.owner_name,
-  owner_user_id = EXCLUDED.owner_user_id,
+  abbreviation = EXCLUDED.abbreviation,
+  manager_names_json = EXCLUDED.manager_names_json,
+  owner_user_id = ${preserveTeamClaims ? "fantasy_teams.owner_user_id" : "EXCLUDED.owner_user_id"},
   display_order = EXCLUDED.display_order,
   updated_at = EXCLUDED.updated_at;
 `.trim(),
@@ -537,7 +582,9 @@ ON CONFLICT (id) DO UPDATE SET
           team.ownerId,
           team.displayName,
           team.ownerDisplayName,
-          teamOwnerUserIdFor(team, season.leagueId, memberships),
+          team.abbreviation ?? null,
+          jsonbParameter(team.managerDisplayNames ?? []),
+          preserveTeamClaims ? null : teamOwnerUserIdFor(team, season.leagueId, memberships),
           team.draftOrderPosition,
           now,
         ],
@@ -719,7 +766,7 @@ INSERT INTO league_memberships (
   ): Promise<FantasyTeam[]> {
     const result = await client.query<FantasyTeamRow>(
       `
-SELECT id, league_season_id, team_key, team_name, owner_name, display_order
+SELECT id, league_season_id, team_key, team_name, owner_name, abbreviation, manager_names_json, display_order
 FROM fantasy_teams
 WHERE league_season_id = $1
 ORDER BY display_order ASC, id ASC
@@ -727,14 +774,21 @@ ORDER BY display_order ASC, id ASC
       [seasonId],
     );
 
-    return result.rows.map(row => ({
-      id: row.id,
-      leagueSeasonId: row.league_season_id,
-      ownerId: row.team_key,
-      ownerDisplayName: row.owner_name,
-      displayName: row.team_name,
-      draftOrderPosition: Number(row.display_order),
-    }));
+    return result.rows.map(row => {
+      const managerDisplayNames = stringArrayFromDb(row.manager_names_json);
+      const abbreviation = typeof row.abbreviation === "string" ? row.abbreviation.trim() : "";
+
+      return {
+        id: row.id,
+        leagueSeasonId: row.league_season_id,
+        ownerId: row.team_key,
+        ownerDisplayName: row.owner_name,
+        ...(managerDisplayNames.length === 0 ? {} : { managerDisplayNames }),
+        ...(abbreviation.length === 0 ? {} : { abbreviation }),
+        displayName: row.team_name,
+        draftOrderPosition: Number(row.display_order),
+      };
+    });
   }
 
   async #teamClaimsForLeague(

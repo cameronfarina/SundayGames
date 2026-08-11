@@ -21,6 +21,7 @@ const liveRoomPausedMigrationId = "platform-live-room-paused-v2";
 const platformInvitationsMigrationId = "platform-invitations-v3";
 const liveRoomSetupMigrationId = "platform-live-room-setup-v4";
 const authVersionMigrationId = "platform-auth-version-v5";
+const teamIdentitiesMigrationId = "platform-team-identities-v6";
 const platformMigrationAdvisoryLockKeys = [1_297_040_203, 1_146_113_113] as const;
 
 const migrationStatementStartingWith = (prefix: string): string => {
@@ -97,6 +98,13 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
     statements: [
       "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
       "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    ],
+  },
+  {
+    id: teamIdentitiesMigrationId,
+    statements: [
+      "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS abbreviation text;",
+      "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS manager_names_json jsonb NOT NULL DEFAULT '[]'::jsonb;",
     ],
   },
 ];

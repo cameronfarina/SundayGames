@@ -22,13 +22,20 @@ export {
 import { mockdSessionCookieName } from "./platformCookies.js";
 
 export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
+export const defaultPlatformScreenshotImportBodyLimitBytes = 7_100_000;
 
 export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
   draftRoomHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
+  screenshotImportMaxBodyBytes?: number | undefined;
+  screenshotImportPreflight?: PlatformNodeHttpPreflight | undefined;
   trustProxy?: boolean | undefined;
 }
+
+export type PlatformNodeHttpPreflight = (
+  request: PlatformHttpRequest,
+) => Promise<PlatformHttpResponse | null>;
 
 export interface PlatformNodeHttpLogEntry {
   timestamp: string;
@@ -220,6 +227,16 @@ const requestBodyTooLargeResponse: PlatformHttpResponse<PlatformHttpErrorBody> =
     error: {
       code: "request_body_too_large",
       message: "Request body exceeds the configured size limit.",
+    },
+  },
+};
+
+const screenshotImportPreflightUnavailableResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
+  status: 503,
+  body: {
+    error: {
+      code: "screenshot_import_unavailable",
+      message: "Screenshot import is not configured for this deployment.",
     },
   },
 };
@@ -465,23 +482,49 @@ const htmlForBrowserRequest = (
   }
 };
 
-const platformRequestFor = async (
+const platformRequestMetadataFor = (
   request: IncomingMessage,
-  maxBodyBytes: number,
   trustProxy: boolean,
-): Promise<PlatformHttpRequest> => {
+): PlatformHttpRequest => {
   const sessionToken = platformSessionTokenForHeaders(request.headers);
 
   return {
     method: request.method ?? "GET",
     path: request.url ?? "/",
-    body: await readJsonBody(request, maxBodyBytes),
     sessionToken,
     headers: platformHeadersFor(request.headers),
     isSecure: isDirectSecureRequest(request),
     clientAddress: clientAddressFor(request, trustProxy),
   };
 };
+
+const platformRequestFor = async (
+  request: IncomingMessage,
+  maxBodyBytes: number,
+  trustProxy: boolean,
+): Promise<PlatformHttpRequest> => ({
+  ...platformRequestMetadataFor(request, trustProxy),
+  body: await readJsonBody(request, maxBodyBytes),
+});
+
+const isScreenshotImportAnalysisRequest = (request: IncomingMessage): boolean => {
+  if (request.method?.toUpperCase() !== "POST") return false;
+
+  try {
+    const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+    return /^\/seasons\/[^/]+\/setup-import\/screenshot-analyze$/u.test(pathname);
+  } catch {
+    return false;
+  }
+};
+
+const bodyLimitForRequest = (
+  request: IncomingMessage,
+  defaultLimit: number,
+  screenshotImportLimit: number,
+): number => isScreenshotImportAnalysisRequest(request)
+  ? screenshotImportLimit
+  : defaultLimit;
 
 export const createPlatformNodeHttpAdapter = (
   handle: PlatformHttpHandler,
@@ -490,6 +533,9 @@ export const createPlatformNodeHttpAdapter = (
   const appHtml = options.appHtml;
   const draftRoomHtml = options.draftRoomHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
+  const screenshotImportMaxBodyBytes = options.screenshotImportMaxBodyBytes
+    ?? defaultPlatformScreenshotImportBodyLimitBytes;
+  const screenshotImportPreflight = options.screenshotImportPreflight;
   const trustProxy = options.trustProxy ?? false;
 
   return async (request, response) => {
@@ -502,7 +548,23 @@ export const createPlatformNodeHttpAdapter = (
         return;
       }
 
-      const platformRequest = await platformRequestFor(request, maxBodyBytes, trustProxy);
+      if (isScreenshotImportAnalysisRequest(request)) {
+        const preflightResponse = screenshotImportPreflight === undefined
+          ? screenshotImportPreflightUnavailableResponse
+          : await screenshotImportPreflight(platformRequestMetadataFor(request, trustProxy));
+        if (preflightResponse !== null) {
+          response.shouldKeepAlive = false;
+          response.setHeader("Connection", "close");
+          writeJsonResponse(response, preflightResponse);
+          return;
+        }
+      }
+
+      const platformRequest = await platformRequestFor(
+        request,
+        bodyLimitForRequest(request, maxBodyBytes, screenshotImportMaxBodyBytes),
+        trustProxy,
+      );
       const platformResponse = await handle(platformRequest);
 
       writeJsonResponse(response, platformResponse);

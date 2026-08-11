@@ -23,6 +23,12 @@ describe("platform runtime config", () => {
       MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
       MOCKD_PROVISIONING_TOKEN: "production-provisioning-token",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
+      MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
+      OPENAI_API_KEY: "test-openai-key",
+      MOCKD_SCREENSHOT_IMPORT_MODEL: "gpt-5.6-terra",
+      MOCKD_SCREENSHOT_IMPORT_TIMEOUT_MS: "20000",
+      MOCKD_SCREENSHOT_IMPORT_MAX_IMAGE_BYTES: "4194304",
+      MOCKD_SCREENSHOT_IMPORT_MAX_CONCURRENCY: "3",
       MOCKD_WORKER_ID: "worker-a",
       MOCKD_WORKER_JOB_KINDS: "simulation",
       MOCKD_WORKER_POLL_INTERVAL_MS: "750",
@@ -44,6 +50,14 @@ describe("platform runtime config", () => {
       liveDraftDataMode: "postgres",
       provisioningToken: "production-provisioning-token",
       simulationDataMode: "local-fixtures",
+      screenshotImport: {
+        mode: "openai",
+        apiKey: "test-openai-key",
+        model: "gpt-5.6-terra",
+        timeoutMs: 20000,
+        maxImageBytes: 4194304,
+        maxConcurrentRequests: 3,
+      },
       worker: {
         workerId: "worker-a",
         jobKinds: ["simulation"],
@@ -69,6 +83,14 @@ describe("platform runtime config", () => {
     expect(config.trustProxy).toBe(false);
     expect(config.provisioningToken).toBeUndefined();
     expect(config.simulationDataMode).toBe("disabled");
+    expect(config.screenshotImport).toEqual({
+      mode: "disabled",
+      apiKey: undefined,
+      model: "gpt-5.6-terra",
+      timeoutMs: 30000,
+      maxImageBytes: 5242880,
+      maxConcurrentRequests: 2,
+    });
     expect(config.worker.workerId).toMatch(/^worker_/);
     expect(config.worker.jobKinds).toEqual(["simulation"]);
   });
@@ -105,6 +127,10 @@ describe("platform runtime config", () => {
         MOCKD_TRUST_PROXY: "sometimes",
       }),
     ).toThrow("MOCKD_TRUST_PROXY must be true or false.");
+
+    expect(() => readPlatformRuntimeConfig({
+      MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
+    })).toThrow("OPENAI_API_KEY is required when screenshot import mode is openai.");
   });
 
   it("can require Postgres for production entrypoints", () => {
@@ -175,6 +201,8 @@ describe("platform runtime config", () => {
       HOST: "0.0.0.0",
       PORT: "443",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
+      OPENAI_API_KEY: "production-openai-key",
     });
 
     expect(report).toMatchObject({
@@ -217,6 +245,11 @@ describe("platform runtime config", () => {
         label: "Web bind target",
         detail: "Host 0.0.0.0, port 443.",
       },
+      {
+        status: "pass",
+        label: "Screenshot import",
+        detail: "OpenAI screenshot analysis is configured.",
+      },
     ]);
     expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
     expect(report.nextSteps.join("\n")).toContain("persistent volume");
@@ -247,6 +280,22 @@ describe("platform runtime config", () => {
     expect(formatPlatformProductionReadinessReport(report)).toContain(
       "FAIL Postgres durable storage - DATABASE_URL is required for production/domain readiness.",
     );
+  });
+
+  it("blocks production/domain readiness when screenshot analysis is not configured", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Screenshot import",
+      detail: "Set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY.",
+    });
   });
 
   it("blocks production/domain readiness when private draft storage is not configured", () => {

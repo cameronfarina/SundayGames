@@ -186,7 +186,6 @@ RETURNING *;
 INSERT INTO league_memberships (id, league_id, user_id, role, status, created_at, updated_at)
 VALUES ($1, $2, $3, $4, 'active', $5, $5)
 ON CONFLICT (league_id, user_id) DO UPDATE SET
-  role = EXCLUDED.role,
   status = 'active',
   updated_at = EXCLUDED.updated_at
 RETURNING id;

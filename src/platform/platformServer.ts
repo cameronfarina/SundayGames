@@ -78,6 +78,7 @@ import type {
   SimulationMockBatchRunner,
   SimulationRepository,
 } from "./simulations.js";
+import type { LeagueMembersScreenshotAnalyzer } from "./openAiLeagueMembersScreenshotAnalyzer.js";
 
 export type PlatformClock = () => Date;
 
@@ -110,8 +111,12 @@ export interface CreatePlatformServerOptions {
   accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
   loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
   authClientRateLimiter?: ClientAddressRateLimiter | undefined;
+  screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
+  screenshotImportIngressRateLimiter?: ClientAddressRateLimiter | undefined;
+  leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
+  screenshotImportBodyLimitBytes?: number | undefined;
   draftToolsSessionDirectory?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   now?: PlatformClock | undefined;
@@ -391,6 +396,17 @@ const isLeagueSetupOnlyMutationRequest = (request: PlatformHttpRequest): boolean
   }
 };
 
+const isLeagueMembersScreenshotAnalysisRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+  const segments = pathSegmentsFor(request);
+
+  return segments !== null &&
+    segments.length === 4 &&
+    segments[0] === "seasons" &&
+    segments[2] === "setup-import" &&
+    segments[3] === "screenshot-analyze";
+};
+
 const isHistoricalImportOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   if (request.method.toUpperCase() !== "POST") return false;
 
@@ -624,6 +640,17 @@ export const createPlatformServer = async (
     windowMs: 15 * 60 * 1_000,
     maxTrackedEmails: 10_000,
   });
+  const screenshotImportRateLimiter = options.screenshotImportRateLimiter ?? createClientAddressRateLimiter({
+    maxAttempts: 5,
+    windowMs: 60 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const screenshotImportIngressRateLimiter = options.screenshotImportIngressRateLimiter
+    ?? createClientAddressRateLimiter({
+      maxAttempts: 5,
+      windowMs: 60 * 60 * 1_000,
+      maxTrackedEmails: 10_000,
+    });
   const runSerializedForSnapshotStore = serializeAsyncOperations();
   const runInSnapshotCriticalSection = async <T>(operation: () => Promise<T>): Promise<T> =>
     runtime.postgresStore === undefined
@@ -796,6 +823,10 @@ export const createPlatformServer = async (
         accountRateLimiter,
         loginRateLimiter,
         authClientRateLimiter,
+        screenshotImportRateLimiter,
+        ...(options.leagueMembersScreenshotAnalyzer === undefined
+          ? {}
+          : { leagueMembersScreenshotAnalyzer: options.leagueMembersScreenshotAnalyzer }),
         ...(applyAcceptedMembership === undefined ? {} : { applyAcceptedMembership }),
         ...(options.readinessProbe === undefined ? {} : { readinessProbe: options.readinessProbe }),
       }),
@@ -844,6 +875,7 @@ export const createPlatformServer = async (
     const usesExternalLiveDraftRoomRepository = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
     const usesExternalExportArtifactRepository = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
     const skipSnapshotPersist =
+      isLeagueMembersScreenshotAnalysisRequest(requestWithNow) ||
       (
         usesExternalAuthRepository &&
         isAuthOnlyMutationRequest(requestWithNow)
@@ -898,6 +930,9 @@ export const createPlatformServer = async (
 
   const handler: PlatformHttpHandler = async request => {
     const requestWithNow = withTrustedNow(request, options.now);
+    if (isLeagueMembersScreenshotAnalysisRequest(requestWithNow)) {
+      return await runRequest(requestWithNow);
+    }
     const eventStreamRequest = liveDraftRoomEventStreamRequestFor(requestWithNow);
     if (eventStreamRequest !== null) {
       const initialResponse = await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
@@ -938,6 +973,74 @@ export const createPlatformServer = async (
     appHtml: platformShellHtml,
     draftRoomHtml: platformHostedDraftRoomHtml,
     maxBodyBytes: options.bodyLimitBytes,
+    screenshotImportMaxBodyBytes: options.screenshotImportBodyLimitBytes,
+    screenshotImportPreflight: async request => {
+      const segments = pathSegmentsFor(request);
+      const seasonId = segments?.[1] ?? "";
+      const sessionToken = request.sessionToken;
+      const account = sessionToken === undefined
+        ? null
+        : await runtime.app.findAccountBySessionToken(sessionToken, options.now?.());
+      if (account === null) {
+        return {
+          status: 401,
+          body: {
+            error: {
+              code: "auth_required",
+              message: "Sign in before using this workspace.",
+            },
+          },
+        };
+      }
+
+      const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
+      if (season === null) {
+        return {
+          status: 404,
+          body: {
+            error: {
+              code: "season_not_found",
+              message: "League season was not found.",
+            },
+          },
+        };
+      }
+
+      const membership = await runtime.leagueSetupRepository.findMembership(
+        account.id,
+        season.leagueId,
+      );
+      if (membership?.role !== "owner" && membership?.role !== "admin") {
+        return {
+          status: 403,
+          body: {
+            error: {
+              code: "shared_mutation_denied",
+              message: "Only league owners and admins can manage league setup.",
+            },
+          },
+        };
+      }
+
+      const ingressKey = `${account.id}:${seasonId}:${request.clientAddress ?? "unknown"}`;
+      const decision = screenshotImportIngressRateLimiter.consume(ingressKey, options.now?.());
+      if (!decision.allowed) {
+        return {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))),
+          },
+          body: {
+            error: {
+              code: "rate_limited",
+              message: "Too many screenshot analyses. Try again later.",
+            },
+          },
+        };
+      }
+
+      return null;
+    },
     trustProxy: options.trustProxy,
   });
   const server = createServer(async (request, response) => {

@@ -24,6 +24,10 @@ export interface LeagueSetupImportIssue {
 export interface LeagueSetupTeamRecord {
   sourceRowNumber: number;
   ownerDisplayName: string;
+  managerDisplayNames?: readonly string[];
+  abbreviation?: string;
+  draftOrderPosition?: number;
+  existingTeamId?: string;
   teamDisplayName: string;
   email?: string;
   role: WorkspaceRole;
@@ -380,17 +384,26 @@ const teamForRecord = (
   record: LeagueSetupTeamRecord,
   index: number,
 ): FantasyTeam => {
-  const existingTeam = season.teams[index];
+  const existingTeam = record.existingTeamId === undefined
+    ? season.teams.find(team =>
+        normalizeDuplicateKey(team.ownerDisplayName) === normalizeDuplicateKey(record.ownerDisplayName)
+      )
+    : season.teams.find(team => team.id === record.existingTeamId);
+  const draftPositionTeam = season.teams[index];
   const ownerSlug = slugFor(record.ownerDisplayName) || `team-${index + 1}`;
   const teamOrdinal = String(index + 1).padStart(2, "0");
 
   return {
-    id: `${season.id}-team-${teamOrdinal}-${ownerSlug}`,
+    id: existingTeam?.id ?? `${season.id}-team-${teamOrdinal}-${ownerSlug}`,
     leagueSeasonId: season.id,
-    ownerId: `owner-${ownerSlug}`,
+    ownerId: existingTeam?.ownerId ?? `owner-${ownerSlug}`,
     ownerDisplayName: record.ownerDisplayName,
+    ...(record.managerDisplayNames === undefined
+      ? {}
+      : { managerDisplayNames: [...record.managerDisplayNames] }),
+    ...(record.abbreviation === undefined ? {} : { abbreviation: record.abbreviation }),
     displayName: record.teamDisplayName,
-    draftOrderPosition: existingTeam?.draftOrderPosition ?? index + 1,
+    draftOrderPosition: record.draftOrderPosition ?? draftPositionTeam?.draftOrderPosition ?? index + 1,
   };
 };
 

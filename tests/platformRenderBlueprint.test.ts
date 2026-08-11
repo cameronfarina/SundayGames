@@ -5,6 +5,7 @@ import { parse } from "yaml";
 type BlueprintEnvVar = {
   key: string;
   value?: string;
+  sync?: boolean;
   fromDatabase?: {
     name: string;
     property: string;
@@ -97,6 +98,8 @@ describe("Render production blueprint", () => {
     expect(envFor(web!, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("false");
     expect(envFor(web!, "MOCKD_TRUST_PROXY")?.value).toBe("true");
     expect(envFor(web!, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
+    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("openai");
+    expect(envFor(web!, "OPENAI_API_KEY")).toEqual({ key: "OPENAI_API_KEY", sync: false });
   });
 
   it("deploys the simulation worker against the same database", async () => {

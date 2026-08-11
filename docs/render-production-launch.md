@@ -19,9 +19,10 @@ The web service intentionally stays at one instance. Render persistent disks att
 1. Confirm the GitHub `main` branch is green.
 2. In Render, choose **New > Blueprint** and connect this repository.
 3. Select `render.yaml` and review all three resources before applying it.
-4. Confirm no provisioning token or password-hash variables are present in the Blueprint.
-5. Apply the Blueprint and wait for both services to become healthy.
-6. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200.
+4. Add the prompted `OPENAI_API_KEY` secret to `mockd-web`. The Blueprint enables screenshot import with `MOCKD_SCREENSHOT_IMPORT_MODE=openai`; never add the key to the repository or worker.
+5. Confirm no provisioning token or password-hash variables are present in the Blueprint.
+6. Apply the Blueprint and wait for both services to become healthy.
+7. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails when screenshot import is enabled without its API key.
 
 Do not add the public domain yet. Use the generated `onrender.com` hostname for provisioning and staging smoke.
 
@@ -80,6 +81,12 @@ The job must report a clean dry run, a successful apply, and a successful verifi
 
 Never run `platform:seed:e2e` against production.
 
+After the commissioner can sign in, use **Commissioner > Import from ESPN screenshot** to replace the seeded team identities from the ESPN League Members page. The review table imports team numbers, abbreviations, team names, and manager names only. It does not import email addresses, invitation status, or behavioral owner profiles. Confirm that each imported team maps to the correct existing Mockd profile so account assignments, keepers, and historical behavior stay attached to the right owner. Correct truncated names, confirm every uncertain row, and apply before creating the live draft room.
+
+Create each manager's private signup link in the separate **Invitations** section and deliver it through the league's existing secure channel. Claimed teams and accounts that already belong to the league are unavailable for invitation. Invitation links expire after seven days. The plaintext token is shown only when a link is created or reissued, so copy it before leaving the page.
+
+Screenshot bytes and raw model output are not persisted by Mockd. The web service sends the image to the OpenAI Responses API with request storage disabled, keeps only the commissioner-approved team fields, limits images to 5 MB, and rate-limits analysis per commissioner and season. Use a screenshot that contains no information beyond the league membership table.
+
 If an owner loses access, reset that one account from a trusted operator machine. The target email comes from the environment and the replacement password comes from exactly one non-interactive stdin line, so neither belongs in command arguments:
 
 ```bash
@@ -129,6 +136,8 @@ The GitHub monitor checks `/readyz`, which covers the web process, Postgres, req
 Create a protected GitHub `production` Environment with required reviewers. Add credentials for one commissioner and one member plus the provisioned production season ID as environment-scoped secrets. Keep the repository variable `MOCKD_PRODUCTION_BASE_URL` fixed to the Render HTTPS origin, then manually run **Deployed smoke**; the workflow does not accept a user-supplied destination.
 
 The deployed smoke is deliberately read-only: it verifies both roles, league home, board, mock draft, simulations, and commissioner setup without creating, starting, selling into, or ending the real draft room. It is safe to rerun before and after DNS cutover. The full mutation and realtime flow remains covered by local E2E and the production-container gate; also complete the multi-browser draft-night rehearsal in the production runbook.
+
+Before the first real import, create a temporary staging season with the production team count and run one sanitized screenshot through analyze, profile mapping, review, apply, and invitation-link creation. Confirm uncertain rows cannot apply without commissioner confirmation, duplicate or missing profile mappings cannot apply, stale reviews return a conflict instead of overwriting newer setup, and the imported team IDs remain stable when rows are reordered or a name is corrected. Delete or archive the temporary records before DNS cutover.
 
 ## 7. Attach The Domain
 

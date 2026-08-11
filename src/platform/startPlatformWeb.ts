@@ -17,6 +17,7 @@ import {
   type PlatformRuntimeConfig,
 } from "./platformRuntimeConfig.js";
 import { startPlatformServer, type StartedPlatformServer } from "./platformServer.js";
+import { createOpenAiLeagueMembersScreenshotAnalyzer } from "./openAiLeagueMembersScreenshotAnalyzer.js";
 
 export interface StartedPlatformWebProcess {
   server: StartedPlatformServer;
@@ -70,6 +71,15 @@ export const startPlatformWebFromEnv = async (
       statementTimeoutMs: config.postgresStatementTimeoutMs,
     });
   const readinessProbe = createPlatformWebReadinessProbe(config, postgresClient);
+  const screenshotAnalyzer = config.screenshotImport.mode === "openai" && config.screenshotImport.apiKey !== undefined
+    ? createOpenAiLeagueMembersScreenshotAnalyzer({
+        apiKey: config.screenshotImport.apiKey,
+        model: config.screenshotImport.model,
+        timeoutMs: config.screenshotImport.timeoutMs,
+        maxImageBytes: config.screenshotImport.maxImageBytes,
+        maxConcurrentRequests: config.screenshotImport.maxConcurrentRequests,
+      })
+    : undefined;
   let server: StartedPlatformServer;
   try {
     server = await startPlatformServer({
@@ -90,6 +100,11 @@ export const startPlatformWebFromEnv = async (
       allowPublicSignup: config.allowPublicSignup,
       trustProxy: config.trustProxy,
       provisioningToken: config.provisioningToken,
+      screenshotImportBodyLimitBytes:
+        Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
+      ...(screenshotAnalyzer === undefined
+        ? {}
+        : { leagueMembersScreenshotAnalyzer: screenshotAnalyzer }),
       ...(config.liveDraftDataMode === "local-fixtures"
         ? { liveDraftRoomSetupProvider: localFixtureDraftSetupFor }
         : {}),

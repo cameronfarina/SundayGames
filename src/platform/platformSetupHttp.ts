@@ -1,4 +1,16 @@
 import type { LeagueSeason } from "./leagueSeason.js";
+import { leagueSeasonSetupRevision } from "./leagueSetup.js";
+import {
+  applyLeagueMembersScreenshotImportToSeason,
+  suggestLeagueMembersScreenshotTeamMappings,
+  validateLeagueMembersScreenshotImport,
+  type LeagueMembersScreenshotImportInput,
+  type LeagueMembersScreenshotImportResult,
+} from "./leagueMembersScreenshotImport.js";
+import type {
+  LeagueMembersScreenshotAnalyzer,
+  LeagueMembersScreenshotImageInput,
+} from "./openAiLeagueMembersScreenshotAnalyzer.js";
 import {
   applyLeagueSetupImportToSeason,
   parseLeagueSetupImport,
@@ -44,6 +56,22 @@ export interface PlatformLeagueSetupImportInput {
   now?: Date | undefined;
 }
 
+export interface PlatformLeagueMembersScreenshotAnalyzeInput {
+  actorSessionToken: string;
+  seasonId?: string;
+  image: LeagueMembersScreenshotImageInput;
+  analyzer: LeagueMembersScreenshotAnalyzer;
+  now?: Date | undefined;
+}
+
+export interface PlatformLeagueMembersScreenshotApplyInput {
+  actorSessionToken: string;
+  seasonId?: string;
+  setupRevision?: string;
+  import: LeagueMembersScreenshotImportInput;
+  now?: Date | undefined;
+}
+
 export interface PlatformLeagueSetupImportPreviewBody {
   import: LeagueSetupImportResult;
 }
@@ -74,6 +102,26 @@ export interface PlatformLeagueSetupImportBlockedBody extends PlatformSetupHttpE
   import: LeagueSetupImportResult;
 }
 
+export interface PlatformLeagueMembersScreenshotPreviewBody {
+  setupRevision: string;
+  extraction: LeagueMembersScreenshotImportInput;
+  import: LeagueMembersScreenshotImportResult;
+  availableTeamProfiles: readonly {
+    teamId: string;
+    ownerDisplayName: string;
+    teamDisplayName: string;
+  }[];
+}
+
+export interface PlatformLeagueMembersScreenshotApplyBody {
+  season: LeagueSeason;
+  import: LeagueMembersScreenshotImportResult;
+  memberships: readonly PlatformLeagueMembership[];
+  pendingInvites: readonly [];
+  invitations: readonly [];
+  invitationFailures: readonly [];
+}
+
 type PlatformApp = ReturnType<typeof createPlatformApp>;
 
 const leagueSetupImportBlockedBody = (
@@ -97,6 +145,13 @@ const leagueSetupLockedBody: PlatformSetupHttpErrorBody = {
   error: {
     code: "league_setup_locked",
     message: "Team assignments cannot be changed after this season's live draft room has been created.",
+  },
+};
+
+const screenshotReviewRequiredBody: PlatformSetupHttpErrorBody = {
+  error: {
+    code: "screenshot_review_required",
+    message: "Analyze the screenshot before applying league teams.",
   },
 };
 
@@ -387,6 +442,92 @@ export const applyLeagueSetupImport = async (
       pendingInvites,
       invitations,
       invitationFailures,
+    },
+  };
+};
+
+export const analyzeLeagueMembersScreenshot = async (
+  app: PlatformApp,
+  input: PlatformLeagueMembersScreenshotAnalyzeInput,
+): Promise<PlatformSetupHttpResponse<PlatformLeagueMembersScreenshotPreviewBody>> => {
+  const season = await existingSeasonFor(app, input);
+  if (season === null) return { status: 400, body: seasonRequiredBody };
+  const extraction = suggestLeagueMembersScreenshotTeamMappings(
+    await input.analyzer.analyze(input.image),
+    season,
+  );
+  const parsedImport = validateLeagueMembersScreenshotImport(extraction, {
+    expectedTeamCount: season.settings.expectedTeamCount,
+    existingTeams: season.teams,
+    requireTeamMappings: true,
+  });
+
+  return {
+    status: 200,
+    body: {
+      setupRevision: leagueSeasonSetupRevision(season),
+      extraction,
+      import: parsedImport,
+      availableTeamProfiles: season.teams.map(team => ({
+        teamId: team.id,
+        ownerDisplayName: team.ownerDisplayName,
+        teamDisplayName: team.displayName,
+      })),
+    },
+  };
+};
+
+export const applyLeagueMembersScreenshotImport = async (
+  app: PlatformApp,
+  input: PlatformLeagueMembersScreenshotApplyInput,
+): Promise<PlatformSetupHttpResponse<PlatformLeagueMembersScreenshotApplyBody | PlatformLeagueSetupImportBlockedBody>> => {
+  const season = await existingSeasonFor(app, input);
+  if (season === null) return { status: 400, body: seasonRequiredBody };
+  if (input.setupRevision === undefined || input.setupRevision.length === 0) {
+    return { status: 400, body: screenshotReviewRequiredBody };
+  }
+  if (await hasRealLiveDraftRoom(app, season.id)) {
+    return { status: 409, body: leagueSetupLockedBody };
+  }
+
+  const parsedImport = validateLeagueMembersScreenshotImport(input.import, {
+    expectedTeamCount: season.settings.expectedTeamCount,
+    existingTeams: season.teams,
+    requireTeamMappings: true,
+  });
+  if (parsedImport.status === "blocked") {
+    return {
+      status: 400,
+      body: {
+        error: {
+          code: "league_setup_import_blocked",
+          message: "Resolve league setup import blockers before applying.",
+        },
+        import: parsedImport,
+      },
+    };
+  }
+
+  const appliedImport = applyLeagueMembersScreenshotImportToSeason(season, parsedImport);
+  const memberships = await app.listLeagueMemberships(season.leagueId);
+  const registeredSeason = await app.registerLeagueSeason({
+    actorSessionToken: input.actorSessionToken,
+    season: appliedImport.season,
+    memberships,
+    expectedSetupRevision: input.setupRevision,
+    membershipWriteMode: "preserve",
+    now: input.now,
+  });
+
+  return {
+    status: 200,
+    body: {
+      season: registeredSeason,
+      import: parsedImport,
+      memberships,
+      pendingInvites: [],
+      invitations: [],
+      invitationFailures: [],
     },
   };
 };

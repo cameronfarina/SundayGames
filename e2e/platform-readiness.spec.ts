@@ -4,6 +4,7 @@ import type { AccountRecord } from "../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoom } from "../src/platform/liveDraftRooms.js";
 import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
+import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
 import type { PlatformOnboardingLeague } from "../src/platform/platformOnboarding.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
@@ -210,7 +211,7 @@ const signUpAndLogIn = async (
   email: string,
 ): Promise<AccountRecord> => {
   await page.goto("/signup");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
@@ -218,7 +219,7 @@ const signUpAndLogIn = async (
     if (!authError.includes("already exists")) throw error;
 
     await page.goto("/login");
-    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.locator("#account-email"), [
@@ -231,7 +232,7 @@ const signUpAndLogIn = async (
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.locator("#auth-panel")).toBeVisible();
 
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email")).toHaveText(email);
@@ -262,7 +263,7 @@ const pageForExistingUser = async (
   });
   const page = await context.newPage();
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email"), [
@@ -334,7 +335,7 @@ const applyCommissionerSetup = async (
   await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
   await expect(page.locator("#account-email")).toHaveText(camEmail);
   await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
-  await page.getByText("Import owner list", { exact: true }).click();
+  await page.getByText("Advanced: paste a team list", { exact: true }).click();
   await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail, sethEmail));
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.locator("#setup-status")).toHaveText("Ready to apply.");
@@ -731,6 +732,285 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
 test("local platform supports fixture signup, setup, invitation, realtime draft, and export", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
+});
+
+test("commissioner can review a screenshot import and create a team invite link", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Screenshot fixture interception is only used by local E2E.");
+  const email = smokeRunId === undefined
+    ? "screenshot.e2e@example.com"
+    : `screenshot.e2e+${smokeRunId}@${emailDomain}`;
+  const { page, account } = await pageForLocalFixtureUser(browser, email);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const baseSeason = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+    leagueName: "Screenshot Import League",
+    setupStatus: "published",
+  }));
+  const leagueId = `${baseSeason.leagueId}-screenshot`;
+  const seasonId = `${leagueId}-season-${baseSeason.seasonYear}`;
+  const season: LeagueSeason = {
+    ...baseSeason,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...baseSeason.league,
+      id: leagueId,
+      externalLeagueId: `${baseSeason.league.externalLeagueId}-screenshot`,
+      name: "Screenshot Import League",
+    },
+    teams: baseSeason.teams.map(team => ({
+      ...team,
+      id: `${team.id}-screenshot`,
+      leagueSeasonId: seasonId,
+      ownerId: `${team.ownerId}-screenshot`,
+    })),
+  };
+  const commissionerTeam = teamByOwner(season, "Cam");
+  expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
+    body: {
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+        ownerId: commissionerTeam.ownerId,
+        teamId: commissionerTeam.id,
+      }],
+    },
+  }));
+
+  const extractedTeams = ownerOrder.map((manager, index) => ({
+    targetTeamId: season.teams[index]?.id,
+    draftOrderPosition: index + 1,
+    abbreviation: manager.slice(0, 4).toUpperCase(),
+    teamDisplayName: `${manager} ESPN Team`,
+    managerDisplayNames: index === 3 ? [manager, "Co Manager"] : [manager],
+    confidence: index === 1 ? "medium" : "high",
+    issues: index === 1 ? ["Verify the manager name."] : [],
+    confirmed: false,
+  }));
+  await page.route("**/setup-import/screenshot-analyze", async route => {
+    const request = route.request().postDataJSON() as { mimeType: string; base64: string };
+    expect(request.mimeType).toBe("image/png");
+    expect(request.base64.length).toBeGreaterThan(0);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        setupRevision: leagueSeasonSetupRevision(season),
+        extraction: {
+          leagueName: "The Sunday Games",
+          externalLeagueId: "214674",
+          teams: extractedTeams,
+        },
+        availableTeamProfiles: season.teams.map(team => ({
+          teamId: team.id,
+          ownerDisplayName: team.ownerDisplayName,
+          teamDisplayName: team.displayName,
+        })),
+        import: {
+          status: "blocked",
+          blockers: [{ message: "Team row 2 needs commissioner confirmation because the screenshot was unclear." }],
+          records: [],
+          rows: [],
+        },
+      }),
+    });
+  });
+
+  await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  const expectNoPageOverflow = async (): Promise<void> => {
+    const dimensions = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+    }));
+    expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+    expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+  };
+  await expectNoPageOverflow();
+  await page.locator("#screenshot-import-file").setInputFiles({
+    name: "league-members.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+  });
+  await page.getByRole("button", { name: "Analyze screenshot" }).click();
+  await expect(page.locator("#screenshot-review-body tr")).toHaveCount(ownerOrder.length);
+  await expect(page.locator("#screenshot-source-preview")).toBeVisible();
+  await expectNoPageOverflow();
+  await expect(page.locator("#screenshot-review-table th")).toHaveText([
+    "Team #",
+    "Abbr",
+    "Team",
+    "Managers",
+    "Mockd profile",
+    "Review",
+  ]);
+  const uncertainRow = page.locator("#screenshot-review-body tr").nth(1);
+  await uncertainRow.getByLabel("I verified this row").check();
+  const firstRow = page.locator("#screenshot-review-body tr").first();
+  await firstRow.getByLabel("Team name for row 1").fill("Commissioner Club");
+  await page.getByRole("button", { name: "Apply teams" }).click();
+  await expect(page.locator("#screenshot-import-status")).toContainText(`${ownerOrder.length} teams imported`);
+  await expect(page.locator("#setup-team-body tr")).toHaveCount(ownerOrder.length);
+  await expect(page.locator("#setup-team-body tr").first()).toContainText("Commissioner Club");
+  await expect(page.locator("#invitation-team-picker option")).toHaveCount(ownerOrder.length - 1);
+  await expectNoPageOverflow();
+
+  await page.locator("#invitation-team-picker").selectOption({ index: 1 });
+  await page.locator("#invitation-email-input").fill("manager.invite@example.com");
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  await expect(page.locator("#invitation-create-status")).toHaveText(
+    "Invite link created. Copy it before leaving this page.",
+  );
+  const invitation = page.locator("#setup-invitations .invitation-row").filter({
+    hasText: "manager.invite@example.com",
+  });
+  await expect(invitation.getByRole("button", { name: "Copy invite link" })).toBeVisible();
+});
+
+test("commissioner league switching discards stale setup responses", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local route delays are not used by deployed smoke.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "setup.switch.e2e@example.com");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const owners = ["Cam", "Seth", "Beaton"];
+  const buildSeason = (suffix: string, name: string): LeagueSeason => {
+    const base = buildCurrentMockdLeagueSeason(owners, { ...leagueConfig, teams: owners.length }, {
+      leagueName: name,
+      setupStatus: "published",
+    });
+    const leagueId = `${base.leagueId}-${suffix}`;
+    const seasonId = `${leagueId}-season-${base.seasonYear}`;
+
+    return {
+      ...base,
+      id: seasonId,
+      leagueId,
+      league: {
+        ...base.league,
+        id: leagueId,
+        externalLeagueId: `${base.league.externalLeagueId}-${suffix}`,
+        name,
+      },
+      teams: base.teams.map((team, index) => ({
+        ...team,
+        id: `${seasonId}-team-${index + 1}`,
+        leagueSeasonId: seasonId,
+        ownerId: `${team.ownerId}-${suffix}`,
+        displayName: `${name} ${team.ownerDisplayName}`,
+      })),
+    };
+  };
+  const seasonA = buildSeason("switch-a", "League A");
+  const seasonB = buildSeason("switch-b", "League B");
+  for (const season of [seasonA, seasonB]) {
+    const commissionerTeam = teamByOwner(season, "Cam");
+    expectOk(await api<SeasonBody>(page, "/seasons", {
+      method: "POST",
+      headers: { "x-mockd-provisioning-token": provisioningToken },
+      body: {
+        season,
+        memberships: [{
+          userId: account.id,
+          leagueId: season.leagueId,
+          role: "admin",
+          ownerId: commissionerTeam.ownerId,
+          teamId: commissionerTeam.id,
+        }],
+      },
+    }));
+  }
+  expectOk(await api(page, "/invitations", {
+    method: "POST",
+    body: { seasonId: seasonA.id, teamId: seasonA.teams[1]?.id, email: "league-a@example.com" },
+  }));
+  expectOk(await api(page, "/invitations", {
+    method: "POST",
+    body: { seasonId: seasonB.id, teamId: seasonB.teams[1]?.id, email: "league-b@example.com" },
+  }));
+
+  const delay = async (milliseconds: number): Promise<void> => {
+    await new Promise(resolve => setTimeout(resolve, milliseconds));
+  };
+  await page.route("**/invitations?seasonId=*", async route => {
+    const requestSeasonId = new URL(route.request().url()).searchParams.get("seasonId");
+    const response = await route.fetch();
+    if (requestSeasonId === seasonA.id) await delay(300);
+    await route.fulfill({ response });
+  });
+  await page.route("**/seasons/**", async route => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET" || url.pathname !== `/seasons/${seasonA.id}`) {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    await delay(300);
+    await route.fulfill({ response });
+  });
+
+  await page.goto(`/setup?seasonId=${encodeURIComponent(seasonA.id)}`);
+  await expect(page.locator("#league-picker")).toHaveValue(seasonA.id);
+  await page.locator("#screenshot-import-file").setInputFiles({
+    name: "league-a.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+  });
+  await page.locator("#league-picker").selectOption(seasonB.id);
+  await expect(page.locator("#setup-invitations")).toContainText("league-b@example.com");
+  await expect(page.locator("#setup-team-body")).toContainText("League B Cam");
+  await delay(400);
+  await expect(page.locator("#setup-invitations")).not.toContainText("league-a@example.com");
+  await expect(page.locator("#setup-team-body")).not.toContainText("League A Cam");
+  expect(await page.locator("#screenshot-import-file").evaluate(
+    input => (input as HTMLInputElement).files?.length ?? 0,
+  )).toBe(0);
+
+  const importedTeams = owners.map((manager, index) => ({
+    targetTeamId: seasonB.teams[index]?.id,
+    draftOrderPosition: index + 1,
+    abbreviation: manager.toUpperCase(),
+    teamDisplayName: `Imported B ${manager}`,
+    managerDisplayNames: [manager],
+    confidence: "high",
+    issues: [],
+    confirmed: false,
+  }));
+  await page.route("**/setup-import/screenshot-analyze", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        setupRevision: leagueSeasonSetupRevision(seasonB),
+        extraction: { leagueName: "League B", externalLeagueId: "switch-b", teams: importedTeams },
+        availableTeamProfiles: seasonB.teams.map(team => ({
+          teamId: team.id,
+          ownerDisplayName: team.ownerDisplayName,
+          teamDisplayName: team.displayName,
+        })),
+        import: { status: "ready", blockers: [], records: [], rows: [] },
+      }),
+    });
+  });
+  await page.route("**/setup-import/screenshot-apply", async route => {
+    const response = await route.fetch();
+    await delay(300);
+    await route.fulfill({ response });
+  });
+  await page.locator("#screenshot-import-file").setInputFiles({
+    name: "league-b.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+  });
+  await page.getByRole("button", { name: "Analyze screenshot" }).click();
+  await expect(page.getByRole("button", { name: "Apply teams" })).toBeEnabled();
+  await page.getByRole("button", { name: "Apply teams" }).click();
+  await page.locator("#league-picker").selectOption(seasonA.id);
+  await expect(page.locator("#setup-team-body")).toContainText("League A Cam");
+  await delay(400);
+  await expect(page.locator("#setup-team-body")).not.toContainText("Imported B Cam");
+  await expect(page.locator("#setup-season-id-input")).toHaveValue(seasonA.id);
 });
 
 test("deployed platform supports pre-provisioned invite-only workspaces without mutating the real draft", async ({ browser }) => {

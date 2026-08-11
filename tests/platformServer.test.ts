@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { request as httpRequest, type ClientRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -1074,6 +1075,57 @@ const jsonFetch = async (
     contentType: response.headers.get("content-type"),
     body: await response.json(),
   };
+};
+
+const requestBeforeSendingBody = async (
+  baseUrl: string,
+  path: string,
+  sessionToken?: string,
+): Promise<{
+  request: ClientRequest;
+  response: JsonFetchResult;
+}> => {
+  let clientRequest!: ClientRequest;
+  const response = new Promise<JsonFetchResult>((resolve, reject) => {
+    clientRequest = httpRequest(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "content-length": "1000",
+        "content-type": "application/json",
+        ...(sessionToken === undefined ? {} : { "x-session-token": sessionToken }),
+      },
+    }, incomingResponse => {
+      const chunks: Buffer[] = [];
+      incomingResponse.on("data", chunk => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      incomingResponse.on("end", () => {
+        resolve({
+          status: incomingResponse.statusCode ?? 0,
+          contentType: incomingResponse.headers["content-type"] ?? null,
+          body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
+        });
+      });
+    });
+    clientRequest.once("error", reject);
+    clientRequest.flushHeaders();
+  });
+
+  const guardedResponse = await new Promise<JsonFetchResult>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clientRequest.destroy();
+      reject(new Error("Server waited for the request body."));
+    }, 250);
+    response.then(result => {
+      clearTimeout(timeout);
+      resolve(result);
+    }, error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+
+  return { request: clientRequest, response: guardedResponse };
 };
 
 const textFetch = async (
@@ -2380,6 +2432,192 @@ describe("platform server composition", () => {
 
     expect(firstLogin.status).toBe(200);
     expect(secondLogin.status).toBe(200);
+  });
+
+  it("rejects unauthenticated and unauthorized screenshot uploads before reading their bodies", async () => {
+    let analysisCallCount = 0;
+    const { platformServer, baseUrl } = await createListeningServer({
+      leagueMembersScreenshotAnalyzer: {
+        analyze: async () => {
+          analysisCallCount += 1;
+          throw new Error("The analyzer must not run for a rejected upload.");
+        },
+      },
+    });
+    const owner = await platformServer.app.createAccount({
+      email: "screenshot-owner@example.com",
+      password: "secure password",
+      now,
+    });
+    const member = await platformServer.app.createAccount({
+      email: "screenshot-member@example.com",
+      password: "secure password",
+      now,
+    });
+    const ownerLogin = await platformServer.app.login({
+      email: owner.email,
+      password: "secure password",
+      now,
+    });
+    const memberLogin = await platformServer.app.login({
+      email: member.email,
+      password: "secure password",
+      now,
+    });
+    if (ownerLogin === null || memberLogin === null) throw new Error("Expected fixture logins.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: ownerLogin.sessionToken,
+      season,
+      memberships: [
+        { userId: owner.id, leagueId: season.leagueId, role: "owner" },
+        { userId: member.id, leagueId: season.leagueId, role: "member" },
+      ],
+      now,
+    });
+    const path = `/seasons/${season.id}/setup-import/screenshot-analyze`;
+
+    const unauthenticated = await requestBeforeSendingBody(baseUrl, path);
+    unauthenticated.request.destroy();
+    expect(unauthenticated.response).toMatchObject({
+      status: 401,
+      body: { error: { code: "auth_required" } },
+    });
+
+    const unauthorized = await requestBeforeSendingBody(
+      baseUrl,
+      path,
+      memberLogin.sessionToken,
+    );
+    unauthorized.request.destroy();
+    expect(unauthorized.response).toMatchObject({
+      status: 403,
+      body: { error: { code: "shared_mutation_denied" } },
+    });
+    expect(analysisCallCount).toBe(0);
+  });
+
+  it("rate limits authorized screenshot uploads before reading their bodies", async () => {
+    let ingressAttempts = 0;
+    let analysisCallCount = 0;
+    const { platformServer, baseUrl } = await createListeningServer({
+      screenshotImportIngressRateLimiter: {
+        consume: () => {
+          ingressAttempts += 1;
+          return { allowed: false, remainingAttempts: 0, retryAfterMs: 30_000 };
+        },
+        reset: () => undefined,
+      },
+      leagueMembersScreenshotAnalyzer: {
+        analyze: async () => {
+          analysisCallCount += 1;
+          throw new Error("The analyzer must not run for a rate-limited upload.");
+        },
+      },
+    });
+    const owner = await platformServer.app.createAccount({
+      email: "screenshot-limited@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: owner.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{ userId: owner.id, leagueId: season.leagueId, role: "owner" }],
+      now,
+    });
+
+    const limited = await requestBeforeSendingBody(
+      baseUrl,
+      `/seasons/${season.id}/setup-import/screenshot-analyze`,
+      login.sessionToken,
+    );
+    limited.request.destroy();
+
+    expect(limited.response).toMatchObject({
+      status: 429,
+      body: { error: { code: "rate_limited" } },
+    });
+    expect(ingressAttempts).toBe(1);
+    expect(analysisCallCount).toBe(0);
+  });
+
+  it("keeps health checks responsive while screenshot analysis is in flight", async () => {
+    const analysisEntered = deferred();
+    const releaseAnalysis = deferred();
+    const postgresClient = new FakePostgresClient();
+    const { platformServer } = await createListeningServer({
+      postgresClient,
+      leagueMembersScreenshotAnalyzer: {
+        analyze: async () => {
+          analysisEntered.resolve();
+          await releaseAnalysis.promise;
+          return {
+            leagueName: "League 214674",
+            externalLeagueId: "214674",
+            teams: ownerOrder.map((manager, index) => ({
+              draftOrderPosition: index + 1,
+              abbreviation: manager.slice(0, 4).toUpperCase(),
+              teamDisplayName: `${manager} Team`,
+              managerDisplayNames: [manager],
+              confidence: "high" as const,
+              issues: [],
+              confirmed: false,
+            })),
+          };
+        },
+      },
+    });
+    const account = await platformServer.app.createAccount({
+      email: "screenshot-health@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected screenshot health fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{ userId: account.id, leagueId: season.leagueId, role: "owner" }],
+      now,
+    });
+
+    const analysis = platformServer.handler({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
+      sessionToken: login.sessionToken,
+      body: { mimeType: "image/png", base64: "fixture" },
+      now,
+    });
+    await analysisEntered.promise;
+
+    await expect(Promise.race([
+      platformServer.handler({ method: "GET", path: "/healthz", now }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Health check was blocked.")), 100)),
+    ])).resolves.toMatchObject({ status: 200 });
+    releaseAnalysis.resolve();
+    await expect(analysis).resolves.toMatchObject({ status: 200 });
   });
 
   it("serializes Postgres snapshot-backed worker mutations with HTTP mutations", async () => {

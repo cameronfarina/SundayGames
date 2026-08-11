@@ -155,7 +155,7 @@ npm run build
 npm prune --omit=dev
 DATABASE_URL=postgres://... npm run platform:migrate
 HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:ready
-HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:web
+HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools MOCKD_SCREENSHOT_IMPORT_MODE=openai OPENAI_API_KEY=... npm run platform:web
 DATABASE_URL=postgres://... MOCKD_SIMULATION_DATA_MODE=local-fixtures npm run platform:worker
 ```
 
@@ -165,6 +165,18 @@ local or throwaway-staging tools only. This branch has no production league
 seed command yet; use an approved admin/UI/API path before domain cutover.
 The hosted scripts execute compiled JavaScript from `dist`, so the runtime
 artifact does not need `tsx`, TypeScript, Vitest, or Playwright installed.
+
+Commissioners can import ESPN league members from a PNG, JPEG, or WebP screenshot
+after the season exists. Set `MOCKD_SCREENSHOT_IMPORT_MODE=openai` and
+`OPENAI_API_KEY` on the web service. Optional controls are
+`MOCKD_SCREENSHOT_IMPORT_MODEL`, `MOCKD_SCREENSHOT_IMPORT_TIMEOUT_MS`,
+`MOCKD_SCREENSHOT_IMPORT_MAX_IMAGE_BYTES`, and
+`MOCKD_SCREENSHOT_IMPORT_MAX_CONCURRENCY`. Screenshot import does not collect
+manager email addresses. The commissioner reviews every team and maps it to one
+existing Mockd profile so account assignments, keepers, and historical behavior
+cannot move when the ESPN rows are ordered differently. Create team-specific
+signup links from the separate Invitations section after the review is applied;
+claimed teams and existing league members cannot receive another invitation.
 
 ## Historical Data
 

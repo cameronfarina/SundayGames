@@ -17,6 +17,8 @@ export interface FantasyTeam {
   leagueSeasonId: string;
   ownerId: string;
   ownerDisplayName: string;
+  managerDisplayNames?: string[];
+  abbreviation?: string;
   displayName: string;
   draftOrderPosition: number;
 }

@@ -232,6 +232,8 @@ const platformPostgresTables = [
       { name: "team_key", type: "text" },
       { name: "team_name", type: "text" },
       { name: "owner_name", type: "text" },
+      { name: "abbreviation", type: "text", nullable: true },
+      { name: "manager_names_json", type: "jsonb", default: jsonbArrayDefault },
       { name: "owner_user_id", type: "text", nullable: true },
       { name: "display_order", type: "integer" },
       { name: "aliases_json", type: "jsonb", default: jsonbArrayDefault },

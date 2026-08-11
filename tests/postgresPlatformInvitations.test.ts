@@ -86,6 +86,7 @@ describe("Postgres platform invitations", () => {
     expect(client.queries[0]?.sql).toContain("expires_at >= $3");
     expect(client.queries[1]?.sql).toContain("INSERT INTO league_memberships");
     expect(client.queries[1]?.sql).toContain("ON CONFLICT (league_id, user_id)");
+    expect(client.queries[1]?.sql).not.toContain("role = EXCLUDED.role");
     expect(client.queries[2]?.sql).toContain("UPDATE fantasy_teams");
     expect(client.queries[2]?.sql).toContain("owner_user_id IS NULL");
   });

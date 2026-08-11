@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { leagueConfig } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
@@ -7,12 +7,14 @@ import type {
   LeagueSetupRepository,
   RegisterLeagueSeasonRepositoryInput,
 } from "../src/platform/leagueSetup.js";
+import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
 import { InMemoryPlatformInvitationRepository } from "../src/platform/platformInvitations.js";
 import {
   applyLeagueSetupImport,
   previewLeagueSetupImport,
 } from "../src/platform/platformSetupHttp.js";
 import { createPlatformHttpHandler } from "../src/platform/platformHttp.js";
+import { createClientAddressRateLimiter } from "../src/platform/authRateLimit.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -576,6 +578,280 @@ describe("platform setup import HTTP helpers", () => {
           expect.objectContaining({ ownerDisplayName: "Beaton", teamDisplayName: "Beaton's Team" }),
         ],
       },
+    });
+  });
+
+  it("lets only commissioners analyze a screenshot and returns a validated review model", async () => {
+    const { app, cam, seth, season } = await setupRegisteredSeason();
+    const analyze = vi.fn(async () => ({
+      leagueName: "The Sunday Games",
+      externalLeagueId: "214674",
+      teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+        draftOrderPosition: index + 1,
+        abbreviation: manager.toUpperCase(),
+        teamDisplayName: `${manager} Team`,
+        managerDisplayNames: [manager],
+        confidence: "high" as const,
+        issues: [],
+        confirmed: false,
+      })),
+    }));
+    const handle = createPlatformHttpHandler(app, {
+      leagueMembersScreenshotAnalyzer: { analyze },
+      screenshotImportRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 5,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+
+    const memberResponse = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
+      sessionToken: seth.sessionToken,
+      clientAddress: "203.0.113.8",
+      body: { mimeType: "image/png", base64: "not-sent-to-stub" },
+      now,
+    });
+    expect(memberResponse.status).toBe(403);
+    expect(analyze).not.toHaveBeenCalled();
+
+    const response = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
+      sessionToken: cam.sessionToken,
+      clientAddress: "203.0.113.9",
+      body: { mimeType: "image/png", base64: "sent-to-stub" },
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      setupRevision: expect.any(String),
+      import: {
+        status: "ready",
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        records: [
+          expect.objectContaining({ abbreviation: "CAM", ownerDisplayName: "Cam" }),
+          expect.objectContaining({ abbreviation: "SETH", ownerDisplayName: "Seth" }),
+          expect.objectContaining({ abbreviation: "BEATON", ownerDisplayName: "Beaton" }),
+        ],
+      },
+      extraction: expect.objectContaining({ teams: expect.any(Array) }),
+    });
+    expect(analyze).toHaveBeenCalledWith({ mimeType: "image/png", base64: "sent-to-stub" });
+  });
+
+  it("rate limits screenshot analysis before incurring a second provider call", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const analyze = vi.fn(async () => ({
+      leagueName: null,
+      externalLeagueId: null,
+      teams: [],
+    }));
+    const handle = createPlatformHttpHandler(app, {
+      leagueMembersScreenshotAnalyzer: { analyze },
+      screenshotImportRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+    const request = {
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
+      sessionToken: cam.sessionToken,
+      clientAddress: "203.0.113.10",
+      body: { mimeType: "image/png", base64: "sent-to-stub" },
+      now,
+    };
+
+    expect((await handle(request)).status).toBe(200);
+    const limited = await handle(request);
+
+    expect(limited).toMatchObject({
+      status: 429,
+      body: { error: { code: "rate_limited" } },
+      headers: { "Retry-After": "60" },
+    });
+    expect(analyze).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies reviewed screenshot teams without creating invitations", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const handle = createPlatformHttpHandler(app);
+    const response = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-apply`,
+      sessionToken: cam.sessionToken,
+      body: {
+        setupRevision: leagueSeasonSetupRevision(season),
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+          targetTeamId: season.teams[index]?.id,
+          draftOrderPosition: index + 1,
+          abbreviation: manager.toUpperCase(),
+          teamDisplayName: `${manager} Team`,
+          managerDisplayNames: index === 2 ? [manager, "Matt Co-manager"] : [manager],
+          confidence: "high",
+          issues: [],
+          confirmed: false,
+        })),
+      },
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      season: {
+        league: { name: "The Sunday Games", provider: "espn", externalLeagueId: "214674" },
+        teams: expect.arrayContaining([
+          expect.objectContaining({
+            abbreviation: "BEATON",
+            managerDisplayNames: ["Beaton", "Matt Co-manager"],
+          }),
+        ]),
+      },
+      pendingInvites: [],
+      invitations: [],
+    });
+  });
+
+  it("preserves account claims while explicitly mapped ESPN rows change order", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const membershipsBefore = await app.listLeagueMemberships(season.leagueId);
+    const importedManagers = ["Seth", "Cam", "Beaton"];
+    const targetTeamIds = importedManagers.map(manager =>
+      season.teams.find(team => team.ownerDisplayName === manager)?.id
+    );
+    const response = await createPlatformHttpHandler(app)({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-apply`,
+      sessionToken: cam.sessionToken,
+      body: {
+        setupRevision: leagueSeasonSetupRevision(season),
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        teams: importedManagers.map((manager, index) => ({
+          targetTeamId: targetTeamIds[index],
+          draftOrderPosition: index + 1,
+          abbreviation: manager.toUpperCase(),
+          teamDisplayName: `${manager} ESPN Team`,
+          managerDisplayNames: [manager],
+          confidence: "high",
+          issues: [],
+          confirmed: false,
+        })),
+      },
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(app.listLeagueMemberships(season.leagueId)).resolves.toEqual(membershipsBefore);
+    const appliedSeason = await app.getLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      now,
+    });
+    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[0])?.ownerDisplayName).toBe("Seth");
+    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[1])?.ownerDisplayName).toBe("Cam");
+  });
+
+  it("rejects a screenshot import that omits a stored team profile", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const sourceTeam = season.teams[2];
+    if (sourceTeam === undefined) throw new Error("Expected source team fixture.");
+    const malformedSeason = {
+      ...season,
+      teams: [
+        ...season.teams,
+        {
+          ...sourceTeam,
+          id: `${sourceTeam.id}-legacy-extra`,
+          ownerId: `${sourceTeam.ownerId}-legacy-extra`,
+          ownerDisplayName: "Legacy Owner",
+          displayName: "Legacy Team",
+          draftOrderPosition: 4,
+        },
+      ],
+    };
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season: malformedSeason,
+      memberships: await app.listLeagueMemberships(season.leagueId),
+      now,
+    });
+
+    const response = await createPlatformHttpHandler(app)({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-apply`,
+      sessionToken: cam.sessionToken,
+      body: {
+        setupRevision: leagueSeasonSetupRevision(malformedSeason),
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+          targetTeamId: season.teams[index]?.id,
+          draftOrderPosition: index + 1,
+          abbreviation: manager.toUpperCase(),
+          teamDisplayName: `${manager} Team`,
+          managerDisplayNames: [manager],
+          confidence: "high",
+          issues: [],
+          confirmed: false,
+        })),
+      },
+      now,
+    });
+
+    expect(response).toMatchObject({
+      status: 400,
+      body: {
+        error: { code: "league_setup_import_blocked" },
+        import: {
+          status: "blocked",
+          blockers: [{ code: "team_mapping_coverage_mismatch" }],
+        },
+      },
+    });
+    const persisted = await app.getLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      now,
+    });
+    expect(persisted.teams).toHaveLength(4);
+  });
+
+  it("rejects a screenshot review after league setup changed", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const handle = createPlatformHttpHandler(app);
+    const response = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/setup-import/screenshot-apply`,
+      sessionToken: cam.sessionToken,
+      body: {
+        setupRevision: "stale-review",
+        leagueName: "The Sunday Games",
+        externalLeagueId: "214674",
+        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+          targetTeamId: season.teams[index]?.id,
+          draftOrderPosition: index + 1,
+          abbreviation: manager.toUpperCase(),
+          teamDisplayName: `${manager} Team`,
+          managerDisplayNames: [manager],
+          confidence: "high",
+          issues: [],
+          confirmed: false,
+        })),
+      },
+      now,
+    });
+
+    expect(response).toMatchObject({
+      status: 409,
+      body: { error: { code: "league_setup_write_conflict" } },
     });
   });
 });

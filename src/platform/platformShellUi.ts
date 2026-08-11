@@ -259,7 +259,7 @@ export const platformShellHtml = `<!doctype html>
     .identity strong { overflow-wrap: anywhere; }
     .identity span { color: var(--muted); font-size: 13px; }
 
-    .workspace { display: grid; gap: 24px; }
+    .workspace { display: grid; gap: 24px; min-width: 0; }
 
     .workspace-header {
       align-items: start;
@@ -305,7 +305,47 @@ export const platformShellHtml = `<!doctype html>
       padding: 24px;
     }
 
-    .setup-layout { display: grid; gap: 28px; }
+    .setup-layout { display: grid; gap: 28px; min-width: 0; }
+    .setup-layout > *, .context-bar > * { min-width: 0; }
+
+    .setup-task {
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 14px;
+      margin-bottom: 18px;
+      padding-bottom: 20px;
+    }
+
+    .setup-task h3 { font-size: 15px; margin: 0; }
+    .setup-task .lede { font-size: 14px; margin-top: -6px; }
+    .upload-actions { align-items: end; display: grid; gap: 10px; }
+    .setup-fields { display: grid; gap: 12px; }
+    .review-cell { min-width: 150px; }
+    .review-note { color: var(--warning); display: block; font-size: 12px; line-height: 1.35; margin-bottom: 7px; }
+    .confirmation-label {
+      align-items: center;
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      gap: 8px;
+      margin: 0;
+      text-transform: none;
+    }
+    .confirmation-label input { flex: 0 0 auto; min-height: 18px; width: 18px; }
+    .screenshot-review-row[data-needs-review="true"] { background: rgb(244 200 107 / .06); }
+    .screenshot-review-row input { min-width: 88px; }
+    .screenshot-review-row select { min-width: 180px; }
+    .screenshot-review-row .team-name-input { min-width: 220px; }
+    .screenshot-review-row .manager-names-input { min-width: 220px; }
+    .screenshot-source-preview {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: block;
+      max-height: 360px;
+      object-fit: contain;
+      width: 100%;
+    }
 
     details {
       border-top: 1px solid var(--line);
@@ -327,7 +367,7 @@ export const platformShellHtml = `<!doctype html>
       padding: 12px;
     }
 
-    .table-scroll { overflow-x: auto; }
+    .table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; }
     .setup-preview-table { border-collapse: collapse; min-width: 620px; width: 100%; }
     .setup-preview-table th, .setup-preview-table td {
       border-bottom: 1px solid var(--line);
@@ -366,6 +406,8 @@ export const platformShellHtml = `<!doctype html>
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
+      .upload-actions { grid-template-columns: minmax(0, 1fr) auto; }
+      .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
       .room-setup { grid-column: 1 / -1; }
     }
   </style>
@@ -525,15 +567,50 @@ export const platformShellHtml = `<!doctype html>
           <section class="workspace-section">
             <h2>Teams and owners</h2>
             <input id="setup-season-id-input" type="hidden">
+            <div class="setup-task" aria-labelledby="screenshot-import-title">
+              <h3 id="screenshot-import-title">Import from ESPN screenshot</h3>
+              <p class="lede">Upload the League Members page, then verify every team and manager before applying.</p>
+              <div class="upload-actions">
+                <div>
+                  <label for="screenshot-import-file">League Members screenshot</label>
+                  <input id="screenshot-import-file" type="file" accept="image/png,image/jpeg,image/webp">
+                </div>
+                <button id="screenshot-analyze-button" type="button">Analyze screenshot</button>
+              </div>
+              <p id="screenshot-import-status" class="status" role="status" aria-live="polite"></p>
+              <div id="screenshot-review" class="stack hidden">
+                <img id="screenshot-source-preview" class="screenshot-source-preview hidden" alt="Uploaded ESPN League Members screenshot">
+                <div class="setup-fields">
+                  <div>
+                    <label for="screenshot-league-name">League name</label>
+                    <input id="screenshot-league-name" autocomplete="off">
+                  </div>
+                  <div>
+                    <label for="screenshot-league-id">ESPN league ID</label>
+                    <input id="screenshot-league-id" autocomplete="off" inputmode="numeric">
+                  </div>
+                </div>
+                <ul id="screenshot-import-blockers" class="result-list"></ul>
+                <div id="screenshot-review-table" class="table-scroll">
+                  <table class="setup-preview-table screenshot-review-table">
+                    <thead><tr><th>Team #</th><th>Abbr</th><th>Team</th><th>Managers</th><th>Mockd profile</th><th>Review</th></tr></thead>
+                    <tbody id="screenshot-review-body"></tbody>
+                  </table>
+                </div>
+                <div class="actions">
+                  <button id="screenshot-apply-button" class="primary" type="button" disabled>Apply teams</button>
+                </div>
+              </div>
+            </div>
             <p id="setup-team-summary" class="lede">Loading teams...</p>
             <div id="setup-team-table" class="table-scroll hidden">
               <table class="setup-preview-table">
-                <thead><tr><th>Pick</th><th>Owner</th><th>Team</th></tr></thead>
+                <thead><tr><th>Team #</th><th>Abbr</th><th>Mockd profile</th><th>Managers</th><th>Team</th></tr></thead>
                 <tbody id="setup-team-body"></tbody>
               </table>
             </div>
             <details>
-              <summary>Import owner list</summary>
+              <summary>Advanced: paste a team list</summary>
               <div class="stack" style="margin-top: 16px">
                 <div>
                   <label for="setup-rows-input">Owner rows</label>
@@ -556,6 +633,21 @@ export const platformShellHtml = `<!doctype html>
           </section>
           <section class="workspace-section" aria-labelledby="invitations-title">
             <h2 id="invitations-title">Invitations</h2>
+            <p class="lede">Create a private signup link for a manager after their team is configured.</p>
+            <form id="create-invitation-form" class="compact-stack" style="margin: 16px 0 20px">
+              <div>
+                <label for="invitation-team-picker">Team</label>
+                <select id="invitation-team-picker"></select>
+              </div>
+              <div>
+                <label for="invitation-email-input">Manager email</label>
+                <input id="invitation-email-input" type="email" autocomplete="email" required>
+              </div>
+              <div class="actions">
+                <button id="create-invitation-button" class="primary" type="submit" disabled>Create invite link</button>
+              </div>
+              <p id="invitation-create-status" class="status" role="status" aria-live="polite"></p>
+            </form>
             <div id="setup-invitations" class="invitation-list"></div>
           </section>
           <section class="workspace-section room-setup" aria-labelledby="live-room-setup-title">
@@ -614,6 +706,14 @@ export const platformShellHtml = `<!doctype html>
       selectedLeague: null,
       invitations: [],
       setupLocked: false,
+      screenshotImport: null,
+      screenshotImportRevision: null,
+      screenshotTeamProfiles: [],
+      screenshotPreviewUrl: null,
+      screenshotRequestGeneration: 0,
+      workspaceRequestGeneration: 0,
+      currentSeason: null,
+      claimedTeamIds: new Set(),
     };
 
     const byId = id => document.getElementById(id);
@@ -652,6 +752,21 @@ export const platformShellHtml = `<!doctype html>
     const setupPreviewTable = byId("setup-preview-table");
     const setupPreviewBody = byId("setup-preview-body");
     const setupInvitations = byId("setup-invitations");
+    const screenshotImportFile = byId("screenshot-import-file");
+    const screenshotAnalyzeButton = byId("screenshot-analyze-button");
+    const screenshotImportStatus = byId("screenshot-import-status");
+    const screenshotReview = byId("screenshot-review");
+    const screenshotSourcePreview = byId("screenshot-source-preview");
+    const screenshotLeagueName = byId("screenshot-league-name");
+    const screenshotLeagueId = byId("screenshot-league-id");
+    const screenshotImportBlockers = byId("screenshot-import-blockers");
+    const screenshotReviewBody = byId("screenshot-review-body");
+    const screenshotApplyButton = byId("screenshot-apply-button");
+    const invitationForm = byId("create-invitation-form");
+    const invitationTeamPicker = byId("invitation-team-picker");
+    const invitationEmailInput = byId("invitation-email-input");
+    const createInvitationButton = byId("create-invitation-button");
+    const invitationCreateStatus = byId("invitation-create-status");
     const draftStartsAtInput = byId("draft-starts-at-input");
     const createLiveRoomButton = byId("create-live-room-button");
     const openSetupLiveRoom = byId("open-setup-live-room");
@@ -675,6 +790,7 @@ export const platformShellHtml = `<!doctype html>
       if (!response.ok) {
         const error = new Error(errorMessageFor(body));
         error.status = response.status;
+        error.body = body;
         throw error;
       }
       return body;
@@ -808,7 +924,7 @@ export const platformShellHtml = `<!doctype html>
       if (!invitations.length) {
         const empty = document.createElement("p");
         empty.className = "empty-state";
-        empty.textContent = "No pending invitations. Import owner emails to create invite links.";
+        empty.textContent = "No invitations yet.";
         setupInvitations.append(empty);
         return;
       }
@@ -852,18 +968,36 @@ export const platformShellHtml = `<!doctype html>
     };
 
     const renderSeasonTeams = season => {
+      state.currentSeason = season || null;
       const teams = [...(season?.teams || [])]
         .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
       setupTeamBody.replaceChildren();
+      const selectedInvitationTeamId = invitationTeamPicker.value;
+      invitationTeamPicker.replaceChildren();
       teams.forEach(team => {
         const row = document.createElement("tr");
-        [team.draftOrderPosition, team.ownerDisplayName, team.displayName].forEach(value => {
+        const managers = team.managerDisplayNames?.length
+          ? team.managerDisplayNames.join(", ")
+          : team.ownerDisplayName;
+        [team.draftOrderPosition, team.abbreviation || "-", team.ownerDisplayName, managers, team.displayName].forEach(value => {
           const cell = document.createElement("td");
           cell.textContent = String(value);
           row.append(cell);
         });
         setupTeamBody.append(row);
+
+        if (!state.claimedTeamIds.has(team.id)) {
+          const option = document.createElement("option");
+          option.value = team.id;
+          option.textContent = team.draftOrderPosition + ". " + team.displayName + " · " + managers;
+          invitationTeamPicker.append(option);
+        }
       });
+      if ([...invitationTeamPicker.options].some(option => option.value === selectedInvitationTeamId)) {
+        invitationTeamPicker.value = selectedInvitationTeamId;
+      }
+      invitationTeamPicker.disabled = invitationTeamPicker.options.length === 0;
+      createInvitationButton.disabled = invitationTeamPicker.options.length === 0;
       setupTeamSummary.textContent = teams.length
         ? teams.length + " teams configured."
         : "No teams have been configured for this season.";
@@ -899,6 +1033,12 @@ export const platformShellHtml = `<!doctype html>
       setupRowsInput.disabled = hasRoom;
       setupPreviewButton.disabled = hasRoom;
       setupApplyButton.disabled = true;
+      screenshotImportFile.disabled = hasRoom;
+      screenshotAnalyzeButton.disabled = hasRoom;
+      screenshotApplyButton.disabled = hasRoom || state.screenshotImport === null;
+      screenshotLeagueName.disabled = hasRoom;
+      screenshotLeagueId.disabled = hasRoom;
+      screenshotReviewBody.querySelectorAll("input, select").forEach(control => { control.disabled = hasRoom; });
       if (hasRoom) {
         openSetupLiveRoom.href = draftRoomPathFor(selectedLeague.seasonId, room.roomId);
         liveRoomSetupStatus.textContent = "The shared draft room is ready.";
@@ -918,6 +1058,12 @@ export const platformShellHtml = `<!doctype html>
     };
 
     const renderSelectedLeague = selectedLeague => {
+      if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
+        state.workspaceRequestGeneration += 1;
+        resetScreenshotReview({ clearFile: true, clearStatus: true });
+        state.currentSeason = null;
+        state.claimedTeamIds = new Set();
+      }
       state.selectedLeague = selectedLeague;
       hideWorkspaces();
       if (routePath === "/invite") {
@@ -942,16 +1088,22 @@ export const platformShellHtml = `<!doctype html>
 
       if (routePath === "/setup") {
         if (selectedLeague.canManageLeague) {
+          const requestGeneration = state.workspaceRequestGeneration;
+          const seasonId = selectedLeague.seasonId;
           byId("setup-season-id-input").value = selectedLeague.seasonId;
           renderInvitationRows(selectedLeague.invitations || []);
           renderLiveRoomSetup(selectedLeague);
           setHidden(byId("setup-workspace"), false);
           fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId), { credentials: "same-origin" })
             .then(readJson)
-            .then(body => renderSeasonTeams(body.season))
-            .catch(error => { setupTeamSummary.textContent = error.message; });
-          loadSeasonInvitations(selectedLeague.seasonId).catch(error => {
-            setupStatus.textContent = error.message;
+            .then(body => {
+              if (isCurrentSetupRequest(seasonId, requestGeneration)) renderSeasonTeams(body.season);
+            })
+            .catch(error => {
+              if (isCurrentSetupRequest(seasonId, requestGeneration)) setupTeamSummary.textContent = error.message;
+            });
+          loadSeasonInvitations(seasonId, requestGeneration).catch(error => {
+            if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = error.message;
           });
         } else {
           setHidden(byId("setup-access-denied"), false);
@@ -1152,12 +1304,338 @@ export const platformShellHtml = `<!doctype html>
     });
 
     const setupEndpoint = action => "/seasons/" + encodeURIComponent(byId("setup-season-id-input").value) + "/setup-import/" + action;
+    const screenshotMaxBytes = 5 * 1024 * 1024;
+    const screenshotMimeTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 
-    const loadSeasonInvitations = async seasonId => {
+    const isCurrentSetupRequest = (seasonId, requestGeneration) =>
+      state.workspaceRequestGeneration === requestGeneration &&
+      state.selectedLeague?.seasonId === seasonId &&
+      byId("setup-season-id-input").value === seasonId;
+
+    const resetScreenshotReview = (options = {}) => {
+      state.screenshotRequestGeneration += 1;
+      state.screenshotImport = null;
+      state.screenshotImportRevision = null;
+      state.screenshotTeamProfiles = [];
+      screenshotReviewBody.replaceChildren();
+      renderScreenshotBlockers([]);
+      setHidden(screenshotReview, true);
+      screenshotApplyButton.disabled = true;
+      if (state.screenshotPreviewUrl) URL.revokeObjectURL(state.screenshotPreviewUrl);
+      state.screenshotPreviewUrl = null;
+      screenshotSourcePreview.removeAttribute("src");
+      setHidden(screenshotSourcePreview, true);
+      if (options.clearFile) screenshotImportFile.value = "";
+      if (options.clearStatus) screenshotImportStatus.textContent = "";
+    };
+
+    const renderScreenshotBlockers = blockers => {
+      screenshotImportBlockers.replaceChildren();
+      (blockers || []).forEach(blocker => {
+        const item = document.createElement("li");
+        item.textContent = blocker.message || "This row needs attention.";
+        screenshotImportBlockers.append(item);
+      });
+    };
+
+    const screenshotInput = (value, field, label, className) => {
+      const input = document.createElement("input");
+      input.value = String(value ?? "");
+      input.dataset.field = field;
+      input.setAttribute("aria-label", label);
+      if (className) input.className = className;
+      return input;
+    };
+
+    const screenshotReviewBlockers = () => {
+      if (!state.screenshotImport) return ["Analyze a screenshot before applying teams."];
+      const teams = state.screenshotImport.teams;
+      const profileIds = new Set(state.screenshotTeamProfiles.map(profile => profile.teamId));
+      const blockers = [];
+      if (teams.length !== state.screenshotTeamProfiles.length) {
+        blockers.push("The screenshot must contain one row for every existing Mockd profile.");
+      }
+      const teamNumbers = new Set();
+      const targetTeamIds = new Set();
+      const teamNames = new Set();
+      const managerNames = new Set();
+      teams.forEach((team, index) => {
+        const rowNumber = index + 1;
+        if (!Number.isInteger(team.draftOrderPosition) || team.draftOrderPosition < 1 || team.draftOrderPosition > teams.length) {
+          blockers.push("Team row " + rowNumber + " needs a number from 1 to " + teams.length + ".");
+        } else if (teamNumbers.has(team.draftOrderPosition)) {
+          blockers.push("Team number " + team.draftOrderPosition + " appears more than once.");
+        }
+        teamNumbers.add(team.draftOrderPosition);
+        const abbreviation = String(team.abbreviation || "").trim();
+        if (!abbreviation) blockers.push("Team row " + rowNumber + " needs an abbreviation.");
+        else if (abbreviation.length > 12) blockers.push("Team row " + rowNumber + " needs an abbreviation with 12 characters or fewer.");
+        const teamName = String(team.teamDisplayName || "").trim();
+        const teamNameKey = teamName.toLowerCase();
+        if (!teamName) blockers.push("Team row " + rowNumber + " needs a team name.");
+        else if (teamName.includes("...") || teamName.includes(String.fromCharCode(8230))) {
+          blockers.push("Replace the truncated name in team row " + rowNumber + ".");
+        }
+        else if (teamNames.has(teamNameKey)) blockers.push("Team name " + teamName + " appears more than once.");
+        teamNames.add(teamNameKey);
+        const managers = (team.managerDisplayNames || []).map(name => name.trim()).filter(Boolean);
+        if (!managers.length) blockers.push("Team row " + rowNumber + " needs at least one manager.");
+        managers.forEach(manager => {
+          const key = manager.toLowerCase();
+          if (managerNames.has(key)) blockers.push("Manager " + manager + " appears on more than one team.");
+          managerNames.add(key);
+        });
+        const targetTeamId = team.targetTeamId || "";
+        if (!profileIds.has(targetTeamId)) blockers.push("Choose a Mockd profile for team row " + rowNumber + ".");
+        else if (targetTeamIds.has(targetTeamId)) blockers.push("Each Mockd profile can be used only once.");
+        targetTeamIds.add(targetTeamId);
+        if ((team.confidence !== "high" || team.issues.length > 0) && team.confirmed !== true) {
+          blockers.push("Verify the uncertain reading in team row " + rowNumber + ".");
+        }
+      });
+      return [...new Set(blockers)];
+    };
+
+    const updateScreenshotReviewState = () => {
+      const blockers = screenshotReviewBlockers();
+      renderScreenshotBlockers(blockers.map(message => ({ message: message })));
+      screenshotApplyButton.disabled = state.setupLocked || blockers.length > 0;
+      screenshotImportStatus.textContent = blockers.length
+        ? "Resolve " + blockers.length + " review item" + (blockers.length === 1 ? "." : "s.")
+        : "Ready to apply " + state.screenshotImport.teams.length + " teams.";
+    };
+
+    const renderScreenshotReview = body => {
+      const extraction = body.extraction || { leagueName: null, externalLeagueId: null, teams: [] };
+      state.screenshotImport = {
+        leagueName: extraction.leagueName,
+        externalLeagueId: extraction.externalLeagueId,
+        teams: (extraction.teams || []).map(team => ({
+          ...team,
+          managerDisplayNames: [...(team.managerDisplayNames || [])],
+          issues: [...(team.issues || [])],
+        })),
+      };
+      state.screenshotImportRevision = body.setupRevision || null;
+      state.screenshotTeamProfiles = [...(body.availableTeamProfiles || [])];
+      screenshotLeagueName.value = extraction.leagueName || "";
+      screenshotLeagueId.value = extraction.externalLeagueId || "";
+      screenshotReviewBody.replaceChildren();
+      state.screenshotImport.teams.forEach((team, index) => {
+        const row = document.createElement("tr");
+        row.className = "screenshot-review-row";
+        row.dataset.index = String(index);
+        const needsReview = team.confidence !== "high" || team.issues.length > 0;
+        row.dataset.needsReview = String(needsReview);
+
+        const pickCell = document.createElement("td");
+        const pickInput = screenshotInput(team.draftOrderPosition, "draftOrderPosition", "Team number for row " + (index + 1));
+        pickInput.type = "number";
+        pickInput.min = "1";
+        pickInput.step = "1";
+        pickCell.append(pickInput);
+
+        const abbreviationCell = document.createElement("td");
+        const abbreviationInput = screenshotInput(team.abbreviation, "abbreviation", "Abbreviation for team " + (index + 1));
+        abbreviationInput.maxLength = 12;
+        abbreviationCell.append(abbreviationInput);
+
+        const teamCell = document.createElement("td");
+        teamCell.append(screenshotInput(team.teamDisplayName, "teamDisplayName", "Team name for row " + (index + 1), "team-name-input"));
+
+        const managerCell = document.createElement("td");
+        managerCell.append(screenshotInput(
+          team.managerDisplayNames.join("; "),
+          "managerDisplayNames",
+          "Managers for team " + (index + 1),
+          "manager-names-input",
+        ));
+
+        const profileCell = document.createElement("td");
+        const profileSelect = document.createElement("select");
+        profileSelect.dataset.field = "targetTeamId";
+        profileSelect.setAttribute("aria-label", "Mockd profile for team row " + (index + 1));
+        const emptyProfile = document.createElement("option");
+        emptyProfile.value = "";
+        emptyProfile.textContent = "Choose profile";
+        profileSelect.append(emptyProfile);
+        state.screenshotTeamProfiles.forEach(profile => {
+          const option = document.createElement("option");
+          option.value = profile.teamId;
+          option.textContent = profile.ownerDisplayName + " · " + profile.teamDisplayName;
+          profileSelect.append(option);
+        });
+        profileSelect.value = team.targetTeamId || "";
+        profileCell.append(profileSelect);
+
+        const reviewCell = document.createElement("td");
+        reviewCell.className = "review-cell";
+        if (needsReview) {
+          const note = document.createElement("span");
+          note.className = "review-note";
+          note.textContent = team.issues.length
+            ? team.issues.join(" ")
+            : "The screenshot reading was not fully confident.";
+          const label = document.createElement("label");
+          label.className = "confirmation-label";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = team.confirmed === true;
+          checkbox.dataset.field = "confirmed";
+          const labelText = document.createElement("span");
+          labelText.textContent = "I verified this row";
+          label.append(checkbox, labelText);
+          reviewCell.append(note, label);
+        } else {
+          const ready = document.createElement("span");
+          ready.className = "ready";
+          ready.textContent = "Clear";
+          reviewCell.append(ready);
+        }
+
+        row.append(pickCell, abbreviationCell, teamCell, managerCell, profileCell, reviewCell);
+        screenshotReviewBody.append(row);
+      });
+      setHidden(screenshotSourcePreview, !state.screenshotPreviewUrl);
+      setHidden(screenshotReview, false);
+      updateScreenshotReviewState();
+    };
+
+    const imageBase64For = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("error", () => reject(new Error("The screenshot could not be read.")));
+      reader.addEventListener("load", () => {
+        const result = typeof reader.result === "string" ? reader.result : "";
+        const separator = result.indexOf(",");
+        if (separator < 0) {
+          reject(new Error("The screenshot could not be read."));
+          return;
+        }
+        resolve(result.slice(separator + 1));
+      });
+      reader.readAsDataURL(file);
+    });
+
+    screenshotAnalyzeButton.addEventListener("click", async () => {
+      const file = screenshotImportFile.files?.[0];
+      if (!file) {
+        screenshotImportStatus.textContent = "Choose a screenshot first.";
+        screenshotImportFile.focus();
+        return;
+      }
+      if (!screenshotMimeTypes.has(file.type)) {
+        screenshotImportStatus.textContent = "Choose a PNG, JPEG, or WebP screenshot.";
+        return;
+      }
+      if (file.size > screenshotMaxBytes) {
+        screenshotImportStatus.textContent = "Choose a screenshot smaller than 5 MB.";
+        return;
+      }
+
+      resetScreenshotReview();
+      const requestGeneration = state.screenshotRequestGeneration;
+      const requestedSeasonId = byId("setup-season-id-input").value;
+      state.screenshotPreviewUrl = URL.createObjectURL(file);
+      screenshotSourcePreview.src = state.screenshotPreviewUrl;
+      screenshotAnalyzeButton.disabled = true;
+      screenshotImportStatus.textContent = "Reading teams from the screenshot...";
+      try {
+        const base64 = await imageBase64For(file);
+        const body = await readJson(await fetch(setupEndpoint("screenshot-analyze"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ mimeType: file.type, base64: base64 }),
+        }));
+        if (
+          requestGeneration !== state.screenshotRequestGeneration ||
+          requestedSeasonId !== byId("setup-season-id-input").value
+        ) return;
+        screenshotImportFile.value = "";
+        renderScreenshotReview(body);
+      } catch (error) {
+        if (requestGeneration === state.screenshotRequestGeneration) {
+          screenshotImportStatus.textContent = error.message;
+        }
+      } finally {
+        screenshotAnalyzeButton.disabled = state.setupLocked;
+      }
+    });
+
+    screenshotLeagueName.addEventListener("input", () => {
+      if (state.screenshotImport) state.screenshotImport.leagueName = screenshotLeagueName.value.trim() || null;
+    });
+    screenshotLeagueId.addEventListener("input", () => {
+      if (state.screenshotImport) state.screenshotImport.externalLeagueId = screenshotLeagueId.value.trim() || null;
+    });
+    screenshotReviewBody.addEventListener("input", event => {
+      const control = event.target.closest("[data-field]");
+      const row = control?.closest("tr[data-index]");
+      const team = row && state.screenshotImport?.teams[Number(row.dataset.index)];
+      if (!control || !team) return;
+      if (control.dataset.field === "draftOrderPosition") {
+        team.draftOrderPosition = Number(control.value);
+      } else if (control.dataset.field === "managerDisplayNames") {
+        team.managerDisplayNames = control.value.split(";").map(value => value.trim()).filter(Boolean);
+      } else if (control.dataset.field === "confirmed") {
+        team.confirmed = control.checked;
+      } else if (control.dataset.field === "targetTeamId") {
+        team.targetTeamId = control.value || null;
+      } else {
+        team[control.dataset.field] = control.value;
+      }
+      updateScreenshotReviewState();
+    });
+    screenshotReviewBody.addEventListener("change", event => {
+      if (event.target.matches('input[data-field="confirmed"], select[data-field="targetTeamId"]')) {
+        event.target.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+
+    screenshotApplyButton.addEventListener("click", async () => {
+      if (!state.screenshotImport) return;
+      const requestedSeasonId = byId("setup-season-id-input").value;
+      const requestGeneration = state.screenshotRequestGeneration;
+      const workspaceRequestGeneration = state.workspaceRequestGeneration;
+      screenshotApplyButton.disabled = true;
+      screenshotImportStatus.textContent = "Applying league teams...";
+      try {
+        const body = await readJson(await fetch(setupEndpoint("screenshot-apply"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            ...state.screenshotImport,
+            setupRevision: state.screenshotImportRevision,
+          }),
+        }));
+        if (
+          requestGeneration !== state.screenshotRequestGeneration ||
+          !isCurrentSetupRequest(requestedSeasonId, workspaceRequestGeneration)
+        ) return;
+        resetScreenshotReview({ clearFile: true });
+        renderSeasonTeams(body.season);
+        screenshotImportStatus.textContent = body.season.teams.length + " teams imported. You can create manager invite links next.";
+        await loadOnboarding();
+      } catch (error) {
+        if (
+          requestGeneration !== state.screenshotRequestGeneration ||
+          !isCurrentSetupRequest(requestedSeasonId, workspaceRequestGeneration)
+        ) return;
+        renderScreenshotBlockers(error.body?.import?.blockers || []);
+        screenshotImportStatus.textContent = error.message;
+        screenshotApplyButton.disabled = true;
+      }
+    });
+
+    const loadSeasonInvitations = async (seasonId, requestGeneration = state.workspaceRequestGeneration) => {
       const body = await readJson(await fetch("/invitations?seasonId=" + encodeURIComponent(seasonId), {
         credentials: "same-origin",
       }));
+      if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
+      state.claimedTeamIds = new Set(body.claimedTeamIds || []);
       renderInvitationRows(body.invitations || []);
+      if (state.currentSeason?.id === seasonId) renderSeasonTeams(state.currentSeason);
     };
 
     const renderSetupResult = body => {
@@ -1199,13 +1677,25 @@ export const platformShellHtml = `<!doctype html>
     };
 
     const submitSetup = async action => {
+      const seasonId = byId("setup-season-id-input").value;
+      const requestGeneration = state.workspaceRequestGeneration;
       setupStatus.textContent = action === "preview" ? "Checking owner rows..." : "Updating league setup...";
-      const body = await readJson(await fetch(setupEndpoint(action), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ content: setupRowsInput.value }),
-      }));
+      let body;
+      try {
+        body = await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(seasonId) + "/setup-import/" + action,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ content: setupRowsInput.value }),
+          },
+        ));
+      } catch (error) {
+        if (isCurrentSetupRequest(seasonId, requestGeneration)) throw error;
+        return;
+      }
+      if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
       renderSetupResult(body);
     };
 
@@ -1268,15 +1758,61 @@ export const platformShellHtml = `<!doctype html>
       }
     });
 
+    invitationForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const seasonId = byId("setup-season-id-input").value;
+      const requestGeneration = state.workspaceRequestGeneration;
+      if (!seasonId || !invitationTeamPicker.value) return;
+      createInvitationButton.disabled = true;
+      invitationCreateStatus.textContent = "Creating invite link...";
+      try {
+        const body = await readJson(await fetch("/invitations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            seasonId: seasonId,
+            teamId: invitationTeamPicker.value,
+            email: invitationEmailInput.value,
+          }),
+        }));
+        if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
+        const invitation = body.invitation;
+        renderInvitationRows([
+          ...state.invitations.filter(candidate => !(
+            candidate.status === "pending"
+              && (candidate.email === invitation.email || candidate.teamDisplayName === invitation.teamDisplayName)
+          )),
+          invitation,
+        ]);
+        invitationEmailInput.value = "";
+        invitationCreateStatus.textContent = "Invite link created. Copy it before leaving this page.";
+      } catch (error) {
+        if (isCurrentSetupRequest(seasonId, requestGeneration)) {
+          invitationCreateStatus.textContent = error.message;
+        }
+      } finally {
+        if (isCurrentSetupRequest(seasonId, requestGeneration)) {
+          createInvitationButton.disabled = invitationTeamPicker.options.length === 0;
+        }
+      }
+    });
+
     setupInvitations.addEventListener("click", event => {
       const button = event.target.closest("button[data-invitation-action]");
       if (!button) return;
+      const seasonId = byId("setup-season-id-input").value;
+      const requestGeneration = state.workspaceRequestGeneration;
       const invitation = state.invitations.find(candidate => candidate.id === button.dataset.invitationId);
-      if (!invitation) return;
+      if (!invitation || invitation.seasonId !== seasonId) return;
       if (button.dataset.invitationAction === "copy") {
         navigator.clipboard.writeText(new URL(invitation.acceptPath, window.location.origin).toString())
-          .then(() => { setupStatus.textContent = "Invite link copied."; })
-          .catch(() => { setupStatus.textContent = "Could not copy the invite link."; });
+          .then(() => {
+            if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = "Invite link copied.";
+          })
+          .catch(() => {
+            if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = "Could not copy the invite link.";
+          });
         return;
       }
       button.disabled = true;
@@ -1285,14 +1821,19 @@ export const platformShellHtml = `<!doctype html>
         : invitation.reissuePath;
       fetch(actionPath, { method: "POST", credentials: "same-origin" }).then(readJson)
         .then(body => {
+          if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
           const updatedInvitation = body.invitation || body;
           renderInvitationRows(state.invitations.map(candidate => candidate.id === invitation.id ? updatedInvitation : candidate));
           setupStatus.textContent = button.dataset.invitationAction === "revoke"
             ? "Invitation revoked."
             : "Invitation reissued.";
         })
-        .catch(error => { setupStatus.textContent = error.message; })
-        .finally(() => { button.disabled = false; });
+        .catch(error => {
+          if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = error.message;
+        })
+        .finally(() => {
+          if (isCurrentSetupRequest(seasonId, requestGeneration) && button.isConnected) button.disabled = false;
+        });
     });
 
     byId("accept-invitation-button").addEventListener("click", () => {

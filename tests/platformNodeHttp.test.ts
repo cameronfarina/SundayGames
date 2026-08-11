@@ -1,4 +1,9 @@
-import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
+import {
+  createServer as createHttpServer,
+  request as httpRequest,
+  type ClientRequest,
+  type Server as HttpServer,
+} from "node:http";
 import { createServer as createHttpsServer, request as httpsRequest, type Server as HttpsServer } from "node:https";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PlatformHttpHandler, PlatformHttpRequest } from "../src/platform/platformHttp.js";
@@ -87,6 +92,56 @@ const jsonFetch = async (
     setCookie: response.headers.get("set-cookie"),
     body: await response.json(),
   };
+};
+
+const requestBeforeSendingBody = async (
+  baseUrl: string,
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<{
+  request: ClientRequest;
+  response: { status: number; body: unknown };
+}> => {
+  let clientRequest!: ClientRequest;
+  const response = new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    clientRequest = httpRequest(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "content-length": "1000",
+        "content-type": "application/json",
+        ...headers,
+      },
+    }, incomingResponse => {
+      const chunks: Buffer[] = [];
+      incomingResponse.on("data", chunk => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      incomingResponse.on("end", () => {
+        resolve({
+          status: incomingResponse.statusCode ?? 0,
+          body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
+        });
+      });
+    });
+    clientRequest.once("error", reject);
+    clientRequest.flushHeaders();
+  });
+
+  const guardedResponse = await new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clientRequest.destroy();
+      reject(new Error("Server waited for the request body."));
+    }, 250);
+    response.then(result => {
+      clearTimeout(timeout);
+      resolve(result);
+    }, error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+
+  return { request: clientRequest, response: guardedResponse };
 };
 
 const httpsJsonFetch = async (
@@ -548,6 +603,68 @@ describe("platform Node HTTP adapter", () => {
         },
       },
     });
+  });
+
+  it("uses the larger body limit only for screenshot analysis", async () => {
+    const seenPaths: string[] = [];
+    const baseUrl = await listen(async request => {
+      seenPaths.push(request.path);
+      return { status: 200, body: { ok: true } };
+    }, {
+      maxBodyBytes: 10,
+      screenshotImportMaxBodyBytes: 100,
+      screenshotImportPreflight: async () => null,
+    });
+    const body = JSON.stringify({ base64: "12345678901234567890" });
+
+    const screenshot = await jsonFetch(
+      baseUrl,
+      "/seasons/season-1/setup-import/screenshot-analyze",
+      { method: "POST", headers: { "content-type": "application/json" }, body },
+    );
+    const ordinary = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+
+    expect(screenshot.status).toBe(200);
+    expect(ordinary.status).toBe(413);
+    expect(seenPaths).toEqual(["/seasons/season-1/setup-import/screenshot-analyze"]);
+  });
+
+  it("rejects screenshot uploads before consuming the body or calling the handler", async () => {
+    let handlerCallCount = 0;
+    let preflightRequest: PlatformHttpRequest | undefined;
+    const baseUrl = await listen(async () => {
+      handlerCallCount += 1;
+      return { status: 200, body: { ok: true } };
+    }, {
+      screenshotImportPreflight: async request => {
+        preflightRequest = request;
+        return {
+          status: 401,
+          body: { error: { code: "auth_required", message: "Sign in first." } },
+        };
+      },
+    });
+
+    const pending = await requestBeforeSendingBody(
+      baseUrl,
+      "/seasons/season-1/setup-import/screenshot-analyze",
+    );
+    pending.request.destroy();
+
+    expect(pending.response).toEqual({
+      status: 401,
+      body: { error: { code: "auth_required", message: "Sign in first." } },
+    });
+    expect(handlerCallCount).toBe(0);
+    expect(preflightRequest).toMatchObject({
+      method: "POST",
+      path: "/seasons/season-1/setup-import/screenshot-analyze",
+    });
+    expect(preflightRequest).not.toHaveProperty("body");
   });
 
   it("builds login and logout Set-Cookie values without tokenHash material", () => {
