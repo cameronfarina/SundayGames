@@ -20,6 +20,7 @@ export interface PlatformRuntimeConfig {
   postgresStatementTimeoutMs: number | undefined;
   postgresSnapshotKey: string | undefined;
   initializePostgresSchema: boolean;
+  draftToolsSessionDirectory: string;
   simulationDataMode: "disabled" | "local-fixtures";
   worker: {
     workerId: string;
@@ -63,9 +64,11 @@ const defaultPostgresPoolSize = 5;
 const defaultWorkerJobKinds: readonly JobKind[] = ["simulation"];
 const defaultWorkerPollIntervalMs = 1_000;
 const defaultWorkerLockTtlMs = 60_000;
+const defaultDraftToolsSessionDirectory = "data/platform-draft-tools";
 const launchWorkerJobKinds = ["simulation"] as const satisfies readonly JobKind[];
 const productionReadinessNextSteps = [
   "Run `npm run platform:migrate` against the production DATABASE_URL before starting web or worker processes.",
+  "Mount a persistent volume and set `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to its draft-tools directory.",
   "Seed or verify production league, users, memberships, pricing, and a test live room; use `npm run platform:seed:e2e` only for rehearsal fixtures.",
   "Start `npm run platform:web` behind the domain/proxy and `npm run platform:worker` for background jobs.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",
@@ -217,6 +220,7 @@ export const readPlatformRuntimeConfig = (
     postgresStatementTimeoutMs: optionalPositiveIntegerEnv(env, "MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS"),
     postgresSnapshotKey: optionalEnvString(env, "MOCKD_POSTGRES_SNAPSHOT_KEY"),
     initializePostgresSchema: booleanEnv(env, "MOCKD_INITIALIZE_POSTGRES_SCHEMA"),
+    draftToolsSessionDirectory: optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ?? defaultDraftToolsSessionDirectory,
     simulationDataMode: parsedSimulationDataMode,
     worker: {
       workerId: runtimeWorkerId(env),
@@ -292,6 +296,20 @@ export const assessPlatformProductionReadiness = (
       status: "pass",
       label: "File-backed storage",
       detail: "MOCKD_PLATFORM_DATA_FILE is not configured.",
+    });
+  }
+
+  if (optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") === undefined) {
+    checks.push({
+      status: "fail",
+      label: "Private draft storage",
+      detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY must point to a persistent volume.",
+    });
+  } else {
+    checks.push({
+      status: "pass",
+      label: "Private draft storage",
+      detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY is configured.",
     });
   }
 

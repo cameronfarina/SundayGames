@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import type { AccountRecord } from "../src/platform/auth.js";
@@ -136,6 +136,25 @@ describe("platform HTTP contract", () => {
         },
       },
     });
+  });
+
+  it("reports unavailable when a readiness dependency fails", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const readinessProbe = vi.fn(async () => false);
+    const handle = createPlatformHttpHandler(app, { readinessProbe });
+
+    await expect(handle({ method: "GET", path: "/healthz" })).resolves.toMatchObject({
+      status: 200,
+      body: { status: "ok" },
+    });
+    await expect(handle({ method: "GET", path: "/readyz" })).resolves.toEqual({
+      status: 503,
+      body: {
+        service: "mockd-platform",
+        status: "unavailable",
+      },
+    });
+    expect(readinessProbe).toHaveBeenCalledOnce();
   });
 
   it("creates accounts, logs in, and returns stable auth error responses", async () => {
@@ -1338,10 +1357,29 @@ describe("platform HTTP contract", () => {
       },
     });
 
-    const earlyExportArtifact = await handle({
+    const memberExportArtifact = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/export-artifacts",
       sessionToken: seth.sessionToken,
+      body: {
+        exportedAt: new Date(now.getTime() + 7_500).toISOString(),
+      },
+    });
+
+    expect(memberExportArtifact).toEqual({
+      status: 403,
+      body: {
+        error: {
+          code: "shared_mutation_denied",
+          message: "Only league owners and admins can change shared draft data.",
+        },
+      },
+    });
+
+    const earlyExportArtifact = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/export-artifacts",
+      sessionToken: cam.sessionToken,
       body: {
         exportedAt: new Date(now.getTime() + 7_500).toISOString(),
       },
@@ -1388,7 +1426,7 @@ describe("platform HTTP contract", () => {
     const exportArtifact = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: seth.sessionToken,
+      sessionToken: cam.sessionToken,
       body: {
         exportedAt: "2026-08-09T12:00:10.000Z",
       },
@@ -1396,7 +1434,7 @@ describe("platform HTTP contract", () => {
     const retriedExportArtifact = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: seth.sessionToken,
+      sessionToken: cam.sessionToken,
     });
 
     expect(exportArtifact.status).toBe(201);

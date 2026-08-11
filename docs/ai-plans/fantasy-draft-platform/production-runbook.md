@@ -30,7 +30,7 @@ Domain readiness is a go/no-go gate. Do not point a public domain at Mockd until
 
 ## Deploy Units
 
-- `web`: stateless HTTP app plus SSE endpoints.
+- `web`: HTTP app plus SSE endpoints and a persistent volume for account-isolated board and mock sessions. Run one web replica for the first release.
 - `worker`: background job runner.
 - `migrate`: one-off migration task before web/worker deploy.
 - `scheduler`: low-frequency job enqueuer for cleanup, backup verification, and stale job checks.
@@ -39,15 +39,15 @@ Domain readiness is a go/no-go gate. Do not point a public domain at Mockd until
 
 Current npm entrypoints:
 
-- `npm run platform:ready`: checks whether runtime configuration is safe to deploy behind a production domain.
-- `npm run platform:migrate`: applies the snapshot bridge schema plus the normalized platform schema contract with a migration ledger.
-- `npm run platform:web`: starts the platform HTTP server.
-- `npm run platform:worker`: starts the background job worker loop.
+- `npm run platform:ready`: runs the compiled readiness CLI, verifies required migration IDs, and probes private draft storage with a flushed write and delete.
+- `npm run platform:migrate`: runs the compiled migration task and applies the snapshot bridge schema plus the normalized platform schema contract with a migration ledger.
+- `npm run platform:web` or `npm start`: starts the compiled platform HTTP server.
+- `npm run platform:worker`: starts the compiled background job worker loop.
 - `npm run platform:seed:e2e`: seeds local E2E fixture users, a published season, and a live room. Use only for local or throwaway staging smoke.
 - `npm run test:e2e`: starts a temporary file-backed web process and runs the Playwright platform smoke.
 - `npm run test:e2e:deployed`: runs the same browser/API smoke against an already deployed base URL without starting a local server.
 
-Run `platform:ready` before deploy. It requires Postgres-backed storage, rejects the local file store, prints the web bind target, and lists the migration, seed/verification, web/worker, and smoke-test steps that still need human confirmation.
+Build `dist` in the build stage, then prune or install production dependencies only in the runtime stage. The hosted scripts use `node`, not the development-only `tsx` package. Run `platform:ready` after migrations and before deploy. It requires Postgres-backed shared storage and an explicit persistent private-draft directory, rejects the local platform file store, verifies the migration ledger and directory write access, prints the web bind target, and lists the seed/verification, web/worker, and smoke-test steps that still need human confirmation. The web process runs the same dependency checks for `/readyz`; `/healthz` remains a process-liveness check.
 
 The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before web/worker rollout; do not rely on web startup as the production migration path. In Postgres mode, web and worker construct normalized repositories for accounts, sessions, league setup, historical imports, jobs, and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only, league-setup-only, and historical-import-only HTTP mutations skip snapshot persistence when their external repositories are configured, so those direct writes remain owned by their normalized repositories. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
 
@@ -67,6 +67,7 @@ Provision these before sending public domain traffic to Mockd:
 - A non-production restore target exists for rehearsals.
 - Secret store has production values for the implemented runtime variables below.
 - Production uses `DATABASE_URL`; `MOCKD_PLATFORM_DATA_FILE` is absent.
+- A persistent volume is mounted and `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` points to it. The first release runs one web replica because private board/mock sessions are account-isolated files on that volume.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA` is unset or false in production.
 - `MOCKD_WORKER_JOB_KINDS` is only `simulation` until more launch job kinds are implemented.
 - If the worker claims `simulation`, `MOCKD_SIMULATION_DATA_MODE=local-fixtures` is set only if checked-in current-league fixture-backed simulations are accepted for launch. Otherwise, do not start a simulation worker and mark the domain gate no-go until the production simulation runner exists.
@@ -100,6 +101,7 @@ Implemented bootstrap variables:
 - `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
 - `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web/worker startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
+- `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: persistent directory for account-isolated board, shortlist, strategy, and interactive mock sessions. Required by `platform:ready` for a domain deployment.
 - `MOCKD_WORKER_ID`: stable worker identifier for job locks.
 - `MOCKD_WORKER_JOB_KINDS`: comma-separated job kinds the worker may claim. Defaults to `simulation` so unsupported import/pricing/export jobs are not accidentally failed.
 - `MOCKD_WORKER_POLL_INTERVAL_MS`: idle/error poll delay.
@@ -127,29 +129,32 @@ Production variables still missing from code:
 
 Run these against the exact commit that will serve the domain.
 
-1. Install and build:
+1. Build the production artifact and remove development dependencies:
 
    ```bash
-   npm install
+   npm ci
    npm run build
    npm test
+   npm prune --omit=dev
    ```
 
-2. Check production/domain runtime readiness:
+   A multi-stage image may instead copy `dist`, `package.json`, and `package-lock.json` into the runtime stage before running `npm ci --omit=dev`.
 
-   ```bash
-   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:ready
-   ```
-
-   This preflight checks the implemented runtime config only. The human checklist below still gates backups, seed data, DNS, smoke, and rollback.
-
-3. Apply migrations before web/worker rollout:
+2. Apply migrations before web/worker rollout:
 
    ```bash
    DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate
    ```
 
    Expected output is `Applied N platform migration statements.` A repeat run should be safe and can print `Applied 0 platform migration statements.`
+
+3. Check production/domain runtime readiness:
+
+   ```bash
+   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:ready
+   ```
+
+   This preflight checks runtime config, Postgres connectivity, required migration IDs, and writable private draft storage. The human checklist below still gates backups, seed data, DNS, smoke, and rollback.
 
 4. Seed or verify data:
 
@@ -169,7 +174,7 @@ Run these against the exact commit that will serve the domain.
 5. Start runtime processes:
 
    ```bash
-   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:web
+   HOST=0.0.0.0 PORT="$PORT" DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:web
    DATABASE_URL="$PRODUCTION_DATABASE_URL" MOCKD_SIMULATION_DATA_MODE=local-fixtures npm run platform:worker
    ```
 
@@ -244,6 +249,7 @@ Backup expectations:
 - Manual pre-draft snapshot on draft day.
 - Manual pre-migration snapshot for risky changes.
 - Durable storage backups for uploaded imports and generated exports.
+- Daily backup or snapshot of `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` so private board and mock sessions can be restored with the release.
 
 Restore expectations:
 
@@ -377,7 +383,7 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
 | Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web/worker rollout and repeat-run output is safe. |
-| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, worker settings, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
+| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, worker settings, a persistent `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Seed data | Real league, users, memberships, teams, rules, keepers, historical imports, and active pricing snapshot exist through an approved production path; no `platform:seed:e2e` fixture accounts are present in production. |
 | Worker | Worker starts, claims only supported job kinds, and does not run simulation jobs unless the fixture-backed launch constraint is accepted. |
 | Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |

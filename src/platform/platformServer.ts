@@ -70,6 +70,8 @@ export interface CreatePlatformServerOptions {
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
+  draftToolsSessionDirectory?: string | undefined;
+  readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   now?: PlatformClock | undefined;
 }
 
@@ -658,7 +660,9 @@ export const createPlatformServer = async (
     return {
       store,
       app,
-      platformHandler: createPlatformHttpHandler(app),
+      platformHandler: createPlatformHttpHandler(app, {
+        ...(options.readinessProbe === undefined ? {} : { readinessProbe: options.readinessProbe }),
+      }),
       rawJobHandlers: createPlatformJobHandlers({
         app,
         persist: simulationRepository === store.simulations ? rawPersist : undefined,

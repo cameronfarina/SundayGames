@@ -69,6 +69,10 @@ export type PlatformApp = ReturnType<typeof createPlatformApp>;
 
 export type PlatformHttpHandler = (request: PlatformHttpRequest) => Promise<PlatformHttpResponse>;
 
+export interface PlatformHttpServices {
+  readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
+}
+
 interface ParsedPlatformHttpRequest {
   method: string;
   segments: readonly string[];
@@ -97,6 +101,11 @@ const authRequiredBody: PlatformHttpErrorBody = {
 const healthyResponseBody = {
   service: "mockd-platform",
   status: "ok",
+} as const;
+
+const unavailableResponseBody = {
+  service: "mockd-platform",
+  status: "unavailable",
 } as const;
 
 const notFound = (): PlatformHttpResponse<PlatformHttpErrorBody> => ({
@@ -319,6 +328,7 @@ const platformErrorStatus = (code: PlatformAppError["code"]): number => {
     case "auth_required":
       return 401;
     case "draft_room_not_final":
+    case "team_claim_locked":
       return 409;
     case "league_not_found":
     case "historical_import_not_found":
@@ -391,7 +401,10 @@ const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): number => {
     case "room_already_exists":
     case "room_already_live":
     case "room_not_live":
+    case "room_not_paused":
+    case "room_paused":
     case "roster_full":
+    case "sale_not_active":
     case "season_not_ready":
     case "stale_revision":
       return 409;
@@ -1093,17 +1106,33 @@ const routeLiveRooms = async (
   return notFound();
 };
 
-export const createPlatformHttpHandler = (app: PlatformApp): PlatformHttpHandler =>
+export const createPlatformHttpHandler = (
+  app: PlatformApp,
+  services: PlatformHttpServices = {},
+): PlatformHttpHandler =>
   async request => {
     try {
       const parsedRequest = parsedRequestFor(request);
       const [root] = parsedRequest.segments;
       const secureSessionCookie = secureSessionCookieFor(request);
 
-      if ((root === "healthz" || root === "readyz") && parsedRequest.segments.length === 1) {
-        return parsedRequest.method === "GET"
+      if (root === "healthz" && parsedRequest.segments.length === 1) {
+        return parsedRequest.method === "GET" ? { status: 200, body: healthyResponseBody } : methodNotAllowed();
+      }
+
+      if (root === "readyz" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method !== "GET") return methodNotAllowed();
+
+        let ready = true;
+        try {
+          ready = await services.readinessProbe?.() ?? true;
+        } catch {
+          ready = false;
+        }
+
+        return ready
           ? { status: 200, body: healthyResponseBody }
-          : methodNotAllowed();
+          : { status: 503, body: unavailableResponseBody };
       }
 
       if (root === "accounts" && parsedRequest.segments.length === 1) {

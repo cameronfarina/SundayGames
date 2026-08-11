@@ -141,13 +141,21 @@ Use `docs/ai-plans/fantasy-draft-platform/production-runbook.md` for the domain 
 Current hosted entrypoints:
 
 ```bash
-HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... npm run platform:ready
+npm ci
+npm run build
+npm prune --omit=dev
 DATABASE_URL=postgres://... npm run platform:migrate
-HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... npm run platform:web
+HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:ready
+HOST=0.0.0.0 PORT=4319 DATABASE_URL=postgres://... MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools npm run platform:web
 DATABASE_URL=postgres://... MOCKD_SIMULATION_DATA_MODE=local-fixtures npm run platform:worker
 ```
 
-Production uses `DATABASE_URL`. `MOCKD_PLATFORM_DATA_FILE` and `platform:seed:e2e` are local or throwaway-staging tools only. This branch has no production league seed command yet; use an approved admin/UI/API path before domain cutover.
+Production uses `DATABASE_URL` plus a persistent volume for account-isolated
+board and mock state. `MOCKD_PLATFORM_DATA_FILE` and `platform:seed:e2e` are
+local or throwaway-staging tools only. This branch has no production league
+seed command yet; use an approved admin/UI/API path before domain cutover.
+The hosted scripts execute compiled JavaScript from `dist`, so the runtime
+artifact does not need `tsx`, TypeScript, Vitest, or Playwright installed.
 
 ## Historical Data
 

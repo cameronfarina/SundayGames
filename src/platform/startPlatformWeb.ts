@@ -1,4 +1,8 @@
 import { pathToFileURL } from "node:url";
+import {
+  inspectPlatformPostgresReadiness,
+  probeWritableDraftToolsDirectory,
+} from "./checkPlatformProductionReadiness.js";
 import { createSimulationRunnerForRuntime } from "./currentLeagueSimulationRunner.js";
 import { createNodePostgresClient, type NodePostgresClient } from "./postgresClient.js";
 import { readPlatformRuntimeConfig } from "./platformRuntimeConfig.js";
@@ -22,6 +26,19 @@ export const startPlatformWebFromEnv = async (
       max: config.postgresPoolSize,
       statementTimeoutMs: config.postgresStatementTimeoutMs,
     });
+  const readinessProbe = async (): Promise<boolean> => {
+    if (postgresClient !== undefined) {
+      const databaseReadiness = await inspectPlatformPostgresReadiness(postgresClient);
+      if (databaseReadiness.status !== "ready") return false;
+    }
+
+    try {
+      await probeWritableDraftToolsDirectory(config.draftToolsSessionDirectory);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const server = await startPlatformServer({
     host: config.host,
     port: config.port,
@@ -36,6 +53,8 @@ export const startPlatformWebFromEnv = async (
     postgresExportArtifactClient: postgresClient,
     postgresSnapshotKey: config.postgresSnapshotKey,
     initializePostgresSchema: config.initializePostgresSchema,
+    draftToolsSessionDirectory: config.draftToolsSessionDirectory,
+    readinessProbe,
     simulationRunner,
   });
 

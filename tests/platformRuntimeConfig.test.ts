@@ -16,6 +16,7 @@ describe("platform runtime config", () => {
       MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS: "2500",
       MOCKD_POSTGRES_SNAPSHOT_KEY: "prod",
       MOCKD_INITIALIZE_POSTGRES_SCHEMA: "true",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
       MOCKD_WORKER_ID: "worker-a",
       MOCKD_WORKER_JOB_KINDS: "simulation",
@@ -32,6 +33,7 @@ describe("platform runtime config", () => {
       postgresStatementTimeoutMs: 2500,
       postgresSnapshotKey: "prod",
       initializePostgresSchema: true,
+      draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
       simulationDataMode: "local-fixtures",
       worker: {
         workerId: "worker-a",
@@ -49,6 +51,7 @@ describe("platform runtime config", () => {
 
     expect(config.databaseUrl).toBeUndefined();
     expect(config.dataFilePath).toBe("/tmp/mockd-platform.json");
+    expect(config.draftToolsSessionDirectory).toBe("data/platform-draft-tools");
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
     expect(config.simulationDataMode).toBe("disabled");
@@ -124,6 +127,7 @@ describe("platform runtime config", () => {
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
       HOST: "0.0.0.0",
       PORT: "443",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
     });
 
     expect(report).toMatchObject({
@@ -148,11 +152,17 @@ describe("platform runtime config", () => {
       },
       {
         status: "pass",
+        label: "Private draft storage",
+        detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY is configured.",
+      },
+      {
+        status: "pass",
         label: "Web bind target",
         detail: "Host 0.0.0.0, port 443.",
       },
     ]);
     expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
+    expect(report.nextSteps.join("\n")).toContain("persistent volume");
     expect(report.nextSteps.join("\n")).toContain("Seed or verify");
     expect(report.nextSteps.join("\n")).toContain("npm run smoke");
     expect(platformProductionReadinessExitCode(report)).toBe(0);
@@ -180,6 +190,21 @@ describe("platform runtime config", () => {
     expect(formatPlatformProductionReadinessReport(report)).toContain(
       "FAIL Postgres durable storage - DATABASE_URL is required for production/domain readiness.",
     );
+  });
+
+  it("blocks production/domain readiness when private draft storage is not configured", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Private draft storage",
+      detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY must point to a persistent volume.",
+    });
   });
 
   it("blocks file-backed stores for production/domain readiness", () => {

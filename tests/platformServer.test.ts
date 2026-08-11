@@ -1085,6 +1085,28 @@ describe("platform server composition", () => {
     };
   };
 
+  it("reports dependency readiness through the real HTTP server", async () => {
+    let ready = false;
+    const { baseUrl } = await createListeningServer({
+      readinessProbe: async () => ready,
+    });
+
+    await expect(jsonFetch(baseUrl, "/healthz")).resolves.toMatchObject({
+      status: 200,
+      body: { status: "ok" },
+    });
+    await expect(jsonFetch(baseUrl, "/readyz")).resolves.toMatchObject({
+      status: 503,
+      body: { status: "unavailable" },
+    });
+
+    ready = true;
+    await expect(jsonFetch(baseUrl, "/readyz")).resolves.toMatchObject({
+      status: 200,
+      body: { status: "ok" },
+    });
+  });
+
   it("creates accounts and logs in through the real HTTP server", async () => {
     const { baseUrl } = await createListeningServer();
 
