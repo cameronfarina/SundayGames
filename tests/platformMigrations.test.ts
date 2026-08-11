@@ -14,6 +14,7 @@ import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJ
 class RecordingPostgresClient implements PostgresTransactionalQueryClient {
   readonly statements: string[] = [];
   readonly appliedMigrationIds = new Set<string>();
+  duplicateRealDraftRooms: Array<{ league_season_id: string; room_ids: string[] }> = [];
   transactionCount = 0;
 
   async query<TRow = Record<string, unknown>>(
@@ -28,6 +29,10 @@ class RecordingPostgresClient implements PostgresTransactionalQueryClient {
           ? [{ id: migrationId } as TRow]
           : [],
       };
+    }
+
+    if (text.includes("HAVING COUNT(*) > 1")) {
+      return { rows: this.duplicateRealDraftRooms as TRow[] };
     }
 
     return { rows: [] };
@@ -77,12 +82,13 @@ describe("platform Postgres migrations", () => {
     client.appliedMigrationIds.add("platform-schema-v1");
     client.appliedMigrationIds.add("platform-live-room-paused-v2");
     client.appliedMigrationIds.add("platform-invitations-v3");
+    client.appliedMigrationIds.add("platform-live-room-setup-v4");
 
     const result = await applyPlatformPostgresMigrations(client);
 
     expect(result).toEqual({ statementCount: 0 });
     expect(client.transactionCount).toBe(1);
-    expect(client.statements.filter(statement => statement.includes("SELECT id"))).toHaveLength(3);
+    expect(client.statements.filter(statement => statement.includes("SELECT id"))).toHaveLength(4);
   });
 
   it("adds durable league invitations to an existing platform database", async () => {
@@ -101,6 +107,53 @@ describe("platform Postgres migrations", () => {
     );
   });
 
+  it("adds live-room setup data and one real room per season to an existing database", async () => {
+    const client = new RecordingPostgresClient();
+    client.appliedMigrationIds.add("platform-schema-v1");
+    client.appliedMigrationIds.add("platform-live-room-paused-v2");
+    client.appliedMigrationIds.add("platform-invitations-v3");
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS league_season_draft_setups"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE UNIQUE INDEX IF NOT EXISTS draft_rooms_real_season_key"),
+    );
+    expect(client.statements.findIndex(statement => statement.includes("HAVING COUNT(*) > 1")))
+      .toBeLessThan(client.statements.findIndex(statement =>
+        statement.includes("CREATE TABLE IF NOT EXISTS league_season_draft_setups")
+      ));
+  });
+
+  it("fails v4 before DDL when an existing season has multiple real rooms", async () => {
+    const client = new RecordingPostgresClient();
+    client.appliedMigrationIds.add("platform-schema-v1");
+    client.appliedMigrationIds.add("platform-live-room-paused-v2");
+    client.appliedMigrationIds.add("platform-invitations-v3");
+    client.duplicateRealDraftRooms = [
+      {
+        league_season_id: "league-1-season-2026",
+        room_ids: ["room-old", "room-new"],
+      },
+    ];
+
+    await expect(applyPlatformPostgresMigrations(client)).rejects.toThrow(
+      "Cannot apply platform-live-room-setup-v4: multiple real draft rooms exist for the same season: "
+      + "league-1-season-2026 (room-old, room-new). Preserve the authoritative room and remove or "
+      + "reclassify the duplicate rooms, then rerun the migration.",
+    );
+    expect(client.statements).not.toContainEqual(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS league_season_draft_setups"),
+    );
+    expect(client.statements).not.toContainEqual(
+      expect.stringContaining("CREATE UNIQUE INDEX IF NOT EXISTS draft_rooms_real_season_key"),
+    );
+    expect(client.appliedMigrationIds).not.toContain("platform-live-room-setup-v4");
+  });
+
   it("reports every required migration missing from the migration ledger", async () => {
     const client = new RecordingPostgresClient();
     client.appliedMigrationIds.add("platform-schema-v1");
@@ -108,11 +161,13 @@ describe("platform Postgres migrations", () => {
     await expect(findMissingPlatformPostgresMigrations(client)).resolves.toEqual([
       "platform-live-room-paused-v2",
       "platform-invitations-v3",
+      "platform-live-room-setup-v4",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
       "platform-live-room-paused-v2",
       "platform-invitations-v3",
+      "platform-live-room-setup-v4",
     ]);
   });
 });

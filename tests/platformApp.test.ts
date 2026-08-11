@@ -132,6 +132,10 @@ class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.hasStartedRoomForSeason(seasonId);
   }
 
+  async hasRoomForSeason(seasonId: string) {
+    return this.inner.hasRoomForSeason(seasonId);
+  }
+
   async startRoom(input: MutateLiveDraftRoomInput) {
     return this.inner.startRoom(input);
   }
@@ -156,7 +160,7 @@ class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.undoLastSale(input);
   }
 
-  async endRoom(input: MutateLiveDraftRoomInput) {
+  async endRoom(input: Parameters<LiveDraftRoomRepository["endRoom"]>[0]) {
     return this.inner.endRoom(input);
   }
 }
@@ -1331,6 +1335,7 @@ describe("platform app service", () => {
       roomId: room.roomId,
       expectedRevision: restored.revision,
       idempotencyKey: "end-room-before-export",
+      allowIncomplete: true,
       now: new Date(now.getTime() + 11_000),
     });
     await expect(app.createLiveDraftRoomExportArtifact({
@@ -1432,6 +1437,7 @@ describe("platform app service", () => {
       roomId: created.roomId,
       expectedRevision: sold.revision,
       idempotencyKey: "end-async-repo-room",
+      allowIncomplete: true,
       now: new Date(now.getTime() + 3_000),
     });
     const artifactResult = await app.createLiveDraftRoomExportArtifact({

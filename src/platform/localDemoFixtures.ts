@@ -1,4 +1,12 @@
-import type { LiveDraftRoomPlayerCatalogEntry } from "./liveDraftRooms.js";
+import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
+import { keepers } from "../../config/keepers.js";
+import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
+import { loadEspnWeeksOneToFour } from "../projections.js";
+import type { LeagueSeason } from "./leagueSeason.js";
+import type {
+  LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPlayerCatalogEntry,
+} from "./liveDraftRooms.js";
 
 type LocalDemoRankedPlayer = Omit<LiveDraftRoomPlayerCatalogEntry, "expectedPrice">;
 
@@ -6,6 +14,9 @@ export const localDemoEmail = "cam@mockd.local";
 export const localDemoPassword = "mockd local e2e password";
 export const localDemoSeasonId = "league-214674-season-2026";
 export const localDemoRoomId = "room_mockd_e2e_2026";
+
+const localDemoProjectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const localDemoCatalogLimit = 500;
 
 const localDemoRankedPlayers = [
   { name: "Jahmyr Gibbs", position: "RB", teamAbbreviation: "DET", byeWeek: 6 },
@@ -97,3 +108,52 @@ export const localDemoPlayerCatalog = localDemoRankedPlayers.map((player, index)
   ...player,
   expectedPrice: expectedPriceForRank(index + 1),
 })) satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
+  const catalog: LiveDraftRoomPlayerCatalogEntry[] = [...localDemoPlayerCatalog];
+  const includedPlayerIdentities = new Set(catalog.map(player => canonicalPlayerIdentityKey(player.name)));
+  const projections = await loadEspnWeeksOneToFour(localDemoProjectionPath);
+  const rankedProjections = [...projections].sort((left, right) =>
+    (left.espnRank ?? Number.MAX_SAFE_INTEGER) - (right.espnRank ?? Number.MAX_SAFE_INTEGER)
+    || (right.espnAuctionValue ?? 0) - (left.espnAuctionValue ?? 0)
+    || (right.seasonProjection ?? 0) - (left.seasonProjection ?? 0)
+    || left.name.localeCompare(right.name)
+  );
+
+  for (const projection of rankedProjections) {
+    if (catalog.length >= localDemoCatalogLimit) break;
+    const playerIdentity = canonicalPlayerIdentityKey(projection.name);
+    if (!playerIdentity || includedPlayerIdentities.has(playerIdentity)) continue;
+
+    const team = projection.proTeamId === undefined
+      ? undefined
+      : nflTeamByEspnProTeamId[projection.proTeamId];
+    catalog.push({
+      name: projection.name,
+      position: projection.position,
+      expectedPrice: Math.max(1, Math.round(projection.espnAuctionValue ?? expectedPriceForRank(catalog.length + 1))),
+      ...(team === undefined ? {} : { teamAbbreviation: team.abbreviation, byeWeek: team.byeWeek }),
+    });
+    includedPlayerIdentities.add(playerIdentity);
+  }
+
+  return catalog;
+};
+
+export const loadLocalDemoPlayerCatalog = loadCurrentPlayerCatalog;
+
+export const currentLeagueInitialRostersFor = (
+  season: LeagueSeason,
+): readonly LiveDraftRoomInitialRosterPlayer[] =>
+  keepers.flatMap(keeper => {
+    const team = season.teams.find(candidate => candidate.ownerDisplayName === keeper.owner);
+    if (team === undefined) return [];
+
+    return [{
+      teamId: team.id,
+      playerName: keeper.player,
+      position: keeper.position,
+      price: keeper.newCost,
+      source: "keeper" as const,
+    }];
+  });

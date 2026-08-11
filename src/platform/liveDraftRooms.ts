@@ -1,5 +1,9 @@
 import type { Position } from "../../config/league.js";
-import { cleanPlayerName, normalizePlayerName } from "../data/normalizePlayerName.js";
+import {
+  canonicalPlayerIdentityKey,
+  cleanPlayerName,
+  normalizePlayerName,
+} from "../data/normalizePlayerName.js";
 import { parseLiveDraftSaleCommand } from "../modeling/liveDraft.js";
 import {
   assessLeagueSeasonReadiness,
@@ -12,6 +16,7 @@ export type LiveDraftRoomStatus = "setup" | "countdown" | "live" | "paused" | "e
 
 export type LiveDraftRoomErrorCode =
   | "access_denied"
+  | "draft_incomplete"
   | "duplicate_player"
   | "expected_revision_required"
   | "idempotency_conflict"
@@ -91,6 +96,7 @@ export interface LiveDraftRoomRepository {
   createRoom(input: CreateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   getRoom(roomId: string): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  hasRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   hasStartedRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
@@ -98,7 +104,7 @@ export interface LiveDraftRoomRepository {
   logSaleCommand(input: LogLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   correctSale(input: CorrectLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
-  endRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  endRoom(input: EndLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
 }
 
 export interface ParsedLiveDraftRoomSaleInput {
@@ -324,6 +330,10 @@ export interface MutateLiveDraftRoomInput {
   now?: Date | undefined;
 }
 
+export interface EndLiveDraftRoomInput extends MutateLiveDraftRoomInput {
+  allowIncomplete?: boolean | undefined;
+}
+
 export interface LogLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput {
   sale: LiveDraftRoomSaleCommandInput;
 }
@@ -336,6 +346,12 @@ export interface CorrectLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput 
 const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
 const flexEligiblePositions = new Set<Position>(["RB", "WR", "TE"]);
 const writerRoles = new Set<WorkspaceRole>(["owner", "admin"]);
+const teamAbbreviationPattern = /^[A-Z]{2,3}$/;
+const minimumByeWeek = 1;
+const maximumByeWeek = 18;
+
+const isPosition = (value: unknown): value is Position =>
+  typeof value === "string" && positions.some(position => position === value);
 
 const searchKeyFor = (value: string): string =>
   normalizePlayerName(cleanPlayerName(value))
@@ -375,19 +391,90 @@ const assertSeasonReady = (season: LeagueSeason): void => {
 
 const normalizeCatalog = (
   catalog: readonly LiveDraftRoomPlayerCatalogEntry[],
-): readonly LiveDraftRoomBoardPlayer[] =>
-  catalog.map(player => {
-    const name = cleanPlayerName(player.name);
+): readonly LiveDraftRoomBoardPlayer[] => {
+  if (catalog.length === 0) {
+    throw new LiveDraftRoomError(
+      "player_not_found",
+      "Player catalog must contain at least one player.",
+    );
+  }
+
+  const playerIdentities = new Set<string>();
+
+  return catalog.map((player, index) => {
+    const rawName: unknown = player.name;
+    if (typeof rawName !== "string" || cleanPlayerName(rawName).length === 0) {
+      throw new LiveDraftRoomError(
+        "player_not_found",
+        `Player catalog entry ${index + 1} must include a non-blank player name.`,
+      );
+    }
+
+    const name = cleanPlayerName(rawName);
+    const normalizedPlayerName = normalizePlayerName(name);
+    const playerIdentity = canonicalPlayerIdentityKey(name);
+    if (playerIdentities.has(playerIdentity)) {
+      throw new LiveDraftRoomError(
+        "duplicate_player",
+        `Player catalog contains duplicate player "${normalizedPlayerName}".`,
+      );
+    }
+    playerIdentities.add(playerIdentity);
+
+    const rawPosition: unknown = player.position;
+    if (!isPosition(rawPosition)) {
+      throw new LiveDraftRoomError(
+        "position_limit",
+        `Player catalog entry "${name}" has unsupported position "${String(rawPosition)}".`,
+      );
+    }
+
+    const expectedPrice: unknown = player.expectedPrice;
+    if (typeof expectedPrice !== "number" || !Number.isFinite(expectedPrice) || !Number.isInteger(expectedPrice) || expectedPrice < 1) {
+      throw new LiveDraftRoomError(
+        "invalid_sale_price",
+        `Player catalog entry "${name}" must have an expected price of at least $1 in whole dollars.`,
+      );
+    }
+
+    const teamAbbreviation: unknown = player.teamAbbreviation;
+    if (
+      teamAbbreviation !== undefined &&
+      (typeof teamAbbreviation !== "string" || !teamAbbreviationPattern.test(teamAbbreviation))
+    ) {
+      throw new LiveDraftRoomError(
+        "player_not_found",
+        `Player catalog entry "${name}" must use a 2-3 letter uppercase team abbreviation.`,
+      );
+    }
+
+    const byeWeek: unknown = player.byeWeek;
+    if (
+      byeWeek !== undefined &&
+      (
+        typeof byeWeek !== "number" ||
+        !Number.isFinite(byeWeek) ||
+        !Number.isInteger(byeWeek) ||
+        byeWeek < minimumByeWeek ||
+        byeWeek > maximumByeWeek
+      )
+    ) {
+      throw new LiveDraftRoomError(
+        "player_not_found",
+        `Player catalog entry "${name}" must use a whole-number bye week from ${minimumByeWeek} through ${maximumByeWeek}.`,
+      );
+    }
 
     return {
       name,
-      normalizedPlayerName: normalizePlayerName(name),
-      position: player.position,
-      expectedPrice: player.expectedPrice,
-      ...(player.teamAbbreviation === undefined ? {} : { teamAbbreviation: player.teamAbbreviation }),
-      ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
+      normalizedPlayerName,
+      position: rawPosition,
+      expectedPrice,
+      ...(teamAbbreviation === undefined ? {} : { teamAbbreviation }),
+      ...(byeWeek === undefined ? {} : { byeWeek }),
     };
   });
+};
 
 const eventIdFor = (
   roomId: string,
@@ -787,7 +874,7 @@ const validateInitialRosters = (
   const rosterStateByTeamId = new Map<string, { team: FantasyTeam; roster: LiveDraftRoomRosterPlayer[] }>(
     season.teams.map(team => [team.id, { team, roster: [] }]),
   );
-  const unavailableNames = new Set<string>();
+  const unavailablePlayerIdentities = new Set<string>();
 
   for (const player of initialRosters) {
     const rosterPlayer = rosterPlayerFromInitial(player);
@@ -801,7 +888,8 @@ const validateInitialRosters = (
       `Initial roster price must be a positive whole-dollar amount for ${rosterPlayer.name}.`,
     );
 
-    if (unavailableNames.has(rosterPlayer.normalizedPlayerName)) {
+    const playerIdentity = canonicalPlayerIdentityKey(rosterPlayer.normalizedPlayerName);
+    if (unavailablePlayerIdentities.has(playerIdentity)) {
       throw new LiveDraftRoomError("duplicate_player", `${rosterPlayer.name} is already unavailable.`);
     }
 
@@ -832,7 +920,7 @@ const validateInitialRosters = (
       );
     }
 
-    unavailableNames.add(rosterPlayer.normalizedPlayerName);
+    unavailablePlayerIdentities.add(playerIdentity);
     roster.push(rosterPlayer);
   }
 };
@@ -887,12 +975,12 @@ const projectRoom = (
     if (roster !== undefined) roster.push(rosterPlayerFromSale(activeSale.sale));
   }
 
-  const unavailableNames = new Set<string>();
+  const unavailablePlayerIdentities = new Set<string>();
   for (const initialPlayer of room.initialRosters) {
-    unavailableNames.add(normalizePlayerName(cleanPlayerName(initialPlayer.playerName)));
+    unavailablePlayerIdentities.add(canonicalPlayerIdentityKey(initialPlayer.playerName));
   }
   for (const activeSale of activeSales) {
-    unavailableNames.add(activeSale.sale.normalizedPlayerName);
+    unavailablePlayerIdentities.add(canonicalPlayerIdentityKey(activeSale.sale.normalizedPlayerName));
   }
 
   return {
@@ -903,7 +991,9 @@ const projectRoom = (
     revision: room.revision,
     updatedAt: room.updatedAt,
     teams: room.season.teams.map(team => teamStateFor(room.season, team, rostersByTeamId.get(team.id) ?? [])),
-    board: room.playerCatalog.filter(player => !unavailableNames.has(player.normalizedPlayerName)),
+    board: room.playerCatalog.filter(
+      player => !unavailablePlayerIdentities.has(canonicalPlayerIdentityKey(player.normalizedPlayerName)),
+    ),
     sales: activeSales.map(activeSale => activeSale.sale),
   };
 };
@@ -1017,8 +1107,11 @@ const validateSale = (
   room: LiveDraftRoom,
   sale: LiveDraftRoomSale,
 ): void => {
+  const salePlayerIdentity = canonicalPlayerIdentityKey(sale.normalizedPlayerName);
   const playerIsAlreadyRostered = room.projection.teams.some(team =>
-    team.roster.some(player => player.normalizedPlayerName === sale.normalizedPlayerName),
+    team.roster.some(
+      player => canonicalPlayerIdentityKey(player.normalizedPlayerName) === salePlayerIdentity,
+    ),
   );
 
   if (playerIsAlreadyRostered) {
@@ -1109,6 +1202,12 @@ export class InMemoryLiveDraftRoomRepository {
         `Live draft room "${input.roomId}" already exists.`,
       );
     }
+    if ([...this.#roomsById.values()].some(room => room.seasonId === input.season.id)) {
+      throw new LiveDraftRoomError(
+        "room_already_exists",
+        `A live draft room already exists for season "${input.season.id}".`,
+      );
+    }
     validateInitialRosters(input.season, input.initialRosters ?? []);
 
     const createdAt = input.createdAt ?? new Date();
@@ -1168,6 +1267,10 @@ export class InMemoryLiveDraftRoomRepository {
     return [...this.#roomsById.values()].some(room =>
       room.seasonId === seasonId && room.events.some(event => event.type === "room_started")
     );
+  }
+
+  hasRoomForSeason(seasonId: string): boolean {
+    return [...this.#roomsById.values()].some(room => room.seasonId === seasonId);
   }
 
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
@@ -1392,15 +1495,22 @@ export class InMemoryLiveDraftRoomRepository {
     return updatedRoom;
   }
 
-  endRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
+  endRoom(input: EndLiveDraftRoomInput): LiveDraftRoom {
     const room = this.getRoom(input.roomId);
-    const mutationHash = mutationHashFor("end", {});
+    const mutationHash = mutationHashFor("end", { allowIncomplete: input.allowIncomplete === true });
     assertWriter(room, input.actor, "end", this.authorizer);
     assertMutationMetadata(input);
     const replayedRoom = replayIdempotentMutation(room, "end", input.idempotencyKey, mutationHash);
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);
     assertRoomNotEnded(room);
+    const incompleteTeams = room.projection.teams.filter(team => team.rosterSlotsRemaining > 0);
+    if (incompleteTeams.length > 0 && input.allowIncomplete !== true) {
+      throw new LiveDraftRoomError(
+        "draft_incomplete",
+        `Draft is incomplete: ${incompleteTeams.length} teams still have open roster slots.`,
+      );
+    }
 
     const now = input.now ?? new Date();
     const revision = room.revision + 1;

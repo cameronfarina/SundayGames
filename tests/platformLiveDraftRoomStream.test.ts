@@ -81,6 +81,7 @@ const buildLiveRoom = (): LiveDraftRoom => {
     actor: commissioner,
     expectedRevision: 3,
     idempotencyKey: "end:room_sunday",
+    allowIncomplete: true,
     now: new Date(now.getTime() + 3_000),
   });
 };

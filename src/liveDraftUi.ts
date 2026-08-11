@@ -337,6 +337,18 @@ export const liveDraftHtml = `<!doctype html>
       grid-column: 1;
     }
 
+    .app.platform-prep {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app.platform-prep .sidebar {
+      display: none;
+    }
+
+    .app.platform-prep .workspace {
+      grid-column: 1;
+    }
+
     .global-app-menu {
       position: fixed;
       top: 0;
@@ -1741,7 +1753,7 @@ export const liveDraftHtml = `<!doctype html>
 
     .side {
       display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
       height: 100%;
       min-height: 0;
     }
@@ -2028,7 +2040,7 @@ export const liveDraftHtml = `<!doctype html>
     .operation-status {
       min-height: 0;
       padding: 0 10px;
-      color: var(--good);
+      color: var(--green);
       font-size: 13px;
     }
 
@@ -3185,6 +3197,19 @@ export const liveDraftHtml = `<!doctype html>
         width: 100%;
       }
 
+      .draft-title-group {
+        gap: 6px;
+      }
+
+      .room-mode-indicator {
+        padding-right: 7px;
+        padding-left: 7px;
+      }
+
+      .room-mode-indicator strong {
+        display: none;
+      }
+
       .results-header {
         grid-template-columns: 38px minmax(0, 1fr);
         grid-template-rows: auto auto;
@@ -3255,6 +3280,9 @@ export const liveDraftHtml = `<!doctype html>
 
       .board-cards {
         display: block;
+        max-height: 62vh;
+        overflow: auto;
+        overscroll-behavior: contain;
       }
     }
   </style>
@@ -3273,6 +3301,10 @@ export const liveDraftHtml = `<!doctype html>
               <span id="app-menu-current-label">Real draft</span>
             </div>
             <div class="app-menu-list" id="app-menu-list" role="menu" hidden>
+              <button type="button" class="app-menu-item" id="league-home-button" role="menuitem" hidden>
+                <strong>League home</strong>
+                <span>Back to your league</span>
+              </button>
               <button type="button" class="app-menu-item" id="start-real-draft-button" role="menuitem" aria-current="page" data-menu-key="real-draft" data-menu-label="Real draft" aria-label="Start real draft">
                 <strong>Real draft</strong>
                 <span>Draft-night logger</span>
@@ -3342,7 +3374,7 @@ export const liveDraftHtml = `<!doctype html>
         <button class="primary start-draft-button" type="button" id="confirm-start-draft-button" aria-label="Confirm start draft" hidden>Start draft</button>
         <div class="draft-countdown" id="draft-countdown" hidden>5</div>
       </div>
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="sidebar-sale-command-section">
         <div class="section-label">Sale Command</div>
         <form class="quick-sale" id="quick-sale-form">
           <input id="quick-sale-command" autocomplete="off" placeholder="Quick sale: jakub kittle 28">
@@ -3435,7 +3467,7 @@ export const liveDraftHtml = `<!doctype html>
           <table class="board-table">
             <thead>
               <tr>
-                <th class="center" style="width:42px">Add</th>
+                <th class="center" style="width:56px">Actions</th>
                 <th style="width:350px">Player</th>
                 <th style="width:52px">Pos</th>
                 <th style="width:62px">Team</th>
@@ -3737,7 +3769,6 @@ export const liveDraftHtml = `<!doctype html>
     const strategyKeys = ['balanced', 'three-rb', 'hero-rb', 'wr-heavy'];
     const draftLifecycles = ['setup', 'ready', 'countdown', 'active'];
     const draftCountdownSeconds = 5;
-    const draftLifecycleStorageKey = 'mockd-draft-lifecycle';
     const strategyValueLabels = {
       balanced: 'Bal',
       'three-rb': '3RB',
@@ -3745,6 +3776,14 @@ export const liveDraftHtml = `<!doctype html>
       'wr-heavy': 'WR'
     };
     const draftModes = ['real', 'interactive-mock'];
+    const platformDraftToolPaths = ['/board', '/mock-drafts', '/simulations', '/strategy'];
+    const isPlatformDraftToolsContext = () =>
+      platformDraftToolPaths.includes(window.location.pathname) || new URLSearchParams(window.location.search).has('seasonId');
+    const isPlatformBoardRoute = () => window.location.pathname === '/board';
+    const platformSeasonId = () => new URLSearchParams(window.location.search).get('seasonId') || 'standalone';
+    const platformOwnerScope = () => new URLSearchParams(window.location.search).get('owner') || currentWatchOwner;
+    const platformStorageScope = () => platformSeasonId() + ':' + platformOwnerScope();
+    const draftLifecycleStorageKey = () => 'mockd-draft-lifecycle:' + platformStorageScope();
     const playerNewsSources = ['local', 'rotowire-rss', 'all'];
     const draftModeCopy = {
       real: {
@@ -3827,7 +3866,17 @@ export const liveDraftHtml = `<!doctype html>
     const isLiveRealDraftRoom = () => currentDraftSession === 'live' && currentDraftMode === 'real';
     const priceInputValue = () => Number(byId('add-price').value);
     const gapClassFor = gap => gap > 0 ? 'gap-positive' : gap < 0 ? 'gap-negative' : '';
-    const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner);
+    const sessionQuery = () => {
+      const params = new URLSearchParams({ draftSession: currentDraftSession, owner: currentWatchOwner });
+      if (isPlatformDraftToolsContext()) params.set('seasonId', platformSeasonId());
+      return '&' + params.toString();
+    };
+    const scopedApiUrl = url => {
+      if (!isPlatformDraftToolsContext() || url.includes('seasonId=')) return url;
+      const seasonId = platformSeasonId();
+      if (!seasonId) return url;
+      return url + (url.includes('?') ? '&' : '?') + 'seasonId=' + encodeURIComponent(seasonId);
+    };
     const setBoardPositionFilter = nextPosition => {
       if (!boardPositions.includes(nextPosition)) return;
       boardPositionFilter = boardPositionFilter === nextPosition ? 'ALL' : nextPosition;
@@ -3879,7 +3928,7 @@ export const liveDraftHtml = `<!doctype html>
     const persistDraftLifecycle = () => {
       try {
         if (!window.localStorage) return;
-        window.localStorage.setItem(draftLifecycleStorageKey, JSON.stringify({
+        window.localStorage.setItem(draftLifecycleStorageKey(), JSON.stringify({
           lifecycle: draftLifecycle,
           mode: currentDraftMode,
           session: currentDraftSession,
@@ -3893,7 +3942,7 @@ export const liveDraftHtml = `<!doctype html>
     const loadDraftLifecycle = () => {
       try {
         if (!window.localStorage) return;
-        const stored = window.localStorage.getItem(draftLifecycleStorageKey);
+        const stored = window.localStorage.getItem(draftLifecycleStorageKey());
         if (!stored) return;
         const parsed = JSON.parse(stored);
         if (strategyKeys.includes(parsed.strategy)) currentStrategyKey = parsed.strategy;
@@ -3913,7 +3962,7 @@ export const liveDraftHtml = `<!doctype html>
       ...(!realDraftHasStarted(state) ? (state.keeperTargets || []) : []),
       ...(state.availableTargets || [])
     ];
-    const shortlistStorageKey = () => 'mockd-shortlist:' + currentDraftSession;
+    const shortlistStorageKey = () => 'mockd-shortlist:' + platformStorageScope() + ':' + currentDraftSession;
     const loadManualShortlist = () => {
       try {
         const stored = window.localStorage ? window.localStorage.getItem(shortlistStorageKey()) : null;
@@ -3932,6 +3981,11 @@ export const liveDraftHtml = `<!doctype html>
     };
     const isShortlisted = target => manualShortlistNames.includes(target.name);
 
+    const preservePlatformSeason = params => {
+      if (!isPlatformDraftToolsContext()) return;
+      const seasonId = new URLSearchParams(window.location.search).get('seasonId');
+      if (seasonId) params.set('seasonId', seasonId);
+    };
     const playerNewsQueryString = () => {
       const params = new URLSearchParams();
       params.set('strategy', currentStrategyKey);
@@ -3942,6 +3996,7 @@ export const liveDraftHtml = `<!doctype html>
       if (playerNewsQuery) params.set('q', playerNewsQuery);
       if (playerNewsCategory !== 'All') params.set('category', playerNewsCategory);
       if (playerNewsAction !== 'All') params.set('action', playerNewsAction);
+      preservePlatformSeason(params);
       return params.toString();
     };
     const playerNewsUrl = () => '/api/player-news?' + playerNewsQueryString();
@@ -3953,6 +4008,7 @@ export const liveDraftHtml = `<!doctype html>
       params.set('draftSession', currentDraftSession);
       params.set('owner', currentWatchOwner);
       params.set('week', String(myExpertWeek));
+      preservePlatformSeason(params);
       return params.toString();
     };
     const myExpertUrl = () => '/api/my-expert?' + myExpertQueryString();
@@ -3964,7 +4020,8 @@ export const liveDraftHtml = `<!doctype html>
       params.set('draftSession', currentDraftSession);
       params.set('owner', currentWatchOwner);
       if (scenario) params.set('scenario', scenario);
-      return '/mock-simulations?' + params.toString();
+      preservePlatformSeason(params);
+      return (isPlatformDraftToolsContext() ? '/simulations?' : '/mock-simulations?') + params.toString();
     };
     const mockResultsRouteUrl = () => {
       const params = new URLSearchParams();
@@ -3972,6 +4029,7 @@ export const liveDraftHtml = `<!doctype html>
       params.set('mode', currentDraftMode);
       params.set('draftSession', currentDraftSession);
       params.set('owner', currentWatchOwner);
+      preservePlatformSeason(params);
       return '/mock-results?' + params.toString();
     };
     const draftSessionForMode = mode =>
@@ -3983,7 +4041,40 @@ export const liveDraftHtml = `<!doctype html>
       params.set('strategy', currentStrategyKey);
       params.set('draftSession', draftSessionForMode(nextMode));
       params.set('owner', currentWatchOwner);
-      return '/?' + params.toString();
+      preservePlatformSeason(params);
+      const platformPath = window.location.pathname === '/strategy' && nextMode === 'interactive-mock'
+        ? '/strategy'
+        : nextMode === 'interactive-mock'
+          ? '/mock-drafts'
+          : '/board';
+      const routePath = isPlatformDraftToolsContext()
+        ? platformPath
+        : '/';
+      return routePath + '?' + params.toString();
+    };
+    const leagueHomeUrl = () => {
+      const seasonId = new URLSearchParams(window.location.search).get('seasonId');
+      return seasonId ? '/app?seasonId=' + encodeURIComponent(seasonId) : '/app';
+    };
+    const configurePlatformWorkspaceChrome = () => {
+      const isPlatform = isPlatformDraftToolsContext();
+      const leagueHomeButton = byId('league-home-button');
+      leagueHomeButton.hidden = !isPlatform;
+      if (!isPlatform) return;
+
+      const menuButton = byId('start-real-draft-button');
+      menuButton.dataset.menuLabel = 'Board';
+      menuButton.setAttribute('aria-label', 'Open board');
+      menuButton.querySelector('strong').textContent = 'Board';
+      menuButton.querySelector('span').textContent = 'Player prep';
+      const modeButton = byId('draft-mode-real-button');
+      modeButton.querySelector('strong').textContent = 'Board';
+      modeButton.querySelector('span').textContent = 'Player prep';
+    };
+    const platformDraftModeForPath = path => {
+      if (path === '/board') return 'real';
+      if (['/mock-drafts', '/simulations', '/strategy'].includes(path)) return 'interactive-mock';
+      return null;
     };
     const hydrateDraftRoomFromLocation = () => {
       const params = new URLSearchParams(window.location.search);
@@ -3991,15 +4082,23 @@ export const liveDraftHtml = `<!doctype html>
       const mode = params.get('mode');
       const draftSession = params.get('draftSession');
       const owner = params.get('owner');
+      const platformDraftMode = platformDraftModeForPath(window.location.pathname);
       const previousContext = draftLifecycleContext();
 
       if (strategyKeys.includes(strategy)) currentStrategyKey = strategy;
       if (draftModes.includes(mode)) currentDraftMode = mode;
+      else if (platformDraftMode) currentDraftMode = platformDraftMode;
       if (owner && owner.trim()) currentWatchOwner = owner.trim();
       if (draftSession) currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode, currentStrategyKey);
+      else if (platformDraftMode === 'real') currentDraftSession = 'live';
+      else if (platformDraftMode === 'interactive-mock') currentDraftSession = practiceSessionForStrategy(currentStrategyKey);
       else currentDraftSession = normalizeDraftSession(currentDraftSession, currentDraftMode, currentStrategyKey);
       currentDraftMode = draftModeForSession(currentDraftSession, currentDraftMode);
-      if (!sameDraftLifecycleContext(previousContext) && !isStartingDraft()) {
+      if (isPlatformBoardRoute()) {
+        draftLifecycle = 'setup';
+        draftCountdownValue = 0;
+        persistDraftLifecycle();
+      } else if (!sameDraftLifecycleContext(previousContext) && !isStartingDraft()) {
         draftLifecycle = 'setup';
         draftCountdownValue = 0;
         persistDraftLifecycle();
@@ -4327,7 +4426,7 @@ export const liveDraftHtml = `<!doctype html>
 
     const postJson = async (url, body) => {
       try {
-        const response = await fetch(url, {
+        const response = await fetch(scopedApiUrl(url), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -4340,7 +4439,12 @@ export const liveDraftHtml = `<!doctype html>
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok && !Array.isArray(data.errors)) {
-          data.errors = [{ input: '', message: data.error || 'Could not update draft room.' }];
+          const message = typeof data.error === 'string'
+            ? data.error
+            : data.error && typeof data.error.message === 'string'
+              ? data.error.message
+              : 'Could not update draft room.';
+          data.errors = [{ input: '', message }];
         }
         if (data.availableTargets && data.owners) render(data);
         else if (!response.ok) renderErrors(data);
@@ -4572,7 +4676,7 @@ export const liveDraftHtml = `<!doctype html>
 
       const menuActions = [shortlistAction];
       if (!isActiveDraft()) menuActions.push(buildAroundAction);
-      menuActions.push(secondaryAction);
+      if (!isPlatformBoardRoute()) menuActions.push(secondaryAction);
       menu.replaceChildren(...menuActions);
       wrapper.replaceChildren(button, menu);
       return wrapper;
@@ -4775,7 +4879,7 @@ export const liveDraftHtml = `<!doctype html>
     const roomTitleFor = isMock => {
       if (isActiveDraft()) return isMock ? 'Mock Draft Room' : 'Live Draft Room';
       if (isStartingDraft()) return 'Starting Draft';
-      return 'Draft Setup';
+      return isMock ? 'Mock Draft' : 'Draft Setup';
     };
 
     const draftModeStatusDetailFor = copy => {
@@ -4786,6 +4890,16 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderRoomModeIndicator = state => {
+      if (isPlatformBoardRoute()) {
+        const indicator = byId('room-mode-indicator');
+        byId('room-title').textContent = 'Draft Board';
+        indicator.className = 'room-mode-indicator real';
+        indicator.replaceChildren(
+          textElement('strong', 'Private prep'),
+          textElement('span', currentWatchOwner + ' only')
+        );
+        return;
+      }
       const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
       const isMock = currentDraftMode === 'interactive-mock';
       const indicator = byId('room-mode-indicator');
@@ -4800,24 +4914,27 @@ export const liveDraftHtml = `<!doctype html>
     const renderDraftLifecycle = state => {
       const copy = draftModeCopy[currentDraftMode] || draftModeCopy.real;
       const isMock = currentDraftMode === 'interactive-mock';
+      const isPlatformPrep = isPlatformBoardRoute();
       const canStartDraft = draftLifecycle === 'setup' || draftLifecycle === 'ready';
       const countdownText = String(draftCountdownValue || draftCountdownSeconds);
 
-      byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());
+      byId('draft-room-view').classList.toggle('platform-prep', isPlatformPrep);
+      byId('draft-room-view').classList.toggle('draft-active', !isPlatformPrep && isActiveDraft());
       byId('header-board-search').hidden = true;
-      byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');
-      byId('header-draft-actions').hidden = !isActiveDraft();
-      byId('header-import-log-button').hidden = !(isActiveDraft() && currentDraftMode === 'real');
-      byId('end-draft-button').hidden = !isActiveDraft();
+      byId('header-quick-sale-form').hidden = isPlatformPrep || !(isActiveDraft() && currentDraftMode === 'real');
+      byId('header-draft-actions').hidden = isPlatformPrep || !isActiveDraft();
+      byId('header-import-log-button').hidden = isPlatformPrep || !(isActiveDraft() && currentDraftMode === 'real');
+      byId('end-draft-button').hidden = isPlatformPrep || !isActiveDraft();
       byId('end-draft-button').textContent = isMock ? 'End mock draft' : 'End real draft';
-      byId('add-form').hidden = isMock;
+      byId('sidebar-sale-command-section').hidden = isMock;
+      byId('add-form').hidden = isPlatformPrep || isMock;
 
-      byId('confirm-start-draft-button').hidden = !canStartDraft;
+      byId('confirm-start-draft-button').hidden = isPlatformPrep || !canStartDraft;
       byId('confirm-start-draft-button').disabled = !canStartDraft;
       byId('confirm-start-draft-button').textContent = isMock && currentCommandCount() > 0 ? 'Resume mock draft' : 'Start draft';
       byId('draft-countdown').hidden = !isStartingDraft();
       byId('draft-countdown').textContent = countdownText;
-      byId('draft-start-banner').hidden = !isStartingDraft();
+      byId('draft-start-banner').hidden = isPlatformPrep || !isStartingDraft();
       byId('draft-start-label').textContent = copy.label + ' starts in';
       byId('draft-countdown-value').textContent = countdownText;
       byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');
@@ -4839,7 +4956,10 @@ export const liveDraftHtml = `<!doctype html>
       renderDraftModeChoice();
       const lifecycleCopy = draftModeStatusDetailFor(copy);
       status.replaceChildren(textElement('strong', copy.label), textElement('span', lifecycleCopy));
-      setAppMenuCurrent(currentDraftMode === 'interactive-mock' ? 'mock-draft' : 'real-draft', copy.label);
+      setAppMenuCurrent(
+        currentDraftMode === 'interactive-mock' ? 'mock-draft' : 'real-draft',
+        isPlatformBoardRoute() ? 'Board' : copy.label
+      );
       startMock.disabled = false;
       startMock.title = locked ? 'Opens a practice session for mocks.' : '';
       byId('draft-lock-status').textContent = locked
@@ -5218,6 +5338,7 @@ export const liveDraftHtml = `<!doctype html>
 
       const season = String(new Date().getFullYear());
       const search = new URLSearchParams({ identifier, season });
+      preservePlatformSeason(search);
       const previousLabel = action ? action.textContent : '';
       if (action) {
         action.disabled = true;
@@ -6559,7 +6680,8 @@ export const liveDraftHtml = `<!doctype html>
       const filtered = allTargets.filter(target => targetMatchesFilters(target, query, owner));
       const matches = sortedTargets(filtered, tierDrops).slice(0, 120);
       const keeperCount = allTargets.length - state.availableTargets.length;
-      byId('board-count').textContent = String(matches.length) + ' shown / ' + String(filtered.length) + ' matched / ' + String(state.availableTargets.length) + ' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '');
+      const matchCount = filtered.length === allTargets.length ? '' : String(filtered.length) + ' matched / ';
+      byId('board-count').textContent = String(matches.length) + ' shown / ' + matchCount + String(state.availableTargets.length) + ' loaded' + (keeperCount ? ' / ' + keeperCount + ' keepers' : '');
 
       const rows = matches.map(target => {
         const tierDrop = tierDrops.get(target.name) || 0;
@@ -6862,7 +6984,14 @@ export const liveDraftHtml = `<!doctype html>
       try {
         const response = await fetch(mockDraftUrl());
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Could not load mock draft.');
+        if (!response.ok) {
+          const message = typeof data.error === 'string'
+            ? data.error
+            : data.error && typeof data.error.message === 'string'
+              ? data.error.message
+              : 'Could not load mock draft.';
+          throw new Error(message);
+        }
         renderMockDraft(data.mockDraft || data);
         return data;
       } catch (error) {
@@ -6885,7 +7014,12 @@ export const liveDraftHtml = `<!doctype html>
         const response = await fetch(stateUrl());
         const state = await response.json().catch(() => ({}));
         if (!response.ok) {
-          renderStateLoadError(state.error || 'Could not load draft room.');
+          const message = typeof state.error === 'string'
+            ? state.error
+            : state.error && typeof state.error.message === 'string'
+              ? state.error.message
+              : 'Could not load draft room.';
+          renderStateLoadError(message);
           return null;
         }
         render(state);
@@ -7155,7 +7289,7 @@ export const liveDraftHtml = `<!doctype html>
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     const fetchMockBatchJob = async jobId => {
-      const response = await fetch('/api/mock-batch/' + encodeURIComponent(jobId) + '?draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner));
+      const response = await fetch('/api/mock-batch/' + encodeURIComponent(jobId) + '?mode=' + currentDraftMode + sessionQuery());
       const job = await response.json();
       if (!response.ok) throw new Error(job.error || 'Could not load mock batch job.');
       return job;
@@ -7183,7 +7317,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const loadLatestMockBatchJob = async () => {
-      const response = await fetch('/api/mock-batch/latest?draftSession=' + encodeURIComponent(currentDraftSession) + '&owner=' + encodeURIComponent(currentWatchOwner));
+      const response = await fetch('/api/mock-batch/latest?mode=' + currentDraftMode + sessionQuery());
       const job = await response.json();
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(job.error || 'Could not load mock batch results.');
@@ -7212,7 +7346,7 @@ export const liveDraftHtml = `<!doctype html>
       const runs = Number(byId('mock-batch-runs').value || 25);
       selectedMockResultsRunIndex = 0;
       try {
-        const response = await fetch('/api/mock-batch', {
+        const response = await fetch('/api/mock-batch?mode=' + currentDraftMode + sessionQuery(), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -7353,7 +7487,7 @@ export const liveDraftHtml = `<!doctype html>
     };
 
     const renderCurrentRoute = async () => {
-      if (window.location.pathname === '/mock-simulations') {
+      if (window.location.pathname === '/mock-simulations' || window.location.pathname === '/simulations') {
         await renderMockSimulationsPage();
         return;
       }
@@ -7750,6 +7884,7 @@ export const liveDraftHtml = `<!doctype html>
       setAppMenuOpen(byId('app-menu-list').hidden);
     });
     byId('app-menu-list').addEventListener('click', event => event.stopPropagation());
+    byId('league-home-button').addEventListener('click', () => window.location.assign(leagueHomeUrl()));
     byId('start-real-draft-button').addEventListener('click', () => openDraftRoomMode('real'));
     byId('start-mock-draft-button').addEventListener('click', () => openDraftRoomMode('interactive-mock'));
     byId('draft-mode-real-button').addEventListener('click', () => openDraftRoomMode('real'));
@@ -7806,10 +7941,10 @@ export const liveDraftHtml = `<!doctype html>
     byId('mock-next-round-button').addEventListener('click', () => advanceMockDraft('next-round'));
     byId('mock-complete-button').addEventListener('click', () => advanceMockDraft('complete-mock'));
     byId('mock-simulations-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));
-    byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/draft-room'));
-    byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/draft-room'));
+    byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));
+    byId('my-expert-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));
     byId('my-expert-refresh-button').addEventListener('click', () => refreshMyExpertIfCurrentRoute());
-    byId('player-news-back-button').addEventListener('click', () => window.location.assign('/draft-room'));
+    byId('player-news-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));
     byId('player-news-refresh-button').addEventListener('click', () => refreshPlayerNewsIfCurrentRoute({ background: true }));
     for (const button of document.querySelectorAll('.player-news-filter-button')) {
       button.addEventListener('click', event => {
@@ -7866,6 +8001,7 @@ export const liveDraftHtml = `<!doctype html>
       else schedulePlayerNewsPolling();
     });
 
+    configurePlatformWorkspaceChrome();
     loadDraftLifecycle();
     renderCurrentRoute();
   </script>

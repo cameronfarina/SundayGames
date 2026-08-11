@@ -63,6 +63,11 @@ export interface PlatformLeagueSetupImportApplyBody extends PlatformLeagueSetupI
   memberships: readonly PlatformLeagueMembership[];
   pendingInvites: readonly PlatformLeagueSetupImportPendingInvite[];
   invitations: readonly PlatformInvitationView[];
+  invitationFailures: readonly {
+    email: string;
+    teamId: string;
+    message: string;
+  }[];
 }
 
 export interface PlatformLeagueSetupImportBlockedBody extends PlatformSetupHttpErrorBody {
@@ -88,6 +93,13 @@ const seasonRequiredBody: PlatformSetupHttpErrorBody = {
   },
 };
 
+const leagueSetupLockedBody: PlatformSetupHttpErrorBody = {
+  error: {
+    code: "league_setup_locked",
+    message: "Team assignments cannot be changed after this season's live draft room has been created.",
+  },
+};
+
 const normalizeEmailKey = (email: string): string => email.trim().toLowerCase();
 
 const contentFor = (input: Pick<PlatformLeagueSetupImportInput, "content" | "rows">): string =>
@@ -105,6 +117,11 @@ const existingSeasonFor = async (
     now: input.now,
   });
 };
+
+const hasRealLiveDraftRoom = async (
+  app: PlatformApp,
+  seasonId: string,
+): Promise<boolean> => await app.hasLiveDraftRoomForSeason(seasonId);
 
 const registeredAccountIdForEmail = async (
   app: PlatformApp,
@@ -289,6 +306,13 @@ export const applyLeagueSetupImport = async (
     };
   }
 
+  if (await hasRealLiveDraftRoom(app, season.id)) {
+    return {
+      status: 409,
+      body: leagueSetupLockedBody,
+    };
+  }
+
   const parsedImport = parseLeagueSetupImport(contentFor(input), {
     expectedTeamCount: season.settings.expectedTeamCount,
   });
@@ -316,10 +340,11 @@ export const applyLeagueSetupImport = async (
   const invitationNow = input.now ?? new Date();
   const expiresAt = new Date(invitationNow.getTime() + 7 * 24 * 60 * 60 * 1_000);
   let invitations: readonly PlatformInvitationView[] = [];
+  let invitationFailures: PlatformLeagueSetupImportApplyBody["invitationFailures"] = [];
   if (input.invitationRepository !== undefined && actorAccountId !== null) {
     const invitationRepository = input.invitationRepository;
     const existingInvitations = await invitationRepository.listForSeason(registeredSeason.id);
-    invitations = await Promise.all(pendingInvites.map(invite => {
+    const invitationResults = await Promise.allSettled(pendingInvites.map(invite => {
       const existing = existingInvitations.find(candidate =>
         candidate.status === "pending"
           && candidate.teamId === invite.teamId
@@ -340,16 +365,28 @@ export const applyLeagueSetupImport = async (
             expiresAt,
           });
     }));
+    invitations = invitationResults.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+    invitationFailures = invitationResults.flatMap((result, index) => {
+      if (result.status === "fulfilled") return [];
+      const invite = pendingInvites[index];
+      if (invite === undefined) return [];
+      return [{
+        email: invite.email,
+        teamId: invite.teamId,
+        message: result.reason instanceof Error ? result.reason.message : "Invitation could not be issued.",
+      }];
+    });
   }
 
   return {
-    status: 200,
+    status: invitationFailures.length === 0 ? 200 : 207,
     body: {
       season: registeredSeason,
       import: parsedImport,
       memberships,
       pendingInvites,
       invitations,
+      invitationFailures,
     },
   };
 };

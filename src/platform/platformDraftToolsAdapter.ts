@@ -27,6 +27,10 @@ export type PlatformDraftToolsServerFactory = (
   options: CreateLiveDraftServerOptions,
 ) => Promise<LiveDraftServerApp>;
 
+export type PlatformDraftToolsSeasonOptionsResolver = (
+  seasonId: string,
+) => MaybePromise<CreateLiveDraftServerOptions | null>;
+
 export interface CreatePlatformDraftToolsAdapterOptions {
   authorizeSeason: PlatformDraftToolsSeasonAuthorizer;
   baseSessionDirectory: string;
@@ -35,6 +39,7 @@ export interface CreatePlatformDraftToolsAdapterOptions {
   idleTimeoutMs?: number | undefined;
   maxRetainedApps?: number | undefined;
   now?: (() => number) | undefined;
+  resolveSeasonOptions?: PlatformDraftToolsSeasonOptionsResolver | undefined;
 }
 
 export interface PlatformDraftToolsAdapter {
@@ -293,7 +298,17 @@ export const createPlatformDraftToolsAdapter = (
     const key = scopeKeyFor(accountId, seasonId);
     let entry: RetainedDraftToolsApp;
     const appPromise = Promise.resolve().then(async () => {
+      let seasonOptions: CreateLiveDraftServerOptions = {};
+      if (options.resolveSeasonOptions !== undefined) {
+        const resolvedSeasonOptions = await options.resolveSeasonOptions(seasonId);
+        if (resolvedSeasonOptions === null) {
+          throw new Error("Draft tools configuration is unavailable for this season.");
+        }
+        seasonOptions = resolvedSeasonOptions;
+      }
+
       const app = await createLiveDraftServer({
+        ...seasonOptions,
         sessionDirectory: scopedSessionDirectory(baseSessionDirectory, accountId, seasonId),
       });
       if (app.server.listening) {

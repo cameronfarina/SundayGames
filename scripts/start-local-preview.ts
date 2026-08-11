@@ -4,8 +4,8 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const platformPort = "4319";
-const draftBoardPort = "4317";
 const defaultDataFile = resolve(".mockd/platform-local-preview.json");
+const defaultDraftToolsDirectory = resolve(".mockd/platform-draft-tools");
 
 const npmCommand = (): string => process.platform === "win32" ? "npm.cmd" : "npm";
 
@@ -33,6 +33,11 @@ export const startLocalPreview = async (
     HOST: "127.0.0.1",
     PORT: platformPort,
     MOCKD_PLATFORM_DATA_FILE: dataFile,
+    MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY:
+      env.MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY?.trim() || defaultDraftToolsDirectory,
+    MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
+    MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+    MOCKD_PROVISIONING_TOKEN: "local-preview-provisioning-token",
   };
 
   await mkdir(dirname(dataFile), { recursive: true });
@@ -48,20 +53,15 @@ export const startLocalPreview = async (
     env: platformEnv,
     stdio: "inherit",
   });
-  const draftBoard = spawn(npmCommand(), ["run", "draft:ui", "--", `--port=${draftBoardPort}`], {
-    env: baseEnv,
-    stdio: "inherit",
-  });
-  const children = [platform, draftBoard];
+  const children = [platform];
   const shutdown = (): void => terminate(children);
 
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
   console.log(`Mockd local preview: http://127.0.0.1:${platformPort}/login`);
-  console.log(`Mockd draft board: http://localhost:${draftBoardPort}/draft-room`);
 
-  const exitCode = await Promise.race(children.map(waitForExit));
+  const exitCode = await waitForExit(platform);
   terminate(children);
   process.exitCode = exitCode;
 };

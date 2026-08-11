@@ -137,6 +137,83 @@ describe("platform setup import HTTP helpers", () => {
     });
   });
 
+  it("keeps setup import preview available after the live draft room is created", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    await app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room-existing-preview",
+      viewerPasswordHashRef: `account-membership:${season.id}`,
+      playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
+      now,
+    });
+
+    const response = await previewLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Club,cam@example.com,owner",
+        "Seth,Seth's Champs,seth@example.com,member",
+        "Beaton,Beaton's Team,beaton@example.com,member",
+      ].join("\n"),
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      import: {
+        status: "ready",
+      },
+    });
+  });
+
+  it("rejects setup import apply after the live draft room is created", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const existingSeason = await app.getLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      now,
+    });
+    const existingMemberships = await app.listLeagueMemberships(season.leagueId);
+    await app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room-existing-setup-lock",
+      viewerPasswordHashRef: `account-membership:${season.id}`,
+      playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
+      now,
+    });
+
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Renamed Club,cam@example.com,owner",
+        "Seth,Seth's Renamed Champs,seth@example.com,member",
+        "Beaton,Beaton's Renamed Team,beaton@example.com,member",
+      ].join("\n"),
+      now,
+    });
+
+    expect(response).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "league_setup_locked",
+          message: "Team assignments cannot be changed after this season's live draft room has been created.",
+        },
+      },
+    });
+    expect(await app.getLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      now,
+    })).toEqual(existingSeason);
+    expect(await app.listLeagueMemberships(season.leagueId)).toEqual(existingMemberships);
+  });
+
   it("returns a stable blocked-import error instead of applying duplicate owners", async () => {
     const { app, cam, season } = await setupRegisteredSeason();
 
@@ -366,6 +443,39 @@ describe("platform setup import HTTP helpers", () => {
         tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     ]);
+  });
+
+  it("reports invitation failures after preserving the applied league setup", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const invitationRepository = new InMemoryPlatformInvitationRepository();
+    invitationRepository.savePending = () => {
+      throw new Error("Email provider unavailable.");
+    };
+
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Club,cam@example.com,owner",
+        "Seth,Seth's Champs,seth@example.com,member",
+        "Beaton,Beaton's Team,beaton@example.com,member",
+      ].join("\n"),
+      invitationRepository,
+      now,
+    });
+
+    expect(response).toMatchObject({
+      status: 207,
+      body: {
+        season: { id: season.id },
+        invitations: [],
+        invitationFailures: [{
+          email: "beaton@example.com",
+          message: "Email provider unavailable.",
+        }],
+      },
+    });
   });
 
   it("preserves repository-backed claimed memberships when setup rows omit known users", async () => {

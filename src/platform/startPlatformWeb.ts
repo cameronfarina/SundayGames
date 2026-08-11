@@ -4,8 +4,18 @@ import {
   probeWritableDraftToolsDirectory,
 } from "./checkPlatformProductionReadiness.js";
 import { createSimulationRunnerForRuntime } from "./currentLeagueSimulationRunner.js";
+import {
+  currentLeagueInitialRostersFor,
+  loadLocalDemoPlayerCatalog,
+} from "./localDemoFixtures.js";
+import { liveDraftRoomSetupContentHash, type LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
+import type { LeagueSeason } from "./leagueSeason.js";
 import { createNodePostgresClient, type NodePostgresClient } from "./postgresClient.js";
-import { readPlatformRuntimeConfig } from "./platformRuntimeConfig.js";
+import { observePlatformNodeHttpServer } from "./platformNodeHttp.js";
+import {
+  readPlatformWebRuntimeConfig,
+  type PlatformRuntimeConfig,
+} from "./platformRuntimeConfig.js";
 import { startPlatformServer, type StartedPlatformServer } from "./platformServer.js";
 
 export interface StartedPlatformWebProcess {
@@ -14,10 +24,43 @@ export interface StartedPlatformWebProcess {
   close: () => Promise<void>;
 }
 
+export const createPlatformWebReadinessProbe = (
+  config: Pick<PlatformRuntimeConfig, "draftToolsSessionDirectory" | "liveDraftDataMode">,
+  postgresClient: NodePostgresClient | undefined,
+): (() => Promise<boolean>) => async () => {
+  if (config.liveDraftDataMode === "postgres" && postgresClient === undefined) return false;
+  if (postgresClient !== undefined) {
+    const databaseReadiness = await inspectPlatformPostgresReadiness(postgresClient);
+    if (databaseReadiness.status !== "ready") return false;
+  }
+
+  try {
+    await probeWritableDraftToolsDirectory(config.draftToolsSessionDirectory);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const localFixtureDraftSetupFor = async (season: LeagueSeason): Promise<LiveDraftRoomSetup> => {
+  const input = {
+    seasonId: season.id,
+    sourceVersion: "local-fixtures-2026",
+    playerCatalog: await loadLocalDemoPlayerCatalog(),
+    initialRosters: currentLeagueInitialRostersFor(season),
+  };
+
+  return {
+    ...input,
+    contentHash: liveDraftRoomSetupContentHash(input),
+    updatedAt: new Date(),
+  };
+};
+
 export const startPlatformWebFromEnv = async (
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<StartedPlatformWebProcess> => {
-  const config = readPlatformRuntimeConfig(env, { requireDurableStore: true });
+  const config = readPlatformWebRuntimeConfig(env);
   const simulationRunner = await createSimulationRunnerForRuntime(config);
   const postgresClient = config.databaseUrl === undefined
     ? undefined
@@ -26,44 +69,53 @@ export const startPlatformWebFromEnv = async (
       max: config.postgresPoolSize,
       statementTimeoutMs: config.postgresStatementTimeoutMs,
     });
-  const readinessProbe = async (): Promise<boolean> => {
-    if (postgresClient !== undefined) {
-      const databaseReadiness = await inspectPlatformPostgresReadiness(postgresClient);
-      if (databaseReadiness.status !== "ready") return false;
-    }
-
+  const readinessProbe = createPlatformWebReadinessProbe(config, postgresClient);
+  let server: StartedPlatformServer;
+  try {
+    server = await startPlatformServer({
+      host: config.host,
+      port: config.port,
+      dataFilePath: config.dataFilePath,
+      postgresClient,
+      postgresAuthClient: postgresClient,
+      postgresLeagueSetupClient: postgresClient,
+      postgresHistoricalImportClient: postgresClient,
+      postgresJobClient: postgresClient,
+      postgresSimulationClient: postgresClient,
+      postgresLiveDraftRoomClient: postgresClient,
+      postgresExportArtifactClient: postgresClient,
+      postgresSnapshotKey: config.postgresSnapshotKey,
+      initializePostgresSchema: config.initializePostgresSchema,
+      draftToolsSessionDirectory: config.draftToolsSessionDirectory,
+      allowPublicSignup: config.allowPublicSignup,
+      trustProxy: config.trustProxy,
+      provisioningToken: config.provisioningToken,
+      ...(config.liveDraftDataMode === "local-fixtures"
+        ? { liveDraftRoomSetupProvider: localFixtureDraftSetupFor }
+        : {}),
+      readinessProbe,
+      simulationRunner,
+    });
+  } catch (error) {
     try {
-      await probeWritableDraftToolsDirectory(config.draftToolsSessionDirectory);
-      return true;
+      await postgresClient?.close();
     } catch {
-      return false;
+      // Preserve the startup failure; cleanup errors must not replace its cause.
     }
-  };
-  const server = await startPlatformServer({
-    host: config.host,
-    port: config.port,
-    dataFilePath: config.dataFilePath,
-    postgresClient,
-    postgresAuthClient: postgresClient,
-    postgresLeagueSetupClient: postgresClient,
-    postgresHistoricalImportClient: postgresClient,
-    postgresJobClient: postgresClient,
-    postgresSimulationClient: postgresClient,
-    postgresLiveDraftRoomClient: postgresClient,
-    postgresExportArtifactClient: postgresClient,
-    postgresSnapshotKey: config.postgresSnapshotKey,
-    initializePostgresSchema: config.initializePostgresSchema,
-    draftToolsSessionDirectory: config.draftToolsSessionDirectory,
-    readinessProbe,
-    simulationRunner,
-  });
+    throw error;
+  }
+  const stopObserving = observePlatformNodeHttpServer(server.server);
 
   return {
     server,
     postgresClient,
     close: async () => {
-      await server.close();
-      await postgresClient?.close();
+      stopObserving();
+      try {
+        await server.close();
+      } finally {
+        await postgresClient?.close();
+      }
     },
   };
 };
@@ -71,7 +123,13 @@ export const startPlatformWebFromEnv = async (
 const run = async (): Promise<void> => {
   const processRuntime = await startPlatformWebFromEnv();
 
-  console.log(`Mockd platform web listening at ${processRuntime.server.url}`);
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: "info",
+    event: "platform_started",
+    host: processRuntime.server.host,
+    port: processRuntime.server.port,
+  }));
 
   const shutdown = async (): Promise<void> => {
     await processRuntime.close();
@@ -86,8 +144,13 @@ const run = async (): Promise<void> => {
 };
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void run().catch(error => {
-    console.error(error);
+  void run().catch(() => {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "error",
+      event: "platform_startup_failed",
+      errorCode: "startup_failed",
+    }));
     process.exit(1);
   });
 }

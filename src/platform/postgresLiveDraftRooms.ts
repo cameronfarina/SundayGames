@@ -4,6 +4,7 @@ import {
   LiveDraftRoomError,
   type CorrectLiveDraftRoomSaleInput,
   type CreateLiveDraftRoomInput,
+  type EndLiveDraftRoomInput,
   type LiveDraftRoom,
   type LiveDraftRoomAuthorizer,
   type LiveDraftRoomEvent,
@@ -58,8 +59,7 @@ const startedAtFor = (room: LiveDraftRoom): Date | null =>
 const endedAtFor = (room: LiveDraftRoom): Date | null => room.endedAt ?? null;
 
 // The current draft_rooms check constraint predates pause; events and snapshots retain the exact state.
-const persistedStatusFor = (room: LiveDraftRoom): Exclude<LiveDraftRoom["status"], "paused"> =>
-  room.status === "paused" ? "live" : room.status;
+const persistedStatusFor = (room: LiveDraftRoom): LiveDraftRoom["status"] => room.status;
 
 const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown> => {
   switch (event.type) {
@@ -416,6 +416,17 @@ SELECT EXISTS (
     return firstRow(result)?.has_started_room ?? false;
   }
 
+  async hasRoomForSeason(seasonId: string): Promise<boolean> {
+    const result = await this.client.query<{ has_room: boolean }>(
+      `SELECT EXISTS (
+        SELECT 1 FROM draft_rooms WHERE league_season_id = $1 AND room_type = 'real'
+      ) AS has_room`,
+      [seasonId],
+    );
+
+    return result.rows[0]?.has_room === true;
+  }
+
   async startRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
     return await this.mutateRoom(input, repository => repository.startRoom(input));
   }
@@ -440,7 +451,7 @@ SELECT EXISTS (
     return await this.mutateRoom(input, repository => repository.undoLastSale(input));
   }
 
-  async endRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+  async endRoom(input: EndLiveDraftRoomInput): Promise<LiveDraftRoom> {
     return await this.mutateRoom(input, repository => repository.endRoom(input));
   }
 

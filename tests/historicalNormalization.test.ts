@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ownerOrder } from "../config/league.js";
 import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
-import { normalizePlayerName } from "../src/data/normalizePlayerName.js";
+import {
+  canonicalPlayerIdentityKey,
+  normalizePlayerName,
+} from "../src/data/normalizePlayerName.js";
 
 const boardFiles = [
   { season: 2023, path: "data/raw/2023-board.csv" },
@@ -57,6 +60,10 @@ describe("historical board normalization", () => {
     expect(normalizePlayerName("Devon Achane")).toBe("De'Von Achane");
     expect(normalizePlayerName("D.J. Moore")).toBe("DJ Moore");
     expect(normalizePlayerName("Sam LaPorta\u00a0")).toBe("Sam LaPorta");
+    expect(normalizePlayerName("James Cook III")).toBe("James Cook");
+    expect(canonicalPlayerIdentityKey("  JAMES cook iii. ")).toBe(
+      canonicalPlayerIdentityKey("James Cook"),
+    );
 
     const records = await loadHistoricalAuctionRecords(boardFiles);
     const deebo2025 = records.find(record => record.season === 2025 && record.originalPlayerName === "Deebo Samuel Sr.");

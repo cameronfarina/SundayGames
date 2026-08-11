@@ -327,6 +327,10 @@ export interface MutatePlatformLiveDraftRoomInput {
   now?: Date | undefined;
 }
 
+export interface EndPlatformLiveDraftRoomInput extends MutatePlatformLiveDraftRoomInput {
+  allowIncomplete?: boolean | undefined;
+}
+
 export interface LogPlatformLiveDraftSaleInput extends MutatePlatformLiveDraftRoomInput {
   sale: LiveDraftRoomSaleCommandInput;
 }
@@ -1357,6 +1361,9 @@ export const createPlatformApp = ({
       }));
     },
 
+    hasLiveDraftRoomForSeason: async (seasonId: string): Promise<boolean> =>
+      await liveDraftRooms.hasRoomForSeason(seasonId),
+
     getLiveDraftRoom: async (input: GetPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = await liveDraftRooms.getRoom(input.roomId);
@@ -1493,7 +1500,7 @@ export const createPlatformApp = ({
       }));
     },
 
-    endLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+    endLiveDraftRoom: async (input: EndPlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = await liveDraftRooms.getRoom(input.roomId);
       const membership = await requireSharedMutation(account, room.leagueId);
@@ -1503,6 +1510,7 @@ export const createPlatformApp = ({
         actor: liveActorFor(account, room.leagueId, membership),
         expectedRevision: input.expectedRevision,
         idempotencyKey: input.idempotencyKey,
+        allowIncomplete: input.allowIncomplete,
         now: input.now,
       }));
     },

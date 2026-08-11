@@ -51,9 +51,11 @@ npm run dev
 ```
 
 `npm run dev` seeds the reusable local demo and starts the platform shell at
-`http://127.0.0.1:4319/login` together with the working draft board at
-`http://localhost:4317/draft-room`. Use `MOCKD_PLATFORM_DATA_FILE` when you
-want the local platform preview to use a different file-backed store.
+`http://127.0.0.1:4319/login`. Sign in with `cam@mockd.local` and
+`mockd local e2e password`; League, Board, Mock drafts, Simulations, and Live
+draft all run behind that one authenticated origin and survive a
+normal browser refresh. Use `MOCKD_PLATFORM_DATA_FILE` or
+`MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to change the local storage paths.
 
 The remaining project checks and modeling commands are available separately:
 
@@ -119,14 +121,21 @@ the seeded store after the run.
 To smoke an already deployed platform without starting a local server:
 
 ```bash
+export MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL=commissioner-smoke@example.com
+export MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD='secret from the deployment store'
+export MOCKD_E2E_DEPLOYED_MEMBER_EMAIL=member-smoke@example.com
+export MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD='another deployment secret'
+export MOCKD_E2E_DEPLOYED_SEASON_ID=mockd-release-smoke-2026
 npm run test:e2e:deployed -- --base-url=https://staging.example.com
 ```
 
 You can also set `MOCKD_E2E_BASE_URL` or `PLAYWRIGHT_BASE_URL` instead of
-`--base-url`, and `--smoke-run-id` or `MOCKD_E2E_RUN_ID` when you need a named
-smoke namespace. Deployed smoke runs create throwaway accounts, a namespaced
-league season, a live room, sales, and an export artifact through the real
-browser/API flow, so use an approved smoke namespace for production targets.
+`--base-url`. Provision the two smoke accounts, their team assignments, the
+published season, catalog, keepers, and draft setup before the run. The deployed
+smoke uses invite-only login and normal commissioner actions; it never enables
+public signup or calls an HTTP provisioning route. It creates, starts, mutates,
+ends, and exports one real room, so each run needs a dedicated season without an
+existing draft room.
 
 To seed a reusable local platform store without running Playwright:
 

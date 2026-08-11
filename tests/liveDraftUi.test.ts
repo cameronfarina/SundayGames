@@ -69,9 +69,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"open-scratch-session-button\"");
     expect(liveDraftHtml).toContain("id=\"active-session-label\"");
     expect(liveDraftHtml).toContain("id=\"draft-lock-status\"");
-    expect(liveDraftHtml).toContain("byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign('/draft-room'));");
-    expect(liveDraftHtml).toContain("byId('my-expert-back-button').addEventListener('click', () => window.location.assign('/draft-room'));");
-    expect(liveDraftHtml).toContain("byId('player-news-back-button').addEventListener('click', () => window.location.assign('/draft-room'));");
+    expect(liveDraftHtml).toContain("byId('back-to-draft-room-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));");
+    expect(liveDraftHtml).toContain("byId('my-expert-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));");
+    expect(liveDraftHtml).toContain("byId('player-news-back-button').addEventListener('click', () => window.location.assign(draftRoomRouteUrl(currentDraftMode)));");
     expect(liveDraftHtml).not.toContain("window.location.assign('/')");
     expect(liveDraftHtml).toContain("<header class=\"draft-header app-page-header\">");
     expect(liveDraftHtml).toContain("id=\"draft-header-menu-slot\"");
@@ -258,17 +258,18 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("renderMutationState(data);");
     expect(liveDraftHtml).toContain("const renderMockDraft = mockDraft =>");
     expect(liveDraftHtml).toContain("mockDraftItem(phase === 'complete' ? 'Mock complete' : 'Mock blocked'");
-    expect(liveDraftHtml).toContain("' loaded' + (keeperCount ? ' / ' + keeperCount + ' kept' : '')");
+    expect(liveDraftHtml).toContain("const matchCount = filtered.length === allTargets.length ? '' : String(filtered.length) + ' matched / ';");
+    expect(liveDraftHtml).toContain("' loaded' + (keeperCount ? ' / ' + keeperCount + ' keepers' : '')");
     expect(liveDraftHtml).toContain("const renderDraftMode = state =>");
     expect(liveDraftHtml).toContain("const renderDraftModeChoice = () =>");
     expect(liveDraftHtml).toContain("const renderDraftLifecycle = state =>");
     expect(liveDraftHtml).toContain("const renderRoomModeIndicator = state =>");
-    expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('draft-active', isActiveDraft());");
+    expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('draft-active', !isPlatformPrep && isActiveDraft());");
     expect(liveDraftHtml).toContain("const canStartDraft = draftLifecycle === 'setup' || draftLifecycle === 'ready';");
-    expect(liveDraftHtml).toContain("byId('confirm-start-draft-button').hidden = !canStartDraft;");
-    expect(liveDraftHtml).toContain("byId('header-quick-sale-form').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
-    expect(liveDraftHtml).toContain("byId('header-draft-actions').hidden = !isActiveDraft();");
-    expect(liveDraftHtml).toContain("byId('header-import-log-button').hidden = !(isActiveDraft() && currentDraftMode === 'real');");
+    expect(liveDraftHtml).toContain("byId('confirm-start-draft-button').hidden = isPlatformPrep || !canStartDraft;");
+    expect(liveDraftHtml).toContain("byId('header-quick-sale-form').hidden = isPlatformPrep || !(isActiveDraft() && currentDraftMode === 'real');");
+    expect(liveDraftHtml).toContain("byId('header-draft-actions').hidden = isPlatformPrep || !isActiveDraft();");
+    expect(liveDraftHtml).toContain("byId('header-import-log-button').hidden = isPlatformPrep || !(isActiveDraft() && currentDraftMode === 'real');");
     expect(liveDraftHtml).toContain("byId('mock-draft-panel').hidden = !(isActiveDraft() && currentDraftMode === 'interactive-mock');");
     expect(liveDraftHtml).toContain("const beginDraftCountdown = () =>");
     expect(liveDraftHtml).toContain("const activateDraft = async () =>");
@@ -476,7 +477,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("mode: currentDraftMode");
     expect(liveDraftHtml).toContain("mode=' + currentDraftMode");
     expect(liveDraftHtml).toContain("let currentDraftSession = 'live'");
-    expect(liveDraftHtml).toContain("const sessionQuery = () => '&draftSession=' + encodeURIComponent(currentDraftSession)");
+    expect(liveDraftHtml).toContain("const sessionQuery = () => {");
+    expect(liveDraftHtml).toContain("params.set('seasonId', platformSeasonId())");
     expect(liveDraftHtml).toContain("draftSession: currentDraftSession");
     expect(liveDraftHtml).toContain("const normalizeDraftSession = (value, mode = currentDraftMode, strategyKey = currentStrategyKey) =>");
     expect(liveDraftHtml).toContain("if (session.startsWith('scratch:')) return session;");
@@ -485,7 +487,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(parsed.session, currentDraftMode, currentStrategyKey);");
     expect(liveDraftHtml).toContain("currentDraftSession = normalizeDraftSession(draftSession, currentDraftMode, currentStrategyKey);");
     expect(liveDraftHtml).toContain("const renderStateLoadError = message =>");
-    expect(liveDraftHtml).toContain("renderStateLoadError(state.error || 'Could not load draft room.');");
+    expect(liveDraftHtml).toContain("state.error && typeof state.error.message === 'string'");
+    expect(liveDraftHtml).toContain("renderStateLoadError(message);");
     expect(liveDraftHtml).toContain("const setDraftSession = async draftSession =>");
     expect(liveDraftHtml).toContain("const guardDraftModeSwitch = nextMode =>");
     expect(liveDraftHtml).toContain("if (nextMode === currentDraftMode && (isActiveDraft() || isStartingDraft())) return false;");
@@ -599,6 +602,7 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("setSidePanel('lineup')");
     expect(liveDraftHtml).toContain("byId('add-price').focus()");
     expect(liveDraftHtml).toContain("const shortlistStorageKey = () =>");
+    expect(liveDraftHtml).toContain("'mockd-shortlist:' + platformStorageScope() + ':' + currentDraftSession");
     expect(liveDraftHtml).toContain("window.localStorage");
     expect(liveDraftHtml).toContain("const toggleShortlist = target =>");
     expect(liveDraftHtml).toContain("const starTargetButton = target =>");
@@ -664,6 +668,8 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).not.toContain(".window-dot");
     expect(liveDraftHtml).toContain(".board-panel {");
     expect(liveDraftHtml).toContain(".decision-panel {");
+    expect(liveDraftHtml).toContain("grid-template-rows: auto auto auto auto auto minmax(0, 1fr);");
+    expect(liveDraftHtml).toContain("color: var(--green);");
     expect(liveDraftHtml).toContain(".board-table {");
     expect(liveDraftHtml).toContain("width: max-content;");
     expect(liveDraftHtml).toContain("min-width: 990px;");
@@ -805,7 +811,8 @@ describe("live draft UI shell", () => {
   it("switches the board from the dense table to player cards on compact screens", () => {
     expect(liveDraftHtml).toContain("@media (max-width: 760px)");
     expect(liveDraftHtml).toContain(".scroll {\n        display: none;\n      }");
-    expect(liveDraftHtml).toContain(".board-cards {\n        display: block;\n      }");
+    expect(liveDraftHtml).toContain(".board-cards {\n        display: block;\n        max-height: 62vh;");
+    expect(liveDraftHtml).toContain(".room-mode-indicator strong {\n        display: none;\n      }");
     expect(liveDraftHtml).toContain("className = 'target-card ' + positionClassFor(target.position)");
     expect(liveDraftHtml).toContain("className = 'target-card-values'");
   });
@@ -825,8 +832,26 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("id=\"mock-simulations-view\"");
     expect(liveDraftHtml).toContain("id=\"mock-simulations-header-menu-slot\"");
     expect(liveDraftHtml).toContain("window.location.assign(mockSimulationsRouteUrl())");
-    expect(liveDraftHtml).toContain("if (window.location.pathname === '/mock-simulations')");
+    expect(liveDraftHtml).toContain("isPlatformDraftToolsContext() ? '/simulations?' : '/mock-simulations?'");
+    expect(liveDraftHtml).toContain("window.location.pathname === '/mock-simulations' || window.location.pathname === '/simulations'");
+    expect(liveDraftHtml).toContain("const platformDraftModeForPath = path =>");
+    expect(liveDraftHtml).toContain("if (path === '/board') return 'real';");
+    expect(liveDraftHtml).toContain("['/mock-drafts', '/simulations', '/strategy'].includes(path)");
+    expect(liveDraftHtml).toContain("else if (platformDraftMode === 'interactive-mock') currentDraftSession = practiceSessionForStrategy(currentStrategyKey);");
     expect(liveDraftHtml).not.toContain("<div class=\"sidebar-section\">\n        <div class=\"section-label\">Mock results</div>");
+  });
+
+  it("keeps the platform board read-only and gives users a route back to their league", () => {
+    expect(liveDraftHtml).toContain("id=\"league-home-button\"");
+    expect(liveDraftHtml).toContain("const isPlatformBoardRoute = () => window.location.pathname === '/board';");
+    expect(liveDraftHtml).toContain("byId('draft-room-view').classList.toggle('platform-prep', isPlatformPrep);");
+    expect(liveDraftHtml).toContain("byId('add-form').hidden = isPlatformPrep || isMock;");
+    expect(liveDraftHtml).toContain("byId('sidebar-sale-command-section').hidden = isMock;");
+    expect(liveDraftHtml).toContain("return isMock ? 'Mock Draft' : 'Draft Setup';");
+    expect(liveDraftHtml).toContain("if (!isPlatformBoardRoute()) menuActions.push(secondaryAction);");
+    expect(liveDraftHtml).toContain("byId('room-title').textContent = 'Draft Board';");
+    expect(liveDraftHtml).toContain("byId('league-home-button').addEventListener('click', () => window.location.assign(leagueHomeUrl()));");
+    expect(liveDraftHtml).toContain("preservePlatformSeason(params)");
   });
 
   it("uses owner-scoped requests and visible accessible mutation feedback", () => {
@@ -843,6 +868,9 @@ describe("live draft UI shell", () => {
     expect(liveDraftHtml).toContain("const announceOperation = (message, { assertive = false, focus = false } = {}) =>");
     expect(liveDraftHtml).toContain("status.setAttribute('aria-live', assertive ? 'assertive' : 'polite')");
     expect(liveDraftHtml).toContain("announceOperation(message, { assertive: true, focus: true })");
+    expect(liveDraftHtml).toContain("const scopedApiUrl = url =>");
+    expect(liveDraftHtml).toContain("fetch(scopedApiUrl(url), {");
+    expect(liveDraftHtml).toContain("data.error && typeof data.error.message === 'string'");
   });
 
   it("makes destructive draft transitions explicit and durable", () => {

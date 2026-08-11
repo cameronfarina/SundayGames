@@ -6,6 +6,7 @@ import {
   clearMockdSessionCookie,
   createPlatformNodeHttpAdapter,
   mockdSessionCookie,
+  observePlatformNodeHttpServer,
 } from "../src/platform/platformNodeHttp.js";
 
 let server: HttpServer | HttpsServer | undefined;
@@ -130,6 +131,115 @@ afterEach(async () => {
 });
 
 describe("platform Node HTTP adapter", () => {
+  it("returns a generated request ID instead of reflecting an inbound value", async () => {
+    const baseUrl = await listen(async () => ({
+      status: 200,
+      headers: { "X-Request-ID": "application-secret-request-id" },
+      body: { ok: true },
+    }));
+
+    const response = await fetch(`${baseUrl}/healthz`, {
+      headers: { "x-request-id": "caller-secret-request-id" },
+    });
+    const requestId = response.headers.get("x-request-id");
+
+    expect(requestId ?? "").toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(requestId).not.toBe("caller-secret-request-id");
+    expect(requestId).not.toBe("application-secret-request-id");
+  });
+
+  it("logs sanitized structured request completion records", async () => {
+    const logEntries: unknown[] = [];
+    server = createHttpServer(createPlatformNodeHttpAdapter(async () => ({
+      status: 201,
+      body: { ok: true },
+    })));
+    const stopObserving = observePlatformNodeHttpServer(server, {
+      logger: (entry: unknown) => logEntries.push(entry),
+    });
+    await new Promise<void>((resolve, reject) => {
+      server?.once("error", reject);
+      server?.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = server.address();
+    if (typeof address !== "object" || address === null) {
+      throw new Error("Expected TCP test server address.");
+    }
+
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/accounts?invite=secret-query-token`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer secret-bearer-token",
+          cookie: "mockd_session=secret-cookie-token",
+          "content-type": "application/json",
+          "x-mockd-provisioning-token": "secret-provisioning-token",
+          "x-request-id": "secret-caller-request-id",
+        },
+        body: JSON.stringify({ password: "secret-body-password" }),
+      },
+    );
+    await response.json();
+    stopObserving();
+
+    expect(logEntries).toHaveLength(1);
+    expect(logEntries[0]).toMatchObject({
+      event: "http_request_completed",
+      level: "info",
+      method: "POST",
+      requestId: response.headers.get("x-request-id"),
+      route: "/accounts",
+      status: 201,
+    });
+    expect(logEntries[0]).toEqual(expect.objectContaining({
+      durationMs: expect.any(Number),
+      timestamp: expect.any(String),
+    }));
+    expect(JSON.stringify(logEntries)).not.toMatch(
+      /secret|authorization|cookie|password|provisioning|invite/i,
+    );
+  });
+
+  it("logs sanitized structured errors without exception details", async () => {
+    const logEntries: unknown[] = [];
+    server = createHttpServer(createPlatformNodeHttpAdapter(async () => {
+      throw new Error("postgres://database-user:secret-password@database.internal/mockd");
+    }));
+    const stopObserving = observePlatformNodeHttpServer(server, {
+      logger: entry => logEntries.push(entry),
+    });
+    await new Promise<void>((resolve, reject) => {
+      server?.once("error", reject);
+      server?.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = server.address();
+    if (typeof address !== "object" || address === null) {
+      throw new Error("Expected TCP test server address.");
+    }
+
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/unknown-secret-route?token=secret-query-token`,
+    );
+    await response.json();
+    stopObserving();
+
+    expect(logEntries).toHaveLength(1);
+    expect(logEntries[0]).toMatchObject({
+      event: "http_request_error",
+      level: "error",
+      method: "GET",
+      requestId: response.headers.get("x-request-id"),
+      route: "/<redacted>",
+      status: 500,
+    });
+    expect(JSON.stringify(logEntries)).not.toMatch(
+      /secret|password|database-user|database\.internal|postgres|stack|message/i,
+    );
+  });
+
   it("parses JSON request bodies and serializes platform JSON responses", async () => {
     const seenRequests: PlatformHttpRequest[] = [];
     const baseUrl = await listen(async request => {
@@ -162,6 +272,71 @@ describe("platform Node HTTP adapter", () => {
       },
     });
     expect(seenRequests).toHaveLength(1);
+    expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
+  });
+
+  it("ignores proxy client-address headers unless the proxy is explicitly trusted", async () => {
+    const seenRequests: PlatformHttpRequest[] = [];
+    const baseUrl = await listen(async request => {
+      seenRequests.push(request);
+
+      return { status: 200, body: { ok: true } };
+    });
+
+    await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        forwarded: "for=198.51.100.18",
+        "x-forwarded-for": "198.51.100.19",
+        "x-real-ip": "198.51.100.20",
+      },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+
+    expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
+  });
+
+  it("uses a validated proxy client address when the proxy is explicitly trusted", async () => {
+    const seenRequests: PlatformHttpRequest[] = [];
+    const baseUrl = await listen(async request => {
+      seenRequests.push(request);
+
+      return { status: 200, body: { ok: true } };
+    }, { trustProxy: true });
+
+    await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        forwarded: "for=198.51.100.18;proto=https",
+        "x-forwarded-for": "198.51.100.19, 10.0.0.8",
+      },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+
+    expect(seenRequests[0]?.clientAddress).toBe("198.51.100.18");
+  });
+
+  it("falls back to the socket address for malformed trusted-proxy headers", async () => {
+    const seenRequests: PlatformHttpRequest[] = [];
+    const baseUrl = await listen(async request => {
+      seenRequests.push(request);
+
+      return { status: 200, body: { ok: true } };
+    }, { trustProxy: true });
+
+    await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        forwarded: "for=attacker-controlled-value",
+        "x-forwarded-for": "198.51.100.19",
+      },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+
+    expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
   });
 
   it("serializes text event stream responses without JSON wrapping", async () => {
@@ -228,7 +403,7 @@ describe("platform Node HTTP adapter", () => {
     expect(seenRequests[0]?.isSecure).toBe(true);
   });
 
-  it("serves auth shell and draft workspace HTML from their browser routes", async () => {
+  it("serves the app shell and dedicated draft room from distinct browser routes", async () => {
     let callCount = 0;
     const authShellHtml = "<!doctype html><main id=\"auth-panel\"></main>";
     const draftRoomHtml = "<!doctype html><main id=\"draft-room-view\"></main>";
@@ -238,7 +413,20 @@ describe("platform Node HTTP adapter", () => {
       return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
     }, { appHtml: authShellHtml, draftRoomHtml });
 
-    for (const path of ["/login", "/signup", "/setup"]) {
+    for (const path of [
+      "/login",
+      "/signup",
+      "/invite?token=test",
+      "/setup",
+      "/league",
+      "/board",
+      "/mock-drafts",
+      "/mock-results",
+      "/simulations",
+      "/strategy",
+      "/my-expert",
+      "/player-news",
+    ]) {
       const response = await fetch(`${baseUrl}${path}`);
 
       expect(response.status).toBe(200);
@@ -246,13 +434,10 @@ describe("platform Node HTTP adapter", () => {
       expect(await response.text()).toBe(authShellHtml);
     }
 
-    for (const path of ["/draft-room", "/mock-results", "/my-expert", "/player-news"]) {
-      const response = await fetch(`${baseUrl}${path}`);
-
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(await response.text()).toBe(draftRoomHtml);
-    }
+    const draftRoomResponse = await fetch(`${baseUrl}/draft-room`);
+    expect(draftRoomResponse.status).toBe(200);
+    expect(draftRoomResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await draftRoomResponse.text()).toBe(draftRoomHtml);
 
     expect(callCount).toBe(0);
   });

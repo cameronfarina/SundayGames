@@ -1,4 +1,7 @@
 import type { PostgresQueryClient } from "./postgresPlatformStore.js";
+import type { LeagueSeason } from "./leagueSeason.js";
+import type { PlatformLeagueMembership } from "./leagueSetup.js";
+import type { LiveDraftRoomStatus } from "./liveDraftRooms.js";
 import type { WorkspaceRole } from "./workspacePrivacy.js";
 
 type PlatformReadinessState = "ready" | "needs_attention";
@@ -56,6 +59,19 @@ export interface PlatformOnboardingSnapshot {
 
 export interface PlatformOnboardingRepository {
   listForUser(userId: string): Promise<readonly PlatformOnboardingLeague[]>;
+}
+
+export interface InMemoryPlatformOnboardingSource {
+  leagueSeasons: readonly LeagueSeason[];
+  memberships: readonly PlatformLeagueMembership[];
+  liveDraftRooms: readonly {
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    status: LiveDraftRoomStatus;
+    startsAt?: Date | undefined;
+    createdAt: Date;
+  }[];
 }
 
 const platformOnboardingQuery = `
@@ -133,6 +149,58 @@ export class PostgresPlatformOnboardingRepository implements PlatformOnboardingR
   async listForUser(userId: string): Promise<readonly PlatformOnboardingLeague[]> {
     const result = await this.client.query<PlatformOnboardingRow>(platformOnboardingQuery, [userId]);
     return result.rows.map(leagueForRow);
+  }
+}
+
+export class InMemoryPlatformOnboardingRepository implements PlatformOnboardingRepository {
+  constructor(private readonly source: () => InMemoryPlatformOnboardingSource) {}
+
+  async listForUser(userId: string): Promise<readonly PlatformOnboardingLeague[]> {
+    const source = this.source();
+
+    return source.memberships
+      .filter(membership => membership.userId === userId)
+      .flatMap(membership => {
+        const season = source.leagueSeasons
+          .filter(candidate => candidate.leagueId === membership.leagueId)
+          .sort((left, right) => right.seasonYear - left.seasonYear)[0];
+        if (season === undefined) return [];
+
+        const team = season.teams.find(candidate => candidate.id === membership.teamId);
+        const room = source.liveDraftRooms
+          .filter(candidate => candidate.seasonId === season.id)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
+        const nextDraftAt = room?.startsAt?.toISOString() ?? season.draft?.scheduledAt;
+
+        return [{
+          leagueId: season.leagueId,
+          leagueName: season.league.name,
+          seasonId: season.id,
+          seasonYear: season.seasonYear,
+          membership: {
+            role: membership.role,
+            ...(membership.ownerId === undefined ? {} : { ownerId: membership.ownerId }),
+            ...(membership.teamId === undefined ? {} : { teamId: membership.teamId }),
+            ...(team === undefined ? {} : {
+              ownerDisplayName: team.ownerDisplayName,
+              teamDisplayName: team.displayName,
+            }),
+          },
+          canManageLeague: membership.role === "owner" || membership.role === "admin",
+          readiness: {
+            leagueSetup: season.setupStatus === "published" || season.setupStatus === "locked"
+              ? "ready" as const
+              : "needs_attention" as const,
+            teamClaim: team === undefined ? "needs_attention" as const : "ready" as const,
+            liveDraft: room === undefined ? "needs_attention" as const : "ready" as const,
+          },
+          ...(nextDraftAt === undefined ? {} : { nextDraftAt }),
+          liveDraft: room === undefined
+            ? null
+            : { roomId: room.roomId, status: room.status },
+        }];
+      })
+      .sort((left, right) => left.leagueName.localeCompare(right.leagueName));
   }
 }
 

@@ -19,6 +19,11 @@ import {
 } from "../src/platform/jobs.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import {
+  currentLeagueInitialRostersFor,
+  loadCurrentPlayerCatalog,
+} from "../src/platform/localDemoFixtures.js";
+import { InMemoryLiveDraftRoomSetupRepository } from "../src/platform/liveDraftRoomSetups.js";
+import {
   InMemoryHistoricalImportRepository,
   type HistoricalImportRepository,
 } from "../src/platform/historicalImports.js";
@@ -421,6 +426,13 @@ class FakeTransactionalPostgresAuthClient
       this.appliedMigrations.add(migrationId);
 
       return { rows: [], rowCount: 1 };
+    }
+
+    if (
+      normalizedSql.includes("FROM draft_rooms") &&
+      normalizedSql.includes("HAVING COUNT(*) > 1")
+    ) {
+      return { rows: [] };
     }
 
     return await super.query(text, values);
@@ -1075,6 +1087,8 @@ describe("platform server composition", () => {
     const platformServer = await createPlatformServer({
       simulationRunner: mockRunner,
       now: () => now,
+      allowPublicSignup: true,
+      provisioningToken: "test-provisioning-token",
       ...options,
     });
     servers.push(platformServer);
@@ -1160,6 +1174,36 @@ describe("platform server composition", () => {
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
   });
 
+  it("passes the trusted proxy client address to auth rate limiting", async () => {
+    const seenClientAddresses: string[] = [];
+    const { baseUrl } = await createListeningServer({
+      trustProxy: true,
+      authClientRateLimiter: {
+        consume: clientAddress => {
+          seenClientAddresses.push(clientAddress);
+
+          return { allowed: true, remainingAttempts: 29, retryAfterMs: 0 };
+        },
+        reset: () => undefined,
+      },
+    });
+
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.45, 10.0.0.9",
+      },
+      body: JSON.stringify({
+        email: "proxy-user@example.com",
+        password: "secure password",
+      }),
+    });
+
+    expect(created.status).toBe(201);
+    expect(seenClientAddresses).toEqual(["203.0.113.45"]);
+  });
+
   it("serves the platform app shell from auth browser routes", async () => {
     const { baseUrl } = await createListeningServer();
 
@@ -1168,16 +1212,15 @@ describe("platform server composition", () => {
     expect(response.status).toBe(200);
     expect(response.contentType).toBe("text/html; charset=utf-8");
     expect(response.body).toContain("id=\"auth-panel\"");
-    expect(response.body).toContain("Draft board");
-    expect(response.body).toContain("Open draft board");
+    expect(response.body).toContain("League home");
+    expect(response.body).toContain("Open live draft");
   });
 
-  it("serves the hosted platform shell from hosted platform browser routes", async () => {
+  it("serves the dedicated draft room from the production draft route", async () => {
     const { baseUrl } = await createListeningServer();
 
     const signup = await textFetch(baseUrl, "/signup");
     const draftRoom = await textFetch(baseUrl, "/draft-room");
-    const myExpert = await textFetch(baseUrl, "/my-expert");
 
     expect(signup.status).toBe(200);
     expect(signup.contentType).toBe("text/html; charset=utf-8");
@@ -1186,15 +1229,108 @@ describe("platform server composition", () => {
 
     expect(draftRoom.status).toBe(200);
     expect(draftRoom.contentType).toBe("text/html; charset=utf-8");
-    expect(draftRoom.body).toContain("id=\"auth-panel\"");
-    expect(draftRoom.body).toContain("id=\"draft-room-link\"");
-    expect(draftRoom.body).toContain("Open draft board");
-    expect(draftRoom.body).not.toContain("id=\"draft-room-view\"");
+    expect(draftRoom.body).toContain("id=\"draft-room-view\"");
+    expect(draftRoom.body).toContain("data-platform-live-room");
+    expect(draftRoom.body).not.toContain("id=\"draft-room-link\"");
+  });
 
-    expect(myExpert.status).toBe(200);
-    expect(myExpert.contentType).toBe("text/html; charset=utf-8");
-    expect(myExpert.body).toContain("id=\"auth-panel\"");
-    expect(myExpert.body).not.toContain("id=\"my-expert-view\"");
+  it("serves season-scoped prep and mock workspaces only to league members", async () => {
+    directory = await mkdtemp(join(tmpdir(), "mockd-platform-draft-tools-"));
+    const draftSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
+    const { platformServer, baseUrl } = await createListeningServer({
+      draftToolsSessionDirectory: directory,
+      liveDraftRoomSetupRepository: draftSetupRepository,
+    });
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+
+    const anonymousBoard = await fetch(
+      `${baseUrl}/board?seasonId=${season.id}&strategy=balanced`,
+      {
+        redirect: "manual",
+      },
+    );
+    expect(anonymousBoard.status).toBe(302);
+    expect(anonymousBoard.headers.get("location")).toBe(
+      `/login?returnTo=%2Fboard%3FseasonId%3D${season.id}%26strategy%3Dbalanced`,
+    );
+
+    const prepAccount = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "prep@example.com", password: "secure password" }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "prep@example.com", password: "secure password" }),
+    });
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const accountId = (prepAccount.body as { account: { id: string } }).account.id;
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: sessionToken,
+      season,
+      memberships: [{
+        userId: accountId,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+      }],
+      now,
+    });
+    await draftSetupRepository.save({
+      seasonId: season.id,
+      sourceVersion: "platform-server-test",
+      playerCatalog: await loadCurrentPlayerCatalog(),
+      initialRosters: currentLeagueInitialRostersFor(season),
+      updatedAt: now,
+    });
+
+    await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "outsider@example.com", password: "secure password" }),
+    });
+    const outsiderLogin = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "outsider@example.com", password: "secure password" }),
+    });
+    const outsiderSessionToken = (outsiderLogin.body as { sessionToken: string }).sessionToken;
+
+    const missingSeason = await fetch(`${baseUrl}/board`, {
+      headers: { "x-session-token": sessionToken },
+    });
+    expect(missingSeason.status).toBe(400);
+
+    const outsiderBoard = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
+      headers: { "x-session-token": outsiderSessionToken },
+    });
+    expect(outsiderBoard.status).toBe(403);
+
+    const board = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
+      headers: { "x-session-token": sessionToken },
+    });
+    expect(board.status).toBe(200);
+    expect(board.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await board.text()).toContain("id=\"draft-room-view\"");
+
+    const mockState = await jsonFetch(
+      baseUrl,
+      `/api/mock/state?seasonId=${season.id}&mode=interactive-mock&draftSession=practice-3rb`,
+      {
+        headers: { "x-session-token": sessionToken },
+      },
+    );
+    expect(mockState).toMatchObject({
+      status: 200,
+      body: { draftMode: "interactive-mock" },
+    });
   });
 
   it("keeps live room event streams open until the next draft revision", async () => {
@@ -1233,7 +1369,11 @@ describe("platform server composition", () => {
 
     await jsonFetch(baseUrl, `/seasons/${season.id}`, {
       method: "PUT",
-      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": camSessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
+      },
       body: JSON.stringify({
         season,
         memberships: [
@@ -1244,7 +1384,11 @@ describe("platform server composition", () => {
     });
     await jsonFetch(baseUrl, "/live-rooms", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": camSessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
+      },
       body: JSON.stringify({
         seasonId: season.id,
         roomId: "room_stream_wait",
@@ -1308,6 +1452,7 @@ describe("platform server composition", () => {
     const startedServer = await startPlatformServer({
       simulationRunner: mockRunner,
       now: () => now,
+      allowPublicSignup: true,
       port: 0,
       host: "127.0.0.1",
     });
@@ -1501,6 +1646,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         season,
@@ -1521,6 +1667,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         seasonId: season.id,
@@ -1564,6 +1711,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 3,
         idempotencyKey: "end:room_postgres_normalized",
+        allowIncomplete: true,
       }),
     });
     const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/export-artifacts", {
@@ -1756,6 +1904,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         seasonId: season.id,
@@ -1787,6 +1936,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 2,
         idempotencyKey: "end:room_external_setup",
+        allowIncomplete: true,
       }),
     });
     const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/export-artifacts", {
@@ -1882,6 +2032,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         season,
@@ -1982,6 +2133,7 @@ describe("platform server composition", () => {
       postgresClient,
       simulationRunner: mockRunner,
       now: () => now,
+      allowPublicSignup: true,
     });
     servers.push(legacyServer);
     const legacyBaseUrl = await listen(legacyServer);
@@ -2003,6 +2155,8 @@ describe("platform server composition", () => {
       postgresAuthClient,
       simulationRunner: mockRunner,
       now: () => now,
+      allowPublicSignup: true,
+      provisioningToken: "test-provisioning-token",
     });
     servers.push(loadedServer);
     const loadedBaseUrl = await listen(loadedServer);
@@ -2042,6 +2196,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         season,
@@ -2742,6 +2897,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({
         season,
@@ -2841,6 +2997,7 @@ describe("platform server composition", () => {
       headers: {
         "content-type": "application/json",
         "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
       },
       body: JSON.stringify({ season, memberships }),
     });

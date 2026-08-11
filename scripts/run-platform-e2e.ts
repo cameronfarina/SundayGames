@@ -1,5 +1,4 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -23,10 +22,19 @@ export interface PlatformE2eRunConfig {
   target: PlatformE2eTarget;
   baseUrl: string | undefined;
   smokeRunId: string | undefined;
+  deployedSmoke: DeployedPlatformSmokeConfig | undefined;
   playwrightArgs: readonly string[];
   serverStartupTimeoutMs: number;
   deployedPreflightTimeoutMs: number;
   helpRequested: boolean;
+}
+
+export interface DeployedPlatformSmokeConfig {
+  commissionerEmail: string;
+  commissionerPassword: string;
+  memberEmail: string;
+  memberPassword: string;
+  seasonId: string;
 }
 
 export type PlatformE2eFetch = (input: URL, init?: RequestInit) => Promise<Response>;
@@ -49,6 +57,20 @@ interface ParsedOptionValue {
 const defaultServerStartupTimeoutMs = 30_000;
 const defaultDeployedPreflightTimeoutMs = 15_000;
 const shutdownTimeoutMs = 5_000;
+const deployedSmokeEnvironment = {
+  commissionerEmail: "MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL",
+  commissionerPassword: "MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD",
+  memberEmail: "MOCKD_E2E_DEPLOYED_MEMBER_EMAIL",
+  memberPassword: "MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD",
+  seasonId: "MOCKD_E2E_DEPLOYED_SEASON_ID",
+} as const;
+const localFixtureEnvironment = [
+  "MOCKD_E2E_DATA_FILE",
+  "MOCKD_E2E_EMAIL_DOMAIN",
+  "MOCKD_E2E_PASSWORD",
+  "MOCKD_E2E_PROVISIONING_TOKEN",
+  "MOCKD_E2E_RUN_ID",
+] as const;
 
 const optionalEnv = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -148,24 +170,43 @@ const normalizeSmokeRunId = (value: string, source: string): string => {
   return normalized;
 };
 
-const generatedSmokeRunId = (): string => {
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[-:.TZ]/g, "")
-    .slice(0, 14);
-
-  return `smoke-${timestamp}-${randomBytes(4).toString("hex")}`;
-};
-
 const smokeRunIdFor = (
-  target: PlatformE2eTarget,
   rawSmokeRunId: string | undefined,
   source: string,
 ): string | undefined => {
   if (rawSmokeRunId !== undefined) return normalizeSmokeRunId(rawSmokeRunId, source);
-  if (target === "deployed") return generatedSmokeRunId();
 
   return undefined;
+};
+
+const deployedSmokeConfigFrom = (env: PlatformE2eEnv): DeployedPlatformSmokeConfig => {
+  const values = Object.entries(deployedSmokeEnvironment).map(([key, environmentKey]) => [
+    key,
+    environmentKey,
+    optionalEnvFrom(env, environmentKey),
+  ] as const);
+  const missing = values
+    .filter(([, , value]) => value === undefined)
+    .map(([, environmentKey]) => environmentKey);
+  if (missing.length > 0) {
+    throw new Error(
+      `Deployed platform smoke requires pre-provisioned records. Missing: ${missing.join(", ")}.`,
+    );
+  }
+
+  const requiredValue = (key: keyof typeof deployedSmokeEnvironment): string => {
+    const value = optionalEnvFrom(env, deployedSmokeEnvironment[key]);
+    if (value === undefined) throw new Error(`Missing ${deployedSmokeEnvironment[key]}.`);
+    return value;
+  };
+
+  return {
+    commissionerEmail: requiredValue("commissionerEmail"),
+    commissionerPassword: requiredValue("commissionerPassword"),
+    memberEmail: requiredValue("memberEmail"),
+    memberPassword: requiredValue("memberPassword"),
+    seasonId: requiredValue("seasonId"),
+  };
 };
 
 const baseUrlSourceFor = (
@@ -269,15 +310,17 @@ export const platformE2eRunnerUsage = [
   "Runner options:",
   "  --base-url=<url>                  Run against an already deployed Mockd URL without starting platform:web.",
   "  --target=local|deployed           Force local or deployed mode. Defaults to deployed when a base URL is set.",
-  "  --smoke-run-id=<id>               Namespace deployed smoke emails, league ids, room ids, and idempotency keys.",
+  "  --smoke-run-id=<id>               Namespace local fixture records when reusing a local E2E data file.",
   "  --server-startup-timeout-ms=<ms>  Local platform:web startup timeout.",
   "  --preflight-timeout-ms=<ms>       Deployed /session route preflight timeout.",
   "",
   "Environment:",
   "  MOCKD_E2E_BASE_URL or PLAYWRIGHT_BASE_URL can provide the deployed base URL.",
   "  MOCKD_E2E_TARGET=deployed forces deployed mode.",
-  "  MOCKD_E2E_RUN_ID can provide a stable smoke namespace.",
-  "  MOCKD_E2E_PASSWORD and MOCKD_E2E_EMAIL_DOMAIN customize the smoke account fixtures.",
+  "  MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL and MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD identify the pre-provisioned commissioner.",
+  "  MOCKD_E2E_DEPLOYED_MEMBER_EMAIL and MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD identify the pre-provisioned member.",
+  "  MOCKD_E2E_DEPLOYED_SEASON_ID identifies a dedicated, unused smoke season.",
+  "  MOCKD_E2E_RUN_ID, MOCKD_E2E_PASSWORD, and MOCKD_E2E_EMAIL_DOMAIN customize local fixtures only.",
 ].join("\n");
 
 export const resolvePlatformE2eRunConfig = (
@@ -290,6 +333,7 @@ export const resolvePlatformE2eRunConfig = (
       target: parsedArgs.target ?? "local",
       baseUrl: undefined,
       smokeRunId: undefined,
+      deployedSmoke: undefined,
       playwrightArgs: parsedArgs.playwrightArgs,
       serverStartupTimeoutMs: parsedArgs.serverStartupTimeoutMs ?? defaultServerStartupTimeoutMs,
       deployedPreflightTimeoutMs: parsedArgs.deployedPreflightTimeoutMs ?? defaultDeployedPreflightTimeoutMs,
@@ -312,19 +356,26 @@ export const resolvePlatformE2eRunConfig = (
   if (target === "deployed" && baseUrl === undefined) {
     throw new Error("--base-url or MOCKD_E2E_BASE_URL is required for deployed platform smoke.");
   }
-  if (target === "deployed" && optionalEnvFrom(env, "MOCKD_E2E_DATA_FILE") !== undefined) {
-    throw new Error("MOCKD_E2E_DATA_FILE only applies to local platform E2E runs.");
-  }
   if (target === "local" && baseUrl !== undefined) {
     throw new Error("Use --target=deployed when providing --base-url, MOCKD_E2E_BASE_URL, or PLAYWRIGHT_BASE_URL.");
   }
 
+  if (target === "deployed") {
+    if (parsedArgs.smokeRunId !== undefined) {
+      throw new Error("--smoke-run-id only applies to local platform E2E runs.");
+    }
+    const localOnlyEnvironment = localFixtureEnvironment.find(key => optionalEnvFrom(env, key) !== undefined);
+    if (localOnlyEnvironment !== undefined) {
+      throw new Error(`${localOnlyEnvironment} only applies to local platform E2E runs.`);
+    }
+  }
+
   const rawSmokeRunId = parsedArgs.smokeRunId ?? optionalEnvFrom(env, "MOCKD_E2E_RUN_ID");
   const smokeRunId = smokeRunIdFor(
-    target,
     rawSmokeRunId,
     parsedArgs.smokeRunId === undefined ? "MOCKD_E2E_RUN_ID" : "--smoke-run-id",
   );
+  const deployedSmoke = target === "deployed" ? deployedSmokeConfigFrom(env) : undefined;
   const serverStartupTimeoutMs = parsedArgs.serverStartupTimeoutMs
     ?? positiveIntegerEnv(
       env,
@@ -342,6 +393,7 @@ export const resolvePlatformE2eRunConfig = (
     target,
     baseUrl,
     smokeRunId,
+    deployedSmoke,
     playwrightArgs: parsedArgs.playwrightArgs,
     serverStartupTimeoutMs,
     deployedPreflightTimeoutMs,
@@ -509,9 +561,24 @@ const playwrightEnvFor = (
     MOCKD_E2E_TARGET: config.target,
   };
 
+  for (const key of Object.values(deployedSmokeEnvironment)) delete env[key];
+
+  if (config.target === "deployed") {
+    for (const key of localFixtureEnvironment) delete env[key];
+    delete env.MOCKD_ALLOW_PUBLIC_SIGNUP;
+    delete env.MOCKD_PROVISIONING_TOKEN;
+  }
+
   if (config.baseUrl !== undefined) env.PLAYWRIGHT_BASE_URL = config.baseUrl;
   if (config.smokeRunId !== undefined) env.MOCKD_E2E_RUN_ID = config.smokeRunId;
   if (dataFilePath !== undefined) env.MOCKD_E2E_DATA_FILE = dataFilePath;
+  if (config.deployedSmoke !== undefined) {
+    env.MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL = config.deployedSmoke.commissionerEmail;
+    env.MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD = config.deployedSmoke.commissionerPassword;
+    env.MOCKD_E2E_DEPLOYED_MEMBER_EMAIL = config.deployedSmoke.memberEmail;
+    env.MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD = config.deployedSmoke.memberPassword;
+    env.MOCKD_E2E_DEPLOYED_SEASON_ID = config.deployedSmoke.seasonId;
+  }
 
   return env;
 };
@@ -526,7 +593,10 @@ const runDeployedPlatformE2e = async (config: PlatformE2eRunConfig): Promise<num
     fetch,
     config.deployedPreflightTimeoutMs,
   );
-  console.log(`Running deployed platform smoke against ${config.baseUrl} with run id ${config.smokeRunId}.`);
+  console.log(
+    `Running deployed platform smoke against ${config.baseUrl} ` +
+    `with pre-provisioned season ${config.deployedSmoke?.seasonId}.`,
+  );
 
   return await runChild("playwright", ["test", ...config.playwrightArgs], playwrightEnvFor(config));
 };
@@ -552,6 +622,10 @@ const runLocalPlatformE2e = async (config: PlatformE2eRunConfig): Promise<number
         DATABASE_URL: "",
         MOCKD_DATABASE_URL: "",
         MOCKD_PLATFORM_DATA_FILE: dataFilePath,
+        MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: join(temporaryDirectory, "draft-tools"),
+        MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
+        MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+        MOCKD_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
       },
       stdio: "inherit",
     });
@@ -561,6 +635,7 @@ const runLocalPlatformE2e = async (config: PlatformE2eRunConfig): Promise<number
     const exitCode = await runChild("playwright", ["test", ...config.playwrightArgs], {
       ...playwrightEnvFor(config, dataFilePath),
       PLAYWRIGHT_BASE_URL: baseUrl,
+      MOCKD_E2E_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
     });
     return exitCode;
   } finally {

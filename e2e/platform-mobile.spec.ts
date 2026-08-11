@@ -5,8 +5,10 @@ import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platfor
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 
 const mobileViewport = { width: 390, height: 844 } as const;
+const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
 const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
+const provisioningToken = process.env.MOCKD_E2E_PROVISIONING_TOKEN?.trim() || "local-e2e-provisioning-token";
 const smokeRunId = process.env.MOCKD_E2E_RUN_ID?.trim()
   ?.toLowerCase()
   .replace(/[^a-z0-9]+/g, "-")
@@ -40,15 +42,20 @@ const playerCatalog = [
 const api = async <TBody>(
   page: Page,
   path: string,
-  options: { method?: "GET" | "POST"; body?: unknown } = {},
+  options: {
+    method?: "GET" | "POST";
+    body?: unknown;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<JsonResponse<TBody>> =>
-  await page.evaluate(async ({ requestPath, method, body }) => {
+  await page.evaluate(async ({ requestPath, method, body, headers }) => {
     const request: RequestInit = {
       method,
       credentials: "same-origin",
+      ...(headers === undefined ? {} : { headers }),
     };
     if (body !== undefined) {
-      request.headers = { "content-type": "application/json" };
+      request.headers = { ...headers, "content-type": "application/json" };
       request.body = JSON.stringify(body);
     }
     const response = await fetch(requestPath, request);
@@ -62,6 +69,7 @@ const api = async <TBody>(
     requestPath: path,
     method: options.method ?? "GET",
     body: options.body,
+    headers: options.headers,
   }) as JsonResponse<TBody>;
 
 const expectOk = <TBody>(response: JsonResponse<TBody>): TBody => {
@@ -94,6 +102,25 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
   await expect(page.locator("#account-email")).toHaveText(email);
 
   return expectOk(await api<AccountBody>(page, "/session")).account;
+};
+
+const signInExisting = async (page: Page, email: string, accountPassword: string): Promise<void> => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(accountPassword);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator("#account-email"), [
+    `Could not sign in to the pre-provisioned mobile smoke account ${email}.`,
+    "Verify the deployed smoke credential secrets and provisioning receipt.",
+  ].join(" ")).toHaveText(email);
+};
+
+const requiredDeployedValue = (key: string): string => {
+  const value = process.env[key]?.trim();
+  if (value === undefined || value.length === 0) {
+    throw new Error(`Deployed mobile smoke requires ${key}. Provision the smoke records before running Playwright.`);
+  }
+  return value;
 };
 
 const seasonForMobileRelease = (): LeagueSeason => {
@@ -169,6 +196,7 @@ test.use({
 });
 
 test("mobile shell and live draft preserve a commissioner sale through reconnect", async ({ page }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const email = smokeRunId === undefined
     ? "mobile.release.e2e@example.com"
     : `mobile.release.e2e+${smokeRunId}@${emailDomain}`;
@@ -179,6 +207,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
 
   expectOk(await api<SeasonBody>(page, "/seasons", {
     method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
     body: {
       season,
       memberships: [{
@@ -192,6 +221,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   }));
   expectOk(await api(page, "/live-rooms", {
     method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
     body: {
       seasonId: season.id,
       roomId,
@@ -252,5 +282,28 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expect(page.locator("#draft-team-budget")).toHaveText("$88");
   await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
   await expect(page.locator('#draft-board-cards [data-player-name="Puka Nacua"]')).toHaveCount(0);
+  await expectNoHorizontalPageOverflow(page);
+});
+
+test("deployed mobile shell renders the pre-provisioned smoke season without mutation", async ({ page }) => {
+  test.skip(!isDeployedSmoke, "Pre-provisioned smoke credentials are only required for deployed E2E.");
+  const email = requiredDeployedValue("MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL");
+  const accountPassword = requiredDeployedValue("MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD");
+  const seasonId = requiredDeployedValue("MOCKD_E2E_DEPLOYED_SEASON_ID");
+  await signInExisting(page, email, accountPassword);
+
+  await page.goto(`/app?seasonId=${encodeURIComponent(seasonId)}`);
+  await expect(page.locator("#league-workspace")).toBeVisible();
+  await expect(page.locator("#membership-role")).toHaveText(/Owner|Admin/);
+  await expect(page.locator("#my-team-name")).not.toHaveText("Needs attention");
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoControlOverlap([
+    page.locator("#sign-out-button"),
+    page.locator("#league-picker"),
+  ]);
+
+  await page.getByRole("link", { name: "Board", exact: true }).click();
+  await expect(page.locator("#draft-room-view")).toBeVisible();
+  await expect(page.locator("#board .player-name").first()).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
 });

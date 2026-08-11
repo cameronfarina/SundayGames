@@ -2,8 +2,15 @@ import { createServer, type Server } from "node:http";
 import { FilePlatformStore } from "./filePlatformStore.js";
 import type { JobRepository } from "./jobs.js";
 import type { AuthRepository } from "./auth.js";
+import {
+  createClientAddressRateLimiter,
+  createNormalizedEmailRateLimiter,
+  type ClientAddressRateLimiter,
+  type NormalizedEmailRateLimiter,
+} from "./authRateLimit.js";
 import type { HistoricalImportRepository } from "./historicalImports.js";
 import type { LeagueSetupRepository } from "./leagueSetup.js";
+import type { LeagueSeason } from "./leagueSeason.js";
 import { applyPlatformPostgresMigrations } from "./platformMigrations.js";
 import {
   createPlatformApp,
@@ -40,8 +47,33 @@ import {
   platformJobTypes,
   type PlatformJobHandlers,
 } from "./platformJobOrchestrator.js";
-import { createPlatformNodeHttpAdapter } from "./platformNodeHttp.js";
+import {
+  createPlatformNodeHttpAdapter,
+  platformSessionTokenForHeaders,
+} from "./platformNodeHttp.js";
+import {
+  createPlatformDraftToolsAdapter,
+  type PlatformDraftToolsAdapter,
+} from "./platformDraftToolsAdapter.js";
+import { buildSeasonDraftToolsOptions } from "./platformSeasonDraftTools.js";
+import { platformHostedDraftRoomHtml } from "./hostedDraftRoomUi.js";
 import { platformShellHtml } from "./platformShellUi.js";
+import {
+  InMemoryPlatformInvitationRepository,
+  type AcceptedPlatformInvitation,
+  type PlatformInvitationRepository,
+} from "./platformInvitations.js";
+import { PostgresPlatformInvitationRepository } from "./postgresPlatformInvitations.js";
+import {
+  PostgresLiveDraftRoomSetupRepository,
+  type LiveDraftRoomSetup,
+  type LiveDraftRoomSetupRepository,
+} from "./liveDraftRoomSetups.js";
+import {
+  InMemoryPlatformOnboardingRepository,
+  PostgresPlatformOnboardingRepository,
+  type PlatformOnboardingRepository,
+} from "./platformOnboarding.js";
 import type {
   SimulationMockBatchRunner,
   SimulationRepository,
@@ -68,6 +100,16 @@ export interface CreatePlatformServerOptions {
   simulationRepository?: SimulationRepository | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
+  invitationRepository?: PlatformInvitationRepository | undefined;
+  onboardingRepository?: PlatformOnboardingRepository | undefined;
+  liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
+  liveDraftRoomSetupProvider?: ((season: LeagueSeason) => Promise<LiveDraftRoomSetup | null>) | undefined;
+  provisioningToken?: string | undefined;
+  allowPublicSignup?: boolean | undefined;
+  trustProxy?: boolean | undefined;
+  accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  authClientRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
   draftToolsSessionDirectory?: string | undefined;
@@ -86,7 +128,11 @@ export interface PlatformServer {
   simulationRepository: SimulationRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
+  invitationRepository: PlatformInvitationRepository;
+  onboardingRepository: PlatformOnboardingRepository;
+  liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
   handler: PlatformHttpHandler;
+  draftToolsAdapter: PlatformDraftToolsAdapter;
   jobHandlers: PlatformJobHandlers;
   fileStore?: FilePlatformStore | undefined;
   postgresStore?: PostgresPlatformStore | undefined;
@@ -97,6 +143,8 @@ export interface PlatformServer {
   postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
   postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
+  postgresInvitationRepository?: PostgresPlatformInvitationRepository | undefined;
+  postgresLiveDraftRoomSetupRepository?: PostgresLiveDraftRoomSetupRepository | undefined;
   persist: () => Promise<void>;
   close: () => Promise<void>;
 }
@@ -114,7 +162,17 @@ export interface StartedPlatformServer extends PlatformServer {
 
 const mutatingHttpMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
 const eventStreamKeepAliveBody = ": keep-alive\n\n";
-const liveRoomMutationActions = new Set(["start", "sales", "sale", "undo", "end"]);
+const liveRoomMutationActions = new Set([
+  "start",
+  "pause",
+  "resume",
+  "sales",
+  "sale",
+  "corrections",
+  "correction",
+  "undo",
+  "end",
+]);
 
 interface LiveDraftRoomEventStreamRequest {
   roomId: string;
@@ -531,6 +589,9 @@ export const createPlatformServer = async (
     simulationRepository: SimulationRepository;
     liveDraftRoomRepository: LiveDraftRoomRepository;
     exportArtifactRepository: ExportArtifactRepository;
+    invitationRepository: PlatformInvitationRepository;
+    onboardingRepository: PlatformOnboardingRepository;
+    liveDraftRoomSetupRepository?: LiveDraftRoomSetupRepository | undefined;
     app: PlatformApp;
     platformHandler: PlatformHttpHandler;
     rawJobHandlers: PlatformJobHandlers;
@@ -543,9 +604,26 @@ export const createPlatformServer = async (
     postgresSimulationRepository?: PostgresSimulationRepository | undefined;
     postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
     postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
+    postgresInvitationRepository?: PostgresPlatformInvitationRepository | undefined;
+    postgresLiveDraftRoomSetupRepository?: PostgresLiveDraftRoomSetupRepository | undefined;
   }
 
   let runtime: Runtime;
+  const accountRateLimiter = options.accountRateLimiter ?? createNormalizedEmailRateLimiter({
+    maxAttempts: 5,
+    windowMs: 15 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const loginRateLimiter = options.loginRateLimiter ?? createNormalizedEmailRateLimiter({
+    maxAttempts: 5,
+    windowMs: 15 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
+  const authClientRateLimiter = options.authClientRateLimiter ?? createClientAddressRateLimiter({
+    maxAttempts: 30,
+    windowMs: 15 * 60 * 1_000,
+    maxTrackedEmails: 10_000,
+  });
   const runSerializedForSnapshotStore = serializeAsyncOperations();
   const runInSnapshotCriticalSection = async <T>(operation: () => Promise<T>): Promise<T> =>
     runtime.postgresStore === undefined
@@ -630,6 +708,13 @@ export const createPlatformServer = async (
     const postgresExportArtifactRepository = postgresExportArtifactClient === undefined
       ? undefined
       : new PostgresExportArtifactRepository(postgresExportArtifactClient);
+    const postgresInvitationRepository = options.postgresClient === undefined ||
+        !isTransactionalPostgresClient(options.postgresClient)
+      ? undefined
+      : new PostgresPlatformInvitationRepository(options.postgresClient);
+    const postgresLiveDraftRoomSetupRepository = options.postgresClient === undefined
+      ? undefined
+      : new PostgresLiveDraftRoomSetupRepository(options.postgresClient);
     const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
     const leagueSetupRepository = options.leagueSetupRepository ?? postgresLeagueSetupRepository ?? store;
     const historicalImportRepository = options.historicalImportRepository ?? postgresHistoricalImportRepository ?? store.historicalImports;
@@ -637,6 +722,19 @@ export const createPlatformServer = async (
     const simulationRepository = options.simulationRepository ?? postgresSimulationRepository ?? store.simulations;
     const liveDraftRoomRepository = options.liveDraftRoomRepository ?? postgresLiveDraftRoomRepository ?? store.liveDraftRooms;
     const exportArtifactRepository = options.exportArtifactRepository ?? postgresExportArtifactRepository ?? store.exportArtifacts;
+    const invitationRepository = options.invitationRepository ??
+      postgresInvitationRepository ??
+      new InMemoryPlatformInvitationRepository();
+    const onboardingRepository = options.onboardingRepository ??
+      (options.postgresClient === undefined
+        ? new InMemoryPlatformOnboardingRepository(() => store.snapshot())
+        : new PostgresPlatformOnboardingRepository(options.postgresClient));
+    const liveDraftRoomSetupRepository = options.liveDraftRoomSetupRepository ??
+      postgresLiveDraftRoomSetupRepository;
+    const liveDraftRoomSetupProvider = options.liveDraftRoomSetupProvider ??
+      (liveDraftRoomSetupRepository === undefined
+        ? undefined
+        : (season: LeagueSeason) => liveDraftRoomSetupRepository.findForSeason(season.id));
 
     if (authRepository !== store.authRepository) {
       store.clearAuthSnapshotState();
@@ -656,11 +754,49 @@ export const createPlatformServer = async (
       exportArtifactRepository,
       simulationRunner: options.simulationRunner,
     });
+    const applyAcceptedMembership = invitationRepository === postgresInvitationRepository
+      ? undefined
+      : async (result: AcceptedPlatformInvitation): Promise<void> => {
+          const season = await leagueSetupRepository.findLeagueSeason(result.invitation.seasonId);
+          if (season === null) {
+            throw new Error("The invited league season no longer exists.");
+          }
+          const memberships = await leagueSetupRepository.membershipsForLeague(season.leagueId);
+          const updatedMemberships = [
+            ...memberships.filter(candidate => candidate.userId !== result.membership.userId),
+            result.membership,
+          ];
+          await leagueSetupRepository.registerLeagueSeason({
+            season,
+            memberships: updatedMemberships,
+            createdByUserId: result.invitation.id,
+          });
+          if (leagueSetupRepository !== store) {
+            store.registerLeagueSeason({
+              season,
+              memberships: updatedMemberships,
+              createdByUserId: result.invitation.id,
+            });
+          }
+        };
 
     return {
       store,
       app,
       platformHandler: createPlatformHttpHandler(app, {
+        invitationRepository,
+        onboardingRepository,
+        ...(liveDraftRoomSetupProvider === undefined
+          ? {}
+          : {
+              liveDraftRoomSetupProvider,
+            }),
+        ...(options.provisioningToken === undefined ? {} : { provisioningToken: options.provisioningToken }),
+        ...(options.allowPublicSignup === undefined ? {} : { allowPublicSignup: options.allowPublicSignup }),
+        accountRateLimiter,
+        loginRateLimiter,
+        authClientRateLimiter,
+        ...(applyAcceptedMembership === undefined ? {} : { applyAcceptedMembership }),
         ...(options.readinessProbe === undefined ? {} : { readinessProbe: options.readinessProbe }),
       }),
       rawJobHandlers: createPlatformJobHandlers({
@@ -674,6 +810,9 @@ export const createPlatformServer = async (
       simulationRepository,
       liveDraftRoomRepository,
       exportArtifactRepository,
+      invitationRepository,
+      onboardingRepository,
+      ...(liveDraftRoomSetupRepository === undefined ? {} : { liveDraftRoomSetupRepository }),
       ...(fileStore === undefined ? {} : { fileStore }),
       ...(postgresStore === undefined ? {} : { postgresStore }),
       ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
@@ -683,6 +822,10 @@ export const createPlatformServer = async (
       ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
       ...(postgresLiveDraftRoomRepository === undefined ? {} : { postgresLiveDraftRoomRepository }),
       ...(postgresExportArtifactRepository === undefined ? {} : { postgresExportArtifactRepository }),
+      ...(postgresInvitationRepository === undefined ? {} : { postgresInvitationRepository }),
+      ...(postgresLiveDraftRoomSetupRepository === undefined
+        ? {}
+        : { postgresLiveDraftRoomSetupRepository }),
     };
   };
 
@@ -767,10 +910,41 @@ export const createPlatformServer = async (
 
     return runInSnapshotCriticalSection(() => runRequest(requestWithNow));
   };
-  const server = createServer(createPlatformNodeHttpAdapter(handler, {
+  const draftToolsAdapter = createPlatformDraftToolsAdapter({
+    authorizeSeason: async (account, seasonId) => {
+      const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
+      if (season === null) return false;
+
+      return await runtime.leagueSetupRepository.findMembership(account.id, season.leagueId) !== null;
+    },
+    baseSessionDirectory: options.draftToolsSessionDirectory ?? "data/platform-draft-tools",
+    resolveSeasonOptions: async seasonId => {
+      const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
+      if (season === null) return null;
+      const storedSetup = await runtime.liveDraftRoomSetupRepository?.findForSeason(seasonId) ?? null;
+      const setup = storedSetup ?? await options.liveDraftRoomSetupProvider?.(season) ?? null;
+      if (setup === null) return null;
+
+      return await buildSeasonDraftToolsOptions(season, setup);
+    },
+    resolveAccount: async request => {
+      const sessionToken = platformSessionTokenForHeaders(request.headers);
+      if (sessionToken === undefined) return null;
+
+      return await runtime.app.findAccountBySessionToken(sessionToken, options.now?.());
+    },
+  });
+  const platformNodeHandler = createPlatformNodeHttpAdapter(handler, {
     appHtml: platformShellHtml,
+    draftRoomHtml: platformHostedDraftRoomHtml,
     maxBodyBytes: options.bodyLimitBytes,
-  }));
+    trustProxy: options.trustProxy,
+  });
+  const server = createServer(async (request, response) => {
+    if (await draftToolsAdapter(request, response)) return;
+
+    await platformNodeHandler(request, response);
+  });
   const platformServer = {
     server,
     get app() {
@@ -800,12 +974,25 @@ export const createPlatformServer = async (
     get exportArtifactRepository() {
       return runtime.exportArtifactRepository;
     },
+    get invitationRepository() {
+      return runtime.invitationRepository;
+    },
+    get onboardingRepository() {
+      return runtime.onboardingRepository;
+    },
+    get liveDraftRoomSetupRepository() {
+      return runtime.liveDraftRoomSetupRepository;
+    },
     handler,
+    draftToolsAdapter,
     get jobHandlers() {
       return jobHandlers;
     },
     persist,
-    close: () => closeServer(server),
+    close: async () => {
+      await closeServer(server);
+      await draftToolsAdapter.close();
+    },
     get fileStore() {
       return runtime.fileStore;
     },
@@ -832,6 +1019,12 @@ export const createPlatformServer = async (
     },
     get postgresExportArtifactRepository() {
       return runtime.postgresExportArtifactRepository;
+    },
+    get postgresInvitationRepository() {
+      return runtime.postgresInvitationRepository;
+    },
+    get postgresLiveDraftRoomSetupRepository() {
+      return runtime.postgresLiveDraftRoomSetupRepository;
     },
   };
 
@@ -882,7 +1075,19 @@ export const startPlatformServer = async (
     get exportArtifactRepository() {
       return platformServer.exportArtifactRepository;
     },
+    get invitationRepository() {
+      return platformServer.invitationRepository;
+    },
+    get onboardingRepository() {
+      return platformServer.onboardingRepository;
+    },
+    get liveDraftRoomSetupRepository() {
+      return platformServer.liveDraftRoomSetupRepository;
+    },
     handler: platformServer.handler,
+    get draftToolsAdapter() {
+      return platformServer.draftToolsAdapter;
+    },
     get jobHandlers() {
       return platformServer.jobHandlers;
     },

@@ -12,7 +12,6 @@ describe("platform shell UI", () => {
       ["Board", "/board"],
       ["Mock drafts", "/mock-drafts"],
       ["Simulations", "/simulations"],
-      ["Strategy", "/strategy"],
       ["Live draft", "/draft-room"],
     ]);
     expect(draftRoomPathFor({ seasonId: "season 2026", roomId: "room/live" })).toBe(
@@ -29,7 +28,9 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("id=\"auth-title\"");
     expect(platformShellHtml).toContain("id=\"auth-submit-button\"");
     expect(platformShellHtml).toContain("id=\"auth-mode-link\"");
-    expect(platformShellHtml).toContain("href=\"/signup\"");
+    expect(platformShellHtml).toContain("Need access? Ask your commissioner for an invitation.");
+    expect(platformShellHtml).toContain("setHidden(authModeLink, !signupMode)");
+    expect(platformShellHtml).toContain("invitationToken: signupInvitationToken()");
     expect(platformShellHtml).toContain("href=\"/login\"");
     expect(platformShellHtml).toContain("minlength=\"8\"");
     expect(platformShellHtml).toContain("autocomplete=\"new-password\"");
@@ -42,8 +43,14 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("id=\"my-team-name\"");
     expect(platformShellHtml).toContain("id=\"membership-role\"");
     expect(platformShellHtml).toContain("selectedLeague.membership");
+    expect(platformShellHtml).toContain("selectedLeague.membership?.ownerDisplayName");
+    expect(platformShellHtml).toContain("query.set(\"owner\", ownerDisplayName)");
     expect(platformShellHtml).toContain("selectedLeague.liveDraft?.roomId");
     expect(platformShellHtml).toContain("draftRoomPathFor(selectedLeague.seasonId");
+    expect(platformShellHtml).toContain("id=\"team-claim-panel\"");
+    expect(platformShellHtml).toContain("id=\"team-claim-picker\"");
+    expect(platformShellHtml).toContain("/team-claims");
+    expect(platformShellHtml).toContain("ownerScopedPaths.has(item.path) && !selectedLeague.membership?.ownerDisplayName");
   });
 
   it("role-gates setup and renders actionable invitation controls", () => {
@@ -54,11 +61,31 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("id=\"setup-rows-input\"");
     expect(platformShellHtml).toContain("id=\"setup-preview-button\"");
     expect(platformShellHtml).toContain("id=\"setup-apply-button\"");
+    expect(platformShellHtml).toContain("id=\"setup-preview-table\"");
+    expect(platformShellHtml).toContain("id=\"setup-team-table\"");
+    expect(platformShellHtml).toContain("id=\"setup-team-body\"");
+    expect(platformShellHtml).toContain("teams.length + \" teams configured.\"");
+    expect(platformShellHtml).toContain('fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId)');
+    expect(platformShellHtml).toContain("setupImport.records || []");
     expect(platformShellHtml).toContain("id=\"setup-invitations\"");
+    expect(platformShellHtml).toContain("id=\"create-live-room-button\"");
+    expect(platformShellHtml).toContain("id=\"open-setup-live-room\"");
+    expect(platformShellHtml).toContain("state.setupLocked = hasRoom");
+    expect(platformShellHtml).toContain("setupRowsInput.disabled = hasRoom");
+    expect(platformShellHtml).toContain("Team assignments are locked after the live draft room is created.");
+    expect(platformShellHtml).toContain('fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId) + "/live-room"');
+    expect(platformShellHtml).toContain("window.location.assign(draftRoomPathFor(selectedLeague.seasonId, room.roomId))");
     expect(platformShellHtml).toContain("fetch(\"/invitations?seasonId=\"");
     expect(platformShellHtml).toContain("Copy invite link");
     expect(platformShellHtml).toContain("Reissue");
+    expect(platformShellHtml).toContain("No pending invitations. Import owner emails to create invite links.");
+    expect(platformShellHtml).toContain("fetch(actionPath, { method: \"POST\", credentials: \"same-origin\" }).then(readJson)");
+    expect(platformShellHtml).toContain("fetch(\"/invitations/accept\"");
+    expect(platformShellHtml).toContain("}).then(readJson)");
+    expect(platformShellHtml).not.toContain("readJson(fetch(");
     expect(platformShellHtml).not.toContain("id=\"setup-pending-invites\"");
+    expect(platformShellHtml).toContain('link.removeAttribute("href")');
+    expect(platformShellHtml).not.toContain('["Decision support", "Strategy"');
   });
 
   it("announces loading and errors and keeps useful content first on mobile", () => {

@@ -11,14 +11,63 @@ interface AppliedMigrationRow {
   id: string;
 }
 
+interface DuplicateRealDraftRoomsRow {
+  league_season_id: string;
+  room_ids: string[];
+}
+
 const platformSchemaMigrationId = "platform-schema-v1";
 const liveRoomPausedMigrationId = "platform-live-room-paused-v2";
 const platformInvitationsMigrationId = "platform-invitations-v3";
+const liveRoomSetupMigrationId = "platform-live-room-setup-v4";
+
+const migrationStatementStartingWith = (prefix: string): string => {
+  const statement = platformPostgresMigrationStatements.find(candidate =>
+    candidate.startsWith(prefix)
+  );
+  if (statement === undefined) {
+    throw new Error(`Missing platform schema statement for ${prefix}.`);
+  }
+
+  return statement;
+};
+
+const liveRoomSetupMigrationStatements = [
+  migrationStatementStartingWith("CREATE TABLE league_season_draft_setups")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE UNIQUE INDEX draft_rooms_real_season_key")
+    .replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"),
+] as const;
 
 interface PlatformSchemaMigration {
   id: string;
   statements: readonly string[];
+  preflight?: (client: PostgresQueryClient) => Promise<void>;
 }
+
+const assertNoDuplicateRealDraftRooms = async (
+  client: PostgresQueryClient,
+): Promise<void> => {
+  const result = await client.query<DuplicateRealDraftRoomsRow>(`
+SELECT
+  league_season_id,
+  array_agg(id ORDER BY created_at ASC, id ASC) AS room_ids
+FROM draft_rooms
+WHERE room_type = 'real'
+GROUP BY league_season_id
+HAVING COUNT(*) > 1
+ORDER BY league_season_id ASC;
+`.trim());
+  if (result.rows.length === 0) return;
+
+  const duplicates = result.rows
+    .map(row => `${row.league_season_id} (${row.room_ids.join(", ")})`)
+    .join("; ");
+  throw new Error(
+    `Cannot apply ${liveRoomSetupMigrationId}: multiple real draft rooms exist for the same season: ${duplicates}. `
+    + "Preserve the authoritative room and remove or reclassify the duplicate rooms, then rerun the migration.",
+  );
+};
 
 const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
@@ -35,6 +84,11 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: platformInvitationsMigrationId,
     statements: platformInvitationSchemaStatements,
+  },
+  {
+    id: liveRoomSetupMigrationId,
+    statements: liveRoomSetupMigrationStatements,
+    preflight: assertNoDuplicateRealDraftRooms,
   },
 ];
 
@@ -80,6 +134,7 @@ export const applyPlatformPostgresMigrations = async (
       );
       if (existing.rows.length > 0) continue;
 
+      await migration.preflight?.(transactionClient);
       for (const statement of migration.statements) {
         await transactionClient.query(statement);
       }
@@ -87,7 +142,7 @@ export const applyPlatformPostgresMigrations = async (
         "INSERT INTO platform_schema_migrations (id) VALUES ($1)",
         [migration.id],
       );
-      statementCount += migration.statements.length + 2;
+      statementCount += migration.statements.length + 2 + (migration.preflight === undefined ? 0 : 1);
     }
 
     return { statementCount };

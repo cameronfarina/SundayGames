@@ -671,6 +671,30 @@ const platformPostgresTables = [
     ],
   },
   {
+    name: "league_season_draft_setups",
+    columns: [
+      { name: "league_season_id", type: "text" },
+      { name: "source_version", type: "text" },
+      { name: "player_catalog_json", type: "jsonb" },
+      { name: "initial_rosters_json", type: "jsonb", default: jsonbArrayDefault },
+      { name: "content_hash", type: "text" },
+      ...timestamps,
+    ],
+    primaryKey: ["league_season_id"],
+    checkConstraints: [
+      { name: "league_season_draft_setups_catalog_array_check", expression: "jsonb_typeof(player_catalog_json) = 'array'" },
+      { name: "league_season_draft_setups_rosters_array_check", expression: "jsonb_typeof(initial_rosters_json) = 'array'" },
+    ],
+    foreignKeys: [
+      {
+        name: "league_season_draft_setups_season_id_fkey",
+        columns: ["league_season_id"],
+        references: { table: "league_seasons", columns: ["id"] },
+        onDelete: "CASCADE",
+      },
+    ],
+  },
+  {
     name: "jobs",
     columns: [
       { name: "id", type: "text" },
@@ -1279,7 +1303,7 @@ const platformPostgresTables = [
     primaryKey: ["id"],
     checkConstraints: [
       { name: "draft_rooms_room_type_check", expression: "room_type IN ('real', 'practice')" },
-      { name: "draft_rooms_status_check", expression: "status IN ('setup', 'countdown', 'live', 'ended')" },
+      { name: "draft_rooms_status_check", expression: "status IN ('setup', 'countdown', 'live', 'paused', 'ended')" },
       { name: "draft_rooms_current_revision_check", expression: "current_revision > 0" },
     ],
     foreignKeys: [
@@ -1315,6 +1339,12 @@ const platformPostgresTables = [
       },
     ],
     indexes: [
+      {
+        name: "draft_rooms_real_season_key",
+        columns: ["league_season_id"],
+        unique: true,
+        where: "room_type = 'real'",
+      },
       { name: "draft_rooms_league_season_status_idx", columns: ["league_season_id", "status"] },
     ],
   },

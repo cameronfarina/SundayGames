@@ -382,6 +382,7 @@ describe("file-backed platform store", () => {
       roomId: room.roomId,
       expectedRevision: sold.revision,
       idempotencyKey: "end:room_export_artifact",
+      allowIncomplete: true,
       now: new Date(now.getTime() + 3_900),
     });
     const exportArtifact = await app.createLiveDraftRoomExportArtifact({

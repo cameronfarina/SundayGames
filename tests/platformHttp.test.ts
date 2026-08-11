@@ -2,8 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import type { AccountRecord } from "../src/platform/auth.js";
+import {
+  createClientAddressRateLimiter,
+  createNormalizedEmailRateLimiter,
+} from "../src/platform/authRateLimit.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import {
+  InMemoryPlatformInvitationRepository,
+  hashPlatformInvitationToken,
+  issuePlatformInvitation,
+} from "../src/platform/platformInvitations.js";
 import { createPlatformApp, InMemoryPlatformStore } from "../src/platform/platformApp.js";
 import {
   createPlatformHttpHandler,
@@ -109,6 +118,125 @@ const createLoggedInAccount = async (
 };
 
 describe("platform HTTP contract", () => {
+  it("connects onboarding and invitation lifecycle routes to league membership", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const invitationRepository = new InMemoryPlatformInvitationRepository();
+    const acceptedMemberships: unknown[] = [];
+    const onboardingRepository = {
+      listForUser: async (userId: string) => userId === "missing" ? [] : [{
+        leagueId: "league-214674",
+        leagueName: "Sunday Games",
+        seasonId: "league-214674-season-2026",
+        seasonYear: 2026,
+        membership: { role: "owner" as const },
+        canManageLeague: true,
+        readiness: {
+          leagueSetup: "ready" as const,
+          teamClaim: "needs_attention" as const,
+          liveDraft: "needs_attention" as const,
+        },
+        liveDraft: null,
+      }],
+    };
+    const handle = createPlatformHttpHandler(app, {
+      invitationRepository,
+      onboardingRepository,
+      allowPublicSignup: true,
+      applyAcceptedMembership: result => {
+        acceptedMemberships.push(result.membership);
+      },
+    });
+    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Sunday Games",
+      setupStatus: "published",
+    });
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [{ userId: cam.account.id, leagueId: season.leagueId, role: "owner" }],
+      now,
+    });
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (sethTeam === undefined) throw new Error("Expected Seth team fixture.");
+    await issuePlatformInvitation(invitationRepository, {
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      email: seth.account.email,
+      role: "member",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      ownerDisplayName: sethTeam.ownerDisplayName,
+      teamDisplayName: sethTeam.displayName,
+      invitedByUserId: cam.account.id,
+      now,
+      expiresAt: new Date(now.getTime() + 86_400_000),
+    }, {
+      idFactory: () => "invite_seth",
+      tokenFactory: () => "initial-token",
+    });
+
+    await expect(handle({
+      method: "GET",
+      path: "/onboarding",
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { account: { id: cam.account.id }, leagues: [{ leagueName: "Sunday Games" }] },
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/invitations?seasonId=${encodeURIComponent(season.id)}`,
+      sessionToken: seth.sessionToken,
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "membership_required" } },
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/invitations?seasonId=${encodeURIComponent(season.id)}`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { invitations: [{ id: "invite_seth", status: "pending" }] },
+    });
+
+    const reissued = await handle({
+      method: "POST",
+      path: "/invitations/invite_seth/reissue",
+      sessionToken: cam.sessionToken,
+      now,
+    });
+    expect(reissued).toMatchObject({
+      status: 200,
+      body: { invitation: { status: "pending", acceptPath: expect.stringContaining("/invite?token=") } },
+    });
+    const reissuedBody = expectBodyRecord(reissued.body);
+    const reissuedInvitation = expectBodyRecord(reissuedBody.invitation);
+    const token = new URL(expectString(reissuedInvitation.acceptPath), "http://mockd.local")
+      .searchParams.get("token");
+    if (token === null) throw new Error("Expected reissued invitation token.");
+
+    await expect(handle({
+      method: "POST",
+      path: "/invitations/accept",
+      sessionToken: seth.sessionToken,
+      body: { token },
+      now,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        invitation: { status: "accepted" },
+        membership: { userId: seth.account.id, teamId: sethTeam.id },
+      },
+    });
+    expect(acceptedMemberships).toEqual([
+      expect.objectContaining({ userId: seth.account.id, leagueId: season.leagueId }),
+    ]);
+  });
+
   it("serves unauthenticated health and readiness probes", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
@@ -247,6 +375,97 @@ describe("platform HTTP contract", () => {
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("mockd_session="));
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("HttpOnly"));
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("Secure"));
+  });
+
+  it("limits production account creation to matching pending invitations", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const invitationRepository = new InMemoryPlatformInvitationRepository();
+    await invitationRepository.savePending({
+      id: "invite_seth",
+      leagueId: "league_1",
+      seasonId: "season_2026",
+      email: "seth@example.com",
+      role: "member",
+      ownerId: "seth",
+      teamId: "team_seth",
+      ownerDisplayName: "Seth",
+      teamDisplayName: "Seth",
+      invitedByUserId: "acct_cam",
+      tokenHash: hashPlatformInvitationToken("valid-invitation-token"),
+      status: "pending",
+      expiresAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    });
+    const handle = createPlatformHttpHandler(app, { invitationRepository });
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      now,
+      body: { email: "other@example.com", password: "secure password" },
+    })).resolves.toEqual({
+      status: 403,
+      body: {
+        error: {
+          code: "invitation_required",
+          message: "Use the account link from your league invitation.",
+        },
+      },
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      now,
+      body: {
+        email: "seth@example.com",
+        password: "secure password",
+        invitationToken: "valid-invitation-token",
+      },
+    })).resolves.toMatchObject({
+      status: 201,
+      body: { account: { email: "seth@example.com" } },
+    });
+  });
+
+  it("rate limits normalized account attempts and client auth traffic", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      accountRateLimiter: createNormalizedEmailRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+      authClientRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 10,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      clientAddress: "127.0.0.1",
+      now,
+      body: { email: "User@Example.com", password: "secure password" },
+    })).resolves.toMatchObject({ status: 201 });
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      clientAddress: "127.0.0.1",
+      now,
+      body: { email: " user@example.COM ", password: "secure password" },
+    })).resolves.toEqual({
+      status: 429,
+      headers: { "Retry-After": "60" },
+      body: {
+        error: {
+          code: "auth_rate_limited",
+          message: "Too many attempts. Try again later.",
+        },
+      },
+    });
   });
 
   it("bootstraps and clears the current browser session", async () => {
@@ -486,7 +705,10 @@ describe("platform HTTP contract", () => {
 
   it("returns user-facing live sale validation errors through the HTTP boundary", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const handle = createPlatformHttpHandler(app);
+    const handle = createPlatformHttpHandler(app, {
+      allowPublicSignup: true,
+      provisioningToken: "test-provisioning-token",
+    });
     const cam = await createLoggedInAccount(handle, "cam@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
@@ -518,6 +740,7 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/live-rooms",
       sessionToken: cam.sessionToken,
+      headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
       body: {
         seasonId: season.id,
         roomId: "room_wr_limit",
@@ -619,9 +842,93 @@ describe("platform HTTP contract", () => {
     });
   });
 
+  it("provisions a season live room from the server-owned draft setup", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const liveDraftRoomSetupProvider = vi.fn(async () => ({
+      playerCatalog,
+      initialRosters: [],
+    }));
+    const handle = createPlatformHttpHandler(app, { liveDraftRoomSetupProvider });
+    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League 214674",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [
+          { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+          { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+        ],
+      },
+    });
+
+    const denied = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: seth.sessionToken,
+      body: {},
+    });
+    expect(denied).toMatchObject({
+      status: 403,
+      body: { error: { code: "shared_mutation_denied" } },
+    });
+
+    const missingSetup = await createPlatformHttpHandler(app)({
+      method: "POST",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: cam.sessionToken,
+      body: {},
+    });
+    expect(missingSetup).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "live_draft_setup_missing",
+          message: "Publish this season's player catalog and keepers before creating its live room.",
+        },
+      },
+    });
+
+    const startsAt = "2026-08-16T22:00:00.000Z";
+    const created = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/live-room`,
+      sessionToken: cam.sessionToken,
+      body: { startsAt },
+    });
+
+    expect(liveDraftRoomSetupProvider).toHaveBeenCalledWith(season);
+    expect(created).toMatchObject({
+      status: 201,
+      body: {
+        room: {
+          roomId: `room-${season.id}-real`,
+          seasonId: season.id,
+          status: "countdown",
+          startsAt: new Date(startsAt),
+          playerCatalog: expect.arrayContaining([
+            expect.objectContaining({ name: "Puka Nacua" }),
+          ]),
+        },
+      },
+    });
+  });
+
   it("routes season, simulation, mock session, live room, and export calls through PlatformApp", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const handle = createPlatformHttpHandler(app);
+    const handle = createPlatformHttpHandler(app, {
+      allowPublicSignup: true,
+      provisioningToken: "test-provisioning-token",
+    });
     const cam = await createLoggedInAccount(handle, "cam@example.com");
     const seth = await createLoggedInAccount(handle, "seth@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -1129,10 +1436,18 @@ describe("platform HTTP contract", () => {
       },
     });
 
+    await expect(handle({
+      method: "POST",
+      path: "/live-rooms",
+      sessionToken: cam.sessionToken,
+      body: {},
+    })).resolves.toMatchObject({ status: 404 });
+
     const createdRoom = await handle({
       method: "POST",
       path: "/live-rooms",
       sessionToken: cam.sessionToken,
+      headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
       body: {
         seasonId: season.id,
         roomId: "room_214674_2026",
@@ -1178,12 +1493,68 @@ describe("platform HTTP contract", () => {
       room: expect.objectContaining({ status: "live", revision: 2 }),
     });
 
+    const pausedRoom = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/pause",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 2,
+        idempotencyKey: "pause-room",
+        now: new Date(now.getTime() + 4_050),
+      },
+    });
+    expect(pausedRoom.body).toMatchObject({
+      room: expect.objectContaining({ status: "paused", revision: 3 }),
+    });
+
+    const saleWhilePaused = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/sales",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 3,
+        idempotencyKey: "sale:while-paused",
+        command: "cam puka 62",
+      },
+    });
+    expect(saleWhilePaused).toMatchObject({
+      status: 409,
+      body: { error: { code: "room_paused" } },
+    });
+
+    const resumedRoom = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/resume",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 3,
+        idempotencyKey: "resume-room",
+        now: new Date(now.getTime() + 4_075),
+      },
+    });
+    expect(resumedRoom.body).toMatchObject({
+      room: expect.objectContaining({ status: "live", revision: 4 }),
+    });
+
+    const memberRoomState = await handle({
+      method: "GET",
+      path: `/live-rooms/room_214674_2026/state?selectedTeamId=${encodeURIComponent(sethTeam.id)}`,
+      sessionToken: seth.sessionToken,
+    });
+    expect(memberRoomState.body).toMatchObject({
+      state: expect.objectContaining({
+        role: "member",
+        canMutateRoom: false,
+        selectedTeam: expect.objectContaining({ teamId: sethTeam.id }),
+      }),
+    });
+
     const mismatchedStructuredSale = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/sales",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 2,
+        expectedRevision: 4,
         idempotencyKey: "sale:mismatched-team-owner",
         structuredSale: {
           teamId: camTeam.id,
@@ -1231,7 +1602,7 @@ describe("platform HTTP contract", () => {
       path: "/live-rooms/room_214674_2026/sales",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 2,
+        expectedRevision: 4,
         command: "cam puka 62",
         now: new Date(now.getTime() + 4_600),
       },
@@ -1252,7 +1623,7 @@ describe("platform HTTP contract", () => {
       path: "/live-rooms/room_214674_2026/sales",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 2,
+        expectedRevision: 4,
         idempotencyKey: "sale:puka:62",
         command: "cam puka 62",
         now: new Date(now.getTime() + 5_000),
@@ -1261,7 +1632,7 @@ describe("platform HTTP contract", () => {
 
     expect(soldRoom.body).toMatchObject({
       room: expect.objectContaining({
-        revision: 3,
+        revision: 5,
         projection: expect.objectContaining({
           sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
         }),
@@ -1273,7 +1644,7 @@ describe("platform HTTP contract", () => {
       path: "/live-rooms/room_214674_2026/sales",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 2,
+        expectedRevision: 4,
         idempotencyKey: "sale:puka:62",
         command: "cam puka 62",
         now: new Date(now.getTime() + 5_500),
@@ -1282,7 +1653,7 @@ describe("platform HTTP contract", () => {
 
     expect(retriedSoldRoom.body).toMatchObject({
       room: expect.objectContaining({
-        revision: 3,
+        revision: 5,
         projection: expect.objectContaining({
           sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
         }),
@@ -1291,19 +1662,19 @@ describe("platform HTTP contract", () => {
 
     const saleEvents = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/events?afterRevision=2",
+      path: "/live-rooms/room_214674_2026/events?afterRevision=4",
       sessionToken: seth.sessionToken,
     });
 
     expect(saleEvents.body).toMatchObject({
       events: {
-        currentRevision: 3,
+        currentRevision: 5,
         isStale: true,
         requiresSnapshot: false,
         events: [
           expect.objectContaining({
             event: "room.sale",
-            revision: 3,
+            revision: 5,
             data: expect.objectContaining({
               sale: expect.objectContaining({ playerName: "Puka Nacua", price: 62 }),
             }),
@@ -1314,7 +1685,7 @@ describe("platform HTTP contract", () => {
 
     const saleEventStream = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/event-stream?afterRevision=2",
+      path: "/live-rooms/room_214674_2026/event-stream?afterRevision=4",
       sessionToken: seth.sessionToken,
     });
 
@@ -1323,7 +1694,7 @@ describe("platform HTTP contract", () => {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
     });
-    expect(saleEventStream.body).toContain("id: room_214674_2026:3\n");
+    expect(saleEventStream.body).toContain("id: room_214674_2026:5\n");
     expect(saleEventStream.body).toContain("event: room.sale\n");
     expect(saleEventStream.body).toContain("\"playerName\":\"Puka Nacua\"");
 
@@ -1332,7 +1703,7 @@ describe("platform HTTP contract", () => {
       path: "/live-rooms/room_214674_2026/undo",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 3,
+        expectedRevision: 5,
         idempotencyKey: "undo:puka:62",
         now: new Date(now.getTime() + 6_000),
       },
@@ -1340,21 +1711,66 @@ describe("platform HTTP contract", () => {
 
     expect(undoneRoom.body).toMatchObject({
       room: expect.objectContaining({
-        revision: 4,
+        revision: 6,
         projection: expect.objectContaining({ sales: [] }),
       }),
     });
 
-    await handle({
+    const resoldRoom = await handle({
       method: "POST",
       path: "/live-rooms/room_214674_2026/sales",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 4,
+        expectedRevision: 6,
         idempotencyKey: "sale:puka:62:after-undo",
         sale: "cam puka 62",
         now: new Date(now.getTime() + 7_000),
       },
+    });
+
+    const resoldSale = (resoldRoom.body as {
+      room: { projection: { sales: Array<{ saleEventId: string }> } };
+    }).room.projection.sales[0];
+    if (resoldSale === undefined) throw new Error("Expected the replacement sale fixture.");
+
+    const correctedRoom = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/corrections",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 7,
+        idempotencyKey: "correct:puka:seth:41",
+        saleEventId: resoldSale.saleEventId,
+        replacementSale: "seth puka 41",
+        now: new Date(now.getTime() + 7_250),
+      },
+    });
+    expect(correctedRoom.body).toMatchObject({
+      room: expect.objectContaining({
+        revision: 8,
+        projection: expect.objectContaining({
+          sales: [expect.objectContaining({ ownerDisplayName: "Seth", price: 41 })],
+        }),
+      }),
+    });
+
+    const undoneCorrection = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/undo",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 8,
+        idempotencyKey: "undo:correction:puka",
+        now: new Date(now.getTime() + 7_400),
+      },
+    });
+    expect(undoneCorrection.body).toMatchObject({
+      room: expect.objectContaining({
+        revision: 9,
+        projection: expect.objectContaining({
+          sales: [expect.objectContaining({ ownerDisplayName: "Cam", price: 62 })],
+        }),
+      }),
     });
 
     const memberExportArtifact = await handle({
@@ -1400,14 +1816,15 @@ describe("platform HTTP contract", () => {
       path: "/live-rooms/room_214674_2026/end",
       sessionToken: cam.sessionToken,
       body: {
-        expectedRevision: 5,
+        expectedRevision: 9,
         idempotencyKey: "end-room",
+        allowIncomplete: true,
         now: new Date(now.getTime() + 8_000),
       },
     });
 
     expect(endedRoom.body).toMatchObject({
-      room: expect.objectContaining({ status: "ended", revision: 6 }),
+      room: expect.objectContaining({ status: "ended", revision: 10 }),
     });
 
     const exportedRoom = await handle({
@@ -1442,7 +1859,7 @@ describe("platform HTTP contract", () => {
       artifact: expect.objectContaining({
         roomId: "room_214674_2026",
         format: "csv",
-        sourceRevision: 6,
+        sourceRevision: 10,
       }),
       content: expect.stringContaining("Puka Nacua,62"),
     });

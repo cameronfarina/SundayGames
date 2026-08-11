@@ -4,6 +4,7 @@ import {
   formatPlatformProductionReadinessReport,
   platformProductionReadinessExitCode,
   readPlatformRuntimeConfig,
+  readPlatformWebRuntimeConfig,
 } from "../src/platform/platformRuntimeConfig.js";
 
 describe("platform runtime config", () => {
@@ -17,6 +18,10 @@ describe("platform runtime config", () => {
       MOCKD_POSTGRES_SNAPSHOT_KEY: "prod",
       MOCKD_INITIALIZE_POSTGRES_SCHEMA: "true",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
+      MOCKD_TRUST_PROXY: "true",
+      MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
+      MOCKD_PROVISIONING_TOKEN: "production-provisioning-token",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
       MOCKD_WORKER_ID: "worker-a",
       MOCKD_WORKER_JOB_KINDS: "simulation",
@@ -34,6 +39,10 @@ describe("platform runtime config", () => {
       postgresSnapshotKey: "prod",
       initializePostgresSchema: true,
       draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
+      allowPublicSignup: true,
+      trustProxy: true,
+      liveDraftDataMode: "postgres",
+      provisioningToken: "production-provisioning-token",
       simulationDataMode: "local-fixtures",
       worker: {
         workerId: "worker-a",
@@ -47,6 +56,7 @@ describe("platform runtime config", () => {
   it("supports explicit local file storage when database config is absent", () => {
     const config = readPlatformRuntimeConfig({
       MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
+      MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
     });
 
     expect(config.databaseUrl).toBeUndefined();
@@ -54,6 +64,10 @@ describe("platform runtime config", () => {
     expect(config.draftToolsSessionDirectory).toBe("data/platform-draft-tools");
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
+    expect(config.liveDraftDataMode).toBe("local-fixtures");
+    expect(config.allowPublicSignup).toBe(false);
+    expect(config.trustProxy).toBe(false);
+    expect(config.provisioningToken).toBeUndefined();
     expect(config.simulationDataMode).toBe("disabled");
     expect(config.worker.workerId).toMatch(/^worker_/);
     expect(config.worker.jobKinds).toEqual(["simulation"]);
@@ -85,6 +99,12 @@ describe("platform runtime config", () => {
         MOCKD_WORKER_JOB_KINDS: "simulation,export",
       }),
     ).toThrow("MOCKD_WORKER_JOB_KINDS contains unsupported launch job kind \"export\".");
+
+    expect(() =>
+      readPlatformRuntimeConfig({
+        MOCKD_TRUST_PROXY: "sometimes",
+      }),
+    ).toThrow("MOCKD_TRUST_PROXY must be true or false.");
   });
 
   it("can require Postgres for production entrypoints", () => {
@@ -122,6 +142,33 @@ describe("platform runtime config", () => {
     }, { requireDurableStore: true }).dataFilePath).toBe("/tmp/mockd-platform.json");
   });
 
+  it("rejects local live-draft fixtures in production", () => {
+    expect(() =>
+      readPlatformRuntimeConfig({
+        NODE_ENV: "production",
+        MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
+        MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+      }),
+    ).toThrow("MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is only supported outside production.");
+  });
+
+  it("requires explicit shared storage settings for the default web mode", () => {
+    expect(() =>
+      readPlatformWebRuntimeConfig({
+        DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      }),
+    ).toThrow(
+      "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY is required for Postgres-backed web startup.",
+    );
+
+    expect(() =>
+      readPlatformWebRuntimeConfig({
+        DATABASE_URL: "file:/tmp/mockd-platform.json",
+        MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      }),
+    ).toThrow("DATABASE_URL must be a postgres:// or postgresql:// connection string.");
+  });
+
   it("reports production/domain readiness for a Postgres-backed deploy target", () => {
     const report = assessPlatformProductionReadiness({
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
@@ -149,6 +196,16 @@ describe("platform runtime config", () => {
         status: "pass",
         label: "File-backed storage",
         detail: "MOCKD_PLATFORM_DATA_FILE is not configured.",
+      },
+      {
+        status: "pass",
+        label: "Invite-only signup",
+        detail: "Public account creation is restricted to valid league invitations.",
+      },
+      {
+        status: "pass",
+        label: "Live draft data",
+        detail: "Live draft data is configured for Postgres.",
       },
       {
         status: "pass",
@@ -204,6 +261,23 @@ describe("platform runtime config", () => {
       status: "fail",
       label: "Private draft storage",
       detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY must point to a persistent volume.",
+    });
+  });
+
+  it("blocks local live-draft fixtures from production/domain readiness", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+    });
+
+    expect(report.ready).toBe(false);
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Live draft data",
+      detail: "MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is local-only.",
     });
   });
 

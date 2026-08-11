@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { keepers } from "../config/keepers.js";
+import { keepers, type KeeperDeclaration } from "../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../config/league.js";
 import { nflTeamByEspnProTeamId } from "../config/nflTeams.js";
 import {
@@ -610,7 +610,7 @@ interface InteractiveMockDraftModule {
   buildInteractiveMockDraftState(options: {
     projections: readonly ProjectionRecord[];
     historicalRecords: readonly HistoricalAuctionRecord[];
-    keepers: typeof keepers;
+    keepers: readonly KeeperDeclaration[];
     commands: readonly string[];
     watchOwner: Owner;
     strategyKey: LiveDraftStrategyKey;
@@ -684,6 +684,7 @@ interface MockBatchJob {
 export interface CreateLiveDraftServerOptions {
   sessionDirectory?: string;
   projections?: readonly ProjectionRecord[];
+  keepers?: readonly KeeperDeclaration[];
   historicalRecords?: readonly HistoricalAuctionRecord[];
   draftRoomRankings?: readonly DraftRoomRanking[];
   pricingConfig?: PricingConfig;
@@ -1298,6 +1299,7 @@ export const createLiveDraftServer = async (
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
   const draftRoomRankings = options.draftRoomRankings ?? (await loadDraftRoomRankings(defaultDraftRoomRankingPath));
   const pricingConfig = options.pricingConfig ?? (await buildPricingConfigFromSources());
+  const configuredKeepers = options.keepers ?? keepers;
   const baseSessionDirectory = options.sessionDirectory ?? defaultLiveDraftSessionDirectory;
   const sessionStorePairs = new Map<string, Promise<{
     real: FileBackedLiveDraftSessionStore;
@@ -1426,7 +1428,7 @@ export const createLiveDraftServer = async (
     const state = stateWithLatestMockRanges(buildLiveDraftState({
       projections,
       historicalRecords,
-      keepers,
+      keepers: configuredKeepers,
       watchOwner,
       scenarioKey: "expected",
       strategyKey,
@@ -1565,7 +1567,7 @@ export const createLiveDraftServer = async (
     return interactiveMockDraft.buildInteractiveMockDraftState({
       projections,
       historicalRecords,
-      keepers,
+      keepers: configuredKeepers,
       commands: commands ?? interactiveMockStore.currentCommands(),
       watchOwner,
       strategyKey,
@@ -1763,7 +1765,7 @@ export const createLiveDraftServer = async (
     return batchRunner({
       projections,
       historicalRecords,
-      keepers,
+      keepers: configuredKeepers,
       scenarioKeys: ["expected"],
       runsPerScenario: 1,
       seedPrefix: completeSeed,
@@ -1918,7 +1920,7 @@ export const createLiveDraftServer = async (
         batch = runMockBatch({
           projections,
           historicalRecords,
-          keepers,
+          keepers: configuredKeepers,
           scenarioKeys: ["expected"],
           runsPerScenario: 1,
           seedPrefix: completeSeed,
@@ -2142,7 +2144,7 @@ export const createLiveDraftServer = async (
           const segment = options.mockBatchRunner({
             projections,
             historicalRecords,
-            keepers,
+            keepers: configuredKeepers,
             scenarioKeys: ["expected"],
             runsPerScenario,
             seedPrefix: `${seedPrefix}:build-around:${normalizePlayerName(job.script.buildAround.player)}:${price}`,
@@ -2174,7 +2176,7 @@ export const createLiveDraftServer = async (
           ? options.mockBatchRunner({
             projections,
             historicalRecords,
-            keepers,
+            keepers: configuredKeepers,
             scenarioKeys: ["expected"],
             runsPerScenario,
             seedPrefix,
@@ -2188,7 +2190,7 @@ export const createLiveDraftServer = async (
           : await runMockBatchProgressively({
             projections,
             historicalRecords,
-            keepers,
+            keepers: configuredKeepers,
             scenarioKeys: ["expected"],
             runsPerScenario: totalRuns,
             seedPrefix,

@@ -18,29 +18,40 @@ describe("platform E2E runner", () => {
 
   it("builds deployed smoke config from args without treating runner flags as Playwright flags", () => {
     const config = resolvePlatformE2eRunConfig(
-      { MOCKD_E2E_RUN_ID: " smoke-123 " },
+      {
+        MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL: " commissioner@mockd.test ",
+        MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD: " commissioner password ",
+        MOCKD_E2E_DEPLOYED_MEMBER_EMAIL: " member@mockd.test ",
+        MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD: " member password ",
+        MOCKD_E2E_DEPLOYED_SEASON_ID: " smoke-season-2026 ",
+      },
       ["--base-url=https://staging.mockd.test", "--project=chromium"],
     );
 
     expect(config).toMatchObject({
       target: "deployed",
       baseUrl: "https://staging.mockd.test",
-      smokeRunId: "smoke-123",
+      smokeRunId: undefined,
+      deployedSmoke: {
+        commissionerEmail: "commissioner@mockd.test",
+        commissionerPassword: "commissioner password",
+        memberEmail: "member@mockd.test",
+        memberPassword: "member password",
+        seasonId: "smoke-season-2026",
+      },
       playwrightArgs: ["--project=chromium"],
     });
   });
 
-  it("generates a smoke namespace for deployed runs when none is provided", () => {
-    const config = resolvePlatformE2eRunConfig(
+  it("requires pre-provisioned smoke credentials and season for deployed runs", () => {
+    expect(() => resolvePlatformE2eRunConfig(
       { MOCKD_E2E_BASE_URL: "https://staging.mockd.test" },
       [],
-    );
-
-    expect(config).toMatchObject({
-      target: "deployed",
-      baseUrl: "https://staging.mockd.test",
-    });
-    expect(config.smokeRunId).toMatch(/^smoke-[0-9]{14}-[a-f0-9]{8}$/);
+    )).toThrow([
+      "Deployed platform smoke requires pre-provisioned records.",
+      "Missing: MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL, MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD,",
+      "MOCKD_E2E_DEPLOYED_MEMBER_EMAIL, MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD, MOCKD_E2E_DEPLOYED_SEASON_ID.",
+    ].join(" "));
   });
 
   it("allows deployed help without requiring a base URL", () => {
@@ -76,6 +87,16 @@ describe("platform E2E runner", () => {
       },
       [],
     )).toThrow("MOCKD_E2E_DATA_FILE only applies to local platform E2E runs.");
+  });
+
+  it("rejects fixture bootstrap secrets in deployed smoke runs", () => {
+    expect(() => resolvePlatformE2eRunConfig(
+      {
+        MOCKD_E2E_BASE_URL: "https://staging.mockd.test",
+        MOCKD_E2E_PROVISIONING_TOKEN: "must-not-be-used-remotely",
+      },
+      [],
+    )).toThrow("MOCKD_E2E_PROVISIONING_TOKEN only applies to local platform E2E runs.");
   });
 
   it("accepts the deployed /session route before login", async () => {

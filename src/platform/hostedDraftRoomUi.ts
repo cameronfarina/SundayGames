@@ -127,6 +127,21 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       flex-wrap: wrap;
     }
 
+    .header-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 8px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 5px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .header-link:hover { border-color: var(--accent); background: var(--accent-soft); }
+
     .status-chip {
       display: inline-flex;
       align-items: center;
@@ -406,12 +421,10 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         padding: 0 0 24px;
       }
 
-      .draft-header {
-        align-items: flex-start;
-        padding: 12px;
-      }
+      .draft-header { align-items: flex-start; flex-direction: column; gap: 10px; padding: 12px; }
 
-      .draft-header-meta { justify-content: flex-start; }
+      .draft-header-meta { justify-content: flex-start; width: 100%; }
+      .header-link { min-height: 44px; }
       .account-chip { display: none; }
       h1 { font-size: 22px; }
 
@@ -430,7 +443,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 
       .draft-main-grid {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-areas: "status" "sales" "team" "board";
+        grid-template-areas: "status" "board" "team" "sales";
         gap: 8px;
         margin-top: 8px;
       }
@@ -442,18 +455,25 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       .board-controls { grid-template-columns: minmax(0, 1fr) 126px; padding: 9px 12px; }
 
       .desktop-board { display: none; }
-      .mobile-board { display: block; }
+      .mobile-board {
+        display: block;
+        max-height: 58vh;
+        overflow: auto;
+        overscroll-behavior: contain;
+      }
       .board-scroll { max-height: none; overflow: visible; }
 
       .player-card {
         display: grid;
-        grid-template-columns: 40px minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 9px;
         align-items: center;
         min-height: 58px;
         padding: 8px 12px;
         border-bottom: 1px solid #232631;
       }
+
+      .player-card-actionable { grid-template-columns: 40px minmax(0, 1fr) auto; }
 
       .player-card-price { font-weight: 800; font-variant-numeric: tabular-nums; }
       .sales-panel .panel-body { max-height: 280px; overflow: auto; }
@@ -473,15 +493,20 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         <h1 id="draft-room-title">Opening draft room</h1>
       </div>
       <div class="draft-header-meta">
+        <a class="header-link" id="draft-league-home" href="/app">League home</a>
         <span class="status-chip account-chip" id="draft-account">Checking account</span>
         <span class="status-chip" id="draft-connection-status" role="status" aria-live="polite" data-state="reconnecting">
           <span class="connection-dot" aria-hidden="true"></span>
           <span id="draft-connection-label">Connecting</span>
         </span>
+        <button id="draft-sign-out" type="button" hidden>Sign out</button>
       </div>
     </header>
 
-    <div class="fatal-error" id="draft-fatal-error" role="alert" hidden></div>
+    <div class="fatal-error" id="draft-fatal-error" role="alert" hidden>
+      <span id="draft-fatal-message"></span>
+      <a class="header-link" id="draft-sign-in-link" href="/login" hidden>Sign in</a>
+    </div>
 
     <section class="panel draft-command-panel" aria-labelledby="draft-command-heading">
       <div class="panel-header">
@@ -604,10 +629,10 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         <div class="board-scroll desktop-board" tabindex="0" aria-label="Available player board">
           <table>
             <thead>
-              <tr><th scope="col">Use</th><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Market</th></tr>
+              <tr id="draft-board-head-row"><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Market</th></tr>
             </thead>
             <tbody id="draft-board-rows">
-              <tr><td colspan="6" class="loading-state">Loading players</td></tr>
+              <tr><td colspan="5" class="loading-state">Loading players</td></tr>
             </tbody>
           </table>
         </div>
@@ -638,11 +663,17 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     };
 
     const byId = id => document.getElementById(id);
+    if (seasonId) {
+      byId("draft-league-home").href = "/app?seasonId=" + encodeURIComponent(seasonId);
+    }
     const roomTitle = byId("draft-room-title");
     const accountLabel = byId("draft-account");
     const connectionStatus = byId("draft-connection-status");
     const connectionLabel = byId("draft-connection-label");
     const fatalError = byId("draft-fatal-error");
+    const fatalMessage = byId("draft-fatal-message");
+    const signInLink = byId("draft-sign-in-link");
+    const signOutButton = byId("draft-sign-out");
     const roomStatus = byId("draft-room-status");
     const revisionLabel = byId("draft-revision");
     const availableCount = byId("draft-available-count");
@@ -676,6 +707,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const playerSearch = byId("draft-player-search");
     const positionFilter = byId("draft-position-filter");
     const boardCount = byId("draft-board-count");
+    const boardHeadRow = byId("draft-board-head-row");
     const boardRows = byId("draft-board-rows");
     const boardCards = byId("draft-board-cards");
 
@@ -717,9 +749,12 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       actionFeedback.dataset.tone = tone || "neutral";
     };
 
-    const showFatalError = message => {
+    const showFatalError = (message, requiresSignIn) => {
       fatalError.hidden = false;
-      fatalError.textContent = message;
+      fatalMessage.textContent = message;
+      const returnTo = window.location.pathname + window.location.search;
+      signInLink.href = "/login?returnTo=" + encodeURIComponent(returnTo);
+      signInLink.hidden = requiresSignIn !== true;
       roomStatus.textContent = "Unavailable";
     };
 
@@ -816,27 +851,32 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       return wrapper;
     };
 
-    const playerRowFor = (player, mode) => {
+    const playerRowFor = (player, mode, canManage) => {
       if (mode === "mobile") {
         const row = document.createElement("article");
         row.className = "player-card";
+        row.classList.toggle("player-card-actionable", canManage);
         row.dataset.playerName = player.name;
         const price = document.createElement("span");
         price.className = "player-card-price";
         price.textContent = dollars(player.expectedPrice);
-        row.append(usePlayerButtonFor(player), playerIdentityFor(player), price);
+        if (canManage) row.appendChild(usePlayerButtonFor(player));
+        row.append(playerIdentityFor(player), price);
         return row;
       }
 
       const row = document.createElement("tr");
       row.dataset.playerName = player.name;
-      const useCell = document.createElement("td");
       const playerCell = document.createElement("td");
       const positionCell = document.createElement("td");
       const nflTeamCell = document.createElement("td");
       const byeCell = document.createElement("td");
       const priceCell = document.createElement("td");
-      useCell.appendChild(usePlayerButtonFor(player));
+      if (canManage) {
+        const useCell = document.createElement("td");
+        useCell.appendChild(usePlayerButtonFor(player));
+        row.appendChild(useCell);
+      }
       playerCell.appendChild(playerIdentityFor(player));
       positionCell.className = "position";
       positionCell.textContent = player.position;
@@ -844,11 +884,32 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       byeCell.textContent = player.byeWeek === undefined ? "--" : String(player.byeWeek);
       priceCell.className = "money";
       priceCell.textContent = dollars(player.expectedPrice);
-      row.append(useCell, playerCell, positionCell, nflTeamCell, byeCell, priceCell);
+      row.append(playerCell, positionCell, nflTeamCell, byeCell, priceCell);
       return row;
     };
 
+    const renderBoardHeader = canManage => {
+      const columnDefinitions = [
+        ...(canManage ? [{ label: "Use", className: "" }] : []),
+        { label: "Player", className: "" },
+        { label: "Pos", className: "" },
+        { label: "NFL", className: "" },
+        { label: "Bye", className: "" },
+        { label: "Market", className: "money" },
+      ];
+      const columns = columnDefinitions.map(column => {
+        const heading = document.createElement("th");
+        heading.scope = "col";
+        heading.textContent = column.label;
+        heading.className = column.className;
+        return heading;
+      });
+      boardHeadRow.replaceChildren(...columns);
+    };
+
     const renderBoard = model => {
+      const canManage = model.canMutateRoom === true;
+      renderBoardHeader(canManage);
       const search = normalizedText(playerSearch.value);
       const position = positionFilter.value;
       const visiblePlayers = model.board.filter(player => {
@@ -859,15 +920,15 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       const desktopFragment = document.createDocumentFragment();
       const mobileFragment = document.createDocumentFragment();
       visiblePlayers.forEach(player => {
-        desktopFragment.appendChild(playerRowFor(player, "desktop"));
-        mobileFragment.appendChild(playerRowFor(player, "mobile"));
+        desktopFragment.appendChild(playerRowFor(player, "desktop", canManage));
+        mobileFragment.appendChild(playerRowFor(player, "mobile", canManage));
       });
       boardRows.replaceChildren(desktopFragment);
       boardCards.replaceChildren(mobileFragment);
       if (visiblePlayers.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 6;
+        cell.colSpan = canManage ? 6 : 5;
         cell.className = "empty-state";
         cell.textContent = "No available players match these filters.";
         row.appendChild(cell);
@@ -1042,6 +1103,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
           await loadSnapshot();
         }
         state.reconnectAttempts = 0;
+        setConnectionState("connected", "Live");
         connectRoomUpdates();
       } catch (error) {
         state.reconnectAttempts += 1;
@@ -1174,19 +1236,21 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         return;
       }
       try {
-        const [sessionBody, seasonBody, roomBody] = await Promise.all([
-          readJson(await fetch("/session", getRequest)),
+        const sessionBody = await readJson(await fetch("/session", getRequest));
+        state.account = sessionBody.account;
+        accountLabel.textContent = state.account.email;
+        signOutButton.hidden = false;
+        const [seasonBody, roomBody] = await Promise.all([
           readJson(await fetch(seasonEndpoint(), getRequest)),
           readJson(await fetch(roomEndpoint(), getRequest)),
         ]);
-        state.account = sessionBody.account;
         state.season = seasonBody.season;
         state.room = roomBody.room;
-        accountLabel.textContent = state.account.email;
         if (state.season.id !== seasonId || state.room.seasonId !== seasonId || state.room.roomId !== roomId) {
           throw new Error("This draft room does not belong to the requested league season.");
         }
         await loadSnapshot();
+        setConnectionState("connected", "Live");
         connectRoomUpdates();
       } catch (error) {
         let message = "The draft room could not be opened.";
@@ -1195,8 +1259,25 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         } else if (error instanceof Error) {
           message = error.message;
         }
-        showFatalError(message);
+        showFatalError(message, error?.code === "auth_required");
         setConnectionState("offline", "Unavailable");
+      }
+    };
+
+    const signOut = async () => {
+      signOutButton.disabled = true;
+      try {
+        const response = await fetch("/session", {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { accept: "application/json" },
+        });
+        if (!response.ok) await readJson(response);
+        stopUpdates();
+        window.location.assign("/login");
+      } catch (error) {
+        signOutButton.disabled = false;
+        showFatalError(error instanceof Error ? error.message : "Sign out failed. Please try again.");
       }
     };
 
@@ -1233,8 +1314,9 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     });
 
     endButton.addEventListener("click", () => {
-      if (!window.confirm("End the draft? This locks the final results.")) return;
-      mutateRoom("end", {}, "Ending draft...").catch(error => setFeedback(error.message, "error"));
+      if (!window.confirm("End and lock the draft now? Any open roster slots will remain empty.")) return;
+      mutateRoom("end", { allowIncomplete: true }, "Ending draft...")
+        .catch(error => setFeedback(error.message, "error"));
     });
 
     correctionForm.addEventListener("submit", event => {
@@ -1248,6 +1330,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     });
 
     cancelCorrectionButton.addEventListener("click", closeCorrection);
+    signOutButton.addEventListener("click", () => signOut());
     exportButton.addEventListener("click", () => exportDraft().catch(error => setFeedback(error.message, "error")));
     playerSearch.addEventListener("input", () => state.model && renderBoard(state.model));
     positionFilter.addEventListener("change", () => state.model && renderBoard(state.model));
@@ -1259,7 +1342,12 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     window.addEventListener("online", () => {
       setConnectionState("reconnecting", "Reconnecting");
       stopUpdates();
-      loadSnapshot().then(connectRoomUpdates).catch(scheduleRecovery);
+      loadSnapshot()
+        .then(() => {
+          setConnectionState("connected", "Live");
+          connectRoomUpdates();
+        })
+        .catch(scheduleRecovery);
     });
     window.addEventListener("offline", () => {
       stopUpdates();

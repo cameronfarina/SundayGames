@@ -21,6 +21,10 @@ export interface PlatformRuntimeConfig {
   postgresSnapshotKey: string | undefined;
   initializePostgresSchema: boolean;
   draftToolsSessionDirectory: string;
+  allowPublicSignup: boolean;
+  trustProxy: boolean;
+  liveDraftDataMode: "postgres" | "local-fixtures";
+  provisioningToken: string | undefined;
   simulationDataMode: "disabled" | "local-fixtures";
   worker: {
     workerId: string;
@@ -139,6 +143,20 @@ const simulationDataMode = (env: PlatformRuntimeEnv): PlatformRuntimeConfig["sim
   throw new Error("MOCKD_SIMULATION_DATA_MODE must be disabled or local-fixtures.");
 };
 
+const liveDraftDataMode = (
+  env: PlatformRuntimeEnv,
+): PlatformRuntimeConfig["liveDraftDataMode"] => {
+  const value = optionalEnvString(env, "MOCKD_LIVE_DRAFT_DATA_MODE") ?? "postgres";
+  if (value !== "postgres" && value !== "local-fixtures") {
+    throw new Error("MOCKD_LIVE_DRAFT_DATA_MODE must be postgres or local-fixtures.");
+  }
+  if (value === "local-fixtures" && optionalEnvString(env, "NODE_ENV") === "production") {
+    throw new Error("MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is only supported outside production.");
+  }
+
+  return value;
+};
+
 const workerJobKinds = (env: PlatformRuntimeEnv): readonly JobKind[] => {
   const value = optionalEnvString(env, "MOCKD_WORKER_JOB_KINDS");
   if (value === undefined) return defaultWorkerJobKinds;
@@ -183,6 +201,7 @@ export const readPlatformRuntimeConfig = (
   env: PlatformRuntimeEnv = process.env,
   options: ReadPlatformRuntimeConfigOptions = {},
 ): PlatformRuntimeConfig => {
+  const parsedLiveDraftDataMode = liveDraftDataMode(env);
   const databaseUrl = databaseUrlEnv(env)?.value;
   const dataFilePath = optionalEnvString(env, "MOCKD_PLATFORM_DATA_FILE");
 
@@ -221,6 +240,10 @@ export const readPlatformRuntimeConfig = (
     postgresSnapshotKey: optionalEnvString(env, "MOCKD_POSTGRES_SNAPSHOT_KEY"),
     initializePostgresSchema: booleanEnv(env, "MOCKD_INITIALIZE_POSTGRES_SCHEMA"),
     draftToolsSessionDirectory: optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ?? defaultDraftToolsSessionDirectory,
+    allowPublicSignup: booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP"),
+    trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
+    liveDraftDataMode: parsedLiveDraftDataMode,
+    provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
     simulationDataMode: parsedSimulationDataMode,
     worker: {
       workerId: runtimeWorkerId(env),
@@ -233,6 +256,30 @@ export const readPlatformRuntimeConfig = (
       lockTtlMs: positiveIntegerEnv(env, "MOCKD_WORKER_LOCK_TTL_MS", defaultWorkerLockTtlMs),
     },
   };
+};
+
+export const readPlatformWebRuntimeConfig = (
+  env: PlatformRuntimeEnv = process.env,
+): PlatformRuntimeConfig => {
+  const config = readPlatformRuntimeConfig(env, { requireDurableStore: true });
+  if (config.databaseUrl !== undefined && !isPostgresDatabaseUrl(config.databaseUrl)) {
+    throw new Error("DATABASE_URL must be a postgres:// or postgresql:// connection string.");
+  }
+  if (config.liveDraftDataMode !== "local-fixtures" && config.databaseUrl === undefined) {
+    throw new Error(
+      "DATABASE_URL is required unless MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is set outside production.",
+    );
+  }
+  if (
+    config.liveDraftDataMode !== "local-fixtures" &&
+    optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") === undefined
+  ) {
+    throw new Error(
+      "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY is required for Postgres-backed web startup.",
+    );
+  }
+
+  return config;
 };
 
 const productionReadinessStorage = (
@@ -296,6 +343,41 @@ export const assessPlatformProductionReadiness = (
       status: "pass",
       label: "File-backed storage",
       detail: "MOCKD_PLATFORM_DATA_FILE is not configured.",
+    });
+  }
+
+  if (booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP")) {
+    checks.push({
+      status: "fail",
+      label: "Invite-only signup",
+      detail: "MOCKD_ALLOW_PUBLIC_SIGNUP must be unset or false in production.",
+    });
+  } else {
+    checks.push({
+      status: "pass",
+      label: "Invite-only signup",
+      detail: "Public account creation is restricted to valid league invitations.",
+    });
+  }
+
+  const configuredLiveDraftDataMode = optionalEnvString(env, "MOCKD_LIVE_DRAFT_DATA_MODE") ?? "postgres";
+  if (configuredLiveDraftDataMode === "postgres") {
+    checks.push({
+      status: "pass",
+      label: "Live draft data",
+      detail: "Live draft data is configured for Postgres.",
+    });
+  } else if (configuredLiveDraftDataMode === "local-fixtures") {
+    checks.push({
+      status: "fail",
+      label: "Live draft data",
+      detail: "MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is local-only.",
+    });
+  } else {
+    checks.push({
+      status: "fail",
+      label: "Live draft data",
+      detail: "MOCKD_LIVE_DRAFT_DATA_MODE must be postgres for production/domain readiness.",
     });
   }
 

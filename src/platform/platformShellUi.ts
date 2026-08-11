@@ -3,7 +3,6 @@ export const platformShellNavigation = [
   { label: "Board", path: "/board" },
   { label: "Mock drafts", path: "/mock-drafts" },
   { label: "Simulations", path: "/simulations" },
-  { label: "Strategy", path: "/strategy" },
   { label: "Live draft", path: "/draft-room" },
 ] as const;
 
@@ -303,6 +302,15 @@ export const platformShellHtml = `<!doctype html>
       padding: 12px;
     }
 
+    .table-scroll { overflow-x: auto; }
+    .setup-preview-table { border-collapse: collapse; min-width: 620px; width: 100%; }
+    .setup-preview-table th, .setup-preview-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .setup-preview-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+
     .invitation-row {
       align-items: center;
       display: flex;
@@ -333,6 +341,7 @@ export const platformShellHtml = `<!doctype html>
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
+      .room-setup { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -374,7 +383,7 @@ export const platformShellHtml = `<!doctype html>
         <button id="auth-submit-button" class="primary" type="submit">Sign in</button>
       </form>
       <p id="auth-error" class="error hidden" role="alert"></p>
-      <p><span id="auth-mode-prompt">New to Mockd?</span> <a id="auth-mode-link" href="/signup">Create an account</a><a class="visually-hidden" href="/login">Sign in</a></p>
+      <p><span id="auth-mode-prompt">Need access? Ask your commissioner for an invitation.</span> <a id="auth-mode-link" class="hidden" href="/login">Sign in</a></p>
     </section>
 
     <div id="app-shell" class="hidden">
@@ -424,6 +433,15 @@ export const platformShellHtml = `<!doctype html>
           <div class="fact"><span>My team</span><strong id="team-claim-readiness"></strong></div>
           <div class="fact"><span>Live draft</span><strong id="live-draft-readiness"></strong></div>
         </div>
+        <section id="team-claim-panel" class="workspace-section hidden" aria-labelledby="team-claim-title">
+          <h2 id="team-claim-title">Claim your team</h2>
+          <p class="lede">Choose your team before opening private draft prep.</p>
+          <div class="actions">
+            <select id="team-claim-picker" aria-label="Team to claim"></select>
+            <button id="team-claim-button" class="primary" type="button">Claim team</button>
+          </div>
+          <p id="team-claim-status" class="status" role="status" aria-live="polite"></p>
+        </section>
         <section class="workspace-section">
           <h2>Draft schedule</h2>
           <p id="next-draft-at" class="lede">No draft time scheduled.</p>
@@ -453,6 +471,13 @@ export const platformShellHtml = `<!doctype html>
           <section class="workspace-section">
             <h2>Teams and owners</h2>
             <input id="setup-season-id-input" type="hidden">
+            <p id="setup-team-summary" class="lede">Loading teams...</p>
+            <div id="setup-team-table" class="table-scroll hidden">
+              <table class="setup-preview-table">
+                <thead><tr><th>Pick</th><th>Owner</th><th>Team</th></tr></thead>
+                <tbody id="setup-team-body"></tbody>
+              </table>
+            </div>
             <details>
               <summary>Import owner list</summary>
               <div class="stack" style="margin-top: 16px">
@@ -468,10 +493,31 @@ export const platformShellHtml = `<!doctype html>
             </details>
             <p id="setup-status" class="status" role="status" aria-live="polite"></p>
             <ul id="setup-blockers" class="result-list"></ul>
+            <div id="setup-preview-table" class="table-scroll hidden">
+              <table class="setup-preview-table">
+                <thead><tr><th>Owner</th><th>Team</th><th>Email</th><th>Role</th></tr></thead>
+                <tbody id="setup-preview-body"></tbody>
+              </table>
+            </div>
           </section>
           <section class="workspace-section" aria-labelledby="invitations-title">
             <h2 id="invitations-title">Invitations</h2>
             <div id="setup-invitations" class="invitation-list"></div>
+          </section>
+          <section class="workspace-section room-setup" aria-labelledby="live-room-setup-title">
+            <h2 id="live-room-setup-title">Live draft room</h2>
+            <p class="lede">Create the shared room after teams and keepers are ready.</p>
+            <div class="stack" style="margin-top: 16px">
+              <div>
+                <label for="draft-starts-at-input">Draft time (optional)</label>
+                <input id="draft-starts-at-input" type="datetime-local">
+              </div>
+              <div class="actions">
+                <button id="create-live-room-button" class="primary" type="button">Create draft room</button>
+                <a id="open-setup-live-room" class="button primary hidden" href="/draft-room">Open draft room</a>
+              </div>
+              <p id="live-room-setup-status" class="status" role="status" aria-live="polite"></p>
+            </div>
           </section>
         </div>
       </section>
@@ -507,9 +553,14 @@ export const platformShellHtml = `<!doctype html>
       "/board": ["Draft prep", "Board", "Rank, filter, and shortlist players for your selected league."],
       "/mock-drafts": ["Practice", "Mock drafts", "Run a draft against your league settings and keep the results."],
       "/simulations": ["Modeling", "Simulations", "Compare strategy outcomes for your selected team."],
-      "/strategy": ["Decision support", "Strategy", "Review budget, roster needs, and draft targets."],
     };
-    const state = { account: null, onboarding: null, selectedLeague: null, invitations: [] };
+    const state = {
+      account: null,
+      onboarding: null,
+      selectedLeague: null,
+      invitations: [],
+      setupLocked: false,
+    };
 
     const byId = id => document.getElementById(id);
     const bootPanel = byId("boot-panel");
@@ -531,10 +582,25 @@ export const platformShellHtml = `<!doctype html>
     const leagueContext = byId("league-context");
     const leaguePicker = byId("league-picker");
     const commissionerNavItem = byId("commissioner-nav-item");
+    const teamClaimPanel = byId("team-claim-panel");
+    const teamClaimPicker = byId("team-claim-picker");
+    const teamClaimButton = byId("team-claim-button");
+    const teamClaimStatus = byId("team-claim-status");
+    const setupRowsInput = byId("setup-rows-input");
+    const setupPreviewButton = byId("setup-preview-button");
     const setupApplyButton = byId("setup-apply-button");
     const setupStatus = byId("setup-status");
     const setupBlockers = byId("setup-blockers");
+    const setupTeamSummary = byId("setup-team-summary");
+    const setupTeamTable = byId("setup-team-table");
+    const setupTeamBody = byId("setup-team-body");
+    const setupPreviewTable = byId("setup-preview-table");
+    const setupPreviewBody = byId("setup-preview-body");
     const setupInvitations = byId("setup-invitations");
+    const draftStartsAtInput = byId("draft-starts-at-input");
+    const createLiveRoomButton = byId("create-live-room-button");
+    const openSetupLiveRoom = byId("open-setup-live-room");
+    const liveRoomSetupStatus = byId("live-room-setup-status");
 
     const setHidden = (element, hidden) => element.classList.toggle("hidden", hidden);
 
@@ -567,12 +633,15 @@ export const platformShellHtml = `<!doctype html>
         ? "Use the email address where your league invitation was sent."
         : "Open your league, draft tools, and live room.";
       authSubmitButton.textContent = signupMode ? "Create account" : "Sign in";
-      authModePrompt.textContent = signupMode ? "Already have an account?" : "New to Mockd?";
-      authModeLink.textContent = signupMode ? "Sign in" : "Create an account";
+      authModePrompt.textContent = signupMode
+        ? "Already have an account?"
+        : "Need access? Ask your commissioner for an invitation.";
+      authModeLink.textContent = "Sign in";
+      setHidden(authModeLink, !signupMode);
       const modeReturnPath = routePath === "/login" || routePath === "/signup"
         ? authenticationReturnPath()
         : returnPath();
-      authModeLink.href = (signupMode ? "/login" : "/signup") + "?returnTo=" + encodeURIComponent(modeReturnPath);
+      authModeLink.href = "/login?returnTo=" + encodeURIComponent(modeReturnPath);
       passwordInput.autocomplete = signupMode ? "new-password" : "current-password";
     };
 
@@ -614,6 +683,15 @@ export const platformShellHtml = `<!doctype html>
       return path + "?" + query.toString();
     };
 
+    const ownerScopedPaths = new Set(["/board", "/mock-drafts", "/simulations"]);
+
+    const productPathFor = (path, selectedLeague) => {
+      const query = new URLSearchParams({ seasonId: selectedLeague.seasonId });
+      const ownerDisplayName = selectedLeague.membership?.ownerDisplayName;
+      if (ownerScopedPaths.has(path) && ownerDisplayName) query.set("owner", ownerDisplayName);
+      return path + "?" + query.toString();
+    };
+
     const markCurrentNavigation = () => {
       document.querySelectorAll("[data-nav-path]").forEach(link => {
         if (link.dataset.navPath === routePath) link.setAttribute("aria-current", "page");
@@ -631,13 +709,23 @@ export const platformShellHtml = `<!doctype html>
             link.href = draftRoomPathFor(selectedLeague.seasonId, roomId);
             link.removeAttribute("aria-disabled");
             link.removeAttribute("tabindex");
+          } else if (selectedLeague.canManageLeague) {
+            link.href = pathWithSeason("/setup", selectedLeague.seasonId);
+            link.removeAttribute("aria-disabled");
+            link.removeAttribute("tabindex");
           } else {
-            link.href = "/app";
+            link.removeAttribute("href");
             link.setAttribute("aria-disabled", "true");
             link.setAttribute("tabindex", "-1");
           }
+        } else if (ownerScopedPaths.has(item.path) && !selectedLeague.membership?.ownerDisplayName) {
+          link.removeAttribute("href");
+          link.setAttribute("aria-disabled", "true");
+          link.setAttribute("tabindex", "-1");
         } else {
-          link.href = item.path === "/app" ? "/app" : pathWithSeason(item.path, selectedLeague.seasonId);
+          link.href = item.path === "/app" ? "/app" : productPathFor(item.path, selectedLeague);
+          link.removeAttribute("aria-disabled");
+          link.removeAttribute("tabindex");
         }
       });
       commissionerNavItem.href = pathWithSeason("/setup", selectedLeague.seasonId);
@@ -655,7 +743,7 @@ export const platformShellHtml = `<!doctype html>
       if (!invitations.length) {
         const empty = document.createElement("p");
         empty.className = "empty-state";
-        empty.textContent = "Everyone with an email address has joined or no invitations have been created.";
+        empty.textContent = "No pending invitations. Import owner emails to create invite links.";
         setupInvitations.append(empty);
         return;
       }
@@ -698,6 +786,65 @@ export const platformShellHtml = `<!doctype html>
       });
     };
 
+    const renderSeasonTeams = season => {
+      const teams = [...(season?.teams || [])]
+        .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+      setupTeamBody.replaceChildren();
+      teams.forEach(team => {
+        const row = document.createElement("tr");
+        [team.draftOrderPosition, team.ownerDisplayName, team.displayName].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+        setupTeamBody.append(row);
+      });
+      setupTeamSummary.textContent = teams.length
+        ? teams.length + " teams configured."
+        : "No teams have been configured for this season.";
+      setHidden(setupTeamTable, teams.length === 0);
+    };
+
+    const loadClaimableTeams = async selectedLeague => {
+      const body = await readJson(await fetch(
+        "/seasons/" + encodeURIComponent(selectedLeague.seasonId),
+        { credentials: "same-origin" },
+      ));
+      const teams = [...(body.season?.teams || [])]
+        .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+      teamClaimPicker.replaceChildren();
+      teams.forEach(team => {
+        const option = document.createElement("option");
+        option.value = team.id;
+        option.dataset.ownerId = team.ownerId;
+        option.textContent = team.draftOrderPosition + ". " + team.ownerDisplayName + " · " + team.displayName;
+        teamClaimPicker.append(option);
+      });
+      teamClaimButton.disabled = teams.length === 0;
+      teamClaimStatus.textContent = teams.length ? "" : "No teams are available to claim.";
+    };
+
+    const renderLiveRoomSetup = selectedLeague => {
+      const room = selectedLeague.liveDraft;
+      const hasRoom = Boolean(room?.roomId);
+      state.setupLocked = hasRoom;
+      setHidden(createLiveRoomButton, hasRoom);
+      setHidden(openSetupLiveRoom, !hasRoom);
+      draftStartsAtInput.disabled = hasRoom;
+      setupRowsInput.disabled = hasRoom;
+      setupPreviewButton.disabled = hasRoom;
+      setupApplyButton.disabled = true;
+      if (hasRoom) {
+        openSetupLiveRoom.href = draftRoomPathFor(selectedLeague.seasonId, room.roomId);
+        liveRoomSetupStatus.textContent = "The shared draft room is ready.";
+        setupStatus.textContent = "Team assignments are locked after the live draft room is created.";
+      } else {
+        openSetupLiveRoom.removeAttribute("href");
+        liveRoomSetupStatus.textContent = "No live draft room has been created for this season.";
+        setupStatus.textContent = "";
+      }
+    };
+
     const selectedLeagueFor = onboarding => {
       const requestedSeasonId = new URLSearchParams(window.location.search).get("seasonId");
       return onboarding.leagues.find(league => league.seasonId === requestedSeasonId)
@@ -732,7 +879,12 @@ export const platformShellHtml = `<!doctype html>
         if (selectedLeague.canManageLeague) {
           byId("setup-season-id-input").value = selectedLeague.seasonId;
           renderInvitationRows(selectedLeague.invitations || []);
+          renderLiveRoomSetup(selectedLeague);
           setHidden(byId("setup-workspace"), false);
+          fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId), { credentials: "same-origin" })
+            .then(readJson)
+            .then(body => renderSeasonTeams(body.season))
+            .catch(error => { setupTeamSummary.textContent = error.message; });
           loadSeasonInvitations(selectedLeague.seasonId).catch(error => {
             setupStatus.textContent = error.message;
           });
@@ -761,6 +913,15 @@ export const platformShellHtml = `<!doctype html>
         ? new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(new Date(selectedLeague.nextDraftAt))
         : "No draft time scheduled.";
 
+      const needsTeamClaim = !membership.teamId;
+      setHidden(teamClaimPanel, !needsTeamClaim);
+      if (needsTeamClaim) {
+        loadClaimableTeams(selectedLeague).catch(error => {
+          teamClaimButton.disabled = true;
+          teamClaimStatus.textContent = error.message;
+        });
+      }
+
       const liveDraftButton = byId("open-live-draft-button");
       const roomId = selectedLeague.liveDraft?.roomId;
       if (roomId) {
@@ -775,7 +936,7 @@ export const platformShellHtml = `<!doctype html>
           liveDraftButton.removeAttribute("aria-disabled");
           liveDraftButton.removeAttribute("tabindex");
         } else {
-          liveDraftButton.href = "/app";
+          liveDraftButton.removeAttribute("href");
           liveDraftButton.setAttribute("aria-disabled", "true");
           liveDraftButton.setAttribute("tabindex", "-1");
         }
@@ -827,6 +988,13 @@ export const platformShellHtml = `<!doctype html>
       return body.account;
     };
 
+    const signupInvitationToken = () => {
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+      if (!returnTo) return null;
+      const invitationUrl = new URL(returnTo, window.location.origin);
+      return invitationUrl.pathname === "/invite" ? invitationUrl.searchParams.get("token") : null;
+    };
+
     const finishAuthentication = account => {
       if (routePath === "/login" || routePath === "/signup") {
         window.location.assign(authenticationReturnPath());
@@ -844,7 +1012,11 @@ export const platformShellHtml = `<!doctype html>
             method: "POST",
             headers: { "content-type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ email: emailInput.value, password: passwordInput.value }),
+            body: JSON.stringify({
+              email: emailInput.value,
+              password: passwordInput.value,
+              invitationToken: signupInvitationToken(),
+            }),
           }).then(readJson).then(login)
         : login();
       accountRequest
@@ -887,14 +1059,38 @@ export const platformShellHtml = `<!doctype html>
     const renderSetupResult = body => {
       const setupImport = body.import || {};
       const blockers = setupImport.blockers || [];
-      setupApplyButton.disabled = setupImport.status !== "ready" || Boolean(body.season);
-      setupStatus.textContent = body.season ? "League setup updated." : setupImport.status === "ready" ? "Ready to apply." : "Resolve the listed rows.";
+      const records = setupImport.records || [];
+      setupApplyButton.disabled = state.setupLocked || setupImport.status !== "ready" || Boolean(body.season);
+      setupStatus.textContent = body.season
+        ? (body.invitationFailures?.length
+            ? "League setup updated, but some invitations need to be retried."
+            : "League setup updated.")
+        : state.setupLocked
+          ? "Team assignments are locked after the live draft room is created."
+          : setupImport.status === "ready" ? "Ready to apply." : "Resolve the listed rows.";
       setupBlockers.replaceChildren();
       blockers.forEach(blocker => {
         const item = document.createElement("li");
         item.textContent = blocker.message || "This row needs attention.";
         setupBlockers.append(item);
       });
+      (body.invitationFailures || []).forEach(failure => {
+        const item = document.createElement("li");
+        item.textContent = failure.email + ": " + failure.message;
+        setupBlockers.append(item);
+      });
+      setupPreviewBody.replaceChildren();
+      records.forEach(record => {
+        const row = document.createElement("tr");
+        [record.ownerDisplayName, record.teamDisplayName, record.email || "No email", titleCase(record.role)]
+          .forEach(value => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.append(cell);
+          });
+        setupPreviewBody.append(row);
+      });
+      setHidden(setupPreviewTable, records.length === 0);
       if (body.invitations) renderInvitationRows(body.invitations);
     };
 
@@ -904,7 +1100,7 @@ export const platformShellHtml = `<!doctype html>
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ content: byId("setup-rows-input").value }),
+        body: JSON.stringify({ content: setupRowsInput.value }),
       }));
       renderSetupResult(body);
     };
@@ -918,6 +1114,54 @@ export const platformShellHtml = `<!doctype html>
 
     setupApplyButton.addEventListener("click", () => {
       submitSetup("apply").catch(error => { setupStatus.textContent = error.message; });
+    });
+
+    teamClaimButton.addEventListener("click", async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague || !teamClaimPicker.value) return;
+      const selectedOption = teamClaimPicker.selectedOptions[0];
+      if (!selectedOption?.dataset.ownerId) return;
+      teamClaimButton.disabled = true;
+      teamClaimStatus.textContent = "Claiming your team...";
+      try {
+        await readJson(await fetch(
+          "/seasons/" + encodeURIComponent(selectedLeague.seasonId) + "/team-claims",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              ownerId: selectedOption.dataset.ownerId,
+              teamId: teamClaimPicker.value,
+            }),
+          },
+        ));
+        await loadOnboarding();
+      } catch (error) {
+        teamClaimStatus.textContent = error.message;
+        teamClaimButton.disabled = false;
+      }
+    });
+
+    createLiveRoomButton.addEventListener("click", async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) return;
+      createLiveRoomButton.disabled = true;
+      liveRoomSetupStatus.textContent = "Creating the shared draft room...";
+      try {
+        const startsAt = draftStartsAtInput.value;
+        const body = await readJson(await fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId) + "/live-room", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(startsAt ? { startsAt: new Date(startsAt).toISOString() } : {}),
+        }));
+        const room = body.room;
+        window.location.assign(draftRoomPathFor(selectedLeague.seasonId, room.roomId));
+      } catch (error) {
+        liveRoomSetupStatus.textContent = error.message;
+        createLiveRoomButton.disabled = false;
+      }
     });
 
     setupInvitations.addEventListener("click", event => {
@@ -935,7 +1179,7 @@ export const platformShellHtml = `<!doctype html>
       const actionPath = button.dataset.invitationAction === "revoke"
         ? invitation.revokePath
         : invitation.reissuePath;
-      readJson(fetch(actionPath, { method: "POST", credentials: "same-origin" }))
+      fetch(actionPath, { method: "POST", credentials: "same-origin" }).then(readJson)
         .then(body => {
           const updatedInvitation = body.invitation || body;
           renderInvitationRows(state.invitations.map(candidate => candidate.id === invitation.id ? updatedInvitation : candidate));
@@ -954,12 +1198,12 @@ export const platformShellHtml = `<!doctype html>
         return;
       }
       byId("invite-status").textContent = "Joining league...";
-      readJson(fetch("/invitations/accept", {
+      fetch("/invitations/accept", {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({ token: token }),
-      }))
+      }).then(readJson)
         .then(body => window.location.assign("/app?seasonId=" + encodeURIComponent(body.membership.seasonId || body.invitation.seasonId)))
         .catch(error => { byId("invite-status").textContent = error.message; });
     });

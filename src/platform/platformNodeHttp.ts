@@ -1,5 +1,12 @@
 import { Buffer } from "node:buffer";
-import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
+import type {
+  IncomingHttpHeaders,
+  IncomingMessage,
+  Server,
+  ServerResponse,
+} from "node:http";
+import { isIP } from "node:net";
 import type {
   PlatformHttpErrorBody,
   PlatformHttpHandler,
@@ -20,6 +27,22 @@ export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
   draftRoomHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
+  trustProxy?: boolean | undefined;
+}
+
+export interface PlatformNodeHttpLogEntry {
+  timestamp: string;
+  level: "info" | "error";
+  event: "http_request_completed" | "http_request_error";
+  requestId: string;
+  method: string;
+  route: string;
+  status: number;
+  durationMs: number;
+}
+
+export interface ObservePlatformNodeHttpServerOptions {
+  logger?: ((entry: PlatformNodeHttpLogEntry) => void) | undefined;
 }
 
 class InvalidJsonBodyError extends Error {}
@@ -27,12 +50,159 @@ class RequestBodyTooLargeError extends Error {}
 
 const jsonContentType = "application/json; charset=utf-8";
 const htmlContentType = "text/html; charset=utf-8";
-const authShellPaths = new Set(["/", "/app", "/login", "/signup", "/setup"]);
-const draftWorkspacePaths = new Set(["/draft-room", "/mock-results", "/my-expert", "/player-news"]);
+const appShellPaths = new Set([
+  "/",
+  "/app",
+  "/login",
+  "/signup",
+  "/invite",
+  "/setup",
+  "/league",
+  "/board",
+  "/mock-drafts",
+  "/mock-results",
+  "/simulations",
+  "/strategy",
+  "/my-expert",
+  "/player-news",
+]);
+const draftWorkspacePaths = new Set(["/draft-room"]);
+const observableRouteRoots = new Set([
+  ...[...appShellPaths].map(path => path.slice(1)),
+  ...[...draftWorkspacePaths].map(path => path.slice(1)),
+  "accounts",
+  "healthz",
+  "historical-imports",
+  "invitations",
+  "jobs",
+  "live-rooms",
+  "mock-sessions",
+  "onboarding",
+  "pricing-snapshots",
+  "readyz",
+  "seasons",
+  "session",
+  "sessions",
+]);
+const observableHttpMethods = new Set([
+  "DELETE",
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "PATCH",
+  "POST",
+  "PUT",
+]);
 const defaultSecurityHeaders = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 } as const;
+const requestIds = new WeakMap<IncomingMessage, string>();
+
+const ensurePlatformRequestId = (
+  request: IncomingMessage,
+  response: ServerResponse,
+): string => {
+  const existingRequestId = requestIds.get(request);
+  if (existingRequestId !== undefined) {
+    if (!response.headersSent && !response.hasHeader("X-Request-ID")) {
+      response.setHeader("X-Request-ID", existingRequestId);
+    }
+
+    return existingRequestId;
+  }
+
+  const requestId = randomUUID();
+  requestIds.set(request, requestId);
+  response.setHeader("X-Request-ID", requestId);
+
+  return requestId;
+};
+
+const observableMethodFor = (request: IncomingMessage): string => {
+  const method = request.method?.toUpperCase() ?? "GET";
+
+  return observableHttpMethods.has(method) ? method : "OTHER";
+};
+
+const observableRouteFor = (request: IncomingMessage): string => {
+  try {
+    const segments = new URL(request.url ?? "/", "http://mockd.local").pathname
+      .split("/")
+      .filter(Boolean);
+    if (segments.length === 0) return "/";
+
+    const root = segments[0] ?? "";
+    if (!observableRouteRoots.has(root)) return "/<redacted>";
+
+    return segments.length === 1 ? `/${root}` : `/${root}/*`;
+  } catch {
+    return "/<redacted>";
+  }
+};
+
+const defaultPlatformNodeHttpLogger = (entry: PlatformNodeHttpLogEntry): void => {
+  const serializedEntry = JSON.stringify(entry);
+  if (entry.level === "error") console.error(serializedEntry);
+  else console.log(serializedEntry);
+};
+
+export const observePlatformNodeHttpServer = (
+  server: Server,
+  options: ObservePlatformNodeHttpServerOptions = {},
+): (() => void) => {
+  const logger = options.logger ?? defaultPlatformNodeHttpLogger;
+  const observeRequest = (request: IncomingMessage, response: ServerResponse): void => {
+    const requestId = ensurePlatformRequestId(request, response);
+    const method = observableMethodFor(request);
+    const route = observableRouteFor(request);
+    const startedAt = Date.now();
+    let logged = false;
+
+    const logCompletion = (
+      level: PlatformNodeHttpLogEntry["level"],
+      event: PlatformNodeHttpLogEntry["event"],
+      status: number,
+    ): void => {
+      if (logged) return;
+      logged = true;
+
+      try {
+        logger({
+          timestamp: new Date().toISOString(),
+          level,
+          event,
+          requestId,
+          method,
+          route,
+          status,
+          durationMs: Math.max(0, Date.now() - startedAt),
+        });
+      } catch {
+        // Observability must never break request handling.
+      }
+    };
+
+    response.once("finish", () => {
+      const isServerError = response.statusCode >= 500;
+      logCompletion(
+        isServerError ? "error" : "info",
+        isServerError ? "http_request_error" : "http_request_completed",
+        response.statusCode,
+      );
+    });
+    response.once("close", () => {
+      if (!response.writableFinished) logCompletion("error", "http_request_error", 499);
+    });
+    response.once("error", () => {
+      logCompletion("error", "http_request_error", response.statusCode || 500);
+    });
+  };
+
+  server.prependListener("request", observeRequest);
+
+  return () => server.off("request", observeRequest);
+};
 
 const invalidJsonResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
   status: 400,
@@ -96,7 +266,7 @@ const bearerSessionToken = (authorization: string | undefined): string | undefin
   return token === "" ? undefined : token;
 };
 
-const sessionTokenFor = (headers: IncomingHttpHeaders): string | undefined =>
+export const platformSessionTokenForHeaders = (headers: IncomingHttpHeaders): string | undefined =>
   cookieSessionToken(headerValue(headers, "cookie")) ??
   headerValue(headers, "x-session-token") ??
   bearerSessionToken(headerValue(headers, "authorization"));
@@ -177,6 +347,55 @@ const setDefaultSecurityHeaders = (response: ServerResponse): void => {
 const isDirectSecureRequest = (request: IncomingMessage): boolean =>
   "encrypted" in request.socket && request.socket.encrypted === true;
 
+const validatedClientAddress = (rawAddress: string): string | undefined => {
+  let address = rawAddress.trim();
+  if (address.startsWith("\"") && address.endsWith("\"") && address.length >= 2) {
+    address = address.slice(1, -1).trim();
+  }
+
+  const bracketedIpv6 = address.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketedIpv6?.[1] !== undefined) {
+    return isIP(bracketedIpv6[1]) === 6 ? bracketedIpv6[1] : undefined;
+  }
+
+  if (isIP(address) !== 0) return address;
+
+  const ipv4WithPort = address.match(/^(.+):(\d+)$/);
+  const ipv4Address = ipv4WithPort?.[1];
+  return ipv4Address !== undefined && isIP(ipv4Address) === 4
+    ? ipv4Address
+    : undefined;
+};
+
+const forwardedClientAddress = (headers: IncomingHttpHeaders): string | undefined => {
+  const forwarded = headerValue(headers, "forwarded");
+  if (forwarded !== undefined) {
+    const firstHop = forwarded.split(",", 1)[0] ?? "";
+    const forParameter = firstHop
+      .split(";")
+      .map(parameter => parameter.trim())
+      .find(parameter => parameter.slice(0, parameter.indexOf("=")).trim().toLowerCase() === "for");
+    const separatorIndex = forParameter?.indexOf("=") ?? -1;
+
+    return separatorIndex >= 0
+      ? validatedClientAddress(forParameter?.slice(separatorIndex + 1) ?? "")
+      : undefined;
+  }
+
+  const xForwardedFor = headerValue(headers, "x-forwarded-for");
+  if (xForwardedFor !== undefined) {
+    return validatedClientAddress(xForwardedFor.split(",", 1)[0] ?? "");
+  }
+
+  const xRealIp = headerValue(headers, "x-real-ip");
+  return xRealIp === undefined ? undefined : validatedClientAddress(xRealIp);
+};
+
+const clientAddressFor = (request: IncomingMessage, trustProxy: boolean): string | undefined =>
+  trustProxy
+    ? forwardedClientAddress(request.headers) ?? request.socket.remoteAddress
+    : request.socket.remoteAddress;
+
 const writeJsonResponse = (
   response: ServerResponse,
   platformResponse: PlatformHttpResponse,
@@ -188,7 +407,9 @@ const writeJsonResponse = (
   if (rawTextBody !== undefined && contentType?.toLowerCase().startsWith("text/event-stream") === true) {
     response.statusCode = platformResponse.status;
     for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
-      if (value !== undefined) response.setHeader(name, value);
+      if (name.toLowerCase() !== "x-request-id" && value !== undefined) {
+        response.setHeader(name, value);
+      }
     }
     setDefaultSecurityHeaders(response);
     response.setHeader("Content-Length", Buffer.byteLength(rawTextBody));
@@ -201,7 +422,9 @@ const writeJsonResponse = (
   response.statusCode = platformResponse.status;
   response.setHeader("Content-Type", jsonContentType);
   for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
-    if (value !== undefined) response.setHeader(name, value);
+    if (name.toLowerCase() !== "x-request-id" && value !== undefined) {
+      response.setHeader(name, value);
+    }
   }
   setDefaultSecurityHeaders(response);
   response.setHeader("Content-Length", Buffer.byteLength(body));
@@ -229,7 +452,7 @@ const htmlForBrowserRequest = (
   try {
     const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
     if (draftWorkspacePaths.has(pathname)) return draftRoomHtml ?? appHtml;
-    if (authShellPaths.has(pathname)) return appHtml;
+    if (appShellPaths.has(pathname)) return appHtml;
 
     return undefined;
   } catch {
@@ -240,8 +463,9 @@ const htmlForBrowserRequest = (
 const platformRequestFor = async (
   request: IncomingMessage,
   maxBodyBytes: number,
+  trustProxy: boolean,
 ): Promise<PlatformHttpRequest> => {
-  const sessionToken = sessionTokenFor(request.headers);
+  const sessionToken = platformSessionTokenForHeaders(request.headers);
 
   return {
     method: request.method ?? "GET",
@@ -250,6 +474,7 @@ const platformRequestFor = async (
     sessionToken,
     headers: platformHeadersFor(request.headers),
     isSecure: isDirectSecureRequest(request),
+    clientAddress: clientAddressFor(request, trustProxy),
   };
 };
 
@@ -260,8 +485,11 @@ export const createPlatformNodeHttpAdapter = (
   const appHtml = options.appHtml;
   const draftRoomHtml = options.draftRoomHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
+  const trustProxy = options.trustProxy ?? false;
 
   return async (request, response) => {
+    ensurePlatformRequestId(request, response);
+
     try {
       const browserHtml = htmlForBrowserRequest(request, appHtml, draftRoomHtml);
       if (browserHtml !== undefined) {
@@ -269,7 +497,7 @@ export const createPlatformNodeHttpAdapter = (
         return;
       }
 
-      const platformRequest = await platformRequestFor(request, maxBodyBytes);
+      const platformRequest = await platformRequestFor(request, maxBodyBytes, trustProxy);
       const platformResponse = await handle(platformRequest);
 
       writeJsonResponse(response, platformResponse);

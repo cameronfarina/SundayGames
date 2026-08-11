@@ -1,4 +1,9 @@
-import { AuthError } from "./auth.js";
+import { timingSafeEqual } from "node:crypto";
+import { AuthError, normalizeEmail } from "./auth.js";
+import type {
+  ClientAddressRateLimiter,
+  NormalizedEmailRateLimiter,
+} from "./authRateLimit.js";
 import type { SessionRecord } from "./auth.js";
 import { DraftExportError } from "./draftExport.js";
 import { ExportArtifactError } from "./exportArtifacts.js";
@@ -40,6 +45,20 @@ import {
   clearMockdSessionCookie,
   mockdSessionCookie,
 } from "./platformCookies.js";
+import {
+  acceptPlatformInvitation,
+  listPlatformInvitations,
+  hashPlatformInvitationToken,
+  PlatformInvitationError,
+  reissuePlatformInvitation,
+  revokePlatformInvitation,
+  type AcceptedPlatformInvitation,
+  type PlatformInvitationRepository,
+} from "./platformInvitations.js";
+import {
+  loadPlatformOnboarding,
+  type PlatformOnboardingRepository,
+} from "./platformOnboarding.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -50,6 +69,7 @@ export interface PlatformHttpRequest {
   sessionToken?: string | undefined;
   headers?: Record<string, string | undefined> | undefined;
   isSecure?: boolean | undefined;
+  clientAddress?: string | undefined;
 }
 
 export interface PlatformHttpErrorBody {
@@ -70,7 +90,19 @@ export type PlatformApp = ReturnType<typeof createPlatformApp>;
 export type PlatformHttpHandler = (request: PlatformHttpRequest) => Promise<PlatformHttpResponse>;
 
 export interface PlatformHttpServices {
+  onboardingRepository?: PlatformOnboardingRepository | undefined;
+  invitationRepository?: PlatformInvitationRepository | undefined;
+  applyAcceptedMembership?: ((result: AcceptedPlatformInvitation) => void | Promise<void>) | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
+  liveDraftRoomSetupProvider?: ((season: LeagueSeason) => Promise<{
+    playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
+    initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
+  } | null>) | undefined;
+  provisioningToken?: string | undefined;
+  allowPublicSignup?: boolean | undefined;
+  accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
+  authClientRateLimiter?: ClientAddressRateLimiter | undefined;
 }
 
 interface ParsedPlatformHttpRequest {
@@ -78,6 +110,8 @@ interface ParsedPlatformHttpRequest {
   segments: readonly string[];
   body: Record<string, unknown>;
   query: Record<string, unknown>;
+  headers: Record<string, string | undefined>;
+  clientAddress: string;
   now?: Date | undefined;
   sessionToken: string;
 }
@@ -304,8 +338,83 @@ const parsedRequestFor = (request: PlatformHttpRequest): ParsedPlatformHttpReque
     segments: url.pathname.split("/").filter(Boolean).map(segment => decodeURIComponent(segment)),
     body,
     query,
+    headers: request.headers ?? {},
+    clientAddress: request.clientAddress ?? "unknown",
     now: request.now,
     sessionToken: sessionTokenFor(request),
+  };
+};
+
+const secretMatches = (expected: string | undefined, actual: string | undefined): boolean => {
+  if (expected === undefined || actual === undefined || expected.length === 0 || actual.length === 0) return false;
+  const expectedBytes = Buffer.from(expected);
+  const actualBytes = Buffer.from(actual);
+  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
+};
+
+const hasProvisioningAccess = (
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): boolean => secretMatches(
+  services.provisioningToken,
+  headerValue(request.headers, "x-mockd-provisioning-token"),
+);
+
+const accountCreationDenied = async (
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse<PlatformHttpErrorBody> | null> => {
+  if (
+    services.allowPublicSignup === true ||
+    hasProvisioningAccess(request, services) ||
+    (services.invitationRepository === undefined && services.provisioningToken === undefined)
+  ) return null;
+  const invitationToken = optionalString(request.body.invitationToken);
+  const repository = services.invitationRepository;
+  if (invitationToken === undefined || repository === undefined) {
+    return knownError(403, "invitation_required", "Use the account link from your league invitation.");
+  }
+
+  const invitation = await repository.findByTokenHash(hashPlatformInvitationToken(invitationToken));
+  const now = request.now ?? new Date();
+  const email = normalizeEmail(stringValue(request.body.email));
+  if (
+    invitation === null ||
+    invitation.status !== "pending" ||
+    invitation.expiresAt < now ||
+    invitation.email !== email
+  ) {
+    return knownError(403, "invitation_required", "Use the account link from your league invitation.");
+  }
+
+  return null;
+};
+
+const authRateLimitResponse = (
+  email: string,
+  request: ParsedPlatformHttpRequest,
+  emailLimiter: NormalizedEmailRateLimiter | undefined,
+  clientLimiter: ClientAddressRateLimiter | undefined,
+): PlatformHttpResponse<PlatformHttpErrorBody> | null => {
+  const normalized = normalizeEmail(email);
+  const decisions = [
+    emailLimiter?.consume(normalized, request.now),
+    clientLimiter?.consume(request.clientAddress, request.now),
+  ].filter(decision => decision !== undefined);
+  const denied = decisions.find(decision => !decision.allowed);
+  if (denied === undefined) return null;
+
+  return {
+    status: 429,
+    headers: {
+      "Retry-After": String(Math.max(1, Math.ceil(denied.retryAfterMs / 1_000))),
+    },
+    body: {
+      error: {
+        code: "auth_rate_limited",
+        message: "Too many attempts. Try again later.",
+      },
+    },
   };
 };
 
@@ -393,6 +502,7 @@ const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): number => {
     case "room_not_found":
       return 404;
     case "duplicate_player":
+    case "draft_incomplete":
     case "idempotency_conflict":
     case "max_bid_exceeded":
     case "no_sale_to_undo":
@@ -456,6 +566,19 @@ const historicalImportErrorStatus = (code: HistoricalImportError["code"]): numbe
   }
 };
 
+const platformInvitationErrorStatus = (code: PlatformInvitationError["code"]): number => {
+  switch (code) {
+    case "invitation_not_found":
+      return 404;
+    case "invitation_email_mismatch":
+      return 403;
+    case "invitation_expired":
+      return 410;
+    case "invitation_unavailable":
+      return 409;
+  }
+};
+
 const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErrorBody> => {
   if (error instanceof URIError) {
     return knownError(400, "invalid_request", "Request path is invalid.");
@@ -499,6 +622,10 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof PricingSnapshotError) {
     return knownError(409, error.code, error.message);
+  }
+
+  if (error instanceof PlatformInvitationError) {
+    return knownError(platformInvitationErrorStatus(error.code), error.code, error.message);
   }
 
   return {
@@ -554,6 +681,7 @@ const setupImportKnownUsers = (value: unknown): readonly PlatformLeagueSetupImpo
 const routeSeasonSetupImport = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  invitationRepository?: PlatformInvitationRepository | undefined,
 ): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
   if (request.segments.length !== 4) return notFound();
@@ -568,6 +696,7 @@ const routeSeasonSetupImport = async (
     knownUsers: setupImportKnownUsers(request.body.knownUsers),
     ...(content === undefined ? {} : { content }),
     ...(now === undefined ? {} : { now }),
+    ...(invitationRepository === undefined ? {} : { invitationRepository }),
   };
 
   if (action === "preview") return await previewLeagueSetupImport(app, input);
@@ -654,16 +783,20 @@ const routeSeasonPricing = async (
 const routeSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [seasonRoot, seasonId, seasonAction] = request.segments;
   if (seasonRoot !== "seasons") return notFound();
 
   if (request.segments.length === 1 && request.method === "POST") {
+    if (!hasProvisioningAccess(request, services)) {
+      return knownError(403, "provisioning_required", "League creation is restricted to deployment provisioning.");
+    }
     return await registerSeason(app, request);
   }
 
   if (seasonAction === "setup-import") {
-    return await routeSeasonSetupImport(app, request);
+    return await routeSeasonSetupImport(app, request, services.invitationRepository);
   }
 
   if (seasonAction === "historical-imports") {
@@ -672,6 +805,41 @@ const routeSeason = async (
 
   if (seasonAction === "pricing" || seasonAction === "pricing-snapshots") {
     return await routeSeasonPricing(app, request);
+  }
+
+  if (seasonAction === "live-room" && request.segments.length === 3) {
+    if (request.method !== "POST") return methodNotAllowed();
+
+    await requireSeasonManager(app, request, seasonId ?? "");
+    const season = await app.getLeagueSeason({
+      actorSessionToken: request.sessionToken,
+      seasonId: seasonId ?? "",
+      now: request.now,
+    });
+    const startsAt = dateValue(request.body.startsAt);
+    if (request.body.startsAt !== undefined && startsAt === undefined) {
+      return knownError(400, "invalid_draft_time", "Choose a valid draft date and time.");
+    }
+    const setup = await services.liveDraftRoomSetupProvider?.(season) ?? null;
+    if (setup === null) {
+      return knownError(
+        409,
+        "live_draft_setup_missing",
+        "Publish this season's player catalog and keepers before creating its live room.",
+      );
+    }
+    const room = await app.createLiveDraftRoom({
+      actorSessionToken: request.sessionToken,
+      seasonId: season.id,
+      roomId: `room-${season.id}-real`,
+      viewerPasswordHashRef: `account-membership:${season.id}`,
+      ...(startsAt === undefined ? {} : { startsAt }),
+      playerCatalog: setup.playerCatalog,
+      initialRosters: setup.initialRosters,
+      now: request.now,
+    });
+
+    return { status: 201, body: { room } };
   }
 
   if (seasonAction === "team-claims" && request.segments.length === 3) {
@@ -949,11 +1117,13 @@ const routeMockSessions = async (
 const routeLiveRooms = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [, roomId, action] = request.segments;
 
   if (request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
+    if (!hasProvisioningAccess(request, services)) return notFound();
 
     const room = await app.createLiveDraftRoom({
       actorSessionToken: request.sessionToken,
@@ -984,6 +1154,20 @@ const routeLiveRooms = async (
   }
 
   if (request.segments.length !== 3) return notFound();
+
+  if (action === "state") {
+    if (request.method !== "GET") return methodNotAllowed();
+
+    const state = await app.getLiveDraftRoomState({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      selectedTeamId: optionalString(request.query.selectedTeamId),
+      viewedTeamId: optionalString(request.query.viewedTeamId),
+      now: request.now,
+    });
+
+    return { status: 200, body: { state } };
+  }
 
   if (action === "export") {
     if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed();
@@ -1066,6 +1250,30 @@ const routeLiveRooms = async (
     return { status: 200, body: { room } };
   }
 
+  if (action === "pause") {
+    const room = await app.pauseLiveDraftRoom({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      expectedRevision: optionalNumber(request.body.expectedRevision),
+      idempotencyKey: optionalString(request.body.idempotencyKey),
+      now: request.now,
+    });
+
+    return { status: 200, body: { room } };
+  }
+
+  if (action === "resume") {
+    const room = await app.resumeLiveDraftRoom({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      expectedRevision: optionalNumber(request.body.expectedRevision),
+      idempotencyKey: optionalString(request.body.idempotencyKey),
+      now: request.now,
+    });
+
+    return { status: 200, body: { room } };
+  }
+
   if (action === "sales" || action === "sale") {
     const room = await app.logLiveDraftSale({
       actorSessionToken: request.sessionToken,
@@ -1091,12 +1299,27 @@ const routeLiveRooms = async (
     return { status: 200, body: { room } };
   }
 
+  if (action === "corrections" || action === "correction") {
+    const room = await app.correctLiveDraftSale({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      expectedRevision: optionalNumber(request.body.expectedRevision),
+      idempotencyKey: optionalString(request.body.idempotencyKey),
+      saleEventId: stringValue(request.body.saleEventId),
+      replacementSale: liveDraftSaleInputFor({ sale: request.body.replacementSale }),
+      now: request.now,
+    });
+
+    return { status: 200, body: { room } };
+  }
+
   if (action === "end") {
     const room = await app.endLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
       idempotencyKey: optionalString(request.body.idempotencyKey),
+      allowIncomplete: optionalBoolean(request.body.allowIncomplete),
       now: request.now,
     });
 
@@ -1104,6 +1327,122 @@ const routeLiveRooms = async (
   }
 
   return notFound();
+};
+
+const requireRequestAccount = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+) => {
+  const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
+  if (account === null) {
+    throw new PlatformAppError("auth_required", "Sign in before using this workspace.");
+  }
+
+  return account;
+};
+
+const requireSeasonManager = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  seasonId: string,
+) => {
+  const account = await requireRequestAccount(app, request);
+  const season = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  });
+  const membership = (await app.listLeagueMemberships(season.leagueId))
+    .find(candidate => candidate.userId === account.id);
+  if (membership?.role !== "owner" && membership?.role !== "admin") {
+    throw new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can manage invitations.",
+    );
+  }
+
+  return account;
+};
+
+const routeOnboarding = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  repository: PlatformOnboardingRepository | undefined,
+): Promise<PlatformHttpResponse> => {
+  if (request.segments.length !== 1) return notFound();
+  if (request.method !== "GET") return methodNotAllowed();
+  if (repository === undefined) {
+    return knownError(503, "onboarding_unavailable", "League onboarding is not configured.");
+  }
+
+  const account = await requireRequestAccount(app, request);
+  return {
+    status: 200,
+    body: await loadPlatformOnboarding(repository, { account }),
+  };
+};
+
+const routeInvitations = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse> => {
+  const repository = services.invitationRepository;
+  if (repository === undefined) {
+    return knownError(503, "invitations_unavailable", "League invitations are not configured.");
+  }
+
+  const [, invitationId, action] = request.segments;
+  if (request.segments.length === 1) {
+    if (request.method !== "GET") return methodNotAllowed();
+    const seasonId = stringValue(request.query.seasonId);
+    await requireSeasonManager(app, request, seasonId);
+    return {
+      status: 200,
+      body: { invitations: await listPlatformInvitations(repository, seasonId) },
+    };
+  }
+
+  if (invitationId === "accept" && request.segments.length === 2) {
+    if (request.method !== "POST") return methodNotAllowed();
+    const account = await requireRequestAccount(app, request);
+    const result = await acceptPlatformInvitation(repository, {
+      token: stringValue(request.body.token),
+      account,
+      now: request.now ?? new Date(),
+    });
+    await services.applyAcceptedMembership?.(result);
+    return { status: 200, body: result };
+  }
+
+  if (request.segments.length !== 3 || (action !== "reissue" && action !== "revoke")) {
+    return notFound();
+  }
+  if (request.method !== "POST") return methodNotAllowed();
+  const invitation = await repository.findById(invitationId ?? "");
+  if (invitation === null) {
+    throw new PlatformInvitationError("invitation_not_found", "This invitation could not be found.");
+  }
+  const account = await requireSeasonManager(app, request, invitation.seasonId);
+  if (action === "revoke") {
+    return {
+      status: 200,
+      body: { invitation: await revokePlatformInvitation(repository, invitation.id, request.now ?? new Date()) },
+    };
+  }
+
+  const issuedAt = request.now ?? new Date();
+  return {
+    status: 200,
+    body: {
+      invitation: await reissuePlatformInvitation(repository, {
+        invitationId: invitation.id,
+        invitedByUserId: account.id,
+        now: issuedAt,
+        expiresAt: new Date(issuedAt.getTime() + 7 * 24 * 60 * 60 * 1_000),
+      }),
+    },
+  };
 };
 
 export const createPlatformHttpHandler = (
@@ -1137,6 +1476,15 @@ export const createPlatformHttpHandler = (
 
       if (root === "accounts" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const denied = await accountCreationDenied(parsedRequest, services);
+        if (denied !== null) return denied;
+        const rateLimited = authRateLimitResponse(
+          stringValue(parsedRequest.body.email),
+          parsedRequest,
+          services.accountRateLimiter,
+          services.authClientRateLimiter,
+        );
+        if (rateLimited !== null) return rateLimited;
 
         const account = await app.createAccount({
           email: stringValue(parsedRequest.body.email),
@@ -1149,6 +1497,13 @@ export const createPlatformHttpHandler = (
 
       if (root === "sessions" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const rateLimited = authRateLimitResponse(
+          stringValue(parsedRequest.body.email),
+          parsedRequest,
+          services.loginRateLimiter,
+          services.authClientRateLimiter,
+        );
+        if (rateLimited !== null) return rateLimited;
 
         const login = await app.login({
           email: stringValue(parsedRequest.body.email),
@@ -1162,6 +1517,8 @@ export const createPlatformHttpHandler = (
             body: invalidCredentialsBody,
           };
         }
+
+        services.loginRateLimiter?.reset(stringValue(parsedRequest.body.email));
 
         return {
           status: 200,
@@ -1206,13 +1563,17 @@ export const createPlatformHttpHandler = (
         return methodNotAllowed();
       }
 
-      if (root === "seasons") return await routeSeason(app, parsedRequest);
+      if (root === "onboarding") {
+        return await routeOnboarding(app, parsedRequest, services.onboardingRepository);
+      }
+      if (root === "invitations") return await routeInvitations(app, parsedRequest, services);
+      if (root === "seasons") return await routeSeason(app, parsedRequest, services);
       if (root === "simulations") return routeSimulations(app, parsedRequest);
       if (root === "historical-imports") return await routeHistoricalImports(app, parsedRequest);
       if (root === "pricing-snapshots") return await routePricingSnapshots(app, parsedRequest);
       if (root === "jobs") return await routeJobs(app, parsedRequest);
       if (root === "mock-sessions") return await routeMockSessions(app, parsedRequest);
-      if (root === "live-rooms") return await routeLiveRooms(app, parsedRequest);
+      if (root === "live-rooms") return await routeLiveRooms(app, parsedRequest, services);
 
       return notFound();
     } catch (error) {

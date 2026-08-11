@@ -21,6 +21,7 @@ const expectedTableOrder = [
   "model_runs",
   "pricing_snapshots",
   "player_prices",
+  "league_season_draft_setups",
   "jobs",
   "strategy_plans",
   "strategy_plan_versions",
@@ -217,6 +218,9 @@ describe("platform Postgres schema contract", () => {
       "pricing_snapshot_id",
       "player_key",
     ]);
+    expectUniqueContract("draft_rooms", "draft_rooms_real_season_key", [
+      "league_season_id",
+    ], "room_type = 'real'");
     expectUniqueContract("jobs", "jobs_user_league_season_idempotency_key", [
       "user_id",
       "league_id",

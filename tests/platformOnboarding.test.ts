@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  InMemoryPlatformOnboardingRepository,
   loadPlatformOnboarding,
   PostgresPlatformOnboardingRepository,
   type PlatformOnboardingRow,
@@ -18,6 +19,84 @@ class OnboardingClient {
 }
 
 describe("platform onboarding", () => {
+  it("builds the same onboarding view from the local platform snapshot", async () => {
+    const repository = new InMemoryPlatformOnboardingRepository(() => ({
+      leagueSeasons: [{
+        id: "season_2026",
+        leagueId: "league_1",
+        league: {
+          id: "league_1",
+          externalLeagueId: "1",
+          name: "Sunday Games",
+          provider: "mockd",
+        },
+        seasonYear: 2026,
+        setupStatus: "published",
+        teams: [{
+          id: "team_cam",
+          leagueSeasonId: "season_2026",
+          ownerId: "cam",
+          ownerDisplayName: "Cam",
+          displayName: "Cam's Team",
+          draftOrderPosition: 1,
+        }],
+        settings: {
+          expectedTeamCount: 1,
+          auction: { budgetDollars: 200, minimumBidDollars: 1 },
+          roster: {
+            rosterSize: 1,
+            lineup: { QB: 1 },
+            lineupSlotCount: 1,
+            rosterMaximums: { QB: 1, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+          },
+          keeperPolicy: { mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil" },
+        },
+        draft: { scheduledAt: "2026-08-29T18:00:00.000Z" },
+      }],
+      memberships: [{
+        userId: "acct_cam",
+        leagueId: "league_1",
+        role: "owner",
+        ownerId: "cam",
+        teamId: "team_cam",
+      }],
+      liveDraftRooms: [{
+        roomId: "room_2026",
+        leagueId: "league_1",
+        seasonId: "season_2026",
+        status: "setup",
+        startsAt: new Date("2026-08-29T18:00:00.000Z"),
+        createdAt: new Date("2026-08-10T12:00:00.000Z"),
+      }],
+    }));
+
+    const snapshot = await loadPlatformOnboarding(repository, {
+      account: { id: "acct_cam", email: "cam@example.com" },
+    });
+
+    expect(snapshot.leagues).toEqual([{
+      leagueId: "league_1",
+      leagueName: "Sunday Games",
+      seasonId: "season_2026",
+      seasonYear: 2026,
+      membership: {
+        role: "owner",
+        ownerId: "cam",
+        teamId: "team_cam",
+        ownerDisplayName: "Cam",
+        teamDisplayName: "Cam's Team",
+      },
+      canManageLeague: true,
+      readiness: {
+        leagueSetup: "ready",
+        teamClaim: "ready",
+        liveDraft: "ready",
+      },
+      nextDraftAt: "2026-08-29T18:00:00.000Z",
+      liveDraft: { roomId: "room_2026", status: "setup" },
+    }]);
+  });
+
   it("loads durable membership, claimed team, readiness, and live room identity", async () => {
     const client = new OnboardingClient([{
       league_id: "league_1",

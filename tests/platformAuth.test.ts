@@ -4,10 +4,22 @@ import {
   InMemoryAuthRepository,
   createAuthService,
   normalizeEmail,
+  type AccountRecord,
+  type CreateAccountRecordInput,
   type LoginResult,
 } from "../src/platform/auth.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
+const legacyPasswordHash = "scrypt$16384$8$1$MDEyMzQ1Njc4OWFiY2RlZg$19U3Go2tDZrZwcqamyyMiEtE0AiA5I3Cbnl1EmaIb9YIPMiiQwsl5ME7hJim9tcVF8KlOI1hg4Pc75P9hsIKbQ";
+
+class TrackingAuthRepository extends InMemoryAuthRepository {
+  createAccountStarted = false;
+
+  override createAccount(input: CreateAccountRecordInput): AccountRecord {
+    this.createAccountStarted = true;
+    return super.createAccount(input);
+  }
+}
 
 const expectLoginResult = (login: LoginResult | null): LoginResult => {
   expect(login).not.toBeNull();
@@ -20,6 +32,23 @@ const expectLoginResult = (login: LoginResult | null): LoginResult => {
 };
 
 describe("platform auth foundation", () => {
+  it("yields while deriving a password before persisting an account", async () => {
+    const repository = new TrackingAuthRepository();
+    const auth = createAuthService({ repository });
+
+    const accountPromise = auth.createUser({
+      email: "async-password@mockd.app",
+      password: "a secure password",
+      now,
+    });
+
+    expect(repository.createAccountStarted).toBe(false);
+    await expect(accountPromise).resolves.toMatchObject({
+      email: "async-password@mockd.app",
+    });
+    expect(repository.createAccountStarted).toBe(true);
+  });
+
   it("creates a user with a normalized unique email", async () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
 
@@ -56,6 +85,19 @@ describe("platform auth foundation", () => {
     ).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
   });
 
+  it("enforces the browser password minimum at the authentication boundary", async () => {
+    const auth = createAuthService({ repository: new InMemoryAuthRepository() });
+
+    await expect(auth.createUser({
+      email: "short-password@mockd.app",
+      password: "short",
+      now,
+    })).rejects.toThrow(new AuthError(
+      "invalid_password",
+      "Password must be at least 8 characters.",
+    ));
+  });
+
   it("logs in with a password and returns the raw session token only in the login result", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
@@ -86,6 +128,44 @@ describe("platform auth foundation", () => {
     expect(login.sessionToken).toEqual(expect.any(String));
     expect(login.sessionToken).not.toBe(login.session.tokenHash);
     expect(JSON.stringify(repository.sessions())).not.toContain(login.sessionToken);
+  });
+
+  it("logs in with a password hash produced by the existing scrypt format", async () => {
+    const repository = new InMemoryAuthRepository();
+    const auth = createAuthService({ repository });
+    const account = repository.createAccount({
+      id: "acct_existing",
+      email: "existing@mockd.app",
+      passwordHash: legacyPasswordHash,
+      now,
+    });
+
+    const login = expectLoginResult(await auth.login({
+      email: "existing@mockd.app",
+      password: "legacy password",
+      now,
+    }));
+
+    expect(login.account).toEqual(account);
+  });
+
+  it("keeps unknown-account login on the asynchronous password verification path", async () => {
+    const auth = createAuthService({ repository: new InMemoryAuthRepository() });
+    let loginSettled = false;
+    const loginPromise = auth.login({
+      email: "unknown@mockd.app",
+      password: "unknown password",
+      now,
+    }).then(result => {
+      loginSettled = true;
+      return result;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(loginSettled).toBe(false);
+    await expect(loginPromise).resolves.toBeNull();
   });
 
   it("looks sessions up by hashed token and ignores expired sessions", async () => {

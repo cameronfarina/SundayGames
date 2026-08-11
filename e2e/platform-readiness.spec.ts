@@ -2,8 +2,37 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { AccountRecord } from "../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
-import type { LiveDraftRoom, LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import type { LiveDraftRoom } from "../src/platform/liveDraftRooms.js";
 import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
+import type { PlatformOnboardingLeague } from "../src/platform/platformOnboarding.js";
+
+const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
+
+interface DeployedSmokeEnvironment {
+  commissionerEmail: string;
+  commissionerPassword: string;
+  memberEmail: string;
+  memberPassword: string;
+  seasonId: string;
+}
+
+const requiredDeployedEnvironment = (): DeployedSmokeEnvironment => {
+  const required = (key: string): string => {
+    const value = process.env[key]?.trim();
+    if (value === undefined || value.length === 0) {
+      throw new Error(`Deployed platform smoke requires ${key}. Provision the smoke records before running Playwright.`);
+    }
+    return value;
+  };
+
+  return {
+    commissionerEmail: required("MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL"),
+    commissionerPassword: required("MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD"),
+    memberEmail: required("MOCKD_E2E_DEPLOYED_MEMBER_EMAIL"),
+    memberPassword: required("MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD"),
+    seasonId: required("MOCKD_E2E_DEPLOYED_SEASON_ID"),
+  };
+};
 
 const smokeRunIdFromEnv = (): string | undefined => {
   const rawSmokeRunId = process.env.MOCKD_E2E_RUN_ID?.trim();
@@ -25,10 +54,8 @@ const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password"
 const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
 const baseLeagueName = "E2E League 214674";
 const leagueName = smokeRunId === undefined ? baseLeagueName : `${baseLeagueName} ${smokeRunId}`;
-const roomId = smokeRunId === undefined
-  ? "room_e2e_readiness"
-  : `room_e2e_readiness_${smokeRunId.replace(/-/g, "_")}`;
 const exportedAt = "2026-08-09T15:30:00.000Z";
+const provisioningToken = process.env.MOCKD_E2E_PROVISIONING_TOKEN?.trim() || "local-e2e-provisioning-token";
 
 interface JsonResponse<TBody> {
   status: number;
@@ -41,10 +68,6 @@ interface AccountBody {
 
 interface SeasonBody {
   season: LeagueSeason;
-}
-
-interface MembershipBody {
-  membership: PlatformLeagueMembership;
 }
 
 interface LiveDraftRoomBody {
@@ -73,18 +96,29 @@ interface ExportArtifactBody {
   content: string;
 }
 
+interface OnboardingBody {
+  leagues: readonly PlatformOnboardingLeague[];
+}
+
+interface ReadySmokeWorkspace {
+  commissionerPage: Page;
+  memberPage: Page;
+  season: LeagueSeason;
+  room: LiveDraftRoom;
+  commissionerOwnerName: string;
+  memberOwnerName: string;
+  commissionerTeamName: string;
+  memberTeamName: string;
+  salePlayerName: string;
+  salePrice: number;
+  expectedExportedInitialPlayer?: string | undefined;
+}
+
 interface BrowserSseEvent {
   type: string;
   lastEventId: string;
   data: unknown;
 }
-
-const playerCatalog = [
-  { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 8 },
-  { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 8 },
-  { name: "De'Von Achane", position: "RB", expectedPrice: 50, teamAbbreviation: "MIA", byeWeek: 12 },
-  { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 8 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 const expectOk = <TBody>(response: JsonResponse<TBody>): TBody => {
   const responseBody = JSON.stringify(response.body);
@@ -144,15 +178,17 @@ const api = async <TBody>(
   options: {
     method?: "GET" | "POST" | "PUT" | "DELETE";
     body?: unknown;
+    headers?: Record<string, string>;
   } = {},
 ): Promise<JsonResponse<TBody>> =>
-  await page.evaluate(async ({ path: requestPath, method, body }) => {
+  await page.evaluate(async ({ path: requestPath, method, body, headers }) => {
     const init: RequestInit = {
-      method,
       credentials: "same-origin",
+      ...(method === undefined ? {} : { method }),
+      ...(headers === undefined ? {} : { headers }),
     };
     if (body !== undefined) {
-      init.headers = { "content-type": "application/json" };
+      init.headers = { ...headers, "content-type": "application/json" };
       init.body = JSON.stringify(body);
     }
     const response = await fetch(requestPath, init);
@@ -166,6 +202,7 @@ const api = async <TBody>(
     path,
     method: options.method ?? "GET",
     body: options.body,
+    headers: options.headers,
   }) as JsonResponse<TBody>;
 
 const signUpAndLogIn = async (
@@ -176,12 +213,15 @@ const signUpAndLogIn = async (
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#session-label")).toHaveText(email).catch(async error => {
+  await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
     const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
     if (!authError.includes("already exists")) throw error;
 
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#session-label"), [
+    await expect(page.locator("#account-email"), [
       `Smoke account ${email} already existed but could not sign in with the configured password.`,
       "Use a fresh MOCKD_E2E_RUN_ID or set MOCKD_E2E_PASSWORD to the password used for that run.",
       authError,
@@ -189,25 +229,51 @@ const signUpAndLogIn = async (
   });
 
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.locator("#session-label")).toHaveText("Signed out");
+  await expect(page.locator("#auth-panel")).toBeVisible();
 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#session-label")).toHaveText(email);
+  await expect(page.locator("#account-email")).toHaveText(email);
 
   return expectOk(await api<AccountBody>(page, "/session")).account;
 };
 
-const pageForSignedInUser = async (
+const pageForLocalFixtureUser = async (
   browser: Browser,
   email: string,
 ): Promise<{ page: Page; account: AccountRecord }> => {
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   const page = await context.newPage();
   const account = await signUpAndLogIn(page, email);
 
   return { page, account };
+};
+
+const pageForExistingUser = async (
+  browser: Browser,
+  email: string,
+  accountPassword: string,
+): Promise<{ page: Page; account: AccountRecord }> => {
+  const context = await browser.newContext({
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const page = await context.newPage();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(accountPassword);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator("#account-email"), [
+    `Could not sign in to the pre-provisioned smoke account ${email}.`,
+    "Verify the deployed smoke credential secrets and run production provisioning verification.",
+  ].join(" ")).toHaveText(email);
+
+  return {
+    page,
+    account: expectOk(await api<AccountBody>(page, "/session")).account,
+  };
 };
 
 const teamByOwner = (
@@ -220,11 +286,11 @@ const teamByOwner = (
   return team;
 };
 
-const setupRowsFor = (camEmail: string): string =>
+const setupRowsFor = (camEmail: string, sethEmail: string): string =>
   [
     "owner,team,email,role",
     ...ownerOrder.map(owner => {
-      const email = owner === "Cam" ? camEmail : "";
+      const email = owner === "Cam" ? camEmail : owner === "Seth" ? sethEmail : "";
       const role = owner === "Cam" ? "admin" : "member";
 
       return `${owner},${owner},${email},${role}`;
@@ -234,7 +300,6 @@ const setupRowsFor = (camEmail: string): string =>
 const seedSeasonFromBrowser = async (
   page: Page,
   camAccount: AccountRecord,
-  sethAccount: AccountRecord,
 ): Promise<LeagueSeason> => {
   const season = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName,
@@ -244,6 +309,7 @@ const seedSeasonFromBrowser = async (
 
   return expectOk(await api<SeasonBody>(page, "/seasons", {
     method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
     body: {
       season,
       memberships: [
@@ -254,11 +320,6 @@ const seedSeasonFromBrowser = async (
           ownerId: camTeam.ownerId,
           teamId: camTeam.id,
         },
-        {
-          userId: sethAccount.id,
-          leagueId: season.leagueId,
-          role: "member",
-        },
       ],
     },
   })).season;
@@ -268,15 +329,45 @@ const applyCommissionerSetup = async (
   page: Page,
   season: LeagueSeason,
   camEmail: string,
-): Promise<void> => {
-  await page.goto("/setup");
-  await expect(page.locator("#session-label")).toHaveText(camEmail);
-  await page.locator("#setup-season-id-input").fill(season.id);
-  await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail));
+  sethEmail: string,
+): Promise<string> => {
+  await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#account-email")).toHaveText(camEmail);
+  await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
+  await page.getByText("Import owner list", { exact: true }).click();
+  await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail, sethEmail));
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.locator("#setup-status")).toHaveText("Ready to apply.");
-  await page.getByRole("button", { name: "Apply" }).click();
-  await expect(page.locator("#setup-status")).toHaveText("Setup applied.");
+  await expect(page.locator("#setup-preview-body tr")).toHaveCount(ownerOrder.length);
+  await page.getByRole("button", { name: "Apply changes" }).click();
+  await expect(page.locator("#setup-status")).toHaveText("League setup updated.");
+  const sethInvitation = page.locator("#setup-invitations .invitation-row").filter({ hasText: sethEmail });
+  await expect(sethInvitation).toContainText("Pending");
+  await sethInvitation.getByRole("button", { name: "Copy invite link" }).click();
+  await expect(page.locator("#setup-status")).toHaveText("Invite link copied.");
+
+  return await page.evaluate(() => navigator.clipboard.readText());
+};
+
+const createLiveRoomFromSetup = async (
+  page: Page,
+  season: LeagueSeason,
+): Promise<LiveDraftRoom> => {
+  await Promise.all([
+    page.waitForURL(/\/draft-room\?seasonId=.*&roomId=/),
+    page.getByRole("button", { name: "Create draft room" }).click(),
+  ]);
+  const roomId = new URL(page.url()).searchParams.get("roomId");
+  if (roomId === null) throw new Error("Expected created room URL to include roomId.");
+  const room = expectOk(await api<LiveDraftRoomBody>(page, `/live-rooms/${encodeURIComponent(roomId)}`)).room;
+  expect(room).toMatchObject({
+    roomId,
+    seasonId: season.id,
+    status: "setup",
+  });
+  expect(room.playerCatalog.length).toBeGreaterThan(0);
+
+  return room;
 };
 
 const waitForSaleEvent = async (
@@ -316,66 +407,252 @@ const waitForSaleEvent = async (
     afterRevision,
   }) as BrowserSseEvent;
 
-test("platform web supports signup, login, setup, team claim, live room realtime sale, end, and export artifact", async ({ browser }) => {
+const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace> => {
   const camEmail = emailFor("cam");
   const sethEmail = emailFor("seth");
-  const { page: camPage, account: camAccount } = await pageForSignedInUser(browser, camEmail);
-  const { page: sethPage, account: sethAccount } = await pageForSignedInUser(browser, sethEmail);
-  const seedSeason = await seedSeasonFromBrowser(camPage, camAccount, sethAccount);
-  await applyCommissionerSetup(camPage, seedSeason, camEmail);
+  const { page: camPage, account: camAccount } = await pageForLocalFixtureUser(browser, camEmail);
+  const seedSeason = await seedSeasonFromBrowser(camPage, camAccount);
+  const invitationUrl = await applyCommissionerSetup(camPage, seedSeason, camEmail, sethEmail);
+  const createdRoom = await createLiveRoomFromSetup(camPage, seedSeason);
+  expect(createdRoom.playerCatalog).toHaveLength(500);
+  expect(createdRoom.initialRosters).toHaveLength(7);
+  const { page: sethPage } = await pageForLocalFixtureUser(browser, sethEmail);
+  await sethPage.goto(invitationUrl);
+  await expect(sethPage.locator("#invite-workspace")).toBeVisible();
+  await Promise.all([
+    sethPage.waitForURL(/\/app\?seasonId=/),
+    sethPage.getByRole("button", { name: "Accept invitation" }).click(),
+  ]);
+  const acceptedOnboarding = expectOk(await api<{ leagues: Array<{ membership: PlatformLeagueMembership }> }>(
+    sethPage,
+    "/onboarding",
+  ));
+  await expect(sethPage.locator("#league-name")).toHaveText(leagueName);
+  await expect(sethPage.locator("#my-team-name")).toHaveText("Seth");
 
   const appliedSeason = expectOk(await api<SeasonBody>(camPage, `/seasons/${seedSeason.id}`)).season;
   const sethTeam = teamByOwner(appliedSeason, "Seth");
-  const claimedMembership = expectOk(await api<MembershipBody>(sethPage, `/seasons/${appliedSeason.id}/team-claims`, {
-    method: "POST",
-    body: {
-      ownerId: sethTeam.ownerId,
-      teamId: sethTeam.id,
-    },
-  })).membership;
-
-  expect(claimedMembership).toMatchObject({
-    userId: sethAccount.id,
-    leagueId: appliedSeason.leagueId,
+  expect(acceptedOnboarding.leagues[0]?.membership).toMatchObject({
+    role: "member",
     ownerId: sethTeam.ownerId,
     teamId: sethTeam.id,
   });
 
-  const camTeam = teamByOwner(appliedSeason, "Cam");
-  const createdRoom = expectOk(await api<LiveDraftRoomBody>(camPage, "/live-rooms", {
-    method: "POST",
-    body: {
-      seasonId: appliedSeason.id,
-      roomId,
-      viewerPasswordHashRef: "viewer-password-hash",
-      playerCatalog,
-      initialRosters: [
-        {
-          teamId: camTeam.id,
-          playerName: "De'Von Achane",
-          position: "RB",
-          price: 50,
-          expectedPrice: 50,
-        },
-      ],
-    },
-  })).room;
-  const startedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}/start`, {
-    method: "POST",
-    body: {
-      expectedRevision: createdRoom.revision,
-      idempotencyKey: `${roomId}:start`,
-    },
-  })).room;
+  return {
+    commissionerPage: camPage,
+    memberPage: sethPage,
+    season: appliedSeason,
+    room: createdRoom,
+    commissionerOwnerName: "Cam",
+    memberOwnerName: "Seth",
+    commissionerTeamName: "Cam",
+    memberTeamName: "Seth",
+    salePlayerName: "Puka Nacua",
+    salePrice: 62,
+    expectedExportedInitialPlayer: "De'Von Achane",
+  };
+};
+
+const leagueForSmokeSeason = (
+  onboarding: OnboardingBody,
+  seasonId: string,
+  actorLabel: string,
+): PlatformOnboardingLeague => {
+  const league = onboarding.leagues.find(candidate => candidate.seasonId === seasonId);
+  if (league === undefined) {
+    throw new Error(
+      `The pre-provisioned ${actorLabel} account does not have active access to smoke season ${seasonId}. ` +
+      "Verify the provisioning document before rerunning the deployed smoke.",
+    );
+  }
+
+  return league;
+};
+
+const assignedIdentityFor = (
+  league: PlatformOnboardingLeague,
+  actorLabel: string,
+): { ownerName: string; teamName: string } => {
+  const ownerName = league.membership.ownerDisplayName;
+  const teamName = league.membership.teamDisplayName;
+  if (ownerName === undefined || teamName === undefined) {
+    throw new Error(
+      `The pre-provisioned ${actorLabel} account must have an assigned team in smoke season ${league.seasonId}.`,
+    );
+  }
+
+  return { ownerName, teamName };
+};
+
+const deployedWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace> => {
+  const environment = requiredDeployedEnvironment();
+  const { page: commissionerPage } = await pageForExistingUser(
+    browser,
+    environment.commissionerEmail,
+    environment.commissionerPassword,
+  );
+  const { page: memberPage } = await pageForExistingUser(
+    browser,
+    environment.memberEmail,
+    environment.memberPassword,
+  );
+  const commissionerLeague = leagueForSmokeSeason(
+    expectOk(await api<OnboardingBody>(commissionerPage, "/onboarding")),
+    environment.seasonId,
+    "commissioner",
+  );
+  const memberLeague = leagueForSmokeSeason(
+    expectOk(await api<OnboardingBody>(memberPage, "/onboarding")),
+    environment.seasonId,
+    "member",
+  );
+  if (!commissionerLeague.canManageLeague) {
+    throw new Error("The deployed smoke commissioner must have owner or admin access.");
+  }
+  if (memberLeague.canManageLeague) {
+    throw new Error("The deployed smoke member must use a non-commissioner league membership.");
+  }
+  if (commissionerLeague.liveDraft !== null) {
+    throw new Error(
+      `Dedicated smoke season ${environment.seasonId} already has draft room ${commissionerLeague.liveDraft.roomId}. ` +
+      "Provision a fresh smoke season before rerunning this destructive deployed smoke.",
+    );
+  }
+
+  const commissionerIdentity = assignedIdentityFor(commissionerLeague, "commissioner");
+  const memberIdentity = assignedIdentityFor(memberLeague, "member");
+  if (commissionerLeague.membership.teamId === memberLeague.membership.teamId) {
+    throw new Error("The deployed smoke commissioner and member must be assigned to different teams.");
+  }
+  const season = expectOk(await api<SeasonBody>(
+    commissionerPage,
+    `/seasons/${encodeURIComponent(environment.seasonId)}`,
+  )).season;
+  expect(memberLeague.leagueId).toBe(season.leagueId);
+
+  await commissionerPage.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(commissionerPage.locator("#setup-season-id-input")).toHaveValue(season.id);
+  await expect(commissionerPage.getByRole("button", { name: "Create draft room" })).toBeEnabled();
+  const room = await createLiveRoomFromSetup(commissionerPage, season);
+  const commissionerTeam = room.projection.teams.find(
+    team => team.teamId === commissionerLeague.membership.teamId,
+  );
+  if (commissionerTeam === undefined || commissionerTeam.rosterSlotsRemaining < 1) {
+    throw new Error("The deployed smoke commissioner team must have at least one open roster slot.");
+  }
+  const salePrice = season.settings.auction.minimumBidDollars;
+  if (commissionerTeam.maxBid < salePrice) {
+    throw new Error("The deployed smoke commissioner team must be able to place at least the league minimum bid.");
+  }
+  const salePlayer = room.projection.board[0];
+  if (salePlayer === undefined) {
+    throw new Error(`Pre-provisioned smoke season ${season.id} has no available player to sell.`);
+  }
+
+  return {
+    commissionerPage,
+    memberPage,
+    season,
+    room,
+    commissionerOwnerName: commissionerIdentity.ownerName,
+    memberOwnerName: memberIdentity.ownerName,
+    commissionerTeamName: commissionerIdentity.teamName,
+    memberTeamName: memberIdentity.teamName,
+    salePlayerName: salePlayer.name,
+    salePrice,
+  };
+};
+
+const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<void> => {
+  const {
+    commissionerPage: camPage,
+    memberPage: sethPage,
+    season: appliedSeason,
+    room: createdRoom,
+    commissionerOwnerName,
+    memberOwnerName,
+    memberTeamName,
+    salePlayerName,
+    salePrice,
+    expectedExportedInitialPlayer,
+  } = workspace;
+  const roomId = createdRoom.roomId;
+
+  await Promise.all([
+    camPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+  ]);
+  await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
+  await expect(sethPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
+  await expect(sethPage.locator("#my-team-name")).toHaveText(memberTeamName);
+
+  await camPage.getByRole("link", { name: "Board", exact: true }).click();
+  await expect(camPage).toHaveURL(/\/board\?seasonId=/);
+  expect(new URL(camPage.url()).searchParams.get("owner")).toBe(commissionerOwnerName);
+  await expect(camPage.locator("#draft-room-view")).toBeVisible();
+  await expect(camPage.locator("#room-title")).toHaveText("Draft Board");
+  await expect(camPage.locator("#draft-room-view")).toHaveClass(/platform-prep/);
+  await expect(camPage.locator("#quick-sale-form")).not.toBeVisible();
+  await expect(camPage.locator("#board-count")).toContainText(`${createdRoom.projection.board.length} loaded`);
+  await expect(camPage.locator("#board .player-name").first()).toBeVisible();
+  expect(await camPage.locator("#board .player-name").count()).toBe(120);
+  await camPage.locator("#app-menu-button").click();
+  await camPage.getByRole("menuitem", { name: "League home" }).click();
+  await expect(camPage).toHaveURL(new RegExp(`/app\\?seasonId=`));
+  await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
+
+  await sethPage.getByRole("link", { name: "Mock drafts", exact: true }).click();
+  await expect(sethPage).toHaveURL(/\/mock-drafts\?seasonId=/);
+  expect(new URL(sethPage.url()).searchParams.get("owner")).toBe(memberOwnerName);
+  await expect(sethPage.locator("#draft-room-view")).toBeVisible();
+  await expect(sethPage.locator("#draft-mode-status")).toContainText("Mock draft");
+  await expect(sethPage.locator("#roster-owner")).toHaveValue(memberOwnerName);
+  await expect(sethPage.locator("#board-count")).toContainText(`${createdRoom.projection.board.length} loaded`);
+
+  await sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`);
+  await sethPage.getByRole("link", { name: "Simulations", exact: true }).click();
+  await expect(sethPage).toHaveURL(/\/simulations\?seasonId=/);
+  expect(new URL(sethPage.url()).searchParams.get("owner")).toBe(memberOwnerName);
+  await expect(sethPage.locator("#mock-simulations-view")).toBeVisible();
+
+  await Promise.all([
+    camPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+  ]);
+  await Promise.all([
+    camPage.locator("#open-live-draft-button").click(),
+    sethPage.locator("#open-live-draft-button").click(),
+  ]);
+  await expect(camPage.locator("#draft-room-view")).toBeVisible();
+  await expect(sethPage.locator("#draft-room-view")).toBeVisible();
+  await expect(camPage.locator("#draft-commissioner-controls")).toBeVisible();
+  await expect(sethPage.locator("#draft-member-note")).toBeVisible();
+  const commissionerPlayerRow = camPage.locator("#draft-board-rows [data-player-name]")
+    .filter({ hasText: salePlayerName })
+    .first();
+  const memberPlayerRow = sethPage.locator("#draft-board-rows [data-player-name]")
+    .filter({ hasText: salePlayerName })
+    .first();
+  await expect(commissionerPlayerRow).toBeVisible();
+  await expect(memberPlayerRow).toBeVisible();
+
+  await camPage.locator("#draft-start").click();
+  await expect(camPage.locator("#draft-room-status")).toHaveText("Live");
+  await expect(sethPage.locator("#draft-room-status")).toHaveText("Live");
+  const startedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
+  expect(startedRoom).toMatchObject({
+    status: "live",
+    revision: createdRoom.revision + 1,
+  });
+
   const saleEventPromise = waitForSaleEvent(sethPage, roomId, startedRoom.revision);
-  const soldRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}/sales`, {
-    method: "POST",
-    body: {
-      expectedRevision: startedRoom.revision,
-      idempotencyKey: `${roomId}:sale:puka:62`,
-      command: "cam puka 62",
-    },
-  })).room;
+  await commissionerPlayerRow.getByRole("button", { name: `Use ${salePlayerName} in sale command` }).click();
+  const saleCommand = camPage.locator("#draft-sale-command");
+  await saleCommand.fill(`${await saleCommand.inputValue()}${salePrice}`);
+  await camPage.locator("#draft-log-sale").click();
+  await expect(camPage.locator("#draft-sales")).toContainText(salePlayerName);
+  await expect(sethPage.locator("#draft-sales")).toContainText(salePlayerName);
+  const soldRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
   const saleEvent = await saleEventPromise;
 
   expect(soldRoom).toMatchObject({
@@ -384,9 +661,9 @@ test("platform web supports signup, login, setup, team claim, live room realtime
     projection: {
       sales: [
         expect.objectContaining({
-          ownerDisplayName: "Cam",
-          playerName: "Puka Nacua",
-          price: 62,
+          ownerDisplayName: commissionerOwnerName,
+          playerName: salePlayerName,
+          price: salePrice,
         }),
       ],
     },
@@ -397,9 +674,9 @@ test("platform web supports signup, login, setup, team claim, live room realtime
     data: expect.objectContaining({
       revision: soldRoom.revision,
       sale: expect.objectContaining({
-        ownerDisplayName: "Cam",
-        playerName: "Puka Nacua",
-        price: 62,
+        ownerDisplayName: commissionerOwnerName,
+        playerName: salePlayerName,
+        price: salePrice,
       }),
     }),
   });
@@ -416,17 +693,29 @@ test("platform web supports signup, login, setup, team claim, live room realtime
     }),
   ]);
 
-  const endedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}/end`, {
-    method: "POST",
-    body: {
-      expectedRevision: soldRoom.revision,
-      idempotencyKey: `${roomId}:end`,
-    },
-  })).room;
+  camPage.once("dialog", dialog => dialog.accept());
+  await camPage.locator("#draft-undo").click();
+  await expect(camPage.locator("#draft-sales")).not.toContainText(salePlayerName);
+  await expect(sethPage.locator("#draft-sales")).not.toContainText(salePlayerName);
+
+  await commissionerPlayerRow.getByRole("button", { name: `Use ${salePlayerName} in sale command` }).click();
+  await saleCommand.fill(`${await saleCommand.inputValue()}${salePrice}`);
+  await camPage.locator("#draft-log-sale").click();
+  await expect(camPage.locator("#draft-sales")).toContainText(salePlayerName);
+
+  camPage.once("dialog", dialog => dialog.accept());
+  await camPage.locator("#draft-end").click();
+  await expect(camPage.locator("#draft-room-status")).toHaveText("Complete");
+  await expect(sethPage.locator("#draft-room-status")).toHaveText("Complete");
+  const endedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
   expect(endedRoom).toMatchObject({
     status: "ended",
-    revision: soldRoom.revision + 1,
   });
+
+  const downloadPromise = camPage.waitForEvent("download");
+  await camPage.locator("#draft-export").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
 
   const exportArtifact = expectOk(await api<ExportArtifactBody>(camPage, `/live-rooms/${roomId}/export-artifacts`, {
     method: "POST",
@@ -440,6 +729,18 @@ test("platform web supports signup, login, setup, team claim, live room realtime
   });
   expect(exportArtifact.artifact.byteLength).toBe(Buffer.byteLength(exportArtifact.content, "utf8"));
   expect(exportArtifact.content).toContain("Status,ended,Revision");
-  expect(exportArtifact.content).toContain("Puka Nacua,62");
-  expect(exportArtifact.content).toContain("De'Von Achane,50");
+  expect(exportArtifact.content).toContain(`${salePlayerName},${salePrice}`);
+  if (expectedExportedInitialPlayer !== undefined) {
+    expect(exportArtifact.content).toContain(expectedExportedInitialPlayer);
+  }
+};
+
+test("local platform supports fixture signup, setup, invitation, realtime draft, and export", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
+});
+
+test("deployed platform supports pre-provisioned invite-only accounts through realtime draft and export", async ({ browser }) => {
+  test.skip(!isDeployedSmoke, "Deployed smoke credentials are not used by local E2E.");
+  await exerciseReadyWorkspace(await deployedWorkspace(browser));
 });

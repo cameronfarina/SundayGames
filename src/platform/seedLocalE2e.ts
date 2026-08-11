@@ -16,9 +16,10 @@ import type {
   LiveDraftRoomPlayerCatalogEntry,
 } from "./liveDraftRooms.js";
 import {
+  currentLeagueInitialRostersFor,
   localDemoEmail,
+  loadLocalDemoPlayerCatalog,
   localDemoPassword,
-  localDemoPlayerCatalog,
   localDemoRoomId,
   localDemoSeasonId,
 } from "./localDemoFixtures.js";
@@ -84,10 +85,11 @@ export interface SeedLocalE2eRoomSummary {
   status: LiveDraftRoom["status"];
   revision: number;
   boardCount: number;
+  catalogCount: number;
   initialRosterCount: number;
 }
 
-export interface SeedLocalE2ePendingInvite {
+export interface SeedLocalE2eOpenTeam {
   ownerDisplayName: string;
   teamDisplayName: string;
 }
@@ -103,7 +105,7 @@ export interface SeedLocalE2eResult {
     cam: SeedLocalE2eTeamClaim;
     seth: SeedLocalE2eTeamClaim;
   };
-  pendingInvites: readonly SeedLocalE2ePendingInvite[];
+  openTeams: readonly SeedLocalE2eOpenTeam[];
   liveDraftRoom: SeedLocalE2eRoomSummary;
 }
 
@@ -277,8 +279,8 @@ const ensureSeedRoom = async (
     seasonId: season.id,
     roomId: localDemoRoomId,
     viewerPasswordHashRef: "local-e2e-viewer-password",
-    playerCatalog: options.playerCatalog ?? localDemoPlayerCatalog,
-    initialRosters: options.initialRosters ?? [],
+    playerCatalog: options.playerCatalog ?? await loadLocalDemoPlayerCatalog(),
+    initialRosters: options.initialRosters ?? currentLeagueInitialRostersFor(season),
     now,
   });
 
@@ -322,10 +324,11 @@ const roomSummaryFor = (room: LiveDraftRoom): SeedLocalE2eRoomSummary => ({
   status: room.status,
   revision: room.revision,
   boardCount: room.projection.board.length,
+  catalogCount: room.playerCatalog.length,
   initialRosterCount: room.initialRosters.length,
 });
 
-const pendingInvitesFor = (season: LeagueSeason): readonly SeedLocalE2ePendingInvite[] =>
+const openTeamsFor = (season: LeagueSeason): readonly SeedLocalE2eOpenTeam[] =>
   season.teams
     .filter(team => team.ownerDisplayName !== "Cam" && team.ownerDisplayName !== "Seth")
     .map(team => ({
@@ -429,7 +432,7 @@ export const seedLocalE2e = async (
       cam: teamClaimFor(season, "Cam", camClaim),
       seth: teamClaimFor(season, "Seth", sethClaim),
     },
-    pendingInvites: pendingInvitesFor(season),
+    openTeams: openTeamsFor(season),
     liveDraftRoom: roomSummaryFor(liveDraftRoom),
   };
 };
@@ -471,7 +474,7 @@ const formatHumanResult = (result: SeedLocalE2eResult): string => [
   `Live room: ${result.liveDraftRoom.roomId} (${result.liveDraftRoom.status}, revision ${result.liveDraftRoom.revision})`,
   `Cam login: ${result.accounts.cam.email} / ${result.accounts.cam.password}`,
   `Seth login: ${result.accounts.seth.email} / ${result.accounts.seth.password}`,
-  `Pending invites: ${result.pendingInvites.length}`,
+  `Unclaimed teams: ${result.openTeams.length}`,
 ].join("\n");
 
 const run = async (): Promise<void> => {

@@ -2,8 +2,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
-import { localDemoPlayerCatalog } from "../src/platform/localDemoFixtures.js";
+import {
+  loadLocalDemoPlayerCatalog,
+  localDemoPlayerCatalog,
+} from "../src/platform/localDemoFixtures.js";
 import {
   loadLocalE2eSeedRuntime,
   seedLocalE2e,
@@ -140,14 +144,22 @@ describe("local E2E platform seed", () => {
   it("seeds a realistic default local draft board", async () => {
     const path = await storePath();
     const env = { MOCKD_PLATFORM_DATA_FILE: path };
+    const fullCatalog = await loadLocalDemoPlayerCatalog();
 
     const seeded = await seedLocalE2eFromEnv(env, { now });
 
     expect(localDemoPlayerCatalog.length).toBeGreaterThanOrEqual(60);
+    expect(fullCatalog).toHaveLength(500);
+    expect(new Set(fullCatalog.map(player => canonicalPlayerIdentityKey(player.name))).size).toBe(fullCatalog.length);
+    expect(fullCatalog.filter(player => canonicalPlayerIdentityKey(player.name) === "james cook")).toHaveLength(1);
+    expect(fullCatalog.some(player => player.position === "K")).toBe(true);
+    expect(fullCatalog.some(player => player.position === "DST")).toBe(true);
     expect(seeded.liveDraftRoom).toMatchObject({
       roomId: "room_mockd_e2e_2026",
       status: "live",
-      boardCount: localDemoPlayerCatalog.length,
+      boardCount: fullCatalog.length - 7,
+      catalogCount: fullCatalog.length,
+      initialRosterCount: 7,
     });
   });
 
@@ -186,7 +198,7 @@ describe("local E2E platform seed", () => {
         id: "league-214674-season-2026",
         teamCount: 14,
       });
-      expect(result.pendingInvites).toHaveLength(12);
+      expect(result.openTeams).toHaveLength(12);
     } finally {
       await runtime.close();
     }

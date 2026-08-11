@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
 
 export type AuthErrorCode = "duplicate_email" | "invalid_email" | "invalid_password";
 type MaybePromise<T> = T | Promise<T>;
@@ -99,6 +99,8 @@ export interface AuthService {
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const defaultSessionTtlMs = 1000 * 60 * 60 * 24 * 30;
 const passwordSaltBytes = 16;
+const minimumPasswordLength = 8;
+const unknownAccountPasswordSalt = Buffer.alloc(passwordSaltBytes).toString("base64url");
 const passwordKeyBytes = 64;
 const scryptCost = 16_384;
 const scryptBlockSize = 8;
@@ -117,21 +119,12 @@ export const normalizeEmail = (email: string): string => {
 };
 
 export const hashPassword = (password: string): string => {
-  if (password.length === 0) {
-    throw new AuthError("invalid_password", "Password cannot be empty.");
-  }
+  validatePassword(password);
 
   const salt = randomBytes(passwordSaltBytes).toString("base64url");
-  const derivedKey = derivePasswordKey(password, salt);
+  const derivedKey = derivePasswordKeySync(password, salt);
 
-  return [
-    "scrypt",
-    String(scryptCost),
-    String(scryptBlockSize),
-    String(scryptParallelization),
-    salt,
-    derivedKey,
-  ].join("$");
+  return formatPasswordHash(salt, derivedKey);
 };
 
 export const verifyPassword = (password: string, storedPasswordHash: string): boolean => {
@@ -141,11 +134,8 @@ export const verifyPassword = (password: string, storedPasswordHash: string): bo
     return false;
   }
 
-  const derivedKey = derivePasswordKey(password, parsedHash.salt);
-  const storedKey = Buffer.from(parsedHash.derivedKey, "base64url");
-  const candidateKey = Buffer.from(derivedKey, "base64url");
-
-  return storedKey.length === candidateKey.length && timingSafeEqual(storedKey, candidateKey);
+  const derivedKey = derivePasswordKeySync(password, parsedHash.salt);
+  return passwordKeysMatch(derivedKey, parsedHash.derivedKey);
 };
 
 export const createSessionToken = (): string => randomBytes(sessionTokenBytes).toString("base64url");
@@ -262,7 +252,7 @@ export const createAuthService = ({
 }: CreateAuthServiceOptions): AuthService => ({
   createUser: async ({ email, password, now = new Date() }) => {
     const normalizedEmail = normalizeEmail(email);
-    const passwordHash = hashPassword(password);
+    const passwordHash = await hashServicePassword(password);
 
     return await repository.createAccount({
       id: createId("acct"),
@@ -276,7 +266,12 @@ export const createAuthService = ({
     const normalizedEmail = normalizeEmail(email);
     const credential = await repository.findAccountCredentialByEmail(normalizedEmail);
 
-    if (credential === null || !verifyPassword(password, credential.passwordHash)) {
+    if (credential === null) {
+      await derivePasswordKeyAsync(password, unknownAccountPasswordSalt);
+      return null;
+    }
+
+    if (!(await verifyServicePassword(password, credential.passwordHash))) {
       return null;
     }
 
@@ -329,7 +324,66 @@ export const createAuthService = ({
   revokeSession: async (sessionId, now = new Date()) => await repository.revokeSession(sessionId, now) !== null,
 });
 
-const derivePasswordKey = (password: string, salt: string): string =>
+const hashServicePassword = async (password: string): Promise<string> => {
+  validatePassword(password);
+
+  const salt = randomBytes(passwordSaltBytes).toString("base64url");
+  const derivedKey = await derivePasswordKeyAsync(password, salt);
+
+  return formatPasswordHash(salt, derivedKey);
+};
+
+const verifyServicePassword = async (password: string, storedPasswordHash: string): Promise<boolean> => {
+  const parsedHash = parsePasswordHash(storedPasswordHash);
+
+  if (parsedHash === null) {
+    return false;
+  }
+
+  const derivedKey = await derivePasswordKeyAsync(password, parsedHash.salt);
+  return passwordKeysMatch(derivedKey, parsedHash.derivedKey);
+};
+
+const validatePassword = (password: string): void => {
+  if (password.length < minimumPasswordLength) {
+    throw new AuthError("invalid_password", "Password must be at least 8 characters.");
+  }
+};
+
+const formatPasswordHash = (salt: string, derivedKey: string): string => [
+  "scrypt",
+  String(scryptCost),
+  String(scryptBlockSize),
+  String(scryptParallelization),
+  salt,
+  derivedKey,
+].join("$");
+
+const passwordKeysMatch = (candidateKey: string, storedKey: string): boolean => {
+  const candidateKeyBuffer = Buffer.from(candidateKey, "base64url");
+  const storedKeyBuffer = Buffer.from(storedKey, "base64url");
+
+  return candidateKeyBuffer.length === storedKeyBuffer.length
+    && timingSafeEqual(candidateKeyBuffer, storedKeyBuffer);
+};
+
+const derivePasswordKeyAsync = (password: string, salt: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    scrypt(password, salt, passwordKeyBytes, {
+      N: scryptCost,
+      r: scryptBlockSize,
+      p: scryptParallelization,
+    }, (error, derivedKey) => {
+      if (error !== null) {
+        reject(error);
+        return;
+      }
+
+      resolve(derivedKey.toString("base64url"));
+    });
+  });
+
+const derivePasswordKeySync = (password: string, salt: string): string =>
   scryptSync(password, salt, passwordKeyBytes, {
     N: scryptCost,
     r: scryptBlockSize,

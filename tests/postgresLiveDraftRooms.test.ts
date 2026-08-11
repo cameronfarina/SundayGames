@@ -167,6 +167,12 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
 
     if (normalizedSql.startsWith("SELECT EXISTS") && normalizedSql.includes("FROM draft_rooms")) {
       const [seasonId] = values as readonly [string];
+      if (normalizedSql.includes("AS has_room")) {
+        const hasRoom = [...this.rooms.values()].some(room =>
+          room.league_season_id === seasonId
+        );
+        return { rows: [{ has_room: hasRoom } as TRow], rowCount: 1 };
+      }
       const hasStartedRoom = [...this.rooms.values()].some(room =>
         room.league_season_id === seasonId && room.started_at !== null
       );
@@ -610,6 +616,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: undone.revision,
       idempotencyKey: "end-room",
+      allowIncomplete: true,
       now: new Date(now.getTime() + 4_000),
     });
     const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom("room_sunday");
@@ -644,6 +651,7 @@ describe("Postgres live draft rooms", () => {
       playerCatalog,
       createdAt: now,
     });
+    await expect(repository.hasRoomForSeason(created.seasonId)).resolves.toBe(true);
     await expect(repository.hasStartedRoomForSeason(created.seasonId)).resolves.toBe(false);
     const started = await repository.startRoom({
       roomId: created.roomId,

@@ -222,6 +222,107 @@ describe("platform draft tools adapter", () => {
     ]));
   });
 
+  it("resolves season options before creating every account and season app", async () => {
+    const baseSessionDirectory = await temporaryDirectory();
+    const seasonOptions = new Map<string, CreateLiveDraftServerOptions>([
+      ["season-a", {
+        projections: [{
+          id: 101,
+          name: "Season A Player",
+          position: "WR",
+          weeks: { 1: 12 },
+          weeks1To4: 12,
+        }],
+      }],
+      ["season-b", {
+        projections: [{
+          id: 202,
+          name: "Season B Player",
+          position: "RB",
+          weeks: { 1: 18 },
+          weeks1To4: 18,
+        }],
+      }],
+    ]);
+    const resolveSeasonOptions = vi.fn(async (requestedSeasonId: string) =>
+      seasonOptions.get(requestedSeasonId) ?? null
+    );
+    const createClassicServer = vi.fn(async (_options: CreateLiveDraftServerOptions) =>
+      recordingClassicServer([])
+    );
+    const adapter = createPlatformDraftToolsAdapter({
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory,
+      createLiveDraftServer: createClassicServer,
+      resolveAccount: async request => ({
+        id: String(request.headers["x-test-account-id"] ?? "account-a"),
+      }),
+      resolveSeasonOptions,
+    });
+    const baseUrl = await listen(adapter);
+
+    for (const [accountId, requestSeasonId] of [
+      ["account-a", "season-a"],
+      ["account-b", "season-a"],
+      ["account-a", "season-b"],
+    ] as const) {
+      const response = await fetch(`${baseUrl}/api/state?seasonId=${requestSeasonId}`, {
+        headers: { "x-test-account-id": accountId },
+      });
+      expect(response.status).toBe(200);
+    }
+
+    expect(resolveSeasonOptions.mock.calls).toEqual([
+      ["season-a"],
+      ["season-a"],
+      ["season-b"],
+    ]);
+    expect(createClassicServer).toHaveBeenCalledTimes(3);
+    for (const [index, requestSeasonId] of ["season-a", "season-a", "season-b"].entries()) {
+      expect(resolveSeasonOptions.mock.invocationCallOrder[index]).toBeLessThan(
+        createClassicServer.mock.invocationCallOrder[index] ?? Number.POSITIVE_INFINITY,
+      );
+      expect(createClassicServer.mock.calls[index]?.[0]).toEqual({
+        ...seasonOptions.get(requestSeasonId),
+        sessionDirectory: expect.stringMatching(
+          new RegExp(`/season-${createHash("sha256").update(requestSeasonId).digest("hex")}$`),
+        ),
+      });
+    }
+  });
+
+  it("fails closed when the requested season has no draft tools options", async () => {
+    const baseSessionDirectory = await temporaryDirectory();
+    const resolveSeasonOptions = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ projections: [] } satisfies CreateLiveDraftServerOptions);
+    const createClassicServer = vi.fn(async () => recordingClassicServer([]));
+    const adapter = createPlatformDraftToolsAdapter({
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory,
+      createLiveDraftServer: createClassicServer,
+      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveSeasonOptions,
+    });
+    const baseUrl = await listen(adapter);
+
+    const unavailableResponse = await fetch(`${baseUrl}/board?seasonId=${seasonId}`);
+
+    expect(unavailableResponse.status).toBe(500);
+    expect(await unavailableResponse.json()).toEqual({
+      error: {
+        code: "internal_error",
+        message: "Something went wrong.",
+      },
+    });
+    expect(createClassicServer).not.toHaveBeenCalled();
+
+    const retryResponse = await fetch(`${baseUrl}/board?seasonId=${seasonId}`);
+    expect(retryResponse.status).toBe(200);
+    expect(resolveSeasonOptions).toHaveBeenCalledTimes(2);
+    expect(createClassicServer).toHaveBeenCalledTimes(1);
+  });
+
   it("authenticates every concurrent request while creating one app for the account", async () => {
     const baseSessionDirectory = await temporaryDirectory();
     const delegatedRequests: DelegatedRequest[] = [];

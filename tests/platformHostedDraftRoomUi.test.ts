@@ -53,11 +53,23 @@ describe("platform hosted draft room UI", () => {
     }
   });
 
+  it("keeps league and account recovery controls available in the room header", () => {
+    expect(hostedDraftRoomHtml).toContain('id="draft-league-home" href="/app"');
+    expect(hostedDraftRoomHtml).toContain('"/app?seasonId=" + encodeURIComponent(seasonId)');
+    expect(hostedDraftRoomHtml).toContain('id="draft-sign-out"');
+    expect(hostedDraftRoomHtml).toContain('fetch("/session", {');
+    expect(hostedDraftRoomHtml).toContain('method: "DELETE"');
+    expect(hostedDraftRoomHtml).toContain('window.location.assign("/login")');
+    expect(hostedDraftRoomHtml).toContain('id="draft-sign-in-link"');
+    expect(hostedDraftRoomHtml).toContain('window.location.pathname + window.location.search');
+    expect(hostedDraftRoomHtml).toContain('"/login?returnTo=" + encodeURIComponent(returnTo)');
+  });
+
   it("renders the complete shared board, selected team, and recent sales", () => {
     expect(hostedDraftRoomHtml).toContain("const visiblePlayers = model.board.filter");
     expect(hostedDraftRoomHtml).toContain("visiblePlayers.forEach(player =>");
-    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "desktop")');
-    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "mobile")');
+    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "desktop", canManage)');
+    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "mobile", canManage)');
     expect(hostedDraftRoomHtml).toContain('model.selectedTeam?.teamId');
     expect(hostedDraftRoomHtml).toContain('model.viewedTeam?.teamId');
     expect(hostedDraftRoomHtml).toContain("model.salesLog");
@@ -93,6 +105,19 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('team.ownerDisplayName + " " + player.name + " "');
   });
 
+  it("does not render board sale actions for members or observers", () => {
+    expect(hostedDraftRoomHtml).toContain("const canManage = model.canMutateRoom === true;");
+    expect(hostedDraftRoomHtml).toContain("renderBoardHeader(canManage);");
+    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "desktop", canManage)');
+    expect(hostedDraftRoomHtml).toContain('playerRowFor(player, "mobile", canManage)');
+    expect(hostedDraftRoomHtml).toContain("if (canManage) row.appendChild(usePlayerButtonFor(player));");
+    expect(hostedDraftRoomHtml).toContain('if (canManage) {\n        const useCell = document.createElement("td");');
+    expect(hostedDraftRoomHtml).toContain("row.appendChild(useCell);");
+    expect(hostedDraftRoomHtml).toContain('row.classList.toggle("player-card-actionable", canManage);');
+    expect(hostedDraftRoomHtml).toContain("cell.colSpan = canManage ? 6 : 5;");
+    expect(hostedDraftRoomHtml).toContain(".player-card-actionable");
+  });
+
   it("keeps an explicit connection state and recovers missed revisions", () => {
     expect(hostedDraftRoomHtml).toContain("new EventSource(");
     expect(hostedDraftRoomHtml).toContain('roomEndpoint("event-stream")');
@@ -105,6 +130,7 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('setConnectionState("connected"');
     expect(hostedDraftRoomHtml).toContain('setConnectionState("reconnecting"');
     expect(hostedDraftRoomHtml).toContain('setConnectionState("offline"');
+    expect(hostedDraftRoomHtml).toContain('await loadSnapshot();\n        setConnectionState("connected", "Live");\n        connectRoomUpdates();');
     expect(hostedDraftRoomHtml).toContain("window.addEventListener(\"online\"");
     expect(hostedDraftRoomHtml).toContain("window.addEventListener(\"offline\"");
   });
@@ -127,10 +153,11 @@ describe("platform hosted draft room UI", () => {
 
   it("has a deliberate 390px hierarchy and touch-sized controls", () => {
     expect(hostedDraftRoomHtml).toContain("@media (max-width: 700px)");
-    expect(hostedDraftRoomHtml).toContain('grid-template-areas: "status" "sales" "team" "board";');
+    expect(hostedDraftRoomHtml).toContain('grid-template-areas: "status" "board" "team" "sales";');
     expect(hostedDraftRoomHtml).toContain("min-height: 44px");
     expect(hostedDraftRoomHtml).toContain(".desktop-board");
     expect(hostedDraftRoomHtml).toContain(".mobile-board");
+    expect(hostedDraftRoomHtml).toContain("max-height: 58vh;");
     expect(hostedDraftRoomHtml).toContain("overflow-wrap: anywhere");
     expect(hostedDraftRoomHtml).not.toContain("100vh");
   });
