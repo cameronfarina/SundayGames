@@ -17,14 +17,24 @@ export type PlatformDraftToolsAccountResolver = (
   request: IncomingMessage,
 ) => MaybePromise<PlatformDraftToolsAccount | null>;
 
+export type PlatformDraftToolsSeasonAuthorizer = (
+  account: PlatformDraftToolsAccount,
+  seasonId: string,
+  request: IncomingMessage,
+) => MaybePromise<boolean>;
+
 export type PlatformDraftToolsServerFactory = (
   options: CreateLiveDraftServerOptions,
 ) => Promise<LiveDraftServerApp>;
 
 export interface CreatePlatformDraftToolsAdapterOptions {
+  authorizeSeason: PlatformDraftToolsSeasonAuthorizer;
   baseSessionDirectory: string;
   resolveAccount: PlatformDraftToolsAccountResolver;
   createLiveDraftServer?: PlatformDraftToolsServerFactory | undefined;
+  idleTimeoutMs?: number | undefined;
+  maxRetainedApps?: number | undefined;
+  now?: (() => number) | undefined;
 }
 
 export interface PlatformDraftToolsAdapter {
@@ -35,7 +45,16 @@ export interface PlatformDraftToolsAdapter {
 
 interface DraftToolsRoute {
   isApi: boolean;
+  seasonId: string | null;
   targetUrl: string;
+}
+
+interface RetainedDraftToolsApp {
+  accountId: string;
+  activeRequests: number;
+  appPromise: Promise<LiveDraftServerApp>;
+  key: string;
+  lastUsedAt: number;
 }
 
 const productPageMappings = new Map<string, { path: string; mode?: string }>([
@@ -43,13 +62,18 @@ const productPageMappings = new Map<string, { path: string; mode?: string }>([
   ["/mock-drafts", { path: "/draft-room", mode: "interactive-mock" }],
   ["/mock-results", { path: "/mock-results" }],
   ["/simulations", { path: "/mock-simulations" }],
+  ["/strategy", { path: "/draft-room", mode: "interactive-mock" }],
   ["/my-expert", { path: "/my-expert" }],
   ["/player-news", { path: "/player-news" }],
 ]);
 
 const jsonContentType = "application/json; charset=utf-8";
+const defaultIdleTimeoutMs = 30 * 60 * 1_000;
+const defaultMaxRetainedApps = 32;
+const validSeasonIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const securityHeaders = {
   "cache-control": "no-store",
+  "referrer-policy": "no-referrer",
   "x-content-type-options": "nosniff",
 } as const;
 
@@ -57,6 +81,20 @@ const authRequiredBody = {
   error: {
     code: "auth_required",
     message: "Sign in to continue.",
+  },
+} as const;
+
+const seasonRequiredBody = {
+  error: {
+    code: "season_required",
+    message: "Choose a valid league season before opening draft tools.",
+  },
+} as const;
+
+const membershipRequiredBody = {
+  error: {
+    code: "membership_required",
+    message: "Join this league before opening its draft tools.",
   },
 } as const;
 
@@ -109,8 +147,14 @@ const routeFor = (request: IncomingMessage): DraftToolsRoute | undefined => {
     return undefined;
   }
 
+  const requestedSeasonIds = url.searchParams.getAll("seasonId");
+  const seasonId = requestedSeasonIds.length === 1 &&
+      validSeasonIdPattern.test(requestedSeasonIds[0] ?? "")
+    ? requestedSeasonIds[0] ?? null
+    : null;
+
   if (url.pathname.startsWith("/api/")) {
-    return { isApi: true, targetUrl: `${url.pathname}${url.search}` };
+    return { isApi: true, seasonId, targetUrl: `${url.pathname}${url.search}` };
   }
 
   if (request.method !== "GET") return undefined;
@@ -119,13 +163,35 @@ const routeFor = (request: IncomingMessage): DraftToolsRoute | undefined => {
 
   return {
     isApi: false,
+    seasonId,
     targetUrl: mappedProductUrl(url, mapping),
   };
 };
 
-const accountSessionDirectory = (baseDirectory: string, accountId: string): string => {
+const scopedSessionDirectory = (
+  baseDirectory: string,
+  accountId: string,
+  seasonId: string,
+): string => {
   const accountDirectoryKey = createHash("sha256").update(accountId).digest("hex");
-  return join(baseDirectory, `account-${accountDirectoryKey}`);
+  const seasonDirectoryKey = createHash("sha256").update(seasonId).digest("hex");
+  return join(
+    baseDirectory,
+    `account-${accountDirectoryKey}`,
+    `season-${seasonDirectoryKey}`,
+  );
+};
+
+const scopeKeyFor = (accountId: string, seasonId: string): string =>
+  `${accountId}\0${seasonId}`;
+
+const positiveIntegerOption = (value: number | undefined, fallback: number, name: string): number => {
+  const resolvedValue = value ?? fallback;
+  if (!Number.isSafeInteger(resolvedValue) || resolvedValue <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+
+  return resolvedValue;
 };
 
 const disposeApp = async (app: LiveDraftServerApp): Promise<void> => {
@@ -159,6 +225,9 @@ const delegateRequest = (
   };
 
   request.url = targetUrl;
+  for (const [name, value] of Object.entries(securityHeaders)) {
+    if (!response.hasHeader(name)) response.setHeader(name, value);
+  }
   response.once("finish", restoreRequestUrl);
   response.once("close", restoreRequestUrl);
 
@@ -177,55 +246,130 @@ export const createPlatformDraftToolsAdapter = (
 ): PlatformDraftToolsAdapter => {
   const baseSessionDirectory = resolve(options.baseSessionDirectory);
   const createLiveDraftServer = options.createLiveDraftServer ?? createClassicLiveDraftServer;
-  const appsByAccountId = new Map<string, Promise<LiveDraftServerApp>>();
+  const idleTimeoutMs = positiveIntegerOption(
+    options.idleTimeoutMs,
+    defaultIdleTimeoutMs,
+    "idleTimeoutMs",
+  );
+  const maxRetainedApps = positiveIntegerOption(
+    options.maxRetainedApps,
+    defaultMaxRetainedApps,
+    "maxRetainedApps",
+  );
+  const now = options.now ?? Date.now;
+  const appsByScope = new Map<string, RetainedDraftToolsApp>();
   let closed = false;
 
-  const appForAccount = (accountId: string): Promise<LiveDraftServerApp> => {
-    const existing = appsByAccountId.get(accountId);
-    if (existing !== undefined) return existing;
-
-    const created = Promise.resolve()
-      .then(async () => {
-        const app = await createLiveDraftServer({
-          sessionDirectory: accountSessionDirectory(baseSessionDirectory, accountId),
-        });
-        if (app.server.listening) {
-          await disposeApp(app);
-          throw new Error("Classic draft server must be unbound.");
-        }
-        return app;
-      });
-    appsByAccountId.set(accountId, created);
-    void created.catch(() => {
-      if (appsByAccountId.get(accountId) === created) appsByAccountId.delete(accountId);
-    });
-    return created;
-  };
-
-  const clearAccount = async (accountId: string): Promise<void> => {
-    const appPromise = appsByAccountId.get(accountId);
-    if (appPromise === undefined) return;
-
-    appsByAccountId.delete(accountId);
+  const disposeEntry = async (entry: RetainedDraftToolsApp): Promise<void> => {
+    if (appsByScope.get(entry.key) === entry) appsByScope.delete(entry.key);
     try {
-      await disposeApp(await appPromise);
+      await disposeApp(await entry.appPromise);
     } catch {
       // A failed initialization has no reusable server state to retain.
     }
   };
 
+  const pruneEntries = async (currentTime: number, targetSize: number): Promise<void> => {
+    const idleEntries = [...appsByScope.values()]
+      .filter(entry => entry.activeRequests === 0)
+      .sort((left, right) => left.lastUsedAt - right.lastUsedAt);
+    const expiredEntries = idleEntries.filter(
+      entry => currentTime - entry.lastUsedAt >= idleTimeoutMs,
+    );
+
+    for (const entry of expiredEntries) await disposeEntry(entry);
+
+    for (const entry of idleEntries) {
+      if (appsByScope.size <= targetSize) break;
+      if (appsByScope.has(entry.key)) await disposeEntry(entry);
+    }
+  };
+
+  const createEntry = (
+    accountId: string,
+    seasonId: string,
+    currentTime: number,
+  ): RetainedDraftToolsApp => {
+    const key = scopeKeyFor(accountId, seasonId);
+    let entry: RetainedDraftToolsApp;
+    const appPromise = Promise.resolve().then(async () => {
+      const app = await createLiveDraftServer({
+        sessionDirectory: scopedSessionDirectory(baseSessionDirectory, accountId, seasonId),
+      });
+      if (app.server.listening) {
+        await disposeApp(app);
+        throw new Error("Classic draft server must be unbound.");
+      }
+      return app;
+    });
+    entry = {
+      accountId,
+      activeRequests: 1,
+      appPromise,
+      key,
+      lastUsedAt: currentTime,
+    };
+    appsByScope.set(key, entry);
+    void appPromise.catch(() => {
+      if (appsByScope.get(key) === entry) appsByScope.delete(key);
+    });
+    return entry;
+  };
+
+  const acquireEntry = async (
+    accountId: string,
+    seasonId: string,
+  ): Promise<{ app: LiveDraftServerApp; entry: RetainedDraftToolsApp }> => {
+    const key = scopeKeyFor(accountId, seasonId);
+    const currentTime = now();
+    let entry = appsByScope.get(key);
+
+    if (entry === undefined) {
+      await pruneEntries(currentTime, maxRetainedApps - 1);
+      if (closed) throw new Error("Draft tools adapter is unavailable.");
+
+      entry = appsByScope.get(key);
+      if (entry === undefined) {
+        if (appsByScope.size >= maxRetainedApps) {
+          throw new Error("Draft tools adapter is at capacity.");
+        }
+        entry = createEntry(accountId, seasonId, currentTime);
+      } else {
+        entry.activeRequests += 1;
+        entry.lastUsedAt = currentTime;
+      }
+    } else {
+      entry.activeRequests += 1;
+      entry.lastUsedAt = currentTime;
+    }
+
+    try {
+      return { app: await entry.appPromise, entry };
+    } catch (error) {
+      entry.activeRequests -= 1;
+      throw error;
+    }
+  };
+
+  const releaseEntry = (entry: RetainedDraftToolsApp): void => {
+    entry.activeRequests = Math.max(0, entry.activeRequests - 1);
+    entry.lastUsedAt = now();
+    void pruneEntries(entry.lastUsedAt, maxRetainedApps).catch(() => {
+      // Request cleanup is best-effort; a later request or close retries it.
+    });
+  };
+
+  const clearAccount = async (accountId: string): Promise<void> => {
+    const entries = [...appsByScope.values()].filter(entry => entry.accountId === accountId);
+    await Promise.all(entries.map(disposeEntry));
+  };
+
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
-    const appPromises = [...appsByAccountId.values()];
-    appsByAccountId.clear();
-    await Promise.all(appPromises.map(async appPromise => {
-      try {
-        await disposeApp(await appPromise);
-      } catch {
-        // Closing is best-effort so one failed account app cannot retain the rest.
-      }
-    }));
+    const entries = [...appsByScope.values()];
+    appsByScope.clear();
+    await Promise.all(entries.map(disposeEntry));
   };
 
   const handle = async (request: IncomingMessage, response: ServerResponse): Promise<boolean> => {
@@ -240,9 +384,32 @@ export const createPlatformDraftToolsAdapter = (
         return true;
       }
       if (account.id.trim().length === 0 || closed) throw new Error("Draft tools adapter is unavailable.");
+      if (route.seasonId === null) {
+        writeJson(response, 400, seasonRequiredBody);
+        return true;
+      }
+      if (!await options.authorizeSeason(account, route.seasonId, request)) {
+        writeJson(response, 403, membershipRequiredBody);
+        return true;
+      }
 
-      const app = await appForAccount(account.id);
-      delegateRequest(app, request, response, route.targetUrl);
+      const { app, entry } = await acquireEntry(account.id, route.seasonId);
+      let released = false;
+      const release = (): void => {
+        if (released) return;
+        released = true;
+        response.off("finish", release);
+        response.off("close", release);
+        releaseEntry(entry);
+      };
+      response.once("finish", release);
+      response.once("close", release);
+      try {
+        delegateRequest(app, request, response, route.targetUrl);
+      } catch (error) {
+        release();
+        throw error;
+      }
     } catch {
       if (response.headersSent) response.destroy();
       else writeJson(response, 500, internalErrorBody);
