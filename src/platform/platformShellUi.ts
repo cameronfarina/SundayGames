@@ -371,6 +371,195 @@ export const platformShellHtml = `<!doctype html>
       width: 100%;
     }
 
+    .league-create-launch {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: space-between;
+    }
+    .league-create-launch .lede { max-width: 700px; }
+
+    dialog.league-wizard-dialog {
+      height: min(900px, calc(100dvh - 24px));
+      max-height: calc(100dvh - 24px);
+      max-width: 1120px;
+      overflow: hidden;
+      padding: 0;
+      width: calc(100% - 24px);
+    }
+    .league-wizard-form {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      height: 100%;
+      min-height: 0;
+    }
+    .league-wizard-header {
+      align-items: start;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+      padding: 22px 24px 18px;
+    }
+    .league-wizard-header h2 { font-size: 24px; margin: 0; }
+    .league-wizard-header .lede { font-size: 14px; }
+    .league-wizard-close {
+      flex: 0 0 auto;
+      font-size: 24px;
+      line-height: 1;
+      min-height: 38px;
+      min-width: 38px;
+      padding: 4px;
+    }
+    .league-wizard-progress {
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      list-style: none;
+      margin: 0;
+      padding: 0 24px;
+    }
+    .league-wizard-progress li {
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 13px 8px 10px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .league-wizard-progress li[aria-current="step"] {
+      border-bottom-color: var(--accent);
+      color: var(--text);
+    }
+    .league-wizard-body {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+    .league-wizard-content {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .league-wizard-step {
+      display: grid;
+      gap: 22px;
+      margin: 0 auto;
+      max-width: 860px;
+    }
+    .league-wizard-step h3 { font-size: 20px; margin: 0; }
+    .league-wizard-step > header .lede { margin-top: 6px; }
+    .league-wizard-footer {
+      align-items: center;
+      background: var(--surface-raised);
+      border-top: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      min-height: 72px;
+      padding: 14px 24px;
+    }
+    .league-wizard-footer .status {
+      margin: 0 auto 0 0;
+      min-height: 0;
+    }
+    .league-import-panel {
+      border-left: 3px solid var(--focus);
+      display: grid;
+      gap: 12px;
+      padding: 4px 0 4px 16px;
+    }
+    .league-import-panel h4 { font-size: 15px; margin: 0; }
+    .league-import-panel .lede { font-size: 14px; margin: 0; }
+    .league-import-actions {
+      align-items: end;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .league-import-summary {
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+    .league-import-summary[data-kind="success"] { border-left: 3px solid var(--accent); }
+    .league-import-summary[data-kind="failure"] { border-left: 3px solid var(--warning); }
+    .league-import-summary h4, .league-import-summary p { margin: 0; }
+    .league-import-facts {
+      display: grid;
+      gap: 1px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+    .league-import-facts div { background: var(--surface); padding: 10px; }
+    .league-import-facts span { color: var(--muted); display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .league-import-facts strong { display: block; margin-top: 4px; }
+    .league-reference-picker {
+      border: 1px dashed var(--line);
+      display: grid;
+      gap: 14px;
+      padding: 24px;
+    }
+    .league-reference-picker input { background: transparent; border: 0; padding: 0; }
+    .league-reference-tray {
+      border-bottom: 1px solid var(--line);
+      max-height: 180px;
+      overflow: auto;
+      padding: 14px 24px;
+    }
+    .league-reference-tray-header {
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .league-reference-tray-header strong { font-size: 13px; }
+    .league-reference-previews {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .league-reference-preview {
+      flex: 0 0 150px;
+      margin: 0;
+      min-width: 0;
+    }
+    .league-reference-preview img {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      display: block;
+      height: 90px;
+      object-fit: contain;
+      width: 150px;
+    }
+    .league-reference-preview figcaption {
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      padding-top: 5px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .league-team-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    .league-team-row {
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      padding-top: 14px;
+    }
+    .league-team-row h4 { font-size: 14px; margin: 0; }
+    .league-team-meta { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(110px, .4fr); }
+    .league-team-progress { color: var(--muted); font-size: 13px; margin: 0; }
+
     details {
       border-top: 1px solid var(--line);
       padding-top: 14px;
@@ -518,6 +707,26 @@ export const platformShellHtml = `<!doctype html>
     }
 
     @media (max-width: 700px) {
+      dialog.league-wizard-dialog {
+        border-radius: 0;
+        height: 100dvh;
+        max-height: 100dvh;
+        width: 100%;
+      }
+      .league-wizard-header { padding: 18px 16px 14px; }
+      .league-wizard-header h2 { font-size: 21px; }
+      .league-wizard-progress {
+        grid-template-columns: repeat(5, 86px);
+        justify-content: start;
+        overflow-x: auto;
+        padding: 0 8px;
+      }
+      .league-wizard-content { padding: 20px 16px; }
+      .league-wizard-footer { flex-wrap: wrap; padding: 12px 16px; }
+      .league-wizard-footer .status { flex: 1 0 100%; order: -1; }
+      .league-import-actions { grid-template-columns: 1fr; }
+      .league-reference-tray { padding: 12px 16px; }
+      .league-team-grid { grid-template-columns: 1fr; }
       .player-board-scroll { max-height: min(58vh, 520px); }
       .mock-roster-panel { order: -1; }
       .player-board { min-width: 0; }
@@ -750,85 +959,124 @@ export const platformShellHtml = `<!doctype html>
           <div>
             <p class="eyebrow">League</p>
             <h1>Create a league</h1>
-            <p class="lede">Start with an ESPN league ID. Review every setting before Mockd creates anything.</p>
+            <p class="lede">Add the settings and teams Mockd will use for values, simulations, mock drafts, and your live auction.</p>
           </div>
         </div>
-        <section class="workspace-section compact-stack" aria-labelledby="espn-import-title">
-          <h2 id="espn-import-title">Import from ESPN</h2>
-          <div class="setup-fields">
-            <div>
-              <label for="league-create-espn-id">League ID or URL</label>
-              <input id="league-create-espn-id" placeholder="214674 or an ESPN league URL" autocomplete="off">
-            </div>
-            <div>
-              <label for="league-create-season">Season</label>
-              <input id="league-create-season" type="number" min="2000" max="2100" step="1">
-            </div>
-            <div>
-              <label for="league-create-team-count">Team count</label>
-              <input id="league-create-team-count" type="number" min="4" max="20" step="1" value="12">
-            </div>
-          </div>
-          <div class="actions">
-            <button id="league-create-review-espn" type="button">Review ESPN settings</button>
-            <button id="league-create-manual" type="button">Enter settings manually</button>
-          </div>
-          <p id="league-create-import-status" class="status" role="status" aria-live="polite"></p>
-        </section>
-        <section class="workspace-section compact-stack" aria-labelledby="league-members-upload-title">
-          <h2 id="league-members-upload-title">Import teams and managers</h2>
-          <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
-          <div class="upload-actions">
-            <div>
-              <label for="league-create-members-file">League Members screenshot</label>
-              <input id="league-create-members-file" type="file" accept="image/png,image/jpeg,image/webp">
-            </div>
-            <button id="league-create-analyze-members" type="button">Analyze screenshot</button>
-          </div>
-        </section>
-        <form id="league-create-review" class="workspace-section compact-stack hidden">
-          <h2>Confirm league setup</h2>
-          <div class="setup-fields">
-            <div><label for="league-create-name">League name</label><input id="league-create-name" required></div>
-            <div><label for="league-create-external-id">ESPN league ID</label><input id="league-create-external-id" required></div>
-          </div>
-          <div class="setup-fields">
-            <div>
-              <label for="league-create-draft-format">Draft format</label>
-              <select id="league-create-draft-format"><option value="auction">Auction</option><option value="snake">Snake (prep beta)</option></select>
-            </div>
-            <div id="league-create-auction-budget-field"><label for="league-create-auction-budget">Auction budget</label><input id="league-create-auction-budget" type="number" min="1" step="1" value="200"></div>
-            <div id="league-create-auction-minimum-bid-field"><label for="league-create-auction-minimum-bid">Minimum bid</label><input id="league-create-auction-minimum-bid" type="number" min="1" step="1" value="1"></div>
-            <div id="league-create-snake-rounds-field" class="hidden"><label for="league-create-snake-rounds">Snake rounds</label><input id="league-create-snake-rounds" type="number" min="1" step="1" value="16"></div>
-          </div>
-          <p id="league-create-format-note" class="lede"></p>
-          <ul id="league-create-warnings" class="result-list hidden"></ul>
-          <div class="setup-fields">
-            <div><label for="league-create-pass-yard">Points per passing yard</label><input id="league-create-pass-yard" type="number" min="0" step="0.01" value="0.04"></div>
-            <div><label for="league-create-pass-td">Points per passing TD</label><input id="league-create-pass-td" type="number" min="1" step="1" value="4"></div>
-            <div><label for="league-create-rush-yard">Points per rushing yard</label><input id="league-create-rush-yard" type="number" min="0" step="0.01" value="0.1"></div>
-            <div><label for="league-create-rush-td">Points per rushing TD</label><input id="league-create-rush-td" type="number" min="1" step="1" value="6"></div>
-            <div><label for="league-create-receive-yard">Points per receiving yard</label><input id="league-create-receive-yard" type="number" min="0" step="0.01" value="0.1"></div>
-            <div><label for="league-create-receive-td">Points per receiving TD</label><input id="league-create-receive-td" type="number" min="1" step="1" value="6"></div>
-            <div><label for="league-create-ppr">Points per reception</label><input id="league-create-ppr" type="number" min="0" step="0.1" value="0.5"></div>
-          </div>
+        <section class="workspace-section league-create-launch" aria-labelledby="league-info-title">
           <div>
-            <h3>Roster slots</h3>
-            <div id="league-create-roster-slots" class="setup-fields"></div>
+            <h2 id="league-info-title">League information</h2>
+            <p class="lede">Use a public ESPN league when available, or enter the same information manually with screenshots beside you for reference.</p>
           </div>
-          <div class="table-scroll">
-            <table class="setup-preview-table">
-              <thead><tr><th>Order</th><th>Team</th><th>Managers</th><th>Abbreviation</th><th>Review</th></tr></thead>
-              <tbody id="league-create-team-rows"></tbody>
-            </table>
-          </div>
-          <label class="confirmation-label" for="league-create-confirmed">
-            <input id="league-create-confirmed" type="checkbox">
-            <span>I reviewed the league, teams, draft format, scoring, and roster settings.</span>
-          </label>
-          <div class="actions"><button id="league-create-submit" class="primary" type="submit" disabled>Create league</button></div>
-          <p id="league-create-status" class="status" role="status" aria-live="polite"></p>
-        </form>
+          <button id="league-info-button" class="primary" type="button" aria-haspopup="dialog" aria-controls="league-setup-dialog">Input league info</button>
+        </section>
+        <dialog id="league-setup-dialog" class="league-wizard-dialog" aria-labelledby="league-setup-title" aria-describedby="league-setup-description">
+          <form id="league-create-review" class="league-wizard-form">
+            <header class="league-wizard-header">
+              <div>
+                <p class="eyebrow">Create league</p>
+                <h2 id="league-setup-title">Input league info</h2>
+                <p id="league-setup-description" class="lede">Review each section before Mockd creates your league.</p>
+              </div>
+              <button id="league-setup-close" class="text-button league-wizard-close" type="button" aria-label="Close league setup" title="Close">&times;</button>
+            </header>
+            <ol class="league-wizard-progress" aria-label="League setup progress">
+              <li data-league-step-indicator="basics" aria-current="step">Basics</li>
+              <li data-league-step-indicator="references">References</li>
+              <li data-league-step-indicator="scoring">Scoring</li>
+              <li data-league-step-indicator="roster">Roster</li>
+              <li data-league-step-indicator="teams">Teams</li>
+            </ol>
+            <div class="league-wizard-body">
+              <aside id="league-create-reference-tray" class="league-reference-tray hidden" aria-label="Screenshot references">
+                <div class="league-reference-tray-header">
+                  <strong id="league-create-reference-count"></strong>
+                  <button id="league-create-clear-references" class="text-button" type="button">Clear screenshots</button>
+                </div>
+                <div id="league-create-reference-previews" class="league-reference-previews"></div>
+              </aside>
+              <div class="league-wizard-content">
+                <section class="league-wizard-step" data-league-step="basics">
+                  <header>
+                    <h3>League basics</h3>
+                    <p class="lede">ESPN import is optional. It only works when ESPN exposes the league without a login.</p>
+                  </header>
+                  <div class="setup-fields">
+                    <div><label for="league-create-name">League name</label><input id="league-create-name" autocomplete="off" required></div>
+                    <div><label for="league-create-season">Season</label><input id="league-create-season" type="number" min="2000" max="2100" step="1" required></div>
+                    <div><label for="league-create-team-count">Team count</label><input id="league-create-team-count" type="number" min="4" max="20" step="1" value="12" required></div>
+                    <div>
+                      <label for="league-create-draft-format">Draft format</label>
+                      <select id="league-create-draft-format"><option value="auction">Auction</option><option value="snake">Snake (prep beta)</option></select>
+                    </div>
+                    <div id="league-create-auction-budget-field"><label for="league-create-auction-budget">Auction budget</label><input id="league-create-auction-budget" type="number" min="1" step="1" value="200"></div>
+                    <div id="league-create-auction-minimum-bid-field"><label for="league-create-auction-minimum-bid">Minimum bid</label><input id="league-create-auction-minimum-bid" type="number" min="1" step="1" value="1"></div>
+                    <div id="league-create-snake-rounds-field" class="hidden"><label for="league-create-snake-rounds">Snake rounds</label><input id="league-create-snake-rounds" type="number" min="1" step="1" value="16"></div>
+                  </div>
+                  <p id="league-create-format-note" class="lede"></p>
+                  <section class="league-import-panel" aria-labelledby="league-import-heading">
+                    <div>
+                      <h4 id="league-import-heading">Fill from a public ESPN league</h4>
+                      <p class="lede">Paste a league ID or URL. Mockd will show exactly what ESPN returned before changing this form.</p>
+                    </div>
+                    <div class="league-import-actions">
+                      <div><label for="league-create-espn-id">ESPN league ID or URL</label><input id="league-create-espn-id" placeholder="214674 or an ESPN league URL" autocomplete="off"></div>
+                      <button id="league-create-review-espn" type="button">Try ESPN import</button>
+                    </div>
+                    <p id="league-create-import-status" class="status" role="status" aria-live="polite"></p>
+                    <div id="league-create-import-summary" class="league-import-summary hidden" role="status">
+                      <h4 id="league-create-import-summary-title"></h4>
+                      <p id="league-create-import-summary-copy" class="lede"></p>
+                      <div id="league-create-import-facts" class="league-import-facts"></div>
+                      <ul id="league-create-warnings" class="result-list hidden"></ul>
+                    </div>
+                  </section>
+                </section>
+                <section class="league-wizard-step hidden" data-league-step="references">
+                  <header>
+                    <h3>Add screenshots for reference</h3>
+                    <p class="lede">Choose screenshots of scoring rules, roster settings, or team names. Screenshots stay in this browser and are not uploaded or analyzed.</p>
+                  </header>
+                  <div class="league-reference-picker">
+                    <div><label for="league-create-members-file">League screenshots</label><input id="league-create-members-file" type="file" multiple accept="image/png,image/jpeg,image/webp"></div>
+                    <p class="lede">You will enter the visible settings yourself. The selected images remain available above while you work.</p>
+                  </div>
+                  <div class="actions"><button id="league-create-enter-manually" type="button">Enter manually without screenshots</button></div>
+                  <p id="league-create-reference-status" class="status" role="status" aria-live="polite"></p>
+                </section>
+                <section class="league-wizard-step hidden" data-league-step="scoring">
+                  <header><h3>Scoring rules</h3><p class="lede">Enter the points your league awards for each event.</p></header>
+                  <div class="setup-fields">
+                    <div><label for="league-create-pass-yard">Points per passing yard</label><input id="league-create-pass-yard" type="number" min="0" step="0.01" value="0.04" required></div>
+                    <div><label for="league-create-pass-td">Points per passing TD</label><input id="league-create-pass-td" type="number" min="0" step="0.1" value="4" required></div>
+                    <div><label for="league-create-rush-yard">Points per rushing yard</label><input id="league-create-rush-yard" type="number" min="0" step="0.01" value="0.1" required></div>
+                    <div><label for="league-create-rush-td">Points per rushing TD</label><input id="league-create-rush-td" type="number" min="0" step="0.1" value="6" required></div>
+                    <div><label for="league-create-receive-yard">Points per receiving yard</label><input id="league-create-receive-yard" type="number" min="0" step="0.01" value="0.1" required></div>
+                    <div><label for="league-create-receive-td">Points per receiving TD</label><input id="league-create-receive-td" type="number" min="0" step="0.1" value="6" required></div>
+                    <div><label for="league-create-ppr">Points per reception</label><input id="league-create-ppr" type="number" min="0" step="0.1" value="0.5" required></div>
+                  </div>
+                </section>
+                <section class="league-wizard-step hidden" data-league-step="roster">
+                  <header><h3>Roster settings</h3><p class="lede">Set the number of slots each team drafts.</p></header>
+                  <div id="league-create-roster-slots" class="setup-fields"></div>
+                </section>
+                <section class="league-wizard-step hidden" data-league-step="teams">
+                  <header>
+                    <h3>Teams</h3>
+                    <p class="lede">Team names are required. Manager names and abbreviations are optional.</p>
+                  </header>
+                  <p id="league-create-team-progress" class="league-team-progress"></p>
+                  <div id="league-create-team-rows" class="league-team-grid"></div>
+                </section>
+              </div>
+            </div>
+            <footer class="league-wizard-footer">
+              <p id="league-create-status" class="status" role="status" aria-live="polite"></p>
+              <button id="league-create-back" type="button">Back</button>
+              <button id="league-create-next" class="primary" type="button">Next</button>
+              <button id="league-create-submit" class="primary hidden" type="submit" disabled>Finish</button>
+            </footer>
+          </form>
+        </dialog>
         <div class="empty-state">Already invited? Open the invitation link from your commissioner. Your player board remains available before setup.</div>
       </section>
 
@@ -1173,6 +1421,8 @@ export const platformShellHtml = `<!doctype html>
       playerCatalogMeta: null,
       playerBoardSort: null,
       leagueCreation: null,
+      leagueCreationStep: "basics",
+      leagueCreationReferences: [],
       historicalImportBatchId: null,
       historicalOwnerMappings: {},
       historicalPlayerMappings: {},
@@ -1300,14 +1550,22 @@ export const platformShellHtml = `<!doctype html>
     const mockDraftPass = byId("mock-draft-pass");
     const mockDraftUndo = byId("mock-draft-undo");
     const mockDraftComplete = byId("mock-draft-complete");
+    const leagueSetupDialog = byId("league-setup-dialog");
+    const leagueCreateReview = byId("league-create-review");
     const leagueCreateEspnId = byId("league-create-espn-id");
     const leagueCreateSeason = byId("league-create-season");
     const leagueCreateTeamCount = byId("league-create-team-count");
     const leagueCreateImportStatus = byId("league-create-import-status");
+    const leagueCreateImportSummary = byId("league-create-import-summary");
+    const leagueCreateImportSummaryTitle = byId("league-create-import-summary-title");
+    const leagueCreateImportSummaryCopy = byId("league-create-import-summary-copy");
+    const leagueCreateImportFacts = byId("league-create-import-facts");
     const leagueCreateMembersFile = byId("league-create-members-file");
-    const leagueCreateReview = byId("league-create-review");
+    const leagueCreateReferenceStatus = byId("league-create-reference-status");
+    const leagueCreateReferenceTray = byId("league-create-reference-tray");
+    const leagueCreateReferenceCount = byId("league-create-reference-count");
+    const leagueCreateReferencePreviews = byId("league-create-reference-previews");
     const leagueCreateName = byId("league-create-name");
-    const leagueCreateExternalId = byId("league-create-external-id");
     const leagueCreateDraftFormat = byId("league-create-draft-format");
     const leagueCreateAuctionBudget = byId("league-create-auction-budget");
     const leagueCreateAuctionMinimumBid = byId("league-create-auction-minimum-bid");
@@ -1323,7 +1581,9 @@ export const platformShellHtml = `<!doctype html>
     const leagueCreateReceiveTd = byId("league-create-receive-td");
     const leagueCreatePpr = byId("league-create-ppr");
     const leagueCreateTeamRows = byId("league-create-team-rows");
-    const leagueCreateConfirmed = byId("league-create-confirmed");
+    const leagueCreateTeamProgress = byId("league-create-team-progress");
+    const leagueCreateBack = byId("league-create-back");
+    const leagueCreateNext = byId("league-create-next");
     const leagueCreateSubmit = byId("league-create-submit");
     const leagueCreateStatus = byId("league-create-status");
 
@@ -1679,6 +1939,7 @@ export const platformShellHtml = `<!doctype html>
     };
 
     const leagueRosterSlotOrder = ${JSON.stringify(rosterSlotDisplayOrder)};
+    const leagueCreationSteps = ["basics", "references", "scoring", "roster", "teams"];
     const defaultLeagueRosterSlots = {
       QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7,
     };
@@ -1693,57 +1954,39 @@ export const platformShellHtml = `<!doctype html>
         : "Auction values, simulations, mock drafts, and hosted live drafting are available.";
     };
 
-    const leagueCreationCanSubmit = () => leagueCreateConfirmed.checked
-      && state.leagueCreation !== null
-      && ![...leagueCreateTeamRows.querySelectorAll('[data-field="rowConfirmed"]')]
-        .some(input => !input.checked);
-
-    const updateLeagueCreationSubmit = () => {
-      leagueCreateSubmit.disabled = !leagueCreationCanSubmit();
-    };
-
     const renderLeagueCreationTeamRows = teams => {
       const fragment = document.createDocumentFragment();
       teams.forEach((team, index) => {
-        const row = document.createElement("tr");
+        const row = document.createElement("section");
+        row.className = "league-team-row";
         row.dataset.teamIndex = String(index);
-        const orderCell = document.createElement("td");
-        orderCell.textContent = String(index + 1);
-        const fieldCell = (field, value, label) => {
-          const cell = document.createElement("td");
-          const input = document.createElement("input");
-          input.value = value;
-          input.dataset.field = field;
-          input.setAttribute("aria-label", label + " for team " + String(index + 1));
-          cell.append(input);
-          return cell;
-        };
-        const reviewCell = document.createElement("td");
-        const needsReview = team.confidence !== "high" || (team.issues || []).length > 0;
-        if (needsReview) {
-          const note = document.createElement("span");
-          note.className = "review-note";
-          note.textContent = (team.issues || []).join(" ") || "Check this extracted row before creating the league.";
+        const title = document.createElement("h4");
+        title.textContent = "Team " + String(index + 1);
+        const field = (fieldName, value, labelText, required) => {
+          const wrapper = document.createElement("div");
           const label = document.createElement("label");
-          label.className = "confirmation-label";
-          const confirmation = document.createElement("input");
-          confirmation.type = "checkbox";
-          confirmation.dataset.field = "rowConfirmed";
-          label.append(confirmation, document.createTextNode("Checked"));
-          reviewCell.append(note, label);
-        } else {
-          reviewCell.textContent = "Ready";
-        }
-        row.append(
-          orderCell,
-          fieldCell("displayName", team.displayName, "Team name"),
-          fieldCell("managerNames", (team.managerNames || []).join("; "), "Managers"),
-          fieldCell("abbreviation", team.abbreviation || "", "Abbreviation"),
-          reviewCell,
+          const input = document.createElement("input");
+          const id = "league-create-team-" + String(index + 1) + "-" + fieldName;
+          label.htmlFor = id;
+          label.textContent = labelText;
+          input.id = id;
+          input.value = value;
+          input.dataset.field = fieldName;
+          input.required = required;
+          wrapper.append(label, input);
+          return wrapper;
+        };
+        const meta = document.createElement("div");
+        meta.className = "league-team-meta";
+        meta.append(
+          field("managerNames", (team.managerNames || []).join("; "), "Manager names", false),
+          field("abbreviation", team.abbreviation || "", "Abbreviation", false),
         );
+        row.append(title, field("displayName", team.displayName || "", "Team name", true), meta);
         fragment.append(row);
       });
       leagueCreateTeamRows.replaceChildren(fragment);
+      updateLeagueCreationSubmit();
     };
 
     const renderLeagueCreationRosterSlots = rosterSlots => {
@@ -1772,10 +2015,36 @@ export const platformShellHtml = `<!doctype html>
       leagueCreateRosterSlots.replaceChildren(fragment);
     };
 
-    const showLeagueCreationReview = review => {
+    const readLeagueCreationTeams = () => [...leagueCreateTeamRows.querySelectorAll("[data-team-index]")]
+      .map((row, index) => {
+        const valueFor = field => row.querySelector('[data-field="' + field + '"]').value.trim();
+        return {
+          externalTeamId: state.leagueCreation?.teams[index]?.externalTeamId || String(index + 1),
+          displayName: valueFor("displayName"),
+          abbreviation: valueFor("abbreviation"),
+          managerNames: valueFor("managerNames").split(/[;,]/u).map(value => value.trim()).filter(Boolean),
+        };
+      });
+
+    const teamNamesComplete = () => {
+      const teams = readLeagueCreationTeams();
+      const expectedTeamCount = Number(leagueCreateTeamCount.value);
+      return teams.length === expectedTeamCount && teams.every(team => team.displayName.length > 0);
+    };
+
+    const updateLeagueCreationSubmit = () => {
+      const teams = readLeagueCreationTeams();
+      const completed = teams.filter(team => team.displayName.length > 0).length;
+      const expectedTeamCount = Number(leagueCreateTeamCount.value) || 0;
+      leagueCreateTeamProgress.textContent = String(completed) + " of " + String(expectedTeamCount) + " team names entered";
+      leagueCreateSubmit.disabled = !teamNamesComplete();
+    };
+
+    const applyLeagueCreationReview = review => {
       state.leagueCreation = review;
       leagueCreateName.value = review.leagueName || "";
-      leagueCreateExternalId.value = review.externalLeagueId || leagueCreateEspnId.value.trim();
+      leagueCreateSeason.value = String(review.seasonYear || new Date().getFullYear());
+      leagueCreateTeamCount.value = String(review.teams.length);
       leagueCreateDraftFormat.value = review.draft.type;
       if (review.draft.type === "auction") {
         leagueCreateAuctionBudget.value = String(review.draft.budgetDollars);
@@ -1789,25 +2058,15 @@ export const platformShellHtml = `<!doctype html>
       leagueCreateReceiveYard.value = String(review.scoring.receivingYards);
       leagueCreateReceiveTd.value = String(review.scoring.receivingTouchdown);
       leagueCreatePpr.value = String(review.scoring.reception);
-      leagueCreateWarnings.replaceChildren();
-      (review.warnings || []).forEach(warning => {
-        const item = document.createElement("li");
-        item.textContent = warning.message || warning;
-        leagueCreateWarnings.append(item);
-      });
-      setHidden(leagueCreateWarnings, leagueCreateWarnings.childElementCount === 0);
       renderLeagueCreationRosterSlots(review.rosterSlots);
       renderLeagueCreationTeamRows(review.teams);
-      leagueCreateConfirmed.checked = false;
-      leagueCreateSubmit.disabled = true;
       updateLeagueCreationFormatFields();
-      setHidden(leagueCreateReview, false);
-      leagueCreateReview.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     const leagueCreationReviewFromEspn = outcome => {
       const review = outcome.review;
       return {
+        provider: "espn",
         leagueName: review.leagueName || "",
         externalLeagueId: review.externalLeagueId,
         seasonYear: review.season,
@@ -1834,52 +2093,24 @@ export const platformShellHtml = `<!doctype html>
       };
     };
 
-    const leagueCreationReviewFromScreenshot = screenshotImport => {
-      const previous = state.leagueCreation;
-      return {
-        leagueName: screenshotImport.leagueName || previous?.leagueName || "",
-        externalLeagueId: screenshotImport.externalLeagueId || previous?.externalLeagueId || leagueCreateEspnId.value.trim(),
-        seasonYear: Number(leagueCreateSeason.value),
-        teams: (screenshotImport.teams || [])
-          .slice()
-          .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
-          .map(team => ({
-            externalTeamId: String(team.draftOrderPosition),
-            displayName: team.teamDisplayName,
-            abbreviation: team.abbreviation,
-            managerNames: team.managerDisplayNames || [],
-            confidence: team.confidence,
-            issues: team.issues || [],
-          })),
-        draft: previous?.draft || { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
-        scoring: previous?.scoring || {
-          passingYards: 0.04,
-          passingTouchdown: 4,
-          rushingYards: 0.1,
-          rushingTouchdown: 6,
-          receivingYards: 0.1,
-          receivingTouchdown: 6,
-          reception: 0.5,
-        },
-        rosterSlots: previous?.rosterSlots || defaultLeagueRosterSlots,
-        warnings: previous?.warnings || [],
-      };
-    };
+    const newManualLeagueId = () => "mockd-" + (
+      window.crypto && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : Date.now().toString(36)
+    );
 
-    const manualLeagueCreationReview = outcome => {
+    const manualLeagueCreationReview = () => {
       const teamCount = Math.max(4, Math.min(20, Number(leagueCreateTeamCount.value) || 12));
-      leagueCreateTeamCount.value = String(teamCount);
       return {
-        leagueName: "",
-        externalLeagueId: outcome?.externalLeagueId || leagueCreateEspnId.value.trim(),
-        seasonYear: outcome?.season || Number(leagueCreateSeason.value),
+        provider: "mockd",
+        leagueName: leagueCreateName.value.trim(),
+        externalLeagueId: newManualLeagueId(),
+        seasonYear: Number(leagueCreateSeason.value) || new Date().getFullYear(),
         teams: Array.from({ length: teamCount }, (_, index) => ({
           externalTeamId: String(index + 1),
           displayName: "",
           abbreviation: "",
           managerNames: [],
-          confidence: "low",
-          issues: ["Enter this team's name before creating the league."],
         })),
         draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
         scoring: {
@@ -1891,9 +2122,165 @@ export const platformShellHtml = `<!doctype html>
           receivingTouchdown: 6,
           reception: 0.5,
         },
-        rosterSlots: defaultLeagueRosterSlots,
-        warnings: [{ message: "ESPN settings were not imported. Confirm every setting below." }],
+        rosterSlots: { ...defaultLeagueRosterSlots },
+        warnings: [],
       };
+    };
+
+    const syncLeagueCreationFromBasics = () => {
+      if (!state.leagueCreation) state.leagueCreation = manualLeagueCreationReview();
+      const teamCount = Math.max(4, Math.min(20, Number(leagueCreateTeamCount.value) || 12));
+      leagueCreateTeamCount.value = String(teamCount);
+      const currentTeams = readLeagueCreationTeams();
+      const existingExternalTeamIds = new Set(currentTeams.map(team => team.externalTeamId));
+      const nextExternalTeamId = index => {
+        let candidate = String(index + 1);
+        while (existingExternalTeamIds.has(candidate)) candidate = "manual-" + candidate;
+        existingExternalTeamIds.add(candidate);
+        return candidate;
+      };
+      state.leagueCreation.leagueName = leagueCreateName.value.trim();
+      state.leagueCreation.seasonYear = Number(leagueCreateSeason.value);
+      state.leagueCreation.teams = Array.from({ length: teamCount }, (_, index) => currentTeams[index] || {
+        externalTeamId: nextExternalTeamId(index),
+        displayName: "",
+        abbreviation: "",
+        managerNames: [],
+      });
+      state.leagueCreation.draft = leagueCreateDraftFormat.value === "snake"
+        ? { type: "snake", rounds: Number(leagueCreateSnakeRounds.value) }
+        : {
+            type: "auction",
+            budgetDollars: Number(leagueCreateAuctionBudget.value),
+            minimumBidDollars: Number(leagueCreateAuctionMinimumBid.value),
+          };
+      renderLeagueCreationTeamRows(state.leagueCreation.teams);
+    };
+
+    const renderLeagueCreationImportSummary = (kind, title, copy, review, warnings) => {
+      leagueCreateImportSummary.dataset.kind = kind;
+      leagueCreateImportSummaryTitle.textContent = title;
+      leagueCreateImportSummaryCopy.textContent = copy;
+      leagueCreateImportFacts.replaceChildren();
+      leagueCreateWarnings.replaceChildren();
+      if (review) {
+        const rosterSize = Object.values(review.rosterSlots).reduce((total, count) => total + Number(count), 0);
+        const draftSummary = review.draft.type === "auction"
+          ? "$" + String(review.draft.budgetDollars) + " auction"
+          : String(review.draft.rounds) + "-round snake";
+        [
+          ["League", review.leagueName || "Unnamed"],
+          ["Teams", String(review.teams.length)],
+          ["Draft", draftSummary],
+          ["Reception", String(review.scoring.reception) + " points"],
+          ["Roster", String(rosterSize) + " slots"],
+        ].forEach(([label, value]) => {
+          const fact = document.createElement("div");
+          const factLabel = document.createElement("span");
+          const factValue = document.createElement("strong");
+          factLabel.textContent = label;
+          factValue.textContent = value;
+          fact.append(factLabel, factValue);
+          leagueCreateImportFacts.append(fact);
+        });
+      }
+      (warnings || []).forEach(warning => {
+        const item = document.createElement("li");
+        item.textContent = warning.message || warning;
+        leagueCreateWarnings.append(item);
+      });
+      setHidden(leagueCreateWarnings, leagueCreateWarnings.childElementCount === 0);
+      setHidden(leagueCreateImportFacts, !review);
+      setHidden(leagueCreateImportSummary, false);
+    };
+
+    const renderLeagueCreationReferences = () => {
+      const references = state.leagueCreationReferences;
+      const fragment = document.createDocumentFragment();
+      references.forEach(reference => {
+        const figure = document.createElement("figure");
+        const image = document.createElement("img");
+        const caption = document.createElement("figcaption");
+        figure.className = "league-reference-preview";
+        image.src = reference.url;
+        image.alt = "Reference screenshot: " + reference.file.name;
+        caption.textContent = reference.file.name;
+        figure.append(image, caption);
+        fragment.append(figure);
+      });
+      leagueCreateReferencePreviews.replaceChildren(fragment);
+      leagueCreateReferenceCount.textContent = String(references.length) + (references.length === 1 ? " screenshot" : " screenshots");
+      setHidden(leagueCreateReferenceTray, references.length === 0);
+    };
+
+    const clearLeagueCreationReferences = () => {
+      state.leagueCreationReferences.forEach(reference => URL.revokeObjectURL(reference.url));
+      state.leagueCreationReferences = [];
+      leagueCreateMembersFile.value = "";
+      leagueCreateReferenceStatus.textContent = "";
+      renderLeagueCreationReferences();
+    };
+
+    const showLeagueCreationStep = step => {
+      state.leagueCreationStep = step;
+      const stepIndex = leagueCreationSteps.indexOf(step);
+      document.querySelectorAll("[data-league-step]").forEach(section => {
+        setHidden(section, section.dataset.leagueStep !== step);
+      });
+      document.querySelectorAll("[data-league-step-indicator]").forEach(indicator => {
+        if (indicator.dataset.leagueStepIndicator === step) indicator.setAttribute("aria-current", "step");
+        else indicator.removeAttribute("aria-current");
+      });
+      leagueCreateBack.disabled = stepIndex === 0;
+      setHidden(leagueCreateNext, step === "teams");
+      setHidden(leagueCreateSubmit, step !== "teams");
+      leagueCreateStatus.textContent = "";
+      if (step === "teams") updateLeagueCreationSubmit();
+      const heading = document.querySelector('[data-league-step="' + step + '"] h3');
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    };
+
+    const leagueCreationStepIsValid = step => {
+      if (step === "basics") {
+        const fields = [leagueCreateName, leagueCreateSeason, leagueCreateTeamCount];
+        if (leagueCreateDraftFormat.value === "snake") fields.push(leagueCreateSnakeRounds);
+        else fields.push(leagueCreateAuctionBudget, leagueCreateAuctionMinimumBid);
+        const invalid = fields.find(field => !field.checkValidity());
+        if (invalid) {
+          invalid.reportValidity();
+          invalid.focus();
+          return false;
+        }
+        syncLeagueCreationFromBasics();
+        return true;
+      }
+      if (step === "scoring") {
+        const fields = [leagueCreatePassYard, leagueCreatePassTd, leagueCreateRushYard, leagueCreateRushTd, leagueCreateReceiveYard, leagueCreateReceiveTd, leagueCreatePpr];
+        const invalid = fields.find(field => !field.checkValidity());
+        if (invalid) {
+          invalid.reportValidity();
+          invalid.focus();
+          return false;
+        }
+      }
+      if (step === "roster") {
+        const fields = [...leagueCreateRosterSlots.querySelectorAll("[data-roster-slot]")];
+        const invalid = fields.find(field => !field.checkValidity());
+        if (invalid) {
+          invalid.reportValidity();
+          invalid.focus();
+          return false;
+        }
+        if (!fields.some(field => Number(field.value) > 0)) {
+          leagueCreateStatus.textContent = "Add at least one roster slot.";
+          fields[0]?.focus();
+          return false;
+        }
+      }
+      return true;
     };
 
     const draftRoomPathFor = (seasonId, roomId) => {
@@ -3805,6 +4192,13 @@ export const platformShellHtml = `<!doctype html>
     });
 
     leagueCreateSeason.value = String(new Date().getFullYear());
+    byId("league-info-button").addEventListener("click", () => {
+      if (!state.leagueCreation) applyLeagueCreationReview(manualLeagueCreationReview());
+      showLeagueCreationStep("basics");
+      leagueSetupDialog.showModal();
+    });
+    byId("league-setup-close").addEventListener("click", () => leagueSetupDialog.close());
+
     byId("league-create-review-espn").addEventListener("click", async () => {
       const leagueIdOrUrl = leagueCreateEspnId.value.trim();
       if (!leagueIdOrUrl) {
@@ -3824,70 +4218,76 @@ export const platformShellHtml = `<!doctype html>
           }),
         }));
         if (outcome.kind === "manual-review-required") {
-          showLeagueCreationReview(manualLeagueCreationReview(outcome));
-          leagueCreateImportStatus.textContent = outcome.message + " Enter the settings below or upload the League Members screenshot to fill team and manager names.";
+          if (!state.leagueCreation) applyLeagueCreationReview(manualLeagueCreationReview());
+          state.leagueCreation.provider = "espn";
+          state.leagueCreation.externalLeagueId = outcome.externalLeagueId || leagueIdOrUrl;
+          renderLeagueCreationImportSummary(
+            "failure",
+            "ESPN settings unavailable",
+            outcome.message + " No settings were imported. Continue with screenshots or manual entry.",
+            null,
+            outcome.warnings || [],
+          );
+          leagueCreateImportStatus.textContent = "ESPN did not change any fields.";
           return;
         }
-        showLeagueCreationReview(leagueCreationReviewFromEspn(outcome));
-        leagueCreateImportStatus.textContent = "ESPN settings loaded. Review every field before creating the league.";
+        const review = leagueCreationReviewFromEspn(outcome);
+        applyLeagueCreationReview(review);
+        renderLeagueCreationImportSummary(
+          "success",
+          "Imported from ESPN",
+          "These fields came from ESPN. Review them before finishing.",
+          review,
+          outcome.warnings || [],
+        );
+        leagueCreateImportStatus.textContent = "ESPN settings filled the wizard.";
       } catch (error) {
-        leagueCreateImportStatus.textContent = error.message;
+        renderLeagueCreationImportSummary(
+          "failure",
+          "ESPN import failed",
+          error.message + " No settings were imported. Continue with screenshots or manual entry.",
+          null,
+          [],
+        );
+        leagueCreateImportStatus.textContent = "ESPN did not change any fields.";
       }
     });
 
-    byId("league-create-manual").addEventListener("click", () => {
-      if (!leagueCreateEspnId.value.trim()) {
-        leagueCreateImportStatus.textContent = "Enter an ESPN league ID or URL first.";
-        leagueCreateEspnId.focus();
+    leagueCreateMembersFile.addEventListener("change", () => {
+      const files = [...(leagueCreateMembersFile.files || [])];
+      const invalidFile = files.find(file => !["image/png", "image/jpeg", "image/webp"].includes(file.type));
+      if (invalidFile) {
+        leagueCreateReferenceStatus.textContent = invalidFile.name + " is not a supported image.";
         return;
       }
-      showLeagueCreationReview(manualLeagueCreationReview());
-      leagueCreateImportStatus.textContent = "Enter the league settings below or upload a screenshot to fill team and manager names.";
+      state.leagueCreationReferences.forEach(reference => URL.revokeObjectURL(reference.url));
+      state.leagueCreationReferences = files.map(file => ({ file: file, url: URL.createObjectURL(file) }));
+      renderLeagueCreationReferences();
+      leagueCreateReferenceStatus.textContent = files.length === 0
+        ? "No screenshots selected."
+        : "Screenshots are ready as local references.";
     });
-
-    byId("league-create-analyze-members").addEventListener("click", async () => {
-      const file = leagueCreateMembersFile.files?.[0];
-      if (!file) {
-        leagueCreateImportStatus.textContent = "Choose a League Members screenshot first.";
-        leagueCreateMembersFile.focus();
-        return;
-      }
-      if (file.size > screenshotMaxBytes) {
-        leagueCreateImportStatus.textContent = "Screenshots must be 5 MB or smaller.";
-        return;
-      }
-      leagueCreateImportStatus.textContent = "Reading teams and managers...";
-      try {
-        const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ mimeType: file.type, base64: await imageBase64For(file) }),
-        }));
-        showLeagueCreationReview(leagueCreationReviewFromScreenshot(body.import));
-        leagueCreateImportStatus.textContent = "Teams and managers extracted. Fix any truncated names, then confirm the league settings.";
-      } catch (error) {
-        leagueCreateImportStatus.textContent = error.message;
-      }
+    byId("league-create-clear-references").addEventListener("click", clearLeagueCreationReferences);
+    byId("league-create-enter-manually").addEventListener("click", () => {
+      clearLeagueCreationReferences();
+      showLeagueCreationStep("scoring");
     });
 
     leagueCreateDraftFormat.addEventListener("change", updateLeagueCreationFormatFields);
-    leagueCreateTeamRows.addEventListener("change", updateLeagueCreationSubmit);
-    leagueCreateConfirmed.addEventListener("change", () => {
-      updateLeagueCreationSubmit();
+    leagueCreateTeamRows.addEventListener("input", updateLeagueCreationSubmit);
+    leagueCreateBack.addEventListener("click", () => {
+      const currentIndex = leagueCreationSteps.indexOf(state.leagueCreationStep);
+      if (currentIndex > 0) showLeagueCreationStep(leagueCreationSteps[currentIndex - 1]);
+    });
+    leagueCreateNext.addEventListener("click", () => {
+      const currentIndex = leagueCreationSteps.indexOf(state.leagueCreationStep);
+      if (!leagueCreationStepIsValid(state.leagueCreationStep)) return;
+      if (currentIndex < leagueCreationSteps.length - 1) showLeagueCreationStep(leagueCreationSteps[currentIndex + 1]);
     });
     leagueCreateReview.addEventListener("submit", async event => {
       event.preventDefault();
-      if (!state.leagueCreation || !leagueCreationCanSubmit()) return;
-      const teams = [...leagueCreateTeamRows.querySelectorAll("tr")].map((row, index) => {
-        const valueFor = field => row.querySelector('[data-field="' + field + '"]').value.trim();
-        return {
-          externalTeamId: state.leagueCreation.teams[index].externalTeamId,
-          displayName: valueFor("displayName"),
-          abbreviation: valueFor("abbreviation"),
-          managerNames: valueFor("managerNames").split(/[;,]/u).map(value => value.trim()).filter(Boolean),
-        };
-      });
+      if (!state.leagueCreation || !teamNamesComplete()) return;
+      const teams = readLeagueCreationTeams();
       const draft = leagueCreateDraftFormat.value === "snake"
         ? {
             type: "snake",
@@ -3909,8 +4309,8 @@ export const platformShellHtml = `<!doctype html>
           credentials: "same-origin",
           body: JSON.stringify({
             setup: {
-              provider: "espn",
-              externalLeagueId: leagueCreateExternalId.value.trim(),
+              provider: state.leagueCreation.provider,
+              externalLeagueId: state.leagueCreation.externalLeagueId,
               leagueName: leagueCreateName.value.trim(),
               seasonYear: Number(leagueCreateSeason.value),
               expectedTeamCount: teams.length,
