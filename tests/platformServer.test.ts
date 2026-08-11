@@ -94,6 +94,7 @@ interface StoredAuthAccountRow {
   email: string;
   email_normalized: string;
   password_hash: string;
+  auth_version: number;
   status: string;
   created_at: Date;
   updated_at: Date;
@@ -103,6 +104,7 @@ interface StoredAuthSessionRow {
   id: string;
   account_id: string;
   token_hash: string;
+  auth_version: number;
   created_at: Date;
   expires_at: Date;
   revoked_at: Date | null;
@@ -319,6 +321,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         email,
         email_normalized: email,
         password_hash: passwordHash,
+        auth_version: 1,
         status: "active",
         created_at: createdAt,
         updated_at: createdAt,
@@ -348,12 +351,28 @@ class FakePostgresAuthClient implements PostgresQueryClient {
     }
 
     if (normalizedSql.startsWith("INSERT INTO sessions")) {
-      const [id, accountId, tokenHash, expiresAt, createdAt] =
-        values as readonly [string, string, string, Date, Date];
+      const [id, accountId, tokenHash, expiresAt, createdAt, expectedPasswordHash] = values as readonly [
+        string,
+        string,
+        string,
+        Date,
+        Date,
+        string | undefined,
+      ];
+      const account = this.accounts.get(accountId);
+      if (
+        account === undefined ||
+        (expectedPasswordHash !== undefined && (
+          account.status !== "active" || account.password_hash !== expectedPasswordHash
+        ))
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
       const row: StoredAuthSessionRow = {
         id,
         account_id: accountId,
         token_hash: tokenHash,
+        auth_version: account.auth_version,
         created_at: createdAt,
         expires_at: expiresAt,
         revoked_at: null,
@@ -363,14 +382,19 @@ class FakePostgresAuthClient implements PostgresQueryClient {
       return { rows: [cloneAuthSessionRow(row) as TRow], rowCount: 1 };
     }
 
-    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE token_hash = $1")) {
+    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE sessions.token_hash = $1")) {
       const [tokenHash] = values as readonly [string];
-      const row = [...this.sessions.values()].find(session => session.token_hash === tokenHash);
+      const row = [...this.sessions.values()].find(session => {
+        if (session.token_hash !== tokenHash) return false;
+        const account = this.accounts.get(session.account_id);
+
+        return account?.status === "active" && account.auth_version === session.auth_version;
+      });
 
       return { rows: row === undefined ? [] : [cloneAuthSessionRow(row) as TRow] };
     }
 
-    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE id = $1")) {
+    if (normalizedSql.includes("FROM sessions") && normalizedSql.includes("WHERE sessions.id = $1")) {
       const [sessionId] = values as readonly [string];
       const row = this.sessions.get(sessionId);
 
@@ -426,6 +450,10 @@ class FakeTransactionalPostgresAuthClient
       this.appliedMigrations.add(migrationId);
 
       return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
+      return { rows: [] };
     }
 
     if (

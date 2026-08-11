@@ -216,6 +216,31 @@ export const platformShellHtml = `<!doctype html>
       padding: 6px 8px;
     }
 
+    dialog {
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      margin: auto;
+      max-height: calc(100vh - 32px);
+      max-width: 420px;
+      padding: 20px;
+      width: calc(100% - 32px);
+    }
+
+    dialog::backdrop { background: rgb(0 0 0 / .72); }
+
+    .dialog-header {
+      align-items: start;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+    }
+
+    .dialog-header h2 { font-size: 20px; margin: 0; }
+    .dialog-copy { color: var(--muted); line-height: 1.45; margin: 8px 0 18px; }
+    .notice { color: var(--accent-strong); line-height: 1.45; }
+
     .context-bar {
       align-items: end;
       border-bottom: 1px solid var(--line);
@@ -353,11 +378,39 @@ export const platformShellHtml = `<!doctype html>
       <a class="brand" href="/app">Mockd</a>
       <div class="account-actions">
         <span id="account-email" class="account-email"></span>
+        <button id="account-settings-button" class="text-button" type="button" aria-haspopup="dialog" aria-controls="password-dialog">Account</button>
         <button id="sign-out-button" class="text-button" type="button">Sign out</button>
       </div>
     </div>
     <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
   </header>
+
+  <dialog id="password-dialog" aria-labelledby="password-dialog-title" aria-describedby="password-dialog-description">
+    <div class="dialog-header">
+      <h2 id="password-dialog-title">Change password</h2>
+      <button id="password-dialog-close" class="text-button" type="button">Close</button>
+    </div>
+    <p id="password-dialog-description" class="dialog-copy">You will be signed out on every device after your password changes.</p>
+    <form id="password-change-form" class="compact-stack">
+      <div>
+        <label for="current-password-input">Current password</label>
+        <input id="current-password-input" type="password" autocomplete="current-password" required>
+      </div>
+      <div>
+        <label for="new-password-input">New password</label>
+        <input id="new-password-input" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <div>
+        <label for="confirm-password-input">Confirm new password</label>
+        <input id="confirm-password-input" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <p id="password-change-status" class="status" role="status" aria-live="polite"></p>
+      <div class="actions">
+        <button id="password-change-submit" class="primary" type="submit">Update password</button>
+        <button id="password-dialog-cancel" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 
   <main id="main-content" class="shell-main">
     <section id="boot-panel" class="boot" aria-live="polite">
@@ -383,6 +436,7 @@ export const platformShellHtml = `<!doctype html>
         <button id="auth-submit-button" class="primary" type="submit">Sign in</button>
       </form>
       <p id="auth-error" class="error hidden" role="alert"></p>
+      <p id="auth-notice" class="notice hidden" role="status"></p>
       <p><span id="auth-mode-prompt">Need access? Ask your commissioner for an invitation.</span> <a id="auth-mode-link" class="hidden" href="/login">Sign in</a></p>
     </section>
 
@@ -572,6 +626,7 @@ export const platformShellHtml = `<!doctype html>
     const authModePrompt = byId("auth-mode-prompt");
     const authModeLink = byId("auth-mode-link");
     const authError = byId("auth-error");
+    const authNotice = byId("auth-notice");
     const emailInput = byId("email-input");
     const passwordInput = byId("password-input");
     const appHeader = byId("app-header");
@@ -601,6 +656,13 @@ export const platformShellHtml = `<!doctype html>
     const createLiveRoomButton = byId("create-live-room-button");
     const openSetupLiveRoom = byId("open-setup-live-room");
     const liveRoomSetupStatus = byId("live-room-setup-status");
+    const passwordDialog = byId("password-dialog");
+    const passwordChangeForm = byId("password-change-form");
+    const currentPasswordInput = byId("current-password-input");
+    const newPasswordInput = byId("new-password-input");
+    const confirmPasswordInput = byId("confirm-password-input");
+    const passwordChangeStatus = byId("password-change-status");
+    const passwordChangeSubmit = byId("password-change-submit");
 
     const setHidden = (element, hidden) => element.classList.toggle("hidden", hidden);
 
@@ -643,6 +705,9 @@ export const platformShellHtml = `<!doctype html>
         : returnPath();
       authModeLink.href = "/login?returnTo=" + encodeURIComponent(modeReturnPath);
       passwordInput.autocomplete = signupMode ? "new-password" : "current-password";
+      const passwordChanged = new URLSearchParams(window.location.search).get("passwordChanged") === "1";
+      authNotice.textContent = passwordChanged ? "Password changed. Sign in with your new password." : "";
+      setHidden(authNotice, !passwordChanged);
     };
 
     const showAuth = () => {
@@ -1031,6 +1096,45 @@ export const platformShellHtml = `<!doctype html>
     byId("sign-out-button").addEventListener("click", () => {
       fetch("/session", { method: "DELETE", credentials: "same-origin" })
         .finally(() => window.location.assign("/login"));
+    });
+
+    byId("account-settings-button").addEventListener("click", () => {
+      passwordChangeForm.reset();
+      passwordChangeStatus.textContent = "";
+      passwordChangeStatus.className = "status";
+      passwordDialog.showModal();
+      currentPasswordInput.focus();
+    });
+
+    const closePasswordDialog = () => passwordDialog.close();
+    byId("password-dialog-close").addEventListener("click", closePasswordDialog);
+    byId("password-dialog-cancel").addEventListener("click", closePasswordDialog);
+    passwordDialog.addEventListener("close", () => {
+      passwordChangeForm.reset();
+      passwordChangeStatus.textContent = "";
+    });
+
+    passwordChangeForm.addEventListener("submit", event => {
+      event.preventDefault();
+      passwordChangeSubmit.disabled = true;
+      passwordChangeStatus.className = "status";
+      passwordChangeStatus.textContent = "Updating password...";
+      fetch("/session/password", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          currentPassword: currentPasswordInput.value,
+          newPassword: newPasswordInput.value,
+          newPasswordConfirmation: confirmPasswordInput.value,
+        }),
+      }).then(readJson)
+        .then(() => window.location.assign("/login?passwordChanged=1"))
+        .catch(error => {
+          passwordChangeStatus.className = "error";
+          passwordChangeStatus.textContent = error.message;
+        })
+        .finally(() => { passwordChangeSubmit.disabled = false; });
     });
 
     byId("retry-onboarding-button").addEventListener("click", () => {

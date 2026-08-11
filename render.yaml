@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+
+databases:
+  - name: mockd-postgres
+    plan: basic-256mb
+    region: virginia
+    postgresMajorVersion: "17"
+    databaseName: mockd
+    user: mockd
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
+    ipAllowList: []
+
+services:
+  - type: web
+    name: mockd-web
+    runtime: docker
+    plan: starter
+    region: virginia
+    autoDeployTrigger: off
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    preDeployCommand: npm run platform:migrate
+    dockerCommand: /bin/sh -c 'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'
+    healthCheckPath: /readyz
+    maxShutdownDelaySeconds: 60
+    numInstances: 1
+    disk:
+      name: draft-tools
+      mountPath: /var/lib/mockd/draft-tools
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mockd-postgres
+          property: connectionString
+      - key: MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY
+        value: /var/lib/mockd/draft-tools
+      - key: MOCKD_LIVE_DRAFT_DATA_MODE
+        value: postgres
+      - key: MOCKD_ALLOW_PUBLIC_SIGNUP
+        value: "false"
+      - key: MOCKD_TRUST_PROXY
+        value: "true"
+      - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA
+        value: "false"
+      - key: MOCKD_POSTGRES_POOL_SIZE
+        value: "5"
+      - key: MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS
+        value: "15000"
+      - key: MOCKD_POSTGRES_SNAPSHOT_KEY
+        value: mockd-production
+
+  - type: worker
+    name: mockd-worker
+    runtime: docker
+    plan: starter
+    region: virginia
+    autoDeployTrigger: off
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    preDeployCommand: npm run platform:migrate
+    dockerCommand: node dist/src/platform/startPlatformWorker.js
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mockd-postgres
+          property: connectionString
+      - key: MOCKD_WORKER_JOB_KINDS
+        value: simulation
+      - key: MOCKD_SIMULATION_DATA_MODE
+        value: local-fixtures
+      - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA
+        value: "false"
+      - key: MOCKD_POSTGRES_POOL_SIZE
+        value: "3"
+      - key: MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS
+        value: "15000"
+      - key: MOCKD_POSTGRES_SNAPSHOT_KEY
+        value: mockd-production

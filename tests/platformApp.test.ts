@@ -203,6 +203,31 @@ class RecordingExportArtifactRepository implements ExportArtifactRepository {
 }
 
 describe("platform app service", () => {
+  it("changes the signed-in account password and invalidates all active sessions", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const firstLogin = await signUpAndLogin(app, "password@example.com", "current secure password", now);
+    const secondLogin = await app.login({
+      email: firstLogin.account.email,
+      password: "current secure password",
+      now: new Date(now.getTime() + 1),
+    });
+    if (secondLogin === null) throw new Error("Expected second login.");
+    const changedAt = new Date(now.getTime() + 2);
+
+    await expect(app.changePassword({
+      actorSessionToken: firstLogin.sessionToken,
+      currentPassword: "current secure password",
+      newPassword: "replacement secure password",
+      newPasswordConfirmation: "replacement secure password",
+      now: changedAt,
+    })).resolves.toEqual({
+      account: { ...firstLogin.account, updatedAt: changedAt },
+      revokedSessionCount: 2,
+    });
+    await expect(app.findAccountBySessionToken(firstLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
+    await expect(app.findAccountBySessionToken(secondLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
+  });
+
   it("requires an owner or admin actor when registering league season data", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);

@@ -81,7 +81,7 @@ const expectOk = <TBody>(response: JsonResponse<TBody>): TBody => {
 const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord> => {
   await page.goto("/signup");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
     const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
@@ -89,7 +89,7 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
 
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.locator("#account-email")).toHaveText(email);
   });
@@ -97,7 +97,7 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email")).toHaveText(email);
 
@@ -107,7 +107,7 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
 const signInExisting = async (page: Page, email: string, accountPassword: string): Promise<void> => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(accountPassword);
+  await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email"), [
     `Could not sign in to the pre-provisioned mobile smoke account ${email}.`,

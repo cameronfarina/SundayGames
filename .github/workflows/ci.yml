@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Build, unit tests, and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Validate Render Blueprint against the provider schema
+        run: |
+          curl --proto '=https' --tlsv1.2 --fail --show-error --silent \
+            https://render.com/schema/render.yaml.json \
+            --output /tmp/render-schema.json
+          npm run platform:render:validate -- /tmp/render-schema.json
+
+  local-e2e:
+    name: Local end-to-end smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run local end-to-end smoke
+        run: npm run test:e2e
+
+      - name: Upload Playwright failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: local-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production-container:
+    name: Production image and Postgres boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: mockd
+          POSTGRES_USER: mockd
+          POSTGRES_PASSWORD: mockd-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mockd -d mockd"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build production image
+        run: docker build --tag mockd-ci .
+
+      - name: Serialize concurrent first-deploy migrations
+        env:
+          DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
+        run: |
+          docker run --rm --network host --env DATABASE_URL mockd-ci \
+            node dist/src/platform/runPlatformMigrations.js &
+          first_pid=$!
+          docker run --rm --network host --env DATABASE_URL mockd-ci \
+            node dist/src/platform/runPlatformMigrations.js &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+      - name: Start production web and worker
+        env:
+          DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
+        run: |
+          docker volume create mockd-ci-draft-tools
+          docker run --detach --name mockd-ci-web --network host \
+            --env NODE_ENV=production \
+            --env DATABASE_URL \
+            --env HOST=0.0.0.0 \
+            --env PORT=4319 \
+            --env MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools \
+            --env MOCKD_LIVE_DRAFT_DATA_MODE=postgres \
+            --env MOCKD_ALLOW_PUBLIC_SIGNUP=false \
+            --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
+            --volume mockd-ci-draft-tools:/var/lib/mockd/draft-tools \
+            mockd-ci /bin/sh -c \
+            'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'
+          docker run --detach --name mockd-ci-worker --network host \
+            --env NODE_ENV=production \
+            --env DATABASE_URL \
+            --env MOCKD_WORKER_JOB_KINDS=simulation \
+            --env MOCKD_SIMULATION_DATA_MODE=local-fixtures \
+            --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
+            mockd-ci node dist/src/platform/startPlatformWorker.js
+
+      - name: Require healthy production processes
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --show-error --silent http://127.0.0.1:4319/readyz; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs mockd-ci-web
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Running}}' mockd-ci-web)" = true
+          test "$(docker inspect --format '{{.State.Running}}' mockd-ci-worker)" = true
+
+      - name: Clean up production processes
+        if: ${{ always() }}
+        run: |
+          docker rm --force mockd-ci-web mockd-ci-worker 2>/dev/null || true
+          docker volume rm mockd-ci-draft-tools 2>/dev/null || true

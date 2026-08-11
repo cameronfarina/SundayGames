@@ -6,7 +6,9 @@ import {
   normalizeEmail,
   type AccountRecord,
   type CreateAccountRecordInput,
+  type CreateCredentialSessionRecordInput,
   type LoginResult,
+  type SessionRecord,
 } from "../src/platform/auth.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -18,6 +20,36 @@ class TrackingAuthRepository extends InMemoryAuthRepository {
   override createAccount(input: CreateAccountRecordInput): AccountRecord {
     this.createAccountStarted = true;
     return super.createAccount(input);
+  }
+}
+
+class PausedCredentialSessionRepository extends InMemoryAuthRepository {
+  readonly sessionCreationStarted: Promise<void>;
+  #markSessionCreationStarted!: () => void;
+  #continueSessionCreation!: () => void;
+  readonly #sessionCreationAllowed: Promise<void>;
+
+  constructor() {
+    super();
+    this.sessionCreationStarted = new Promise(resolve => {
+      this.#markSessionCreationStarted = resolve;
+    });
+    this.#sessionCreationAllowed = new Promise(resolve => {
+      this.#continueSessionCreation = resolve;
+    });
+  }
+
+  allowSessionCreation(): void {
+    this.#continueSessionCreation();
+  }
+
+  override async createSessionForCredential(
+    input: CreateCredentialSessionRecordInput,
+  ): Promise<SessionRecord | null> {
+    this.#markSessionCreationStarted();
+    await this.#sessionCreationAllowed;
+
+    return await super.createSessionForCredential(input);
   }
 }
 
@@ -130,6 +162,32 @@ describe("platform auth foundation", () => {
     expect(JSON.stringify(repository.sessions())).not.toContain(login.sessionToken);
   });
 
+  it("does not create a session when the password rotates after verification", async () => {
+    const repository = new PausedCredentialSessionRepository();
+    const auth = createAuthService({ repository });
+    await auth.createUser({
+      email: "concurrent-login@mockd.app",
+      password: "current secure password",
+      now,
+    });
+    const login = auth.login({
+      email: "concurrent-login@mockd.app",
+      password: "current secure password",
+      now,
+    });
+    await repository.sessionCreationStarted;
+
+    await expect(auth.resetPassword({
+      email: "concurrent-login@mockd.app",
+      newPassword: "replacement secure password",
+      now: new Date(now.getTime() + 1),
+    })).resolves.not.toBeNull();
+    repository.allowSessionCreation();
+
+    await expect(login).resolves.toBeNull();
+    expect(repository.sessions()).toEqual([]);
+  });
+
   it("logs in with a password hash produced by the existing scrypt format", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
@@ -213,6 +271,106 @@ describe("platform auth foundation", () => {
 
     await expect(auth.revokeSession(secondLogin.session.id, new Date(now.getTime() + 4))).resolves.toBe(true);
     await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 5))).resolves.toBeNull();
+  });
+
+  it("changes a signed-in account password atomically and revokes every session", async () => {
+    const repository = new InMemoryAuthRepository();
+    const auth = createAuthService({ repository });
+    const account = await auth.createUser({
+      email: "change-password@mockd.app",
+      password: "current secure password",
+      now,
+    });
+    const firstLogin = expectLoginResult(await auth.login({
+      email: account.email,
+      password: "current secure password",
+      now,
+    }));
+    const secondLogin = expectLoginResult(await auth.login({
+      email: account.email,
+      password: "current secure password",
+      now: new Date(now.getTime() + 1),
+    }));
+    const changedAt = new Date(now.getTime() + 2);
+
+    await expect(auth.changePassword({
+      sessionToken: firstLogin.sessionToken,
+      currentPassword: "current secure password",
+      newPassword: "replacement secure password",
+      newPasswordConfirmation: "replacement secure password",
+      now: changedAt,
+    })).resolves.toEqual({
+      account: { ...account, updatedAt: changedAt },
+      revokedSessionCount: 2,
+    });
+
+    await expect(auth.lookupSession(firstLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
+    await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
+    await expect(auth.login({
+      email: account.email,
+      password: "current secure password",
+      now: new Date(now.getTime() + 4),
+    })).resolves.toBeNull();
+    await expect(auth.login({
+      email: account.email,
+      password: "replacement secure password",
+      now: new Date(now.getTime() + 4),
+    })).resolves.toMatchObject({ account: { id: account.id } });
+  });
+
+  it("leaves the credential and sessions unchanged when a password change is invalid", async () => {
+    const repository = new InMemoryAuthRepository();
+    const auth = createAuthService({ repository });
+    const account = await auth.createUser({
+      email: "unchanged-password@mockd.app",
+      password: "current secure password",
+      now,
+    });
+    const login = expectLoginResult(await auth.login({
+      email: account.email,
+      password: "current secure password",
+      now,
+    }));
+
+    await expect(auth.changePassword({
+      sessionToken: login.sessionToken,
+      currentPassword: "wrong current password",
+      newPassword: "replacement secure password",
+      newPasswordConfirmation: "replacement secure password",
+      now: new Date(now.getTime() + 1),
+    })).rejects.toThrow(new AuthError(
+      "invalid_current_password",
+      "Current password is incorrect.",
+    ));
+    await expect(auth.changePassword({
+      sessionToken: login.sessionToken,
+      currentPassword: "current secure password",
+      newPassword: "replacement secure password",
+      newPasswordConfirmation: "different secure password",
+      now: new Date(now.getTime() + 2),
+    })).rejects.toThrow(new AuthError(
+      "password_confirmation_mismatch",
+      "New passwords do not match.",
+    ));
+    await expect(auth.changePassword({
+      sessionToken: login.sessionToken,
+      currentPassword: "current secure password",
+      newPassword: "current secure password",
+      newPasswordConfirmation: "current secure password",
+      now: new Date(now.getTime() + 3),
+    })).rejects.toThrow(new AuthError(
+      "password_unchanged",
+      "Choose a password you have not already used.",
+    ));
+
+    await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 4))).resolves.toMatchObject({
+      account: { id: account.id },
+    });
+    await expect(auth.login({
+      email: account.email,
+      password: "current secure password",
+      now: new Date(now.getTime() + 4),
+    })).resolves.toMatchObject({ account: { id: account.id } });
   });
 
   it("keeps raw passwords and raw session tokens out of public records", async () => {

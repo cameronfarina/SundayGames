@@ -97,4 +97,22 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).not.toContain("class=\"cards\"");
     expect(platformShellHtml).not.toContain("Draft command center");
   });
+
+  it("offers a compact accessible password change flow from the account header", () => {
+    expect(platformShellHtml).toContain('id="account-settings-button"');
+    expect(platformShellHtml).toContain('aria-haspopup="dialog"');
+    expect(platformShellHtml).toContain('id="password-dialog"');
+    expect(platformShellHtml).toContain('aria-labelledby="password-dialog-title"');
+    expect(platformShellHtml).toContain('id="current-password-input"');
+    expect(platformShellHtml).toContain('autocomplete="current-password"');
+    expect(platformShellHtml).toContain('id="new-password-input"');
+    expect(platformShellHtml).toContain('id="confirm-password-input"');
+    expect(platformShellHtml).toContain('autocomplete="new-password"');
+    expect(platformShellHtml).toContain('id="password-change-status"');
+    expect(platformShellHtml).toContain('fetch("/session/password"');
+    expect(platformShellHtml).toContain('method: "PUT"');
+    expect(platformShellHtml).toContain('newPasswordConfirmation: confirmPasswordInput.value');
+    expect(platformShellHtml).toContain('window.location.assign("/login?passwordChanged=1")');
+    expect(platformShellHtml).toContain('id="auth-notice"');
+  });
 });

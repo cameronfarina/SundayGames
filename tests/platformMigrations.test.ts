@@ -53,11 +53,12 @@ describe("platform Postgres migrations", () => {
 
     expect(result.statementCount).toBeGreaterThan(platformPostgresMigrationStatements.length + 2);
     expect(client.transactionCount).toBe(1);
-    expect(client.statements[0]).toContain("CREATE TABLE IF NOT EXISTS platform_store_snapshots");
-    expect(client.statements[1]).toContain("CREATE INDEX IF NOT EXISTS platform_store_snapshots_updated_at_idx");
-    expect(client.statements[2]).toContain("CREATE TABLE IF NOT EXISTS platform_schema_migrations");
-    expect(client.statements[3]).toContain("SELECT id FROM platform_schema_migrations");
-    expect(client.statements[4]).toBe(platformPostgresMigrationStatements[0]);
+    expect(client.statements[0]).toBe("SELECT pg_advisory_xact_lock($1, $2)");
+    expect(client.statements[1]).toContain("CREATE TABLE IF NOT EXISTS platform_store_snapshots");
+    expect(client.statements[2]).toContain("CREATE INDEX IF NOT EXISTS platform_store_snapshots_updated_at_idx");
+    expect(client.statements[3]).toContain("CREATE TABLE IF NOT EXISTS platform_schema_migrations");
+    expect(client.statements[4]).toContain("SELECT id FROM platform_schema_migrations");
+    expect(client.statements[5]).toBe(platformPostgresMigrationStatements[0]);
     expect(client.statements.at(-1)).toContain("INSERT INTO platform_schema_migrations");
   });
 
@@ -79,16 +80,14 @@ describe("platform Postgres migrations", () => {
 
   it("skips every schema statement when all migrations are applied", async () => {
     const client = new RecordingPostgresClient();
-    client.appliedMigrationIds.add("platform-schema-v1");
-    client.appliedMigrationIds.add("platform-live-room-paused-v2");
-    client.appliedMigrationIds.add("platform-invitations-v3");
-    client.appliedMigrationIds.add("platform-live-room-setup-v4");
+    requiredPlatformPostgresMigrationIds.forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
 
     expect(result).toEqual({ statementCount: 0 });
     expect(client.transactionCount).toBe(1);
-    expect(client.statements.filter(statement => statement.includes("SELECT id"))).toHaveLength(4);
+    expect(client.statements.filter(statement => statement.includes("SELECT id")))
+      .toHaveLength(requiredPlatformPostgresMigrationIds.length);
   });
 
   it("adds durable league invitations to an existing platform database", async () => {
@@ -154,6 +153,24 @@ describe("platform Postgres migrations", () => {
     expect(client.appliedMigrationIds).not.toContain("platform-live-room-setup-v4");
   });
 
+  it("adds an authentication version to existing accounts and sessions", async () => {
+    const client = new RecordingPostgresClient();
+    [
+      "platform-schema-v1",
+      "platform-live-room-paused-v2",
+      "platform-invitations-v3",
+      "platform-live-room-setup-v4",
+    ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
+    expect(client.statements).toContain(
+      "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    );
+  });
+
   it("reports every required migration missing from the migration ledger", async () => {
     const client = new RecordingPostgresClient();
     client.appliedMigrationIds.add("platform-schema-v1");
@@ -162,12 +179,14 @@ describe("platform Postgres migrations", () => {
       "platform-live-room-paused-v2",
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
       "platform-live-room-paused-v2",
       "platform-invitations-v3",
       "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
     ]);
   });
 });

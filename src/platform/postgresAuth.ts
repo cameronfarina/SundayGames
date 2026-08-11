@@ -4,7 +4,10 @@ import {
   type AccountRecord,
   type AuthRepository,
   type CreateAccountRecordInput,
+  type CreateCredentialSessionRecordInput,
   type CreateSessionRecordInput,
+  type PasswordReplacementResult,
+  type ReplacePasswordInput,
   type SessionRecord,
 } from "./auth.js";
 import type {
@@ -28,6 +31,10 @@ interface SessionRow {
   created_at: Date | string;
   expires_at: Date | string;
   revoked_at: Date | string | null;
+}
+
+interface PasswordReplacementRow extends AccountRow {
+  revoked_session_count: string | number;
 }
 
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
@@ -75,7 +82,8 @@ FROM accounts
 `.trim();
 
 const selectSessionSql = `
-SELECT id, account_id, token_hash, created_at, expires_at, revoked_at
+SELECT sessions.id, sessions.account_id, sessions.token_hash,
+       sessions.created_at, sessions.expires_at, sessions.revoked_at
 FROM sessions
 `.trim();
 
@@ -138,9 +146,12 @@ INSERT INTO sessions (
   id,
   account_id,
   token_hash,
+  auth_version,
   expires_at,
   created_at
-) VALUES ($1, $2, $3, $4, $5)
+) SELECT $1, $2, $3, accounts.auth_version, $4, $5
+FROM accounts
+WHERE accounts.id = $2
 RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
 `.trim(),
       [
@@ -157,9 +168,47 @@ RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
     return sessionFromRow(row);
   }
 
+  async createSessionForCredential(
+    input: CreateCredentialSessionRecordInput,
+  ): Promise<SessionRecord | null> {
+    const result = await this.#client.query<SessionRow>(
+      `
+INSERT INTO sessions (
+  id,
+  account_id,
+  token_hash,
+  auth_version,
+  expires_at,
+  created_at
+) SELECT $1, $2, $3, accounts.auth_version, $4, $5
+FROM accounts
+WHERE accounts.id = $2
+  AND accounts.status = 'active'
+  AND accounts.password_hash = $6
+RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
+`.trim(),
+      [
+        input.id,
+        input.accountId,
+        input.tokenHash,
+        input.expiresAt,
+        input.createdAt,
+        input.expectedPasswordHash,
+      ],
+    );
+    const row = firstRow(result);
+
+    return row === undefined ? null : sessionFromRow(row);
+  }
+
   async findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     const result = await this.#client.query<SessionRow>(
-      `${selectSessionSql} WHERE token_hash = $1`,
+      `${selectSessionSql}
+JOIN accounts
+  ON accounts.id = sessions.account_id
+ AND accounts.auth_version = sessions.auth_version
+WHERE sessions.token_hash = $1
+  AND accounts.status = 'active'`,
       [tokenHash],
     );
     const row = firstRow(result);
@@ -169,7 +218,7 @@ RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
 
   async findSessionById(sessionId: string): Promise<SessionRecord | null> {
     const result = await this.#client.query<SessionRow>(
-      `${selectSessionSql} WHERE id = $1`,
+      `${selectSessionSql} WHERE sessions.id = $1`,
       [sessionId],
     );
     const row = firstRow(result);
@@ -190,5 +239,44 @@ RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
     const row = firstRow(result);
 
     return row === undefined ? null : sessionFromRow(row);
+  }
+
+  async replacePasswordAndRevokeSessions(
+    input: ReplacePasswordInput,
+  ): Promise<PasswordReplacementResult | null> {
+    const result = await this.#client.query<PasswordReplacementRow>(
+      `
+WITH updated_account AS (
+  UPDATE accounts
+  SET password_hash = $3, auth_version = auth_version + 1, updated_at = $4
+  WHERE id = $1
+    AND status = 'active'
+    AND ($2::text IS NULL OR password_hash = $2)
+  RETURNING id, email, password_hash, status, created_at, updated_at
+),
+revoked_sessions AS (
+  UPDATE sessions
+  SET revoked_at = $4
+  WHERE account_id IN (SELECT id FROM updated_account)
+    AND revoked_at IS NULL
+  RETURNING id
+)
+SELECT updated_account.*,
+  (SELECT COUNT(*)::text FROM revoked_sessions) AS revoked_session_count
+FROM updated_account;
+`.trim(),
+      [input.accountId, input.expectedPasswordHash ?? null, input.passwordHash, input.now],
+    );
+    const row = firstRow(result);
+    if (row === undefined) return null;
+    const revokedSessionCount = Number(row.revoked_session_count);
+    if (!Number.isSafeInteger(revokedSessionCount) || revokedSessionCount < 0) {
+      throw new Error("Postgres password replacement returned an invalid revoked session count.");
+    }
+
+    return {
+      account: accountFromRow(row),
+      revokedSessionCount,
+    };
   }
 }

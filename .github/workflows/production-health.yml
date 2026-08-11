@@ -1,0 +1,69 @@
+name: Production health
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  readiness:
+    name: Check production readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate monitor configuration
+        env:
+          BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+          ALERT_WEBHOOK_URL: ${{ secrets.MOCKD_PRODUCTION_ALERT_WEBHOOK_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          for (const [name, raw] of [
+            ["MOCKD_PRODUCTION_BASE_URL", process.env.BASE_URL],
+            ["MOCKD_PRODUCTION_ALERT_WEBHOOK_URL", process.env.ALERT_WEBHOOK_URL],
+          ]) {
+            if (!raw?.trim()) throw new Error(`${name} is required.`);
+            const url = new URL(raw);
+            if (url.protocol !== "https:" || url.username || url.password) {
+              throw new Error(`${name} must be a credential-free HTTPS URL.`);
+            }
+          }
+          NODE
+
+      - name: Require HTTPS readiness
+        env:
+          BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+        run: |
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "MOCKD_PRODUCTION_BASE_URL must use https://" >&2; exit 1 ;;
+          esac
+          curl --proto '=https' --tlsv1.2 --fail --show-error --silent \
+            --max-time 15 --retry 2 --retry-all-errors \
+            "${BASE_URL%/}/readyz"
+
+      - name: Notify production owner
+        if: ${{ failure() }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.MOCKD_PRODUCTION_ALERT_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then
+            echo "Monitor failed and MOCKD_PRODUCTION_ALERT_WEBHOOK_URL is not configured." >&2
+            exit 0
+          fi
+          payload=$(node --input-type=module <<'NODE'
+          process.stdout.write(JSON.stringify({
+            text: `Mockd production readiness failed: ${process.env.RUN_URL}`,
+          }));
+          NODE
+          )
+          curl --proto '=https' --tlsv1.2 --fail --show-error --silent \
+            --max-time 15 -H 'Content-Type: application/json' \
+            --data "$payload" "$ALERT_WEBHOOK_URL"

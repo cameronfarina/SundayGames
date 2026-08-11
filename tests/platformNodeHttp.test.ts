@@ -287,6 +287,7 @@ describe("platform Node HTTP adapter", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "cf-connecting-ip": "198.51.100.17",
         forwarded: "for=198.51.100.18",
         "x-forwarded-for": "198.51.100.19",
         "x-real-ip": "198.51.100.20",
@@ -309,13 +310,14 @@ describe("platform Node HTTP adapter", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "cf-connecting-ip": "198.51.100.17",
         forwarded: "for=198.51.100.18;proto=https",
         "x-forwarded-for": "198.51.100.19, 10.0.0.8",
       },
       body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
     });
 
-    expect(seenRequests[0]?.clientAddress).toBe("198.51.100.18");
+    expect(seenRequests[0]?.clientAddress).toBe("198.51.100.17");
   });
 
   it("falls back to the socket address for malformed trusted-proxy headers", async () => {
@@ -330,6 +332,7 @@ describe("platform Node HTTP adapter", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "cf-connecting-ip": "attacker-controlled-value",
         forwarded: "for=attacker-controlled-value",
         "x-forwarded-for": "198.51.100.19",
       },

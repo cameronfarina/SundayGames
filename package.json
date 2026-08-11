@@ -40,6 +40,12 @@
     "platform:migrate:dev": "tsx src/platform/runPlatformMigrations.ts",
     "platform:provision": "node dist/src/platform/provisionProduction.js",
     "platform:provision:dev": "tsx src/platform/provisionProduction.ts",
+    "platform:provision:generate": "tsx scripts/generate-production-provisioning.ts",
+    "platform:password:hash": "tsx scripts/hash-production-password.ts",
+    "platform:password:reset": "node dist/src/platform/resetProductionPassword.js",
+    "platform:backup:postgres": "tsx scripts/backup-postgres.ts",
+    "platform:restore:rehearse": "tsx scripts/rehearse-postgres-restore.ts",
+    "platform:render:validate": "tsx scripts/validate-render-blueprint.ts",
     "platform:seed:e2e": "tsx src/platform/seedLocalE2e.ts",
     "platform:web": "node dist/src/platform/startPlatformWeb.js",
     "platform:web:dev": "tsx src/platform/startPlatformWeb.ts",
@@ -55,9 +61,12 @@
     "@playwright/test": "^1.62.1",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.21.0",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "yaml": "^2.9.0"
   },
   "dependencies": {
     "fast-xml-parser": "^5.10.1",

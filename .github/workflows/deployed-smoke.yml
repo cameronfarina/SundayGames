@@ -1,0 +1,59 @@
+name: Deployed smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployed-smoke
+  cancel-in-progress: false
+
+jobs:
+  deployed-smoke:
+    name: Deployed end-to-end smoke
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate protected production target
+        env:
+          BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          const raw = process.env.BASE_URL?.trim();
+          if (!raw) throw new Error("MOCKD_PRODUCTION_BASE_URL is required.");
+          const url = new URL(raw);
+          if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+            throw new Error("MOCKD_PRODUCTION_BASE_URL must be a credential-free HTTPS origin.");
+          }
+          if (url.pathname !== "/" && url.pathname !== "") {
+            throw new Error("MOCKD_PRODUCTION_BASE_URL must not include a path.");
+          }
+          NODE
+
+      - name: Run deployed end-to-end smoke
+        env:
+          MOCKD_E2E_BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+          MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL: ${{ secrets.MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL }}
+          MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD: ${{ secrets.MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD }}
+          MOCKD_E2E_DEPLOYED_MEMBER_EMAIL: ${{ secrets.MOCKD_E2E_DEPLOYED_MEMBER_EMAIL }}
+          MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD: ${{ secrets.MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD }}
+          MOCKD_E2E_DEPLOYED_SEASON_ID: ${{ secrets.MOCKD_E2E_DEPLOYED_SEASON_ID }}
+        run: npm run test:e2e:deployed

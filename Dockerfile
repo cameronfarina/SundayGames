@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY config ./config
+COPY src ./src
+RUN npm run build
+
+
+FROM node:24-bookworm-slim AS production-dependencies
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+
+FROM node:24-bookworm-slim AS runtime
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000 \
+    MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools
+
+WORKDIR /app
+
+COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist/src ./dist/src
+COPY --from=build --chown=node:node /app/dist/config ./dist/config
+COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node data/raw ./data/raw
+
+RUN install -d -o node -g node /var/lib/mockd/draft-tools
+
+VOLUME ["/var/lib/mockd/draft-tools"]
+EXPOSE 3000
+
+USER node
+
+STOPSIGNAL SIGTERM
+CMD ["node", "dist/src/platform/startPlatformWeb.js"]

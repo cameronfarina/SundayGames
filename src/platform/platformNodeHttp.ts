@@ -368,6 +368,11 @@ const validatedClientAddress = (rawAddress: string): string | undefined => {
 };
 
 const forwardedClientAddress = (headers: IncomingHttpHeaders): string | undefined => {
+  const cloudflareConnectingIp = headerValue(headers, "cf-connecting-ip");
+  if (cloudflareConnectingIp !== undefined) {
+    return validatedClientAddress(cloudflareConnectingIp);
+  }
+
   const forwarded = headerValue(headers, "forwarded");
   if (forwarded !== undefined) {
     const firstHop = forwarded.split(",", 1)[0] ?? "";

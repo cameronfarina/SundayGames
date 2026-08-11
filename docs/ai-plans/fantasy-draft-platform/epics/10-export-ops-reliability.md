@@ -65,10 +65,10 @@ Make Mockd production-operable for the first league of about 18 users while pres
 - Backups:
   - automated daily full Postgres backups
   - point-in-time recovery if provider supports WAL/PITR
-  - pre-draft manual snapshot
+  - pre-draft UTC PITR marker and on-demand logical export
   - pre-migration backup for risky changes
 - Recovery targets:
-  - launch RPO: at most 24 hours normally, tighter during draft day via pre-draft snapshot/manual backup
+  - launch RPO: at most 24 hours normally, tighter during draft day via the recorded PITR point and logical export
   - launch RTO: documented restore path within hours
 - Restore runbook covers identifying target backup, restoring to isolated database, verifying core records, promoting/copying data, invalidating stale sessions if needed, and regenerating exports/read models.
 - Draft events are append-friendly so final state can be rebuilt if derived state is corrupted.

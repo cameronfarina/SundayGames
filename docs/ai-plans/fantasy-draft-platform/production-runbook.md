@@ -4,6 +4,8 @@ This runbook is the launch architecture for Mockd as a league-calibrated fantasy
 
 Domain readiness is a go/no-go gate. Do not point a public domain at Mockd until the checklist at the end of this runbook is all pass.
 
+The concrete first-host procedure is [Render Production Launch](../../render-production-launch.md). It covers Blueprint creation, real-owner provisioning, backup rehearsal, monitoring activation, deployed smoke, and DNS cutover.
+
 ## Production Topology
 
 - Web/API process:
@@ -66,7 +68,7 @@ Provision these before sending public domain traffic to Mockd:
 
 - DNS owner and deploy owner are named, with access tested.
 - Hosting can run separate `web`, `worker`, and one-off `migrate` tasks from the same commit.
-- Managed Postgres exists for production, with SSL required, automated daily backups, PITR if available, and a manual snapshot button or command.
+- Managed Postgres exists for production, with SSL required, automated backups, a confirmed PITR window, and an on-demand logical export from the provider Recovery page.
 - A non-production restore target exists for rehearsals.
 - Secret store has production values for the implemented runtime variables below.
 - Production uses `DATABASE_URL`; `MOCKD_PLATFORM_DATA_FILE` is absent.
@@ -107,7 +109,7 @@ Implemented bootstrap variables:
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web/worker startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
 - `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: persistent directory for account-isolated board, shortlist, strategy, and interactive mock sessions. Required by `platform:ready` for a domain deployment.
 - `MOCKD_ALLOW_PUBLIC_SIGNUP`: defaults to `false`. Keep it unset or false in production so only invited league members can create accounts.
-- `MOCKD_TRUST_PROXY`: defaults to `false`. Set it to `true` only when the web process is network-restricted behind a trusted proxy that overwrites `Forwarded`, `X-Forwarded-For`, or `X-Real-IP`. Trusted mode uses the first valid client IP from those headers for auth rate limiting; malformed values fall back to the socket address.
+- `MOCKD_TRUST_PROXY`: defaults to `false`. Set it to `true` only when the web process is network-restricted behind a trusted proxy. Trusted mode prefers Cloudflare's overwritten `CF-Connecting-IP`, then supports validated standard forwarding headers for other trusted proxy deployments; malformed values fall back to the socket address. Render routes public traffic through Cloudflare and documents `CF-Connecting-IP` as the trusted client-address header.
 - `MOCKD_LIVE_DRAFT_DATA_MODE`: defaults to `postgres`. Production startup and readiness reject `local-fixtures`.
 - `MOCKD_PROVISIONING_TOKEN`: optional secret for deployment-only HTTP bootstrap routes. Normal production provisioning writes through `platform:provision`, so leave this unset unless an approved internal deployment workflow needs those routes.
 - `MOCKD_WORKER_ID`: stable worker identifier for job locks.
@@ -455,9 +457,9 @@ Alerts:
 
 ## Draft-Night Rehearsal
 
-Run this before the real draft:
+Run the mutation-heavy checks against an isolated rehearsal deployment and database created from the reviewed provisioning document. Never create a disposable room or log test sales in the real production season. After the isolated rehearsal passes, run the read-only deployed smoke with commissioner and member accounts against production.
 
-- Run `platform:provision --verify` for the reviewed production file and confirm the league, accounts, memberships, teams, rules, catalog, initial rosters, keepers, and audit receipt all match.
+- Before distributing launch passwords, run `platform:provision --verify` for the reviewed production file and confirm the league, accounts, memberships, teams, rules, catalog, initial rosters, keepers, and audit receipt all match. Do not rerun immutable credential provisioning after an owner changes or resets a password.
 - Import at least one historical draft sheet and verify totals.
 - Publish a pricing snapshot.
 - Create a test live room.
@@ -465,7 +467,7 @@ Run this before the real draft:
 - Log sales with command forms such as `cam puka 62` and natural forms such as `Cam took Puka for 62`.
 - Verify roster max errors, budget errors, undo, correction, SSE reconnect, and polling fallback.
 - Generate the one-sheet export and compare against the room rosters.
-- Take a pre-draft backup snapshot.
+- Record a pre-draft PITR timestamp, create/download a logical database export, and confirm the latest web-disk snapshot.
 - Confirm incident contacts and the degraded-mode procedure.
 
 ## Incident And Degraded Mode
@@ -516,7 +518,7 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |
 | Draft commands | Sale, undo, end, idempotency, stale revision, budget, roster, and position maximum validation pass in staging. |
 | Export | Final export artifact is created after room end and content is readable after restore. |
-| Backups | Automated backups and alerts are enabled, a pre-cutover manual snapshot exists, and restore rehearsal has passed within 7 days. |
+| Backups | Automated backups and alerts are enabled, the pre-cutover UTC recovery point and logical export are recorded, and restore rehearsal has passed within 7 days. |
 | Monitoring | Uptime, 5xx, Postgres availability, queue stall, backup failure, and draft-window mutation alerts route to named owners. |
 | Provider risk | Yahoo/ESPN sync is either disabled or read-only configured. ESPN cookies are not collected in hosted production. |
 | Degraded mode | Manual draft board fallback, recovery owner, and user comms are ready for draft night. |

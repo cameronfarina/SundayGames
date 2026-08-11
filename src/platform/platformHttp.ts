@@ -585,7 +585,14 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
   }
 
   if (error instanceof AuthError) {
-    return knownError(error.code === "duplicate_email" ? 409 : 400, error.code, error.message);
+    const status = error.code === "auth_required"
+      ? 401
+      : error.code === "invalid_current_password"
+        ? 403
+        : error.code === "duplicate_email" || error.code === "password_change_conflict"
+          ? 409
+          : 400;
+    return knownError(status, error.code, error.message);
   }
 
   if (error instanceof PlatformAppError) {
@@ -1533,6 +1540,39 @@ export const createPlatformHttpHandler = (
             session: publicSessionFor(login.session),
             sessionToken: login.sessionToken,
           },
+        };
+      }
+
+      if (
+        root === "session" &&
+        parsedRequest.segments.length === 2 &&
+        parsedRequest.segments[1] === "password"
+      ) {
+        if (parsedRequest.method !== "PUT") return methodNotAllowed();
+        const account = await requireRequestAccount(app, parsedRequest);
+        const rateLimited = authRateLimitResponse(
+          account.email,
+          parsedRequest,
+          services.loginRateLimiter,
+          services.authClientRateLimiter,
+        );
+        if (rateLimited !== null) return rateLimited;
+
+        await app.changePassword({
+          actorSessionToken: parsedRequest.sessionToken,
+          currentPassword: stringValue(parsedRequest.body.currentPassword),
+          newPassword: stringValue(parsedRequest.body.newPassword),
+          newPasswordConfirmation: stringValue(parsedRequest.body.newPasswordConfirmation),
+          now: parsedRequest.now,
+        });
+        services.loginRateLimiter?.reset(account.email);
+
+        return {
+          status: 200,
+          headers: {
+            "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }),
+          },
+          body: { ok: true },
         };
       }
 

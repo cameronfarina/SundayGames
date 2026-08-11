@@ -211,7 +211,7 @@ const signUpAndLogIn = async (
 ): Promise<AccountRecord> => {
   await page.goto("/signup");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
     const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
@@ -219,7 +219,7 @@ const signUpAndLogIn = async (
 
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.locator("#account-email"), [
       `Smoke account ${email} already existed but could not sign in with the configured password.`,
@@ -232,7 +232,7 @@ const signUpAndLogIn = async (
   await expect(page.locator("#auth-panel")).toBeVisible();
 
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email")).toHaveText(email);
 
@@ -263,7 +263,7 @@ const pageForExistingUser = async (
   const page = await context.newPage();
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(accountPassword);
+  await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator("#account-email"), [
     `Could not sign in to the pre-provisioned smoke account ${email}.`,
@@ -484,7 +484,7 @@ const assignedIdentityFor = (
   return { ownerName, teamName };
 };
 
-const deployedWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace> => {
+const exerciseDeployedWorkspace = async (browser: Browser): Promise<void> => {
   const environment = requiredDeployedEnvironment();
   const { page: commissionerPage } = await pageForExistingUser(
     browser,
@@ -512,12 +512,6 @@ const deployedWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace>
   if (memberLeague.canManageLeague) {
     throw new Error("The deployed smoke member must use a non-commissioner league membership.");
   }
-  if (commissionerLeague.liveDraft !== null) {
-    throw new Error(
-      `Dedicated smoke season ${environment.seasonId} already has draft room ${commissionerLeague.liveDraft.roomId}. ` +
-      "Provision a fresh smoke season before rerunning this destructive deployed smoke.",
-    );
-  }
 
   const commissionerIdentity = assignedIdentityFor(commissionerLeague, "commissioner");
   const memberIdentity = assignedIdentityFor(memberLeague, "member");
@@ -530,37 +524,36 @@ const deployedWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace>
   )).season;
   expect(memberLeague.leagueId).toBe(season.leagueId);
 
+  await Promise.all([
+    commissionerPage.goto(`/app?seasonId=${encodeURIComponent(season.id)}`),
+    memberPage.goto(`/app?seasonId=${encodeURIComponent(season.id)}`),
+  ]);
+  await expect(commissionerPage.locator("#league-name")).toHaveText(season.league.name);
+  await expect(memberPage.locator("#league-name")).toHaveText(season.league.name);
+  await expect(commissionerPage.locator("#my-team-name")).toHaveText(commissionerIdentity.teamName);
+  await expect(memberPage.locator("#my-team-name")).toHaveText(memberIdentity.teamName);
+
+  await commissionerPage.getByRole("link", { name: "Board", exact: true }).click();
+  await expect(commissionerPage).toHaveURL(/\/board\?seasonId=/);
+  expect(new URL(commissionerPage.url()).searchParams.get("owner")).toBe(commissionerIdentity.ownerName);
+  await expect(commissionerPage.locator("#draft-room-view")).toBeVisible();
+  await expect(commissionerPage.locator("#room-title")).toHaveText("Draft Board");
+  await expect(commissionerPage.locator("#board .player-name").first()).toBeVisible();
+
+  await memberPage.getByRole("link", { name: "Mock drafts", exact: true }).click();
+  await expect(memberPage).toHaveURL(/\/mock-drafts\?seasonId=/);
+  expect(new URL(memberPage.url()).searchParams.get("owner")).toBe(memberIdentity.ownerName);
+  await expect(memberPage.locator("#draft-room-view")).toBeVisible();
+  await expect(memberPage.locator("#draft-mode-status")).toContainText("Mock draft");
+  await expect(memberPage.locator("#roster-owner")).toHaveValue(memberIdentity.ownerName);
+
+  await memberPage.goto(`/app?seasonId=${encodeURIComponent(season.id)}`);
+  await memberPage.getByRole("link", { name: "Simulations", exact: true }).click();
+  await expect(memberPage).toHaveURL(/\/simulations\?seasonId=/);
+  await expect(memberPage.locator("#mock-simulations-view")).toBeVisible();
+
   await commissionerPage.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
   await expect(commissionerPage.locator("#setup-season-id-input")).toHaveValue(season.id);
-  await expect(commissionerPage.getByRole("button", { name: "Create draft room" })).toBeEnabled();
-  const room = await createLiveRoomFromSetup(commissionerPage, season);
-  const commissionerTeam = room.projection.teams.find(
-    team => team.teamId === commissionerLeague.membership.teamId,
-  );
-  if (commissionerTeam === undefined || commissionerTeam.rosterSlotsRemaining < 1) {
-    throw new Error("The deployed smoke commissioner team must have at least one open roster slot.");
-  }
-  const salePrice = season.settings.auction.minimumBidDollars;
-  if (commissionerTeam.maxBid < salePrice) {
-    throw new Error("The deployed smoke commissioner team must be able to place at least the league minimum bid.");
-  }
-  const salePlayer = room.projection.board[0];
-  if (salePlayer === undefined) {
-    throw new Error(`Pre-provisioned smoke season ${season.id} has no available player to sell.`);
-  }
-
-  return {
-    commissionerPage,
-    memberPage,
-    season,
-    room,
-    commissionerOwnerName: commissionerIdentity.ownerName,
-    memberOwnerName: memberIdentity.ownerName,
-    commissionerTeamName: commissionerIdentity.teamName,
-    memberTeamName: memberIdentity.teamName,
-    salePlayerName: salePlayer.name,
-    salePrice,
-  };
 };
 
 const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<void> => {
@@ -740,7 +733,7 @@ test("local platform supports fixture signup, setup, invitation, realtime draft,
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
 });
 
-test("deployed platform supports pre-provisioned invite-only accounts through realtime draft and export", async ({ browser }) => {
+test("deployed platform supports pre-provisioned invite-only workspaces without mutating the real draft", async ({ browser }) => {
   test.skip(!isDeployedSmoke, "Deployed smoke credentials are not used by local E2E.");
-  await exerciseReadyWorkspace(await deployedWorkspace(browser));
+  await exerciseDeployedWorkspace(browser);
 });

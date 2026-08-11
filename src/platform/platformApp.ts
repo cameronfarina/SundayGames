@@ -7,6 +7,7 @@ import {
   type CreateUserInput,
   type LoginInput,
   type LoginResult,
+  type PasswordReplacementResult,
   type SessionRecord,
 } from "./auth.js";
 import {
@@ -153,6 +154,14 @@ export interface GetLeagueSeasonInput {
 
 export interface LogoutInput {
   actorSessionToken: string;
+  now?: Date | undefined;
+}
+
+export interface ChangePlatformPasswordInput {
+  actorSessionToken: string;
+  currentPassword: string;
+  newPassword: string;
+  newPasswordConfirmation: string;
   now?: Date | undefined;
 }
 
@@ -922,6 +931,15 @@ export const createPlatformApp = ({
 
     logout: async (input: LogoutInput): Promise<boolean> =>
       await auth.logout(input.actorSessionToken, input.now),
+
+    changePassword: async (input: ChangePlatformPasswordInput): Promise<PasswordReplacementResult> =>
+      cloneForRead(await auth.changePassword({
+        sessionToken: input.actorSessionToken,
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        newPasswordConfirmation: input.newPasswordConfirmation,
+        now: input.now,
+      })),
 
     listLeagueMemberships: async (leagueId: string): Promise<readonly PlatformLeagueMembership[]> =>
       cloneForRead(await leagueSetup.membershipsForLeague(leagueId)),

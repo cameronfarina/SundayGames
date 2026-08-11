@@ -20,6 +20,8 @@ const platformSchemaMigrationId = "platform-schema-v1";
 const liveRoomPausedMigrationId = "platform-live-room-paused-v2";
 const platformInvitationsMigrationId = "platform-invitations-v3";
 const liveRoomSetupMigrationId = "platform-live-room-setup-v4";
+const authVersionMigrationId = "platform-auth-version-v5";
+const platformMigrationAdvisoryLockKeys = [1_297_040_203, 1_146_113_113] as const;
 
 const migrationStatementStartingWith = (prefix: string): string => {
   const statement = platformPostgresMigrationStatements.find(candidate =>
@@ -90,6 +92,13 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
     statements: liveRoomSetupMigrationStatements,
     preflight: assertNoDuplicateRealDraftRooms,
   },
+  {
+    id: authVersionMigrationId,
+    statements: [
+      "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+      "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    ],
+  },
 ];
 
 export const requiredPlatformPostgresMigrationIds: readonly string[] =
@@ -121,10 +130,13 @@ export const findMissingPlatformPostgresMigrations = async (
 export const applyPlatformPostgresMigrations = async (
   client: PostgresTransactionalQueryClient,
 ): Promise<ApplyPlatformPostgresMigrationsResult> => {
-  await PostgresPlatformStore.initializeSchema(client);
-  await client.query(createPlatformSchemaMigrationsTableSql);
-
   return await client.transaction(async transactionClient => {
+    await transactionClient.query(
+      "SELECT pg_advisory_xact_lock($1, $2)",
+      platformMigrationAdvisoryLockKeys,
+    );
+    await PostgresPlatformStore.initializeSchema(transactionClient);
+    await transactionClient.query(createPlatformSchemaMigrationsTableSql);
     let statementCount = 0;
 
     for (const migration of platformSchemaMigrations) {
