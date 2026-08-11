@@ -1323,8 +1323,8 @@ describe("platform app service", () => {
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 10_000),
     })).rejects.toThrow(new PlatformAppError(
-      "draft_room_not_final",
-      "Draft room must be ended before creating a final export artifact.",
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
     ));
     const ended = await app.endLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
@@ -1333,15 +1333,23 @@ describe("platform app service", () => {
       idempotencyKey: "end-room-before-export",
       now: new Date(now.getTime() + 11_000),
     });
-    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+    await expect(app.createLiveDraftRoomExportArtifact({
       actorSessionToken: seth.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 12_000),
-    });
-    const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: seth.sessionToken,
+    })).rejects.toThrow(new PlatformAppError(
+      "shared_mutation_denied",
+      "Only league owners and admins can change shared draft data.",
+    ));
+    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 13_000),
+    });
+    const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
+      actorSessionToken: cam.sessionToken,
+      roomId: room.roomId,
+      exportedAt: new Date(now.getTime() + 14_000),
     });
 
     expect(exportResult.sheetName).toBe("Draft Results");
@@ -1427,14 +1435,14 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 3_000),
     });
     const artifactResult = await app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: cam.sessionToken,
       roomId: created.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
     });
 
     expect(ended.revision).toBe(4);
     expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
-    expect(exportArtifactRepository.savedByUserIds).toEqual([seth.account.id]);
+    expect(exportArtifactRepository.savedByUserIds).toEqual([cam.account.id]);
     expect(exportArtifactRepository.savedResults[0]?.artifact.sourceRevision).toBe(ended.revision);
     expect(app.store.liveDraftRooms.rooms()).toEqual([]);
     expect(app.store.exportArtifacts.artifacts()).toEqual([]);

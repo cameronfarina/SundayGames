@@ -1528,7 +1528,7 @@ export const createPlatformApp = ({
     ): Promise<DraftExportArtifactResult> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = await liveDraftRooms.getRoom(input.roomId);
-      await requireSharedRead(account, room.leagueId);
+      await requireSharedMutation(account, room.leagueId);
       if (room.status !== "ended") {
         throw new PlatformAppError(
           "draft_room_not_final",
