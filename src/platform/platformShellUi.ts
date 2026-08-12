@@ -415,7 +415,7 @@ export const platformShellHtml = `<!doctype html>
     .league-wizard-progress {
       border-bottom: 1px solid var(--line);
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       list-style: none;
       margin: 0;
       padding: 0 24px;
@@ -435,7 +435,7 @@ export const platformShellHtml = `<!doctype html>
     }
     .league-wizard-body {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
       min-height: 0;
       overflow: hidden;
     }
@@ -450,7 +450,8 @@ export const platformShellHtml = `<!doctype html>
       margin: 0 auto;
       max-width: 860px;
     }
-    .league-wizard-step h3 { font-size: 20px; margin: 0; }
+    .league-wizard-step h3 { font-size: 20px; margin: 0; width: fit-content; }
+    .league-wizard-step h3:focus-visible { outline-width: 2px; }
     .league-wizard-step > header .lede { margin-top: 6px; }
     .league-wizard-footer {
       align-items: center;
@@ -497,54 +498,6 @@ export const platformShellHtml = `<!doctype html>
     .league-import-facts div { background: var(--surface); padding: 10px; }
     .league-import-facts span { color: var(--muted); display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; }
     .league-import-facts strong { display: block; margin-top: 4px; }
-    .league-reference-picker {
-      border: 1px dashed var(--line);
-      display: grid;
-      gap: 14px;
-      padding: 24px;
-    }
-    .league-reference-picker input { background: transparent; border: 0; padding: 0; }
-    .league-reference-tray {
-      border-bottom: 1px solid var(--line);
-      max-height: 180px;
-      overflow: auto;
-      padding: 14px 24px;
-    }
-    .league-reference-tray-header {
-      align-items: center;
-      display: flex;
-      gap: 12px;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .league-reference-tray-header strong { font-size: 13px; }
-    .league-reference-previews {
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-    }
-    .league-reference-preview {
-      flex: 0 0 150px;
-      margin: 0;
-      min-width: 0;
-    }
-    .league-reference-preview img {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      display: block;
-      height: 90px;
-      object-fit: contain;
-      width: 150px;
-    }
-    .league-reference-preview figcaption {
-      color: var(--muted);
-      font-size: 11px;
-      overflow: hidden;
-      padding-top: 5px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
     .league-team-grid {
       display: grid;
       gap: 12px;
@@ -716,7 +669,7 @@ export const platformShellHtml = `<!doctype html>
       .league-wizard-header { padding: 18px 16px 14px; }
       .league-wizard-header h2 { font-size: 21px; }
       .league-wizard-progress {
-        grid-template-columns: repeat(5, 86px);
+        grid-template-columns: repeat(4, 86px);
         justify-content: start;
         overflow-x: auto;
         padding: 0 8px;
@@ -725,7 +678,6 @@ export const platformShellHtml = `<!doctype html>
       .league-wizard-footer { flex-wrap: wrap; padding: 12px 16px; }
       .league-wizard-footer .status { flex: 1 0 100%; order: -1; }
       .league-import-actions { grid-template-columns: 1fr; }
-      .league-reference-tray { padding: 12px 16px; }
       .league-team-grid { grid-template-columns: 1fr; }
       .player-board-scroll { max-height: min(58vh, 520px); }
       .mock-roster-panel { order: -1; }
@@ -965,7 +917,7 @@ export const platformShellHtml = `<!doctype html>
         <section class="workspace-section league-create-launch" aria-labelledby="league-info-title">
           <div>
             <h2 id="league-info-title">League information</h2>
-            <p class="lede">Use a public ESPN league when available, or enter the same information manually with screenshots beside you for reference.</p>
+            <p class="lede">Use a public ESPN league when available, or enter the league settings and teams manually.</p>
           </div>
           <button id="league-info-button" class="primary" type="button" aria-haspopup="dialog" aria-controls="league-setup-dialog">Input league info</button>
         </section>
@@ -981,19 +933,11 @@ export const platformShellHtml = `<!doctype html>
             </header>
             <ol class="league-wizard-progress" aria-label="League setup progress">
               <li data-league-step-indicator="basics" aria-current="step">Basics</li>
-              <li data-league-step-indicator="references">References</li>
               <li data-league-step-indicator="scoring">Scoring</li>
               <li data-league-step-indicator="roster">Roster</li>
               <li data-league-step-indicator="teams">Teams</li>
             </ol>
             <div class="league-wizard-body">
-              <aside id="league-create-reference-tray" class="league-reference-tray hidden" aria-label="Screenshot references">
-                <div class="league-reference-tray-header">
-                  <strong id="league-create-reference-count"></strong>
-                  <button id="league-create-clear-references" class="text-button" type="button">Clear screenshots</button>
-                </div>
-                <div id="league-create-reference-previews" class="league-reference-previews"></div>
-              </aside>
               <div class="league-wizard-content">
                 <section class="league-wizard-step" data-league-step="basics">
                   <header>
@@ -1030,18 +974,6 @@ export const platformShellHtml = `<!doctype html>
                       <ul id="league-create-warnings" class="result-list hidden"></ul>
                     </div>
                   </section>
-                </section>
-                <section class="league-wizard-step hidden" data-league-step="references">
-                  <header>
-                    <h3>Add screenshots for reference</h3>
-                    <p class="lede">Choose screenshots of scoring rules, roster settings, or team names. Screenshots stay in this browser and are not uploaded or analyzed.</p>
-                  </header>
-                  <div class="league-reference-picker">
-                    <div><label for="league-create-members-file">League screenshots</label><input id="league-create-members-file" type="file" multiple accept="image/png,image/jpeg,image/webp"></div>
-                    <p class="lede">You will enter the visible settings yourself. The selected images remain available above while you work.</p>
-                  </div>
-                  <div class="actions"><button id="league-create-enter-manually" type="button">Enter manually without screenshots</button></div>
-                  <p id="league-create-reference-status" class="status" role="status" aria-live="polite"></p>
                 </section>
                 <section class="league-wizard-step hidden" data-league-step="scoring">
                   <header><h3>Scoring rules</h3><p class="lede">Enter the points your league awards for each event.</p></header>
@@ -1422,7 +1354,6 @@ export const platformShellHtml = `<!doctype html>
       playerBoardSort: null,
       leagueCreation: null,
       leagueCreationStep: "basics",
-      leagueCreationReferences: [],
       historicalImportBatchId: null,
       historicalOwnerMappings: {},
       historicalPlayerMappings: {},
@@ -1560,11 +1491,6 @@ export const platformShellHtml = `<!doctype html>
     const leagueCreateImportSummaryTitle = byId("league-create-import-summary-title");
     const leagueCreateImportSummaryCopy = byId("league-create-import-summary-copy");
     const leagueCreateImportFacts = byId("league-create-import-facts");
-    const leagueCreateMembersFile = byId("league-create-members-file");
-    const leagueCreateReferenceStatus = byId("league-create-reference-status");
-    const leagueCreateReferenceTray = byId("league-create-reference-tray");
-    const leagueCreateReferenceCount = byId("league-create-reference-count");
-    const leagueCreateReferencePreviews = byId("league-create-reference-previews");
     const leagueCreateName = byId("league-create-name");
     const leagueCreateDraftFormat = byId("league-create-draft-format");
     const leagueCreateAuctionBudget = byId("league-create-auction-budget");
@@ -1939,7 +1865,7 @@ export const platformShellHtml = `<!doctype html>
     };
 
     const leagueRosterSlotOrder = ${JSON.stringify(rosterSlotDisplayOrder)};
-    const leagueCreationSteps = ["basics", "references", "scoring", "roster", "teams"];
+    const leagueCreationSteps = ["basics", "scoring", "roster", "teams"];
     const defaultLeagueRosterSlots = {
       QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7,
     };
@@ -2192,33 +2118,6 @@ export const platformShellHtml = `<!doctype html>
       setHidden(leagueCreateWarnings, leagueCreateWarnings.childElementCount === 0);
       setHidden(leagueCreateImportFacts, !review);
       setHidden(leagueCreateImportSummary, false);
-    };
-
-    const renderLeagueCreationReferences = () => {
-      const references = state.leagueCreationReferences;
-      const fragment = document.createDocumentFragment();
-      references.forEach(reference => {
-        const figure = document.createElement("figure");
-        const image = document.createElement("img");
-        const caption = document.createElement("figcaption");
-        figure.className = "league-reference-preview";
-        image.src = reference.url;
-        image.alt = "Reference screenshot: " + reference.file.name;
-        caption.textContent = reference.file.name;
-        figure.append(image, caption);
-        fragment.append(figure);
-      });
-      leagueCreateReferencePreviews.replaceChildren(fragment);
-      leagueCreateReferenceCount.textContent = String(references.length) + (references.length === 1 ? " screenshot" : " screenshots");
-      setHidden(leagueCreateReferenceTray, references.length === 0);
-    };
-
-    const clearLeagueCreationReferences = () => {
-      state.leagueCreationReferences.forEach(reference => URL.revokeObjectURL(reference.url));
-      state.leagueCreationReferences = [];
-      leagueCreateMembersFile.value = "";
-      leagueCreateReferenceStatus.textContent = "";
-      renderLeagueCreationReferences();
     };
 
     const showLeagueCreationStep = step => {
@@ -4224,7 +4123,7 @@ export const platformShellHtml = `<!doctype html>
           renderLeagueCreationImportSummary(
             "failure",
             "ESPN settings unavailable",
-            outcome.message + " No settings were imported. Continue with screenshots or manual entry.",
+            outcome.message + " No settings were imported. Continue with manual entry.",
             null,
             outcome.warnings || [],
           );
@@ -4245,32 +4144,12 @@ export const platformShellHtml = `<!doctype html>
         renderLeagueCreationImportSummary(
           "failure",
           "ESPN import failed",
-          error.message + " No settings were imported. Continue with screenshots or manual entry.",
+          error.message + " No settings were imported. Continue with manual entry.",
           null,
           [],
         );
         leagueCreateImportStatus.textContent = "ESPN did not change any fields.";
       }
-    });
-
-    leagueCreateMembersFile.addEventListener("change", () => {
-      const files = [...(leagueCreateMembersFile.files || [])];
-      const invalidFile = files.find(file => !["image/png", "image/jpeg", "image/webp"].includes(file.type));
-      if (invalidFile) {
-        leagueCreateReferenceStatus.textContent = invalidFile.name + " is not a supported image.";
-        return;
-      }
-      state.leagueCreationReferences.forEach(reference => URL.revokeObjectURL(reference.url));
-      state.leagueCreationReferences = files.map(file => ({ file: file, url: URL.createObjectURL(file) }));
-      renderLeagueCreationReferences();
-      leagueCreateReferenceStatus.textContent = files.length === 0
-        ? "No screenshots selected."
-        : "Screenshots are ready as local references.";
-    });
-    byId("league-create-clear-references").addEventListener("click", clearLeagueCreationReferences);
-    byId("league-create-enter-manually").addEventListener("click", () => {
-      clearLeagueCreationReferences();
-      showLeagueCreationStep("scoring");
     });
 
     leagueCreateDraftFormat.addEventListener("change", updateLeagueCreationFormatFields);

@@ -106,17 +106,12 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="league-setup-dialog"');
     expect(platformShellHtml).toContain('aria-labelledby="league-setup-title"');
     expect(platformShellHtml).toContain('data-league-step="basics"');
-    expect(platformShellHtml).toContain('data-league-step="references"');
     expect(platformShellHtml).toContain('data-league-step="scoring"');
     expect(platformShellHtml).toContain('data-league-step="roster"');
     expect(platformShellHtml).toContain('data-league-step="teams"');
+    expect(platformShellHtml).toContain('const leagueCreationSteps = ["basics", "scoring", "roster", "teams"]');
     expect(platformShellHtml).toContain('id="league-create-espn-id"');
     expect(platformShellHtml).toContain('id="league-create-team-count"');
-    expect(platformShellHtml).toContain('id="league-create-members-file"');
-    expect(platformShellHtml).toContain('id="league-create-members-file" type="file" multiple');
-    expect(platformShellHtml).toContain("Screenshots stay in this browser and are not uploaded or analyzed.");
-    expect(platformShellHtml).toContain('id="league-create-reference-previews"');
-    expect(platformShellHtml).toContain('id="league-create-enter-manually"');
     expect(platformShellHtml).toContain('id="league-create-auction-minimum-bid"');
     expect(platformShellHtml).toContain('id="league-create-roster-slots"');
     expect(platformShellHtml).toContain('id="league-create-warnings"');
@@ -132,7 +127,13 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('fetch("/league-imports/espn/review"');
     expect(platformShellHtml).toContain("No settings were imported.");
     expect(platformShellHtml).toContain("renderLeagueCreationImportSummary");
-    expect(platformShellHtml).toContain("URL.createObjectURL(file)");
+    expect(platformShellHtml).not.toContain('data-league-step="references"');
+    expect(platformShellHtml).not.toContain('id="league-create-members-file"');
+    expect(platformShellHtml).not.toContain('id="league-create-reference-previews"');
+    expect(platformShellHtml).not.toContain("Screenshots stay in this browser");
+    expect(platformShellHtml).not.toContain("Screenshots are ready as local references.");
+    expect(platformShellHtml).not.toContain("leagueCreationReferences");
+    expect(platformShellHtml).not.toContain("renderLeagueCreationReferences");
     expect(platformShellHtml).toContain('fetch("/leagues"');
     const screenshotDisclosure =
       "Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.";
