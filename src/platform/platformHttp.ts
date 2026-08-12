@@ -3016,8 +3016,14 @@ export const createPlatformHttpHandler = (
         parsedRequest.segments[1] === "espn" &&
         parsedRequest.segments[2] === "members-screenshot-review"
       ) {
-        if (parsedRequest.method !== "POST") return methodNotAllowed();
         const account = await requireRequestAccount(app, parsedRequest);
+        if (parsedRequest.method === "GET") {
+          return {
+            status: 200,
+            body: { available: services.leagueMembersScreenshotAnalyzer !== undefined },
+          };
+        }
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
         const analyzer = services.leagueMembersScreenshotAnalyzer;
         if (analyzer === undefined) {
           return knownError(503, "screenshot_import_unavailable", "Screenshot import is not configured.");

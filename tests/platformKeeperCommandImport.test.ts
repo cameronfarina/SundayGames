@@ -136,6 +136,134 @@ describe("parseKeeperCommand", () => {
     });
   });
 
+  it("matches an unambiguous manager-name prefix", () => {
+    const result = parseKeeperCommand({
+      command: "ken keeping dart 2",
+      draftType: "snake",
+      teams: [
+        {
+          teamId: "team-kenny",
+          teamName: "Rock Out",
+          managerNames: ["Kenny Rubino"],
+        },
+        {
+          teamId: "team-cam",
+          teamName: "Short King",
+          managerNames: ["Cam Farina"],
+        },
+      ],
+      players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "preview",
+      team: { id: "team-kenny", name: "Rock Out" },
+    });
+  });
+
+  it("keeps a shared manager-name prefix ambiguous", () => {
+    const result = parseKeeperCommand({
+      command: "ken keeping dart 2",
+      draftType: "snake",
+      teams: [
+        { teamId: "team-kenny", teamName: "Rock Out", managerNames: ["Kenny Rubino"] },
+        { teamId: "team-kent", teamName: "Kent Team", managerNames: ["Kent Smith"] },
+      ],
+      players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      error: {
+        code: "ambiguous_team",
+        message: '"ken" matched multiple teams or managers.',
+        mention: "ken",
+        candidates: ["Rock Out", "Kent Team"],
+      },
+    });
+  });
+
+  it("matches a player by a unique first name", () => {
+    const result = parseKeeperCommand({
+      command: "sam keeping jameson 5",
+      draftType: "auction",
+      teams: [
+        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+      ],
+      players: [
+        { playerId: "player-jameson-williams", name: "Jameson Williams" },
+        { playerId: "player-rhamondre-stevenson", name: "Rhamondre Stevenson" },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "preview",
+      player: { id: "player-jameson-williams", name: "Jameson Williams" },
+    });
+  });
+
+  it("matches a player by a unique first-name prefix", () => {
+    const result = parseKeeperCommand({
+      command: "juice keeping rhamond 3",
+      draftType: "auction",
+      teams: [
+        { teamId: "team-juice", teamName: "Old Dogs", managerNames: ["Juice"] },
+      ],
+      players: [
+        { playerId: "player-rhamondre-stevenson", name: "Rhamondre Stevenson" },
+        { playerId: "player-jameson-williams", name: "Jameson Williams" },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "preview",
+      player: { id: "player-rhamondre-stevenson", name: "Rhamondre Stevenson" },
+    });
+  });
+
+  it("keeps a shared player first name ambiguous", () => {
+    const result = parseKeeperCommand({
+      command: "sam keeping josh 5",
+      draftType: "auction",
+      teams: [
+        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+      ],
+      players: [
+        { playerId: "player-josh-allen", name: "Josh Allen" },
+        { playerId: "player-josh-jacobs", name: "Josh Jacobs" },
+      ],
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      error: {
+        code: "ambiguous_player",
+        message: '"josh" matched multiple players.',
+        mention: "josh",
+        candidates: ["Josh Allen", "Josh Jacobs"],
+      },
+    });
+  });
+
+  it("prefers an exact player first name over a longer player's prefix", () => {
+    const result = parseKeeperCommand({
+      command: "sam keeping james 5",
+      draftType: "auction",
+      teams: [
+        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+      ],
+      players: [
+        { playerId: "player-james-cook", name: "James Cook" },
+        { playerId: "player-jameson-williams", name: "Jameson Williams" },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "preview",
+      player: { id: "player-james-cook", name: "James Cook" },
+    });
+  });
+
   it("returns an explicit unknown-team error", () => {
     const result = parseKeeperCommand({
       command: "nobody keeping dart 2",

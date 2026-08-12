@@ -307,6 +307,13 @@ export const platformShellHtml = `<!doctype html>
 
     .fact span { color: var(--muted); display: block; font-size: 12px; font-weight: 750; margin-bottom: 6px; text-transform: uppercase; }
     .fact strong { display: block; overflow-wrap: anywhere; }
+    .readiness-action {
+      color: var(--accent-strong);
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 750;
+      margin-top: 10px;
+    }
     .ready { color: var(--accent-strong); }
     .attention { color: var(--warning); }
 
@@ -322,17 +329,6 @@ export const platformShellHtml = `<!doctype html>
     .setup-layout { display: grid; gap: 28px; min-width: 0; }
     .setup-layout > *, .context-bar > * { min-width: 0; }
 
-    .setup-task {
-      border-bottom: 1px solid var(--line);
-      display: grid;
-      gap: 14px;
-      margin-bottom: 18px;
-      padding-bottom: 20px;
-    }
-
-    .setup-task h3 { font-size: 15px; margin: 0; }
-    .setup-task .lede { font-size: 14px; margin-top: -6px; }
-    .setup-wide { grid-column: 1 / -1; }
     .keeper-list { display: grid; gap: 8px; margin-top: 12px; }
     .keeper-row {
       align-items: center;
@@ -342,10 +338,7 @@ export const platformShellHtml = `<!doctype html>
       grid-template-columns: minmax(0, 1fr) auto auto;
       padding: 10px 12px;
     }
-    .upload-actions { align-items: end; display: grid; gap: 10px; }
     .setup-fields { display: grid; gap: 12px; }
-    .review-cell { min-width: 150px; }
-    .review-note { color: var(--warning); display: block; font-size: 12px; line-height: 1.35; margin-bottom: 7px; }
     .confirmation-label {
       align-items: center;
       color: var(--text);
@@ -356,20 +349,6 @@ export const platformShellHtml = `<!doctype html>
       text-transform: none;
     }
     .confirmation-label input { flex: 0 0 auto; min-height: 18px; width: 18px; }
-    .screenshot-review-row[data-needs-review="true"] { background: rgb(244 200 107 / .06); }
-    .screenshot-review-row input { min-width: 88px; }
-    .screenshot-review-row select { min-width: 180px; }
-    .screenshot-review-row .team-name-input { min-width: 220px; }
-    .screenshot-review-row .manager-names-input { min-width: 220px; }
-    .screenshot-source-preview {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      display: block;
-      max-height: 360px;
-      object-fit: contain;
-      width: 100%;
-    }
 
     .league-create-launch {
       align-items: center;
@@ -481,6 +460,20 @@ export const platformShellHtml = `<!doctype html>
       gap: 10px;
       grid-template-columns: minmax(0, 1fr) auto;
     }
+    .league-screenshot-dropzone {
+      align-items: center;
+      border: 1px dashed var(--line);
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      padding: 22px 16px;
+      text-align: center;
+    }
+    .league-screenshot-dropzone.is-dragging {
+      background: var(--surface);
+      border-color: var(--accent);
+    }
+    .league-screenshot-dropzone span { color: var(--muted); font-size: 13px; }
     .league-import-summary {
       border: 1px solid var(--line);
       display: grid;
@@ -509,7 +502,9 @@ export const platformShellHtml = `<!doctype html>
       gap: 12px;
       padding-top: 14px;
     }
+    .league-team-row[data-needs-review="true"] { border-top-color: var(--warning); }
     .league-team-row h4 { font-size: 14px; margin: 0; }
+    .league-team-review { color: var(--warning); font-size: 12px; line-height: 1.4; margin: 0; }
     .league-team-meta { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(110px, .4fr); }
     .league-team-progress { color: var(--muted); font-size: 13px; margin: 0; }
 
@@ -650,7 +645,6 @@ export const platformShellHtml = `<!doctype html>
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
-      .upload-actions { grid-template-columns: minmax(0, 1fr) auto; }
       .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
       .board-controls { grid-template-columns: minmax(0, 1fr) 180px 180px; }
       .mock-layout { grid-template-columns: minmax(0, 1fr) minmax(280px, .36fr); }
@@ -996,6 +990,22 @@ export const platformShellHtml = `<!doctype html>
                     <h3>Teams</h3>
                     <p class="lede">Team names are required. Manager names and abbreviations are optional.</p>
                   </header>
+                  <section id="league-create-screenshot-panel" class="league-import-panel hidden" aria-labelledby="league-create-screenshot-title">
+                    <div>
+                      <h4 id="league-create-screenshot-title">Fill teams from an ESPN screenshot</h4>
+                      <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
+                    </div>
+                    <div id="league-create-screenshot-dropzone" class="league-screenshot-dropzone">
+                      <strong>Drop a League Members screenshot here</strong>
+                      <span>PNG, JPEG, or WebP, up to 5 MB</span>
+                      <button id="league-create-screenshot-choose" type="button">Choose screenshot</button>
+                      <input id="league-create-screenshot-file" class="hidden" type="file" accept="image/png,image/jpeg,image/webp">
+                    </div>
+                    <div class="actions">
+                      <button id="league-create-screenshot-analyze" type="button" disabled>Analyze screenshot</button>
+                    </div>
+                    <p id="league-create-screenshot-status" class="status" role="status" aria-live="polite"></p>
+                  </section>
                   <p id="league-create-team-progress" class="league-team-progress"></p>
                   <div id="league-create-team-rows" class="league-team-grid"></div>
                 </section>
@@ -1021,10 +1031,19 @@ export const platformShellHtml = `<!doctype html>
           </div>
           <a id="open-live-draft-button" class="button primary" href="/draft-room">Open live draft</a>
         </div>
+        <section id="team-claim-panel" class="workspace-section hidden" aria-labelledby="team-claim-title">
+          <h2 id="team-claim-title">Claim your team</h2>
+          <p class="lede">Choose your team before opening private draft prep.</p>
+          <div class="actions">
+            <select id="team-claim-picker" aria-label="Team to claim"></select>
+            <button id="team-claim-button" class="primary" type="button">Claim team</button>
+          </div>
+          <p id="team-claim-status" class="status" role="status" aria-live="polite"></p>
+        </section>
         <div class="facts" aria-label="League readiness">
-          <div class="fact"><span>League setup</span><strong id="league-setup-readiness"></strong></div>
-          <div class="fact"><span>My team</span><strong id="team-claim-readiness"></strong></div>
-          <div class="fact"><span>Live draft</span><strong id="live-draft-readiness"></strong></div>
+          <div class="fact"><span>League setup</span><strong id="league-setup-readiness"></strong><a id="league-setup-readiness-action" class="readiness-action hidden"></a></div>
+          <div class="fact"><span>My team</span><strong id="team-claim-readiness"></strong><a id="team-claim-readiness-action" class="readiness-action hidden"></a></div>
+          <div class="fact"><span>Live draft</span><strong id="live-draft-readiness"></strong><a id="live-draft-readiness-action" class="readiness-action hidden"></a></div>
         </div>
         <section class="workspace-section compact-stack" aria-labelledby="league-overview-title">
           <h2 id="league-overview-title">League settings</h2>
@@ -1036,15 +1055,6 @@ export const platformShellHtml = `<!doctype html>
               <tbody id="league-overview-team-body"></tbody>
             </table>
           </div>
-        </section>
-        <section id="team-claim-panel" class="workspace-section hidden" aria-labelledby="team-claim-title">
-          <h2 id="team-claim-title">Claim your team</h2>
-          <p class="lede">Choose your team before opening private draft prep.</p>
-          <div class="actions">
-            <select id="team-claim-picker" aria-label="Team to claim"></select>
-            <button id="team-claim-button" class="primary" type="button">Claim team</button>
-          </div>
-          <p id="team-claim-status" class="status" role="status" aria-live="polite"></p>
         </section>
         <section class="workspace-section">
           <h2>Draft schedule</h2>
@@ -1152,41 +1162,6 @@ export const platformShellHtml = `<!doctype html>
           <section class="workspace-section">
             <h2>Teams and owners</h2>
             <input id="setup-season-id-input" type="hidden">
-            <div class="setup-task" aria-labelledby="screenshot-import-title">
-              <h3 id="screenshot-import-title">Import from ESPN screenshot</h3>
-              <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
-              <div class="upload-actions">
-                <div>
-                  <label for="screenshot-import-file">League Members screenshot</label>
-                  <input id="screenshot-import-file" type="file" accept="image/png,image/jpeg,image/webp">
-                </div>
-                <button id="screenshot-analyze-button" type="button">Analyze screenshot</button>
-              </div>
-              <p id="screenshot-import-status" class="status" role="status" aria-live="polite"></p>
-              <div id="screenshot-review" class="stack hidden">
-                <img id="screenshot-source-preview" class="screenshot-source-preview hidden" alt="Uploaded ESPN League Members screenshot">
-                <div class="setup-fields">
-                  <div>
-                    <label for="screenshot-league-name">League name</label>
-                    <input id="screenshot-league-name" autocomplete="off">
-                  </div>
-                  <div>
-                    <label for="screenshot-league-id">ESPN league ID</label>
-                    <input id="screenshot-league-id" autocomplete="off" inputmode="numeric">
-                  </div>
-                </div>
-                <ul id="screenshot-import-blockers" class="result-list"></ul>
-                <div id="screenshot-review-table" class="table-scroll">
-                  <table class="setup-preview-table screenshot-review-table">
-                    <thead><tr><th>Team #</th><th>Abbr</th><th>Team</th><th>Managers</th><th>Mockd profile</th><th>Review</th></tr></thead>
-                    <tbody id="screenshot-review-body"></tbody>
-                  </table>
-                </div>
-                <div class="actions">
-                  <button id="screenshot-apply-button" class="primary" type="button" disabled>Apply teams</button>
-                </div>
-              </div>
-            </div>
             <p id="setup-team-summary" class="lede">Loading teams...</p>
             <div id="setup-team-table" class="table-scroll hidden">
               <table class="setup-preview-table">
@@ -1340,11 +1315,6 @@ export const platformShellHtml = `<!doctype html>
       selectedLeague: null,
       invitations: [],
       setupLocked: false,
-      screenshotImport: null,
-      screenshotImportRevision: null,
-      screenshotTeamProfiles: [],
-      screenshotPreviewUrl: null,
-      screenshotRequestGeneration: 0,
       workspaceRequestGeneration: 0,
       currentSeason: null,
       claimedTeamIds: new Set(),
@@ -1354,6 +1324,10 @@ export const platformShellHtml = `<!doctype html>
       playerBoardSort: null,
       leagueCreation: null,
       leagueCreationStep: "basics",
+      leagueCreationScreenshotAvailable: null,
+      leagueCreationScreenshotFile: null,
+      leagueCreationScreenshotRequestGeneration: 0,
+      leagueCreationScreenshotAbortController: null,
       historicalImportBatchId: null,
       historicalOwnerMappings: {},
       historicalPlayerMappings: {},
@@ -1407,16 +1381,6 @@ export const platformShellHtml = `<!doctype html>
     const setupPreviewTable = byId("setup-preview-table");
     const setupPreviewBody = byId("setup-preview-body");
     const setupInvitations = byId("setup-invitations");
-    const screenshotImportFile = byId("screenshot-import-file");
-    const screenshotAnalyzeButton = byId("screenshot-analyze-button");
-    const screenshotImportStatus = byId("screenshot-import-status");
-    const screenshotReview = byId("screenshot-review");
-    const screenshotSourcePreview = byId("screenshot-source-preview");
-    const screenshotLeagueName = byId("screenshot-league-name");
-    const screenshotLeagueId = byId("screenshot-league-id");
-    const screenshotImportBlockers = byId("screenshot-import-blockers");
-    const screenshotReviewBody = byId("screenshot-review-body");
-    const screenshotApplyButton = byId("screenshot-apply-button");
     const historicalImportFile = byId("historical-import-file");
     const historicalImportYear = byId("historical-import-year");
     const historicalPreviewButton = byId("historical-preview-button");
@@ -1506,6 +1470,12 @@ export const platformShellHtml = `<!doctype html>
     const leagueCreateReceiveYard = byId("league-create-receive-yard");
     const leagueCreateReceiveTd = byId("league-create-receive-td");
     const leagueCreatePpr = byId("league-create-ppr");
+    const leagueCreateScreenshotPanel = byId("league-create-screenshot-panel");
+    const leagueCreateScreenshotDropzone = byId("league-create-screenshot-dropzone");
+    const leagueCreateScreenshotChoose = byId("league-create-screenshot-choose");
+    const leagueCreateScreenshotFile = byId("league-create-screenshot-file");
+    const leagueCreateScreenshotAnalyze = byId("league-create-screenshot-analyze");
+    const leagueCreateScreenshotStatus = byId("league-create-screenshot-status");
     const leagueCreateTeamRows = byId("league-create-team-rows");
     const leagueCreateTeamProgress = byId("league-create-team-progress");
     const leagueCreateBack = byId("league-create-back");
@@ -1646,6 +1616,14 @@ export const platformShellHtml = `<!doctype html>
       const element = byId(elementId);
       element.textContent = readinessLabel(value);
       element.className = value === "ready" ? "ready" : "attention";
+    };
+
+    const renderReadinessAction = (elementId, label, href) => {
+      const element = byId(elementId);
+      element.textContent = label || "";
+      if (href) element.href = href;
+      else element.removeAttribute("href");
+      setHidden(element, !label || !href);
     };
 
     const renderStandaloneBoard = () => {
@@ -1886,6 +1864,9 @@ export const platformShellHtml = `<!doctype html>
         const row = document.createElement("section");
         row.className = "league-team-row";
         row.dataset.teamIndex = String(index);
+        const issues = [...(team.issues || [])];
+        const needsReview = (team.confidence !== undefined && team.confidence !== "high") || issues.length > 0;
+        row.dataset.needsReview = String(needsReview);
         const title = document.createElement("h4");
         title.textContent = "Team " + String(index + 1);
         const field = (fieldName, value, labelText, required) => {
@@ -1899,6 +1880,7 @@ export const platformShellHtml = `<!doctype html>
           input.value = value;
           input.dataset.field = fieldName;
           input.required = required;
+          if (fieldName === "abbreviation") input.maxLength = 12;
           wrapper.append(label, input);
           return wrapper;
         };
@@ -1908,7 +1890,25 @@ export const platformShellHtml = `<!doctype html>
           field("managerNames", (team.managerNames || []).join("; "), "Manager names", false),
           field("abbreviation", team.abbreviation || "", "Abbreviation", false),
         );
-        row.append(title, field("displayName", team.displayName || "", "Team name", true), meta);
+        row.append(title);
+        if (needsReview) {
+          const review = document.createElement("p");
+          review.className = "league-team-review";
+          review.textContent = issues.length
+            ? issues.join(" ")
+            : "Double-check this screenshot reading.";
+          const confirmation = document.createElement("label");
+          confirmation.className = "confirmation-label";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = team.confirmed === true;
+          checkbox.dataset.screenshotReviewConfirmation = "true";
+          const confirmationText = document.createElement("span");
+          confirmationText.textContent = "I checked Team " + String(index + 1);
+          confirmation.append(checkbox, confirmationText);
+          row.append(review, confirmation);
+        }
+        row.append(field("displayName", team.displayName || "", "Team name", true), meta);
         fragment.append(row);
       });
       leagueCreateTeamRows.replaceChildren(fragment);
@@ -1944,25 +1944,67 @@ export const platformShellHtml = `<!doctype html>
     const readLeagueCreationTeams = () => [...leagueCreateTeamRows.querySelectorAll("[data-team-index]")]
       .map((row, index) => {
         const valueFor = field => row.querySelector('[data-field="' + field + '"]').value.trim();
+        const sourceTeam = state.leagueCreation?.teams[index];
         return {
-          externalTeamId: state.leagueCreation?.teams[index]?.externalTeamId || String(index + 1),
+          externalTeamId: sourceTeam?.externalTeamId || String(index + 1),
           displayName: valueFor("displayName"),
           abbreviation: valueFor("abbreviation"),
           managerNames: valueFor("managerNames").split(/[;,]/u).map(value => value.trim()).filter(Boolean),
+          confidence: sourceTeam?.confidence,
+          issues: [...(sourceTeam?.issues || [])],
+          confirmed: row.querySelector("[data-screenshot-review-confirmation]")?.checked === true,
         };
       });
+
+    const leagueCreationTeamsForSubmission = () => readLeagueCreationTeams().map(team => ({
+      externalTeamId: team.externalTeamId,
+      displayName: team.displayName,
+      abbreviation: team.abbreviation,
+      managerNames: team.managerNames,
+    }));
 
     const teamNamesComplete = () => {
       const teams = readLeagueCreationTeams();
       const expectedTeamCount = Number(leagueCreateTeamCount.value);
-      return teams.length === expectedTeamCount && teams.every(team => team.displayName.length > 0);
+      const normalizedNames = teams.map(team => team.displayName.toLowerCase());
+      const reviewConfirmed = [...leagueCreateTeamRows.querySelectorAll("[data-screenshot-review-confirmation]")]
+        .every(input => input.checked);
+      return teams.length === expectedTeamCount
+        && teams.every(team =>
+          team.displayName.length > 0
+          && (team.confidence === undefined
+            || (!team.displayName.includes("...") && !team.displayName.includes(String.fromCharCode(8230))))
+          && team.abbreviation.length <= 12)
+        && new Set(normalizedNames).size === normalizedNames.length
+        && reviewConfirmed;
+    };
+
+    const leagueCreationTeamValidationMessage = () => {
+      const teams = readLeagueCreationTeams();
+      const expectedTeamCount = Number(leagueCreateTeamCount.value) || 0;
+      if (teams.length !== expectedTeamCount || teams.some(team => team.displayName.length === 0)) {
+        const completed = teams.filter(team => team.displayName.length > 0).length;
+        return String(completed) + " of " + String(expectedTeamCount) + " team names entered";
+      }
+      if (teams.some(team => team.confidence !== undefined
+        && (team.displayName.includes("...") || team.displayName.includes(String.fromCharCode(8230))))) {
+        return "Replace each truncated team name before finishing.";
+      }
+      if (teams.some(team => team.abbreviation.length > 12)) {
+        return "Shorten each abbreviation to 12 characters or fewer.";
+      }
+      const normalizedNames = teams.map(team => team.displayName.toLowerCase());
+      if (new Set(normalizedNames).size !== normalizedNames.length) {
+        return "Give each team a unique name before finishing.";
+      }
+      if ([...leagueCreateTeamRows.querySelectorAll("[data-screenshot-review-confirmation]")].some(input => !input.checked)) {
+        return "Confirm each uncertain screenshot row before finishing.";
+      }
+      return "All " + String(expectedTeamCount) + " team names entered";
     };
 
     const updateLeagueCreationSubmit = () => {
-      const teams = readLeagueCreationTeams();
-      const completed = teams.filter(team => team.displayName.length > 0).length;
-      const expectedTeamCount = Number(leagueCreateTeamCount.value) || 0;
-      leagueCreateTeamProgress.textContent = String(completed) + " of " + String(expectedTeamCount) + " team names entered";
+      leagueCreateTeamProgress.textContent = leagueCreationTeamValidationMessage();
       leagueCreateSubmit.disabled = !teamNamesComplete();
     };
 
@@ -2083,6 +2125,136 @@ export const platformShellHtml = `<!doctype html>
       renderLeagueCreationTeamRows(state.leagueCreation.teams);
     };
 
+    const loadLeagueCreationScreenshotCapability = async () => {
+      try {
+        const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
+          credentials: "same-origin",
+        }));
+        state.leagueCreationScreenshotAvailable = body.available === true;
+      } catch {
+        state.leagueCreationScreenshotAvailable = false;
+      }
+      setHidden(leagueCreateScreenshotPanel, state.leagueCreationScreenshotAvailable !== true);
+    };
+
+    const leagueCreationImageBase64For = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("error", () => reject(new Error("The screenshot could not be read.")));
+      reader.addEventListener("load", () => {
+        const result = typeof reader.result === "string" ? reader.result : "";
+        const separator = result.indexOf(",");
+        if (separator < 0) {
+          reject(new Error("The screenshot could not be read."));
+          return;
+        }
+        resolve(result.slice(separator + 1));
+      });
+      reader.readAsDataURL(file);
+    });
+
+    const cancelLeagueCreationScreenshotRequest = () => {
+      state.leagueCreationScreenshotRequestGeneration += 1;
+      state.leagueCreationScreenshotAbortController?.abort();
+      state.leagueCreationScreenshotAbortController = null;
+    };
+
+    const selectLeagueCreationScreenshot = file => {
+      cancelLeagueCreationScreenshotRequest();
+      state.leagueCreationScreenshotFile = null;
+      leagueCreateScreenshotAnalyze.disabled = true;
+      if (!file) {
+        leagueCreateScreenshotStatus.textContent = "Choose a screenshot first.";
+        return;
+      }
+      if (!screenshotMimeTypes.has(file.type)) {
+        leagueCreateScreenshotStatus.textContent = "Choose a PNG, JPEG, or WebP screenshot.";
+        return;
+      }
+      if (file.size > screenshotMaxBytes) {
+        leagueCreateScreenshotStatus.textContent = "Choose a screenshot smaller than 5 MB.";
+        return;
+      }
+      state.leagueCreationScreenshotFile = file;
+      leagueCreateScreenshotAnalyze.disabled = false;
+      leagueCreateScreenshotStatus.textContent = file.name + " is ready to analyze.";
+    };
+
+    const analyzeLeagueCreationScreenshot = async () => {
+      const file = state.leagueCreationScreenshotFile;
+      if (!file) {
+        selectLeagueCreationScreenshot(null);
+        return;
+      }
+      const requestGeneration = ++state.leagueCreationScreenshotRequestGeneration;
+      const abortController = new AbortController();
+      state.leagueCreationScreenshotAbortController = abortController;
+      leagueCreateScreenshotAnalyze.disabled = true;
+      leagueCreateScreenshotStatus.textContent = "Reading teams from the screenshot...";
+      try {
+        const base64 = await leagueCreationImageBase64For(file);
+        if (requestGeneration !== state.leagueCreationScreenshotRequestGeneration) return;
+        const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          signal: abortController.signal,
+          body: JSON.stringify({ mimeType: file.type, base64: base64 }),
+        }));
+        if (requestGeneration !== state.leagueCreationScreenshotRequestGeneration) return;
+        const extraction = body.import || { teams: [] };
+        const teams = [...(extraction.teams || [])]
+          .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+        const expectedTeamCount = Number(leagueCreateTeamCount.value);
+        if (teams.length !== expectedTeamCount) {
+          leagueCreateScreenshotStatus.textContent = "Mockd found " + teams.length + " teams, but this league expects " + expectedTeamCount + ". Try a clearer screenshot or enter the teams manually.";
+          return;
+        }
+        const draftPositions = teams.map(team => Number(team.draftOrderPosition));
+        if (
+          draftPositions.some(position => !Number.isInteger(position) || position < 1 || position > expectedTeamCount)
+          || new Set(draftPositions).size !== expectedTeamCount
+        ) {
+          leagueCreateScreenshotStatus.textContent = "Mockd could not read a unique team number for every row. Try a clearer screenshot or enter the teams manually.";
+          return;
+        }
+        const issuesByIndex = teams.map(team => [...(team.issues || [])]);
+        teams.forEach((team, index) => {
+          const teamName = String(team.teamDisplayName || "").trim();
+          const abbreviation = String(team.abbreviation || "").trim();
+          if (!teamName) issuesByIndex[index].push("Enter the missing team name.");
+          if (teamName.includes("...") || teamName.includes(String.fromCharCode(8230))) {
+            issuesByIndex[index].push("Replace the truncated team name.");
+          }
+          if (abbreviation.length > 12) issuesByIndex[index].push("Shorten the abbreviation to 12 characters or fewer.");
+        });
+        const leagueTeams = teams.map((team, index) => ({
+          externalTeamId: String(team.draftOrderPosition),
+          displayName: team.teamDisplayName || "",
+          abbreviation: team.abbreviation || "",
+          managerNames: [...(team.managerDisplayNames || [])],
+          confidence: team.confidence,
+          issues: issuesByIndex[index],
+        }));
+        state.leagueCreation.teams = leagueTeams;
+        renderLeagueCreationTeamRows(leagueTeams);
+        const needsReview = leagueTeams.filter(team => team.confidence !== "high" || team.issues.length > 0).length;
+        leagueCreateScreenshotStatus.textContent = "Filled " + teams.length + " teams from " + file.name + "."
+          + (needsReview ? " Review " + needsReview + " uncertain row" + (needsReview === 1 ? "." : "s.") : " Review the fields before finishing.");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        if (requestGeneration === state.leagueCreationScreenshotRequestGeneration) {
+          leagueCreateScreenshotStatus.textContent = error.message;
+        }
+      } finally {
+        if (state.leagueCreationScreenshotAbortController === abortController) {
+          state.leagueCreationScreenshotAbortController = null;
+        }
+        if (requestGeneration === state.leagueCreationScreenshotRequestGeneration) {
+          leagueCreateScreenshotAnalyze.disabled = state.leagueCreationScreenshotFile === null;
+        }
+      }
+    };
+
     const renderLeagueCreationImportSummary = (kind, title, copy, review, warnings) => {
       leagueCreateImportSummary.dataset.kind = kind;
       leagueCreateImportSummaryTitle.textContent = title;
@@ -2133,8 +2305,18 @@ export const platformShellHtml = `<!doctype html>
       leagueCreateBack.disabled = stepIndex === 0;
       setHidden(leagueCreateNext, step === "teams");
       setHidden(leagueCreateSubmit, step !== "teams");
+      setHidden(leagueCreateScreenshotPanel, state.leagueCreationScreenshotAvailable !== true);
       leagueCreateStatus.textContent = "";
-      if (step === "teams") updateLeagueCreationSubmit();
+      if (step === "teams") {
+        leagueCreateScreenshotAnalyze.disabled = state.leagueCreationScreenshotFile === null;
+        if (
+          state.leagueCreationScreenshotFile
+          && leagueCreateScreenshotStatus.textContent === "Reading teams from the screenshot..."
+        ) {
+          leagueCreateScreenshotStatus.textContent = state.leagueCreationScreenshotFile.name + " is ready to analyze.";
+        }
+        updateLeagueCreationSubmit();
+      }
       const heading = document.querySelector('[data-league-step="' + step + '"] h3');
       if (heading) {
         heading.tabIndex = -1;
@@ -2446,12 +2628,6 @@ export const platformShellHtml = `<!doctype html>
       setupRowsInput.disabled = hasRoom;
       setupPreviewButton.disabled = hasRoom;
       setupApplyButton.disabled = true;
-      screenshotImportFile.disabled = hasRoom;
-      screenshotAnalyzeButton.disabled = hasRoom;
-      screenshotApplyButton.disabled = hasRoom || state.screenshotImport === null;
-      screenshotLeagueName.disabled = hasRoom;
-      screenshotLeagueId.disabled = hasRoom;
-      screenshotReviewBody.querySelectorAll("input, select").forEach(control => { control.disabled = hasRoom; });
       historicalImportFile.disabled = hasRoom;
       historicalImportYear.disabled = hasRoom;
       historicalPreviewButton.disabled = hasRoom;
@@ -2755,7 +2931,6 @@ export const platformShellHtml = `<!doctype html>
     const renderSelectedLeague = selectedLeague => {
       if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
         state.workspaceRequestGeneration += 1;
-        resetScreenshotReview({ clearFile: true, clearStatus: true });
         state.currentSeason = null;
         state.claimedTeamIds = new Set();
         state.historicalImportBatchId = null;
@@ -2896,6 +3071,34 @@ export const platformShellHtml = `<!doctype html>
       renderReadiness("league-setup-readiness", selectedLeague.readiness.leagueSetup);
       renderReadiness("team-claim-readiness", selectedLeague.readiness.teamClaim);
       renderReadiness("live-draft-readiness", selectedLeague.readiness.liveDraft);
+      const setupPath = pathWithSeason("/setup", selectedLeague.seasonId);
+      const liveDraftReadinessSetupPath = setupPath + "#live-room-setup-title";
+      const setupReady = selectedLeague.readiness.leagueSetup === "ready";
+      const needsTeamClaim = !membership.teamId;
+      const roomId = selectedLeague.liveDraft?.roomId;
+      let liveDraftReadinessLabel = null;
+      let liveDraftReadinessPath = liveDraftReadinessSetupPath;
+      if (roomId) {
+        liveDraftReadinessLabel = "Open draft room";
+        liveDraftReadinessPath = draftRoomPathFor(selectedLeague.seasonId, roomId);
+      } else if (selectedLeague.canManageLeague) {
+        liveDraftReadinessLabel = setupReady ? "Create draft room" : "Finish setup first";
+      }
+      renderReadinessAction(
+        "league-setup-readiness-action",
+        selectedLeague.readiness.leagueSetup !== "ready" && selectedLeague.canManageLeague ? "Finish setup" : null,
+        setupPath,
+      );
+      renderReadinessAction(
+        "team-claim-readiness-action",
+        needsTeamClaim ? "Claim your team" : null,
+        "#team-claim-panel",
+      );
+      renderReadinessAction(
+        "live-draft-readiness-action",
+        liveDraftReadinessLabel,
+        liveDraftReadinessPath,
+      );
       byId("next-draft-at").textContent = selectedLeague.nextDraftAt
         ? new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(new Date(selectedLeague.nextDraftAt))
         : "No draft time scheduled.";
@@ -2916,7 +3119,6 @@ export const platformShellHtml = `<!doctype html>
           }
         });
 
-      const needsTeamClaim = !membership.teamId;
       setHidden(teamClaimPanel, !needsTeamClaim);
       if (needsTeamClaim) {
         loadClaimableTeams(selectedLeague).catch(error => {
@@ -2926,23 +3128,21 @@ export const platformShellHtml = `<!doctype html>
       }
 
       const liveDraftButton = byId("open-live-draft-button");
-      const roomId = selectedLeague.liveDraft?.roomId;
       if (roomId) {
         liveDraftButton.href = draftRoomPathFor(selectedLeague.seasonId, roomId);
         liveDraftButton.textContent = "Open live draft";
         liveDraftButton.removeAttribute("aria-disabled");
         liveDraftButton.removeAttribute("tabindex");
+      } else if (selectedLeague.canManageLeague) {
+        liveDraftButton.href = "/setup?seasonId=" + encodeURIComponent(selectedLeague.seasonId) + "#live-room-setup-title";
+        liveDraftButton.textContent = setupReady ? "Create draft room" : "Finish draft setup";
+        liveDraftButton.removeAttribute("aria-disabled");
+        liveDraftButton.removeAttribute("tabindex");
       } else {
-        liveDraftButton.textContent = selectedLeague.canManageLeague ? "Finish draft setup" : "Draft room not ready";
-        if (selectedLeague.canManageLeague) {
-          liveDraftButton.href = "/setup?seasonId=" + encodeURIComponent(selectedLeague.seasonId);
-          liveDraftButton.removeAttribute("aria-disabled");
-          liveDraftButton.removeAttribute("tabindex");
-        } else {
-          liveDraftButton.removeAttribute("href");
-          liveDraftButton.setAttribute("aria-disabled", "true");
-          liveDraftButton.setAttribute("tabindex", "-1");
-        }
+        liveDraftButton.textContent = "Draft room not ready";
+        liveDraftButton.removeAttribute("href");
+        liveDraftButton.setAttribute("aria-disabled", "true");
+        liveDraftButton.setAttribute("tabindex", "-1");
       }
       setHidden(byId("league-workspace"), false);
     };
@@ -3156,322 +3356,6 @@ export const platformShellHtml = `<!doctype html>
     const isCurrentSetupRequest = (seasonId, requestGeneration) =>
       isCurrentWorkspaceRequest(seasonId, requestGeneration) &&
       byId("setup-season-id-input").value === seasonId;
-
-    const resetScreenshotReview = (options = {}) => {
-      state.screenshotRequestGeneration += 1;
-      state.screenshotImport = null;
-      state.screenshotImportRevision = null;
-      state.screenshotTeamProfiles = [];
-      screenshotReviewBody.replaceChildren();
-      renderScreenshotBlockers([]);
-      setHidden(screenshotReview, true);
-      screenshotApplyButton.disabled = true;
-      if (state.screenshotPreviewUrl) URL.revokeObjectURL(state.screenshotPreviewUrl);
-      state.screenshotPreviewUrl = null;
-      screenshotSourcePreview.removeAttribute("src");
-      setHidden(screenshotSourcePreview, true);
-      if (options.clearFile) screenshotImportFile.value = "";
-      if (options.clearStatus) screenshotImportStatus.textContent = "";
-    };
-
-    const renderScreenshotBlockers = blockers => {
-      screenshotImportBlockers.replaceChildren();
-      (blockers || []).forEach(blocker => {
-        const item = document.createElement("li");
-        item.textContent = blocker.message || "This row needs attention.";
-        screenshotImportBlockers.append(item);
-      });
-    };
-
-    const screenshotInput = (value, field, label, className) => {
-      const input = document.createElement("input");
-      input.value = String(value ?? "");
-      input.dataset.field = field;
-      input.setAttribute("aria-label", label);
-      if (className) input.className = className;
-      return input;
-    };
-
-    const screenshotReviewBlockers = () => {
-      if (!state.screenshotImport) return ["Analyze a screenshot before applying teams."];
-      const teams = state.screenshotImport.teams;
-      const profileIds = new Set(state.screenshotTeamProfiles.map(profile => profile.teamId));
-      const blockers = [];
-      if (teams.length !== state.screenshotTeamProfiles.length) {
-        blockers.push("The screenshot must contain one row for every existing Mockd profile.");
-      }
-      const teamNumbers = new Set();
-      const targetTeamIds = new Set();
-      const teamNames = new Set();
-      const managerNames = new Set();
-      teams.forEach((team, index) => {
-        const rowNumber = index + 1;
-        if (!Number.isInteger(team.draftOrderPosition) || team.draftOrderPosition < 1 || team.draftOrderPosition > teams.length) {
-          blockers.push("Team row " + rowNumber + " needs a number from 1 to " + teams.length + ".");
-        } else if (teamNumbers.has(team.draftOrderPosition)) {
-          blockers.push("Team number " + team.draftOrderPosition + " appears more than once.");
-        }
-        teamNumbers.add(team.draftOrderPosition);
-        const abbreviation = String(team.abbreviation || "").trim();
-        if (!abbreviation) blockers.push("Team row " + rowNumber + " needs an abbreviation.");
-        else if (abbreviation.length > 12) blockers.push("Team row " + rowNumber + " needs an abbreviation with 12 characters or fewer.");
-        const teamName = String(team.teamDisplayName || "").trim();
-        const teamNameKey = teamName.toLowerCase();
-        if (!teamName) blockers.push("Team row " + rowNumber + " needs a team name.");
-        else if (teamName.includes("...") || teamName.includes(String.fromCharCode(8230))) {
-          blockers.push("Replace the truncated name in team row " + rowNumber + ".");
-        }
-        else if (teamNames.has(teamNameKey)) blockers.push("Team name " + teamName + " appears more than once.");
-        teamNames.add(teamNameKey);
-        const managers = (team.managerDisplayNames || []).map(name => name.trim()).filter(Boolean);
-        if (!managers.length) blockers.push("Team row " + rowNumber + " needs at least one manager.");
-        managers.forEach(manager => {
-          const key = manager.toLowerCase();
-          if (managerNames.has(key)) blockers.push("Manager " + manager + " appears on more than one team.");
-          managerNames.add(key);
-        });
-        const targetTeamId = team.targetTeamId || "";
-        if (!profileIds.has(targetTeamId)) blockers.push("Choose a Mockd profile for team row " + rowNumber + ".");
-        else if (targetTeamIds.has(targetTeamId)) blockers.push("Each Mockd profile can be used only once.");
-        targetTeamIds.add(targetTeamId);
-        if ((team.confidence !== "high" || team.issues.length > 0) && team.confirmed !== true) {
-          blockers.push("Verify the uncertain reading in team row " + rowNumber + ".");
-        }
-      });
-      return [...new Set(blockers)];
-    };
-
-    const updateScreenshotReviewState = () => {
-      const blockers = screenshotReviewBlockers();
-      renderScreenshotBlockers(blockers.map(message => ({ message: message })));
-      screenshotApplyButton.disabled = state.setupLocked || blockers.length > 0;
-      screenshotImportStatus.textContent = blockers.length
-        ? "Resolve " + blockers.length + " review item" + (blockers.length === 1 ? "." : "s.")
-        : "Ready to apply " + state.screenshotImport.teams.length + " teams.";
-    };
-
-    const renderScreenshotReview = body => {
-      const extraction = body.extraction || { leagueName: null, externalLeagueId: null, teams: [] };
-      state.screenshotImport = {
-        leagueName: extraction.leagueName,
-        externalLeagueId: extraction.externalLeagueId,
-        teams: (extraction.teams || []).map(team => ({
-          ...team,
-          managerDisplayNames: [...(team.managerDisplayNames || [])],
-          issues: [...(team.issues || [])],
-        })),
-      };
-      state.screenshotImportRevision = body.setupRevision || null;
-      state.screenshotTeamProfiles = [...(body.availableTeamProfiles || [])];
-      screenshotLeagueName.value = extraction.leagueName || "";
-      screenshotLeagueId.value = extraction.externalLeagueId || "";
-      screenshotReviewBody.replaceChildren();
-      state.screenshotImport.teams.forEach((team, index) => {
-        const row = document.createElement("tr");
-        row.className = "screenshot-review-row";
-        row.dataset.index = String(index);
-        const needsReview = team.confidence !== "high" || team.issues.length > 0;
-        row.dataset.needsReview = String(needsReview);
-
-        const pickCell = document.createElement("td");
-        const pickInput = screenshotInput(team.draftOrderPosition, "draftOrderPosition", "Team number for row " + (index + 1));
-        pickInput.type = "number";
-        pickInput.min = "1";
-        pickInput.step = "1";
-        pickCell.append(pickInput);
-
-        const abbreviationCell = document.createElement("td");
-        const abbreviationInput = screenshotInput(team.abbreviation, "abbreviation", "Abbreviation for team " + (index + 1));
-        abbreviationInput.maxLength = 12;
-        abbreviationCell.append(abbreviationInput);
-
-        const teamCell = document.createElement("td");
-        teamCell.append(screenshotInput(team.teamDisplayName, "teamDisplayName", "Team name for row " + (index + 1), "team-name-input"));
-
-        const managerCell = document.createElement("td");
-        managerCell.append(screenshotInput(
-          team.managerDisplayNames.join("; "),
-          "managerDisplayNames",
-          "Managers for team " + (index + 1),
-          "manager-names-input",
-        ));
-
-        const profileCell = document.createElement("td");
-        const profileSelect = document.createElement("select");
-        profileSelect.dataset.field = "targetTeamId";
-        profileSelect.setAttribute("aria-label", "Mockd profile for team row " + (index + 1));
-        const emptyProfile = document.createElement("option");
-        emptyProfile.value = "";
-        emptyProfile.textContent = "Choose profile";
-        profileSelect.append(emptyProfile);
-        state.screenshotTeamProfiles.forEach(profile => {
-          const option = document.createElement("option");
-          option.value = profile.teamId;
-          option.textContent = profile.ownerDisplayName + " · " + profile.teamDisplayName;
-          profileSelect.append(option);
-        });
-        profileSelect.value = team.targetTeamId || "";
-        profileCell.append(profileSelect);
-
-        const reviewCell = document.createElement("td");
-        reviewCell.className = "review-cell";
-        if (needsReview) {
-          const note = document.createElement("span");
-          note.className = "review-note";
-          note.textContent = team.issues.length
-            ? team.issues.join(" ")
-            : "The screenshot reading was not fully confident.";
-          const label = document.createElement("label");
-          label.className = "confirmation-label";
-          const checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          checkbox.checked = team.confirmed === true;
-          checkbox.dataset.field = "confirmed";
-          const labelText = document.createElement("span");
-          labelText.textContent = "I verified this row";
-          label.append(checkbox, labelText);
-          reviewCell.append(note, label);
-        } else {
-          const ready = document.createElement("span");
-          ready.className = "ready";
-          ready.textContent = "Clear";
-          reviewCell.append(ready);
-        }
-
-        row.append(pickCell, abbreviationCell, teamCell, managerCell, profileCell, reviewCell);
-        screenshotReviewBody.append(row);
-      });
-      setHidden(screenshotSourcePreview, !state.screenshotPreviewUrl);
-      setHidden(screenshotReview, false);
-      updateScreenshotReviewState();
-    };
-
-    const imageBase64For = file => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener("error", () => reject(new Error("The screenshot could not be read.")));
-      reader.addEventListener("load", () => {
-        const result = typeof reader.result === "string" ? reader.result : "";
-        const separator = result.indexOf(",");
-        if (separator < 0) {
-          reject(new Error("The screenshot could not be read."));
-          return;
-        }
-        resolve(result.slice(separator + 1));
-      });
-      reader.readAsDataURL(file);
-    });
-
-    screenshotAnalyzeButton.addEventListener("click", async () => {
-      const file = screenshotImportFile.files?.[0];
-      if (!file) {
-        screenshotImportStatus.textContent = "Choose a screenshot first.";
-        screenshotImportFile.focus();
-        return;
-      }
-      if (!screenshotMimeTypes.has(file.type)) {
-        screenshotImportStatus.textContent = "Choose a PNG, JPEG, or WebP screenshot.";
-        return;
-      }
-      if (file.size > screenshotMaxBytes) {
-        screenshotImportStatus.textContent = "Choose a screenshot smaller than 5 MB.";
-        return;
-      }
-
-      resetScreenshotReview();
-      const requestGeneration = state.screenshotRequestGeneration;
-      const requestedSeasonId = byId("setup-season-id-input").value;
-      state.screenshotPreviewUrl = URL.createObjectURL(file);
-      screenshotSourcePreview.src = state.screenshotPreviewUrl;
-      screenshotAnalyzeButton.disabled = true;
-      screenshotImportStatus.textContent = "Reading teams from the screenshot...";
-      try {
-        const base64 = await imageBase64For(file);
-        const body = await readJson(await fetch(setupEndpoint("screenshot-analyze"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ mimeType: file.type, base64: base64 }),
-        }));
-        if (
-          requestGeneration !== state.screenshotRequestGeneration ||
-          requestedSeasonId !== byId("setup-season-id-input").value
-        ) return;
-        screenshotImportFile.value = "";
-        renderScreenshotReview(body);
-      } catch (error) {
-        if (requestGeneration === state.screenshotRequestGeneration) {
-          screenshotImportStatus.textContent = error.message;
-        }
-      } finally {
-        screenshotAnalyzeButton.disabled = state.setupLocked;
-      }
-    });
-
-    screenshotLeagueName.addEventListener("input", () => {
-      if (state.screenshotImport) state.screenshotImport.leagueName = screenshotLeagueName.value.trim() || null;
-    });
-    screenshotLeagueId.addEventListener("input", () => {
-      if (state.screenshotImport) state.screenshotImport.externalLeagueId = screenshotLeagueId.value.trim() || null;
-    });
-    screenshotReviewBody.addEventListener("input", event => {
-      const control = event.target.closest("[data-field]");
-      const row = control?.closest("tr[data-index]");
-      const team = row && state.screenshotImport?.teams[Number(row.dataset.index)];
-      if (!control || !team) return;
-      if (control.dataset.field === "draftOrderPosition") {
-        team.draftOrderPosition = Number(control.value);
-      } else if (control.dataset.field === "managerDisplayNames") {
-        team.managerDisplayNames = control.value.split(";").map(value => value.trim()).filter(Boolean);
-      } else if (control.dataset.field === "confirmed") {
-        team.confirmed = control.checked;
-      } else if (control.dataset.field === "targetTeamId") {
-        team.targetTeamId = control.value || null;
-      } else {
-        team[control.dataset.field] = control.value;
-      }
-      updateScreenshotReviewState();
-    });
-    screenshotReviewBody.addEventListener("change", event => {
-      if (event.target.matches('input[data-field="confirmed"], select[data-field="targetTeamId"]')) {
-        event.target.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    });
-
-    screenshotApplyButton.addEventListener("click", async () => {
-      if (!state.screenshotImport) return;
-      const requestedSeasonId = byId("setup-season-id-input").value;
-      const requestGeneration = state.screenshotRequestGeneration;
-      const workspaceRequestGeneration = state.workspaceRequestGeneration;
-      screenshotApplyButton.disabled = true;
-      screenshotImportStatus.textContent = "Applying league teams...";
-      try {
-        const body = await readJson(await fetch(setupEndpoint("screenshot-apply"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            ...state.screenshotImport,
-            setupRevision: state.screenshotImportRevision,
-          }),
-        }));
-        if (
-          requestGeneration !== state.screenshotRequestGeneration ||
-          !isCurrentSetupRequest(requestedSeasonId, workspaceRequestGeneration)
-        ) return;
-        resetScreenshotReview({ clearFile: true });
-        renderSeasonTeams(body.season);
-        screenshotImportStatus.textContent = body.season.teams.length + " teams imported. You can create manager invite links next.";
-        await loadOnboarding();
-      } catch (error) {
-        if (
-          requestGeneration !== state.screenshotRequestGeneration ||
-          !isCurrentSetupRequest(requestedSeasonId, workspaceRequestGeneration)
-        ) return;
-        renderScreenshotBlockers(error.body?.import?.blockers || []);
-        screenshotImportStatus.textContent = error.message;
-        screenshotApplyButton.disabled = true;
-      }
-    });
 
     const renderHistoricalIssues = issues => {
       historicalImportIssues.replaceChildren();
@@ -4093,10 +3977,39 @@ export const platformShellHtml = `<!doctype html>
     leagueCreateSeason.value = String(new Date().getFullYear());
     byId("league-info-button").addEventListener("click", () => {
       if (!state.leagueCreation) applyLeagueCreationReview(manualLeagueCreationReview());
+      cancelLeagueCreationScreenshotRequest();
+      state.leagueCreationScreenshotFile = null;
+      leagueCreateScreenshotFile.value = "";
+      leagueCreateScreenshotAnalyze.disabled = true;
+      leagueCreateScreenshotStatus.textContent = "";
+      setHidden(leagueCreateScreenshotPanel, true);
+      loadLeagueCreationScreenshotCapability();
       showLeagueCreationStep("basics");
       leagueSetupDialog.showModal();
     });
     byId("league-setup-close").addEventListener("click", () => leagueSetupDialog.close());
+    leagueSetupDialog.addEventListener("close", () => {
+      cancelLeagueCreationScreenshotRequest();
+      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+    });
+
+    leagueCreateScreenshotChoose.addEventListener("click", () => leagueCreateScreenshotFile.click());
+    leagueCreateScreenshotFile.addEventListener("change", () => {
+      selectLeagueCreationScreenshot(leagueCreateScreenshotFile.files?.[0] || null);
+    });
+    leagueCreateScreenshotDropzone.addEventListener("dragover", event => {
+      event.preventDefault();
+      leagueCreateScreenshotDropzone.classList.add("is-dragging");
+    });
+    leagueCreateScreenshotDropzone.addEventListener("dragleave", () => {
+      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+    });
+    leagueCreateScreenshotDropzone.addEventListener("drop", event => {
+      event.preventDefault();
+      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+      selectLeagueCreationScreenshot(event.dataTransfer?.files?.[0] || null);
+    });
+    leagueCreateScreenshotAnalyze.addEventListener("click", analyzeLeagueCreationScreenshot);
 
     byId("league-create-review-espn").addEventListener("click", async () => {
       const leagueIdOrUrl = leagueCreateEspnId.value.trim();
@@ -4156,6 +4069,7 @@ export const platformShellHtml = `<!doctype html>
     leagueCreateTeamRows.addEventListener("input", updateLeagueCreationSubmit);
     leagueCreateBack.addEventListener("click", () => {
       const currentIndex = leagueCreationSteps.indexOf(state.leagueCreationStep);
+      if (state.leagueCreationStep === "teams") cancelLeagueCreationScreenshotRequest();
       if (currentIndex > 0) showLeagueCreationStep(leagueCreationSteps[currentIndex - 1]);
     });
     leagueCreateNext.addEventListener("click", () => {
@@ -4166,7 +4080,7 @@ export const platformShellHtml = `<!doctype html>
     leagueCreateReview.addEventListener("submit", async event => {
       event.preventDefault();
       if (!state.leagueCreation || !teamNamesComplete()) return;
-      const teams = readLeagueCreationTeams();
+      const teams = leagueCreationTeamsForSubmission();
       const draft = leagueCreateDraftFormat.value === "snake"
         ? {
             type: "snake",

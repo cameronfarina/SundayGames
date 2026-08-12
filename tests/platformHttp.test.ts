@@ -458,6 +458,31 @@ describe("platform HTTP contract", () => {
     expect(JSON.stringify(response.body)).not.toMatch(/email|status|invite/i);
   });
 
+  it("reports whether pre-creation screenshot analysis is available", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const unavailableHandle = createPlatformHttpHandler(app);
+    const unavailableLogin = await createLoggedInAccount(unavailableHandle, "screenshot-unavailable@example.com");
+
+    await expect(unavailableHandle({
+      method: "GET",
+      path: "/league-imports/espn/members-screenshot-review",
+    })).resolves.toMatchObject({ status: 401 });
+    await expect(unavailableHandle({
+      method: "GET",
+      path: "/league-imports/espn/members-screenshot-review",
+      sessionToken: unavailableLogin.sessionToken,
+    })).resolves.toEqual({ status: 200, body: { available: false } });
+
+    const availableHandle = createPlatformHttpHandler(app, {
+      leagueMembersScreenshotAnalyzer: { analyze: vi.fn() },
+    });
+    await expect(availableHandle({
+      method: "GET",
+      path: "/league-imports/espn/members-screenshot-review",
+      sessionToken: unavailableLogin.sessionToken,
+    })).resolves.toEqual({ status: 200, body: { available: true } });
+  });
+
   it("creates a confirmed league for the signed-in commissioner with generated ids", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);

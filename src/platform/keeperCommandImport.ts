@@ -137,6 +137,7 @@ const playerCandidatesFor = (
   catalog.map(player => {
     const normalizedName = canonicalPlayerIdentityKey(player.name);
     const nameParts = normalizedName.split(" ").filter(Boolean);
+    const firstName = nameParts[0];
     const surname = nameParts[nameParts.length - 1];
 
     return {
@@ -145,6 +146,7 @@ const playerCandidatesFor = (
       entry: player,
       aliases: new Set([
         normalizedName,
+        ...(firstName === undefined ? [] : [firstName]),
         ...(surname === undefined ? [] : [surname]),
         ...(player.aliases ?? []).map(canonicalPlayerIdentityKey),
       ].filter(Boolean)),
@@ -155,12 +157,23 @@ const matchesFor = <T>(
   mention: string,
   candidates: readonly ResolutionCandidate<T>[],
   normalize: (value: string) => string,
+  options: { allowPrefix?: boolean } = {},
 ): ResolutionCandidate<T>[] => {
   const mentionKey = normalize(mention);
   const matchesById = new Map<string, ResolutionCandidate<T>>();
 
   for (const candidate of candidates) {
     if (candidate.aliases.has(mentionKey)) matchesById.set(candidate.id, candidate);
+  }
+
+  if (matchesById.size > 0 || options.allowPrefix !== true || mentionKey.length < 3) {
+    return [...matchesById.values()];
+  }
+
+  for (const candidate of candidates) {
+    if ([...candidate.aliases].some(alias => alias.startsWith(mentionKey))) {
+      matchesById.set(candidate.id, candidate);
+    }
   }
 
   return [...matchesById.values()];
@@ -295,13 +308,19 @@ export const parseKeeperCommand = (
     };
   }
 
-  const teamMatches = matchesFor(parsed.teamMention, teamCandidatesFor(input.teams), normalizedIdentity);
+  const teamMatches = matchesFor(
+    parsed.teamMention,
+    teamCandidatesFor(input.teams),
+    normalizedIdentity,
+    { allowPrefix: true },
+  );
   if (teamMatches.length !== 1) return resolutionError("team", parsed.teamMention, teamMatches);
 
   const playerMatches = matchesFor(
     parsed.playerMention,
     playerCandidatesFor(input.players),
     canonicalPlayerIdentityKey,
+    { allowPrefix: true },
   );
   if (playerMatches.length !== 1) return resolutionError("player", parsed.playerMention, playerMatches);
 

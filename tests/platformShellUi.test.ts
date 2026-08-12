@@ -125,6 +125,13 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('Snake (prep beta)');
     expect(platformShellHtml).toContain('Hosted live drafting is currently auction-only.');
     expect(platformShellHtml).toContain('fetch("/league-imports/espn/review"');
+    expect(platformShellHtml).toContain('id="league-create-screenshot-panel"');
+    expect(platformShellHtml).toContain('id="league-create-screenshot-dropzone"');
+    expect(platformShellHtml).toContain('id="league-create-screenshot-file"');
+    expect(platformShellHtml).toContain('id="league-create-screenshot-analyze"');
+    expect(platformShellHtml).toContain('fetch("/league-imports/espn/members-screenshot-review"');
+    expect(platformShellHtml).toContain('addEventListener("dragover"');
+    expect(platformShellHtml).toContain('addEventListener("drop"');
     expect(platformShellHtml).toContain("No settings were imported.");
     expect(platformShellHtml).toContain("renderLeagueCreationImportSummary");
     expect(platformShellHtml).not.toContain('data-league-step="references"');
@@ -197,23 +204,20 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("id=\"setup-team-table\"");
     expect(platformShellHtml).toContain("id=\"setup-team-body\"");
     expect(platformShellHtml).toContain("id=\"setup-settings-summary\"");
-    expect(platformShellHtml).toContain("id=\"screenshot-import-file\"");
+    expect(platformShellHtml).not.toContain("id=\"screenshot-import-file\"");
     expect(platformShellHtml).toContain('accept="image/png,image/jpeg,image/webp"');
-    expect(platformShellHtml).toContain("id=\"screenshot-analyze-button\"");
+    expect(platformShellHtml).not.toContain("id=\"screenshot-analyze-button\"");
     expect(platformShellHtml).toContain("Your entire selected image is sent to OpenAI for analysis.");
     expect(platformShellHtml).toContain("remove invite links and email addresses");
     expect(platformShellHtml).toContain("Mockd retains only the team number, abbreviation, team name, and manager names you approve.");
-    expect(platformShellHtml).toContain("id=\"screenshot-review-table\"");
-    expect(platformShellHtml).toContain("id=\"screenshot-apply-button\"");
-    expect(platformShellHtml).toContain('setupEndpoint("screenshot-analyze")');
-    expect(platformShellHtml).toContain('setupEndpoint("screenshot-apply")');
+    expect(platformShellHtml).not.toContain("id=\"screenshot-review-table\"");
+    expect(platformShellHtml).not.toContain("id=\"screenshot-apply-button\"");
     expect(platformShellHtml).toContain("file.size > screenshotMaxBytes");
     expect(platformShellHtml).toContain('teamName.includes("...") || teamName.includes(String.fromCharCode(8230))');
     expect(platformShellHtml).not.toContain("/...|…/u.test(teamName)");
     expect(platformShellHtml).toContain("abbreviation.length > 12");
     expect(platformShellHtml).toContain("workspaceRequestGeneration");
     expect(platformShellHtml).toContain("isCurrentSetupRequest(seasonId, requestGeneration)");
-    expect(platformShellHtml).toContain("resetScreenshotReview({ clearFile: true, clearStatus: true })");
     expect(platformShellHtml).toContain("teams.length + \" teams configured.\"");
     expect(platformShellHtml).toContain('fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId)');
     expect(platformShellHtml).toContain("setupImport.records || []");
@@ -277,6 +281,19 @@ describe("platform shell UI", () => {
       "league-create-receive-td",
       "league-create-ppr",
     ].forEach(fieldId => expect(platformShellHtml).toContain(`id="${fieldId}"`));
+  });
+
+  it("puts team claiming and actionable readiness before league details", () => {
+    const claimIndex = platformShellHtml.indexOf('id="team-claim-panel"');
+    const readinessIndex = platformShellHtml.indexOf('aria-label="League readiness"');
+    const settingsIndex = platformShellHtml.indexOf('id="league-overview-title"');
+
+    expect(claimIndex).toBeGreaterThan(-1);
+    expect(claimIndex).toBeLessThan(readinessIndex);
+    expect(readinessIndex).toBeLessThan(settingsIndex);
+    expect(platformShellHtml).toContain('id="league-setup-readiness-action"');
+    expect(platformShellHtml).toContain('id="team-claim-readiness-action"');
+    expect(platformShellHtml).toContain('id="live-draft-readiness-action"');
   });
 
   it("offers a compact accessible password change flow from the account header", () => {
