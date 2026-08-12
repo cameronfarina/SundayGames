@@ -1,11 +1,52 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const platformPort = "4319";
-const defaultDataFile = resolve(".mockd/platform-local-preview.json");
-const defaultDraftToolsDirectory = resolve(".mockd/platform-draft-tools");
+
+interface LocalPreviewPathOptions {
+  readonly cwd: string;
+  readonly env: NodeJS.ProcessEnv;
+  readonly primaryWorktreeDirectory: string | undefined;
+}
+
+interface LocalPreviewPaths {
+  readonly dataFile: string;
+  readonly draftToolsDirectory: string;
+}
+
+export const resolveLocalPreviewPaths = ({
+  cwd,
+  env,
+  primaryWorktreeDirectory,
+}: LocalPreviewPathOptions): LocalPreviewPaths => {
+  const stateDirectory = resolve(primaryWorktreeDirectory ?? cwd, ".mockd");
+
+  return {
+    dataFile:
+      env.MOCKD_PLATFORM_DATA_FILE?.trim() || resolve(stateDirectory, "platform-local-preview.json"),
+    draftToolsDirectory:
+      env.MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY?.trim()
+      || resolve(stateDirectory, "platform-draft-tools"),
+  };
+};
+
+export const readPrimaryWorktreeDirectory = (cwd: string): string | undefined => {
+  try {
+    const output = execFileSync("git", ["worktree", "list", "--porcelain", "-z"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const firstField = output.split("\0", 1)[0];
+    const prefix = "worktree ";
+
+    return firstField?.startsWith(prefix) ? firstField.slice(prefix.length) : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 const npmCommand = (): string => process.platform === "win32" ? "npm.cmd" : "npm";
 
@@ -24,7 +65,13 @@ const terminate = (children: readonly ChildProcess[]): void => {
 export const startLocalPreview = async (
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<void> => {
-  const dataFile = env.MOCKD_PLATFORM_DATA_FILE?.trim() || defaultDataFile;
+  const cwd = process.cwd();
+  const previewPaths = resolveLocalPreviewPaths({
+    cwd,
+    env,
+    primaryWorktreeDirectory: readPrimaryWorktreeDirectory(cwd),
+  });
+  const dataFile = previewPaths.dataFile;
   const baseEnv = { ...env };
   delete baseEnv.DATABASE_URL;
   delete baseEnv.MOCKD_DATABASE_URL;
@@ -33,8 +80,7 @@ export const startLocalPreview = async (
     HOST: "127.0.0.1",
     PORT: platformPort,
     MOCKD_PLATFORM_DATA_FILE: dataFile,
-    MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY:
-      env.MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY?.trim() || defaultDraftToolsDirectory,
+    MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: previewPaths.draftToolsDirectory,
     MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
     MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
     MOCKD_PROVISIONING_TOKEN: "local-preview-provisioning-token",
