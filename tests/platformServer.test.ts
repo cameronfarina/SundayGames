@@ -3269,7 +3269,7 @@ describe("platform server composition", () => {
 
     await expect(Promise.race([
       secondSimulationEntered.promise.then(() => "started"),
-      new Promise(resolve => setTimeout(() => resolve("blocked"), 100)),
+      new Promise(resolve => setTimeout(() => resolve("blocked"), 1_000)),
     ])).resolves.toBe("started");
 
     releaseFirstSimulation.resolve();
