@@ -53,6 +53,8 @@ const setup: LiveDraftRoomSetup = {
     name: `Player ${index + 1}`,
     position,
     expectedPrice: 50 - index,
+    teamAbbreviation: index === 0 ? "DET" : undefined,
+    byeWeek: index === 0 ? 8 : undefined,
     week1Projection: 20 - index,
   })),
   initialRosters: [{
@@ -87,6 +89,8 @@ describe("season auction mock adapter", () => {
       id: "player 1",
       expectedPrice: 64,
       humanValue: 71,
+      teamAbbreviation: "DET",
+      byeWeek: 8,
       week1Projection: 20,
     });
   });

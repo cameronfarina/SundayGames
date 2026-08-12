@@ -423,6 +423,44 @@ const exerciseDurableMockWorkspace = async (
   );
   await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
   await expect(page.locator("#mock-draft-player-rows tr").first()).toBeVisible();
+  await expect(page.locator("#mock-draft-player-head")).toContainText("NFL");
+  await expect(page.locator("#mock-draft-player-head")).toContainText("Bye");
+  if (season.settings.draftFormat === "auction") {
+    await expect(page.locator("#mock-draft-player-head")).toContainText("Market value");
+    await expect(page.locator("#mock-draft-player-head")).toContainText("Our value");
+  }
+  const firstPlayerRow = page.locator("#mock-draft-player-rows tr").first();
+  const firstPlayerPosition = await firstPlayerRow.getAttribute("data-position");
+  await expect(firstPlayerRow.locator('[data-label="Position"]')).toHaveClass(/position-label/);
+  await expect(firstPlayerRow.locator('[data-label="Position"]')).toHaveAttribute(
+    "data-position",
+    firstPlayerPosition ?? "",
+  );
+  await expect(firstPlayerRow.locator('[data-label="NFL"]')).not.toHaveText("-");
+  await expect(firstPlayerRow.locator('[data-label="Bye"]')).not.toHaveText("-");
+
+  const rosterTeamSelect = page.locator("#mock-draft-roster-team");
+  await expect(rosterTeamSelect.locator("option")).toHaveCount(season.teams.length);
+  const claimedTeamId = await rosterTeamSelect.inputValue();
+  const otherTeamId = await rosterTeamSelect.locator("option").evaluateAll(
+    (options, selectedTeamId) => options
+      .map(option => option.getAttribute("value") ?? "")
+      .find(value => value !== selectedTeamId) ?? "",
+    claimedTeamId,
+  );
+  expect(otherTeamId).not.toBe("");
+  await rosterTeamSelect.selectOption(otherTeamId);
+  await expect(rosterTeamSelect).toHaveValue(otherTeamId);
+  await expect(page.locator("#mock-draft-roster")).toHaveAttribute("data-team-id", otherTeamId);
+  if (season.settings.draftFormat === "auction") {
+    await expect(page.locator("#mock-draft-roster-facts")).toBeVisible();
+    await expect(page.locator("#mock-roster-budget-left")).toHaveText(/^\$/);
+    await expect(page.locator("#mock-roster-max-bid")).toHaveText(/^\$/);
+  } else {
+    await expect(page.locator("#mock-draft-roster-facts")).toBeHidden();
+  }
+  await rosterTeamSelect.selectOption(claimedTeamId);
+  await expect(page.locator("#mock-draft-roster")).toHaveAttribute("data-team-id", claimedTeamId);
   const mockViewport = await page.locator("#mock-draft-player-scroll").evaluate(element => ({
     clientHeight: element.clientHeight,
     maxHeight: getComputedStyle(element).maxHeight,

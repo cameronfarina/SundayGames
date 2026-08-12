@@ -123,6 +123,10 @@ export const buildSeasonSnakeMockConfig = ({
       rank: index + 1,
       adp: index + 1,
       leagueExpectedPick: index + 1,
+      ...(player.teamAbbreviation === undefined
+        ? {}
+        : { teamAbbreviation: player.teamAbbreviation }),
+      ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
       ...(player.week1Projection === undefined
         ? {}
         : { week1Projection: player.week1Projection }),

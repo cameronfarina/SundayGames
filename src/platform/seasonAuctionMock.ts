@@ -146,6 +146,10 @@ export const buildSeasonAuctionMockConfig = ({
         position: player.position,
         expectedPrice: playerExpectedPrices[id] ?? player.expectedPrice,
         humanValue: playerHumanValues[id] ?? playerExpectedPrices[id] ?? player.expectedPrice,
+        ...(player.teamAbbreviation === undefined
+          ? {}
+          : { teamAbbreviation: player.teamAbbreviation }),
+        ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
         ...(player.week1Projection === undefined
           ? {}
           : { week1Projection: player.week1Projection }),

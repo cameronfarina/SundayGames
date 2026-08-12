@@ -226,6 +226,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="mock-draft-workspace"');
     expect(platformShellHtml).toContain('id="mock-draft-player-rows"');
     expect(platformShellHtml).toContain('id="mock-draft-roster"');
+    expect(platformShellHtml).toContain('id="mock-draft-roster-team"');
+    expect(platformShellHtml).toContain('id="mock-draft-roster-facts"');
+    expect(platformShellHtml).toContain('id="mock-roster-budget-left"');
+    expect(platformShellHtml).toContain('id="mock-roster-max-bid"');
     expect(platformShellHtml).toContain('id="mock-draft-position-filters"');
     expect(platformShellHtml).toContain('data-mock-position="FLEX"');
     expect(platformShellHtml).toContain('id="mock-draft-results"');
@@ -249,6 +253,12 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain(".workspace > * { min-width: 0; }");
     expect(platformShellHtml).toContain(".mock-auction-stage > * { min-width: 0; }");
     expect(platformShellHtml).toContain("myTeam.maxBid");
+    expect(platformShellHtml).toContain('label: "NFL"');
+    expect(platformShellHtml).toContain('label: "Bye"');
+    expect(platformShellHtml).toContain('label: "Our value"');
+    expect(platformShellHtml).toContain('className = "position-label"');
+    expect(platformShellHtml).toContain('mockDraftRoster.dataset.teamId = rosterTeam?.id || ""');
+    expect(platformShellHtml).toContain('state.mockRosterTeamId = mockDraftRosterTeam.value');
     expect(platformShellHtml).toContain("mockPositionFilter");
     expect(platformShellHtml).toContain("renderMockDraftResults");
     expect(platformShellHtml).toContain("player.week1Points || 0");

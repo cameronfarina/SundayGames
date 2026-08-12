@@ -44,6 +44,13 @@ export const platformShellHtml = `<!doctype html>
       --danger: #ff8c9b;
       --warning: #f4c86b;
       --focus: #71b7ff;
+      --position-qb: #f4c86b;
+      --position-rb: #67a8ff;
+      --position-wr: #d38cff;
+      --position-te: #ff8ca1;
+      --position-flex: #67d8b0;
+      --position-dst: #73d8d2;
+      --position-k: #a7b0bf;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
     }
@@ -869,13 +876,13 @@ export const platformShellHtml = `<!doctype html>
       height: 7px;
       width: 7px;
     }
-    .mock-position-filter[data-mock-position="QB"] { --position-accent: #f4c86b; --position-wash: rgb(244 200 107 / .13); }
-    .mock-position-filter[data-mock-position="RB"] { --position-accent: #67a8ff; --position-wash: rgb(103 168 255 / .13); }
-    .mock-position-filter[data-mock-position="WR"] { --position-accent: #d38cff; --position-wash: rgb(211 140 255 / .13); }
-    .mock-position-filter[data-mock-position="TE"] { --position-accent: #ff8ca1; --position-wash: rgb(255 140 161 / .13); }
-    .mock-position-filter[data-mock-position="FLEX"] { --position-accent: #67d8b0; --position-wash: rgb(103 216 176 / .13); }
-    .mock-position-filter[data-mock-position="DST"] { --position-accent: #73d8d2; --position-wash: rgb(115 216 210 / .13); }
-    .mock-position-filter[data-mock-position="K"] { --position-accent: #a7b0bf; --position-wash: rgb(167 176 191 / .13); }
+    .mock-position-filter[data-mock-position="QB"] { --position-accent: var(--position-qb); --position-wash: rgb(244 200 107 / .13); }
+    .mock-position-filter[data-mock-position="RB"] { --position-accent: var(--position-rb); --position-wash: rgb(103 168 255 / .13); }
+    .mock-position-filter[data-mock-position="WR"] { --position-accent: var(--position-wr); --position-wash: rgb(211 140 255 / .13); }
+    .mock-position-filter[data-mock-position="TE"] { --position-accent: var(--position-te); --position-wash: rgb(255 140 161 / .13); }
+    .mock-position-filter[data-mock-position="FLEX"] { --position-accent: var(--position-flex); --position-wash: rgb(103 216 176 / .13); }
+    .mock-position-filter[data-mock-position="DST"] { --position-accent: var(--position-dst); --position-wash: rgb(115 216 210 / .13); }
+    .mock-position-filter[data-mock-position="K"] { --position-accent: var(--position-k); --position-wash: rgb(167 176 191 / .13); }
     .mock-position-filter[aria-pressed="true"] {
       background: var(--position-wash);
       border-color: var(--position-accent);
@@ -890,6 +897,31 @@ export const platformShellHtml = `<!doctype html>
     }
     .mock-results-header h2 { margin-bottom: 4px; }
     .mock-results-header p { margin: 0; }
+    #mock-draft-roster-team {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .mock-roster-facts {
+      display: grid;
+      gap: 1px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 1px;
+    }
+    .mock-roster-fact {
+      background: var(--surface);
+      min-width: 0;
+      padding: 10px;
+    }
+    .mock-roster-fact span {
+      color: var(--muted);
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .mock-roster-fact strong { display: block; overflow-wrap: anywhere; }
     .mock-roster {
       display: grid;
       gap: 1px;
@@ -909,15 +941,23 @@ export const platformShellHtml = `<!doctype html>
     .mock-roster-copy { display: grid; gap: 2px; min-width: 0; text-align: right; }
     .mock-roster-copy strong { overflow-wrap: anywhere; }
     .mock-roster span, .mock-roster-copy small { color: var(--muted); font-size: 12px; }
+    .position-label { color: var(--muted); font-weight: 850; }
+    .position-label[data-position="QB"] { color: var(--position-qb); }
+    .position-label[data-position="RB"] { color: var(--position-rb); }
+    .position-label[data-position="WR"] { color: var(--position-wr); }
+    .position-label[data-position="TE"] { color: var(--position-te); }
+    .position-label[data-position="FLEX"] { color: var(--position-flex); }
+    .position-label[data-position="DST"] { color: var(--position-dst); }
+    .position-label[data-position="K"] { color: var(--position-k); }
     .mock-player-action { min-height: 34px; padding: 5px 10px; }
     .mock-player-action:not(:disabled):hover { border-color: var(--accent); color: var(--accent-strong); }
     .player-board tr[data-position] { border-left: 3px solid transparent; }
-    .player-board tr[data-position="RB"] { border-left-color: #67a8ff; }
-    .player-board tr[data-position="WR"] { border-left-color: #d38cff; }
-    .player-board tr[data-position="QB"] { border-left-color: #f4c86b; }
-    .player-board tr[data-position="TE"] { border-left-color: #ff8ca1; }
-    .player-board tr[data-position="DST"] { border-left-color: #73d8d2; }
-    .player-board tr[data-position="K"] { border-left-color: #a7b0bf; }
+    .player-board tr[data-position="RB"] { border-left-color: var(--position-rb); }
+    .player-board tr[data-position="WR"] { border-left-color: var(--position-wr); }
+    .player-board tr[data-position="QB"] { border-left-color: var(--position-qb); }
+    .player-board tr[data-position="TE"] { border-left-color: var(--position-te); }
+    .player-board tr[data-position="DST"] { border-left-color: var(--position-dst); }
+    .player-board tr[data-position="K"] { border-left-color: var(--position-k); }
     .player-board tbody tr:hover { background: rgb(255 255 255 / .025); }
 
     .invitation-row {
@@ -1498,7 +1538,13 @@ export const platformShellHtml = `<!doctype html>
             </div>
           </section>
           <aside class="workspace-section mock-roster-panel">
-            <h2>My roster</h2>
+            <label class="visually-hidden" for="mock-draft-roster-team">View team roster</label>
+            <select id="mock-draft-roster-team" aria-label="View team roster"></select>
+            <div id="mock-draft-roster-facts" class="mock-roster-facts">
+              <div class="mock-roster-fact"><span>Budget left</span><strong id="mock-roster-budget-left">-</strong></div>
+              <div class="mock-roster-fact"><span>Spent</span><strong id="mock-roster-spent">-</strong></div>
+              <div class="mock-roster-fact"><span>Max bid</span><strong id="mock-roster-max-bid">-</strong></div>
+            </div>
             <ul id="mock-draft-roster" class="mock-roster"></ul>
           </aside>
         </div>
@@ -1714,6 +1760,7 @@ export const platformShellHtml = `<!doctype html>
       mockDraft: null,
       mockResults: null,
       mockPositionFilter: "ALL",
+      mockRosterTeamId: null,
       mockRequestGeneration: 0,
     };
 
@@ -1831,6 +1878,11 @@ export const platformShellHtml = `<!doctype html>
     const mockDraftSearch = byId("mock-draft-search");
     const mockDraftPositionFilters = byId("mock-draft-position-filters");
     const mockDraftPlayerRows = byId("mock-draft-player-rows");
+    const mockDraftRosterTeam = byId("mock-draft-roster-team");
+    const mockDraftRosterFacts = byId("mock-draft-roster-facts");
+    const mockRosterBudgetLeft = byId("mock-roster-budget-left");
+    const mockRosterSpent = byId("mock-roster-spent");
+    const mockRosterMaxBid = byId("mock-roster-max-bid");
     const mockDraftRoster = byId("mock-draft-roster");
     const mockDraftActive = byId("mock-draft-active");
     const mockDraftResults = byId("mock-draft-results");
@@ -3389,6 +3441,7 @@ export const platformShellHtml = `<!doctype html>
       state.mockDraft?.board?.players?.find(player => player.id === playerId)?.name || playerId;
 
     const auctionMoney = value => "$" + Math.round(Number(value || 0));
+    const mockRosterPositionLabels = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
 
     const mockAuctionFeedItem = event => {
       const item = document.createElement("li");
@@ -3468,6 +3521,143 @@ export const platformShellHtml = `<!doctype html>
       renderTeamResultsGrid(mockDraftResultsGrid, results.teams);
     };
 
+    const renderMockPlayerBoard = ({ draft, session, sessionState, auction, currentPick }) => {
+      mockDraftPositionFilters.querySelectorAll("[data-mock-position]").forEach(button => {
+        button.setAttribute("aria-pressed", String(button.dataset.mockPosition === state.mockPositionFilter));
+      });
+
+      const search = mockDraftSearch.value.trim().toLowerCase();
+      const players = (draft.board?.players || []).filter(player => {
+        if (!player.available) return false;
+        if (
+          state.mockPositionFilter !== "ALL"
+          && (state.mockPositionFilter === "FLEX"
+            ? !["RB", "WR", "TE"].includes(player.position)
+            : player.position !== state.mockPositionFilter)
+        ) return false;
+        if (!search) return true;
+        return [player.name, player.position].some(value => String(value || "").toLowerCase().includes(search));
+      });
+      const canPick = sessionState.status === "active" && (auction
+        ? sessionState.phase === "awaiting_human_nomination"
+        : currentPick?.teamId === session.teamId);
+      const fragment = document.createDocumentFragment();
+      players.forEach(player => {
+        const row = document.createElement("tr");
+        row.dataset.position = player.position || "";
+        const values = [
+          { label: auction ? "Market value" : "Rank", value: auction
+              ? "$" + Math.round(Number(player.expectedPrice || 0))
+              : String(player.personalRank || player.leagueExpectedPick || player.rank || "-"), className: "numeric" },
+          ...(auction ? [{
+            label: "Our value",
+            value: "$" + Math.round(Number(player.humanValue ?? player.expectedPrice ?? 0)),
+            className: "numeric",
+          }] : []),
+          { label: "Player", value: player.name, className: "player-name" },
+          {
+            label: "Position",
+            value: player.position || "-",
+            className: "position-label",
+            position: player.position || "",
+          },
+          { label: "NFL", value: player.teamAbbreviation || "-" },
+          {
+            label: "Bye",
+            value: player.byeWeek == null ? "-" : String(player.byeWeek),
+            className: "numeric",
+          },
+          { label: "Status", value: "Available" },
+        ];
+        values.forEach(value => {
+          const cell = document.createElement("td");
+          cell.dataset.label = value.label;
+          cell.textContent = value.value;
+          if (value.className) cell.className = value.className;
+          if (value.position) cell.dataset.position = value.position;
+          row.append(cell);
+        });
+        const actionCell = document.createElement("td");
+        actionCell.dataset.label = "Action";
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "mock-player-action";
+        actionButton.dataset.mockPlayerId = player.id;
+        actionButton.textContent = auction ? "Nominate" : "Draft";
+        actionButton.disabled = !canPick;
+        actionCell.append(actionButton);
+        row.append(actionCell);
+        fragment.append(row);
+      });
+      mockDraftPlayerRows.replaceChildren(fragment);
+      return canPick;
+    };
+
+    const renderMockRoster = ({ draft, session, auction }) => {
+      const draftTeams = draft.teams || [];
+      if (!draftTeams.some(team => team.id === state.mockRosterTeamId)) {
+        const defaultRosterTeam = draftTeams.find(team => team.id === session.teamId) || draftTeams[0];
+        state.mockRosterTeamId = defaultRosterTeam?.id || null;
+      }
+      const rosterTeamOptions = document.createDocumentFragment();
+      draftTeams.forEach(team => {
+        const option = document.createElement("option");
+        option.value = team.id;
+        option.textContent = team.name + " roster";
+        rosterTeamOptions.append(option);
+      });
+      mockDraftRosterTeam.replaceChildren(rosterTeamOptions);
+      mockDraftRosterTeam.value = state.mockRosterTeamId || "";
+      const rosterTeam = draftTeams.find(team => team.id === state.mockRosterTeamId);
+      if (auction && rosterTeam) {
+        setHidden(mockDraftRosterFacts, false);
+        mockRosterBudgetLeft.textContent = auctionMoney(rosterTeam.budgetRemaining);
+        mockRosterSpent.textContent = auctionMoney(rosterTeam.spent);
+        mockRosterMaxBid.textContent = auctionMoney(rosterTeam.maxBid);
+      } else {
+        setHidden(mockDraftRosterFacts, true);
+        mockRosterBudgetLeft.textContent = "-";
+        mockRosterSpent.textContent = "-";
+        mockRosterMaxBid.textContent = "-";
+      }
+      mockDraftRoster.dataset.teamId = rosterTeam?.id || "";
+
+      const rosterPlayers = new Map((rosterTeam?.roster || []).map(player => [player.playerId, player]));
+      const rosterFragment = document.createDocumentFragment();
+      (rosterTeam?.slots || []).forEach(slot => {
+        const item = document.createElement("li");
+        const slotName = document.createElement("span");
+        slotName.textContent = slot.slot;
+        slotName.className = "position-label";
+        const slotPosition = mockRosterPositionLabels.find(position => slot.slot.startsWith(position));
+        if (slotPosition) slotName.dataset.position = slotPosition;
+        const rosterCopy = document.createElement("div");
+        rosterCopy.className = "mock-roster-copy";
+        const playerName = document.createElement("strong");
+        playerName.textContent = slot.playerId ? mockDraftPlayerName(slot.playerId) : "Open";
+        rosterCopy.append(playerName);
+        const rosterPlayer = slot.playerId ? rosterPlayers.get(slot.playerId) : null;
+        if (rosterPlayer) {
+          const detail = document.createElement("small");
+          if (auction) {
+            detail.textContent = auctionMoney(rosterPlayer.price)
+              + (rosterPlayer.source === "keeper" ? " · Keeper" : "");
+          } else if (rosterPlayer.source === "keeper") {
+            detail.textContent = "Keeper";
+          }
+          if (detail.textContent) rosterCopy.append(detail);
+        }
+        item.append(slotName, rosterCopy);
+        rosterFragment.append(item);
+      });
+      if (!rosterFragment.childNodes.length) {
+        const item = document.createElement("li");
+        item.textContent = "This roster will fill as the mock runs.";
+        rosterFragment.append(item);
+      }
+      mockDraftRoster.replaceChildren(rosterFragment);
+    };
+
     const renderMockDraft = () => {
       const draft = state.mockDraft;
       const session = state.mockSession;
@@ -3476,8 +3666,8 @@ export const platformShellHtml = `<!doctype html>
       const auction = session.draftMode?.format === "auction";
       const completed = sessionState.status === "completed";
       byId("mock-draft-player-head").innerHTML = auction
-        ? '<th class="numeric">Market</th><th class="numeric">My value</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th>'
-        : '<th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th>';
+        ? '<th class="numeric">Market value</th><th class="numeric">Our value</th><th>Player</th><th>Pos</th><th>NFL</th><th class="numeric">Bye</th><th>Status</th><th>Action</th>'
+        : '<th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th class="numeric">Bye</th><th>Status</th><th>Action</th>';
       const picks = draft.board?.picks || [];
       const completedPicks = picks.filter(pick => pick.selection).length;
       const myTeam = draft.teams?.find(team => team.id === session.teamId);
@@ -3516,90 +3706,8 @@ export const platformShellHtml = `<!doctype html>
       if (auction) renderMockAuctionStage(draft, nomination);
       if (completed) renderMockDraftResults();
 
-      mockDraftPositionFilters.querySelectorAll("[data-mock-position]").forEach(button => {
-        button.setAttribute("aria-pressed", String(button.dataset.mockPosition === state.mockPositionFilter));
-      });
-
-      const search = mockDraftSearch.value.trim().toLowerCase();
-      const players = (draft.board?.players || []).filter(player => {
-        if (!player.available) return false;
-        if (
-          state.mockPositionFilter !== "ALL"
-          && (state.mockPositionFilter === "FLEX"
-            ? !["RB", "WR", "TE"].includes(player.position)
-            : player.position !== state.mockPositionFilter)
-        ) return false;
-        if (!search) return true;
-        return [player.name, player.position].some(value => String(value || "").toLowerCase().includes(search));
-      });
-      const canPick = sessionState.status === "active" && (auction
-        ? sessionState.phase === "awaiting_human_nomination"
-        : currentPick?.teamId === session.teamId);
-      const fragment = document.createDocumentFragment();
-      players.forEach(player => {
-        const row = document.createElement("tr");
-        row.dataset.position = player.position || "";
-        const values = [
-          { label: auction ? "Market" : "Rank", value: auction
-              ? "$" + Math.round(Number(player.expectedPrice || 0))
-              : String(player.personalRank || player.leagueExpectedPick || player.rank || "-"), className: "numeric" },
-          ...(auction ? [{
-            label: "My value",
-            value: "$" + Math.round(Number(player.humanValue ?? player.expectedPrice ?? 0)),
-            className: "numeric",
-          }] : []),
-          { label: "Player", value: player.name, className: "player-name" },
-          { label: "Position", value: player.position || "-" },
-          { label: "Status", value: "Available" },
-        ];
-        values.forEach(value => {
-          const cell = document.createElement("td");
-          cell.dataset.label = value.label;
-          cell.textContent = value.value;
-          if (value.className) cell.className = value.className;
-          row.append(cell);
-        });
-        const actionCell = document.createElement("td");
-        actionCell.dataset.label = "Action";
-        const actionButton = document.createElement("button");
-        actionButton.type = "button";
-        actionButton.className = "mock-player-action";
-        actionButton.dataset.mockPlayerId = player.id;
-        actionButton.textContent = auction ? "Nominate" : "Draft";
-        actionButton.disabled = !canPick;
-        actionCell.append(actionButton);
-        row.append(actionCell);
-        fragment.append(row);
-      });
-      mockDraftPlayerRows.replaceChildren(fragment);
-
-      const rosterPlayers = new Map((myTeam?.roster || []).map(player => [player.playerId, player]));
-      const rosterFragment = document.createDocumentFragment();
-      (myTeam?.slots || []).forEach(slot => {
-        const item = document.createElement("li");
-        const slotName = document.createElement("span");
-        slotName.textContent = slot.slot;
-        const rosterCopy = document.createElement("div");
-        rosterCopy.className = "mock-roster-copy";
-        const playerName = document.createElement("strong");
-        playerName.textContent = slot.playerId ? mockDraftPlayerName(slot.playerId) : "Open";
-        rosterCopy.append(playerName);
-        const rosterPlayer = slot.playerId ? rosterPlayers.get(slot.playerId) : null;
-        if (rosterPlayer) {
-          const detail = document.createElement("small");
-          detail.textContent = auctionMoney(rosterPlayer.price)
-            + (rosterPlayer.source === "keeper" ? " · Keeper" : "");
-          rosterCopy.append(detail);
-        }
-        item.append(slotName, rosterCopy);
-        rosterFragment.append(item);
-      });
-      if (!rosterFragment.childNodes.length) {
-        const item = document.createElement("li");
-        item.textContent = "Your roster will fill as the mock runs.";
-        rosterFragment.append(item);
-      }
-      mockDraftRoster.replaceChildren(rosterFragment);
+      const canPick = renderMockPlayerBoard({ draft, session, sessionState, auction, currentPick });
+      renderMockRoster({ draft, session, auction });
       mockDraftStatus.textContent = canPick
         ? auction
           ? "Choose a player to nominate."
@@ -3725,6 +3833,7 @@ export const platformShellHtml = `<!doctype html>
       state.mockDraft = null;
       state.mockResults = null;
       state.mockPositionFilter = "ALL";
+      state.mockRosterTeamId = null;
       mockDraftPlayerRows.replaceChildren();
       mockDraftRoster.replaceChildren();
       mockDraftStatus.textContent = "Opening your league mock...";
@@ -3779,6 +3888,7 @@ export const platformShellHtml = `<!doctype html>
         state.mockDraft = null;
         state.mockResults = null;
         state.mockPositionFilter = "ALL";
+        state.mockRosterTeamId = null;
         state.playerCatalog = null;
         state.playerCatalogSeasonId = null;
         state.playerCatalogStrategyKey = null;
@@ -5232,6 +5342,10 @@ export const platformShellHtml = `<!doctype html>
       const button = event.target.closest("[data-mock-position]");
       if (!button) return;
       state.mockPositionFilter = button.dataset.mockPosition;
+      renderMockDraft();
+    });
+    mockDraftRosterTeam.addEventListener("change", () => {
+      state.mockRosterTeamId = mockDraftRosterTeam.value;
       renderMockDraft();
     });
     mockDraftStart.addEventListener("click", () => {
