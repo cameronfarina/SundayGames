@@ -57,6 +57,9 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('id="draft-league-home" href="/league"');
     expect(hostedDraftRoomHtml).toContain('byId("draft-league-home").href = "/league" + seasonQuery;');
     expect(hostedDraftRoomHtml).toContain('id="draft-sign-out"');
+    expect(hostedDraftRoomHtml).toContain('id="draft-league-picker"');
+    expect(hostedDraftRoomHtml).toContain('id="draft-account-avatar"');
+    expect(hostedDraftRoomHtml).toContain('fetch("/onboarding", getRequest)');
     expect(hostedDraftRoomHtml).toContain('fetch("/session", {');
     expect(hostedDraftRoomHtml).toContain('method: "DELETE"');
     expect(hostedDraftRoomHtml).toContain('window.location.assign("/login")');
@@ -88,9 +91,11 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('id="draft-team-roster"');
     expect(hostedDraftRoomHtml).toContain('id="draft-board-count"');
     expect(hostedDraftRoomHtml).toContain("loaded");
+    expect(hostedDraftRoomHtml).toContain('{ label: "Baseline", className: "money" }');
     expect(hostedDraftRoomHtml).toContain('{ label: "Market", className: "money" }');
-    expect(hostedDraftRoomHtml).toContain('{ label: "Our", className: "money" }');
-    expect(hostedDraftRoomHtml).toContain("player.marketPrice ?? player.expectedPrice");
+    expect(hostedDraftRoomHtml).not.toContain('{ label: "My value", className: "money" }');
+    expect(hostedDraftRoomHtml).toContain('market.textContent = "Baseline "');
+    expect(hostedDraftRoomHtml).toContain('price.textContent = "Market "');
     expect(hostedDraftRoomHtml).toContain('<h2 id="draft-sales-heading">All sales</h2>');
     expect(hostedDraftRoomHtml).toContain('id="draft-sales-search" type="search"');
     expect(hostedDraftRoomHtml).toContain('class="sales-scroll"');
@@ -180,12 +185,13 @@ describe("platform hosted draft room UI", () => {
 
   it("uses the shared Mockd product navigation and visual tokens", () => {
     expect(hostedDraftRoomHtml).toContain('--accent: #67d8b0;');
-    expect(hostedDraftRoomHtml).toContain('<a class="brand" id="draft-brand" href="/app">Mockd</a>');
+    expect(hostedDraftRoomHtml).toContain('<a class="brand" id="draft-brand" href="/practice">Mockd</a>');
     expect(hostedDraftRoomHtml).toContain('class="product-nav" aria-label="Primary"');
-    expect(hostedDraftRoomHtml).toContain('id="draft-nav-board"');
+    expect(hostedDraftRoomHtml).toContain('id="draft-nav-practice" href="/practice">Practice</a>');
     expect(hostedDraftRoomHtml).toContain('id="draft-league-home"');
     expect(hostedDraftRoomHtml).toContain('id="draft-nav-my-team"');
     expect(hostedDraftRoomHtml).toContain('aria-current="page">Live draft</span>');
+    expect(hostedDraftRoomHtml).not.toContain('>Board</a>');
   });
 
   it("exports authoritative results without exposing private preparation fields", () => {

@@ -45,6 +45,7 @@ export interface SeasonMockConfigurationSnapshotPayloadV1 {
   setup: SeasonMockSetupSnapshot;
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
+  playerHumanValues: Readonly<Record<string, number>>;
 }
 
 export interface SeasonMockConfigurationSnapshotV1 {
@@ -71,6 +72,7 @@ export interface CreateSeasonMockConfigurationSnapshotInput {
   setup: LiveDraftRoomSetup;
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
+  playerHumanValues?: Readonly<Record<string, number>> | undefined;
   capturedAt?: Date | undefined;
 }
 
@@ -79,6 +81,7 @@ export interface SeasonMockReplayConfiguration {
   setup: LiveDraftRoomSetup;
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
+  playerHumanValues: Readonly<Record<string, number>>;
 }
 
 const malformedSnapshot = (): never => {
@@ -317,6 +320,9 @@ const catalogEntryValue = (value: unknown): LiveDraftRoomPlayerCatalogEntry => {
   const marketPrice = optionalFiniteNumber(record.marketPrice);
   const teamAbbreviation = optionalString(record.teamAbbreviation);
   const byeWeek = record.byeWeek === undefined ? undefined : positiveInteger(record.byeWeek);
+  const week1Projection = optionalFiniteNumber(record.week1Projection);
+  const weeks1To4Projection = optionalFiniteNumber(record.weeks1To4Projection);
+  const seasonProjection = optionalFiniteNumber(record.seasonProjection);
   return {
     name: nonEmptyString(record.name),
     position: positionValue(record.position),
@@ -324,6 +330,9 @@ const catalogEntryValue = (value: unknown): LiveDraftRoomPlayerCatalogEntry => {
     ...(marketPrice === undefined ? {} : { marketPrice }),
     ...(teamAbbreviation === undefined ? {} : { teamAbbreviation }),
     ...(byeWeek === undefined ? {} : { byeWeek }),
+    ...(week1Projection === undefined ? {} : { week1Projection }),
+    ...(weeks1To4Projection === undefined ? {} : { weeks1To4Projection }),
+    ...(seasonProjection === undefined ? {} : { seasonProjection }),
   };
 };
 
@@ -414,6 +423,9 @@ export const normalizeSeasonMockConfigurationSnapshot = (
     setup: setupValue(payloadRecord.setup),
     humanTeamId: nonEmptyString(payloadRecord.humanTeamId),
     playerExpectedPrices: expectedPricesValue(payloadRecord.playerExpectedPrices),
+    playerHumanValues: payloadRecord.playerHumanValues === undefined
+      ? expectedPricesValue(payloadRecord.playerExpectedPrices)
+      : expectedPricesValue(payloadRecord.playerHumanValues),
   };
   if (payload.setup.seasonId !== payload.season.id) return malformedSnapshot();
   if (!payload.season.teams.some(team => team.id === payload.humanTeamId)) return malformedSnapshot();
@@ -437,6 +449,7 @@ export const createSeasonMockConfigurationSnapshot = ({
   setup,
   humanTeamId,
   playerExpectedPrices,
+  playerHumanValues = playerExpectedPrices,
   capturedAt = new Date(),
 }: CreateSeasonMockConfigurationSnapshotInput): SeasonMockConfigurationSnapshotV1 => {
   const normalizedSeason: LeagueSeason<ExplicitLeagueSeasonSettings> = {
@@ -456,6 +469,7 @@ export const createSeasonMockConfigurationSnapshot = ({
       },
       humanTeamId,
       playerExpectedPrices: { ...playerExpectedPrices },
+      playerHumanValues: { ...playerHumanValues },
     },
   });
   return snapshot.status === "ready" ? snapshot : malformedSnapshot();
@@ -483,5 +497,6 @@ export const seasonMockReplayConfiguration = (
     },
     humanTeamId: payload.humanTeamId,
     playerExpectedPrices: payload.playerExpectedPrices,
+    playerHumanValues: payload.playerHumanValues,
   };
 };

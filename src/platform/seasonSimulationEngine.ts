@@ -36,6 +36,8 @@ export interface SeasonSimulationTargetConstraint {
 export interface SeasonSimulationPreferredPosition {
   position: "QB" | "RB" | "WR" | "TE";
   tier: "elite";
+  targetCount?: number | undefined;
+  maxAuctionPrice?: number | undefined;
 }
 
 export interface ParsedSeasonSimulationStrategy {
@@ -57,6 +59,8 @@ export type SeasonSimulationErrorCode =
   | "simulation_failed"
   | "simulation_timeout";
 
+export const maximumSeasonSimulationRunCount = 100;
+
 export class SeasonSimulationError extends Error {
   constructor(
     readonly code: SeasonSimulationErrorCode,
@@ -75,6 +79,7 @@ export interface RunSeasonSimulationsInput {
   strategyInput?: string | undefined;
   seedPrefix?: string | undefined;
   playerExpectedPrices?: Readonly<Record<string, number>> | undefined;
+  week1Projections?: Readonly<Record<string, number>> | undefined;
 }
 
 export interface SeasonSimulationPlayerExposure {
@@ -100,6 +105,26 @@ export interface SeasonSimulationRosterPlayer {
   price?: number | undefined;
   overallPick?: number | undefined;
   round?: number | undefined;
+  rosterSlot: string;
+  starter: boolean;
+  week1Points: number;
+}
+
+export interface SeasonSimulationTeamResult {
+  teamId: string;
+  teamName: string;
+  isUserTeam: boolean;
+  roster: readonly SeasonSimulationRosterPlayer[];
+  week1Points: number;
+  spent?: number | undefined;
+  budgetRemaining?: number | undefined;
+}
+
+export interface SeasonSimulationRunResult {
+  runNumber: number;
+  label: string;
+  seed: string;
+  teams: readonly SeasonSimulationTeamResult[];
 }
 
 export interface SeasonSimulationTargetOutcome {
@@ -118,7 +143,7 @@ export interface SeasonSimulationResult {
   targetOutcome?: SeasonSimulationTargetOutcome | undefined;
   playerExposure: readonly SeasonSimulationPlayerExposure[];
   positionCounts: Readonly<Record<string, SeasonSimulationPositionCount>>;
-  representativeRoster: readonly SeasonSimulationRosterPlayer[];
+  runs: readonly SeasonSimulationRunResult[];
 }
 
 interface ExtractedMatch {
@@ -170,11 +195,23 @@ const summaryFor = (
     }
   }
   for (const preference of preferredPositions) {
-    clauses.push(`prioritize ${preference.tier} ${preference.position}`);
+    const count = preference.targetCount === undefined ? "" : `${preference.targetCount} `;
+    const cap = preference.maxAuctionPrice === undefined
+      ? ""
+      : ` up to $${preference.maxAuctionPrice} each`;
+    clauses.push(`prioritize ${count}${preference.tier} ${preference.position}${cap}`);
   }
   if (pairWithPlayerName !== undefined) clauses.push(`pair with ${pairWithPlayerName}`);
 
-  return clauses.length === 0 ? "Best available roster fit." : `${clauses.join("; ")}.`;
+  if (clauses.length === 0) return "Best available roster fit.";
+  const summary = clauses.join("; ");
+  return `${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`;
+};
+
+const preferredCount = (value: string): number | undefined => {
+  const namedCounts: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4 };
+  const parsed = namedCounts[value.toLowerCase()] ?? Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 export const parseSeasonSimulationStrategy = (
@@ -183,6 +220,32 @@ export const parseSeasonSimulationStrategy = (
   let remainder = rawInput;
   let target: SeasonSimulationTargetConstraint | undefined;
   const preferredPositions: SeasonSimulationPreferredPosition[] = [];
+
+  const countedPreference = extract(
+    remainder,
+    /\b(?:target|prioriti[sz]e|draft)?\s*(\d+|one|two|three|four)\s+(?:elite|top|premium)\s+(QB|RB|WR|TE)s?(?:\s*(?:,|and)?\s*(?:for\s+)?(?:no\s+more\s+than|under|(?:at\s+)?(?:a\s+)?max(?:imum)?(?:\s+price)?(?:\s+of)?)\s*\$?(\d+)(?:\s+(?:for\s+)?each)?)?\b/i,
+  );
+  if (countedPreference !== undefined) {
+    const targetCount = preferredCount(countedPreference.match[1] ?? "");
+    const position = countedPreference.match[2]?.toUpperCase();
+    const maxAuctionPrice = countedPreference.match[3] === undefined
+      ? undefined
+      : Number(countedPreference.match[3]);
+    if (
+      targetCount !== undefined
+      && (position === "QB" || position === "RB" || position === "WR" || position === "TE")
+      && (maxAuctionPrice === undefined
+        || (Number.isSafeInteger(maxAuctionPrice) && maxAuctionPrice > 0))
+    ) {
+      preferredPositions.push({
+        position,
+        tier: "elite",
+        targetCount,
+        ...(maxAuctionPrice === undefined ? {} : { maxAuctionPrice }),
+      });
+      remainder = countedPreference.remainder;
+    }
+  }
 
   const auctionTarget = extract(
     remainder,
@@ -302,6 +365,16 @@ const auctionRosterNeedFor = (
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
 
+const activePositionPreferenceFor = (
+  strategy: ParsedSeasonSimulationStrategy,
+  positionCounts: Readonly<Record<string, number>>,
+  position: string,
+): SeasonSimulationPreferredPosition | undefined => strategy.preferredPositions.find(preference =>
+  preference.position === position
+  && (preference.targetCount === undefined
+    || (positionCounts[position] ?? 0) < preference.targetCount)
+);
+
 const canAuctionTeamAcquire = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
@@ -326,14 +399,13 @@ const selectAuctionNomination = (
   if (humanTeam === undefined) {
     throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
   }
-  const preferredPositions = new Set<string>(strategy.preferredPositions.map(entry => entry.position));
   const selected = state.board.players
     .filter(player => canAuctionTeamAcquire(state, humanTeam, player))
     .map(player => ({
       player,
       score: (player.id === targetPlayerId ? 1_000_000 : 0)
         + (player.id === pairPlayerId ? 100_000 : 0)
-        + (preferredPositions.has(player.position) ? 10_000 : 0)
+        + (activePositionPreferenceFor(strategy, humanTeam.positionCounts, player.position) ? 10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
         + player.expectedPrice
         + deterministicFraction(`${seed}:nominate:${state.session.revision}:${player.id}`) * 0.001,
@@ -361,7 +433,8 @@ const auctionWillingnessFor = (
 ): number => {
   const isTarget = player.id === targetPlayerId;
   const isPair = player.id === pairPlayerId;
-  const isPreferred = strategy.preferredPositions.some(entry => entry.position === player.position);
+  const preference = activePositionPreferenceFor(strategy, team.positionCounts, player.position);
+  const isPreferred = preference !== undefined;
   const needDollars = Math.ceil(auctionRosterNeedFor(team, player.position) * 2);
   const preferenceDollars = isPreferred ? Math.ceil(player.expectedPrice * 0.15) : 0;
   const targetDollars = isTarget || isPair ? Math.ceil(player.expectedPrice * 0.1) : 0;
@@ -369,9 +442,11 @@ const auctionWillingnessFor = (
     state.configuration.minimumBidDollars,
     Math.round(player.expectedPrice) + needDollars + preferenceDollars + targetDollars,
   );
-  const strategyLimit = isTarget && strategy.target?.maxAuctionPrice !== undefined
-    ? strategy.target.maxAuctionPrice
-    : team.maxBid;
+  const strategyLimit = Math.min(
+    team.maxBid,
+    isTarget ? strategy.target?.maxAuctionPrice ?? team.maxBid : team.maxBid,
+    preference?.maxAuctionPrice ?? team.maxBid,
+  );
 
   return Math.min(team.maxBid, strategyLimit, valueLimit);
 };
@@ -469,7 +544,12 @@ const selectSnakePlayer = (
       && (strategy.target.maxSnakeOverallPick === undefined
         || currentPick.overall <= strategy.target.maxSnakeOverallPick)
     );
-  const preferredPositions = new Set<string>(strategy.preferredPositions.map(entry => entry.position));
+  const positionsByPlayer = new Map(state.board.players.map(player => [player.id, player.position]));
+  const positionCounts = humanTeam.roster.reduce<Record<string, number>>((counts, player) => {
+    const position = positionsByPlayer.get(player.playerId);
+    if (position !== undefined) counts[position] = (counts[position] ?? 0) + 1;
+    return counts;
+  }, {});
   const selected = state.board.players
     .filter(player => player.available && humanTeam.slots.some(slot =>
       slot.playerId === undefined && slot.eligiblePositions.includes(player.position)
@@ -478,7 +558,7 @@ const selectSnakePlayer = (
       player,
       score: (player.id === targetPlayerId && targetDeadlineAllowsPick ? 1_000_000 : 0)
         + (player.id === pairPlayerId ? 100_000 : 0)
-        + (preferredPositions.has(player.position) ? 10_000 : 0)
+        + (activePositionPreferenceFor(strategy, positionCounts, player.position) ? 10_000 : 0)
         + snakeRosterNeedFor(humanTeam, player.position) * 100
         - (player.personalRank ?? player.leagueExpectedPick ?? player.rank)
         + deterministicFraction(`${seed}:pick:${currentPick.overall}:${player.id}`) * 0.001,
@@ -536,8 +616,115 @@ const runSnakeSimulation = (input: {
 };
 
 interface CompletedSimulationRun {
-  roster: readonly SeasonSimulationRosterPlayer[];
+  runNumber: number;
+  seed: string;
+  teams: readonly SeasonSimulationTeamResult[];
 }
+
+const isStarterSlot = (slot: string): boolean => !/^(?:BENCH|IR)/u.test(slot);
+
+interface SimulationRosterSlot {
+  slot: string;
+  eligiblePositions: readonly string[];
+}
+
+const optimizedRoster = (
+  roster: readonly SeasonSimulationRosterPlayer[],
+  slots: readonly SimulationRosterSlot[],
+): readonly SeasonSimulationRosterPlayer[] => {
+  if (roster.length === 0 || roster.length !== slots.length || roster.length > 30) return roster;
+  const starterSlots = slots
+    .filter(slot => isStarterSlot(slot.slot))
+    .sort((left, right) =>
+      left.eligiblePositions.length - right.eligiblePositions.length
+      || left.slot.localeCompare(right.slot)
+    );
+  const reserveSlots = slots
+    .filter(slot => !isStarterSlot(slot.slot))
+    .sort((left, right) =>
+      left.eligiblePositions.length - right.eligiblePositions.length
+      || left.slot.localeCompare(right.slot)
+    );
+
+  const reserveAssignmentFor = (usedMask: number): ReadonlyMap<number, string> | null => {
+    const assignment = new Map<number, string>();
+    const assign = (slotIndex: number, assignedMask: number): boolean => {
+      if (slotIndex === reserveSlots.length) return true;
+      const slot = reserveSlots[slotIndex];
+      if (slot === undefined) return false;
+      for (let playerIndex = 0; playerIndex < roster.length; playerIndex += 1) {
+        const player = roster[playerIndex];
+        if (
+          player === undefined
+          || (assignedMask & (1 << playerIndex)) !== 0
+          || !slot.eligiblePositions.includes(player.position)
+        ) continue;
+        assignment.set(playerIndex, slot.slot);
+        if (assign(slotIndex + 1, assignedMask | (1 << playerIndex))) return true;
+        assignment.delete(playerIndex);
+      }
+      return false;
+    };
+
+    return assign(0, usedMask) ? assignment : null;
+  };
+
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestAssignment: ReadonlyMap<number, string> | null = null;
+  const starterAssignment = new Map<number, string>();
+  const search = (slotIndex: number, usedMask: number, score: number): void => {
+    if (slotIndex === starterSlots.length) {
+      const reserveAssignment = reserveAssignmentFor(usedMask);
+      if (reserveAssignment === null || score <= bestScore) return;
+      bestScore = score;
+      bestAssignment = new Map([...starterAssignment, ...reserveAssignment]);
+      return;
+    }
+    const slot = starterSlots[slotIndex];
+    if (slot === undefined) return;
+    const candidates = roster
+      .map((player, index) => ({ player, index }))
+      .filter(({ player, index }) =>
+        (usedMask & (1 << index)) === 0 && slot.eligiblePositions.includes(player.position)
+      )
+      .sort((left, right) =>
+        right.player.week1Points - left.player.week1Points
+        || left.player.playerId.localeCompare(right.player.playerId)
+      );
+    for (const { player, index } of candidates) {
+      starterAssignment.set(index, slot.slot);
+      search(slotIndex + 1, usedMask | (1 << index), score + player.week1Points);
+      starterAssignment.delete(index);
+    }
+  };
+
+  search(0, 0, 0);
+  if (bestAssignment === null) return roster;
+  return roster.map((player, index) => {
+    const rosterSlot = bestAssignment?.get(index) ?? player.rosterSlot;
+    return { ...player, rosterSlot, starter: isStarterSlot(rosterSlot) };
+  });
+};
+
+const week1PointsFor = (
+  projectionsByPlayer: ReadonlyMap<string, number>,
+  playerId: string,
+): number => projectionsByPlayer.get(canonicalPlayerIdentityKey(playerId)) ?? 0;
+
+const teamResultFor = (
+  input: Omit<SeasonSimulationTeamResult, "week1Points">,
+  slots: readonly SimulationRosterSlot[],
+): SeasonSimulationTeamResult => {
+  const roster = optimizedRoster(input.roster, slots);
+  return {
+    ...input,
+    roster,
+    week1Points: roster.reduce(
+      (total, player) => total + (player.starter ? player.week1Points : 0),
+      0,
+    ),
+  };
+};
 
 const aggregateRuns = (input: {
   draftFormat: "auction" | "snake";
@@ -546,6 +733,7 @@ const aggregateRuns = (input: {
   seedPrefix: string;
   strategy: ParsedSeasonSimulationStrategy;
   targetPlayerId: string | undefined;
+  humanTeamId: string;
 }): SeasonSimulationResult => {
   const exposure = new Map<string, {
     playerId: string;
@@ -560,7 +748,8 @@ const aggregateRuns = (input: {
   const positionTotals = new Map<string, number>();
 
   for (const run of input.runs) {
-    for (const player of run.roster) {
+    const humanRoster = run.teams.find(team => team.teamId === input.humanTeamId)?.roster ?? [];
+    for (const player of humanRoster) {
       const current = exposure.get(player.playerId) ?? {
         playerId: player.playerId,
         playerName: player.playerName,
@@ -621,7 +810,12 @@ const aggregateRuns = (input: {
     positionCounts: Object.fromEntries([...positionTotals.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([position, total]) => [position, { total, perRun: total / input.runCount }])),
-    representativeRoster: input.runs[0]?.roster ?? [],
+    runs: input.runs.map(run => ({
+      runNumber: run.runNumber,
+      label: `Run ${run.runNumber}`,
+      seed: run.seed,
+      teams: run.teams,
+    })),
   };
 };
 
@@ -687,10 +881,14 @@ const resolvedStrategy = (
 const runSeasonSimulationsUnchecked = (
   input: RunSeasonSimulationsInput,
 ): SeasonSimulationResult => {
-  if (!Number.isInteger(input.runCount) || input.runCount < 1 || input.runCount > 25) {
+  if (
+    !Number.isInteger(input.runCount)
+    || input.runCount < 1
+    || input.runCount > maximumSeasonSimulationRunCount
+  ) {
     throw new SeasonSimulationError(
       "invalid_run_count",
-      "Simulation run count must be a whole number from 1 through 25.",
+      `Simulation run count must be a whole number from 1 through ${maximumSeasonSimulationRunCount}.`,
     );
   }
   const seedPrefix = input.seedPrefix ?? defaultSeedPrefix;
@@ -708,6 +906,10 @@ const runSeasonSimulationsUnchecked = (
   }
 
   const parsedStrategy = parseSeasonSimulationStrategy(input.strategyInput ?? "");
+  const week1ProjectionsByPlayer = new Map(input.setup.playerCatalog.map(player => {
+    const playerKey = canonicalPlayerIdentityKey(player.name);
+    return [playerKey, input.week1Projections?.[playerKey] ?? player.week1Projection ?? 0];
+  }));
   const formatWarnings = [...parsedStrategy.warnings];
   if (
     input.season.settings.draftFormat === "auction"
@@ -753,32 +955,41 @@ const runSeasonSimulationsUnchecked = (
         pairPlayerId: strategyResolution.pairPlayerId,
         seed,
       });
-      const humanTeam = state.teams.find(team => team.id === input.humanTeamId);
-      if (humanTeam === undefined) {
+      if (!state.teams.some(team => team.id === input.humanTeamId)) {
         throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
       }
       runs.push({
-        roster: humanTeam.roster.map(selection => {
-          const player = state.configuration.players.find(candidate => candidate.id === selection.playerId);
-          const pick = state.board.picks.find(candidate =>
-            candidate.teamId === input.humanTeamId
-            && candidate.selection?.playerId === selection.playerId
-          );
-          if (player === undefined || pick === undefined) {
-            throw new SeasonSimulationError(
-              "simulation_failed",
-              "A completed snake roster could not be mapped back to its player catalog and pick.",
+        runNumber,
+        seed,
+        teams: state.teams.map(team => teamResultFor({
+          teamId: team.id,
+          teamName: team.name,
+          isUserTeam: team.id === input.humanTeamId,
+          roster: team.roster.map(selection => {
+            const player = state.configuration.players.find(candidate => candidate.id === selection.playerId);
+            const pick = state.board.picks.find(candidate =>
+              candidate.teamId === team.id
+              && candidate.selection?.playerId === selection.playerId
             );
-          }
-          return {
-            playerId: player.id,
-            playerName: player.name,
-            position: player.position,
-            source: selection.source,
-            overallPick: pick.overall,
-            round: pick.round,
-          };
-        }),
+            if (player === undefined || pick === undefined) {
+              throw new SeasonSimulationError(
+                "simulation_failed",
+                "A completed snake roster could not be mapped back to its player catalog and pick.",
+              );
+            }
+            return {
+              playerId: player.id,
+              playerName: player.name,
+              position: player.position,
+              source: selection.source,
+              overallPick: pick.overall,
+              round: pick.round,
+              rosterSlot: selection.rosterSlot,
+              starter: isStarterSlot(selection.rosterSlot),
+              week1Points: week1PointsFor(week1ProjectionsByPlayer, player.id),
+            };
+          }),
+        }, team.slots)),
       });
     }
 
@@ -789,6 +1000,7 @@ const runSeasonSimulationsUnchecked = (
       seedPrefix,
       strategy: strategyResolution.strategy,
       targetPlayerId: strategyResolution.targetPlayerId,
+      humanTeamId: input.humanTeamId,
     });
   }
 
@@ -809,18 +1021,29 @@ const runSeasonSimulationsUnchecked = (
       pairPlayerId: strategyResolution.pairPlayerId,
       seed,
     });
-    const humanTeam = state.teams.find(team => team.id === input.humanTeamId);
-    if (humanTeam === undefined) {
+    if (!state.teams.some(team => team.id === input.humanTeamId)) {
       throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
     }
     runs.push({
-      roster: humanTeam.roster.map(player => ({
-        playerId: player.playerId,
-        playerName: player.playerName,
-        position: player.position,
-        source: player.source,
-        price: player.price,
-      })),
+      runNumber,
+      seed,
+      teams: state.teams.map(team => teamResultFor({
+        teamId: team.id,
+        teamName: team.name,
+        isUserTeam: team.id === input.humanTeamId,
+        spent: team.spent,
+        budgetRemaining: team.budgetRemaining,
+        roster: team.roster.map(player => ({
+          playerId: player.playerId,
+          playerName: player.playerName,
+          position: player.position,
+          source: player.source,
+          price: player.price,
+          rosterSlot: player.rosterSlot,
+          starter: isStarterSlot(player.rosterSlot),
+          week1Points: week1PointsFor(week1ProjectionsByPlayer, player.playerId),
+        })),
+      }, team.slots)),
     });
   }
 
@@ -831,6 +1054,7 @@ const runSeasonSimulationsUnchecked = (
     seedPrefix,
     strategy: strategyResolution.strategy,
     targetPlayerId: strategyResolution.targetPlayerId,
+    humanTeamId: input.humanTeamId,
   });
 };
 

@@ -157,6 +157,30 @@ const fantasyWeekOneStartsAtBySeason: Readonly<Record<number, string | undefined
 };
 const weekLengthMs = 7 * 24 * 60 * 60 * 1_000;
 
+const loadProjectionDataset = async (): Promise<EspnProjectionDataset> =>
+  fs.readFile(projectionPath, "utf8")
+    .then((contents): unknown => JSON.parse(contents))
+    .then(parseDataset);
+
+export const loadLeagueScoredWeekOneProjections = async (
+  season: LeagueSeason,
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+): Promise<Readonly<Record<string, number>>> => {
+  const dataset = await loadProjectionDataset();
+  if (dataset.year !== season.seasonYear) return {};
+  const scoring = normalizeLeagueSeasonSettings(season.settings).scoring;
+
+  return Object.fromEntries(playerCatalog.flatMap(player => {
+    if (player.position === "K" || player.position === "DST") return [];
+    const identity = canonicalPlayerIdentityKey(player.name);
+    const projection = dataset.projectionsByIdentity.get(identity);
+    const weekOne = projection?.weeklyStats.get(1);
+    return projection === undefined || projection.position !== player.position || weekOne === undefined
+      ? []
+      : [[identity, pointsFor(weekOne, scoring)]];
+  }));
+};
+
 const currentCoveredWeek = (
   seasonYear: number,
   now: Date,
@@ -177,9 +201,7 @@ export const loadCurrentPostDraftProjectionSnapshot = async (
   playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
   now = new Date(),
 ): Promise<PostDraftProjectionSnapshot> => {
-  const dataset = await fs.readFile(projectionPath, "utf8")
-    .then((contents): unknown => JSON.parse(contents))
-    .then(parseDataset);
+  const dataset = await loadProjectionDataset();
   if (dataset.year !== season.seasonYear) {
     throw new Error(
       `Static projection dataset ${projectionDatasetId} covers ${dataset.year}, not ${season.seasonYear}.`,

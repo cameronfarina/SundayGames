@@ -83,7 +83,7 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
+  await expect(page.locator("#account-menu-email")).toHaveText(email).catch(async error => {
     const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
     if (!authError.includes("already exists")) throw error;
 
@@ -91,15 +91,16 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#account-email")).toHaveText(email);
+    await expect(page.locator("#account-menu-email")).toHaveText(email);
   });
 
+  await page.locator("#account-menu-button").click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-email")).toHaveText(email);
+  await expect(page.locator("#account-menu-email")).toHaveText(email);
 
   return expectOk(await api<AccountBody>(page, "/session")).account;
 };
@@ -109,7 +110,7 @@ const signInExisting = async (page: Page, email: string, accountPassword: string
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-email"), [
+  await expect(page.locator("#account-menu-email"), [
     `Could not sign in to the pre-provisioned mobile smoke account ${email}.`,
     "Verify the deployed smoke credential secrets and provisioning receipt.",
   ].join(" ")).toHaveText(email);
@@ -272,19 +273,19 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expect(page.locator("#open-live-draft-button")).toHaveText("Open live draft");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#sign-out-button"),
-    page.locator("#league-picker"),
+    page.locator("#account-menu-button"),
+    page.locator("#header-league-picker"),
     page.locator("#open-live-draft-button"),
   ]);
 
-  await page.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
-  expect(new URL(page.url()).searchParams.get("contextSeasonId")).toBe(season.id);
+  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await expect(page).toHaveURL(/\/practice\?seasonId=/);
+  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(season.id);
   await expect(page.locator("#standalone-board")).toBeVisible();
   await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
   await expect(page.locator("#standalone-board-status")).toContainText("500 shown / 500 loaded");
-  await expect(page.locator("#standalone-board-sort")).toHaveValue("our");
-  await expect(page.locator("#standalone-pricing-source")).toContainText("Mockd league model");
+  await expect(page.locator("#standalone-board-sort")).toHaveValue("mine");
+  await expect(page.locator("#standalone-pricing-source")).toContainText("Market uses");
   await expect(page.locator("#standalone-pricing-warnings")).toContainText(
     "Limited league history; value confidence is lower.",
   );
@@ -380,12 +381,12 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   await expect(page.locator("#my-team-name")).not.toHaveText("Needs attention");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#sign-out-button"),
-    page.locator("#league-picker"),
+    page.locator("#account-menu-button"),
+    page.locator("#header-league-picker"),
   ]);
 
-  await page.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
+  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await expect(page).toHaveURL(/\/practice\?seasonId=/);
   await expect(page.locator("#standalone-board")).toBeVisible();
   await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
   await expect(page.locator("#standalone-board-status")).toContainText("loaded");

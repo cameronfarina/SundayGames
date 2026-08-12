@@ -13,7 +13,7 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
   - Uses secure HttpOnly cookies for sessions.
   - Performs all membership, role, and privacy checks server-side.
 - Interactive simulation execution:
-  - Captures one consistent league snapshot, then runs bounded 1-25 draft batches in a two-worker thread pool for the claimed team.
+  - Captures one consistent league snapshot, then runs bounded 1-100 draft batches in a two-worker thread pool for the claimed team.
   - Admits at most eight pending batches, cancels disconnected requests, and stops active work after 30 seconds.
   - Supports auction and snake league shapes without the current-league fixture runner.
 - Postgres:

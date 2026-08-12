@@ -67,8 +67,8 @@ const auctionSetup: LiveDraftRoomSetup = {
   seasonId: auctionSeason.id,
   sourceVersion: "test",
   playerCatalog: [
-    { name: "De'Von Achane", position: "RB", expectedPrice: 30 },
-    { name: "Jadarian Price", position: "RB", expectedPrice: 10 },
+    { name: "De'Von Achane", position: "RB", expectedPrice: 30, week1Projection: 18.5 },
+    { name: "Jadarian Price", position: "RB", expectedPrice: 10, week1Projection: 9.4 },
     { name: "Runner Two", position: "RB", expectedPrice: 22 },
     { name: "Runner Three", position: "RB", expectedPrice: 18 },
     { name: "Runner Four", position: "RB", expectedPrice: 14 },
@@ -179,9 +179,70 @@ describe("season simulation strategy parser", () => {
         warnings: [],
       });
   });
+
+  it("parses a counted position target with an auction cap", () => {
+    expect(parseSeasonSimulationStrategy(
+      "Run 100 simulations where I draft 2 elite RBs for no more than $70 each",
+    )).toMatchObject({
+      preferredPositions: [{
+        position: "RB",
+        tier: "elite",
+        targetCount: 2,
+        maxAuctionPrice: 70,
+      }],
+      summary: "Prioritize 2 elite RB up to $70 each.",
+      warnings: [],
+    });
+  });
 });
 
 describe("season simulation runner", () => {
+  it("scores the best legal Week 1 lineup instead of the draft-time slot assignment", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        roster: {
+          ...auctionSeason.settings.roster,
+          lineup: { RB: 1, BENCH: 1 },
+          lineupSlotCount: 1,
+        },
+      },
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup: {
+        ...auctionSetup,
+        initialRosters: [
+          ...auctionSetup.initialRosters,
+          {
+            teamId: "team-1",
+            playerId: "jadarian price",
+            playerName: "Jadarian Price",
+            position: "RB",
+            price: 10,
+            source: "keeper",
+          },
+        ],
+      },
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Draft Jadarian Price for no more than $20",
+      week1Projections: {
+        "devon achane": 1,
+        "jadarian price": 50,
+      },
+      seedPrefix: "optimal-lineup",
+    });
+    const team = result.runs[0]?.teams.find(candidate => candidate.teamId === "team-1");
+
+    expect(team?.week1Points).toBe(50);
+    expect(team?.roster.find(player => player.playerName === "Jadarian Price"))
+      .toMatchObject({ rosterSlot: "RB", starter: true, week1Points: 50 });
+    expect(team?.roster.find(player => player.playerName === "De'Von Achane"))
+      .toMatchObject({ rosterSlot: "BENCH", starter: false, week1Points: 1 });
+  });
+
   it("completes deterministic auction runs with keepers, a price-capped target, and exposure", () => {
     const input = {
       season: auctionSeason,
@@ -215,12 +276,46 @@ describe("season simulation runner", () => {
     expect(result.strategy.warnings).not.toContain(
       "Pair-with player Achane was not found in the player catalog.",
     );
-    expect(result.representativeRoster).toHaveLength(2);
-    expect(result.representativeRoster[0]).toMatchObject({
-      playerName: "De'Von Achane",
-      source: "keeper",
+    expect(result.runs).toHaveLength(3);
+    expect(result.runs[0]).toMatchObject({
+      runNumber: 1,
+      label: "Run 1",
+      seed: "auction-plan:1",
     });
+    expect(result.runs[0]?.teams).toHaveLength(4);
+    expect(result.runs[0]?.teams.find(team => team.teamId === "team-1")).toMatchObject({
+      teamName: "Cam Team",
+      isUserTeam: true,
+      roster: expect.arrayContaining([
+        expect.objectContaining({
+          playerName: "De'Von Achane",
+          source: "keeper",
+          week1Points: 18.5,
+        }),
+      ]),
+    });
+    expect(result.runs[0]?.teams.every(team => team.roster.length === 2)).toBe(true);
     expect(runSeasonSimulations(input)).toEqual(result);
+  });
+
+  it("does not exceed a counted auction preference or its price cap", () => {
+    const result = runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 3,
+      strategyInput: "Draft 2 elite RBs for no more than $10 each",
+      seedPrefix: "counted-rb-plan",
+    });
+
+    for (const run of result.runs) {
+      const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+      const draftedRunningBacks = roster.filter(player =>
+        player.position === "RB" && player.source !== "keeper"
+      );
+      expect(draftedRunningBacks.length).toBeLessThanOrEqual(1);
+      expect(draftedRunningBacks.every(player => (player.price ?? 0) <= 10)).toBe(true);
+    }
   });
 
   it("completes deterministic snake runs with a round deadline and pick exposure", () => {
@@ -249,7 +344,9 @@ describe("season simulation runner", () => {
     });
     expect(result.playerExposure.find(player => player.playerName === "Target Receiver"))
       .toMatchObject({ count: 2, rate: 1, averagePick: 1 });
-    expect(result.representativeRoster).toEqual([
+    expect(result.runs).toHaveLength(2);
+    expect(result.runs[0]?.teams).toHaveLength(4);
+    expect(result.runs[0]?.teams.find(team => team.teamId === "team-1")?.roster).toEqual([
       expect.objectContaining({ playerName: "De'Von Achane", source: "keeper", round: 2 }),
       expect.objectContaining({ playerName: "Target Receiver", source: "human", overallPick: 1 }),
     ]);
@@ -263,13 +360,14 @@ describe("season simulation runner", () => {
       strategyInput: "",
     };
 
-    for (const runCount of [0, 1.5, 26]) {
+    for (const runCount of [0, 1.5, 101]) {
       expect(() => runSeasonSimulations({ ...baseInput, runCount }))
         .toThrow(new SeasonSimulationError(
           "invalid_run_count",
-          "Simulation run count must be a whole number from 1 through 25.",
+          "Simulation run count must be a whole number from 1 through 100.",
         ));
     }
+    expect(runSeasonSimulations({ ...baseInput, runCount: 100 }).runs).toHaveLength(100);
     expect(() => runSeasonSimulations({ ...baseInput, humanTeamId: "missing", runCount: 1 }))
       .toThrowError(expect.objectContaining({ code: "human_team_missing" }));
     expect(() => runSeasonSimulations({

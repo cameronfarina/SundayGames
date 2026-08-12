@@ -1,5 +1,5 @@
 export const platformShellNavigation = [
-  { label: "Board", path: "/board" },
+  { label: "Practice", path: "/practice" },
   { label: "League", path: "/league" },
   { label: "My team", path: "/my-team" },
 ] as const;
@@ -102,14 +102,67 @@ export const platformShellHtml = `<!doctype html>
       min-width: 0;
     }
 
-    .account-email {
-      color: var(--muted);
-      display: none;
-      font-size: 13px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .header-league-switcher { min-width: 0; }
+    .header-league-switcher select {
+      background: var(--bg);
+      max-width: min(46vw, 280px);
+      min-height: 38px;
+      padding: 7px 34px 7px 10px;
     }
+
+    .account-menu { border: 0; padding: 0; position: relative; }
+    .account-menu > summary { list-style: none; padding: 0; }
+    .account-menu > summary::-webkit-details-marker { display: none; }
+    .account-avatar {
+      align-items: center;
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      font-weight: 850;
+      height: 40px;
+      justify-content: center;
+      width: 40px;
+    }
+    .account-menu-popover {
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 18px 48px rgb(0 0 0 / .45);
+      display: grid;
+      gap: 8px;
+      min-width: 280px;
+      padding: 14px;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 10px);
+      z-index: 10;
+    }
+    .account-menu-email { font-size: 13px; overflow-wrap: anywhere; }
+    .account-menu-context {
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      display: grid;
+      font-size: 12px;
+      gap: 4px;
+      padding-bottom: 12px;
+    }
+    .account-menu-context strong { color: var(--text); }
+    .account-menu-leagues { display: grid; gap: 2px; }
+    .account-menu-leagues a, .account-menu-command {
+      border-radius: 4px;
+      color: var(--text);
+      display: block;
+      font-size: 14px;
+      min-height: 38px;
+      padding: 9px 10px;
+      text-align: left;
+      text-decoration: none;
+      width: 100%;
+    }
+    .account-menu-leagues a[aria-current="true"] { background: var(--surface); color: var(--accent-strong); }
 
     .product-nav {
       border-bottom: 1px solid var(--line);
@@ -138,11 +191,6 @@ export const platformShellHtml = `<!doctype html>
     .product-nav-link[aria-disabled="true"] {
       cursor: not-allowed;
       opacity: .48;
-    }
-
-    .create-league-link {
-      color: var(--accent-strong);
-      margin-left: auto;
     }
 
     .shell-main {
@@ -590,6 +638,30 @@ export const platformShellHtml = `<!doctype html>
       gap: 10px;
       grid-template-columns: minmax(0, 1fr);
     }
+    .shortlist-filter {
+      align-items: center;
+      align-self: end;
+      display: flex;
+      gap: 8px;
+      min-height: 44px;
+      white-space: nowrap;
+    }
+    .shortlist-filter input { min-height: auto; width: auto; }
+    .shortlist-toggle {
+      align-items: center;
+      display: inline-flex;
+      font-size: 19px;
+      height: 34px;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0;
+      width: 34px;
+    }
+    .shortlist-toggle[aria-pressed="true"] {
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+    .shortlisted-player-row { background: rgb(244 200 107 / .035); }
 
     .board-pricing-context {
       background: var(--surface);
@@ -623,6 +695,56 @@ export const platformShellHtml = `<!doctype html>
     .player-board .numeric { text-align: right; }
     .player-name { font-weight: 760; }
     .player-meta { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+    .keeper-badge, .team-badge {
+      background: rgb(103 216 176 / .14);
+      border: 1px solid rgb(103 216 176 / .42);
+      border-radius: 4px;
+      color: var(--accent-strong);
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      margin-left: 8px;
+      padding: 2px 5px;
+      text-transform: uppercase;
+    }
+    .keeper-player-row { background: rgb(103 216 176 / .035); }
+
+    .simulation-run-toolbar {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+    }
+    .simulation-run-toolbar > div { min-width: min(100%, 220px); }
+    .simulation-league-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .simulation-team {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      min-width: 0;
+    }
+    .simulation-team[data-user-team="true"] { border-color: var(--accent); }
+    .simulation-team-header {
+      align-items: start;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 12px;
+    }
+    .simulation-team-header h3 { font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+    .simulation-team-summary { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .simulation-team-score { color: var(--accent-strong); flex: 0 0 auto; font-weight: 850; text-align: right; }
+    .simulation-team-roster { border-collapse: collapse; font-size: 13px; width: 100%; }
+    .simulation-team-roster th, .simulation-team-roster td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+    .simulation-team-roster th { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .simulation-team-roster tr:last-child td { border-bottom: 0; }
+    .simulation-team-roster .numeric { text-align: right; }
+    .simulation-team-roster tr[data-starter="false"] { color: var(--muted); }
 
     .mock-layout { display: grid; gap: 24px; min-width: 0; }
     .mock-toolbar {
@@ -674,14 +796,13 @@ export const platformShellHtml = `<!doctype html>
 
     @media (min-width: 860px) {
       .topbar { padding-left: 28px; padding-right: 28px; }
-      .account-email { display: block; max-width: 320px; }
       .product-nav { padding-left: max(20px, calc((100vw - 1240px) / 2)); }
       .shell-main { padding-left: 28px; padding-right: 28px; }
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
       .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
-      .board-controls { grid-template-columns: minmax(0, 1fr) 180px 180px; }
+      .board-controls { grid-template-columns: minmax(0, 1fr) 140px 180px 165px auto; }
       .mock-layout { grid-template-columns: minmax(0, 1fr) minmax(280px, .36fr); }
       .mock-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
       .mock-roster-panel { order: 0; }
@@ -753,14 +874,31 @@ export const platformShellHtml = `<!doctype html>
 
   <header id="app-header" class="hidden">
     <div class="topbar">
-      <a class="brand" href="/app">Mockd</a>
+      <a class="brand" href="/practice">Mockd</a>
       <div class="account-actions">
-        <span id="account-email" class="account-email"></span>
-        <button id="account-settings-button" class="text-button" type="button" aria-haspopup="dialog" aria-controls="password-dialog">Account</button>
-        <button id="sign-out-button" class="text-button" type="button">Sign out</button>
+        <div id="header-league-switcher" class="header-league-switcher hidden">
+          <label class="visually-hidden" for="header-league-picker">Active league</label>
+          <select id="header-league-picker" aria-label="Active league"></select>
+        </div>
+        <details id="account-menu" class="account-menu">
+          <summary id="account-menu-button" aria-label="Open account menu" title="Account">
+            <span id="account-avatar-initials" class="account-avatar" aria-hidden="true">?</span>
+          </summary>
+          <div class="account-menu-popover">
+            <strong id="account-menu-email" class="account-menu-email"></strong>
+            <div class="account-menu-context">
+              <span>My team <strong id="my-team-name">Not assigned</strong></span>
+              <span>Access <strong id="membership-role">Member</strong></span>
+            </div>
+            <div id="account-menu-leagues" class="account-menu-leagues" aria-label="Connected leagues"></div>
+            <a id="account-create-league" class="account-menu-command" href="/league?create=1">Create league</a>
+            <button id="account-settings-button" class="account-menu-command" type="button" aria-haspopup="dialog" aria-controls="password-dialog">Change password</button>
+            <button id="sign-out-button" class="account-menu-command" type="button">Sign out</button>
+          </div>
+        </details>
       </div>
     </div>
-    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a><a id="create-league-nav-item" class="product-nav-link create-league-link" href="/league?create=1">Create league</a></nav>
+    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
   </header>
 
   <dialog id="password-dialog" aria-labelledby="password-dialog-title" aria-describedby="password-dialog-description">
@@ -830,33 +968,16 @@ export const platformShellHtml = `<!doctype html>
       </div>
       <p id="app-status" class="status" role="status" aria-live="polite"></p>
 
-      <section id="league-context" class="context-bar hidden" aria-label="League context">
-        <div>
-          <label for="league-picker">League</label>
-          <select id="league-picker"></select>
-        </div>
-        <div class="identity">
-          <span>My team</span>
-          <strong id="my-team-name">Not assigned</strong>
-        </div>
-        <div class="identity">
-          <span>Access</span>
-          <strong id="membership-role">Member</strong>
-        </div>
-      </section>
-
       <section id="standalone-board" class="workspace hidden">
         <div class="workspace-header">
           <div>
-            <p class="eyebrow">Draft board</p>
-            <h1>Player board</h1>
-            <p class="lede">Explore the current player pool now. League history and keepers personalize these values after setup.</p>
+            <p class="eyebrow">Practice</p>
+            <h1>Draft lab</h1>
+            <p class="lede">Build a strategy, run full-league simulations, and practice against your active league.</p>
           </div>
           <div class="actions">
-            <a id="standalone-board-create-league" class="button" href="/league?create=1">Create league</a>
-            <a id="standalone-board-open-mock" class="button hidden">Mock draft</a>
-            <button id="standalone-board-open-simulations" class="button hidden" type="button">Simulations</button>
-            <a id="standalone-board-open-live" class="button primary hidden">Live draft</a>
+            <a id="standalone-board-open-mock" class="button primary hidden">Start mock draft</a>
+            <button id="standalone-board-open-simulations" class="button hidden" type="button">Run simulations</button>
           </div>
         </div>
         <div class="board-controls">
@@ -869,13 +990,26 @@ export const platformShellHtml = `<!doctype html>
             <select id="standalone-position-filter"><option value="">All positions</option></select>
           </div>
           <div>
+            <label for="practice-strategy">My value strategy</label>
+            <select id="practice-strategy">
+              <option value="balanced">Balanced</option>
+              <option value="three-rb">Three-RB start</option>
+              <option value="hero-rb">Hero RB</option>
+              <option value="wr-heavy">WR heavy</option>
+            </select>
+          </div>
+          <div>
             <label for="standalone-board-sort">Sort</label>
             <select id="standalone-board-sort">
-              <option value="our">Our value</option>
+              <option value="mine">My value</option>
               <option value="market">Market value</option>
               <option value="rank">Rank</option>
             </select>
           </div>
+          <label class="shortlist-filter" for="standalone-shortlist-only">
+            <input id="standalone-shortlist-only" type="checkbox">
+            <span>Shortlist only (<strong id="standalone-shortlist-count">0</strong>)</span>
+          </label>
         </div>
         <p id="standalone-board-status" class="status" role="status" aria-live="polite"></p>
         <section id="standalone-pricing-context" class="board-pricing-context" aria-labelledby="standalone-pricing-source">
@@ -892,10 +1026,22 @@ export const platformShellHtml = `<!doctype html>
               </div>
               <div>
                 <label for="simulation-count">Runs</label>
-                <input id="simulation-count" type="number" min="1" max="25" step="1" value="25">
+                <input id="simulation-count" type="number" min="1" max="100" step="1" value="25">
+              </div>
+              <div>
+                <label for="simulation-note">Run note</label>
+                <input id="simulation-note" maxlength="1000" autocomplete="off" placeholder="What are you testing in this run?">
               </div>
             </div>
             <div class="actions"><button id="simulation-run" class="primary" type="button">Run simulations</button></div>
+            <section id="simulation-history" class="compact-stack hidden" aria-labelledby="simulation-history-title">
+              <h2 id="simulation-history-title">Previous runs</h2>
+              <div class="actions">
+                <select id="simulation-history-picker" aria-label="Saved simulation run"></select>
+                <button id="simulation-history-open" type="button">Open saved run</button>
+              </div>
+              <p id="simulation-history-note" class="lede"></p>
+            </section>
             <p id="simulation-status" class="status" role="status" aria-live="polite"></p>
             <div id="simulation-results" class="compact-stack hidden">
               <p id="simulation-strategy-summary" class="lede"></p>
@@ -905,32 +1051,34 @@ export const platformShellHtml = `<!doctype html>
                 <div class="fact"><span>Target hit rate</span><strong id="simulation-target-rate">-</strong></div>
                 <div class="fact"><span>Format</span><strong id="simulation-format">-</strong></div>
               </div>
-              <div class="setup-layout">
-                <section class="workspace-section">
-                  <h2>Most drafted</h2>
-                  <div class="table-scroll">
-                    <table class="setup-preview-table">
-                      <thead><tr><th>Player</th><th>Pos</th><th>Exposure</th><th>Average</th></tr></thead>
-                      <tbody id="simulation-exposure-body"></tbody>
-                    </table>
+              <section class="workspace-section">
+                <div class="simulation-run-toolbar">
+                  <div>
+                    <h2>League results</h2>
+                    <p class="lede">Every team includes its keepers and players drafted in this run.</p>
                   </div>
-                </section>
-                <section class="workspace-section">
-                  <h2>Representative roster</h2>
-                  <div class="table-scroll">
-                    <table class="setup-preview-table">
-                      <thead><tr><th>Player</th><th>Pos</th><th>Result</th></tr></thead>
-                      <tbody id="simulation-roster-body"></tbody>
-                    </table>
+                  <div>
+                    <label for="simulation-run-picker">Simulation run</label>
+                    <select id="simulation-run-picker"></select>
                   </div>
-                </section>
-              </div>
+                </div>
+                <div id="simulation-league-grid" class="simulation-league-grid"></div>
+              </section>
+              <details class="workspace-section">
+                <summary>Player exposure across all runs</summary>
+                <div class="table-scroll" style="margin-top: 14px">
+                  <table class="setup-preview-table">
+                    <thead><tr><th>Player</th><th>Pos</th><th>Exposure</th><th>Average</th></tr></thead>
+                    <tbody id="simulation-exposure-body"></tbody>
+                  </table>
+                </div>
+              </details>
             </div>
           </div>
         </details>
         <div id="standalone-player-scroll" class="table-scroll player-board-scroll" tabindex="0" aria-label="Player board results">
           <table class="player-board">
-            <thead><tr><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th class="numeric">Bye</th><th class="numeric">Market</th><th class="numeric">Our</th></tr></thead>
+            <thead><tr><th>Target</th><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th class="numeric">Bye</th><th class="numeric">Market</th><th class="numeric">My value</th></tr></thead>
             <tbody id="standalone-player-rows"></tbody>
           </table>
         </div>
@@ -1087,7 +1235,7 @@ export const platformShellHtml = `<!doctype html>
           <p id="league-overview-team-summary" class="lede">Loading league teams...</p>
           <div id="league-overview-team-table" class="table-scroll hidden">
             <table class="setup-preview-table">
-              <thead><tr><th>Team #</th><th>Team</th><th>Managers</th></tr></thead>
+              <thead><tr><th>Team #</th><th>Team</th><th>Managers</th><th>Keepers</th></tr></thead>
               <tbody id="league-overview-team-body"></tbody>
             </table>
           </div>
@@ -1163,7 +1311,7 @@ export const platformShellHtml = `<!doctype html>
             </div>
             <div id="mock-draft-player-scroll" class="table-scroll player-board-scroll" tabindex="0" aria-label="Available players">
               <table class="player-board">
-                <thead><tr><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th></tr></thead>
+                <thead><tr id="mock-draft-player-head"><th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody id="mock-draft-player-rows"></tbody>
               </table>
             </div>
@@ -1345,12 +1493,19 @@ export const platformShellHtml = `<!doctype html>
       setupLocked: false,
       draftHasStarted: false,
       workspaceRequestGeneration: 0,
+      boardRequestGeneration: 0,
       currentSeason: null,
       claimedTeamIds: new Set(),
       playerCatalog: null,
       playerCatalogSeasonId: null,
+      playerCatalogStrategyKey: null,
       playerCatalogMeta: null,
       playerBoardSort: null,
+      practiceShortlist: [],
+      practiceShortlistSeasonId: null,
+      simulation: null,
+      simulationHistory: [],
+      selectedSimulationRunIndex: 0,
       leagueCreation: null,
       leagueCreationStep: "basics",
       leagueCreationScreenshotAvailable: null,
@@ -1386,8 +1541,10 @@ export const platformShellHtml = `<!doctype html>
     const appStatus = byId("app-status");
     const appError = byId("app-error");
     const appErrorMessage = byId("app-error-message");
-    const leagueContext = byId("league-context");
-    const leaguePicker = byId("league-picker");
+    const leaguePicker = byId("header-league-picker");
+    const headerLeagueSwitcher = byId("header-league-switcher");
+    const accountMenu = byId("account-menu");
+    const accountMenuLeagues = byId("account-menu-leagues");
     const commissionerNavItem = byId("commissioner-nav-item");
     const teamClaimPanel = byId("team-claim-panel");
     const teamClaimPicker = byId("team-claim-picker");
@@ -1449,20 +1606,29 @@ export const platformShellHtml = `<!doctype html>
     const passwordChangeSubmit = byId("password-change-submit");
     const standalonePlayerSearch = byId("standalone-player-search");
     const standalonePositionFilter = byId("standalone-position-filter");
+    const practiceStrategy = byId("practice-strategy");
     const standaloneBoardSort = byId("standalone-board-sort");
     const standaloneBoardStatus = byId("standalone-board-status");
+    const standaloneShortlistOnly = byId("standalone-shortlist-only");
+    const standaloneShortlistCount = byId("standalone-shortlist-count");
     const standalonePlayerRows = byId("standalone-player-rows");
     const standalonePricingSource = byId("standalone-pricing-source");
     const standalonePricingWarnings = byId("standalone-pricing-warnings");
     const simulationPanel = byId("simulation-panel");
     const simulationStrategy = byId("simulation-strategy");
     const simulationCount = byId("simulation-count");
+    const simulationNote = byId("simulation-note");
     const simulationRun = byId("simulation-run");
     const simulationStatus = byId("simulation-status");
     const simulationResults = byId("simulation-results");
     const simulationWarnings = byId("simulation-warnings");
     const simulationExposureBody = byId("simulation-exposure-body");
-    const simulationRosterBody = byId("simulation-roster-body");
+    const simulationRunPicker = byId("simulation-run-picker");
+    const simulationLeagueGrid = byId("simulation-league-grid");
+    const simulationHistory = byId("simulation-history");
+    const simulationHistoryPicker = byId("simulation-history-picker");
+    const simulationHistoryOpen = byId("simulation-history-open");
+    const simulationHistoryNote = byId("simulation-history-note");
     const mockDraftStatus = byId("mock-draft-status");
     const mockDraftSearch = byId("mock-draft-search");
     const mockDraftPlayerRows = byId("mock-draft-player-rows");
@@ -1533,7 +1699,7 @@ export const platformShellHtml = `<!doctype html>
       const requestedPath = new URLSearchParams(window.location.search).get("returnTo");
       return requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
         ? requestedPath
-        : "/board";
+        : "/practice";
     };
 
     const configureAuthMode = () => {
@@ -1653,6 +1819,11 @@ export const platformShellHtml = `<!doctype html>
       setHidden(element, !label || !href);
     };
 
+    const practicePlayerKey = value => String(value || "").trim().toLowerCase().replace(/\s+/gu, " ");
+    const isPracticePlayerShortlisted = playerName => state.practiceShortlist.some(item =>
+      practicePlayerKey(item.playerName) === practicePlayerKey(playerName)
+    );
+
     const renderStandaloneBoard = () => {
       const playerCatalog = state.playerCatalog || [];
       const search = standalonePlayerSearch.value.trim().toLowerCase();
@@ -1662,10 +1833,10 @@ export const platformShellHtml = `<!doctype html>
       const numericValue = value => Number.isFinite(Number(value)) ? Number(value) : 0;
       const sortValue = player => {
         if (sortMode === "rank") return numericValue(player.marketRank || player.rank);
-        if (sortMode === "our") {
+        if (sortMode === "mine") {
           return snake
             ? numericValue(player.leagueRank || player.marketRank || player.rank)
-            : numericValue(player.leagueValue ?? player.expectedPrice);
+            : numericValue(player.myValue ?? player.leagueValue ?? player.expectedPrice);
         }
         return snake
           ? numericValue(player.marketRank || player.rank)
@@ -1681,6 +1852,7 @@ export const platformShellHtml = `<!doctype html>
       }).map((player, index) => ({ player: player, displayRank: index + 1 }));
       const visiblePlayers = sortedPlayers.filter(entry => {
         const player = entry.player;
+        if (standaloneShortlistOnly.checked && !isPracticePlayerShortlisted(player.name)) return false;
         if (position && player.position !== position) return false;
         if (!search) return true;
         return [player.name, player.position, player.teamAbbreviation]
@@ -1691,6 +1863,25 @@ export const platformShellHtml = `<!doctype html>
       visiblePlayers.forEach(entry => {
         const player = entry.player;
         const row = document.createElement("tr");
+        row.classList.toggle("keeper-player-row", player.isKeeper === true);
+        row.classList.toggle("shortlisted-player-row", isPracticePlayerShortlisted(player.name));
+        const shortlistCell = document.createElement("td");
+        shortlistCell.dataset.label = "Target";
+        const shortlistButton = document.createElement("button");
+        const isShortlisted = isPracticePlayerShortlisted(player.name);
+        shortlistButton.type = "button";
+        shortlistButton.className = "shortlist-toggle";
+        shortlistButton.textContent = isShortlisted ? "\u2605" : "\u2606";
+        shortlistButton.setAttribute("aria-pressed", String(isShortlisted));
+        shortlistButton.setAttribute(
+          "aria-label",
+          (isShortlisted ? "Remove " : "Add ") + player.name + (isShortlisted ? " from" : " to") + " shortlist",
+        );
+        shortlistButton.title = isShortlisted ? "Remove from shortlist" : "Add to shortlist";
+        shortlistButton.disabled = !state.selectedLeague;
+        shortlistButton.addEventListener("click", () => togglePracticeShortlist(player, shortlistButton));
+        shortlistCell.append(shortlistButton);
+        row.append(shortlistCell);
         const values = [
           { label: "Rank", value: String(entry.displayRank), className: "numeric" },
           { label: "Player", value: player.name, className: "player-name" },
@@ -1698,25 +1889,41 @@ export const platformShellHtml = `<!doctype html>
           { label: "NFL team", value: player.teamAbbreviation || "FA" },
           { label: "Bye", value: player.byeWeek == null ? "-" : String(player.byeWeek), className: "numeric" },
           { label: "Market", value: snake ? String(player.marketRank || "-") : "$" + Math.round(Number(player.marketPrice ?? player.expectedPrice ?? 0)), className: "numeric" },
-          { label: "Our value", value: snake ? String(player.leagueRank || player.marketRank || "-") : "$" + Math.round(Number(player.leagueValue ?? player.expectedPrice ?? 0)), className: "numeric" },
+          { label: "My value", value: snake ? String(player.leagueRank || player.marketRank || "-") : "$" + Math.round(Number(player.myValue ?? player.leagueValue ?? player.expectedPrice ?? 0)), className: "numeric" },
         ];
         values.forEach(cellValue => {
           const cell = document.createElement("td");
-          cell.textContent = cellValue.value;
           cell.dataset.label = cellValue.label;
           if (cellValue.className) cell.className = cellValue.className;
+          if (cellValue.label === "Player") {
+            const name = document.createElement("span");
+            name.textContent = cellValue.value;
+            cell.append(name);
+            if (player.isKeeper) {
+              const keeper = document.createElement("span");
+              keeper.className = "keeper-badge";
+              keeper.textContent = player.keeperPrice === undefined ? "Keeper" : "Keeper · $" + player.keeperPrice;
+              cell.append(keeper);
+            }
+          } else {
+            cell.textContent = cellValue.value;
+          }
           row.append(cell);
         });
         fragment.append(row);
       });
       standalonePlayerRows.replaceChildren(fragment);
+      standaloneShortlistCount.textContent = String(state.practiceShortlist.length);
       const personalized = state.playerCatalogMeta?.personalized === true;
-      standalonePricingSource.textContent = personalized
-        ? "Pricing source: Mockd league model using imported draft history and current keepers."
-        : state.playerCatalogMeta?.draftFormat
-          ? "Pricing source: current market board. Import draft history to personalize Our value."
-          : "Pricing source: current market board. Create a league to add history and keeper context.";
       const warnings = state.playerCatalogMeta?.pricingWarnings || [];
+      const historyUnavailable = warnings.some(warning => warning.toLowerCase().includes("history unavailable"));
+      standalonePricingSource.textContent = personalized && !historyUnavailable
+        ? "Market uses your league's history, inflation, and keeper pool. My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+        : personalized
+          ? "Market uses the current baseline with this league's roster and keeper context. Import draft history to calibrate league inflation; My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+        : state.playerCatalogMeta?.draftFormat
+          ? "Market uses the current baseline. Import draft history to calibrate it to your league; My value applies your strategy."
+          : "Pricing source: current market board. Create a league to add history and keeper context.";
       standalonePricingWarnings.replaceChildren();
       warnings.slice(0, 6).forEach(warning => {
         const item = document.createElement("li");
@@ -1729,25 +1936,36 @@ export const platformShellHtml = `<!doctype html>
         standalonePricingWarnings.append(item);
       }
       setHidden(standalonePricingWarnings, warnings.length === 0);
-      const valueStatus = state.playerCatalogMeta?.personalized
-        ? " · league values active"
+      const valueStatus = state.playerCatalogMeta?.personalized && !historyUnavailable
+        ? " · league-calibrated values active"
+        : state.playerCatalogMeta?.personalized
+          ? " · league context active; history not yet calibrated"
         : state.playerCatalogMeta?.draftFormat
           ? " · baseline values until history is imported"
           : "";
-      standaloneBoardStatus.textContent = visiblePlayers.length + " shown / " + playerCatalog.length + " loaded" + valueStatus;
+      standaloneBoardStatus.textContent = visiblePlayers.length + " shown / " + playerCatalog.length + " loaded"
+        + " · " + state.practiceShortlist.length + " shortlisted" + valueStatus;
     };
 
     const loadStandaloneBoard = async () => {
       setHidden(byId("standalone-board"), false);
       const seasonId = state.selectedLeague?.seasonId || null;
-      if (state.playerCatalog === null || state.playerCatalogSeasonId !== seasonId) {
+      const strategyKey = practiceStrategy.value;
+      if (state.playerCatalog === null || state.playerCatalogSeasonId !== seasonId || state.playerCatalogStrategyKey !== strategyKey) {
+        const requestGeneration = ++state.boardRequestGeneration;
         standaloneBoardStatus.textContent = "Loading players...";
         const endpoint = seasonId
-          ? "/player-catalog?seasonId=" + encodeURIComponent(seasonId)
-          : "/player-catalog";
+          ? "/player-catalog?seasonId=" + encodeURIComponent(seasonId) + "&strategy=" + encodeURIComponent(strategyKey)
+          : "/player-catalog?strategy=" + encodeURIComponent(strategyKey);
         const body = await readJson(await fetch(endpoint, { credentials: "same-origin" }));
+        if (
+          requestGeneration !== state.boardRequestGeneration
+          || (state.selectedLeague?.seasonId || null) !== seasonId
+          || practiceStrategy.value !== strategyKey
+        ) return;
         state.playerCatalog = (body.players || []).map((player, index) => ({ ...player, rank: index + 1 }));
         state.playerCatalogSeasonId = seasonId;
+        state.playerCatalogStrategyKey = strategyKey;
         const pricingWarnings = [...new Set((body.players || []).flatMap(player =>
           Array.isArray(player.pricingWarnings)
             ? player.pricingWarnings.filter(warning => typeof warning === "string" && warning.trim())
@@ -1756,9 +1974,10 @@ export const platformShellHtml = `<!doctype html>
         state.playerCatalogMeta = {
           draftFormat: body.draftFormat || null,
           personalized: body.personalized === true,
+          strategyLabel: body.strategyLabel || "balanced",
           pricingWarnings: pricingWarnings,
         };
-        state.playerBoardSort = body.personalized === true ? "our" : "market";
+        state.playerBoardSort = body.personalized === true ? "mine" : "market";
         standaloneBoardSort.value = state.playerBoardSort;
         standalonePositionFilter.replaceChildren();
         const allPositionsOption = document.createElement("option");
@@ -1776,12 +1995,60 @@ export const platformShellHtml = `<!doctype html>
       renderStandaloneBoard();
     };
 
+    const loadPracticeShortlist = async (selectedLeague, requestGeneration) => {
+      if (!selectedLeague) {
+        state.practiceShortlist = [];
+        state.practiceShortlistSeasonId = null;
+        renderStandaloneBoard();
+        return;
+      }
+      const body = await readJson(await fetch(
+        "/practice-shortlist?seasonId=" + encodeURIComponent(selectedLeague.seasonId),
+        { credentials: "same-origin" },
+      ));
+      if (
+        requestGeneration !== state.workspaceRequestGeneration
+        || state.selectedLeague?.seasonId !== selectedLeague.seasonId
+      ) return;
+      state.practiceShortlist = body.items || [];
+      state.practiceShortlistSeasonId = selectedLeague.seasonId;
+      renderStandaloneBoard();
+    };
+
+    const togglePracticeShortlist = async (player, button) => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) return;
+      const existing = isPracticePlayerShortlisted(player.name);
+      button.disabled = true;
+      try {
+        await readJson(await fetch("/practice-shortlist", {
+          method: existing ? "DELETE" : "PUT",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            seasonId: selectedLeague.seasonId,
+            playerName: player.name,
+            position: player.position,
+          }),
+        }));
+        await loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration);
+      } catch (error) {
+        standaloneBoardStatus.textContent = error.message;
+        button.disabled = false;
+      }
+    };
+
     const configureSimulationPanel = selectedLeague => {
       setHidden(simulationPanel, false);
       setHidden(simulationResults, true);
+      state.simulation = null;
+      state.simulationHistory = [];
+      state.selectedSimulationRunIndex = 0;
       simulationExposureBody.replaceChildren();
-      simulationRosterBody.replaceChildren();
+      simulationRunPicker.replaceChildren();
+      simulationLeagueGrid.replaceChildren();
       simulationWarnings.replaceChildren();
+      renderSimulationHistory();
       const canRun = Boolean(selectedLeague.membership?.teamId);
       simulationRun.disabled = !canRun;
       simulationStatus.textContent = canRun
@@ -1789,9 +2056,127 @@ export const platformShellHtml = `<!doctype html>
         : "Claim your team from League before running private simulations.";
       const requestedStrategy = new URLSearchParams(window.location.search).get("strategy");
       if (!simulationStrategy.value && requestedStrategy) simulationStrategy.value = requestedStrategy;
+      loadSimulationHistory(selectedLeague, state.workspaceRequestGeneration).catch(error => {
+        if (state.selectedLeague?.seasonId === selectedLeague.seasonId) {
+          simulationStatus.textContent = error.message;
+        }
+      });
     };
 
-    const renderSimulationResult = simulation => {
+    const renderSimulationHistory = () => {
+      simulationHistoryPicker.replaceChildren();
+      state.simulationHistory.forEach(run => {
+        const simulation = run.simulation;
+        const option = document.createElement("option");
+        option.value = run.id;
+        const timestamp = new Date(run.completedAt || run.createdAt).toLocaleString();
+        option.textContent = timestamp + " · " + simulation.runCount + " runs · "
+          + (simulation.strategy?.summary || "Best available roster fit");
+        simulationHistoryPicker.append(option);
+      });
+      const hasHistory = state.simulationHistory.length > 0;
+      setHidden(simulationHistory, !hasHistory);
+      simulationHistoryOpen.disabled = !hasHistory;
+      simulationHistoryNote.textContent = hasHistory
+        ? state.simulationHistory[0]?.note || "No note saved for this run."
+        : "";
+    };
+
+    const loadSimulationHistory = async (selectedLeague, requestGeneration) => {
+      const body = await readJson(await fetch(
+        "/season-simulations?seasonId=" + encodeURIComponent(selectedLeague.seasonId),
+        { credentials: "same-origin" },
+      ));
+      if (
+        requestGeneration !== state.workspaceRequestGeneration
+        || state.selectedLeague?.seasonId !== selectedLeague.seasonId
+      ) return;
+      state.simulationHistory = body.history || [];
+      renderSimulationHistory();
+    };
+
+    const renderSimulationRun = () => {
+      const simulation = state.simulation;
+      const run = simulation?.runs?.[state.selectedSimulationRunIndex];
+      simulationLeagueGrid.replaceChildren();
+      if (!run) return;
+
+      const fragment = document.createDocumentFragment();
+      [...run.teams]
+        .sort((left, right) => Number(right.isUserTeam === true) - Number(left.isUserTeam === true))
+        .forEach(team => {
+        const panel = document.createElement("article");
+        panel.className = "simulation-team";
+        panel.dataset.userTeam = String(team.isUserTeam === true);
+
+        const header = document.createElement("header");
+        header.className = "simulation-team-header";
+        const identity = document.createElement("div");
+        const heading = document.createElement("h3");
+        heading.textContent = team.teamName;
+        if (team.isUserTeam) {
+          const badge = document.createElement("span");
+          badge.className = "team-badge";
+          badge.textContent = "Your team";
+          heading.append(badge);
+        }
+        const budget = document.createElement("div");
+        budget.className = "simulation-team-summary";
+        budget.textContent = team.spent === undefined
+          ? team.roster.length + " picks"
+          : "$" + team.spent + " spent · $" + team.budgetRemaining + " left";
+        identity.append(heading, budget);
+        const score = document.createElement("div");
+        score.className = "simulation-team-score";
+        score.textContent = Number(team.week1Points || 0).toFixed(1);
+        const scoreLabel = document.createElement("span");
+        scoreLabel.className = "player-meta";
+        scoreLabel.textContent = "Week 1";
+        score.append(scoreLabel);
+        header.append(identity, score);
+
+        const table = document.createElement("table");
+        table.className = "simulation-team-roster";
+        const tableHead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        ["Slot", "Player", "Result", "W1"].forEach((label, index) => {
+          const cell = document.createElement("th");
+          cell.textContent = label;
+          if (index > 1) cell.className = "numeric";
+          headRow.append(cell);
+        });
+        tableHead.append(headRow);
+        const body = document.createElement("tbody");
+        team.roster.forEach(player => {
+          const row = document.createElement("tr");
+          row.dataset.starter = String(player.starter === true);
+          const result = player.price !== undefined
+            ? "$" + player.price
+            : player.overallPick !== undefined
+              ? "#" + player.overallPick
+              : "-";
+          [player.rosterSlot, player.playerName, result, Number(player.week1Points || 0).toFixed(1)].forEach((value, index) => {
+            const cell = document.createElement("td");
+            cell.textContent = String(value);
+            if (index > 1) cell.className = "numeric";
+            if (index === 1 && player.source === "keeper") {
+              const badge = document.createElement("span");
+              badge.className = "keeper-badge";
+              badge.textContent = "Keeper";
+              cell.append(badge);
+            }
+            row.append(cell);
+          });
+          body.append(row);
+        });
+        table.append(tableHead, body);
+        panel.append(header, table);
+        fragment.append(panel);
+        });
+      simulationLeagueGrid.replaceChildren(fragment);
+    };
+
+    const renderSimulationResult = (simulation, note = "") => {
       byId("simulation-strategy-summary").textContent = simulation.strategy?.summary || "Best available roster fit.";
       simulationWarnings.replaceChildren();
       (simulation.strategy?.warnings || []).forEach(warning => {
@@ -1823,29 +2208,27 @@ export const platformShellHtml = `<!doctype html>
       });
       simulationExposureBody.replaceChildren(exposureFragment);
 
-      const rosterFragment = document.createDocumentFragment();
-      (simulation.representativeRoster || []).forEach(player => {
-        const row = document.createElement("tr");
-        const result = player.price !== undefined
-          ? "$" + player.price
-          : player.overallPick !== undefined
-            ? "Pick " + player.overallPick
-            : titleCase(player.source || "drafted");
-        [player.playerName, player.position, result].forEach(value => {
-          const cell = document.createElement("td");
-          cell.textContent = String(value);
-          row.append(cell);
-        });
-        rosterFragment.append(row);
+      state.simulation = simulation;
+      state.selectedSimulationRunIndex = 0;
+      simulationRunPicker.replaceChildren();
+      (simulation.runs || []).forEach((run, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = run.label || "Run " + (index + 1);
+        simulationRunPicker.append(option);
       });
-      simulationRosterBody.replaceChildren(rosterFragment);
+      renderSimulationRun();
       simulationStatus.textContent = "Simulation results are private to your account.";
+      simulationHistoryNote.textContent = note || "No note saved for this run.";
       setHidden(simulationResults, false);
     };
 
     const runBoardSimulations = async () => {
       const selectedLeague = state.selectedLeague;
       if (!selectedLeague?.membership?.teamId) return;
+      const seasonId = selectedLeague.seasonId;
+      const requestGeneration = state.workspaceRequestGeneration;
+      const note = simulationNote.value.trim();
       const count = Number(simulationCount.value);
       simulationRun.disabled = true;
       setHidden(simulationResults, true);
@@ -1856,16 +2239,24 @@ export const platformShellHtml = `<!doctype html>
           headers: { "content-type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
-            seasonId: selectedLeague.seasonId,
+            seasonId,
             count: count,
+            strategyPreset: practiceStrategy.value,
             strategy: simulationStrategy.value.trim(),
+            note,
           }),
         }));
-        renderSimulationResult(body.simulation);
+        if (!isCurrentWorkspaceRequest(seasonId, requestGeneration)) return;
+        renderSimulationResult(body.simulation, note);
+        await loadSimulationHistory(selectedLeague, requestGeneration);
       } catch (error) {
-        simulationStatus.textContent = error.message;
+        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
+          simulationStatus.textContent = error.message;
+        }
       } finally {
-        simulationRun.disabled = false;
+        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
+          simulationRun.disabled = false;
+        }
       }
     };
 
@@ -2404,19 +2795,16 @@ export const platformShellHtml = `<!doctype html>
     const ownerScopedPaths = new Set();
 
     const productPathFor = (path, selectedLeague) => {
-      const query = new URLSearchParams(
-        path === "/board"
-          ? { contextSeasonId: selectedLeague.seasonId }
-          : { seasonId: selectedLeague.seasonId },
-      );
+      const query = new URLSearchParams({ seasonId: selectedLeague.seasonId });
       const ownerDisplayName = selectedLeague.membership?.ownerDisplayName;
       if (ownerScopedPaths.has(path) && ownerDisplayName) query.set("owner", ownerDisplayName);
       return path + "?" + query.toString();
     };
 
     const markCurrentNavigation = () => {
+      const activePath = routePath === "/mock-drafts" ? "/practice" : routePath;
       document.querySelectorAll("[data-nav-path]").forEach(link => {
-        if (link.dataset.navPath === routePath) link.setAttribute("aria-current", "page");
+        if (link.dataset.navPath === activePath) link.setAttribute("aria-current", "page");
         else link.removeAttribute("aria-current");
       });
     };
@@ -2436,7 +2824,7 @@ export const platformShellHtml = `<!doctype html>
         }
       });
       commissionerNavItem.href = pathWithSeason("/setup", selectedLeague.seasonId);
-      document.querySelector(".brand").href = pathWithSeason("/app", selectedLeague.seasonId);
+      document.querySelector(".brand").href = pathWithSeason("/practice", selectedLeague.seasonId);
     };
 
     const updateNavigationForNoLeague = () => {
@@ -2453,7 +2841,7 @@ export const platformShellHtml = `<!doctype html>
         link.removeAttribute("aria-disabled");
         link.removeAttribute("tabindex");
       });
-      document.querySelector(".brand").href = "/board";
+      document.querySelector(".brand").href = "/practice";
     };
 
     const hideWorkspaces = () => {
@@ -2540,17 +2928,25 @@ export const platformShellHtml = `<!doctype html>
       });
     };
 
-    const renderLeagueOverview = season => {
+    const renderLeagueOverview = (season, keepers = []) => {
       renderSettingsFacts(leagueOverviewSettings, season?.settings);
       const teams = [...(season?.teams || [])]
         .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+      const keepersByTeam = new Map();
+      keepers.forEach(keeper => {
+        const teamKeepers = keepersByTeam.get(keeper.teamId) || [];
+        const cost = keeper.keeperRound ? "R" + keeper.keeperRound : "$" + keeper.price;
+        teamKeepers.push(keeper.playerName + " (" + cost + ")");
+        keepersByTeam.set(keeper.teamId, teamKeepers);
+      });
       leagueOverviewTeamBody.replaceChildren();
       teams.forEach(team => {
         const row = document.createElement("tr");
         const managers = team.managerDisplayNames?.length
           ? team.managerDisplayNames.join(", ")
           : team.ownerDisplayName;
-        [team.draftOrderPosition, team.displayName, managers].forEach(value => {
+        const keeperSummary = (keepersByTeam.get(team.id) || []).join(", ") || "-";
+        [team.draftOrderPosition, team.displayName, managers, keeperSummary].forEach(value => {
           const cell = document.createElement("td");
           cell.textContent = String(value);
           row.append(cell);
@@ -2770,6 +3166,9 @@ export const platformShellHtml = `<!doctype html>
       if (!draft || !session) return;
       const sessionState = draft.session || {};
       const auction = session.draftMode?.format === "auction";
+      byId("mock-draft-player-head").innerHTML = auction
+        ? '<th class="numeric">Market</th><th class="numeric">My value</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th>'
+        : '<th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th>';
       const picks = draft.board?.picks || [];
       const completedPicks = picks.filter(pick => pick.selection).length;
       byId("mock-draft-title").textContent = auction ? "Auction mock draft" : "Snake mock draft";
@@ -2810,9 +3209,14 @@ export const platformShellHtml = `<!doctype html>
       players.forEach(player => {
         const row = document.createElement("tr");
         const values = [
-          { label: auction ? "Value" : "Rank", value: auction
+          { label: auction ? "Market" : "Rank", value: auction
               ? "$" + Math.round(Number(player.expectedPrice || 0))
               : String(player.personalRank || player.leagueExpectedPick || player.rank || "-"), className: "numeric" },
+          ...(auction ? [{
+            label: "My value",
+            value: "$" + Math.round(Number(player.humanValue ?? player.expectedPrice ?? 0)),
+            className: "numeric",
+          }] : []),
           { label: "Player", value: player.name, className: "player-name" },
           { label: "Position", value: player.position || "-" },
           { label: "Status", value: "Available" },
@@ -2864,7 +3268,7 @@ export const platformShellHtml = `<!doctype html>
         : sessionState.status === "setup"
           ? "Ready when you are."
           : sessionState.status === "completed"
-            ? "Mock complete. Review your roster or start another mock from the Board."
+            ? "Mock complete. Review your roster or start another mock from Practice."
             : "Mockd is ready for your next turn.";
     };
 
@@ -2919,6 +3323,7 @@ export const platformShellHtml = `<!doctype html>
       mockDraftStatus.textContent = "Opening your league mock...";
       const query = new URLSearchParams(window.location.search);
       const requestedSessionId = query.get("mockSessionId");
+      const requestedStrategy = query.get("strategy") || "balanced";
       const response = requestedSessionId
         ? await fetch(
             "/season-mock-drafts/" + encodeURIComponent(requestedSessionId)
@@ -2929,7 +3334,7 @@ export const platformShellHtml = `<!doctype html>
             method: "POST",
             headers: { "content-type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ seasonId: selectedLeague.seasonId }),
+            body: JSON.stringify({ seasonId: selectedLeague.seasonId, strategy: requestedStrategy }),
           });
       const body = await readJson(response);
       if (requestGeneration !== state.mockRequestGeneration) return;
@@ -2955,6 +3360,7 @@ export const platformShellHtml = `<!doctype html>
     const renderSelectedLeague = selectedLeague => {
       if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
         state.workspaceRequestGeneration += 1;
+        state.boardRequestGeneration += 1;
         state.currentSeason = null;
         state.claimedTeamIds = new Set();
         state.historicalImportFiles = [];
@@ -2963,6 +3369,17 @@ export const platformShellHtml = `<!doctype html>
         state.mockRequestGeneration += 1;
         state.mockSession = null;
         state.mockDraft = null;
+        state.playerCatalog = null;
+        state.playerCatalogSeasonId = null;
+        state.playerCatalogStrategyKey = null;
+        state.playerCatalogMeta = null;
+        state.playerBoardSort = null;
+        state.practiceShortlist = [];
+        state.practiceShortlistSeasonId = null;
+        state.simulation = null;
+        state.simulationHistory = [];
+        state.selectedSimulationRunIndex = 0;
+        standalonePlayerRows.replaceChildren();
         historicalImportButton.disabled = true;
         historicalImportStatus.textContent = "";
         historicalImportFileList.replaceChildren();
@@ -2976,21 +3393,19 @@ export const platformShellHtml = `<!doctype html>
       state.selectedLeague = selectedLeague;
       hideWorkspaces();
       if (routePath === "/invite") {
-        setHidden(leagueContext, true);
         setHidden(commissionerNavItem, true);
         setHidden(byId("invite-workspace"), false);
         return;
       }
       if (!selectedLeague) {
-        setHidden(leagueContext, true);
         setHidden(commissionerNavItem, true);
+        byId("my-team-name").textContent = "Not assigned";
+        byId("membership-role").textContent = "Member";
         updateNavigationForNoLeague();
-        if (routePath === "/board") {
+        if (routePath === "/practice") {
           setHidden(simulationPanel, true);
-          setHidden(byId("standalone-board-create-league"), false);
           setHidden(byId("standalone-board-open-mock"), true);
           setHidden(byId("standalone-board-open-simulations"), true);
-          setHidden(byId("standalone-board-open-live"), true);
           loadStandaloneBoard().catch(error => {
             standaloneBoardStatus.textContent = error.message;
           });
@@ -3001,32 +3416,25 @@ export const platformShellHtml = `<!doctype html>
       }
 
       const membership = selectedLeague.membership;
-      setHidden(leagueContext, false);
       byId("my-team-name").textContent = membership.teamDisplayName || "Not assigned";
       byId("membership-role").textContent = titleCase(membership.role);
       commissionerNavItem.classList.toggle("hidden", !selectedLeague.canManageLeague);
       updateNavigation(selectedLeague);
 
-      if (routePath === "/board") {
+      if (routePath === "/practice") {
         configureSimulationPanel(selectedLeague);
-        setHidden(byId("standalone-board-create-league"), true);
         const mockLink = byId("standalone-board-open-mock");
-        mockLink.href = pathWithSeason("/mock-drafts", selectedLeague.seasonId);
+        const mockQuery = new URLSearchParams({
+          seasonId: selectedLeague.seasonId,
+          strategy: practiceStrategy.value,
+        });
+        mockLink.href = "/mock-drafts?" + mockQuery.toString();
         setHidden(mockLink, false);
         setHidden(byId("standalone-board-open-simulations"), false);
-        const liveLink = byId("standalone-board-open-live");
-        if (selectedLeague.liveDraft?.roomId) {
-          liveLink.href = draftRoomPathFor(selectedLeague.seasonId, selectedLeague.liveDraft.roomId);
-          liveLink.textContent = "Live draft";
-          setHidden(liveLink, false);
-        } else if (selectedLeague.canManageLeague) {
-          liveLink.href = pathWithSeason("/setup", selectedLeague.seasonId);
-          liveLink.textContent = "Set up live draft";
-          setHidden(liveLink, false);
-        } else {
-          setHidden(liveLink, true);
-        }
         loadStandaloneBoard().catch(error => {
+          standaloneBoardStatus.textContent = error.message;
+        });
+        loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration).catch(error => {
           standaloneBoardStatus.textContent = error.message;
         });
         return;
@@ -3134,11 +3542,13 @@ export const platformShellHtml = `<!doctype html>
       const overviewRequestGeneration = state.workspaceRequestGeneration;
       const overviewSeasonId = selectedLeague.seasonId;
       leagueOverviewTeamSummary.textContent = "Loading league teams...";
-      fetch("/seasons/" + encodeURIComponent(overviewSeasonId), { credentials: "same-origin" })
-        .then(readJson)
-        .then(body => {
+      Promise.all([
+        fetch("/seasons/" + encodeURIComponent(overviewSeasonId), { credentials: "same-origin" }).then(readJson),
+        fetch("/seasons/" + encodeURIComponent(overviewSeasonId) + "/keepers", { credentials: "same-origin" }).then(readJson),
+      ])
+        .then(([body, keepersBody]) => {
           if (isCurrentWorkspaceRequest(overviewSeasonId, overviewRequestGeneration)) {
-            renderLeagueOverview(body.season);
+            renderLeagueOverview(body.season, keepersBody.keepers || []);
           }
         })
         .catch(error => {
@@ -3177,13 +3587,20 @@ export const platformShellHtml = `<!doctype html>
 
     const renderLeaguePicker = onboarding => {
       leaguePicker.replaceChildren();
+      accountMenuLeagues.replaceChildren();
       onboarding.leagues.forEach(league => {
         const option = document.createElement("option");
         option.value = league.seasonId;
         option.textContent = league.leagueName + " · " + league.seasonYear;
         leaguePicker.append(option);
+        const link = document.createElement("a");
+        link.href = pathWithSeason("/league", league.seasonId);
+        link.textContent = league.leagueName + " · " + league.seasonYear;
+        if (state.selectedLeague?.seasonId === league.seasonId) link.setAttribute("aria-current", "true");
+        accountMenuLeagues.append(link);
       });
       if (state.selectedLeague) leaguePicker.value = state.selectedLeague.seasonId;
+      setHidden(headerLeagueSwitcher, onboarding.leagues.length === 0);
     };
 
     const loadOnboarding = async () => {
@@ -3200,13 +3617,22 @@ export const platformShellHtml = `<!doctype html>
     const showSignedInApp = async account => {
       state.account = account;
       document.body.dataset.sessionState = "signed-in";
-      byId("account-email").textContent = account.email;
+      byId("account-menu-email").textContent = account.email;
+      const localPart = String(account.email || "?").split("@")[0];
+      const initialParts = localPart.split(/[._-]+/).filter(Boolean);
+      byId("account-avatar-initials").textContent = initialParts
+        .slice(0, 2)
+        .map(part => part.charAt(0).toUpperCase())
+        .join("") || "?";
       setHidden(bootPanel, true);
       setHidden(authPanel, true);
       setHidden(appHeader, false);
       setHidden(appShell, false);
       markCurrentNavigation();
       await loadOnboarding();
+      if (new URLSearchParams(window.location.search).get("account") === "password") {
+        openPasswordDialog();
+      }
     };
 
     const login = async () => {
@@ -3315,13 +3741,15 @@ export const platformShellHtml = `<!doctype html>
         .finally(() => window.location.assign("/login"));
     });
 
-    byId("account-settings-button").addEventListener("click", () => {
+    const openPasswordDialog = () => {
+      accountMenu.open = false;
       passwordChangeForm.reset();
       passwordChangeStatus.textContent = "";
       passwordChangeStatus.className = "status";
       passwordDialog.showModal();
       currentPasswordInput.focus();
-    });
+    };
+    byId("account-settings-button").addEventListener("click", openPasswordDialog);
 
     const closePasswordDialog = () => passwordDialog.close();
     byId("password-dialog-close").addEventListener("click", closePasswordDialog);
@@ -3360,17 +3788,16 @@ export const platformShellHtml = `<!doctype html>
 
     leaguePicker.addEventListener("change", () => {
       const selectedLeague = state.onboarding.leagues.find(league => league.seasonId === leaguePicker.value) || null;
-      renderSelectedLeague(selectedLeague);
       if (selectedLeague) {
         const query = new URLSearchParams(window.location.search);
-        if (routePath === "/board") {
-          query.delete("seasonId");
-          query.set("contextSeasonId", selectedLeague.seasonId);
-        } else {
-          query.set("seasonId", selectedLeague.seasonId);
-        }
+        query.set("seasonId", selectedLeague.seasonId);
+        query.delete("contextSeasonId");
+        query.delete("mockSessionId");
         window.history.replaceState(null, "", routePath + "?" + query.toString());
       }
+      renderSelectedLeague(selectedLeague);
+      renderLeaguePicker(state.onboarding);
+      accountMenu.open = false;
     });
 
     const setupEndpoint = action => "/seasons/" + encodeURIComponent(byId("setup-season-id-input").value) + "/setup-import/" + action;
@@ -4328,11 +4755,61 @@ export const platformShellHtml = `<!doctype html>
 
     standalonePlayerSearch.addEventListener("input", renderStandaloneBoard);
     standalonePositionFilter.addEventListener("change", renderStandaloneBoard);
+    standaloneShortlistOnly.addEventListener("change", renderStandaloneBoard);
+    practiceStrategy.addEventListener("change", () => {
+      state.boardRequestGeneration += 1;
+      state.playerCatalog = null;
+      state.playerCatalogStrategyKey = null;
+      const mockLink = byId("standalone-board-open-mock");
+      if (state.selectedLeague) {
+        const query = new URLSearchParams({
+          seasonId: state.selectedLeague.seasonId,
+          strategy: practiceStrategy.value,
+        });
+        mockLink.href = "/mock-drafts?" + query.toString();
+      }
+      loadStandaloneBoard().catch(error => {
+        standaloneBoardStatus.textContent = error.message;
+      });
+    });
     standaloneBoardSort.addEventListener("change", () => {
       state.playerBoardSort = standaloneBoardSort.value;
       renderStandaloneBoard();
     });
     simulationRun.addEventListener("click", runBoardSimulations);
+    simulationRunPicker.addEventListener("change", () => {
+      state.selectedSimulationRunIndex = Number(simulationRunPicker.value) || 0;
+      renderSimulationRun();
+    });
+    simulationHistoryPicker.addEventListener("change", () => {
+      const run = state.simulationHistory.find(candidate => candidate.id === simulationHistoryPicker.value);
+      simulationHistoryNote.textContent = run?.note || "No note saved for this run.";
+    });
+    simulationHistoryOpen.addEventListener("click", async () => {
+      const run = state.simulationHistory.find(candidate => candidate.id === simulationHistoryPicker.value);
+      const selectedLeague = state.selectedLeague;
+      if (!run || !selectedLeague) return;
+      const seasonId = selectedLeague.seasonId;
+      const requestGeneration = state.workspaceRequestGeneration;
+      simulationHistoryOpen.disabled = true;
+      simulationStatus.textContent = "Loading saved run...";
+      try {
+        const body = await readJson(await fetch(
+          "/season-simulations/" + encodeURIComponent(run.id),
+          { credentials: "same-origin" },
+        ));
+        if (!isCurrentWorkspaceRequest(seasonId, requestGeneration)) return;
+        renderSimulationResult(body.simulation, body.note || "");
+      } catch (error) {
+        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
+          simulationStatus.textContent = error.message;
+        }
+      } finally {
+        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
+          simulationHistoryOpen.disabled = false;
+        }
+      }
+    });
     byId("standalone-board-open-simulations").addEventListener("click", () => {
       simulationPanel.open = true;
       simulationPanel.scrollIntoView({ behavior: "smooth", block: "start" });

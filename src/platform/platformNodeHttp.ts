@@ -68,7 +68,7 @@ const appShellPaths = new Set([
   "/invite",
   "/setup",
   "/league",
-  "/board",
+  "/practice",
   "/my-team",
   "/mock-drafts",
   "/mock-results",
@@ -78,11 +78,12 @@ const appShellPaths = new Set([
   "/player-news",
 ]);
 const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
+  ["/board", "/practice"],
   ["/mock-results", "/mock-drafts"],
-  ["/simulations", "/board"],
+  ["/simulations", "/practice"],
   ["/strategy", "/mock-drafts"],
   ["/my-expert", "/my-team"],
-  ["/player-news", "/board"],
+  ["/player-news", "/practice"],
 ]);
 const draftWorkspacePaths = new Set(["/draft-room"]);
 const observableRouteRoots = new Set([
@@ -105,6 +106,7 @@ const observableRouteRoots = new Set([
   "readyz",
   "season-mock-drafts",
   "season-simulations",
+  "practice-shortlist",
   "seasons",
   "session",
   "sessions",
@@ -507,12 +509,11 @@ const redirectForBrowserRequest = (request: IncomingMessage): string | undefined
     const source = new URL(request.url ?? "/", "http://mockd.local");
     const targetPath = legacyProductRedirects.get(source.pathname);
     if (targetPath === undefined) return undefined;
-    if (targetPath === "/board" && source.searchParams.has("seasonId")) {
-      const seasonId = source.searchParams.get("seasonId");
-      source.searchParams.delete("seasonId");
-      if (seasonId !== null) source.searchParams.set("contextSeasonId", seasonId);
+    const legacySeasonId = source.searchParams.get("contextSeasonId");
+    if (legacySeasonId !== null && !source.searchParams.has("seasonId")) {
+      source.searchParams.set("seasonId", legacySeasonId);
     }
-
+    source.searchParams.delete("contextSeasonId");
     return `${targetPath}${source.search}`;
   } catch {
     return undefined;

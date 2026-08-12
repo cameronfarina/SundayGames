@@ -31,6 +31,7 @@ export interface GenericAuctionMockPlayer {
   name: string;
   position: string;
   expectedPrice: number;
+  humanValue?: number | undefined;
 }
 
 export interface GenericAuctionMockKeeper {
@@ -354,6 +355,7 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
       || !isNonBlank(player.name)
       || !isNonBlank(player.position)
       || !isNonNegativeFinite(player.expectedPrice)
+      || (player.humanValue !== undefined && !isNonNegativeFinite(player.humanValue))
     )
   ) {
     throw new GenericAuctionMockError(

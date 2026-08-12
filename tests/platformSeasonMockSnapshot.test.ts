@@ -50,6 +50,9 @@ describe("season mock configuration snapshots", () => {
       playerExpectedPrices: {
         "puka-nacua": 69,
       },
+      playerHumanValues: {
+        "puka-nacua": 74,
+      },
       capturedAt,
     });
 
@@ -67,6 +70,9 @@ describe("season mock configuration snapshots", () => {
         humanTeamId,
         playerExpectedPrices: {
           "puka-nacua": 69,
+        },
+        playerHumanValues: {
+          "puka-nacua": 74,
         },
       },
     });
@@ -89,6 +95,7 @@ describe("season mock configuration snapshots", () => {
       },
       humanTeamId,
       playerExpectedPrices: { "puka-nacua": 69 },
+      playerHumanValues: { "puka-nacua": 74 },
     });
   });
 

@@ -254,9 +254,9 @@ describe("private simulation runs", () => {
 
     expect(() => repository.createRequest({
       ...baseRequestInput,
-      count: 26,
+      count: 101,
       createdAt: now,
-    })).toThrow(new SimulationError("invalid_count", "Simulation count cannot exceed 25."));
+    })).toThrow(new SimulationError("invalid_count", "Simulation count cannot exceed 100."));
 
     expect(() => repository.createRequest({
       ...baseRequestInput,

@@ -512,7 +512,7 @@ describe("platform Node HTTP adapter", () => {
       "/invite?token=test",
       "/setup",
       "/league",
-      "/board",
+      "/practice",
       "/my-team",
       "/mock-drafts",
     ]) {
@@ -536,8 +536,10 @@ describe("platform Node HTTP adapter", () => {
       appHtml: "<!doctype html><title>Mockd app</title>",
     });
     const cases = [
-      ["/simulations?seasonId=season-1&strategy=rb", "/board?strategy=rb&contextSeasonId=season-1"],
-      ["/player-news?seasonId=season-1", "/board?contextSeasonId=season-1"],
+      ["/board?seasonId=season-1", "/practice?seasonId=season-1"],
+      ["/board?contextSeasonId=season-legacy", "/practice?seasonId=season-legacy"],
+      ["/simulations?seasonId=season-1&strategy=rb", "/practice?seasonId=season-1&strategy=rb"],
+      ["/player-news?seasonId=season-1", "/practice?seasonId=season-1"],
       ["/strategy?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
       ["/mock-results?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
       ["/my-expert?seasonId=season-1", "/my-team?seasonId=season-1"],

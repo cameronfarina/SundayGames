@@ -26,7 +26,7 @@ describe("platform shell UI", () => {
 
   it("uses route-backed product navigation and the canonical live draft URL", () => {
     expect(platformShellNavigation.map(item => [item.label, item.path])).toEqual([
-      ["Board", "/board"],
+      ["Practice", "/practice"],
       ["League", "/league"],
       ["My team", "/my-team"],
     ]);
@@ -51,7 +51,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('fetch("/email-verifications/consume"');
     expect(platformShellHtml).toContain('fetch("/password-resets/consume"');
     expect(platformShellHtml).toContain("Resend verification");
-    expect(platformShellHtml).toContain(': "/board";');
+    expect(platformShellHtml).toContain(': "/practice";');
     expect(platformShellHtml).toContain("setHidden(authModePrompt, false)");
     expect(platformShellHtml).toContain("invitationToken: signupInvitationToken()");
     expect(platformShellHtml).toContain("returnTo: authenticationReturnPath()");
@@ -62,7 +62,12 @@ describe("platform shell UI", () => {
 
   it("bootstraps durable league and team identity before enabling workspaces", () => {
     expect(platformShellHtml).toContain("fetch(\"/onboarding\"");
-    expect(platformShellHtml).toContain("id=\"league-picker\"");
+    expect(platformShellHtml).toContain('id="header-league-picker"');
+    expect(platformShellHtml).toContain('search.get("seasonId") || search.get("contextSeasonId")');
+    expect(platformShellHtml).toContain('query.delete("mockSessionId")');
+    expect(platformShellHtml).toContain('id="account-menu-button"');
+    expect(platformShellHtml).toContain('id="account-avatar-initials"');
+    expect(platformShellHtml).toContain('id="account-menu-leagues"');
     expect(platformShellHtml).toContain("id=\"my-team-name\"");
     expect(platformShellHtml).toContain("id=\"membership-role\"");
     expect(platformShellHtml).toContain("selectedLeague.membership");
@@ -77,7 +82,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("ownerScopedPaths.has(item.path) && !selectedLeague.membership?.ownerDisplayName");
     expect(platformShellHtml).toContain('id="league-overview-settings"');
     expect(platformShellHtml).toContain('id="league-overview-team-body"');
-    expect(platformShellHtml).toContain("renderLeagueOverview(body.season)");
+    expect(platformShellHtml).toContain("renderLeagueOverview(body.season, keepersBody.keepers || [])");
     expect(platformShellHtml).toContain("isCurrentWorkspaceRequest(overviewSeasonId, overviewRequestGeneration)");
     expect(platformShellHtml).toContain("updateNavigationForNoLeague()");
     expect(platformShellHtml).toContain('item.path === "/my-team"');
@@ -88,17 +93,21 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="standalone-player-search" type="search"');
     expect(platformShellHtml).toContain('id="standalone-position-filter"');
     expect(platformShellHtml).toContain('id="standalone-board-sort"');
-    expect(platformShellHtml).toContain('<option value="our">Our value</option>');
+    expect(platformShellHtml).toContain('<option value="mine">My value</option>');
+    expect(platformShellHtml).toContain('id="practice-strategy"');
     expect(platformShellHtml).toContain('id="standalone-pricing-source"');
     expect(platformShellHtml).toContain('id="standalone-pricing-warnings"');
-    expect(platformShellHtml).toContain('body.personalized === true ? "our" : "market"');
+    expect(platformShellHtml).toContain('body.personalized === true ? "mine" : "market"');
     expect(platformShellHtml).toContain('displayRank: index + 1');
     expect(platformShellHtml).toContain('player.pricingWarnings.filter');
     expect(platformShellHtml).toContain('id="standalone-player-rows"');
     expect(platformShellHtml).toContain('id="standalone-player-scroll" class="table-scroll player-board-scroll"');
     expect(platformShellHtml).toContain('const endpoint = seasonId');
     expect(platformShellHtml).toContain('"/player-catalog?seasonId="');
-    expect(platformShellHtml).toContain('routePath === "/board"');
+    expect(platformShellHtml).toContain("boardRequestGeneration");
+    expect(platformShellHtml).toContain("requestGeneration !== state.boardRequestGeneration");
+    expect(platformShellHtml).toContain('routePath === "/practice"');
+    expect(platformShellHtml).not.toContain('id="standalone-board-open-live"');
     expect(platformShellHtml).toContain("playerCatalog.slice().sort");
     expect(platformShellHtml).toContain("sortedPlayers.filter");
     expect(platformShellHtml).toContain("Create a league");
@@ -185,17 +194,31 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('body.room\n          ? "Removed and saved. League values and the draft room are updated."');
     expect(platformShellHtml).toContain('id="simulation-panel"');
     expect(platformShellHtml).toContain('id="standalone-board-open-simulations"');
+    expect(platformShellHtml).toContain('id="standalone-shortlist-only"');
+    expect(platformShellHtml).toContain('id="standalone-shortlist-count"');
+    expect(platformShellHtml).toContain('fetch("/practice-shortlist"');
+    expect(platformShellHtml).toContain('"/practice-shortlist?seasonId="');
+    expect(platformShellHtml).toContain('className = "shortlist-toggle"');
     expect(platformShellHtml).toContain("simulationPanel.open = true");
     expect(platformShellHtml).toContain('id="simulation-count"');
     expect(platformShellHtml).toContain('id="simulation-strategy"');
     expect(platformShellHtml).toContain('fetch("/season-simulations"');
+    expect(platformShellHtml).toContain("strategyPreset: practiceStrategy.value");
     expect(platformShellHtml).toContain('id="simulation-target-rate"');
-    expect(platformShellHtml).toContain('id="simulation-exposure-body"');
+    expect(platformShellHtml).toContain('id="simulation-run-picker"');
+    expect(platformShellHtml).toContain('id="simulation-league-grid"');
+    expect(platformShellHtml).toContain('simulation.runs || []');
+    expect(platformShellHtml).toContain('if (!isCurrentWorkspaceRequest(seasonId, requestGeneration)) return;');
+    expect(platformShellHtml).toContain('state.playerCatalog = null;');
+    expect(platformShellHtml).toContain('state.playerCatalogMeta = null;');
+    expect(platformShellHtml).not.toContain('Representative roster');
     expect(platformShellHtml).toContain('id="my-team-claim-link"');
     expect(platformShellHtml).toContain('myTeamClaimLink.href = pathWithSeason("/league"');
     expect(platformShellHtml).not.toContain("Accept an invitation from your commissioner to join your league.");
     expect(platformShellHtml).toContain("Create a league as commissioner, or join one from an invitation.");
     expect(platformShellHtml).not.toContain("Use the email address where your league invitation was sent.");
+    expect(platformShellHtml).toContain('get("account") === "password"');
+    expect(platformShellHtml).toContain("const openPasswordDialog = () =>");
   });
 
   it("runs claimed teams through one league-aware mock draft workspace", () => {
@@ -207,6 +230,8 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="mock-draft-buy"');
     expect(platformShellHtml).toContain('id="mock-draft-pass"');
     expect(platformShellHtml).toContain('fetch("/season-mock-drafts"');
+    expect(platformShellHtml).toContain("strategy: requestedStrategy");
+    expect(platformShellHtml).toContain("strategy: practiceStrategy.value");
     expect(platformShellHtml).toContain('"/season-mock-drafts/" + encodeURIComponent');
     expect(platformShellHtml).toContain('type: "start"');
     expect(platformShellHtml).toContain('type: "pick"');
@@ -295,7 +320,8 @@ describe("platform shell UI", () => {
   });
 
   it("keeps league creation available and honors the explicit create route", () => {
-    expect(platformShellHtml).toContain('id="create-league-nav-item"');
+    expect(platformShellHtml).not.toContain('id="create-league-nav-item"');
+    expect(platformShellHtml).toContain('id="account-create-league"');
     expect(platformShellHtml).toContain('href="/league?create=1"');
     expect(platformShellHtml).toContain('routePath === "/league" && search.get("create") === "1"');
     [
@@ -322,9 +348,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="live-draft-readiness-action"');
   });
 
-  it("offers a compact accessible password change flow from the account header", () => {
+  it("offers league and account controls from the avatar menu", () => {
     expect(platformShellHtml).toContain('id="account-settings-button"');
-    expect(platformShellHtml).toContain('aria-haspopup="dialog"');
+    expect(platformShellHtml).toContain('id="account-menu"');
+    expect(platformShellHtml).toContain('id="sign-out-button"');
     expect(platformShellHtml).toContain('id="password-dialog"');
     expect(platformShellHtml).toContain('aria-labelledby="password-dialog-title"');
     expect(platformShellHtml).toContain('id="current-password-input"');
@@ -338,5 +365,16 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('newPasswordConfirmation: confirmPasswordInput.value');
     expect(platformShellHtml).toContain('window.location.assign("/login?passwordChanged=1")');
     expect(platformShellHtml).toContain('id="auth-notice"');
+  });
+
+  it("keeps live drafting on League and shows keepers with league teams", () => {
+    const practiceStart = platformShellHtml.indexOf('id="standalone-board"');
+    const practiceEnd = platformShellHtml.indexOf('id="empty-leagues"');
+    const practiceMarkup = platformShellHtml.slice(practiceStart, practiceEnd);
+
+    expect(practiceMarkup).not.toContain("Live draft");
+    expect(platformShellHtml).toContain('id="open-live-draft-button"');
+    expect(platformShellHtml).toContain('<th>Keepers</th>');
+    expect(platformShellHtml).toContain('renderLeagueOverview(body.season, keepersBody.keepers || [])');
   });
 });

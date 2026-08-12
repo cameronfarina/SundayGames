@@ -75,13 +75,14 @@ describe("season auction mock adapter", () => {
       sessionId: "mock-1",
       seed: "seed-1",
       playerExpectedPrices: { "player 1": 64 },
+      playerHumanValues: { "player 1": 71 },
     });
 
     expect(config.teams.map(team => team.name)).toEqual(["Cam Team", "Sam Team", "Matt Team", "Nick Team"]);
     expect(config.budgetDollars).toBe(200);
     expect(config.rosterSlots).toEqual([{ slot: "BENCH", count: 2, eligiblePositions: ["QB", "RB", "WR", "TE", "K", "DST"] }]);
     expect(config.keepers).toEqual([{ teamId: "team-2", playerId: "player 2", price: 25 }]);
-    expect(config.players[0]).toMatchObject({ id: "player 1", expectedPrice: 64 });
+    expect(config.players[0]).toMatchObject({ id: "player 1", expectedPrice: 64, humanValue: 71 });
   });
 
   it("uses canonical hybrid eligibility and excludes IR from mock capacity", () => {

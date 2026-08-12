@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Owner } from "../../config/league.js";
 import type { ForcedAuctionSale, MockBatch } from "../modeling/mockBatch.js";
+import type { SeasonSimulationResult } from "./seasonSimulationEngine.js";
 
-export const maxSimulationCount = 25;
+export const maxSimulationCount = 100;
 
 export type SimulationPriceMode = "exact" | "ceiling";
 export type SimulationRunStatus = "requested" | "running" | "completed" | "failed" | "canceled";
@@ -103,6 +104,9 @@ export interface SimulationResult {
   softTargetCount: number;
   forcedSales: readonly ForcedAuctionSale[];
   summary: MockBatch["summary"];
+  seasonSimulation?: SeasonSimulationResult | undefined;
+  strategyText?: string | undefined;
+  note?: string | undefined;
 }
 
 export interface SimulationRun {
@@ -283,6 +287,11 @@ export const canReadSimulationRun = (userId: string, run: SimulationRun): boolea
 export interface SimulationRepository {
   createRequest(input: CreateSimulationRequestInput): MaybePromise<SimulationRun>;
   listForUser(userId: string): MaybePromise<SimulationRun[]>;
+  listHistoryForUserSeason(
+    userId: string,
+    seasonId: string,
+    limit: number,
+  ): MaybePromise<SimulationRun[]>;
   fetchForUser(runId: string, userId: string): MaybePromise<SimulationRun | null>;
   find(runId: string): MaybePromise<SimulationRun>;
   markRunning(runId: string, now: Date): MaybePromise<SimulationRun>;
@@ -371,6 +380,22 @@ export class InMemorySimulationRepository implements SimulationRepository {
 
   listForUser(userId: string): SimulationRun[] {
     return [...this.#runsById.values()].filter(run => canReadSimulationRun(userId, run));
+  }
+
+  listHistoryForUserSeason(userId: string, seasonId: string, limit: number): SimulationRun[] {
+    return this.listForUser(userId)
+      .filter(run => run.request.seasonId === seasonId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, limit)
+      .map(run => ({
+        ...run,
+        result: run.result?.seasonSimulation === undefined
+          ? run.result
+          : {
+              ...run.result,
+              seasonSimulation: { ...run.result.seasonSimulation, runs: [] },
+            },
+      }));
   }
 
   fetchForUser(runId: string, userId: string): SimulationRun | null {

@@ -144,3 +144,38 @@ export const parseLiveDraftStrategyKey = (value: unknown): LiveDraftStrategyKey 
   if (typeof value === "string" && value in liveDraftStrategies) return value as LiveDraftStrategyKey;
   return defaultLiveDraftStrategyKey;
 };
+
+export interface StrategyAdjustedAuctionValueInput {
+  marketValue: number;
+  position: Position;
+  strategyKey: LiveDraftStrategyKey;
+  positionCount: number;
+  starterCount: number;
+  flexNeedsPlayer: boolean;
+  maximumBid: number;
+}
+
+export const strategyAdjustedAuctionValue = ({
+  marketValue,
+  position,
+  strategyKey,
+  positionCount,
+  starterCount,
+  flexNeedsPlayer,
+  maximumBid,
+}: StrategyAdjustedAuctionValueInput): number => {
+  const strategy: LiveDraftStrategyDefinition = liveDraftStrategies[strategyKey];
+  let premium = positionCount < starterCount ? strategy.starterPremium[position] ?? 0 : 0;
+  const anchorTarget = strategy.anchorTargets?.[position] ?? 0;
+  if (positionCount < anchorTarget) premium += strategy.depthPremium[position] ?? 0;
+  if (flexNeedsPlayer && (position === "RB" || position === "WR" || position === "TE")) {
+    premium += Math.max(0, strategy.depthPremium[position] ?? 0);
+  }
+  if (position === "K" || position === "DST") premium += strategy.starterPremium[position] ?? -1;
+
+  return Math.min(
+    maximumBid,
+    marketValue + 12,
+    Math.max(1, Math.round(marketValue + premium)),
+  );
+};

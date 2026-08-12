@@ -60,6 +60,9 @@ export interface LiveDraftRoomPlayerCatalogEntry {
   marketPrice?: number | undefined;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
+  week1Projection?: number | undefined;
+  weeks1To4Projection?: number | undefined;
+  seasonProjection?: number | undefined;
 }
 
 export interface LiveDraftRoomInitialRosterPlayer {

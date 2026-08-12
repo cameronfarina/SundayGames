@@ -219,7 +219,7 @@ const signUpAndLogIn = async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-email")).toHaveText(email).catch(async error => {
+  await expect(page.locator("#account-menu-email")).toHaveText(email).catch(async error => {
     const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
     if (!authError.includes("already exists")) throw error;
 
@@ -227,20 +227,21 @@ const signUpAndLogIn = async (
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#account-email"), [
+    await expect(page.locator("#account-menu-email"), [
       `Smoke account ${email} already existed but could not sign in with the configured password.`,
       "Use a fresh MOCKD_E2E_RUN_ID or set MOCKD_E2E_PASSWORD to the password used for that run.",
       authError,
     ].join(" ")).toHaveText(email);
   });
 
+  await page.locator("#account-menu-button").click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.locator("#auth-panel")).toBeVisible();
 
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-email")).toHaveText(email);
+  await expect(page.locator("#account-menu-email")).toHaveText(email);
 
   return expectOk(await api<AccountBody>(page, "/session")).account;
 };
@@ -271,7 +272,7 @@ const pageForExistingUser = async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-email"), [
+  await expect(page.locator("#account-menu-email"), [
     `Could not sign in to the pre-provisioned smoke account ${email}.`,
     "Verify the deployed smoke credential secrets and run production provisioning verification.",
   ].join(" ")).toHaveText(email);
@@ -338,7 +339,7 @@ const applyCommissionerSetup = async (
   sethEmail: string,
 ): Promise<string> => {
   await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#account-email")).toHaveText(camEmail);
+  await expect(page.locator("#account-menu-email")).toHaveText(camEmail);
   await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
   await page.getByText("Advanced: paste a team list", { exact: true }).click();
   await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail, sethEmail));
@@ -385,14 +386,14 @@ const openUnifiedBoard = async (
   seasonId: string,
   expectedPlayerCount?: number,
 ): Promise<void> => {
-  await page.getByRole("link", { name: "Board", exact: true }).click();
-  await expect(page).toHaveURL(/\/board\?contextSeasonId=/);
-  expect(new URL(page.url()).searchParams.get("contextSeasonId")).toBe(seasonId);
+  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await expect(page).toHaveURL(/\/practice\?seasonId=/);
+  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(seasonId);
   await expect(page.locator("#standalone-board")).toBeVisible();
   await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
   await expect(page.locator("#standalone-board-status")).toContainText("loaded");
-  await expect(page.locator("#standalone-board-sort")).toHaveValue(/market|our/);
-  await expect(page.locator("#standalone-pricing-source")).toContainText("Pricing source:");
+  await expect(page.locator("#standalone-board-sort")).toHaveValue(/market|mine/);
+  await expect(page.locator("#standalone-pricing-source")).toContainText("Market uses");
   const boardViewport = await page.locator("#standalone-player-scroll").evaluate(element => ({
     clientHeight: element.clientHeight,
     maxHeight: getComputedStyle(element).maxHeight,
@@ -468,6 +469,12 @@ const exerciseBoardSimulations = async (page: Page): Promise<void> => {
   await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
   await expect(page.locator("#simulation-format")).toHaveText(/Auction|Snake/);
   await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
+  await expect(page.locator("#simulation-run-picker option")).toHaveCount(2);
+  expect(await page.locator(".simulation-team").count()).toBeGreaterThan(1);
+  await expect(page.locator('.simulation-team[data-user-team="true"]')).toHaveCount(1);
+  const weekOneTotal = await page.locator('.simulation-team[data-user-team="true"] .simulation-team-score')
+    .textContent();
+  expect(Number.parseFloat(weekOneTotal ?? "0")).toBeGreaterThan(0);
   await expect(page.locator("#simulation-exposure-body tr").first()).toBeVisible();
 };
 
@@ -690,12 +697,13 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await expect(sethPage.locator("#my-team-name")).toHaveText(memberTeamName);
 
   await openUnifiedBoard(camPage, appliedSeason.id, createdRoom.playerCatalog.length);
-  await expect(camPage.locator("#standalone-board-open-live")).toHaveText("Live draft");
+  await expect(camPage.locator("#standalone-board-open-live")).toHaveCount(0);
   await camPage.getByRole("link", { name: "League", exact: true }).click();
   await expect(camPage).toHaveURL(/\/league\?seasonId=/);
   await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
-  await expect(camPage.locator("#create-league-nav-item")).toBeVisible();
-  await camPage.locator("#create-league-nav-item").click();
+  await camPage.locator("#account-menu-button").click();
+  await expect(camPage.locator("#account-create-league")).toBeVisible();
+  await camPage.locator("#account-create-league").click();
   await expect(camPage).toHaveURL(/\/league\?create=1$/);
   await expect(camPage.locator("#empty-leagues")).toBeVisible();
   await expect(camPage.locator("#league-context")).toBeHidden();
@@ -971,7 +979,7 @@ test("commissioner league switching discards stale setup fetch responses", async
   test.skip(isDeployedSmoke, "Local route delays are not used by deployed smoke.");
   const { page, account } = await pageForLocalFixtureUser(browser, "setup.switch.e2e@example.com");
   await page.setViewportSize({ width: 390, height: 844 });
-  const owners = ["Cam", "Seth", "Beaton"];
+  const owners = ["Cam", "Seth", "Beaton", "Hoody"];
   const buildSeason = (suffix: string, name: string): LeagueSeason => {
     const base = buildCurrentMockdLeagueSeason(owners, { ...leagueConfig, teams: owners.length }, {
       leagueName: name,
@@ -1048,13 +1056,26 @@ test("commissioner league switching discards stale setup fetch responses", async
   });
 
   await page.goto(`/setup?seasonId=${encodeURIComponent(seasonA.id)}`);
-  await expect(page.locator("#league-picker")).toHaveValue(seasonA.id);
-  await page.locator("#league-picker").selectOption(seasonB.id);
+  await expect(page.locator("#header-league-picker")).toHaveValue(seasonA.id);
+  await page.locator("#header-league-picker").selectOption(seasonB.id);
   await expect(page.locator("#setup-invitations")).toContainText("league-b@example.com");
   await expect(page.locator("#setup-team-body")).toContainText("League B Cam");
   await delay(400);
   await expect(page.locator("#setup-invitations")).not.toContainText("league-a@example.com");
   await expect(page.locator("#setup-team-body")).not.toContainText("League A Cam");
+
+  await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page).toHaveURL(/mockSessionId=/);
+  const leagueAMockSessionId = new URL(page.url()).searchParams.get("mockSessionId");
+  await page.locator("#header-league-picker").selectOption(seasonB.id);
+  await expect(page.locator("#header-league-picker")).toHaveValue(seasonB.id);
+  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).searchParams.get("seasonId")).toBe(seasonB.id);
+  await expect.poll(() => new URL(page.url()).searchParams.get("mockSessionId")).not.toBeNull();
+  expect(new URL(page.url()).searchParams.get("mockSessionId")).not.toBe(leagueAMockSessionId);
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Opening your league mock...");
+  await expect(page.locator("#mock-draft-status")).not.toContainText("belongs to another league");
 });
 
 test("deployed platform supports authenticated workspaces without mutating the real draft", async ({ browser }) => {

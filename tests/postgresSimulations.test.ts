@@ -211,6 +211,32 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
 
     if (
       normalizedSql.includes("FROM simulation_runs r LEFT JOIN simulation_results sr") &&
+      normalizedSql.includes("WHERE r.user_id = $1 AND r.league_season_id = $2")
+    ) {
+      const [userId, seasonId, limit] = values as readonly [string, string, number];
+      const rows = [...this.runs.values()]
+        .filter(row => row.user_id === userId && row.league_season_id === seasonId)
+        .sort((left, right) => right.created_at.getTime() - left.created_at.getTime())
+        .slice(0, limit)
+        .map(row => {
+          const joined = this.#joinedRow(row);
+          if (
+            typeof joined.result_set_json === "object"
+            && joined.result_set_json !== null
+            && "seasonSimulation" in joined.result_set_json
+          ) {
+            const result = cloneJson(joined.result_set_json) as Record<string, unknown>;
+            const simulation = result.seasonSimulation as Record<string, unknown>;
+            result.seasonSimulation = { ...simulation, runs: [] };
+            joined.result_set_json = result;
+          }
+          return joined as TRow;
+        });
+      return { rows };
+    }
+
+    if (
+      normalizedSql.includes("FROM simulation_runs r LEFT JOIN simulation_results sr") &&
       normalizedSql.includes("WHERE r.user_id = $1 ORDER BY")
     ) {
       const [userId] = values as readonly [string];
@@ -412,6 +438,10 @@ describe("Postgres simulation repository", () => {
       result: undefined,
     });
     expect(await repository.listForUser("user_cam")).toEqual([firstRun]);
+    await expect(repository.listHistoryForUserSeason("user_cam", "season_2026", 25))
+      .resolves.toEqual([firstRun]);
+    expect(client.queries.at(-1)).toMatchObject({ values: ["user_cam", "season_2026", 25] });
+    expect(client.queries.at(-1)?.text).toContain("jsonb_set");
   });
 
   it("rejects an idempotency key reused with different simulation input", async () => {

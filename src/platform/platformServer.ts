@@ -37,6 +37,8 @@ import { PostgresAuthRepository } from "./postgresAuth.js";
 import { PostgresHistoricalImportRepository } from "./postgresHistoricalImports.js";
 import { PostgresLeagueSetupRepository } from "./postgresLeagueSetup.js";
 import { PostgresSimulationRepository } from "./postgresSimulations.js";
+import { PostgresPracticeShortlistRepository } from "./postgresPracticeShortlists.js";
+import type { PracticeShortlistRepository } from "./practiceShortlists.js";
 import {
   createPlatformHttpHandler,
   type PlatformApp,
@@ -113,6 +115,7 @@ export interface CreatePlatformServerOptions {
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
+  practiceShortlistRepository?: PracticeShortlistRepository | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;
@@ -163,6 +166,7 @@ export interface PlatformServer {
   historicalImportRepository: HistoricalImportRepository;
   jobRepository: JobRepository;
   simulationRepository: SimulationRepository;
+  practiceShortlistRepository: PracticeShortlistRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
   invitationRepository: PlatformInvitationRepository;
@@ -420,6 +424,15 @@ const isSimulationOnlyMutationRequest = (request: PlatformHttpRequest): boolean 
       segments.length === 1 ||
       (segments.length === 3 && segments[2] === "execute")
     );
+};
+
+const isPracticeShortlistOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  const method = request.method.toUpperCase();
+  if (method !== "PUT" && method !== "DELETE") return false;
+
+  const segments = pathSegmentsFor(request);
+
+  return segments !== null && segments.length === 1 && segments[0] === "practice-shortlist";
 };
 
 const isLiveDraftRoomOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
@@ -735,6 +748,7 @@ export const createPlatformServer = async (
     historicalImportRepository: HistoricalImportRepository;
     jobRepository: JobRepository;
     simulationRepository: SimulationRepository;
+    practiceShortlistRepository: PracticeShortlistRepository;
     liveDraftRoomRepository: LiveDraftRoomRepository;
     exportArtifactRepository: ExportArtifactRepository;
     invitationRepository: PlatformInvitationRepository;
@@ -751,6 +765,7 @@ export const createPlatformServer = async (
     postgresHistoricalImportRepository?: PostgresHistoricalImportRepository | undefined;
     postgresJobQueue?: PostgresJobQueue | undefined;
     postgresSimulationRepository?: PostgresSimulationRepository | undefined;
+    postgresPracticeShortlistRepository?: PostgresPracticeShortlistRepository | undefined;
     postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
     postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
     postgresInvitationRepository?: PostgresPlatformInvitationRepository | undefined;
@@ -878,6 +893,11 @@ export const createPlatformServer = async (
     const postgresSimulationRepository = options.postgresSimulationClient === undefined
       ? undefined
       : new PostgresSimulationRepository(options.postgresSimulationClient);
+    const postgresPracticeShortlistRepository = options.practiceShortlistRepository !== undefined ||
+        options.postgresClient === undefined ||
+        !isTransactionalPostgresClient(options.postgresClient)
+      ? undefined
+      : new PostgresPracticeShortlistRepository(options.postgresClient);
     const postgresLiveDraftRoomClient = options.postgresLiveDraftRoomClient ??
       (
         options.liveDraftRoomRepository === undefined &&
@@ -912,6 +932,9 @@ export const createPlatformServer = async (
     const historicalImportRepository = options.historicalImportRepository ?? postgresHistoricalImportRepository ?? store.historicalImports;
     const jobRepository = options.jobRepository ?? postgresJobQueue ?? store.jobs;
     const simulationRepository = options.simulationRepository ?? postgresSimulationRepository ?? store.simulations;
+    const practiceShortlistRepository = options.practiceShortlistRepository ??
+      postgresPracticeShortlistRepository ??
+      store.practiceShortlists;
     const liveDraftRoomRepository = options.liveDraftRoomRepository ?? postgresLiveDraftRoomRepository ?? store.liveDraftRooms;
     const exportArtifactRepository = options.exportArtifactRepository ?? postgresExportArtifactRepository ?? store.exportArtifacts;
     const invitationRepository = options.invitationRepository ??
@@ -962,6 +985,7 @@ export const createPlatformServer = async (
       historicalImportRepository,
       jobRepository,
       simulationRepository,
+      practiceShortlistRepository,
       liveDraftRoomRepository,
       exportArtifactRepository,
       simulationRunner: options.simulationRunner,
@@ -1039,6 +1063,7 @@ export const createPlatformServer = async (
       historicalImportRepository,
       jobRepository,
       simulationRepository,
+      practiceShortlistRepository,
       liveDraftRoomRepository,
       exportArtifactRepository,
       invitationRepository,
@@ -1052,6 +1077,9 @@ export const createPlatformServer = async (
       ...(postgresHistoricalImportRepository === undefined ? {} : { postgresHistoricalImportRepository }),
       ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),
       ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
+      ...(postgresPracticeShortlistRepository === undefined
+        ? {}
+        : { postgresPracticeShortlistRepository }),
       ...(postgresLiveDraftRoomRepository === undefined ? {} : { postgresLiveDraftRoomRepository }),
       ...(postgresExportArtifactRepository === undefined ? {} : { postgresExportArtifactRepository }),
       ...(postgresInvitationRepository === undefined ? {} : { postgresInvitationRepository }),
@@ -1073,6 +1101,8 @@ export const createPlatformServer = async (
     const usesExternalHistoricalImportRepository = runtime.historicalImportRepository !== runtime.store.historicalImports;
     const usesExternalJobRepository = runtime.jobRepository !== runtime.store.jobs;
     const usesExternalSimulationRepository = runtime.simulationRepository !== runtime.store.simulations;
+    const usesExternalPracticeShortlistRepository =
+      runtime.practiceShortlistRepository !== runtime.store.practiceShortlists;
     const usesExternalLiveDraftRoomRepository = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
     const usesExternalExportArtifactRepository = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
     const skipSnapshotPersist =
@@ -1097,6 +1127,10 @@ export const createPlatformServer = async (
       (
         usesExternalSimulationRepository &&
         isSimulationOnlyMutationRequest(requestWithNow)
+      ) ||
+      (
+        usesExternalPracticeShortlistRepository &&
+        isPracticeShortlistOnlyMutationRequest(requestWithNow)
       ) ||
       (
         usesExternalJobRepository &&
@@ -1150,7 +1184,14 @@ export const createPlatformServer = async (
         return { response };
       });
 
-      return await prepared.response;
+      const response = await prepared.response;
+      if (
+        runtime.simulationRepository === runtime.store.simulations
+        && shouldPersistAfter(requestWithNow, response.status)
+      ) {
+        await persist();
+      }
+      return response;
     }
     const eventStreamRequest = liveDraftRoomEventStreamRequestFor(requestWithNow);
     if (eventStreamRequest !== null) {
@@ -1360,6 +1401,9 @@ export const createPlatformServer = async (
     get simulationRepository() {
       return runtime.simulationRepository;
     },
+    get practiceShortlistRepository() {
+      return runtime.practiceShortlistRepository;
+    },
     get liveDraftRoomRepository() {
       return runtime.liveDraftRoomRepository;
     },
@@ -1460,6 +1504,9 @@ export const startPlatformServer = async (
     },
     get simulationRepository() {
       return platformServer.simulationRepository;
+    },
+    get practiceShortlistRepository() {
+      return platformServer.practiceShortlistRepository;
     },
     get liveDraftRoomRepository() {
       return platformServer.liveDraftRoomRepository;

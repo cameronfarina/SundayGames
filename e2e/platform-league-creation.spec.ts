@@ -8,7 +8,7 @@ const signUp = async (page: import("@playwright/test").Page, email: string): Pro
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-email")).toHaveText(email);
+  await expect(page.locator("#account-menu-email")).toHaveText(email);
 };
 
 test("league setup follows the complete manual workflow", async ({ page }) => {

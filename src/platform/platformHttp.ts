@@ -1,5 +1,11 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
+import {
+  liveDraftStrategies,
+  parseLiveDraftStrategyKey,
+  strategyAdjustedAuctionValue,
+  type LiveDraftStrategyKey,
+} from "../modeling/liveDraftStrategies.js";
 import { AuthError, normalizeEmail } from "./auth.js";
 import type {
   ClientAddressRateLimiter,
@@ -119,6 +125,7 @@ import {
   PostDraftLiveRoomAdapterError,
 } from "./postDraftLiveRoomAdapter.js";
 import type { PostDraftProjectionSnapshot } from "./postDraftTeamAnalysis.js";
+import { loadLeagueScoredWeekOneProjections } from "./currentPostDraftProjectionSnapshot.js";
 import {
   applySeasonKeeperCommand,
   listSeasonKeepers,
@@ -142,6 +149,7 @@ import {
   type GenericAuctionMockState,
 } from "./genericAuctionMockEngine.js";
 import {
+  maximumSeasonSimulationRunCount,
   runSeasonSimulations,
   SeasonSimulationError,
 } from "./seasonSimulationEngine.js";
@@ -2056,10 +2064,42 @@ interface SeasonMockDraftContext {
   setup: LiveDraftRoomSetup;
 }
 
+const withCurrentProjectionFields = async (
+  setup: LiveDraftRoomSetup,
+  currentPlayerCatalogProvider: PlatformHttpServices["currentPlayerCatalogProvider"],
+): Promise<LiveDraftRoomSetup> => {
+  if (currentPlayerCatalogProvider === undefined) return setup;
+
+  const currentCatalog = await currentPlayerCatalogProvider();
+  const currentPlayersByIdentity = new Map(
+    currentCatalog.map(player => [canonicalPlayerIdentityKey(player.name), player]),
+  );
+  return {
+    ...setup,
+    playerCatalog: setup.playerCatalog.map(player => {
+      const current = currentPlayersByIdentity.get(canonicalPlayerIdentityKey(player.name));
+      if (current === undefined) return player;
+      return {
+        ...player,
+        ...(current.week1Projection === undefined
+          ? {}
+          : { week1Projection: current.week1Projection }),
+        ...(current.weeks1To4Projection === undefined
+          ? {}
+          : { weeks1To4Projection: current.weeks1To4Projection }),
+        ...(current.seasonProjection === undefined
+          ? {}
+          : { seasonProjection: current.seasonProjection }),
+      };
+    }),
+  };
+};
+
 const seasonMockConfigurationSnapshotFor = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   context: SeasonMockDraftContext,
+  strategyKey: LiveDraftStrategyKey,
 ): Promise<SeasonMockConfigurationSnapshotV1> => {
   const snapshots = context.season.settings.draftFormat === "auction"
     ? await app.listLeaguePricingSnapshots({
@@ -2070,17 +2110,60 @@ const seasonMockConfigurationSnapshotFor = async (
         now: request.now,
       })
     : [];
-  const playerExpectedPrices = Object.fromEntries(
+  const marketPrices = new Map(
     (snapshots.at(-1)?.rows ?? []).map(row => [
       canonicalPlayerIdentityKey(row.playerName),
-      row.personalValue,
+      row.scenarioPrice,
     ]),
   );
+  const humanKeepers = context.setup.initialRosters.filter(player =>
+    player.source === "keeper" && player.teamId === context.membership.teamId
+  );
+  const positionCounts = humanKeepers.reduce<Record<string, number>>((counts, keeper) => {
+    counts[keeper.position] = (counts[keeper.position] ?? 0) + 1;
+    return counts;
+  }, {});
+  const flexTarget = ["RB", "WR", "TE"].reduce(
+    (total, position) => total + Number(context.season.settings.roster.lineup[position] ?? 0),
+    Number(context.season.settings.roster.lineup.FLEX ?? 0),
+  );
+  const currentFlexPlayers = ["RB", "WR", "TE"].reduce(
+    (total, position) => total + (positionCounts[position] ?? 0),
+    0,
+  );
+  const isAuction = context.season.settings.draftFormat === "auction";
+  const budget = isAuction ? context.season.settings.auction.budgetDollars : 1;
+  const minimumBid = isAuction ? context.season.settings.auction.minimumBidDollars : 1;
+  const budgetRemaining = budget - humanKeepers.reduce((total, keeper) => total + keeper.price, 0);
+  const openRosterSlots = Math.max(0, context.season.settings.roster.rosterSize - humanKeepers.length);
+  const humanMaximumBid = Math.max(
+    0,
+    budgetRemaining - Math.max(0, openRosterSlots - 1) * minimumBid,
+  );
+  const playerExpectedPrices = Object.fromEntries(context.setup.playerCatalog.map(player => {
+    const playerKey = canonicalPlayerIdentityKey(player.name);
+    const marketValue = marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice;
+    return [playerKey, marketValue];
+  }));
+  const playerHumanValues = Object.fromEntries(context.setup.playerCatalog.map(player => {
+    const playerKey = canonicalPlayerIdentityKey(player.name);
+    const marketValue = marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice;
+    return [playerKey, isAuction ? strategyAdjustedAuctionValue({
+      marketValue,
+      position: player.position,
+      strategyKey,
+      positionCount: positionCounts[player.position] ?? 0,
+      starterCount: Number(context.season.settings.roster.lineup[player.position] ?? 0),
+      flexNeedsPlayer: currentFlexPlayers < flexTarget,
+      maximumBid: humanMaximumBid,
+    }) : marketValue];
+  }));
   return createSeasonMockConfigurationSnapshot({
     season: context.season,
     setup: context.setup,
     humanTeamId: context.membership.teamId,
     playerExpectedPrices,
+    playerHumanValues,
     capturedAt: request.now,
   });
 };
@@ -2091,7 +2174,9 @@ const seasonMockDraftSetupFor = async (
   services: PlatformHttpServices,
 ): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
   const stored = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
-  if (stored !== null) return stored;
+  if (stored !== null) {
+    return withCurrentProjectionFields(stored, services.currentPlayerCatalogProvider);
+  }
   const fallback = await services.liveDraftRoomSetupProvider?.(season) ?? null;
   if (fallback === null) {
     return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
@@ -2187,6 +2272,7 @@ const auctionStateForSeasonMock = async (
   context: SeasonMockDraftContext,
   session: MockDraftSession,
   playerExpectedPrices: Readonly<Record<string, number>>,
+  playerHumanValues: Readonly<Record<string, number>>,
   additionalCommand?: string,
 ): Promise<GenericAuctionMockState> => {
   const config = buildSeasonAuctionMockConfig({
@@ -2196,6 +2282,7 @@ const auctionStateForSeasonMock = async (
     sessionId: session.id,
     seed: session.id,
     playerExpectedPrices,
+    playerHumanValues,
   });
   const commandLog = session.commandLog.map(command => command.command);
 
@@ -2223,6 +2310,7 @@ const stateForSeasonMock = async (
         replayContext,
         session,
         snapshot.playerExpectedPrices,
+        snapshot.playerHumanValues,
         additionalCommand,
       );
 };
@@ -2252,6 +2340,8 @@ const routeSeasonMockDrafts = async (
 
   if (request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
+    const strategyKey = parseLiveDraftStrategyKey(optionalString(request.body.strategy) ?? "balanced");
+    const strategy = liveDraftStrategies[strategyKey];
     const mockSession = await app.createMockDraftSession({
       actorSessionToken: request.sessionToken,
       leagueId: context.season.leagueId,
@@ -2261,9 +2351,9 @@ const routeSeasonMockDrafts = async (
       draftMode: {
         format: context.season.settings.draftFormat,
         mockCount: 1,
-        label: `${context.season.league.name} mock draft`,
+        label: `${context.season.league.name} ${strategy.label} mock draft`,
       },
-      configurationSnapshot: await seasonMockConfigurationSnapshotFor(app, request, context),
+      configurationSnapshot: await seasonMockConfigurationSnapshotFor(app, request, context, strategyKey),
       status: "setup",
       now: request.now,
     });
@@ -2337,14 +2427,60 @@ const routeSeasonSimulations = async (
   request: ParsedPlatformHttpRequest,
   services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
+  if (request.method === "GET" && request.segments.length === 1) {
+    const seasonId = stringValue(request.query.seasonId);
+    const runs = await app.listSimulationRuns({
+      actorSessionToken: request.sessionToken,
+      seasonId,
+      historyLimit: 25,
+      now: request.now,
+    });
+    return {
+      status: 200,
+      body: {
+        history: runs
+          .filter(run => run.request.seasonId === seasonId && run.result?.seasonSimulation !== undefined)
+          .map(run => ({
+            id: run.id,
+            createdAt: run.createdAt,
+            completedAt: run.completedAt,
+            note: run.result?.note,
+            strategyText: run.result?.strategyText,
+            simulation: {
+              draftFormat: run.result?.seasonSimulation?.draftFormat,
+              runCount: run.result?.seasonSimulation?.runCount,
+              completedCount: run.result?.seasonSimulation?.completedCount,
+              strategy: run.result?.seasonSimulation?.strategy,
+              targetOutcome: run.result?.seasonSimulation?.targetOutcome,
+            },
+          })),
+      },
+    };
+  }
+  if (request.method === "GET" && request.segments.length === 2) {
+    const run = await app.getSimulationRun({
+      actorSessionToken: request.sessionToken,
+      runId: request.segments[1] ?? "",
+      now: request.now,
+    });
+    if (run.result?.seasonSimulation === undefined) return notFound();
+    return {
+      status: 200,
+      body: {
+        simulation: run.result.seasonSimulation,
+        note: run.result.note,
+        historyId: run.id,
+      },
+    };
+  }
   if (request.segments.length !== 1 || request.method !== "POST") {
     return request.segments.length === 1 ? methodNotAllowed() : notFound();
   }
   const runCount = optionalNumber(request.body.count) ?? Number.NaN;
-  if (!Number.isInteger(runCount) || runCount < 1 || runCount > 25) {
+  if (!Number.isInteger(runCount) || runCount < 1 || runCount > maximumSeasonSimulationRunCount) {
     throw new SeasonSimulationError(
       "invalid_run_count",
-      "Simulation run count must be a whole number from 1 through 25.",
+      `Simulation run count must be a whole number from 1 through ${maximumSeasonSimulationRunCount}.`,
     );
   }
   const context = await seasonMockDraftContextFor(
@@ -2373,23 +2509,140 @@ const routeSeasonSimulations = async (
   const playerExpectedPrices = Object.fromEntries(
     (snapshots.at(-1)?.rows ?? []).map(row => [
       canonicalPlayerIdentityKey(row.playerName),
-      row.personalValue,
+      row.scenarioPrice,
     ]),
   );
+  const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
+  const presetStrategyInput: Readonly<Record<LiveDraftStrategyKey, string>> = {
+    balanced: "",
+    "three-rb": "prioritize 3 elite RBs",
+    "hero-rb": "prioritize 1 elite RB and prioritize an elite WR",
+    "wr-heavy": "prioritize 3 elite WRs",
+  };
+  const strategyInput = [
+    presetStrategyInput[strategyPreset],
+    optionalString(request.body.strategy) ?? "",
+  ].filter(Boolean).join(" and ");
+  const week1Projections = await loadLeagueScoredWeekOneProjections(
+    context.season,
+    context.setup.playerCatalog,
+  );
+  const seedPrefix = `season-simulation:${context.season.id}:${randomUUID()}`;
   const simulationInput = {
     season: context.season,
     setup: context.setup,
     humanTeamId: context.membership.teamId,
     runCount,
-    strategyInput: optionalString(request.body.strategy) ?? "",
-    seedPrefix: `season-simulation:${context.season.id}:${randomUUID()}`,
+    strategyInput,
+    seedPrefix,
+    week1Projections,
     ...(context.season.settings.draftFormat === "auction" ? { playerExpectedPrices } : {}),
   };
   const simulation = services.seasonSimulationRunner === undefined
     ? runSeasonSimulations(simulationInput)
     : await services.seasonSimulationRunner(simulationInput, { signal: request.signal });
 
-  return { status: 200, body: { simulation } };
+  const createdAt = request.now ?? new Date();
+  const storedRun = await app.createSimulationRun({
+    actorSessionToken: request.sessionToken,
+    leagueId: context.season.leagueId,
+    seasonId: context.season.id,
+    ownerId: context.membership.ownerId,
+    teamId: context.membership.teamId,
+    count: runCount,
+    seedPrefix,
+    idempotencyKey: `season-simulation:${randomUUID()}`,
+    strategy: {},
+    now: createdAt,
+  });
+  const completedRun = await app.completeSeasonSimulationRun({
+    actorSessionToken: request.sessionToken,
+    runId: storedRun.id,
+    result: {
+      runId: storedRun.id,
+      requestId: storedRun.request.id,
+      completedAt: createdAt,
+      runCount,
+      seedPrefix,
+      hardLockCount: 0,
+      softTargetCount: 0,
+      forcedSales: [],
+      summary: { runCount, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
+      seasonSimulation: simulation,
+      strategyText: strategyInput,
+      ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
+        ? { note: request.body.note.trim().slice(0, 1_000) }
+        : {}),
+    },
+    now: createdAt,
+  });
+
+  return { status: 200, body: { simulation, historyId: completedRun.id } };
+};
+
+const routePracticeShortlist = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+): Promise<PlatformHttpResponse> => {
+  if (request.segments.length !== 1) return notFound();
+  const seasonId = request.method === "GET"
+    ? stringValue(request.query.seasonId)
+    : optionalString(request.body.seasonId) ?? "";
+  const season = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  });
+
+  if (request.method === "GET") {
+    return {
+      status: 200,
+      body: { items: await app.listPracticeShortlist({
+        actorSessionToken: request.sessionToken,
+        seasonId: season.id,
+        now: request.now,
+      }) },
+    };
+  }
+
+  const playerName = optionalString(request.body.playerName) ?? "";
+  if (playerName.length === 0) {
+    return knownError(400, "player_required", "Choose a player before changing your shortlist.");
+  }
+  if (request.method === "DELETE") {
+    const removed = await app.removePracticeShortlistItem({
+      actorSessionToken: request.sessionToken,
+      seasonId: season.id,
+      playerName,
+      now: request.now,
+    });
+    return { status: 200, body: { removed } };
+  }
+  if (request.method !== "PUT") return methodNotAllowed();
+
+  const setup = await seasonMockDraftSetupFor(season, request, services);
+  if ("status" in setup) return setup;
+  const player = setup.playerCatalog.find(candidate =>
+    canonicalPlayerIdentityKey(candidate.name) === canonicalPlayerIdentityKey(playerName)
+  );
+  if (player === undefined) {
+    return knownError(404, "player_not_found", "That player is not in this season's catalog.");
+  }
+  const maxBid = optionalNumber(request.body.maxBid);
+  if (maxBid !== undefined && (!Number.isInteger(maxBid) || maxBid < 0)) {
+    return knownError(400, "invalid_max_bid", "Maximum bid must be a non-negative whole dollar amount.");
+  }
+  const item = await app.savePracticeShortlistItem({
+    actorSessionToken: request.sessionToken,
+    seasonId: season.id,
+    playerName: player.name,
+    position: player.position,
+    ...(maxBid === undefined ? {} : { maxBid }),
+    now: request.now,
+  });
+
+  return { status: 200, body: { item } };
 };
 
 const routeLiveRooms = async (
@@ -3120,17 +3373,32 @@ export const createPlatformHttpHandler = (
           seasonId,
           now: parsedRequest.now,
         });
+        const setup = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
+        const keepers = setup?.initialRosters.filter(player => player.source === "keeper") ?? [];
+        const keeperByPlayer = new Map(keepers.map(keeper => [
+          canonicalPlayerIdentityKey(keeper.playerName),
+          keeper,
+        ]));
         if (season.settings.draftFormat === "snake") {
           return {
             status: 200,
             body: {
               draftFormat: "snake",
               personalized: false,
-              players: players.map((player, index) => ({
-                ...player,
-                marketRank: index + 1,
-                leagueRank: index + 1,
-              })),
+              players: players.map((player, index) => {
+                const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
+                return {
+                  ...player,
+                  marketRank: index + 1,
+                  leagueRank: index + 1,
+                  isKeeper: keeper !== undefined,
+                  ...(keeper === undefined ? {} : {
+                    keeperTeamId: keeper.teamId,
+                    keeperRound: keeper.keeperRound,
+                    keeperPrice: keeper.price,
+                  }),
+                };
+              }),
             },
           };
         }
@@ -3145,21 +3413,65 @@ export const createPlatformHttpHandler = (
         const pricingByPlayer = new Map(
           (latest?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
         );
+        const strategyKey = parseLiveDraftStrategyKey(optionalString(parsedRequest.query.strategy) ?? "balanced");
+        const strategy = liveDraftStrategies[strategyKey];
+        const membership = (await app.listLeagueMemberships(season.leagueId))
+          .find(candidate => candidate.userId === account.id);
+        const myKeepers = keepers.filter(keeper => keeper.teamId === membership?.teamId);
+        const keeperPositionCounts = myKeepers.reduce<Record<string, number>>((counts, keeper) => {
+          counts[keeper.position] = (counts[keeper.position] ?? 0) + 1;
+          return counts;
+        }, {});
+        const flexTarget = ["RB", "WR", "TE"].reduce(
+          (total, position) => total + Number(season.settings.roster.lineup[position] ?? 0),
+          Number(season.settings.roster.lineup.FLEX ?? 0),
+        );
+        const currentFlexPlayers = ["RB", "WR", "TE"].reduce(
+          (total, position) => total + (keeperPositionCounts[position] ?? 0),
+          0,
+        );
+        const keeperSpend = myKeepers.reduce((total, keeper) => total + keeper.price, 0);
+        const openRosterSlots = Math.max(0, season.settings.roster.rosterSize - myKeepers.length);
+        const maximumBid = Math.max(
+          0,
+          season.settings.auction.budgetDollars
+            - keeperSpend
+            - Math.max(0, openRosterSlots - 1) * season.settings.auction.minimumBidDollars,
+        );
 
         return {
           status: 200,
           body: {
             draftFormat: "auction",
             personalized: latest !== undefined,
+            strategyKey,
+            strategyLabel: strategy.label,
             ...(latest === undefined ? {} : { pricingModelRunId: latest.modelRunId }),
             players: players.map(player => {
               const pricing = pricingByPlayer.get(canonicalPlayerIdentityKey(player.name));
+              const marketPrice = pricing?.scenarioPrice ?? player.expectedPrice;
+              const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
+              const myValue = strategyAdjustedAuctionValue({
+                marketValue: marketPrice,
+                position: player.position,
+                strategyKey,
+                positionCount: keeperPositionCounts[player.position] ?? 0,
+                starterCount: Number(season.settings.roster.lineup[player.position] ?? 0),
+                flexNeedsPlayer: currentFlexPlayers < flexTarget,
+                maximumBid,
+              });
 
               return {
                 ...player,
-                marketPrice: player.expectedPrice,
-                leagueValue: pricing?.personalValue ?? player.expectedPrice,
-                recommendedMaxBid: pricing?.recommendedMaxBid ?? player.expectedPrice,
+                marketPrice,
+                myValue,
+                leagueValue: myValue,
+                recommendedMaxBid: Math.min(myValue, pricing?.recommendedMaxBid ?? myValue),
+                isKeeper: keeper !== undefined,
+                ...(keeper === undefined ? {} : {
+                  keeperTeamId: keeper.teamId,
+                  keeperPrice: keeper.price,
+                }),
                 pricingWarnings: pricing?.warnings ?? [],
               };
             }),
@@ -3260,6 +3572,7 @@ export const createPlatformHttpHandler = (
       if (root === "mock-sessions") return await routeMockSessions(app, parsedRequest);
       if (root === "season-mock-drafts") return await routeSeasonMockDrafts(app, parsedRequest, services);
       if (root === "season-simulations") return await routeSeasonSimulations(app, parsedRequest, services);
+      if (root === "practice-shortlist") return await routePracticeShortlist(app, parsedRequest, services);
       if (root === "live-rooms") return await routeLiveRooms(app, parsedRequest, services);
 
       return notFound();

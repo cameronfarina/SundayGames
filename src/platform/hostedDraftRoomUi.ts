@@ -162,6 +162,55 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       flex-wrap: wrap;
     }
 
+    .draft-league-picker { width: min(260px, 42vw); }
+
+    .draft-account-menu { position: relative; }
+    .draft-account-menu > summary { list-style: none; cursor: pointer; }
+    .draft-account-menu > summary::-webkit-details-marker { display: none; }
+    .draft-account-avatar {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: var(--surface-raised);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .draft-account-menu[open] .draft-account-avatar { border-color: var(--accent); }
+    .draft-account-popover {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 8px);
+      right: 0;
+      display: grid;
+      width: min(300px, calc(100vw - 24px));
+      gap: 4px;
+      padding: 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-raised);
+      box-shadow: 0 16px 36px rgb(0 0 0 / 0.42);
+    }
+    .draft-account-email { padding: 4px 7px 9px; font-size: 13px; overflow-wrap: anywhere; }
+    .draft-account-context { padding: 0 7px 8px; color: var(--muted); font-size: 12px; }
+    .draft-account-command {
+      width: 100%;
+      min-height: 38px;
+      padding: 9px 10px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: left;
+      text-decoration: none;
+    }
+    .draft-account-command:hover { background: var(--surface-soft); color: var(--accent-strong); }
+
     .header-link {
       display: inline-flex;
       align-items: center;
@@ -513,7 +562,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       .draft-heading { padding: 14px 12px 2px; }
       .draft-header-meta { gap: 7px; }
       .header-link { min-height: 44px; }
-      .account-chip { display: none; }
+      .draft-league-picker { width: min(184px, 50vw); }
       h1 { font-size: 22px; }
 
       .draft-command-panel {
@@ -581,20 +630,32 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 <body>
   <main class="draft-shell" id="draft-room-view" data-platform-live-room aria-labelledby="draft-room-title">
     <header class="topbar">
-      <a class="brand" id="draft-brand" href="/app">Mockd</a>
+      <a class="brand" id="draft-brand" href="/practice">Mockd</a>
       <div class="draft-header-meta">
-        <span class="status-chip account-chip" id="draft-account">Checking account</span>
+        <label class="visually-hidden" for="draft-league-picker">Active league</label>
+        <select id="draft-league-picker" class="draft-league-picker" aria-label="Active league" hidden></select>
         <span class="status-chip" id="draft-connection-status" role="status" aria-live="polite" data-state="reconnecting">
           <span class="connection-dot" aria-hidden="true"></span>
           <span id="draft-connection-label">Connecting</span>
         </span>
-        <button id="draft-sign-out" type="button" hidden>Sign out</button>
+        <details id="draft-account-menu" class="draft-account-menu" hidden>
+          <summary aria-label="Open account menu" title="Account">
+            <span id="draft-account-avatar" class="draft-account-avatar" aria-hidden="true">?</span>
+          </summary>
+          <div class="draft-account-popover">
+            <strong id="draft-account-email" class="draft-account-email"></strong>
+            <div id="draft-account-context" class="draft-account-context"></div>
+            <a id="draft-account-league" class="draft-account-command" href="/league">League home</a>
+            <a id="draft-account-password" class="draft-account-command" href="/practice?account=password">Change password</a>
+            <button id="draft-sign-out" class="draft-account-command" type="button">Sign out</button>
+          </div>
+        </details>
       </div>
     </header>
     <nav class="product-nav" aria-label="Primary">
-      <a class="product-nav-link" id="draft-nav-board" href="/board">Board</a>
+      <a class="product-nav-link" id="draft-nav-practice" href="/practice">Practice</a>
       <a class="product-nav-link" id="draft-league-home" href="/league">League</a>
-      <a class="product-nav-link" id="draft-nav-my-team" href="/my-team">My Team</a>
+      <a class="product-nav-link" id="draft-nav-my-team" href="/my-team">My team</a>
       <span class="product-nav-link" aria-current="page">Live draft</span>
     </nav>
     <div class="draft-heading draft-header-main">
@@ -749,7 +810,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         <div class="board-scroll desktop-board" tabindex="0" aria-label="Available player board">
           <table>
             <thead>
-              <tr id="draft-board-head-row"><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Market</th><th class="money" scope="col">Our</th></tr>
+              <tr id="draft-board-head-row"><th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th><th scope="col">Bye</th><th class="money" scope="col">Baseline</th><th class="money" scope="col">Market</th></tr>
             </thead>
             <tbody id="draft-board-rows">
               <tr><td colspan="6" class="loading-state">Loading players</td></tr>
@@ -786,16 +847,22 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const byId = id => document.getElementById(id);
     if (seasonId) {
       const seasonQuery = "?seasonId=" + encodeURIComponent(seasonId);
-      byId("draft-brand").href = "/app" + seasonQuery;
-      byId("draft-nav-board").href = "/board" + seasonQuery;
+      byId("draft-brand").href = "/practice" + seasonQuery;
+      byId("draft-nav-practice").href = "/practice" + seasonQuery;
       byId("draft-league-home").href = "/league" + seasonQuery;
       byId("draft-nav-my-team").href = "/my-team" + seasonQuery;
       byId("draft-fatal-league-home").href = "/league" + seasonQuery;
       byId("draft-view-my-team").href = "/my-team?seasonId=" + encodeURIComponent(seasonId);
+      byId("draft-account-league").href = "/league" + seasonQuery;
+      byId("draft-account-password").href = "/practice" + seasonQuery + "&account=password";
     }
     const roomTitle = byId("draft-room-title");
     const roomContent = byId("draft-room-content");
-    const accountLabel = byId("draft-account");
+    const accountMenu = byId("draft-account-menu");
+    const accountEmail = byId("draft-account-email");
+    const accountAvatar = byId("draft-account-avatar");
+    const accountContext = byId("draft-account-context");
+    const leaguePicker = byId("draft-league-picker");
     const connectionStatus = byId("draft-connection-status");
     const connectionLabel = byId("draft-connection-label");
     const fatalError = byId("draft-fatal-error");
@@ -1007,9 +1074,9 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         const price = document.createElement("span");
         prices.className = "player-card-prices";
         market.className = "player-card-market";
-        market.textContent = "Market " + dollars(player.marketPrice ?? player.expectedPrice);
+        market.textContent = "Baseline " + dollars(player.marketPrice ?? player.expectedPrice);
         price.className = "player-card-price";
-        price.textContent = "Our " + dollars(player.expectedPrice);
+        price.textContent = "Market " + dollars(player.expectedPrice);
         prices.append(market, price);
         if (canManage) row.appendChild(usePlayerButtonFor(player));
         row.append(playerIdentityFor(player), prices);
@@ -1049,8 +1116,8 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
         { label: "Pos", className: "" },
         { label: "NFL", className: "" },
         { label: "Bye", className: "" },
+        { label: "Baseline", className: "money" },
         { label: "Market", className: "money" },
-        { label: "Our", className: "money" },
       ];
       const columns = columnDefinitions.map(column => {
         const heading = document.createElement("th");
@@ -1398,6 +1465,33 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       }
     };
 
+    const renderAccountHeader = onboarding => {
+      const email = String(state.account?.email || "");
+      const localPart = email.split("@")[0];
+      accountEmail.textContent = email;
+      accountAvatar.textContent = localPart
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part.charAt(0).toUpperCase())
+        .join("") || "?";
+      accountMenu.hidden = false;
+
+      leaguePicker.replaceChildren();
+      (onboarding.leagues || []).forEach(league => {
+        const option = document.createElement("option");
+        option.value = league.seasonId;
+        option.textContent = league.leagueName + " · " + league.seasonYear;
+        option.selected = league.seasonId === seasonId;
+        leaguePicker.append(option);
+      });
+      leaguePicker.hidden = leaguePicker.options.length === 0;
+      const activeLeague = (onboarding.leagues || []).find(league => league.seasonId === seasonId);
+      accountContext.textContent = activeLeague?.membership?.teamDisplayName
+        ? activeLeague.membership.teamDisplayName + " · " + activeLeague.membership.role
+        : activeLeague?.membership?.role || "League member";
+    };
+
     const bootstrap = async () => {
       if (!seasonId || !roomId) {
         showFatalError("This draft room link is incomplete. Ask the commissioner for a link with seasonId and roomId.");
@@ -1407,14 +1501,14 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       try {
         const sessionBody = await readJson(await fetch("/session", getRequest));
         state.account = sessionBody.account;
-        accountLabel.textContent = state.account.email;
-        signOutButton.hidden = false;
-        const [seasonBody, roomBody] = await Promise.all([
+        const [seasonBody, roomBody, onboardingBody] = await Promise.all([
           readJson(await fetch(seasonEndpoint(), getRequest)),
           readJson(await fetch(roomEndpoint(), getRequest)),
+          readJson(await fetch("/onboarding", getRequest)),
         ]);
         state.season = seasonBody.season;
         state.room = roomBody.room;
+        renderAccountHeader(onboardingBody);
         if (state.season.id !== seasonId || state.room.seasonId !== seasonId || state.room.roomId !== roomId) {
           throw new Error("This draft room does not belong to the requested league season.");
         }
@@ -1500,6 +1594,9 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
 
     cancelCorrectionButton.addEventListener("click", closeCorrection);
     signOutButton.addEventListener("click", () => signOut());
+    leaguePicker.addEventListener("change", () => {
+      window.location.assign("/league?seasonId=" + encodeURIComponent(leaguePicker.value));
+    });
     exportButton.addEventListener("click", () => exportDraft().catch(error => setFeedback(error.message, "error")));
     playerSearch.addEventListener("input", () => state.model && renderBoard(state.model));
     positionFilter.addEventListener("change", () => state.model && renderBoard(state.model));

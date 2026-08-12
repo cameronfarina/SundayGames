@@ -366,6 +366,67 @@ describe("platform HTTP contract", () => {
     expect(currentPlayerCatalogProvider).toHaveBeenCalledTimes(1);
   });
 
+  it("marks snake keepers on the Practice catalog", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
+    const handle = createPlatformHttpHandler(app, {
+      currentPlayerCatalogProvider: async () => snakePlayerCatalog,
+      liveDraftRoomSetupRepository,
+    });
+    const cam = await createLoggedInAccount(handle, "snake-practice-keepers@example.com");
+    const season = snakeSeason();
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+    await liveDraftRoomSetupRepository.save({
+      seasonId: season.id,
+      sourceVersion: "snake-keepers",
+      playerCatalog: snakePlayerCatalog,
+      initialRosters: [{
+        teamId: season.teams[0]?.id ?? "snake-team-1",
+        playerId: "player 1",
+        playerName: "Player 1",
+        position: "RB",
+        price: 1,
+        keeperRound: 1,
+        source: "keeper",
+      }],
+      updatedAt: now,
+    });
+
+    await expect(handle({
+      method: "GET",
+      path: "/player-catalog",
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        draftFormat: "snake",
+        players: expect.arrayContaining([
+          expect.objectContaining({
+            name: "Player 1",
+            isKeeper: true,
+            keeperRound: 1,
+            keeperTeamId: season.teams[0]?.id,
+          }),
+        ]),
+      },
+    });
+  });
+
   it("reviews ESPN league settings for a signed-in commissioner before creating anything", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const outcome = {
@@ -622,8 +683,15 @@ describe("platform HTTP contract", () => {
       body: {
         draftFormat: "auction",
         personalized: true,
+        strategyKey: "balanced",
         players: expect.arrayContaining([
-          expect.objectContaining({ marketPrice: 73, leagueValue: 73 }),
+          expect.objectContaining({ marketPrice: 73, myValue: 78, leagueValue: 78 }),
+          expect.objectContaining({
+            name: "De'Von Achane",
+            isKeeper: true,
+            keeperTeamId: camTeam.id,
+            keeperPrice: 50,
+          }),
         ]),
       },
     });
@@ -1233,13 +1301,28 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/season-mock-drafts",
       sessionToken: cam.sessionToken,
-      body: { seasonId: season.id },
+      body: { seasonId: season.id, strategy: "wr-heavy" },
     });
     expect(created).toMatchObject({
       status: 201,
       body: {
-        mockSession: { draftMode: { format: "auction" } },
-        state: { session: { status: "setup", phase: "not_started" } },
+        mockSession: {
+          draftMode: { format: "auction", label: expect.stringContaining("WR Heavy") },
+          configurationSnapshot: {
+            payload: {
+              playerExpectedPrices: expect.any(Object),
+              playerHumanValues: expect.any(Object),
+            },
+          },
+        },
+        state: {
+          session: { status: "setup", phase: "not_started" },
+          board: {
+            players: expect.arrayContaining([
+              expect.objectContaining({ expectedPrice: expect.any(Number), humanValue: expect.any(Number) }),
+            ]),
+          },
+        },
       },
     });
     const mockSession = expectBodyRecord(created.body).mockSession as { id: string };
@@ -1260,10 +1343,16 @@ describe("platform HTTP contract", () => {
 
   it("runs private league-aware simulations for a claimed team", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
+      liveDraftRoomSetupRepository,
+      currentPlayerCatalogProvider: async () => snakePlayerCatalog.map((player, index) => ({
+        ...player,
+        week1Projection: index + 1,
+      })),
       simulationRateLimiter: createClientAddressRateLimiter({
-        maxAttempts: 1,
+        maxAttempts: 2,
         windowMs: 60_000,
         maxTrackedEmails: 10,
       }),
@@ -1286,6 +1375,13 @@ describe("platform HTTP contract", () => {
         }],
       },
     });
+    await liveDraftRoomSetupRepository.save({
+      seasonId: season.id,
+      sourceVersion: "legacy-catalog-without-projections",
+      playerCatalog: snakePlayerCatalog,
+      initialRosters: [],
+      updatedAt: now,
+    });
 
     await expect(handle({
       method: "POST",
@@ -1302,15 +1398,22 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/season-simulations",
       sessionToken: cam.sessionToken,
-      body: { seasonId: season.id, count: 26, strategy: "Draft Player 1 by round 1" },
+      body: { seasonId: season.id, count: 101, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_run_count" } } });
 
-    await expect(handle({
+    const simulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: cam.sessionToken,
-      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
-    })).resolves.toMatchObject({
+      now,
+      body: {
+        seasonId: season.id,
+        count: 2,
+        strategy: "Draft Player 1 by round 1",
+        note: "Compare a first-round target.",
+      },
+    });
+    expect(simulationResponse).toMatchObject({
       status: 200,
       body: {
         simulation: {
@@ -1322,20 +1425,134 @@ describe("platform HTTP contract", () => {
             warnings: [],
           },
           targetOutcome: { playerName: "Player 1", hitCount: 2, hitRate: 1 },
-          representativeRoster: expect.any(Array),
+          runs: expect.arrayContaining([
+            expect.objectContaining({
+              label: "Run 1",
+              teams: expect.arrayContaining([
+                expect.objectContaining({ roster: expect.any(Array), week1Points: expect.any(Number) }),
+              ]),
+            }),
+          ]),
         },
+      },
+    });
+    const simulation = expectBodyRecord(expectBodyRecord(simulationResponse.body).simulation);
+    const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
+    const runs = simulation.runs as Array<{ teams: Array<{ roster: Array<{ week1Points: number }> }> }>;
+    expect(runs[0]?.teams.flatMap(team => team.roster).some(player => player.week1Points > 0)).toBe(true);
+    const newerSimulationResponse = await handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 1_000),
+      body: { seasonId: season.id, count: 1, strategy: "Draft Player 2 by round 2" },
+    });
+    const newerHistoryId = expectString(expectBodyRecord(newerSimulationResponse.body).historyId);
+    await expect(handle({
+      method: "GET",
+      path: "/season-simulations",
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        history: [
+          { id: newerHistoryId, simulation: { runCount: 1, draftFormat: "snake" } },
+          {
+            id: historyId,
+            note: "Compare a first-round target.",
+            simulation: { runCount: 2, draftFormat: "snake" },
+          },
+        ],
+      },
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        historyId,
+        note: "Compare a first-round target.",
+        simulation: { runCount: 2, runs: expect.any(Array) },
       },
     });
     await expect(handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 2_000),
       body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({
       status: 429,
       body: { error: { code: "rate_limited" } },
-      headers: { "Retry-After": "60" },
+      headers: { "Retry-After": "58" },
     });
+  });
+
+  it("persists a Practice shortlist privately for each league member", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
+    });
+    const cam = await createLoggedInAccount(handle, "practice-shortlist@example.com");
+    const outsider = await createLoggedInAccount(handle, "practice-shortlist-outsider@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+
+    await expect(handle({
+      method: "GET",
+      path: "/practice-shortlist",
+      query: { seasonId: season.id },
+    })).resolves.toMatchObject({ status: 401 });
+    await expect(handle({
+      method: "PUT",
+      path: "/practice-shortlist",
+      sessionToken: outsider.sessionToken,
+      body: { seasonId: season.id, playerName: "Puka Nacua", position: "WR" },
+    })).resolves.toMatchObject({ status: 403, body: { error: { code: "membership_required" } } });
+    await expect(handle({
+      method: "PUT",
+      path: "/practice-shortlist",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, playerName: "puka nacua", position: "WR" },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { item: { playerName: "Puka Nacua", position: "WR", userId: cam.account.id } },
+    });
+    await expect(handle({
+      method: "GET",
+      path: "/practice-shortlist",
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { items: [{ playerName: "Puka Nacua", position: "WR" }] },
+    });
+    expect(store.snapshot().practiceShortlistItems).toHaveLength(1);
+    await expect(handle({
+      method: "DELETE",
+      path: "/practice-shortlist",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, playerName: "Puka Nacua" },
+    })).resolves.toMatchObject({ status: 200, body: { removed: true } });
+    expect(store.snapshot().practiceShortlistItems).toHaveLength(0);
   });
 
   it("changes a signed-in password, clears the cookie, and requires every device to sign in again", async () => {

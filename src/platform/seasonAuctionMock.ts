@@ -33,6 +33,7 @@ export interface BuildSeasonAuctionMockConfigInput {
   sessionId: string;
   seed: string;
   playerExpectedPrices?: Readonly<Record<string, number>> | undefined;
+  playerHumanValues?: Readonly<Record<string, number>> | undefined;
 }
 
 const allPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
@@ -115,6 +116,7 @@ export const buildSeasonAuctionMockConfig = ({
   sessionId,
   seed,
   playerExpectedPrices = {},
+  playerHumanValues = playerExpectedPrices,
 }: BuildSeasonAuctionMockConfigInput): GenericAuctionMockConfig => {
   if (season.settings.draftFormat !== "auction") {
     throw new SeasonAuctionMockError("wrong_draft_format", "This mock session is not an auction draft.");
@@ -142,6 +144,7 @@ export const buildSeasonAuctionMockConfig = ({
         name: player.name,
         position: player.position,
         expectedPrice: playerExpectedPrices[id] ?? player.expectedPrice,
+        humanValue: playerHumanValues[id] ?? playerExpectedPrices[id] ?? player.expectedPrice,
       };
     }),
     keepers: setup.initialRosters

@@ -194,6 +194,15 @@ const resultFromRow = (row: SimulationRunRow): SimulationResult | undefined => {
     summary: isRecord(resultJson.summary)
       ? JSON.parse(JSON.stringify(resultJson.summary)) as SimulationResult["summary"]
       : { runCount: request.count, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
+    ...(isRecord(resultJson.seasonSimulation)
+      ? {
+          seasonSimulation: JSON.parse(JSON.stringify(resultJson.seasonSimulation)) as NonNullable<
+            SimulationResult["seasonSimulation"]
+          >,
+        }
+      : {}),
+    ...(typeof resultJson.strategyText === "string" ? { strategyText: resultJson.strategyText } : {}),
+    ...(typeof resultJson.note === "string" ? { note: resultJson.note } : {}),
   };
 };
 
@@ -219,6 +228,21 @@ SELECT
   sr.id AS result_id,
   sr.summary_json,
   sr.result_set_json,
+  sr.created_at AS result_created_at
+FROM simulation_runs r
+LEFT JOIN simulation_results sr ON sr.simulation_run_id = r.id
+`.trim();
+
+const selectSimulationHistorySql = `
+SELECT
+  r.*,
+  sr.id AS result_id,
+  sr.summary_json,
+  CASE
+    WHEN sr.result_set_json ? 'seasonSimulation'
+      THEN jsonb_set(sr.result_set_json, '{seasonSimulation,runs}', '[]'::jsonb, false)
+    ELSE sr.result_set_json
+  END AS result_set_json,
   sr.created_at AS result_created_at
 FROM simulation_runs r
 LEFT JOIN simulation_results sr ON sr.simulation_run_id = r.id
@@ -309,6 +333,18 @@ RETURNING *, NULL::text AS result_id, NULL::jsonb AS summary_json, NULL::jsonb A
     const result = await this.#client.query<SimulationRunRow>(
       `${selectSimulationWithResultSql} WHERE r.user_id = $1 ORDER BY r.created_at ASC, r.id ASC`,
       [userId],
+    );
+
+    return result.rows.map(runFromRow);
+  }
+
+  async listHistoryForUserSeason(userId: string, seasonId: string, limit: number): Promise<SimulationRun[]> {
+    const result = await this.#client.query<SimulationRunRow>(
+      `${selectSimulationHistorySql}
+WHERE r.user_id = $1 AND r.league_season_id = $2
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3`,
+      [userId, seasonId, limit],
     );
 
     return result.rows.map(runFromRow);

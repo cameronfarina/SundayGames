@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { request as httpRequest, type ClientRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,6 +61,7 @@ import {
   type SimulationRun,
 } from "../src/platform/simulations.js";
 import { runSeasonSimulations } from "../src/platform/seasonSimulationEngine.js";
+import { InMemoryPracticeShortlistRepository } from "../src/platform/practiceShortlists.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -955,6 +956,10 @@ class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.listForUser(userId);
   }
 
+  async listHistoryForUserSeason(userId: string, seasonId: string, limit: number): Promise<SimulationRun[]> {
+    return this.inner.listHistoryForUserSeason(userId, seasonId, limit);
+  }
+
   async fetchForUser(runId: string, userId: string): Promise<SimulationRun | null> {
     return this.inner.fetchForUser(runId, userId);
   }
@@ -1497,7 +1502,7 @@ describe("platform server composition", () => {
     expect(draftRoom.body).not.toContain("id=\"draft-room-link\"");
   });
 
-  it("serves the board before league selection and keeps private prep scoped to members", async () => {
+  it("serves Practice before league selection and keeps private prep scoped to members", async () => {
     directory = await mkdtemp(join(tmpdir(), "mockd-platform-draft-tools-"));
     const draftSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
     const { platformServer, baseUrl } = await createListeningServer({
@@ -1510,7 +1515,7 @@ describe("platform server composition", () => {
     });
 
     const anonymousBoard = await fetch(
-      `${baseUrl}/board?seasonId=${season.id}&strategy=balanced`,
+      `${baseUrl}/practice?seasonId=${season.id}&strategy=balanced`,
       {
         redirect: "manual",
       },
@@ -1564,19 +1569,19 @@ describe("platform server composition", () => {
     });
     const outsiderSessionToken = (outsiderLogin.body as { sessionToken: string }).sessionToken;
 
-    const missingSeason = await fetch(`${baseUrl}/board`, {
+    const missingSeason = await fetch(`${baseUrl}/practice`, {
       headers: { "x-session-token": sessionToken },
     });
     expect(missingSeason.status).toBe(200);
     expect(await missingSeason.text()).toContain("id=\"standalone-board\"");
 
-    const outsiderBoard = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
+    const outsiderBoard = await fetch(`${baseUrl}/practice?seasonId=${season.id}`, {
       headers: { "x-session-token": outsiderSessionToken },
     });
     expect(outsiderBoard.status).toBe(200);
     expect(await outsiderBoard.text()).toContain("id=\"standalone-board\"");
 
-    const board = await fetch(`${baseUrl}/board?seasonId=${season.id}`, {
+    const board = await fetch(`${baseUrl}/practice?seasonId=${season.id}`, {
       headers: { "x-session-token": sessionToken },
     });
     expect(board.status).toBe(200);
@@ -3112,6 +3117,73 @@ describe("platform server composition", () => {
     await expect(simulation).resolves.toMatchObject({ status: 200 });
   });
 
+  it("persists completed season simulation history in the file-backed store", async () => {
+    const dataFilePath = await storePath();
+    const playerCatalog = await loadCurrentPlayerCatalog();
+    const { platformServer } = await createListeningServer({
+      dataFilePath,
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      liveDraftRoomSetupProvider: async season => ({
+        seasonId: season.id,
+        sourceVersion: "season-simulation-persistence",
+        playerCatalog,
+        initialRosters: currentLeagueInitialRostersFor(season),
+        contentHash: "season-simulation-persistence-hash",
+        updatedAt: now,
+      }),
+    });
+    const account = await platformServer.app.createAccount({
+      email: "season-simulation-persistence@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected season simulation persistence fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Persistent simulations",
+      setupStatus: "published",
+    });
+    const claimedTeam = season.teams[0];
+    if (claimedTeam === undefined) throw new Error("Expected a season simulation persistence fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+      now,
+    });
+    await platformServer.persist();
+
+    await expect(platformServer.handler({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: login.sessionToken,
+      body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
+      now,
+    })).resolves.toMatchObject({ status: 200 });
+
+    const saved = JSON.parse(await readFile(dataFilePath, "utf8")) as {
+      simulationRuns?: Array<{ status?: string; result?: { seasonSimulation?: { runCount?: number } } }>;
+    };
+    expect(saved.simulationRuns).toEqual([
+      expect.objectContaining({
+        status: "completed",
+        result: expect.objectContaining({
+          seasonSimulation: expect.objectContaining({ runCount: 1 }),
+        }),
+      }),
+    ]);
+  });
+
   it("keeps concurrent simulation input handoffs request-scoped", async () => {
     const firstSetupReadEntered = deferred();
     const releaseFirstSetupRead = deferred();
@@ -3686,6 +3758,61 @@ describe("platform server composition", () => {
     };
     expect(savedSnapshot.jobs).toEqual([]);
     expect(savedSnapshot.simulationRuns).toEqual([]);
+  });
+
+  it("does not persist the unrelated snapshot after an external shortlist mutation", async () => {
+    const dataFilePath = await storePath();
+    const practiceShortlistRepository = new InMemoryPracticeShortlistRepository();
+    const { platformServer, baseUrl } = await createListeningServer({
+      dataFilePath,
+      practiceShortlistRepository,
+      currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
+    });
+    await platformServer.app.createAccount({
+      email: "shortlist-storage@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: "shortlist-storage@example.com",
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected shortlist fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{
+        userId: login.account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+      }],
+      now,
+    });
+    await platformServer.persist();
+    await rm(dataFilePath, { force: true });
+    await mkdir(dataFilePath);
+
+    await expect(jsonFetch(baseUrl, "/practice-shortlist", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": login.sessionToken,
+      },
+      body: JSON.stringify({
+        seasonId: season.id,
+        playerName: "Puka Nacua",
+      }),
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { item: { playerName: "Puka Nacua" } },
+    });
+    await expect(practiceShortlistRepository.listForUserSeason(login.account.id, season.id)).resolves.toHaveLength(1);
   });
 
   it("creates a Postgres job queue when a transactional job client is configured", async () => {

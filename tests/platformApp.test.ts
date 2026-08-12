@@ -27,7 +27,11 @@ import {
   type LogLiveDraftRoomSaleInput,
   type MutateLiveDraftRoomInput,
 } from "../src/platform/liveDraftRooms.js";
-import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+import {
+  InMemorySimulationRepository,
+  type SimulationMockBatchRunner,
+  type SimulationResult,
+} from "../src/platform/simulations.js";
 import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -754,6 +758,67 @@ describe("platform app service", () => {
       "private_team_required",
       "Private prep can only use your claimed team.",
     ));
+  });
+
+  it("marks a synchronous season simulation failed when completion persistence throws", async () => {
+    class FailingCompletionRepository extends InMemorySimulationRepository {
+      override complete(_runId: string, _result: SimulationResult): never {
+        throw new Error("completion unavailable");
+      }
+    }
+
+    const simulationRepository = new FailingCompletionRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      simulationRepository,
+      simulationRunner: mockRunner,
+    });
+    const cam = await signUpAndLogin(app, "failed-season-sim@example.com", "cam password", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [{
+        userId: cam.account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: camTeam.ownerId,
+        teamId: camTeam.id,
+      }],
+    });
+    const run = await app.createSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      leagueId: season.leagueId,
+      seasonId: season.id,
+      ownerId: camTeam.ownerId,
+      teamId: camTeam.id,
+      count: 1,
+      seedPrefix: "failed-completion",
+      idempotencyKey: "failed-completion",
+      strategy: {},
+      now,
+    });
+    const result: SimulationResult = {
+      runId: run.id,
+      requestId: run.request.id,
+      completedAt: now,
+      runCount: 1,
+      seedPrefix: run.request.seedPrefix,
+      hardLockCount: 0,
+      softTargetCount: 0,
+      forcedSales: [],
+      summary: { runCount: 1, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
+    };
+
+    await expect(app.completeSeasonSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: run.id,
+      result,
+      now,
+    })).rejects.toThrow("completion unavailable");
+    expect(simulationRepository.find(run.id).status).toBe("failed");
   });
 
   it("blocks outsider setup overwrites and replaces omitted league memberships", async () => {

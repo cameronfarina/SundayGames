@@ -2,13 +2,43 @@ import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import { loadEspnWeeksOneToFour } from "../src/projections.js";
-import { loadCurrentPostDraftProjectionSnapshot } from "../src/platform/currentPostDraftProjectionSnapshot.js";
+import {
+  loadCurrentPostDraftProjectionSnapshot,
+  loadLeagueScoredWeekOneProjections,
+} from "../src/platform/currentPostDraftProjectionSnapshot.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import { postDraftScoringSettingsIdForSeason } from "../src/platform/postDraftLiveRoomAdapter.js";
 import { analyzePostDraftTeam } from "../src/platform/postDraftTeamAnalysis.js";
 
 describe("current post-draft projection snapshots", () => {
+  it("provides Week 1 projections using the selected league scoring", async () => {
+    const halfPprSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const fullPprSeason = structuredClone(halfPprSeason);
+    fullPprSeason.settings.scoring.reception = 1;
+    const catalog = [{ name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 }];
+
+    const halfPpr = await loadLeagueScoredWeekOneProjections(halfPprSeason, catalog);
+    const fullPpr = await loadLeagueScoredWeekOneProjections(fullPprSeason, catalog);
+    const playerKey = canonicalPlayerIdentityKey("Puka Nacua");
+
+    expect(halfPpr[playerKey]).toBeCloseTo(17.6401733628, 8);
+    expect((fullPpr[playerKey] ?? 0) - (halfPpr[playerKey] ?? 0)).toBeCloseTo(
+      7.346944725 * 0.5,
+      8,
+    );
+  });
+
+  it("leaves kicker and defense projections on the provider baseline", async () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const projections = await loadLeagueScoredWeekOneProjections(season, [
+      { name: "Brandon Aubrey", position: "K", expectedPrice: 2 },
+      { name: "Broncos D/ST", position: "DST", expectedPrice: 2 },
+    ]);
+
+    expect(projections).toEqual({});
+  });
+
   it("recomputes season points for the league scoring while preserving static source provenance", async () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
     season.settings.scoring = {

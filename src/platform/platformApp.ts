@@ -94,6 +94,7 @@ import {
   type CreateSimulationRequestInput,
   type SimulationRepository,
   type SimulationMockBatchRunner,
+  type SimulationResult,
   type SimulationRun,
 } from "./simulations.js";
 import {
@@ -120,6 +121,11 @@ import {
   type PricingSnapshotRepository,
   type PricingSourcePrice,
 } from "./pricingSnapshots.js";
+import {
+  InMemoryPracticeShortlistRepository,
+  type PracticeShortlistItem,
+  type PracticeShortlistRepository,
+} from "./practiceShortlists.js";
 import {
   authorizeSharedLeagueResourceRead,
   authorizeSharedLeagueSetupMutation,
@@ -177,6 +183,22 @@ export interface GetLeagueSeasonInput {
   now?: Date | undefined;
 }
 
+export interface ListPracticeShortlistInput {
+  actorSessionToken: string;
+  seasonId: string;
+  now?: Date | undefined;
+}
+
+export interface SavePracticeShortlistInput extends ListPracticeShortlistInput {
+  playerName: string;
+  position: string;
+  maxBid?: number | undefined;
+}
+
+export interface RemovePracticeShortlistInput extends ListPracticeShortlistInput {
+  playerName: string;
+}
+
 export interface LogoutInput {
   actorSessionToken: string;
   now?: Date | undefined;
@@ -213,6 +235,13 @@ export interface ExecutePlatformSimulationRunInput {
   now?: Date | undefined;
 }
 
+export interface CompletePlatformSeasonSimulationRunInput {
+  actorSessionToken: string;
+  runId: string;
+  result: SimulationResult;
+  now?: Date | undefined;
+}
+
 export interface ExecutePlatformSimulationRunForWorkerInput {
   runId: string;
   userId: string;
@@ -230,6 +259,8 @@ export interface EnqueuePlatformSimulationRunJobInput {
 
 export interface ListPlatformSimulationRunsInput {
   actorSessionToken: string;
+  seasonId?: string | undefined;
+  historyLimit?: number | undefined;
   now?: Date | undefined;
 }
 
@@ -443,6 +474,7 @@ export interface PlatformAppOptions {
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
+  practiceShortlistRepository?: PracticeShortlistRepository | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -457,6 +489,7 @@ export interface InMemoryPlatformStoreSnapshot {
   memberships: readonly PlatformLeagueMembership[];
   mockDraftSessions: readonly MockDraftSession[];
   simulationRuns: readonly SimulationRun[];
+  practiceShortlistItems: readonly PracticeShortlistItem[];
   liveDraftRooms: readonly LiveDraftRoom[];
   liveDraftRoomSetups: readonly LiveDraftRoomSetup[];
   historicalImportBatches: readonly HistoricalImportBatch[];
@@ -499,6 +532,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   readonly mockDraftSessions = new InMemoryMockDraftSessionRepository();
   readonly pricingSnapshots: PricingSnapshotRepository = createInMemoryPricingSnapshotRepository();
   readonly simulations = new InMemorySimulationRepository();
+  readonly practiceShortlists = new InMemoryPracticeShortlistRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
   readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
   readonly #leagueSeasonsById = new Map<string, LeagueSeason>();
@@ -659,6 +693,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
       memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),
       mockDraftSessions: this.mockDraftSessions.sessions(),
       simulationRuns: this.simulations.runs(),
+      practiceShortlistItems: this.practiceShortlists.items(),
       liveDraftRooms: this.liveDraftRooms.rooms(),
       liveDraftRoomSetups: this.liveDraftRoomSetups.setups(),
       historicalImportBatches: this.historicalImports.batches(),
@@ -746,6 +781,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.liveDraftRoomSetups.replaceSetups([...storedDraftSetups, ...recoveredDraftSetups]);
     this.mockDraftSessions.replaceSessions(snapshot.mockDraftSessions ?? []);
     this.simulations.replaceRuns(snapshot.simulationRuns ?? []);
+    this.practiceShortlists.replaceItems(snapshot.practiceShortlistItems ?? []);
   }
 
   #syncHistoricalImportSeasons(): void {
@@ -761,6 +797,7 @@ export const createPlatformApp = ({
   historicalImportRepository,
   jobRepository,
   simulationRepository,
+  practiceShortlistRepository,
   liveDraftRoomRepository,
   exportArtifactRepository,
   simulationRunner,
@@ -776,6 +813,7 @@ export const createPlatformApp = ({
   });
   const jobs = jobRepository ?? store.jobs;
   const simulations = simulationRepository ?? store.simulations;
+  const practiceShortlists = practiceShortlistRepository ?? store.practiceShortlists;
   const liveDraftRooms = liveDraftRoomRepository ?? store.liveDraftRooms;
   const exportArtifacts = exportArtifactRepository ?? store.exportArtifacts;
   const usesExternalLeagueSetup = leagueSetup !== store;
@@ -1162,6 +1200,41 @@ export const createPlatformApp = ({
     getLeagueSeason: async (input: GetLeagueSeasonInput): Promise<LeagueSeason> =>
       cloneForRead(await requireSeasonRead(await requireAccount(input.actorSessionToken, input.now), input.seasonId)),
 
+    listPracticeShortlist: async (
+      input: ListPracticeShortlistInput,
+    ): Promise<readonly PracticeShortlistItem[]> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      await requireSeasonRead(account, input.seasonId);
+
+      return cloneForRead(await practiceShortlists.listForUserSeason(account.id, input.seasonId));
+    },
+
+    savePracticeShortlistItem: async (
+      input: SavePracticeShortlistInput,
+    ): Promise<PracticeShortlistItem> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const season = await requireSeasonRead(account, input.seasonId);
+
+      return cloneForRead(await practiceShortlists.save({
+        leagueId: season.leagueId,
+        seasonId: season.id,
+        userId: account.id,
+        playerName: input.playerName,
+        position: input.position,
+        ...(input.maxBid === undefined ? {} : { maxBid: input.maxBid }),
+        now: input.now,
+      }));
+    },
+
+    removePracticeShortlistItem: async (
+      input: RemovePracticeShortlistInput,
+    ): Promise<boolean> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      await requireSeasonRead(account, input.seasonId);
+
+      return await practiceShortlists.remove(account.id, input.seasonId, input.playerName);
+    },
+
     createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       await requirePrivateTeamContext(account, input);
@@ -1196,6 +1269,29 @@ export const createPlatformApp = ({
       }));
     },
 
+    completeSeasonSimulationRun: async (
+      input: CompletePlatformSeasonSimulationRunInput,
+    ): Promise<SimulationRun> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const run = await simulations.fetchForUser(input.runId, account.id);
+      if (run === null) {
+        throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+      }
+      await requirePrivateTeamContext(account, run.request);
+      await simulations.markRunning(run.id, input.now ?? new Date());
+
+      try {
+        return cloneForRead(await simulations.complete(run.id, input.result));
+      } catch (error) {
+        try {
+          await simulations.markFailed(run.id);
+        } catch {
+          // Preserve the completion error while making a best effort to record failure.
+        }
+        throw error;
+      }
+    },
+
     executeSimulationRunForWorker: async (input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun> => {
       const run = await simulations.find(input.runId);
       if (
@@ -1223,8 +1319,11 @@ export const createPlatformApp = ({
     listSimulationRuns: async (input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
 
+      const runs = input.seasonId === undefined
+        ? await simulations.listForUser(account.id)
+        : await simulations.listHistoryForUserSeason(account.id, input.seasonId, input.historyLimit ?? 25);
       const readableRuns: SimulationRun[] = [];
-      for (const run of await simulations.listForUser(account.id)) {
+      for (const run of runs) {
         if (await canReadPrivateTeamContext(account, run.request)) {
           readableRuns.push(run);
         }

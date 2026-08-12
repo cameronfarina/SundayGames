@@ -110,9 +110,22 @@ export const localDemoPlayerCatalog = localDemoRankedPlayers.map((player, index)
 })) satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
-  const catalog: LiveDraftRoomPlayerCatalogEntry[] = [...localDemoPlayerCatalog];
-  const includedPlayerIdentities = new Set(catalog.map(player => canonicalPlayerIdentityKey(player.name)));
   const projections = await loadEspnWeeksOneToFour(localDemoProjectionPath);
+  const projectionsByIdentity = new Map(
+    projections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
+  );
+  const projectionFields = (projection: (typeof projections)[number] | undefined) => projection === undefined
+    ? {}
+    : {
+        week1Projection: projection.weeks[1] ?? 0,
+        weeks1To4Projection: projection.weeks1To4,
+        ...(projection.seasonProjection === undefined ? {} : { seasonProjection: projection.seasonProjection }),
+      };
+  const catalog: LiveDraftRoomPlayerCatalogEntry[] = localDemoPlayerCatalog.map(player => ({
+    ...player,
+    ...projectionFields(projectionsByIdentity.get(canonicalPlayerIdentityKey(player.name))),
+  }));
+  const includedPlayerIdentities = new Set(catalog.map(player => canonicalPlayerIdentityKey(player.name)));
   const rankedProjections = [...projections].sort((left, right) =>
     (left.espnRank ?? Number.MAX_SAFE_INTEGER) - (right.espnRank ?? Number.MAX_SAFE_INTEGER)
     || (right.espnAuctionValue ?? 0) - (left.espnAuctionValue ?? 0)
@@ -132,6 +145,7 @@ export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoom
       name: projection.name,
       position: projection.position,
       expectedPrice: Math.max(1, Math.round(projection.espnAuctionValue ?? expectedPriceForRank(catalog.length + 1))),
+      ...projectionFields(projection),
       ...(team === undefined ? {} : { teamAbbreviation: team.abbreviation, byeWeek: team.byeWeek }),
     });
     includedPlayerIdentities.add(playerIdentity);
