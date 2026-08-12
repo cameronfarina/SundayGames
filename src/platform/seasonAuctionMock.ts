@@ -137,6 +137,7 @@ export const buildSeasonAuctionMockConfig = ({
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),
     rosterSlots: rosterSlotsFor(season),
     positionMaximums: positionMaximumsFor(season, setup),
+    ai: { targetEndingBudgetDollars: 0 },
     players: setup.playerCatalog.map(player => {
       const id = canonicalPlayerIdentityKey(player.name);
       return {

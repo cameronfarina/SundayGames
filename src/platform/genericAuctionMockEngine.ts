@@ -44,6 +44,8 @@ export interface GenericAuctionMockAiConfig {
   defaultBidMultiplier?: number | undefined;
   rosterNeedDollars?: number | undefined;
   randomness?: number | undefined;
+  spendPacingExcludedPlayerIds?: readonly string[] | undefined;
+  targetEndingBudgetDollars?: number | undefined;
 }
 
 export interface GenericAuctionMockConfig {
@@ -390,6 +392,27 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
   if (aiValues.some(value => !isNonNegativeFinite(value))) {
     throw new GenericAuctionMockError("invalid_config", "AI settings must be non-negative finite numbers.");
   }
+  if (
+    config.ai?.targetEndingBudgetDollars !== undefined
+    && (!Number.isInteger(config.ai.targetEndingBudgetDollars)
+      || config.ai.targetEndingBudgetDollars < 0
+      || config.ai.targetEndingBudgetDollars >= config.budgetDollars)
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "AI target ending budget must be a non-negative whole-dollar amount below the auction budget.",
+    );
+  }
+  const spendPacingExcludedPlayerIds = config.ai?.spendPacingExcludedPlayerIds ?? [];
+  if (
+    new Set(spendPacingExcludedPlayerIds).size !== spendPacingExcludedPlayerIds.length
+    || spendPacingExcludedPlayerIds.some(playerId => !playerIds.includes(playerId))
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "AI spend-pacing exclusions must reference unique players in the auction catalog.",
+    );
+  }
 
   for (const team of config.teams) {
     const tendency = team.aiTendency;
@@ -572,11 +595,94 @@ const averageRosterNeedFor = (
 const expectedSecondHighestNoiseFraction = (bidderCount: number): number =>
   bidderCount < 2 ? 0 : (bidderCount - 3) / (bidderCount + 1);
 
+const auctionClearingPriceCushionDollars = 2;
+
+const projectedRosterPricesAfterAcquiring = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+): readonly number[] => {
+  const assignedSlot = assignableSlotFor(team, player);
+  if (assignedSlot === undefined) return [];
+
+  const openSlots = team.slots
+    .filter(slot => slot.playerId === undefined && slot.slot !== assignedSlot.slot)
+    .map(slot => ({ ...slot }));
+  const positionCounts = {
+    ...team.positionCounts,
+    [player.position]: (team.positionCounts[player.position] ?? 0) + 1,
+  };
+  const prices = [player.expectedPrice];
+  const candidates = state.board.players
+    .filter(candidate => candidate.id !== player.id && candidate.status === "available")
+    .sort((left, right) =>
+      right.expectedPrice - left.expectedPrice || left.id.localeCompare(right.id)
+    );
+
+  for (const candidate of candidates) {
+    if (prices.length >= team.rosterSlotsRemaining) break;
+    if ((positionCounts[candidate.position] ?? 0)
+      >= (state.configuration.positionMaximums[candidate.position] ?? 0)) continue;
+    const slotIndex = openSlots
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot }) => slot.eligiblePositions.includes(candidate.position))
+      .sort((left, right) =>
+        left.slot.eligiblePositions.length - right.slot.eligiblePositions.length
+        || left.slot.slot.localeCompare(right.slot.slot)
+      )[0]?.index;
+    if (slotIndex === undefined) continue;
+
+    openSlots.splice(slotIndex, 1);
+    positionCounts[candidate.position] = (positionCounts[candidate.position] ?? 0) + 1;
+    prices.push(candidate.expectedPrice);
+  }
+
+  return prices;
+};
+
+const aiSpendPacingBidFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+  ignoreExclusions = false,
+): number => {
+  const targetEndingBudget = state.configuration.ai?.targetEndingBudgetDollars;
+  if (
+    targetEndingBudget === undefined
+    || team.rosterSlotsRemaining <= 0
+    || (!ignoreExclusions
+      && state.configuration.ai?.spendPacingExcludedPlayerIds?.includes(player.id))
+  ) return 0;
+
+  const minimumBid = state.configuration.minimumBidDollars;
+  const projectedPrices = projectedRosterPricesAfterAcquiring(state, team, player);
+  if (projectedPrices.length !== team.rosterSlotsRemaining) return 0;
+
+  const discretionaryBudget = Math.max(
+    0,
+    team.budgetRemaining - targetEndingBudget - team.rosterSlotsRemaining * minimumBid,
+  );
+  const projectedDiscretionaryValue = projectedPrices.reduce(
+    (total, price) => total + Math.max(0, price - minimumBid),
+    0,
+  );
+  const playerWeight = Math.max(0, player.expectedPrice - minimumBid);
+  const playerShare = projectedDiscretionaryValue === 0
+    ? Math.floor(discretionaryBudget / team.rosterSlotsRemaining)
+    : Math.ceil(discretionaryBudget * playerWeight / projectedDiscretionaryValue);
+
+  return Math.min(
+    team.maxBid,
+    minimumBid + playerShare + auctionClearingPriceCushionDollars,
+  );
+};
+
 const aiMaxBidFor = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockPlayer,
   nominationNumber: number,
+  ignoreSpendPacingExclusions = false,
 ): number => {
   if (!canAcquire(state, team, player, state.configuration.minimumBidDollars)) return 0;
 
@@ -607,7 +713,10 @@ const aiMaxBidFor = (
     - competitionNoiseBias,
   ));
 
-  return Math.min(team.maxBid, willingness);
+  return Math.min(team.maxBid, Math.max(
+    willingness,
+    aiSpendPacingBidFor(state, team, player, ignoreSpendPacingExclusions),
+  ));
 };
 
 const nominationScoreFor = (
@@ -858,15 +967,26 @@ interface AiMaximum {
 const aiMaximumsFor = (
   state: GenericAuctionMockState,
   nomination: GenericAuctionMockNomination,
+  forceSpendPacing = false,
 ): readonly AiMaximum[] => {
   const player = playerFor(state, nomination.playerId);
+  const humanTeam = teamFor(state, state.configuration.humanTeamId);
+  const ignoreSpendPacingExclusions = forceSpendPacing
+    || nomination.humanPassed
+    || !canAcquire(state, humanTeam, player, state.configuration.minimumBidDollars);
 
   return state.teams
     .filter(team => !team.isHuman)
     .map(team => ({
       team,
       maximum: Math.max(
-        aiMaxBidFor(state, team, player, nomination.number),
+        aiMaxBidFor(
+          state,
+          team,
+          player,
+          nomination.number,
+          ignoreSpendPacingExclusions,
+        ),
         nomination.highestBidderTeamId === team.id ? nomination.currentPrice : 0,
       ),
     }))
@@ -960,7 +1080,7 @@ const progressCurrentNomination = (
     const requiredPrice = leader.team.id === nomination.highestBidderTeamId
       ? nomination.currentPrice
       : nomination.currentPrice + 1;
-    const marketPrice = Math.min(
+    const competitivePrice = Math.min(
       leader.maximum,
       Math.max(requiredPrice, secondMaximum + 1),
     );
@@ -969,13 +1089,44 @@ const progressCurrentNomination = (
       player,
       nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
       highestBidderTeam: leader.team,
-      currentPrice: marketPrice,
+      currentPrice: competitivePrice,
       humanPassed: nomination.humanPassed,
     });
   }
 
   const humanCanBuy = !nextNomination.humanPassed
     && canAcquire(state, humanTeam, player, nextNomination.nextBid);
+  if (!humanCanBuy && nextNomination.highestBidderTeamId !== humanTeam.id) {
+    const pacedMaximums = aiMaximumsFor(state, nextNomination, true);
+    const pacedLeader = pacedMaximums[0];
+    if (pacedLeader === undefined) {
+      throw new GenericAuctionMockError(
+        "no_eligible_player",
+        `No AI team can retain the current bid for ${player.name}.`,
+      );
+    }
+    const secondMaximum = pacedMaximums
+      .slice(1)
+      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
+    const requiredPrice = pacedLeader.team.id === nextNomination.highestBidderTeamId
+      ? nextNomination.currentPrice
+      : nextNomination.currentPrice + 1;
+    const competitivePrice = Math.min(
+      pacedLeader.maximum,
+      Math.max(requiredPrice, secondMaximum + 1),
+    );
+    nextNomination = nominationFor({
+      state,
+      player,
+      nominatedByTeam: teamFor(state, nextNomination.nominatedByTeamId),
+      highestBidderTeam: pacedLeader.team,
+      currentPrice: Math.max(
+        competitivePrice,
+        aiSpendPacingBidFor(state, pacedLeader.team, player, true),
+      ),
+      humanPassed: nextNomination.humanPassed,
+    });
+  }
   const withStandingBid: GenericAuctionMockState = {
     ...state,
     session: {

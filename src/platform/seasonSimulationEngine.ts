@@ -540,11 +540,18 @@ const selectAuctionNomination = (
   if (humanTeam === undefined) {
     throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
   }
+  const targetPriorityBase = 10_000_000;
+  const targetOrderStep = 1_000_000;
+  const targetIds = [...targetsByPlayerId.keys()];
+  const targetPriorityFor = (playerId: string): number => {
+    const index = targetIds.indexOf(playerId);
+    return index < 0 ? 0 : targetPriorityBase + (targetIds.length - index) * targetOrderStep;
+  };
   const selected = state.board.players
     .filter(player => canAuctionTeamAcquire(state, humanTeam, player))
     .map(player => ({
       player,
-      score: (targetsByPlayerId.has(player.id) ? 1_000_000 : 0)
+      score: targetPriorityFor(player.id)
         + (player.id === pairPlayerId ? 100_000 : 0)
         + (activePositionPreferenceFor(strategy, humanTeam.positionCounts, player.position) ? 10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
@@ -625,7 +632,16 @@ const runAuctionSimulation = (input: {
   pairPlayerId: string | undefined;
   seed: string;
 }): GenericAuctionMockState => {
-  let state = replaySeasonAuctionMockCommands(input.config, []);
+  const config = {
+    ...input.config,
+    ai: {
+      ...input.config.ai,
+      spendPacingExcludedPlayerIds: [...input.targetsByPlayerId.keys()].filter(playerId =>
+        input.config.players.some(player => player.id === playerId)
+      ),
+    },
+  };
+  let state = replaySeasonAuctionMockCommands(config, []);
   state = applyGenericAuctionMockCommand(state, { type: "start", expectedRevision: 0 });
 
   for (let decisions = 0; decisions < maximumDecisionsPerRun; decisions += 1) {

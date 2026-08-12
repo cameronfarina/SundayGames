@@ -52,7 +52,7 @@ const auctionSeason: LeagueSeason<AuctionLeagueSeasonSettings> = {
     expectedTeamCount: 4,
     draftFormat: "auction",
     scoring,
-    auction: { budgetDollars: 100, minimumBidDollars: 1 },
+    auction: { budgetDollars: 50, minimumBidDollars: 1 },
     roster: {
       rosterSize: 2,
       lineup: { RB: 1, FLEX: 1 },
@@ -67,6 +67,8 @@ const auctionSetup: LiveDraftRoomSetup = {
   seasonId: auctionSeason.id,
   sourceVersion: "test",
   playerCatalog: [
+    { name: "Elite Runner", position: "RB", expectedPrice: 45 },
+    { name: "Elite Receiver", position: "WR", expectedPrice: 40 },
     { name: "De'Von Achane", position: "RB", expectedPrice: 30, week1Projection: 18.5 },
     { name: "Jadarian Price", position: "RB", expectedPrice: 10, week1Projection: 9.4 },
     { name: "Runner Two", position: "RB", expectedPrice: 22 },
@@ -385,12 +387,94 @@ describe("season simulation runner", () => {
     expect(runSeasonSimulations(input)).toEqual(result);
   });
 
+  it("does not let AI teams complete auction rosters with material unused budget", () => {
+    const result = runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 3,
+      seedPrefix: "auction-spend-discipline",
+    });
+
+    for (const run of result.runs) {
+      const aiTeams = run.teams.filter(team => !team.isUserTeam);
+      expect(aiTeams.every(team => team.roster.length === auctionSeason.settings.roster.rosterSize))
+        .toBe(true);
+      for (const team of aiTeams) {
+        expect(
+          team.budgetRemaining,
+          `${team.teamName} should not finish with material unused budget: ${JSON.stringify(team.roster)}`,
+        ).toBeLessThanOrEqual(auctionSeason.settings.auction.minimumBidDollars);
+      }
+    }
+  });
+
+  it("keeps a named target affordable when an AI team nominates before the user", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+        roster: {
+          rosterSize: 2,
+          lineup: { RB: 2 },
+          lineupSlotCount: 2,
+          rosterMaximums: { QB: 0, RB: 2, WR: 0, TE: 0, K: 0, DST: 0 },
+        },
+      },
+    };
+    const playerNames = [
+      "Alpha Runner",
+      "Beta Runner",
+      "Gamma Runner",
+      "Delta Runner",
+      "Epsilon Runner",
+      "Zeta Runner",
+      "Eta Runner",
+      "Theta Runner",
+    ];
+    const setup: LiveDraftRoomSetup = {
+      ...auctionSetup,
+      initialRosters: [],
+      playerCatalog: playerNames.map((name, index) => ({
+        name,
+        position: "RB" as const,
+        expectedPrice: 10 - index,
+      })),
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup,
+      humanTeamId: "team-2",
+      runCount: 1,
+      strategyInput: "draft Alpha Runner for no more than $20",
+      seedPrefix: "ai-before-human",
+    });
+
+    expect(result.targetOutcome).toMatchObject({ hitCount: 1, hitRate: 1 });
+    expect(result.runs[0]?.teams.filter(team => !team.isUserTeam)
+      .every(team => team.budgetRemaining === 0)).toBe(true);
+
+    const overCapacityTargets = runSeasonSimulations({
+      season,
+      setup,
+      humanTeamId: "team-2",
+      runCount: 1,
+      strategyInput: playerNames
+        .map(name => `draft ${name} for no more than $20`)
+        .join(". "),
+      seedPrefix: "over-capacity-targets",
+    });
+    expect(overCapacityTargets.runs[0]?.teams.filter(team => !team.isUserTeam)
+      .every(team => team.budgetRemaining === 0)).toBe(true);
+  });
+
   it("applies multiple named player caps throughout each auction run", () => {
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,
       settings: {
         ...auctionSeason.settings,
-        auction: { budgetDollars: 200, minimumBidDollars: 1 },
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
         roster: {
           rosterSize: 3,
           lineup: { RB: 1, FLEX: 1, BENCH: 1 },
@@ -403,24 +487,30 @@ describe("season simulation runner", () => {
       season,
       setup: {
         ...auctionSetup,
+        initialRosters: [],
         playerCatalog: [
           ...auctionSetup.playerCatalog,
           { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 50 },
+          { name: "Premium Quarterback", position: "QB", expectedPrice: 60 },
+          { name: "Premium Tight End", position: "TE", expectedPrice: 55 },
         ],
       },
       humanTeamId: "team-1",
       runCount: 3,
-      strategyInput: "draft jadarian price for no more than $20. Draft gibbs for no more than $76",
+      strategyInput: "draft jadarian price for no more than $20. Draft gibbs for no more than $76. Pair with gibbs",
       seedPrefix: "two-target-plan",
     });
 
-    expect(result.strategy.warnings).toEqual([]);
+    expect(result.strategy.warnings).toEqual([
+      "Pair-with player gibbs is not a keeper; the simulation will also prioritize acquiring that player.",
+    ]);
     expect(result.targetOutcomes).toHaveLength(2);
     expect(result.targetOutcomes?.map(outcome => outcome.playerName))
       .toEqual(["Jadarian Price", "Jahmyr Gibbs"]);
     expect(result.targetOutcomes?.every(outcome => outcome.hitCount === 3)).toBe(true);
     for (const run of result.runs) {
       const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+      expect(roster[0]?.playerName).toBe("Jadarian Price");
       const jadarian = roster.find(player => player.playerName === "Jadarian Price");
       const gibbs = roster.find(player => player.playerName === "Jahmyr Gibbs");
       if (jadarian !== undefined) expect(jadarian.price).toBeLessThanOrEqual(20);
@@ -445,6 +535,7 @@ describe("season simulation runner", () => {
       season,
       setup: {
         ...auctionSetup,
+        initialRosters: [],
         playerCatalog: [
           ...auctionSetup.playerCatalog,
           { name: "Receiver Six", position: "WR", expectedPrice: 3 },

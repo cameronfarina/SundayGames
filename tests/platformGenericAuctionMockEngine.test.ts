@@ -500,6 +500,49 @@ describe("generic auction mock engine", () => {
     });
   });
 
+  it("reranks paced AI bidders when the human cannot afford the next bid", () => {
+    const config = baseConfig({
+      humanTeamId: "team-b",
+      teams: [
+        { id: "team-a", name: "Low Budget AI", aiTendency: { bidMultiplier: 10 } },
+        { id: "team-b", name: "Human" },
+        { id: "team-c", name: "High Budget AI" },
+        { id: "team-d", name: "Keeper AI" },
+      ],
+      rosterSlots: [{ slot: "RB", count: 2, eligiblePositions: ["RB"] }],
+      positionMaximums: { RB: 2 },
+      players: [
+        { id: "target", name: "Target", position: "RB", expectedPrice: 1 },
+        ...Array.from({ length: 7 }, (_, index) => ({
+          id: `runner-${index + 1}`,
+          name: `Runner ${index + 1}`,
+          position: "RB",
+          expectedPrice: 0,
+        })),
+      ],
+      keepers: [
+        { teamId: "team-a", playerId: "runner-1", price: 15 },
+        { teamId: "team-b", playerId: "runner-2", price: 18 },
+        { teamId: "team-d", playerId: "runner-3", price: 19 },
+      ],
+      ai: {
+        defaultBidMultiplier: 1,
+        rosterNeedDollars: 0,
+        randomness: 0,
+        spendPacingExcludedPlayerIds: ["target"],
+        targetEndingBudgetDollars: 0,
+      },
+    });
+
+    const state = start(config);
+
+    expect(state.sales.find(sale => sale.playerId === "target")).toMatchObject({
+      playerId: "target",
+      teamId: "team-c",
+      price: 12,
+    });
+  });
+
   it("rejects completion while teams still have open roster slots", () => {
     const active = start();
     expect(() => applyGenericAuctionMockCommand(active, {
@@ -549,6 +592,9 @@ describe("generic auction mock engine", () => {
     }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
     expect(() => createGenericAuctionMockState(baseConfig({
       positionMaximums: { QB: 1, RB: 2 },
+    }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
+    expect(() => createGenericAuctionMockState(baseConfig({
+      ai: { spendPacingExcludedPlayerIds: ["missing-player"] },
     }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
   });
 });
