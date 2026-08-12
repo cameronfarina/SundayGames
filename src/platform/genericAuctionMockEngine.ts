@@ -114,6 +114,21 @@ export interface GenericAuctionMockSale {
   source: "keeper" | "human" | "ai";
 }
 
+export type GenericAuctionMockEventType = "nomination" | "bid" | "countdown" | "sold";
+
+export interface GenericAuctionMockEvent {
+  sequence: number;
+  nominationNumber: number;
+  type: GenericAuctionMockEventType;
+  playerId: string;
+  playerName: string;
+  teamId?: string | undefined;
+  teamName?: string | undefined;
+  price?: number | undefined;
+  countdown?: number | undefined;
+  text: string;
+}
+
 export interface GenericAuctionMockNomination {
   number: number;
   playerId: string;
@@ -192,6 +207,7 @@ interface GenericAuctionMockSnapshot {
   board: GenericAuctionMockBoardReadModel;
   teams: readonly GenericAuctionMockTeamReadModel[];
   sales: readonly GenericAuctionMockSale[];
+  auctionEvents: readonly GenericAuctionMockEvent[];
 }
 
 export interface GenericAuctionMockState {
@@ -200,6 +216,7 @@ export interface GenericAuctionMockState {
   board: GenericAuctionMockBoardReadModel;
   teams: readonly GenericAuctionMockTeamReadModel[];
   sales: readonly GenericAuctionMockSale[];
+  auctionEvents: readonly GenericAuctionMockEvent[];
   readonly decisionHistory: readonly GenericAuctionMockSnapshot[];
   readonly nextNominatorIndex: number;
 }
@@ -592,6 +609,28 @@ const averageRosterNeedFor = (
   ? 0
   : teams.reduce((total, team) => total + rosterNeedFor(team, position), 0) / teams.length;
 
+const positionScarcityMultiplierFor = (
+  state: GenericAuctionMockState,
+  player: GenericAuctionMockPlayer,
+): number => {
+  const originalSupply = state.configuration.players
+    .filter(candidate => candidate.position === player.position)
+    .length;
+  const remainingSupply = state.board.players.filter(candidate =>
+    candidate.position === player.position && candidate.status !== "sold"
+  ).length;
+  if (originalSupply === 0 || remainingSupply === 0) return 1;
+
+  const depletion = Math.max(0, 1 - remainingSupply / originalSupply);
+  const openDemand = state.teams.reduce(
+    (total, team) => total + rosterNeedFor(team, player.position),
+    0,
+  );
+  const demandPressure = Math.min(1, openDemand / remainingSupply);
+
+  return 1 + depletion * demandPressure * 0.15;
+};
+
 const expectedSecondHighestNoiseFraction = (bidderCount: number): number =>
   bidderCount < 2 ? 0 : (bidderCount - 3) / (bidderCount + 1);
 
@@ -696,6 +735,7 @@ const aiMaxBidFor = (
   const eligibleAiTeams = eligibleAiTeamsFor(state, player);
   const relativeRosterNeed = rosterNeedFor(team, player.position)
     - averageRosterNeedFor(eligibleAiTeams, player.position);
+  const scarcityMultiplier = positionScarcityMultiplierFor(state, player);
   // Market is already a clearing-price estimate, so remove the predictable
   // second-highest-bid lift before applying owner-level random variation.
   const competitionNoiseBias = player.expectedPrice
@@ -708,6 +748,7 @@ const aiMaxBidFor = (
   ) * player.expectedPrice * randomness;
   const willingness = Math.max(0, Math.round(
     player.expectedPrice * bidMultiplier * positionMultiplier
+    + player.expectedPrice * (scarcityMultiplier - 1)
     + relativeRosterNeed * needDollars
     + noise
     - competitionNoiseBias,
@@ -827,6 +868,37 @@ const nominationFor = ({
   humanPassed,
 });
 
+type AuctionEventInput = Omit<GenericAuctionMockEvent, "sequence">;
+
+const withAuctionEvents = (
+  state: GenericAuctionMockState,
+  events: readonly AuctionEventInput[],
+): GenericAuctionMockState => events.length === 0 ? state : ({
+  ...state,
+  auctionEvents: [
+    ...state.auctionEvents,
+    ...events.map((event, index) => ({
+      ...event,
+      sequence: state.auctionEvents.length + index + 1,
+    })),
+  ],
+});
+
+const bidEventFor = (
+  nomination: GenericAuctionMockNomination,
+  team: GenericAuctionMockTeamReadModel,
+  price: number,
+): AuctionEventInput => ({
+  nominationNumber: nomination.number,
+  type: "bid",
+  playerId: nomination.playerId,
+  playerName: nomination.playerName,
+  teamId: team.id,
+  teamName: team.name,
+  price,
+  text: `${team.name} bid $${price}`,
+});
+
 const openNomination = (
   state: GenericAuctionMockState,
   nominator: GenericAuctionMockTeamReadModel,
@@ -838,7 +910,7 @@ const openNomination = (
   }
   assertCanAcquire(state, nominator, player, openingBid);
 
-  return {
+  const opened: GenericAuctionMockState = {
     ...state,
     board: setBoardPlayerStatus(state, player.id, "nominated"),
     session: {
@@ -854,6 +926,17 @@ const openNomination = (
       }),
     },
   };
+
+  return withAuctionEvents(opened, [{
+    nominationNumber: state.session.nominationsCompleted + 1,
+    type: "nomination",
+    playerId: player.id,
+    playerName: player.name,
+    teamId: nominator.id,
+    teamName: nominator.name,
+    price: openingBid,
+    text: `${nominator.name} nominated ${player.name} at $${openingBid}`,
+  }]);
 };
 
 const addAcquisition = ({
@@ -1003,6 +1086,41 @@ const aiMaximumsFor = (
     });
 };
 
+const aiBidEventsFor = (
+  nomination: GenericAuctionMockNomination,
+  nextNomination: GenericAuctionMockNomination,
+  maximums: readonly AiMaximum[],
+): readonly AuctionEventInput[] => {
+  if (
+    nomination.highestBidderTeamId === nextNomination.highestBidderTeamId
+    && nomination.currentPrice === nextNomination.currentPrice
+  ) return [];
+
+  const winner = maximums.find(entry => entry.team.id === nextNomination.highestBidderTeamId);
+  if (winner === undefined) return [];
+
+  const events: AuctionEventInput[] = [];
+  const firstReplayPrice = Math.max(
+    nomination.currentPrice + 1,
+    nextNomination.currentPrice - 7,
+  );
+  let nextBidderTeamId = winner.team.id;
+  for (let price = nextNomination.currentPrice - 1; price >= firstReplayPrice; price -= 1) {
+    const bidders = maximums
+      .filter(entry => entry.team.id !== nextBidderTeamId && entry.maximum >= price)
+      .sort((left, right) => left.maximum - right.maximum || left.team.id.localeCompare(right.team.id));
+    if (bidders.length === 0) break;
+
+    const bidder = bidders[(nextNomination.currentPrice - price - 1) % bidders.length];
+    if (bidder === undefined) break;
+    events.unshift(bidEventFor(nomination, bidder.team, price));
+    nextBidderTeamId = bidder.team.id;
+  }
+
+  events.push(bidEventFor(nomination, winner.team, nextNomination.currentPrice));
+  return events;
+};
+
 const settleNomination = (state: GenericAuctionMockState): GenericAuctionMockState => {
   const nomination = state.session.currentNomination;
   if (nomination === undefined) {
@@ -1023,7 +1141,7 @@ const settleNomination = (state: GenericAuctionMockState): GenericAuctionMockSta
   });
   const nominatorIndex = state.teams.findIndex(team => team.id === nomination.nominatedByTeamId);
 
-  return {
+  const settled: GenericAuctionMockState = {
     ...sold,
     nextNominatorIndex: (nominatorIndex + 1) % state.teams.length,
     session: {
@@ -1032,6 +1150,27 @@ const settleNomination = (state: GenericAuctionMockState): GenericAuctionMockSta
       nominationsCompleted: state.session.nominationsCompleted + 1,
     },
   };
+
+  return withAuctionEvents(settled, [
+    ...[5, 4, 3, 2, 1].map((countdown): AuctionEventInput => ({
+      nominationNumber: nomination.number,
+      type: "countdown",
+      playerId: player.id,
+      playerName: player.name,
+      countdown,
+      text: String(countdown),
+    })),
+    {
+      nominationNumber: nomination.number,
+      type: "sold",
+      playerId: player.id,
+      playerName: player.name,
+      teamId: winningTeam.id,
+      teamName: winningTeam.name,
+      price: nomination.currentPrice,
+      text: `Sold to ${winningTeam.name} for $${nomination.currentPrice}`,
+    },
+  ]);
 };
 
 const progressCurrentNomination = (
@@ -1043,6 +1182,7 @@ const progressCurrentNomination = (
   const humanTeam = teamFor(state, state.configuration.humanTeamId);
   const player = playerFor(state, nomination.playerId);
   const aiMaximums = aiMaximumsFor(state, nomination);
+  let activeMaximums = aiMaximums;
   let nextNomination = nomination;
 
   if (nomination.highestBidderTeamId === humanTeam.id) {
@@ -1098,6 +1238,7 @@ const progressCurrentNomination = (
     && canAcquire(state, humanTeam, player, nextNomination.nextBid);
   if (!humanCanBuy && nextNomination.highestBidderTeamId !== humanTeam.id) {
     const pacedMaximums = aiMaximumsFor(state, nextNomination, true);
+    activeMaximums = pacedMaximums;
     const pacedLeader = pacedMaximums[0];
     if (pacedLeader === undefined) {
       throw new GenericAuctionMockError(
@@ -1127,10 +1268,14 @@ const progressCurrentNomination = (
       humanPassed: nextNomination.humanPassed,
     });
   }
+  const stateWithBidEvents = withAuctionEvents(
+    state,
+    aiBidEventsFor(nomination, nextNomination, activeMaximums),
+  );
   const withStandingBid: GenericAuctionMockState = {
-    ...state,
+    ...stateWithBidEvents,
     session: {
-      ...state.session,
+      ...stateWithBidEvents.session,
       currentNomination: {
         ...nextNomination,
         humanCanBuy,
@@ -1234,6 +1379,7 @@ const snapshotFor = (state: GenericAuctionMockState): GenericAuctionMockSnapshot
   board: state.board,
   teams: state.teams,
   sales: state.sales,
+  auctionEvents: state.auctionEvents,
 });
 
 const withDecisionSnapshot = (state: GenericAuctionMockState): GenericAuctionMockState => ({
@@ -1280,6 +1426,7 @@ const restoreLastDecision = (state: GenericAuctionMockState): GenericAuctionMock
     board: snapshot.board,
     teams: snapshot.teams,
     sales: snapshot.sales,
+    auctionEvents: snapshot.auctionEvents,
     decisionHistory: remainingHistory,
   };
 };
@@ -1329,6 +1476,7 @@ export const createGenericAuctionMockState = (
       slots: buildRosterSlots(config),
     })),
     sales: [],
+    auctionEvents: [],
   };
 };
 
@@ -1448,12 +1596,15 @@ export const applyGenericAuctionMockCommand = (
   const player = playerFor(state, nomination.playerId);
   assertCanAcquire(state, humanTeam, player, command.price);
   const decided = withDecisionSnapshot(state);
+  const withHumanBid = withAuctionEvents(decided, [
+    bidEventFor(nomination, humanTeam, command.price),
+  ]);
   const progressed = advanceToHumanDecision({
-    ...decided,
+    ...withHumanBid,
     session: {
-      ...decided.session,
+      ...withHumanBid.session,
       currentNomination: nominationFor({
-        state: decided,
+        state: withHumanBid,
         player,
         nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
         highestBidderTeam: humanTeam,

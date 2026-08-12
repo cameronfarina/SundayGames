@@ -446,7 +446,10 @@ const exerciseDurableMockWorkspace = async (
 
   const persistedState = await page.locator("#mock-draft-state").textContent();
   const persistedProgress = await page.locator("#mock-draft-progress").textContent();
-  const persistedOnClock = await page.locator("#mock-draft-on-clock").textContent();
+  const decisionSelector = season.settings.draftFormat === "auction"
+    ? "#mock-auction-player"
+    : "#mock-draft-status";
+  const persistedDecision = await page.locator(decisionSelector).textContent();
   const persistedRoster = await page.locator("#mock-draft-roster").textContent();
   const persistedSessionId = new URL(page.url()).searchParams.get("mockSessionId");
   await page.reload();
@@ -454,7 +457,7 @@ const exerciseDurableMockWorkspace = async (
   expect(new URL(page.url()).searchParams.get("mockSessionId")).toBe(persistedSessionId);
   await expect(page.locator("#mock-draft-state")).toHaveText(persistedState ?? "");
   await expect(page.locator("#mock-draft-progress")).toHaveText(persistedProgress ?? "");
-  await expect(page.locator("#mock-draft-on-clock")).toHaveText(persistedOnClock ?? "");
+  await expect(page.locator(decisionSelector)).toHaveText(persistedDecision ?? "");
   await expect(page.locator("#mock-draft-roster")).toHaveText(persistedRoster ?? "");
 };
 

@@ -265,6 +265,15 @@ export const platformShellHtml = `<!doctype html>
       color: #06110d;
     }
 
+    button:not(:disabled):hover, .button:not([aria-disabled="true"]):hover {
+      background: #20242c;
+      border-color: #5a6372;
+    }
+    button.primary:not(:disabled):hover, .button.primary:not([aria-disabled="true"]):hover {
+      background: var(--accent-strong);
+      border-color: var(--accent-strong);
+    }
+
     button:disabled, .button[aria-disabled="true"] {
       cursor: not-allowed;
       opacity: .5;
@@ -322,6 +331,7 @@ export const platformShellHtml = `<!doctype html>
     .identity span { color: var(--muted); font-size: 13px; }
 
     .workspace { display: grid; gap: 24px; min-width: 0; }
+    .workspace > * { min-width: 0; }
 
     .workspace-header {
       align-items: start;
@@ -747,6 +757,90 @@ export const platformShellHtml = `<!doctype html>
     .simulation-team-roster tr[data-starter="false"] { color: var(--muted); }
 
     .mock-layout { display: grid; gap: 24px; min-width: 0; }
+    .mock-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mock-auction-stage {
+      background: var(--surface);
+      border: 1px solid rgb(103 216 176 / .56);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+    }
+    .mock-auction-stage > * { min-width: 0; }
+    .mock-auction-main {
+      align-items: center;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .mock-auction-copy { min-width: 0; }
+    .mock-auction-copy h2 {
+      font-size: 24px;
+      line-height: 1.2;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .mock-auction-meta { color: var(--muted); margin: 6px 0 0; }
+    .mock-auction-bid { min-width: 130px; text-align: right; }
+    .mock-auction-bid span {
+      color: var(--muted);
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .mock-auction-bid strong {
+      color: var(--accent-strong);
+      display: block;
+      font-size: 34px;
+      line-height: 1;
+      margin-top: 7px;
+    }
+    .mock-auction-bid small { color: var(--muted); display: block; margin-top: 7px; }
+    .mock-auction-controls {
+      align-items: center;
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 14px;
+    }
+    .mock-auction-controls .primary { min-width: 132px; }
+    .mock-auction-countdown {
+      align-items: center;
+      background: var(--accent);
+      border-radius: 50%;
+      color: #06110d;
+      display: flex;
+      font-size: 22px;
+      font-weight: 900;
+      height: 44px;
+      justify-content: center;
+      width: 44px;
+    }
+    .mock-auction-feed {
+      display: flex;
+      flex: 1 1 320px;
+      gap: 7px;
+      list-style: none;
+      margin: 0;
+      min-width: 0;
+      overflow-x: auto;
+      padding: 0;
+      scrollbar-width: thin;
+    }
+    .mock-auction-feed li {
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--muted);
+      flex: 0 0 auto;
+      font-size: 12px;
+      padding: 7px 9px;
+    }
+    .mock-auction-feed li[data-event-type="bid"] { border-color: rgb(113 183 255 / .5); color: #a9d3ff; }
+    .mock-auction-feed li[data-event-type="sold"] { border-color: rgb(103 216 176 / .5); color: var(--accent-strong); }
     .mock-toolbar {
       align-items: end;
       display: grid;
@@ -769,8 +863,19 @@ export const platformShellHtml = `<!doctype html>
       min-height: 44px;
       padding: 10px 12px;
     }
-    .mock-roster span { color: var(--muted); font-size: 13px; }
+    .mock-roster-copy { display: grid; gap: 2px; min-width: 0; text-align: right; }
+    .mock-roster-copy strong { overflow-wrap: anywhere; }
+    .mock-roster span, .mock-roster-copy small { color: var(--muted); font-size: 12px; }
     .mock-player-action { min-height: 34px; padding: 5px 10px; }
+    .mock-player-action:not(:disabled):hover { border-color: var(--accent); color: var(--accent-strong); }
+    .player-board tr[data-position] { border-left: 3px solid transparent; }
+    .player-board tr[data-position="RB"] { border-left-color: #67a8ff; }
+    .player-board tr[data-position="WR"] { border-left-color: #d38cff; }
+    .player-board tr[data-position="QB"] { border-left-color: #f4c86b; }
+    .player-board tr[data-position="TE"] { border-left-color: #ff8ca1; }
+    .player-board tr[data-position="DST"] { border-left-color: #73d8d2; }
+    .player-board tr[data-position="K"] { border-left-color: #a7b0bf; }
+    .player-board tbody tr:hover { background: rgb(255 255 255 / .025); }
 
     .invitation-row {
       align-items: center;
@@ -800,6 +905,7 @@ export const platformShellHtml = `<!doctype html>
       .shell-main { padding-left: 28px; padding-right: 28px; }
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .mock-facts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
       .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
       .board-controls { grid-template-columns: minmax(0, 1fr) 140px 180px 165px auto; }
@@ -831,6 +937,9 @@ export const platformShellHtml = `<!doctype html>
       .league-team-grid { grid-template-columns: 1fr; }
       .historical-file-row { grid-template-columns: 1fr; }
       .player-board-scroll { max-height: min(58vh, 520px); }
+      .mock-auction-main { align-items: start; grid-template-columns: 1fr; }
+      .mock-auction-bid { text-align: left; }
+      .mock-auction-feed { flex-basis: 100%; order: 3; }
       .mock-roster-panel { order: -1; }
       .player-board { min-width: 0; }
       .player-board thead { display: none; }
@@ -1289,18 +1398,38 @@ export const platformShellHtml = `<!doctype html>
           </div>
           <div class="actions">
             <button id="mock-draft-start" class="primary" type="button">Start draft</button>
-            <button id="mock-draft-buy" class="primary" type="button">Buy</button>
-            <button id="mock-draft-pass" type="button">Pass</button>
             <button id="mock-draft-undo" type="button">Undo pick</button>
             <button id="mock-draft-complete" type="button">Finish mock</button>
           </div>
         </div>
-        <div class="facts">
+        <div class="facts mock-facts">
           <div class="fact"><span>Status</span><strong id="mock-draft-state">Loading</strong></div>
-          <div class="fact"><span>On the clock</span><strong id="mock-draft-on-clock">-</strong></div>
           <div class="fact"><span>Progress</span><strong id="mock-draft-progress">-</strong></div>
+          <div class="fact"><span>Budget left</span><strong id="mock-draft-budget-left">-</strong></div>
+          <div class="fact"><span>Spent</span><strong id="mock-draft-spent">-</strong></div>
+          <div class="fact"><span>Max bid</span><strong id="mock-draft-max-bid">-</strong></div>
         </div>
         <p id="mock-draft-status" class="status" role="status" aria-live="polite"></p>
+        <section id="mock-auction-stage" class="mock-auction-stage hidden" aria-labelledby="mock-auction-player">
+          <div class="mock-auction-main">
+            <div class="mock-auction-copy">
+              <p id="mock-auction-label" class="eyebrow">Live nomination</p>
+              <h2 id="mock-auction-player">Waiting for the draft</h2>
+              <p id="mock-auction-meta" class="mock-auction-meta">Start the mock when you are ready.</p>
+            </div>
+            <div class="mock-auction-bid">
+              <span>Current bid</span>
+              <strong id="mock-auction-current-bid">-</strong>
+              <small id="mock-auction-high-bidder">No bids yet</small>
+            </div>
+          </div>
+          <div class="mock-auction-controls">
+            <div id="mock-auction-countdown" class="mock-auction-countdown hidden" aria-live="assertive"></div>
+            <button id="mock-draft-buy" class="primary" type="button">Bid</button>
+            <button id="mock-draft-pass" type="button">Pass</button>
+            <ol id="mock-auction-feed" class="mock-auction-feed" aria-label="Auction activity" aria-live="polite"></ol>
+          </div>
+        </section>
         <div class="mock-layout">
           <section class="workspace-section">
             <div class="mock-toolbar">
@@ -1643,6 +1772,13 @@ export const platformShellHtml = `<!doctype html>
     const mockDraftPass = byId("mock-draft-pass");
     const mockDraftUndo = byId("mock-draft-undo");
     const mockDraftComplete = byId("mock-draft-complete");
+    const mockAuctionStage = byId("mock-auction-stage");
+    const mockAuctionPlayer = byId("mock-auction-player");
+    const mockAuctionMeta = byId("mock-auction-meta");
+    const mockAuctionCurrentBid = byId("mock-auction-current-bid");
+    const mockAuctionHighBidder = byId("mock-auction-high-bidder");
+    const mockAuctionCountdown = byId("mock-auction-countdown");
+    const mockAuctionFeed = byId("mock-auction-feed");
     const leagueSetupDialog = byId("league-setup-dialog");
     const leagueCreateReview = byId("league-create-review");
     const leagueCreateEspnId = byId("league-create-espn-id");
@@ -3172,6 +3308,66 @@ export const platformShellHtml = `<!doctype html>
     const mockDraftPlayerName = playerId =>
       state.mockDraft?.board?.players?.find(player => player.id === playerId)?.name || playerId;
 
+    const auctionMoney = value => "$" + Math.round(Number(value || 0));
+
+    const mockAuctionFeedItem = event => {
+      const item = document.createElement("li");
+      item.dataset.eventType = event.type || "activity";
+      item.textContent = event.text || "Auction activity";
+      return item;
+    };
+
+    const renderMockAuctionStage = (draft, nomination) => {
+      const auctionEvents = draft.auctionEvents || [];
+      const sessionState = draft.session || {};
+      const relatedEvents = nomination
+        ? auctionEvents.filter(event => event.nominationNumber === nomination.number)
+        : auctionEvents;
+      const visibleEvents = relatedEvents
+        .filter(event => event.type !== "countdown")
+        .slice(-8);
+      const lastSale = [...(draft.sales || [])].reverse().find(sale => sale.source !== "keeper");
+
+      mockAuctionStage.dataset.position = nomination?.position || lastSale?.position || "";
+      mockAuctionCountdown.textContent = "";
+      setHidden(mockAuctionCountdown, true);
+      if (nomination) {
+        byId("mock-auction-label").textContent = "Live nomination";
+        mockAuctionPlayer.textContent = nomination.playerName;
+        mockAuctionMeta.textContent = nomination.position + " · Nominated by " + nomination.nominatedByTeamName;
+        mockAuctionCurrentBid.textContent = auctionMoney(nomination.currentPrice);
+        mockAuctionHighBidder.textContent = nomination.highestBidderTeamName + " has the high bid";
+      } else if (sessionState.phase === "awaiting_human_nomination") {
+        byId("mock-auction-label").textContent = "Your nomination";
+        mockAuctionPlayer.textContent = "Choose the next player";
+        mockAuctionMeta.textContent = "Use Nominate on the board to open bidding at $1.";
+        mockAuctionCurrentBid.textContent = "-";
+        mockAuctionHighBidder.textContent = lastSale
+          ? "Last: " + lastSale.teamName + " won " + lastSale.playerName + " for " + auctionMoney(lastSale.price)
+          : "No completed sales yet";
+      } else if (sessionState.status === "completed") {
+        byId("mock-auction-label").textContent = "Mock complete";
+        mockAuctionPlayer.textContent = "Draft finished";
+        mockAuctionMeta.textContent = "Review your roster and results.";
+        mockAuctionCurrentBid.textContent = "-";
+        mockAuctionHighBidder.textContent = lastSale
+          ? "Final: " + lastSale.teamName + " won " + lastSale.playerName + " for " + auctionMoney(lastSale.price)
+          : "No completed sales";
+      } else {
+        byId("mock-auction-label").textContent = "Auction room";
+        mockAuctionPlayer.textContent = "Waiting for the draft";
+        mockAuctionMeta.textContent = "Start the mock when you are ready.";
+        mockAuctionCurrentBid.textContent = "-";
+        mockAuctionHighBidder.textContent = "No bids yet";
+      }
+
+      mockAuctionFeed.replaceChildren(...(
+        visibleEvents.length
+          ? visibleEvents.map(mockAuctionFeedItem)
+          : [mockAuctionFeedItem({ type: "activity", text: "Bids and sales will appear here." })]
+      ));
+    };
+
     const renderMockDraft = () => {
       const draft = state.mockDraft;
       const session = state.mockSession;
@@ -3183,17 +3379,11 @@ export const platformShellHtml = `<!doctype html>
         : '<th class="numeric">Rank</th><th>Player</th><th>Pos</th><th>Status</th><th>Action</th>';
       const picks = draft.board?.picks || [];
       const completedPicks = picks.filter(pick => pick.selection).length;
+      const myTeam = draft.teams?.find(team => team.id === session.teamId);
       byId("mock-draft-title").textContent = auction ? "Auction mock draft" : "Snake mock draft";
       byId("mock-draft-state").textContent = titleCase(sessionState.status || session.status || "setup");
       const currentPick = sessionState.currentPick;
-      const decisionTeamId = auction ? sessionState.nextNominatorTeamId : currentPick?.teamId;
-      const currentTeam = decisionTeamId
-        ? draft.teams?.find(team => team.id === decisionTeamId)
-        : null;
       const nomination = sessionState.currentNomination;
-      byId("mock-draft-on-clock").textContent = nomination
-        ? nomination.playerName + " · $" + nomination.currentPrice
-        : currentTeam?.name || (sessionState.status === "completed" ? "Complete" : "Not started");
       const auctionCapacity = (draft.teams || []).reduce(
         (total, team) => total + (team.roster?.length || 0) + (team.rosterSlotsRemaining || 0),
         0,
@@ -3201,12 +3391,24 @@ export const platformShellHtml = `<!doctype html>
       byId("mock-draft-progress").textContent = auction
         ? (draft.sales?.length || 0) + " / " + auctionCapacity + " rostered"
         : completedPicks + " / " + picks.length + " picks";
+      byId("mock-draft-budget-left").textContent = auction && myTeam
+        ? auctionMoney(myTeam.budgetRemaining)
+        : "-";
+      byId("mock-draft-spent").textContent = auction && myTeam
+        ? auctionMoney(myTeam.spent)
+        : "-";
+      byId("mock-draft-max-bid").textContent = auction && myTeam
+        ? auctionMoney(myTeam.maxBid)
+        : "-";
       mockDraftStart.disabled = sessionState.status !== "setup";
+      setHidden(mockDraftStart, sessionState.status !== "setup");
       mockDraftBuy.disabled = !auction || nomination?.humanCanBuy !== true;
-      mockDraftBuy.textContent = nomination?.nextBid ? "Buy $" + nomination.nextBid : "Buy";
+      mockDraftBuy.textContent = nomination?.nextBid ? "Bid $" + nomination.nextBid : "Bid";
       mockDraftPass.disabled = !auction || nomination?.humanCanPass !== true;
       mockDraftUndo.disabled = sessionState.canUndo !== true;
       mockDraftComplete.disabled = sessionState.canComplete !== true;
+      setHidden(mockAuctionStage, !auction);
+      if (auction) renderMockAuctionStage(draft, nomination);
 
       const search = mockDraftSearch.value.trim().toLowerCase();
       const players = (draft.board?.players || []).filter(player => {
@@ -3220,6 +3422,7 @@ export const platformShellHtml = `<!doctype html>
       const fragment = document.createDocumentFragment();
       players.forEach(player => {
         const row = document.createElement("tr");
+        row.dataset.position = player.position || "";
         const values = [
           { label: auction ? "Market" : "Rank", value: auction
               ? "$" + Math.round(Number(player.expectedPrice || 0))
@@ -3254,15 +3457,25 @@ export const platformShellHtml = `<!doctype html>
       });
       mockDraftPlayerRows.replaceChildren(fragment);
 
-      const myTeam = draft.teams?.find(team => team.id === session.teamId);
+      const rosterPlayers = new Map((myTeam?.roster || []).map(player => [player.playerId, player]));
       const rosterFragment = document.createDocumentFragment();
       (myTeam?.slots || []).forEach(slot => {
         const item = document.createElement("li");
         const slotName = document.createElement("span");
         slotName.textContent = slot.slot;
+        const rosterCopy = document.createElement("div");
+        rosterCopy.className = "mock-roster-copy";
         const playerName = document.createElement("strong");
         playerName.textContent = slot.playerId ? mockDraftPlayerName(slot.playerId) : "Open";
-        item.append(slotName, playerName);
+        rosterCopy.append(playerName);
+        const rosterPlayer = slot.playerId ? rosterPlayers.get(slot.playerId) : null;
+        if (rosterPlayer) {
+          const detail = document.createElement("small");
+          detail.textContent = auctionMoney(rosterPlayer.price)
+            + (rosterPlayer.source === "keeper" ? " · Keeper" : "");
+          rosterCopy.append(detail);
+        }
+        item.append(slotName, rosterCopy);
         rosterFragment.append(item);
       });
       if (!rosterFragment.childNodes.length) {
@@ -3289,6 +3502,67 @@ export const platformShellHtml = `<!doctype html>
       return type + ":" + (randomId || String(Date.now()));
     };
 
+    const pauseMockAuction = duration => new Promise(resolve => window.setTimeout(resolve, duration));
+
+    const selectMockAuctionEventsForAnimation = events => {
+      const groupedEvents = [];
+      events.forEach(event => {
+        const currentGroup = groupedEvents.at(-1);
+        if (currentGroup?.[0]?.nominationNumber === event.nominationNumber) {
+          currentGroup.push(event);
+        } else {
+          groupedEvents.push([event]);
+        }
+      });
+      if (groupedEvents.length <= 2) return events;
+      return [...groupedEvents[0], ...groupedEvents.at(-1)];
+    };
+
+    const animateMockAuctionEvents = async (previousDraft, nextDraft) => {
+      const previousSequence = (previousDraft?.auctionEvents || []).at(-1)?.sequence || 0;
+      const newEvents = (nextDraft.auctionEvents || [])
+        .filter(event => event.sequence > previousSequence);
+      if (!newEvents.length || state.mockSession?.draftMode?.format !== "auction") return;
+
+      setHidden(mockAuctionStage, false);
+      let visibleEvents = (previousDraft?.auctionEvents || [])
+        .filter(event => event.type !== "countdown")
+        .slice(-7);
+      for (const event of selectMockAuctionEventsForAnimation(newEvents)) {
+        const player = nextDraft.board?.players?.find(candidate => candidate.id === event.playerId);
+        mockAuctionStage.dataset.position = player?.position || "";
+        mockAuctionPlayer.textContent = event.playerName;
+        if (event.type === "nomination") {
+          byId("mock-auction-label").textContent = "Nominated";
+          mockAuctionMeta.textContent = event.teamName + " opened at " + auctionMoney(event.price);
+          mockAuctionCurrentBid.textContent = auctionMoney(event.price);
+          mockAuctionHighBidder.textContent = event.teamName + " opened the bidding";
+        } else if (event.type === "bid") {
+          byId("mock-auction-label").textContent = "Bidding";
+          mockAuctionMeta.textContent = player?.position || "Live auction";
+          mockAuctionCurrentBid.textContent = auctionMoney(event.price);
+          mockAuctionHighBidder.textContent = event.teamName + " has the high bid";
+        } else if (event.type === "countdown") {
+          byId("mock-auction-label").textContent = "Going once";
+          mockAuctionCountdown.textContent = String(event.countdown);
+          setHidden(mockAuctionCountdown, false);
+        } else if (event.type === "sold") {
+          byId("mock-auction-label").textContent = "Sold";
+          mockAuctionMeta.textContent = event.teamName + " won " + event.playerName;
+          mockAuctionCurrentBid.textContent = auctionMoney(event.price);
+          mockAuctionHighBidder.textContent = event.text;
+          setHidden(mockAuctionCountdown, true);
+        }
+
+        if (event.type !== "countdown") {
+          visibleEvents = [...visibleEvents, event].slice(-8);
+          mockAuctionFeed.replaceChildren(...visibleEvents.map(mockAuctionFeedItem));
+        }
+        await pauseMockAuction(event.type === "countdown" ? 280 : event.type === "sold" ? 420 : 180);
+      }
+      setHidden(mockAuctionCountdown, true);
+    };
+
     const sendMockDraftCommand = async command => {
       const selectedLeague = state.selectedLeague;
       const session = state.mockSession;
@@ -3304,6 +3578,7 @@ export const platformShellHtml = `<!doctype html>
       controls.forEach(control => { control.disabled = true; });
       mockDraftStatus.textContent = "Updating the mock draft...";
       try {
+        const previousDraft = state.mockDraft;
         const body = await readJson(await fetch(
           "/season-mock-drafts/" + encodeURIComponent(session.id) + "/commands",
           {
@@ -3318,6 +3593,7 @@ export const platformShellHtml = `<!doctype html>
           },
         ));
         state.mockSession = body.mockSession;
+        await animateMockAuctionEvents(previousDraft, body.state);
         state.mockDraft = body.state;
         renderMockDraft();
       } catch (error) {

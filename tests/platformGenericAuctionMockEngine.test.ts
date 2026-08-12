@@ -173,6 +173,53 @@ describe("generic auction mock engine", () => {
     });
     expect(nominated.board.players.find(player => player.id === "qb-1"))
       .toMatchObject({ status: "nominated", available: false });
+    expect(nominated.auctionEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "nomination",
+        playerId: "qb-1",
+        teamId: "team-a",
+        price: 1,
+      }),
+      expect.objectContaining({
+        type: "bid",
+        playerId: "qb-1",
+        teamId: "team-b",
+        price: 8,
+      }),
+    ]));
+  });
+
+  it("never shows an AI owner outbidding itself in the reconstructed bid feed", () => {
+    const config = baseConfig({
+      budgetDollars: 100,
+      teams: [
+        { id: "team-a", name: "Cam" },
+        { id: "team-b", name: "Beaton", aiTendency: { bidMultiplier: 1.5 } },
+        { id: "team-c", name: "Seth", aiTendency: { bidMultiplier: 1.44 } },
+        { id: "team-d", name: "PJ", aiTendency: { bidMultiplier: 1.4 } },
+      ],
+      rosterSlots: [{ slot: "RB", count: 1, eligiblePositions: ["RB"] }],
+      positionMaximums: { RB: 1 },
+      players: [
+        { id: "target", name: "Target RB", position: "RB", expectedPrice: 50 },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 30 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 20 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 10 },
+      ],
+      ai: { defaultBidMultiplier: 1, rosterNeedDollars: 0, randomness: 0 },
+    });
+    const nominated = applyGenericAuctionMockCommand(start(config), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "target",
+      openingBid: 1,
+    });
+    const bidEvents = nominated.auctionEvents.filter(event => event.type === "bid");
+
+    expect(new Set(bidEvents.map(event => event.teamId)).size).toBeGreaterThan(1);
+    expect(bidEvents.every((event, index) => (
+      index === 0 || event.teamId !== bidEvents[index - 1]?.teamId
+    ))).toBe(true);
   });
 
   it("accepts a human buy, sells when AI will not counter, and advances automatically", () => {
@@ -265,6 +312,110 @@ describe("generic auction mock engine", () => {
     expect(passed.session.revision).toBe(3);
     expect(passed.session.currentNomination?.nominatedByTeamId).toBe("team-b");
     expect(passed.session.phase).toBe("awaiting_human_bid");
+    expect(passed.auctionEvents).toEqual(expect.arrayContaining([
+      ...[5, 4, 3, 2, 1].map(countdown => expect.objectContaining({
+        type: "countdown",
+        playerId: "qb-1",
+        countdown,
+      })),
+      expect.objectContaining({
+        type: "sold",
+        playerId: "qb-1",
+        teamId: "team-b",
+        price: 8,
+      }),
+    ]));
+  });
+
+  it("raises AI ceilings as a position becomes depleted", () => {
+    const teams = [
+      { id: "team-a", name: "Cam" },
+      { id: "team-b", name: "Beaton" },
+      { id: "team-c", name: "Seth" },
+      { id: "team-d", name: "PJ" },
+    ];
+    const players = [
+      { id: "target", name: "Target RB", position: "RB", expectedPrice: 50 },
+      ...Array.from({ length: 11 }, (_, index) => ({
+        id: `rb-${index + 1}`,
+        name: `Running Back ${index + 1}`,
+        position: "RB",
+        expectedPrice: Math.max(1, 38 - index * 3),
+      })),
+    ];
+    const config = baseConfig({
+      teams,
+      budgetDollars: 200,
+      rosterSlots: [{ slot: "RB", count: 2, eligiblePositions: ["RB"] }],
+      positionMaximums: { RB: 2 },
+      players,
+      ai: { defaultBidMultiplier: 1, rosterNeedDollars: 0, randomness: 0 },
+    });
+    const abundant = applyGenericAuctionMockCommand(start(config), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "target",
+      openingBid: 1,
+    });
+    const scarce = applyGenericAuctionMockCommand(start({
+      ...config,
+      sessionId: "scarce-auction",
+      keepers: teams.map((team, index) => ({
+        teamId: team.id,
+        playerId: `rb-${index + 1}`,
+        price: 1,
+      })),
+    }), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "target",
+      openingBid: 1,
+    });
+
+    expect(abundant.session.currentNomination?.currentPrice).toBe(50);
+    expect(scarce.session.currentNomination?.currentPrice)
+      .toBeGreaterThan(abundant.session.currentNomination?.currentPrice ?? 0);
+  });
+
+  it("lets a team with a cheap keeper use its budget advantage in bidding", () => {
+    const config = baseConfig({
+      humanTeamId: "team-a",
+      budgetDollars: 100,
+      rosterSlots: [{ slot: "RB", count: 2, eligiblePositions: ["RB"] }],
+      positionMaximums: { RB: 2 },
+      players: [
+        { id: "target", name: "Target RB", position: "RB", expectedPrice: 40 },
+        { id: "cheap-keeper", name: "Cheap Keeper", position: "RB", expectedPrice: 30 },
+        { id: "costly-keeper", name: "Costly Keeper", position: "RB", expectedPrice: 30 },
+        { id: "other-keeper", name: "Other Keeper", position: "RB", expectedPrice: 30 },
+        { id: "human-keeper", name: "Human Keeper", position: "RB", expectedPrice: 30 },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 25 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 20 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 15 },
+      ],
+      keepers: [
+        { teamId: "team-a", playerId: "human-keeper", price: 50 },
+        { teamId: "team-b", playerId: "cheap-keeper", price: 5 },
+        { teamId: "team-c", playerId: "costly-keeper", price: 45 },
+        { teamId: "team-d", playerId: "other-keeper", price: 50 },
+      ],
+      ai: {
+        defaultBidMultiplier: 1,
+        rosterNeedDollars: 0,
+        randomness: 0,
+        targetEndingBudgetDollars: 0,
+      },
+    });
+    const nominated = applyGenericAuctionMockCommand(start(config), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "target",
+      openingBid: 1,
+    });
+
+    expect(nominated.sales.find(sale => sale.playerId === "target"))
+      .toMatchObject({ teamId: "team-b" });
+    expect(nominated.sales.find(sale => sale.playerId === "target")?.price).toBeGreaterThan(40);
   });
 
   it("uses owner tendencies to produce deterministic AI bidding personalities", () => {
