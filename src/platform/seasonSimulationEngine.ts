@@ -40,11 +40,18 @@ export interface SeasonSimulationPreferredPosition {
   maxAuctionPrice?: number | undefined;
 }
 
+export interface SeasonSimulationPositionCap {
+  position: "QB" | "RB" | "WR" | "TE";
+  maxAuctionPrice: number;
+  excludeNamedTargets: boolean;
+}
+
 export interface ParsedSeasonSimulationStrategy {
   rawInput: string;
   targets?: readonly SeasonSimulationTargetConstraint[] | undefined;
   target?: SeasonSimulationTargetConstraint | undefined;
   preferredPositions: readonly SeasonSimulationPreferredPosition[];
+  positionCaps?: readonly SeasonSimulationPositionCap[] | undefined;
   pairWithPlayerName?: string | undefined;
   summary: string;
   warnings: readonly string[];
@@ -173,7 +180,7 @@ const cleanPlayerName = (value: string): string => value
 const unsupportedWarning = (value: string): string | undefined => {
   const remainder = value
     .replace(/\brun\s+\d+\s+(?:mock\s+)?simulations?\s+(?:where\s+)?(?:i\s+)?/gi, " ")
-    .replace(/\b(?:where|i|please|and|to|a|an|the)\b/gi, " ")
+    .replace(/\b(?:where|i|please|and|to|a|an|the|draft)\b/gi, " ")
     .replace(/[^a-z0-9$'-]+/gi, " ")
     .trim()
     .replace(/\s+/g, " ");
@@ -184,6 +191,7 @@ const unsupportedWarning = (value: string): string | undefined => {
 const summaryFor = (
   targets: readonly SeasonSimulationTargetConstraint[],
   preferredPositions: readonly SeasonSimulationPreferredPosition[],
+  positionCaps: readonly SeasonSimulationPositionCap[],
   pairWithPlayerName: string | undefined,
 ): string => {
   const clauses: string[] = [];
@@ -204,6 +212,11 @@ const summaryFor = (
       ? ""
       : ` up to $${preference.maxAuctionPrice} each`;
     clauses.push(`prioritize ${count}${preference.tier} ${preference.position}${cap}`);
+  }
+  for (const positionCap of positionCaps) {
+    clauses.push(
+      `cap ${positionCap.excludeNamedTargets ? "other " : ""}${positionCap.position}s at $${positionCap.maxAuctionPrice}`,
+    );
   }
   if (pairWithPlayerName !== undefined) clauses.push(`pair with ${pairWithPlayerName}`);
 
@@ -227,6 +240,7 @@ export const parseSeasonSimulationStrategy = (
     target: SeasonSimulationTargetConstraint;
   }[] = [];
   const preferredPositions: SeasonSimulationPreferredPosition[] = [];
+  const positionCaps: SeasonSimulationPositionCap[] = [];
 
   const countedPreference = extract(
     remainder,
@@ -255,13 +269,36 @@ export const parseSeasonSimulationStrategy = (
   }
 
   while (true) {
+    const positionCap = extract(
+      remainder,
+      /\b(?:do\s+not|don't|dont|never)\s+(?:spend|pay)\s+(?:over|more\s+than)\s+\$?(\d+)\s+(?:for|on)\s+(?:(another|any\s+other|other)\s+)?(QB|RB|WR|TE)s?\b/i,
+    );
+    if (positionCap === undefined) break;
+    const maxAuctionPrice = Number(positionCap.match[1]);
+    const position = positionCap.match[3]?.toUpperCase();
+    if (
+      Number.isSafeInteger(maxAuctionPrice)
+      && maxAuctionPrice > 0
+      && (position === "QB" || position === "RB" || position === "WR" || position === "TE")
+    ) {
+      positionCaps.push({
+        position,
+        maxAuctionPrice,
+        excludeNamedTargets: positionCap.match[2] !== undefined,
+      });
+    }
+    remainder = positionCap.remainder;
+  }
+
+  while (true) {
     const auctionTarget = extract(
       remainder,
-      /\b(?:draft|target)\s+([a-z][a-z.'-]*(?:\s+(?!(?:and\s+)?(?:draft|target)\b)[a-z0-9][a-z0-9.'-]*){0,4}?)\s+(?:for\s+)?(?:no\s+more\s+than|under|(?:at\s+)?(?:a\s+)?max(?:imum)?(?:\s+price)?(?:\s+of)?)\s*\$(\d+)\b/i,
+      /\b(?:draft|target)\s+([a-z][a-z.'-]*(?:\s+(?!(?:and\s+)?(?:draft|target)\b)[a-z0-9][a-z0-9.'-]*){0,4}?)\s+(?:for\s+)?(no\s+more\s+than|under|(?:at\s+)?(?:a\s+)?max(?:imum)?(?:\s+price)?(?:\s+of)?)\s*\$(\d+)\b/i,
     );
     if (auctionTarget === undefined) break;
     const playerName = cleanPlayerName(auctionTarget.match[1] ?? "");
-    const maxAuctionPrice = Number(auctionTarget.match[2]);
+    const strictMaximum = auctionTarget.match[2]?.toLowerCase() === "under";
+    const maxAuctionPrice = Number(auctionTarget.match[3]) - (strictMaximum ? 1 : 0);
     if (playerName.length > 0 && Number.isSafeInteger(maxAuctionPrice) && maxAuctionPrice > 0) {
       targetCandidates.push({
         index: auctionTarget.index,
@@ -356,10 +393,11 @@ export const parseSeasonSimulationStrategy = (
     targets,
     ...(target === undefined ? {} : { target }),
     preferredPositions,
+    ...(positionCaps.length === 0 ? {} : { positionCaps }),
     ...(pairWithPlayerName === undefined || pairWithPlayerName.length === 0
       ? {}
       : { pairWithPlayerName }),
-    summary: summaryFor(targets, preferredPositions, pairWithPlayerName),
+    summary: summaryFor(targets, preferredPositions, positionCaps, pairWithPlayerName),
     warnings: warning === undefined ? [] : [warning],
   };
 };
@@ -412,6 +450,85 @@ const canAuctionTeamAcquire = (
     slot.playerId === undefined && slot.eligiblePositions.includes(player.position)
   );
 
+const availableTargetPlayersFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  currentPlayerId: string,
+  targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
+): readonly GenericAuctionMockBoardPlayer[] => [...targetsByPlayerId.keys()]
+  .filter(playerId => playerId !== currentPlayerId)
+  .map(playerId => state.board.players.find(player => player.id === playerId))
+  .filter((player): player is GenericAuctionMockBoardPlayer =>
+    player !== undefined && canAuctionTeamAcquire(state, team, player)
+  );
+
+const canFitTargetPositions = (
+  positions: readonly string[],
+  openSlots: GenericAuctionMockTeamReadModel["slots"],
+): boolean => {
+  const orderedPositions = [...positions].sort((left, right) => {
+    const leftOptions = openSlots.filter(slot => slot.eligiblePositions.includes(left)).length;
+    const rightOptions = openSlots.filter(slot => slot.eligiblePositions.includes(right)).length;
+    return leftOptions - rightOptions;
+  });
+  const positionBySlotIndex = new Map<number, number>();
+  const assign = (positionIndex: number, visitedSlotIndexes: Set<number>): boolean => {
+    const position = orderedPositions[positionIndex];
+    if (position === undefined) return false;
+    for (const [slotIndex, slot] of openSlots.entries()) {
+      if (visitedSlotIndexes.has(slotIndex) || !slot.eligiblePositions.includes(position)) continue;
+      visitedSlotIndexes.add(slotIndex);
+      const assignedPositionIndex = positionBySlotIndex.get(slotIndex);
+      if (
+        assignedPositionIndex === undefined
+        || assign(assignedPositionIndex, visitedSlotIndexes)
+      ) {
+        positionBySlotIndex.set(slotIndex, positionIndex);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return orderedPositions.every((_, positionIndex) => assign(positionIndex, new Set()));
+};
+
+const preservesSlotsForTargets = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockBoardPlayer,
+  targetPlayers: readonly GenericAuctionMockBoardPlayer[],
+): boolean => {
+  const playerSlotIndex = team.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(({ slot }) =>
+      slot.playerId === undefined && slot.eligiblePositions.includes(player.position)
+    )
+    .sort((left, right) =>
+      left.slot.eligiblePositions.length - right.slot.eligiblePositions.length
+      || left.slot.slot.localeCompare(right.slot.slot)
+    )[0]?.index;
+  if (playerSlotIndex === undefined) return false;
+
+  const projectedPositionCounts = { ...team.positionCounts };
+  projectedPositionCounts[player.position] = (projectedPositionCounts[player.position] ?? 0) + 1;
+  for (const targetPlayer of targetPlayers) {
+    projectedPositionCounts[targetPlayer.position]
+      = (projectedPositionCounts[targetPlayer.position] ?? 0) + 1;
+  }
+  if (Object.entries(projectedPositionCounts).some(([position, count]) =>
+    count > (state.configuration.positionMaximums[position] ?? 0)
+  )) return false;
+
+  const remainingSlots = team.slots.filter((slot, index) =>
+    index !== playerSlotIndex && slot.playerId === undefined
+  );
+  return canFitTargetPositions(
+    targetPlayers.map(targetPlayer => targetPlayer.position),
+    remainingSlots,
+  );
+};
+
 const selectAuctionNomination = (
   state: GenericAuctionMockState,
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
@@ -459,6 +576,9 @@ const auctionWillingnessFor = (
   const isTarget = target !== undefined;
   const isPair = player.id === pairPlayerId;
   const preference = activePositionPreferenceFor(strategy, team.positionCounts, player.position);
+  const positionCap = [...(strategy.positionCaps ?? [])]
+    .reverse()
+    .find(cap => cap.position === player.position);
   const isPreferred = preference !== undefined;
   const needDollars = Math.ceil(auctionRosterNeedFor(team, player.position) * 2);
   const preferenceDollars = isPreferred ? Math.ceil(player.expectedPrice * 0.15) : 0;
@@ -467,9 +587,31 @@ const auctionWillingnessFor = (
     state.configuration.minimumBidDollars,
     Math.round(player.expectedPrice) + needDollars + preferenceDollars + targetDollars,
   );
+  const availableTargetPlayers = availableTargetPlayersFor(
+    state,
+    team,
+    player.id,
+    targetsByPlayerId,
+  );
+  const reservedTargetBudget = availableTargetPlayers.reduce((total, targetPlayer) => {
+    const targetConstraint = targetsByPlayerId.get(targetPlayer.id);
+    const targetBudget = targetConstraint?.maxAuctionPrice ?? Math.round(targetPlayer.expectedPrice);
+    return total + Math.max(0, targetBudget - state.configuration.minimumBidDollars);
+  }, 0);
+  const preservesTargetSlots = preservesSlotsForTargets(
+    state,
+    team,
+    player,
+    availableTargetPlayers,
+  );
   const strategyLimit = Math.min(
     team.maxBid,
+    Math.max(0, team.maxBid - reservedTargetBudget),
+    preservesTargetSlots ? team.maxBid : 0,
     target?.maxAuctionPrice ?? team.maxBid,
+    positionCap === undefined || (positionCap.excludeNamedTargets && isTarget)
+      ? team.maxBid
+      : positionCap.maxAuctionPrice,
     preference?.maxAuctionPrice ?? team.maxBid,
   );
 

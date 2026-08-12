@@ -139,6 +139,37 @@ const snakeSetup: LiveDraftRoomSetup = {
 };
 
 describe("season simulation strategy parser", () => {
+  it("parses a cap for untargeted players at a position", () => {
+    const strategy = parseSeasonSimulationStrategy(
+      "draft Ladd for no more than $25. Do not spend over $25 on another WR.",
+    );
+
+    expect(strategy).toMatchObject({
+      targets: [{ playerName: "Ladd", maxAuctionPrice: 25 }],
+      positionCaps: [{ position: "WR", maxAuctionPrice: 25, excludeNamedTargets: true }],
+      summary: "Target Ladd up to $25; cap other WRs at $25.",
+      warnings: [],
+    });
+  });
+
+  it("parses the complete multi-target strategy used by the Practice UI", () => {
+    const strategy = parseSeasonSimulationStrategy(
+      "draft jadarian price for under $20, draft gibbs for no more than $78. Draft kyler murray for no more than $2. draft ladd for no more than $25 draft. do not spend over $25 on another WR.",
+    );
+
+    expect(strategy).toMatchObject({
+      targets: [
+        { playerName: "jadarian price", maxAuctionPrice: 19 },
+        { playerName: "gibbs", maxAuctionPrice: 78 },
+        { playerName: "kyler murray", maxAuctionPrice: 2 },
+        { playerName: "ladd", maxAuctionPrice: 25 },
+      ],
+      positionCaps: [{ position: "WR", maxAuctionPrice: 25, excludeNamedTargets: true }],
+      summary: "Target jadarian price up to $19; target gibbs up to $78; target kyler murray up to $2; target ladd up to $25; cap other WRs at $25.",
+      warnings: [],
+    });
+  });
+
   it("parses multiple named auction targets with independent price caps", () => {
     const strategy = parseSeasonSimulationStrategy(
       "draft jadarian price for no more than $20. Draft gibbs for no more than $76",
@@ -166,7 +197,7 @@ describe("season simulation strategy parser", () => {
       input: "draft Gibbs and draft Chase under $74",
       targets: [
         { playerName: "Gibbs" },
-        { playerName: "Chase", maxAuctionPrice: 74 },
+        { playerName: "Chase", maxAuctionPrice: 73 },
       ],
     },
     {
@@ -177,14 +208,14 @@ describe("season simulation strategy parser", () => {
       input: "target Gibbs; target Chase under $70",
       targets: [
         { playerName: "Gibbs" },
-        { playerName: "Chase", maxAuctionPrice: 70 },
+        { playerName: "Chase", maxAuctionPrice: 69 },
       ],
     },
     {
       input: "target Gibbs, target Chase under $70",
       targets: [
         { playerName: "Gibbs" },
-        { playerName: "Chase", maxAuctionPrice: 70 },
+        { playerName: "Chase", maxAuctionPrice: 69 },
       ],
     },
   ])("keeps separate target clauses in source order: $input", ({ input, targets }) => {
@@ -387,13 +418,56 @@ describe("season simulation runner", () => {
     expect(result.targetOutcomes).toHaveLength(2);
     expect(result.targetOutcomes?.map(outcome => outcome.playerName))
       .toEqual(["Jadarian Price", "Jahmyr Gibbs"]);
-    expect(result.targetOutcomes?.every(outcome => outcome.hitCount > 0)).toBe(true);
+    expect(result.targetOutcomes?.every(outcome => outcome.hitCount === 3)).toBe(true);
     for (const run of result.runs) {
       const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
       const jadarian = roster.find(player => player.playerName === "Jadarian Price");
       const gibbs = roster.find(player => player.playerName === "Jahmyr Gibbs");
       if (jadarian !== undefined) expect(jadarian.price).toBeLessThanOrEqual(20);
       if (gibbs !== undefined) expect(gibbs.price).toBeLessThanOrEqual(76);
+    }
+  });
+
+  it("allows a named target above the cap while capping another player at that position", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        roster: {
+          rosterSize: 3,
+          lineup: { RB: 1, WR: 2 },
+          lineupSlotCount: 3,
+          rosterMaximums: { ...auctionSeason.settings.roster.rosterMaximums, WR: 2 },
+        },
+      },
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup: {
+        ...auctionSetup,
+        playerCatalog: [
+          ...auctionSetup.playerCatalog,
+          { name: "Receiver Six", position: "WR", expectedPrice: 3 },
+          { name: "Receiver Seven", position: "WR", expectedPrice: 2 },
+          { name: "Receiver Eight", position: "WR", expectedPrice: 1 },
+        ],
+      },
+      humanTeamId: "team-1",
+      runCount: 3,
+      strategyInput: "Draft Receiver One for no more than $30. Do not spend over $10 on another WR.",
+      seedPrefix: "receiver-cap-plan",
+    });
+
+    expect(result.strategy.warnings).toEqual([]);
+    for (const run of result.runs) {
+      const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+      const target = roster.find(player => player.playerName === "Receiver One");
+      const otherReceiver = roster.find(player =>
+        player.position === "WR" && player.playerName !== "Receiver One"
+      );
+      expect(target?.price).toBeGreaterThan(10);
+      expect(target?.price).toBeLessThanOrEqual(30);
+      expect(otherReceiver?.price).toBeLessThanOrEqual(10);
     }
   });
 
