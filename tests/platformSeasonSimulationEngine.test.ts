@@ -139,6 +139,58 @@ const snakeSetup: LiveDraftRoomSetup = {
 };
 
 describe("season simulation strategy parser", () => {
+  it("parses multiple named auction targets with independent price caps", () => {
+    const strategy = parseSeasonSimulationStrategy(
+      "draft jadarian price for no more than $20. Draft gibbs for no more than $76",
+    );
+
+    expect(strategy).toMatchObject({
+      targets: [
+        { playerName: "jadarian price", maxAuctionPrice: 20 },
+        { playerName: "gibbs", maxAuctionPrice: 76 },
+      ],
+      summary: "Target jadarian price up to $20; target gibbs up to $76.",
+      warnings: [],
+    });
+  });
+
+  it.each([
+    {
+      input: "draft Gibbs by pick 5 and draft Chase by round 2",
+      targets: [
+        { playerName: "Gibbs", maxSnakeOverallPick: 5 },
+        { playerName: "Chase", maxSnakeRound: 2 },
+      ],
+    },
+    {
+      input: "draft Gibbs and draft Chase under $74",
+      targets: [
+        { playerName: "Gibbs" },
+        { playerName: "Chase", maxAuctionPrice: 74 },
+      ],
+    },
+    {
+      input: "target Gibbs and target Chase",
+      targets: [{ playerName: "Gibbs" }, { playerName: "Chase" }],
+    },
+    {
+      input: "target Gibbs; target Chase under $70",
+      targets: [
+        { playerName: "Gibbs" },
+        { playerName: "Chase", maxAuctionPrice: 70 },
+      ],
+    },
+    {
+      input: "target Gibbs, target Chase under $70",
+      targets: [
+        { playerName: "Gibbs" },
+        { playerName: "Chase", maxAuctionPrice: 70 },
+      ],
+    },
+  ])("keeps separate target clauses in source order: $input", ({ input, targets }) => {
+    expect(parseSeasonSimulationStrategy(input)).toMatchObject({ targets, warnings: [] });
+  });
+
   it("reports only the auction target, preferred position, and pairing it can honor", () => {
     const strategy = parseSeasonSimulationStrategy(
       "Run 25 simulations where I draft Jadarian Price for no more than $20 and target an elite RB to pair with Achane",
@@ -150,6 +202,10 @@ describe("season simulation strategy parser", () => {
         playerName: "Jadarian Price",
         maxAuctionPrice: 20,
       },
+      targets: [{
+        playerName: "Jadarian Price",
+        maxAuctionPrice: 20,
+      }],
       preferredPositions: [{ position: "RB", tier: "elite" }],
       pairWithPlayerName: "Achane",
       summary: "Target Jadarian Price up to $20; prioritize elite RB; pair with Achane.",
@@ -296,6 +352,49 @@ describe("season simulation runner", () => {
     });
     expect(result.runs[0]?.teams.every(team => team.roster.length === 2)).toBe(true);
     expect(runSeasonSimulations(input)).toEqual(result);
+  });
+
+  it("applies multiple named player caps throughout each auction run", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        auction: { budgetDollars: 200, minimumBidDollars: 1 },
+        roster: {
+          rosterSize: 3,
+          lineup: { RB: 1, FLEX: 1, BENCH: 1 },
+          lineupSlotCount: 2,
+          rosterMaximums: { ...auctionSeason.settings.roster.rosterMaximums, RB: 3 },
+        },
+      },
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup: {
+        ...auctionSetup,
+        playerCatalog: [
+          ...auctionSetup.playerCatalog,
+          { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 50 },
+        ],
+      },
+      humanTeamId: "team-1",
+      runCount: 3,
+      strategyInput: "draft jadarian price for no more than $20. Draft gibbs for no more than $76",
+      seedPrefix: "two-target-plan",
+    });
+
+    expect(result.strategy.warnings).toEqual([]);
+    expect(result.targetOutcomes).toHaveLength(2);
+    expect(result.targetOutcomes?.map(outcome => outcome.playerName))
+      .toEqual(["Jadarian Price", "Jahmyr Gibbs"]);
+    expect(result.targetOutcomes?.every(outcome => outcome.hitCount > 0)).toBe(true);
+    for (const run of result.runs) {
+      const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+      const jadarian = roster.find(player => player.playerName === "Jadarian Price");
+      const gibbs = roster.find(player => player.playerName === "Jahmyr Gibbs");
+      if (jadarian !== undefined) expect(jadarian.price).toBeLessThanOrEqual(20);
+      if (gibbs !== undefined) expect(gibbs.price).toBeLessThanOrEqual(76);
+    }
   });
 
   it("does not exceed a counted auction preference or its price cap", () => {

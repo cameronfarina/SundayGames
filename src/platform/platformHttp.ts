@@ -2452,6 +2452,7 @@ const routeSeasonSimulations = async (
               runCount: run.result?.seasonSimulation?.runCount,
               completedCount: run.result?.seasonSimulation?.completedCount,
               strategy: run.result?.seasonSimulation?.strategy,
+              targetOutcomes: run.result?.seasonSimulation?.targetOutcomes,
               targetOutcome: run.result?.seasonSimulation?.targetOutcome,
             },
           })),

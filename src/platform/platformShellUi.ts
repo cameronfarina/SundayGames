@@ -1048,7 +1048,7 @@ export const platformShellHtml = `<!doctype html>
               <ul id="simulation-warnings" class="result-list hidden"></ul>
               <div class="facts">
                 <div class="fact"><span>Completed</span><strong id="simulation-completed">-</strong></div>
-                <div class="fact"><span>Target hit rate</span><strong id="simulation-target-rate">-</strong></div>
+                <div class="fact"><span>Target hit rates</span><strong id="simulation-target-rate">-</strong></div>
                 <div class="fact"><span>Format</span><strong id="simulation-format">-</strong></div>
               </div>
               <section class="workspace-section">
@@ -2191,9 +2191,16 @@ export const platformShellHtml = `<!doctype html>
       });
       setHidden(simulationWarnings, simulationWarnings.childElementCount === 0);
       byId("simulation-completed").textContent = simulation.completedCount + " / " + simulation.runCount;
-      byId("simulation-target-rate").textContent = simulation.targetOutcome
-        ? Math.round(simulation.targetOutcome.hitRate * 100) + "% · " + simulation.targetOutcome.playerName
-        : "No named target";
+      const targetOutcomes = simulation.targetOutcomes?.length
+        ? simulation.targetOutcomes
+        : simulation.targetOutcome
+          ? [simulation.targetOutcome]
+          : [];
+      byId("simulation-target-rate").textContent = targetOutcomes.length
+        ? targetOutcomes.map(outcome =>
+            Math.round(outcome.hitRate * 100) + "% " + outcome.playerName
+          ).join(" · ")
+        : "No named targets";
       byId("simulation-format").textContent = titleCase(simulation.draftFormat);
 
       const exposureFragment = document.createDocumentFragment();
