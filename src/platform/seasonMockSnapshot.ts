@@ -18,7 +18,7 @@ import type { LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
 export const seasonMockConfigurationSnapshotMaxBytes = 2 * 1024 * 1024;
 
 const snapshotSchema = "mockd-season-mock" as const;
-const snapshotVersion = 1 as const;
+const snapshotVersion = 2 as const;
 const snapshotStorageLimitLabel = "2 MiB";
 
 export type SeasonMockConfigurationSnapshotErrorCode =
@@ -40,7 +40,7 @@ export interface SeasonMockSetupSnapshot extends Omit<LiveDraftRoomSetup, "updat
   updatedAt: string;
 }
 
-export interface SeasonMockConfigurationSnapshotPayloadV1 {
+export interface SeasonMockConfigurationSnapshotPayloadV2 {
   season: LeagueSeason<ExplicitLeagueSeasonSettings>;
   setup: SeasonMockSetupSnapshot;
   humanTeamId: string;
@@ -48,12 +48,12 @@ export interface SeasonMockConfigurationSnapshotPayloadV1 {
   playerHumanValues: Readonly<Record<string, number>>;
 }
 
-export interface SeasonMockConfigurationSnapshotV1 {
+export interface SeasonMockConfigurationSnapshotV2 {
   status: "ready";
   schema: typeof snapshotSchema;
   version: typeof snapshotVersion;
   capturedAt: string;
-  payload: SeasonMockConfigurationSnapshotPayloadV1;
+  payload: SeasonMockConfigurationSnapshotPayloadV2;
 }
 
 export interface SeasonMockConfigurationSnapshotMigrationRequired {
@@ -64,7 +64,7 @@ export interface SeasonMockConfigurationSnapshotMigrationRequired {
 }
 
 export type SeasonMockConfigurationSnapshotState =
-  | SeasonMockConfigurationSnapshotV1
+  | SeasonMockConfigurationSnapshotV2
   | SeasonMockConfigurationSnapshotMigrationRequired;
 
 export interface CreateSeasonMockConfigurationSnapshotInput {
@@ -418,7 +418,7 @@ export const normalizeSeasonMockConfigurationSnapshot = (
   if (version !== snapshotVersion) return migrationRequired("unsupported-version", version);
 
   const payloadRecord = plainRecord(record.payload);
-  const payload: SeasonMockConfigurationSnapshotPayloadV1 = {
+  const payload: SeasonMockConfigurationSnapshotPayloadV2 = {
     season: seasonValue(payloadRecord.season),
     setup: setupValue(payloadRecord.setup),
     humanTeamId: nonEmptyString(payloadRecord.humanTeamId),
@@ -433,7 +433,7 @@ export const normalizeSeasonMockConfigurationSnapshot = (
     !payload.season.teams.some(team => team.id === player.teamId)
   )) return malformedSnapshot();
 
-  const snapshot: SeasonMockConfigurationSnapshotV1 = {
+  const snapshot: SeasonMockConfigurationSnapshotV2 = {
     status: "ready",
     schema: snapshotSchema,
     version: snapshotVersion,
@@ -451,7 +451,7 @@ export const createSeasonMockConfigurationSnapshot = ({
   playerExpectedPrices,
   playerHumanValues = playerExpectedPrices,
   capturedAt = new Date(),
-}: CreateSeasonMockConfigurationSnapshotInput): SeasonMockConfigurationSnapshotV1 => {
+}: CreateSeasonMockConfigurationSnapshotInput): SeasonMockConfigurationSnapshotV2 => {
   const normalizedSeason: LeagueSeason<ExplicitLeagueSeasonSettings> = {
     ...structuredClone(season),
     settings: normalizeLeagueSeasonSettings(season.settings),
@@ -477,7 +477,7 @@ export const createSeasonMockConfigurationSnapshot = ({
 
 export const requireSeasonMockConfigurationSnapshot = (
   state: SeasonMockConfigurationSnapshotState,
-): SeasonMockConfigurationSnapshotV1 => {
+): SeasonMockConfigurationSnapshotV2 => {
   if (state.status === "ready") return state;
   const message = state.reason === "missing-snapshot"
     ? "This mock draft predates immutable configuration snapshots and must be restarted."

@@ -554,6 +554,24 @@ const rosterNeedFor = (
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
 
+const eligibleAiTeamsFor = (
+  state: GenericAuctionMockState,
+  player: GenericAuctionMockPlayer,
+): readonly GenericAuctionMockTeamReadModel[] => state.teams.filter(team =>
+  !team.isHuman
+  && canAcquire(state, team, player, state.configuration.minimumBidDollars)
+);
+
+const averageRosterNeedFor = (
+  teams: readonly GenericAuctionMockTeamReadModel[],
+  position: string,
+): number => teams.length === 0
+  ? 0
+  : teams.reduce((total, team) => total + rosterNeedFor(team, position), 0) / teams.length;
+
+const expectedSecondHighestNoiseFraction = (bidderCount: number): number =>
+  bidderCount < 2 ? 0 : (bidderCount - 3) / (bidderCount + 1);
+
 const aiMaxBidFor = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
@@ -569,6 +587,14 @@ const aiMaxBidFor = (
   const positionMultiplier = tendency?.positionBidMultipliers?.[player.position] ?? 1;
   const needDollars = state.configuration.ai?.rosterNeedDollars ?? 1;
   const randomness = tendency?.randomness ?? state.configuration.ai?.randomness ?? 0.08;
+  const eligibleAiTeams = eligibleAiTeamsFor(state, player);
+  const relativeRosterNeed = rosterNeedFor(team, player.position)
+    - averageRosterNeedFor(eligibleAiTeams, player.position);
+  // Market is already a clearing-price estimate, so remove the predictable
+  // second-highest-bid lift before applying owner-level random variation.
+  const competitionNoiseBias = player.expectedPrice
+    * randomness
+    * expectedSecondHighestNoiseFraction(eligibleAiTeams.length);
   const noise = (
     deterministicFraction(
       `${state.session.seed}:bid:${nominationNumber}:${team.id}:${player.id}`,
@@ -576,8 +602,9 @@ const aiMaxBidFor = (
   ) * player.expectedPrice * randomness;
   const willingness = Math.max(0, Math.round(
     player.expectedPrice * bidMultiplier * positionMultiplier
-    + rosterNeedFor(team, player.position) * needDollars
-    + noise,
+    + relativeRosterNeed * needDollars
+    + noise
+    - competitionNoiseBias,
   ));
 
   return Math.min(team.maxBid, willingness);

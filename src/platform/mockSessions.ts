@@ -3,7 +3,7 @@ import {
   normalizeSeasonMockConfigurationSnapshot,
   SeasonMockConfigurationSnapshotError,
   type SeasonMockConfigurationSnapshotState,
-  type SeasonMockConfigurationSnapshotV1,
+  type SeasonMockConfigurationSnapshotV2,
 } from "./seasonMockSnapshot.js";
 
 export type MockDraftSessionStatus = "setup" | "active" | "completed" | "abandoned";
@@ -89,7 +89,7 @@ export interface CreateMockDraftSessionInput {
   ownerId: string;
   teamId: string;
   draftMode: MockDraftModeMetadata;
-  configurationSnapshot?: SeasonMockConfigurationSnapshotV1 | undefined;
+  configurationSnapshot?: SeasonMockConfigurationSnapshotV2 | undefined;
   status?: Extract<MockDraftSessionStatus, "setup" | "active"> | undefined;
   now?: Date | undefined;
 }

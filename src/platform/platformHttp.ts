@@ -55,7 +55,7 @@ import {
   createSeasonMockConfigurationSnapshot,
   seasonMockReplayConfiguration,
   SeasonMockConfigurationSnapshotError,
-  type SeasonMockConfigurationSnapshotV1,
+  type SeasonMockConfigurationSnapshotV2,
 } from "./seasonMockSnapshot.js";
 import {
   createPlatformApp,
@@ -2101,7 +2101,7 @@ const seasonMockConfigurationSnapshotFor = async (
   request: ParsedPlatformHttpRequest,
   context: SeasonMockDraftContext,
   strategyKey: LiveDraftStrategyKey,
-): Promise<SeasonMockConfigurationSnapshotV1> => {
+): Promise<SeasonMockConfigurationSnapshotV2> => {
   const snapshots = context.season.settings.draftFormat === "auction"
     ? await app.listLeaguePricingSnapshots({
         actorSessionToken: request.sessionToken,
@@ -2114,7 +2114,7 @@ const seasonMockConfigurationSnapshotFor = async (
   const marketPrices = new Map(
     (snapshots.at(-1)?.rows ?? []).map(row => [
       canonicalPlayerIdentityKey(row.playerName),
-      row.scenarioPrice,
+      row.marketPrice,
     ]),
   );
   const humanKeepers = context.setup.initialRosters.filter(player =>
@@ -2510,7 +2510,7 @@ const routeSeasonSimulations = async (
   const playerExpectedPrices = Object.fromEntries(
     (snapshots.at(-1)?.rows ?? []).map(row => [
       canonicalPlayerIdentityKey(row.playerName),
-      row.scenarioPrice,
+      row.marketPrice,
     ]),
   );
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");

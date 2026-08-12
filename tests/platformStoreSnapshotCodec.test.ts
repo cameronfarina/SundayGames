@@ -176,7 +176,7 @@ describe("platform store snapshot codec", () => {
         configurationSnapshot: {
           status: "ready",
           schema: "mockd-season-mock",
-          version: 1,
+          version: 2,
           payload: {},
         },
       }],

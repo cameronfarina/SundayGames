@@ -434,13 +434,33 @@ describe("platform HTTP contract", () => {
       { name: "George Kittle", position: "TE", expectedPrice: 10 },
       { name: "Jake Elliott", position: "K", expectedPrice: 5 },
     ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+    let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => currentCatalog,
+      liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentCatalog, initialRosters: [] }),
+      seasonSimulationRunner: async input => {
+        simulationExpectedPrices = input.playerExpectedPrices;
+        return {
+          draftFormat: "auction",
+          runCount: input.runCount,
+          completedCount: input.runCount,
+          seedPrefix: input.seedPrefix ?? "market-source-test",
+          strategy: {
+            rawInput: input.strategyInput ?? "",
+            preferredPositions: [],
+            summary: "Balanced",
+            warnings: [],
+          },
+          playerExposure: [],
+          positionCounts: {},
+          runs: [],
+        };
+      },
     });
     const cam = await createLoggedInAccount(handle, "market-source@example.com");
     const baseSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
-    const teams = baseSeason.teams.slice(0, 2).map((team, index) => ({
+    const teams = baseSeason.teams.slice(0, 4).map((team, index) => ({
       ...team,
       id: `market-team-${index + 1}`,
       leagueSeasonId: "market-season-2026",
@@ -454,12 +474,12 @@ describe("platform HTTP contract", () => {
       teams,
       settings: {
         ...baseSeason.settings,
-        expectedTeamCount: 2,
+        expectedTeamCount: 4,
         auction: { budgetDollars: 100, minimumBidDollars: 1 },
         roster: {
-          rosterSize: 2,
-          lineup: { WR: 1, BENCH: 1 },
-          lineupSlotCount: 2,
+          rosterSize: 1,
+          lineup: { WR: 1 },
+          lineupSlotCount: 1,
           rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 1, DST: 1 },
         },
       },
@@ -514,6 +534,27 @@ describe("platform HTTP contract", () => {
         ]),
       },
     });
+
+    const mockResponse = await handle({
+      method: "POST",
+      path: "/season-mock-drafts",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, strategy: "balanced" },
+    });
+    expect(mockResponse).toMatchObject({ status: 201 });
+    const mockSession = expectBodyRecord(expectBodyRecord(mockResponse.body).mockSession);
+    const mockSnapshot = expectBodyRecord(mockSession.configurationSnapshot);
+    const mockPayload = expectBodyRecord(mockSnapshot.payload);
+    const mockExpectedPrices = mockPayload.playerExpectedPrices as Readonly<Record<string, number>>;
+    expect(mockExpectedPrices[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
+
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, count: 1 },
+    })).resolves.toMatchObject({ status: 200 });
+    expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
   });
 
   it("reviews ESPN league settings for a signed-in commissioner before creating anything", async () => {
@@ -1215,7 +1256,7 @@ describe("platform HTTP contract", () => {
           configurationSnapshot: {
             status: "ready",
             schema: "mockd-season-mock",
-            version: 1,
+            version: 2,
           },
         },
         state: { session: { status: "setup", revision: 0 } },

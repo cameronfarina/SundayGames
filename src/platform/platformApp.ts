@@ -87,7 +87,7 @@ import {
   type MockDraftResultReference,
   type StoredMockDraftCommandRetry,
 } from "./mockSessions.js";
-import type { SeasonMockConfigurationSnapshotV1 } from "./seasonMockSnapshot.js";
+import type { SeasonMockConfigurationSnapshotV2 } from "./seasonMockSnapshot.js";
 import {
   InMemorySimulationRepository,
   executeSimulationRun,
@@ -359,7 +359,7 @@ export interface GetPlatformPricingSnapshotInput {
 
 export interface CreatePlatformMockDraftSessionInput extends PrivateTeamContextInput {
   draftMode: MockDraftModeMetadata;
-  configurationSnapshot?: SeasonMockConfigurationSnapshotV1 | undefined;
+  configurationSnapshot?: SeasonMockConfigurationSnapshotV2 | undefined;
   status?: "setup" | "active" | undefined;
 }
 

@@ -59,7 +59,7 @@ describe("season mock configuration snapshots", () => {
     expect(snapshot).toMatchObject({
       status: "ready",
       schema: "mockd-season-mock",
-      version: 1,
+      version: 2,
       capturedAt: capturedAt.toISOString(),
       payload: {
         season: { id: season.id },
@@ -108,13 +108,13 @@ describe("season mock configuration snapshots", () => {
     expect(normalizeSeasonMockConfigurationSnapshot({
       status: "ready",
       schema: "mockd-season-mock",
-      version: 2,
+      version: 1,
       payload: {},
     })).toEqual({
       status: "migration-required",
       schema: "mockd-season-mock",
       reason: "unsupported-version",
-      sourceVersion: 2,
+      sourceVersion: 1,
     });
     expect(() => requireSeasonMockConfigurationSnapshot({
       status: "migration-required",
@@ -130,7 +130,7 @@ describe("season mock configuration snapshots", () => {
     expect(() => normalizeSeasonMockConfigurationSnapshot({
       status: "ready",
       schema: "mockd-season-mock",
-      version: 1,
+      version: 2,
       capturedAt: "not-a-date",
       payload: {},
     })).toThrow(new SeasonMockConfigurationSnapshotError(

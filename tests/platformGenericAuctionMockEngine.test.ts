@@ -298,6 +298,45 @@ describe("generic auction mock engine", () => {
     expect(passed.sales[0]).toMatchObject({ teamId: "team-b", playerId: "wr-1", price: 7 });
   });
 
+  it("centers competitive AI clearing prices around the expected market price", () => {
+    const teams = Array.from({ length: 14 }, (_, index) => ({
+      id: `team-${index + 1}`,
+      name: index === 0 ? "Cam" : `Opponent ${index}`,
+    }));
+    const config = baseConfig({
+      teams,
+      humanTeamId: teams[0]?.id ?? "missing",
+      budgetDollars: 200,
+      rosterSlots: [{ slot: "RB", count: 1, eligiblePositions: ["RB"] }],
+      positionMaximums: { RB: 1 },
+      players: Array.from({ length: 14 }, (_, index) => ({
+        id: index === 0 ? "jahmyr-gibbs" : `running-back-${index + 1}`,
+        name: index === 0 ? "Jahmyr Gibbs" : `Running Back ${index + 1}`,
+        position: "RB",
+        expectedPrice: index === 0 ? 76 : Math.max(1, 50 - index),
+      })),
+      ai: {
+        defaultBidMultiplier: 1,
+        rosterNeedDollars: 1,
+        randomness: 0.08,
+      },
+    });
+    const nominated = applyGenericAuctionMockCommand(start(config), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "jahmyr-gibbs",
+      openingBid: 1,
+    });
+    const sold = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: 2,
+    });
+
+    expect(sold.sales[0]).toMatchObject({ playerId: "jahmyr-gibbs", source: "ai" });
+    expect(sold.sales[0]?.price).toBeGreaterThanOrEqual(72);
+    expect(sold.sales[0]?.price).toBeLessThanOrEqual(80);
+  });
+
   it("preserves the standing AI bidder when opponents have equal bid ceilings", () => {
     const config = baseConfig({
       teams: [
