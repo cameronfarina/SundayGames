@@ -968,11 +968,20 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(historyRows.nth(1)).toContainText("4 draft rows imported for 2024");
 
   const keeperCommand = page.locator("#keeper-command-input");
+  await keeperCommand.fill("Alex Lamb 50");
+  await keeperCommand.press("Enter");
+  await expect(page.locator("#keeper-status")).toHaveText(
+    "Use '<team or manager> keeping <player> <number>'.",
+  );
+  await expect(keeperCommand).toHaveValue("Alex Lamb 50");
+  await expect(page.locator("#keeper-save-state")).toHaveText("2 keepers saved");
   await keeperCommand.fill("Alex keeping Lamb 50");
-  await page.locator("#keeper-preview-button").click();
-  await expect(page.locator("#keeper-status")).toHaveText("Alex keeps CeeDee Lamb for $50.");
-  await page.locator("#keeper-apply-button").click();
+  await keeperCommand.press("Enter");
   await expect(page.locator("#keeper-save-state")).toHaveText("3 keepers saved");
+  await expect(page.locator("#keeper-status")).toHaveText(
+    "Alex keeps CeeDee Lamb for $50. League values are updated.",
+  );
+  await expect(keeperCommand).toHaveValue("");
   await expect(page.locator("#keeper-list")).toContainText("Alex · CeeDee Lamb");
   await expect(page.locator("#keeper-list")).toContainText("$50");
 
@@ -995,11 +1004,9 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(page.locator("#keeper-save-state")).toHaveText("3 keepers saved");
   await expect(keeperCommand).toBeEnabled();
   await keeperCommand.fill("Alex keeping Lamb 47");
-  await page.locator("#keeper-preview-button").click();
-  await expect(page.locator("#keeper-status")).toHaveText("Alex keeps CeeDee Lamb for $47.");
-  await page.locator("#keeper-apply-button").click();
+  await keeperCommand.press("Enter");
   await expect(page.locator("#keeper-status")).toHaveText(
-    "Saved. League values and the draft room are updated.",
+    "Alex keeps CeeDee Lamb for $47. League values and the draft room are updated.",
   );
   await page.goto(
     `/draft-room?seasonId=${encodeURIComponent(season.id)}&roomId=${encodeURIComponent(room.roomId)}`,

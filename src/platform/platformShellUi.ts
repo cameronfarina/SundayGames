@@ -395,6 +395,14 @@ export const platformShellHtml = `<!doctype html>
     .setup-layout > *, .context-bar > * { min-width: 0; }
 
     .keeper-list { display: grid; gap: 8px; margin-top: 12px; }
+    .keeper-command-form {
+      align-items: end;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      margin-top: 16px;
+    }
+    .keeper-command-form > div { min-width: 0; }
     .section-title-row {
       align-items: center;
       display: flex;
@@ -1018,6 +1026,8 @@ export const platformShellHtml = `<!doctype html>
       .league-import-actions { grid-template-columns: 1fr; }
       .league-team-grid { grid-template-columns: 1fr; }
       .historical-file-row { grid-template-columns: 1fr; }
+      .keeper-command-form { grid-template-columns: 1fr; }
+      .keeper-command-form button { width: 100%; }
       .player-board-scroll { max-height: min(58vh, 520px); }
       .mock-auction-main { align-items: start; grid-template-columns: 1fr; }
       .mock-auction-bid { text-align: left; }
@@ -1642,14 +1652,13 @@ export const platformShellHtml = `<!doctype html>
               <span id="keeper-save-state" class="saved-indicator">Loading keepers...</span>
             </div>
             <p class="lede">Enter one keeper at a time using a team or manager name, player, and auction cost or snake round. Keepers save automatically, and you can return to edit them until the draft starts.</p>
-            <div style="margin-top: 16px">
-              <label for="keeper-command-input">Keeper command</label>
-              <input id="keeper-command-input" placeholder="Cam keeping Achane 50" autocomplete="off">
-            </div>
-            <div class="actions" style="margin-top: 12px">
-              <button id="keeper-preview-button" type="button">Review keeper</button>
-              <button id="keeper-apply-button" class="primary" type="button" disabled>Confirm keeper</button>
-            </div>
+            <form id="keeper-command-form" class="keeper-command-form">
+              <div>
+                <label for="keeper-command-input">Keeper command</label>
+                <input id="keeper-command-input" placeholder="Hoody keeping Tuten 5" autocomplete="off">
+              </div>
+              <button id="keeper-add-button" class="primary" type="submit">Add keeper</button>
+            </form>
             <p id="keeper-status" class="status" role="status" aria-live="polite"></p>
             <div id="keeper-list" class="keeper-list"></div>
           </section>
@@ -1755,7 +1764,6 @@ export const platformShellHtml = `<!doctype html>
       leagueCreationScreenshotAbortController: null,
       historicalImportFiles: [],
       historicalImportBusy: false,
-      keeperPreviewCommand: null,
       mockSession: null,
       mockDraft: null,
       mockResults: null,
@@ -1820,8 +1828,8 @@ export const platformShellHtml = `<!doctype html>
     const historicalImportStatus = byId("historical-import-status");
     const historicalImportDescription = byId("historical-import-description");
     const keeperCommandInput = byId("keeper-command-input");
-    const keeperPreviewButton = byId("keeper-preview-button");
-    const keeperApplyButton = byId("keeper-apply-button");
+    const keeperCommandForm = byId("keeper-command-form");
+    const keeperAddButton = byId("keeper-add-button");
     const keeperStatus = byId("keeper-status");
     const keeperList = byId("keeper-list");
     const keeperSaveState = byId("keeper-save-state");
@@ -3330,8 +3338,7 @@ export const platformShellHtml = `<!doctype html>
       setupApplyButton.disabled = true;
       updateHistoricalImportControls();
       keeperCommandInput.disabled = draftHasStarted;
-      keeperPreviewButton.disabled = draftHasStarted;
-      keeperApplyButton.disabled = draftHasStarted || state.keeperPreviewCommand === null;
+      keeperAddButton.disabled = draftHasStarted;
       if (hasRoom) {
         openSetupLiveRoom.href = draftRoomPathFor(selectedLeague.seasonId, room.roomId);
         liveRoomSetupStatus.textContent = draftHasStarted
@@ -3882,7 +3889,6 @@ export const platformShellHtml = `<!doctype html>
         state.claimedTeamIds = new Set();
         state.historicalImportFiles = [];
         state.historicalImportBusy = false;
-        state.keeperPreviewCommand = null;
         state.mockRequestGeneration += 1;
         state.mockSession = null;
         state.mockDraft = null;
@@ -3903,7 +3909,7 @@ export const platformShellHtml = `<!doctype html>
         historicalImportButton.disabled = true;
         historicalImportStatus.textContent = "";
         historicalImportFileList.replaceChildren();
-        keeperApplyButton.disabled = true;
+        keeperAddButton.disabled = true;
         keeperStatus.textContent = "";
         keeperList.replaceChildren();
         setupFinalReview.checked = false;
@@ -4742,12 +4748,11 @@ export const platformShellHtml = `<!doctype html>
     };
 
     keeperCommandInput.addEventListener("input", () => {
-      state.keeperPreviewCommand = null;
-      keeperApplyButton.disabled = true;
       keeperStatus.textContent = "";
     });
 
-    keeperPreviewButton.addEventListener("click", async () => {
+    keeperCommandForm.addEventListener("submit", async event => {
+      event.preventDefault();
       const seasonId = byId("setup-season-id-input").value;
       const command = keeperCommandInput.value.trim();
       if (!command) {
@@ -4755,42 +4760,9 @@ export const platformShellHtml = `<!doctype html>
         keeperCommandInput.focus();
         return;
       }
-      keeperPreviewButton.disabled = true;
-      keeperApplyButton.disabled = true;
-      keeperStatus.textContent = "Checking keeper...";
-      try {
-        const response = await fetch(
-          "/seasons/" + encodeURIComponent(seasonId) + "/keepers/preview",
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ command: command }),
-          },
-        );
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok || body.kind !== "preview") {
-          throw new Error(body.error?.message || errorMessageFor(body));
-        }
-        state.keeperPreviewCommand = command;
-        const value = body.keeper.draftType === "snake"
-          ? "round " + body.keeper.keeperRound
-          : "$" + body.keeper.auctionCostDollars;
-        keeperStatus.textContent = body.team.name + " keeps " + body.player.name + " for " + value + ".";
-        keeperApplyButton.disabled = state.draftHasStarted;
-      } catch (error) {
-        state.keeperPreviewCommand = null;
-        keeperStatus.textContent = error.message;
-      } finally {
-        keeperPreviewButton.disabled = state.draftHasStarted;
-      }
-    });
-
-    keeperApplyButton.addEventListener("click", async () => {
-      const seasonId = byId("setup-season-id-input").value;
-      const command = state.keeperPreviewCommand;
-      if (!command) return;
-      keeperApplyButton.disabled = true;
+      const previousSaveState = keeperSaveState.textContent;
+      keeperCommandInput.disabled = true;
+      keeperAddButton.disabled = true;
       keeperStatus.textContent = "Adding keeper and updating league values...";
       keeperSaveState.textContent = "Saving...";
       try {
@@ -4805,16 +4777,23 @@ export const platformShellHtml = `<!doctype html>
         ));
         renderSeasonKeepers(body.keepers || []);
         keeperCommandInput.value = "";
-        state.keeperPreviewCommand = null;
         state.playerCatalog = null;
         state.playerCatalogSeasonId = null;
-        keeperStatus.textContent = body.room
-          ? "Saved. League values and the draft room are updated."
-          : "Saved. League values are updated.";
+        const value = body.preview.keeper.draftType === "snake"
+          ? "round " + body.preview.keeper.keeperRound
+          : "$" + body.preview.keeper.auctionCostDollars;
+        const updateMessage = body.room
+          ? "League values and the draft room are updated."
+          : "League values are updated.";
+        keeperStatus.textContent = body.preview.team.name + " keeps " + body.preview.player.name
+          + " for " + value + ". " + updateMessage;
       } catch (error) {
         keeperStatus.textContent = error.message;
-        keeperSaveState.textContent = "Could not save";
-        keeperApplyButton.disabled = state.draftHasStarted;
+        keeperSaveState.textContent = previousSaveState;
+      } finally {
+        keeperCommandInput.disabled = state.draftHasStarted;
+        keeperAddButton.disabled = state.draftHasStarted;
+        if (!state.draftHasStarted) keeperCommandInput.focus();
       }
     });
 
