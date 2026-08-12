@@ -1161,6 +1161,7 @@ const routeSeasonHistoricalImports = async (
     seasonYear: optionalNumber(request.body.seasonYear) ?? season.seasonYear,
     currentSeasonId: season.id,
     sourceText,
+    inferFirstRosterRowAsKeeper: optionalBoolean(request.body.inferFirstRosterRowAsKeeper),
     replacementRequested: optionalBoolean(request.body.replacementRequested),
     ...(historicalSetup === null ? {} : { playerCatalog: historicalSetup.playerCatalog }),
     ownerMappings: historicalOwnerMappingsFrom(request.body.ownerMappings),
@@ -1275,7 +1276,7 @@ const rebuildPricingAfterKeeperChange = async (
     actorSessionToken: request.sessionToken,
     leagueId: season.leagueId,
     seasonYear: season.seasonYear,
-    modelVersion: options.modelVersion ?? "league-history-keepers-v1",
+    modelVersion: options.modelVersion ?? "league-history-keepers-v2",
     scenarioIds: ["expected"],
     baselinePrices: setup.playerCatalog
       .filter(player => !keeperPlayerKeys.has(canonicalPlayerIdentityKey(player.name)))
@@ -1313,8 +1314,8 @@ const playerCatalogWithPricingSnapshot = (
 
     return {
       ...player,
-      marketPrice: player.marketPrice ?? player.expectedPrice,
-      expectedPrice: Math.max(1, Math.round(pricing.personalValue)),
+      marketPrice: pricing.marketPrice,
+      expectedPrice: Math.max(1, Math.round(pricing.scenarioPrice)),
     };
   });
 };
@@ -1871,7 +1872,7 @@ const routeHistoricalImports = async (
     await rebuildPricingAfterKeeperChange(app, request, season, setup, {
       preflight: true,
       historicalSaleRecords: prepared.projectedHistoricalSaleRecords,
-      modelVersion: "league-history-v1",
+      modelVersion: "league-history-v2",
     });
   }
 
@@ -1886,7 +1887,7 @@ const routeHistoricalImports = async (
 
   if (season.settings.draftFormat !== "snake" && setup !== null) {
     const pricingResult = await rebuildPricingAfterKeeperChange(app, request, season, setup, {
-      modelVersion: "league-history-v1",
+      modelVersion: "league-history-v2",
     });
     if (pricingResult === undefined || !("savedSnapshotIds" in pricingResult)) {
       throw new Error("Historical pricing rebuild did not persist a snapshot.");
@@ -3449,7 +3450,7 @@ export const createPlatformHttpHandler = (
             ...(latest === undefined ? {} : { pricingModelRunId: latest.modelRunId }),
             players: players.map(player => {
               const pricing = pricingByPlayer.get(canonicalPlayerIdentityKey(player.name));
-              const marketPrice = pricing?.scenarioPrice ?? player.expectedPrice;
+              const marketPrice = pricing?.marketPrice ?? player.expectedPrice;
               const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
               const myValue = strategyAdjustedAuctionValue({
                 marketValue: marketPrice,

@@ -30,7 +30,12 @@ interface CalibrationResult {
 
 interface PositionInflationResult {
   multipliers: ReadonlyMap<Position, number>;
+  publicValueCoverage: ReadonlyMap<Position, number>;
   matchedSaleCount: number;
+}
+
+interface PositionSaleCurveResult {
+  pricesByPosition: ReadonlyMap<Position, readonly number[]>;
 }
 
 interface LeagueAuctionAllocation {
@@ -51,8 +56,8 @@ const MINIMUM_HISTORICAL_RATIO = 0.5;
 const MAXIMUM_HISTORICAL_RATIO = 2;
 const HISTORY_UNAVAILABLE_WARNING =
   "league auction history unavailable; using baseline market prices";
-const HISTORY_PUBLIC_VALUES_UNAVAILABLE_WARNING =
-  "same-season public auction values unavailable; using baseline market prices";
+const HISTORY_SALE_CURVE_WARNING =
+  "same-season public auction values unavailable; calibrated from league sale-price curves";
 const AUCTION_CONTEXT_UNAVAILABLE_WARNING =
   "league auction allocation unavailable; team count, budget, roster size, minimum bid, and keeper count were not fully provided";
 const SCENARIO_ASSUMPTIONS_UNAVAILABLE_WARNING =
@@ -145,10 +150,13 @@ const createPositionInflationMultipliers = (
   sales: readonly HistoricalSaleRecord[],
 ): PositionInflationResult => {
   const ratiosByPosition = new Map<Position, number[]>();
+  const saleCountByPosition = new Map<Position, number>();
   const multipliers = new Map<Position, number>();
+  const publicValueCoverage = new Map<Position, number>();
   let matchedSaleCount = 0;
 
   for (const sale of sales) {
+    saleCountByPosition.set(sale.position, (saleCountByPosition.get(sale.position) ?? 0) + 1);
     if (sale.publicPriceDollars === undefined || sale.publicPriceDollars <= 0) continue;
 
     const boundedRatio = Math.min(
@@ -163,16 +171,74 @@ const createPositionInflationMultipliers = (
     const historicalRatio = average(ratios);
     if (historicalRatio !== undefined) {
       multipliers.set(position, 1 + (historicalRatio - 1) * HISTORICAL_BLEND_WEIGHT);
+      publicValueCoverage.set(
+        position,
+        ratios.length / (saleCountByPosition.get(position) ?? ratios.length),
+      );
     }
   }
 
-  return { multipliers, matchedSaleCount };
+  return { multipliers, publicValueCoverage, matchedSaleCount };
+};
+
+const createPositionSaleCurves = (
+  sales: readonly HistoricalSaleRecord[],
+): PositionSaleCurveResult => {
+  const seasonPricesByPosition = new Map<Position, Map<number, number[]>>();
+  const pricesByPosition = new Map<Position, readonly number[]>();
+
+  for (const sale of sales) {
+    const seasonPrices = seasonPricesByPosition.get(sale.position) ?? new Map<number, number[]>();
+    addMapValue(seasonPrices, sale.seasonYear, sale.priceDollars);
+    seasonPricesByPosition.set(sale.position, seasonPrices);
+  }
+
+  for (const [position, seasonPrices] of seasonPricesByPosition) {
+    const seasonCurves = [...seasonPrices.values()]
+      .map(prices => prices.sort((left, right) => right - left));
+    const maximumRankCount = Math.max(0, ...seasonCurves.map(prices => prices.length));
+    const rankPrices = Array.from({ length: maximumRankCount }, (_, rankIndex) =>
+      average(seasonCurves.flatMap(prices => {
+        const price = prices[rankIndex];
+        return price === undefined ? [] : [price];
+      })) ?? 0
+    );
+    pricesByPosition.set(position, rankPrices);
+  }
+
+  return { pricesByPosition };
+};
+
+const historicalRankPricesForBaselines = (
+  baselinePrices: readonly PricingSourcePrice[],
+  saleCurves: PositionSaleCurveResult,
+): ReadonlyMap<number, number> => {
+  const historicalPriceByIndex = new Map<number, number>();
+
+  for (const position of new Set(baselinePrices.map(price => price.position))) {
+    const historicalPrices = saleCurves.pricesByPosition.get(position) ?? [];
+    baselinePrices
+      .map((price, index) => ({ price, index }))
+      .filter(candidate => candidate.price.position === position)
+      .sort((left, right) =>
+        right.price.price - left.price.price
+          || left.price.normalizedName.localeCompare(right.price.normalizedName)
+      )
+      .forEach(({ index }, rankIndex) => {
+        const historicalPrice = historicalPrices[rankIndex];
+        if (historicalPrice !== undefined) historicalPriceByIndex.set(index, historicalPrice);
+      });
+  }
+
+  return historicalPriceByIndex;
 };
 
 const calibratedMarketPrice = (
   baselinePrice: PricingSourcePrice,
   playerHistory: ReadonlyMap<string, number[]>,
   positionInflationMultipliers: ReadonlyMap<Position, number>,
+  positionPublicValueCoverage: ReadonlyMap<Position, number>,
+  historicalRankPrice: number | undefined,
   maximumPrice: number,
 ): CalibrationResult => {
   const baselineWholeDollars = clampWholeDollars(baselinePrice.price, maximumPrice);
@@ -198,8 +264,37 @@ const calibratedMarketPrice = (
   }
 
   const positionMultiplier = positionInflationMultipliers.get(baselinePrice.position);
+  if (positionMultiplier !== undefined && historicalRankPrice !== undefined) {
+    const positionPrice = baselineWholeDollars * positionMultiplier;
+    const curvePrice = baselineWholeDollars
+      + (historicalRankPrice - baselineWholeDollars) * HISTORICAL_BLEND_WEIGHT;
+    const publicValueCoverage = positionPublicValueCoverage.get(baselinePrice.position) ?? 0;
+    const price = clampWholeDollars(
+      curvePrice + (positionPrice - curvePrice) * publicValueCoverage,
+      maximumPrice,
+    );
+
+    return {
+      price,
+      historicalMove: price - baselineWholeDollars,
+    };
+  }
+
   if (positionMultiplier !== undefined) {
     const price = clampWholeDollars(baselineWholeDollars * positionMultiplier, maximumPrice);
+
+    return {
+      price,
+      historicalMove: price - baselineWholeDollars,
+    };
+  }
+
+  if (historicalRankPrice !== undefined) {
+    const price = clampWholeDollars(
+      baselineWholeDollars
+        + (historicalRankPrice - baselineWholeDollars) * HISTORICAL_BLEND_WEIGHT,
+      maximumPrice,
+    );
 
     return {
       price,
@@ -215,8 +310,21 @@ const calibratedMarketPrice = (
 
 const historicalMoveWarning = (historicalMove: number): string | undefined =>
   Math.abs(historicalMove) >= MATERIAL_HISTORICAL_MOVE_DOLLARS
-    ? `historical inflation moved price by $${Math.abs(historicalMove)}`
+    ? `league history moved price ${historicalMove > 0 ? "up" : "down"} by $${Math.abs(historicalMove)}`
     : undefined;
+
+const historyWarningsFor = (
+  recentSaleCount: number,
+  publicValueSaleCount: number,
+): readonly string[] => {
+  if (recentSaleCount === 0) return [HISTORY_UNAVAILABLE_WARNING];
+  if (publicValueSaleCount === 0) return [HISTORY_SALE_CURVE_WARNING];
+  if (publicValueSaleCount === recentSaleCount) return [];
+
+  return [
+    `${recentSaleCount - publicValueSaleCount} historical sale(s) lacked same-season public dollar values; league sale-price curves were used where public anchors were unavailable`,
+  ];
+};
 
 const sourcePriceForScenario = (
   sourcePrice: PricingSourcePrice,
@@ -459,22 +567,29 @@ export const createLeagueCalibratedPricingSnapshots = (
   const positionInflation = createPositionInflationMultipliers(
     recentSales,
   );
+  const positionSaleCurves = createPositionSaleCurves(recentSales);
+  const historicalRankPrices = historicalRankPricesForBaselines(
+    input.baselinePrices,
+    positionSaleCurves,
+  );
   const maximumPrice = isPositiveInteger(input.currentAuctionBudget)
     ? input.currentAuctionBudget
     : Number.POSITIVE_INFINITY;
-  const calibratedPrices = input.baselinePrices.map(price =>
-    calibratedMarketPrice(price, playerHistory, positionInflation.multipliers, maximumPrice),
+  const calibratedPrices = input.baselinePrices.map((price, index) =>
+    calibratedMarketPrice(
+      price,
+      playerHistory,
+      positionInflation.multipliers,
+      positionInflation.publicValueCoverage,
+      historicalRankPrices.get(index),
+      maximumPrice,
+    ),
   );
   const auctionAllocation = leagueAuctionAllocation(input, calibratedPrices);
-  const historyWarnings = recentSales.length === 0
-    ? [HISTORY_UNAVAILABLE_WARNING]
-    : positionInflation.matchedSaleCount === 0
-      ? [HISTORY_PUBLIC_VALUES_UNAVAILABLE_WARNING]
-      : positionInflation.matchedSaleCount === recentSales.length
-        ? []
-        : [
-          `${recentSales.length - positionInflation.matchedSaleCount} historical sale(s) lacked same-season public dollar values and were excluded from inflation calibration`,
-        ];
+  const historyWarnings = historyWarningsFor(
+    recentSales.length,
+    positionInflation.matchedSaleCount,
+  );
   const inputSnapshot = createPricingInputSnapshot(inputSnapshotPayload(input, recentSales));
 
   return scenarioIds.map(scenarioId => createPricingSnapshot({

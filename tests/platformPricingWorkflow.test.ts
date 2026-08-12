@@ -103,6 +103,22 @@ describe("platform pricing workflow", () => {
     expect(repository.list()).toHaveLength(1);
   });
 
+  it("persists a new pricing model beside an older snapshot for the same inputs", () => {
+    const repository = createInMemoryPricingSnapshotRepository();
+
+    const previousModel = rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      modelVersion: "league-history-v1",
+      createdAt: "2026-08-09T12:00:00.000Z",
+    }));
+    const currentModel = rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      modelVersion: "league-history-v2",
+      createdAt: "2026-08-09T12:01:00.000Z",
+    }));
+
+    expect(currentModel.modelRunId).not.toBe(previousModel.modelRunId);
+    expect(repository.list()).toHaveLength(2);
+  });
+
   it("filters saved snapshots by model run scenario and league season", () => {
     const repository = createInMemoryPricingSnapshotRepository();
     const league2026 = rebuildLeaguePricingWorkflow(workflowInput(repository, {

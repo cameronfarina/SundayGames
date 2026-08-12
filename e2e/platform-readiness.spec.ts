@@ -911,7 +911,7 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(page.locator("#historical-import-button")).toBeEnabled();
   await page.locator("#historical-import-button").click();
   await expect(page.locator("#historical-import-status")).toHaveText(
-    "Imported 2 draft files. Draft history is saved. These files do not include public/AAV values. Mockd uses eligible public/AAV values from the three-year window ending with the latest imported draft season.",
+    "Imported 2 draft files. Draft history is saved. Market now blends baseline projections with up to three years of open-auction sales; keeper rows are excluded. Files with same-season public/AAV values also improve player-level estimates.",
   );
   await expect(historyRows.nth(0)).toContainText("4 draft rows imported for 2023");
   await expect(historyRows.nth(1)).toContainText("4 draft rows imported for 2024");

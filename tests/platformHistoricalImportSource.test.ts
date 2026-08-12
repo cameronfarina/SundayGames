@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseHistoricalImportSource } from "../src/platform/historicalImportSource.js";
 
 describe("platform historical import source parsing", () => {
-  it("normalizes repeating owner blocks from a wide auction results sheet", () => {
+  it("marks the first wide-sheet roster row as keepers only when requested", () => {
     const result = parseHistoricalImportSource([
       "Team,Cam,,,Sam,,",
       "Money Left,$0,,,$1,,",
@@ -14,7 +14,7 @@ describe("platform historical import source parsing", () => {
       "Available,$89,,,$195,,",
       "Slots,Selected,Available,0,Selected,Available,0",
       "QB,1,1,,0,1,",
-    ].join("\n"));
+    ].join("\n"), { inferFirstRosterRowAsKeeper: true });
 
     expect(result.warnings).toEqual([]);
     expect(result.rows).toEqual([
@@ -24,6 +24,8 @@ describe("platform historical import source parsing", () => {
         playerName: "De'Von Achane",
         position: "RB",
         priceDollars: 50,
+        keeper: true,
+        acquisitionType: "keeper",
       },
       {
         sourceRowNumber: 3,
@@ -31,6 +33,8 @@ describe("platform historical import source parsing", () => {
         playerName: "New England Patriots",
         position: "DST",
         priceDollars: 3,
+        keeper: true,
+        acquisitionType: "keeper",
       },
       {
         sourceRowNumber: 4,
@@ -38,6 +42,8 @@ describe("platform historical import source parsing", () => {
         playerName: "Ja'Marr Chase",
         position: "WR",
         priceDollars: 61,
+        keeper: false,
+        acquisitionType: "auction",
       },
       {
         sourceRowNumber: 5,
@@ -45,9 +51,23 @@ describe("platform historical import source parsing", () => {
         playerName: "Jake Elliott",
         position: "K",
         priceDollars: 2,
+        keeper: false,
+        acquisitionType: "auction",
       },
     ]);
     expect(result.sourceRowCount).toBe(5);
+  });
+
+  it("does not assume the first roster row contains keepers", () => {
+    const result = parseHistoricalImportSource([
+      "Team,Cam,,,Sam,,",
+      "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
+    ].join("\n"));
+
+    expect(result.rows).toEqual([
+      expect.not.objectContaining({ keeper: expect.any(Boolean) }),
+      expect.not.objectContaining({ keeper: expect.any(Boolean) }),
+    ]);
   });
 
   it("keeps incomplete wide-sheet player cells for downstream validation", () => {
@@ -60,8 +80,18 @@ describe("platform historical import source parsing", () => {
     expect(result.rows).toEqual([
       expect.objectContaining({ ownerDisplayName: "Cam", playerName: "De'Von Achane", position: "RB" }),
       expect.objectContaining({ ownerDisplayName: "Sam", playerName: "New England Patriots", position: "DST" }),
-      { sourceRowNumber: 4, ownerDisplayName: "Cam", playerName: "Mystery Player", priceDollars: 4 },
-      { sourceRowNumber: 5, ownerDisplayName: "Sam", position: "K", priceDollars: 2 },
+      {
+        sourceRowNumber: 4,
+        ownerDisplayName: "Cam",
+        playerName: "Mystery Player",
+        priceDollars: 4,
+      },
+      {
+        sourceRowNumber: 5,
+        ownerDisplayName: "Sam",
+        position: "K",
+        priceDollars: 2,
+      },
     ]);
   });
 

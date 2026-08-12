@@ -1393,6 +1393,10 @@ export const platformShellHtml = `<!doctype html>
               <input id="historical-replace-input" type="checkbox">
               <span>Replace an existing import when a file uses the same draft year.</span>
             </label>
+            <label class="confirmation-label" for="historical-row-one-keepers-input" style="margin-top: 8px">
+              <input id="historical-row-one-keepers-input" type="checkbox">
+              <span>Roster row 1 contains each team's keeper.</span>
+            </label>
             <p id="historical-import-status" class="status" role="status" aria-live="polite"></p>
           </section>
           <section class="workspace-section" aria-labelledby="keepers-title">
@@ -1572,6 +1576,7 @@ export const platformShellHtml = `<!doctype html>
     const historicalImportFileList = byId("historical-import-file-list");
     const historicalImportButton = byId("historical-import-button");
     const historicalReplaceInput = byId("historical-replace-input");
+    const historicalRowOneKeepersInput = byId("historical-row-one-keepers-input");
     const historicalImportStatus = byId("historical-import-status");
     const historicalImportDescription = byId("historical-import-description");
     const keeperCommandInput = byId("keeper-command-input");
@@ -1918,9 +1923,9 @@ export const platformShellHtml = `<!doctype html>
       const warnings = state.playerCatalogMeta?.pricingWarnings || [];
       const historyUnavailable = warnings.some(warning => warning.toLowerCase().includes("history unavailable"));
       standalonePricingSource.textContent = personalized && !historyUnavailable
-        ? "Market uses your league's history, inflation, and keeper pool. My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+        ? "Market blends the current baseline with up to three years of your league's open-auction sales; keeper rows are excluded. My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
         : personalized
-          ? "Market uses the current baseline with this league's roster and keeper context. Import draft history to calibrate league inflation; My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+          ? "Market uses the current baseline. Import draft history to calibrate it to your league; My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
         : state.playerCatalogMeta?.draftFormat
           ? "Market uses the current baseline. Import draft history to calibrate it to your league; My value applies your strategy."
           : "Pricing source: current market board. Create a league to add history and keeper context.";
@@ -3866,6 +3871,7 @@ export const platformShellHtml = `<!doctype html>
       historicalImportFile.disabled = unavailable;
       historicalImportChoose.disabled = unavailable;
       historicalReplaceInput.disabled = unavailable;
+      historicalRowOneKeepersInput.disabled = unavailable;
       historicalImportButton.disabled = unavailable || state.historicalImportBusy
         || pendingHistoricalImportFiles().length === 0
         || historicalImportQueueIssue().length > 0;
@@ -3998,6 +4004,7 @@ export const platformShellHtml = `<!doctype html>
             base64: await fileBase64For(item.file),
             seasonYear: item.seasonYear,
             replacementRequested: historicalReplaceInput.checked,
+            inferFirstRosterRowAsKeeper: historicalRowOneKeepersInput.checked,
             ownerMappings: item.ownerMappings || [],
           }),
         },
@@ -4121,7 +4128,7 @@ export const platformShellHtml = `<!doctype html>
       }
 
       return importedCopy
-        + "Draft history is saved. These files do not include public/AAV values. Mockd uses eligible public/AAV values from the three-year window ending with the latest imported draft season."
+        + "Draft history is saved. Market now blends baseline projections with up to three years of open-auction sales; keeper rows are excluded. Files with same-season public/AAV values also improve player-level estimates."
         + warningCopy;
     };
 

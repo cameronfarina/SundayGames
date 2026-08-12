@@ -285,7 +285,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
   await expect(page.locator("#standalone-board-status")).toContainText("500 shown / 500 loaded");
   await expect(page.locator("#standalone-board-sort")).toHaveValue("mine");
-  await expect(page.locator("#standalone-pricing-source")).toContainText("Market uses");
+  await expect(page.locator("#standalone-pricing-source")).toContainText("Market blends");
   await expect(page.locator("#standalone-pricing-warnings")).toContainText(
     "Limited league history; value confidence is lower.",
   );

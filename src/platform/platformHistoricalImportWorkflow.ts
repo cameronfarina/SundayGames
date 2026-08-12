@@ -21,6 +21,7 @@ export interface PreviewHistoricalImportSourceWorkflowInput {
   seasonYear: number;
   seasonContext?: HistoricalImportSeasonContext;
   sourceText: string;
+  inferFirstRosterRowAsKeeper?: boolean;
   uploadedByUserId?: string;
   replacementRequested?: boolean;
   playerCatalog?: readonly HistoricalImportPlayerCatalogEntry[];
@@ -73,6 +74,7 @@ export const previewHistoricalImportSourceWorkflow = async ({
   seasonYear,
   seasonContext,
   sourceText,
+  inferFirstRosterRowAsKeeper,
   uploadedByUserId,
   replacementRequested,
   playerCatalog,
@@ -80,7 +82,9 @@ export const previewHistoricalImportSourceWorkflow = async ({
   playerMappings,
   now,
 }: PreviewHistoricalImportSourceWorkflowInput): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
-  const source = parseHistoricalImportSource(sourceText);
+  const source = parseHistoricalImportSource(sourceText, inferFirstRosterRowAsKeeper === undefined
+    ? {}
+    : { inferFirstRosterRowAsKeeper });
   const playerIdByRowNumber = new Map(
     (playerMappings ?? []).map(mapping => [mapping.rowNumber, mapping.playerId.trim()]),
   );

@@ -41,6 +41,10 @@ export interface HistoricalImportSourceParseResult {
   warnings: HistoricalImportSourceWarning[];
 }
 
+export interface HistoricalImportSourceOptions {
+  inferFirstRosterRowAsKeeper?: boolean;
+}
+
 interface ParsedDelimitedRow {
   rowNumber: number;
   cells: string[];
@@ -119,6 +123,13 @@ const normalizeSourceText = (sourceText: string): string => {
 
 const fileHashFor = (normalizedSourceText: string): string =>
   `sha256:${createHash("sha256").update(normalizedSourceText).digest("hex")}`;
+
+const wideAuctionSourceHashFor = (
+  normalizedSourceText: string,
+  inferFirstRosterRowAsKeeper: boolean,
+): string => inferFirstRosterRowAsKeeper
+  ? fileHashFor(`${normalizedSourceText}\nmockd:infer-first-roster-row-as-keeper=true`)
+  : fileHashFor(normalizedSourceText);
 
 const cleanCell = (value: string | undefined): string =>
   (value ?? "").replace(/\u00a0/gu, " ").trim();
@@ -372,11 +383,14 @@ const wideAuctionOwnerBlocks = (
 const rowsFromWideAuctionSource = (
   rows: readonly ParsedDelimitedRow[],
   blocks: readonly WideAuctionOwnerBlock[],
+  inferFirstRosterRowAsKeeper: boolean,
 ): NormalizedHistoricalImportRow[] => {
   const normalizedRows: NormalizedHistoricalImportRow[] = [];
 
   for (const sourceRow of rows) {
     if (!isWideAuctionRosterRow(sourceRow)) continue;
+    const keeper = inferFirstRosterRowAsKeeper
+      && cleanCell(sourceRow.cells[0]) === "1";
 
     for (const block of blocks) {
       const priceValue = cleanCell(sourceRow.cells[block.priceColumnIndex]);
@@ -389,6 +403,10 @@ const rowsFromWideAuctionSource = (
         sourceRowNumber: normalizedRows.length + 2,
         ownerDisplayName: block.ownerDisplayName,
       };
+      if (inferFirstRosterRowAsKeeper) {
+        row.keeper = keeper;
+        row.acquisitionType = keeper ? "keeper" : "auction";
+      }
       if (playerName.length > 0) row.playerName = playerName;
       if (position !== null) row.position = position;
       else if (positionValue.length > 0) row.position = positionValue;
@@ -494,6 +512,7 @@ const rowFor = (
 
 export const parseHistoricalImportSource = (
   sourceText: string,
+  options: HistoricalImportSourceOptions = {},
 ): HistoricalImportSourceParseResult => {
   const normalizedSourceText = normalizeSourceText(sourceText);
   const fileHash = fileHashFor(normalizedSourceText);
@@ -525,11 +544,16 @@ export const parseHistoricalImportSource = (
 
   const wideAuctionSource = wideAuctionOwnerBlocks(sourceRows);
   if (wideAuctionSource !== null) {
-    const rows = rowsFromWideAuctionSource(sourceRows, wideAuctionSource);
+    const inferFirstRosterRowAsKeeper = options.inferFirstRosterRowAsKeeper === true;
+    const rows = rowsFromWideAuctionSource(
+      sourceRows,
+      wideAuctionSource,
+      inferFirstRosterRowAsKeeper,
+    );
 
     return {
       rows,
-      fileHash,
+      fileHash: wideAuctionSourceHashFor(normalizedSourceText, inferFirstRosterRowAsKeeper),
       sourceRowCount: rows.length + 1,
       warnings: parsedSource.warnings,
     };

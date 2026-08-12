@@ -624,6 +624,36 @@ describe("platform historical import workflow", () => {
     expect(repository.records()).toHaveLength(1);
   });
 
+  it("treats wide-sheet keeper inference as part of the import identity", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const wideSource = [
+      "Team,Cam,,,Sam,,",
+      "1,$50,RB,De'Von Achane,$61,WR,Ja'Marr Chase",
+    ].join("\n");
+    const ordinaryPreview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: wideSource,
+      playerCatalog,
+      now,
+    });
+    const keeperPreview = await previewHistoricalImportSourceWorkflow({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      sourceText: wideSource,
+      inferFirstRosterRowAsKeeper: true,
+      playerCatalog,
+      now: new Date("2026-08-09T12:00:30.000Z"),
+    });
+
+    expect(keeperPreview.source.fileHash).not.toBe(ordinaryPreview.source.fileHash);
+    expect(keeperPreview.batch.id).not.toBe(ordinaryPreview.batch.id);
+    expect(ordinaryPreview.batch.rows.map(row => row.record?.keeper)).toEqual([false, false]);
+    expect(keeperPreview.batch.rows.map(row => row.record?.keeper)).toEqual([true, true]);
+  });
+
   it("commits replacement imports as the current batch and supersedes the prior batch", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
     const firstPreview = await previewHistoricalImportSourceWorkflow({

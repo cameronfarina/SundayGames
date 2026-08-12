@@ -169,10 +169,11 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("importHistoricalFile");
     expect(platformShellHtml).toContain("duplicateHistoricalImportYears");
     expect(platformShellHtml).toContain("Each selected file needs a different draft year");
-    expect(platformShellHtml).toContain("Draft history is saved. These files do not include public/AAV values. Mockd uses eligible public/AAV values from the three-year window ending with the latest imported draft season.");
+    expect(platformShellHtml).toContain("Draft history is saved. Market now blends baseline projections with up to three years of open-auction sales; keeper rows are excluded. Files with same-season public/AAV values also improve player-level estimates.");
     expect(platformShellHtml).toContain("Public/AAV values affect league calibration only within the three-year window ending with the latest imported draft season.");
     expect(platformShellHtml).toContain("Match historical team names");
     expect(platformShellHtml).toContain("ownerMappings: item.ownerMappings || []");
+    expect(platformShellHtml).toContain("inferFirstRosterRowAsKeeper: historicalRowOneKeepersInput.checked");
     expect(platformShellHtml).toContain('blocker.code === "owner_unknown" || blocker.code === "owner_ambiguous"');
     expect(platformShellHtml).toContain('select.dataset.historicalOwnerFile = item.id');
     expect(platformShellHtml).toContain("player-name warning");

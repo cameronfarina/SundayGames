@@ -427,6 +427,95 @@ describe("platform HTTP contract", () => {
     });
   });
 
+  it("keeps league Market and strategy values separate from auction-pool allocation", async () => {
+    const currentCatalog = [
+      { name: "Puka Nacua", position: "WR", expectedPrice: 50 },
+      { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 30 },
+      { name: "George Kittle", position: "TE", expectedPrice: 10 },
+      { name: "Jake Elliott", position: "K", expectedPrice: 5 },
+    ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      currentPlayerCatalogProvider: async () => currentCatalog,
+    });
+    const cam = await createLoggedInAccount(handle, "market-source@example.com");
+    const baseSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    const teams = baseSeason.teams.slice(0, 2).map((team, index) => ({
+      ...team,
+      id: `market-team-${index + 1}`,
+      leagueSeasonId: "market-season-2026",
+      ownerId: `market-owner-${index + 1}`,
+    }));
+    const season: LeagueSeason = {
+      ...baseSeason,
+      id: "market-season-2026",
+      leagueId: "market-league",
+      league: { ...baseSeason.league, id: "market-league", name: "Market League" },
+      teams,
+      settings: {
+        ...baseSeason.settings,
+        expectedTeamCount: 2,
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+        roster: {
+          rosterSize: 2,
+          lineup: { WR: 1, BENCH: 1 },
+          lineupSlotCount: 2,
+          rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 1, DST: 1 },
+        },
+      },
+    };
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: teams[0]?.ownerId,
+          teamId: teams[0]?.id,
+        }],
+      },
+    });
+    const rebuilt = await handle({
+      method: "POST",
+      path: `/seasons/${season.id}/pricing/rebuild`,
+      sessionToken: cam.sessionToken,
+      body: {
+        modelVersion: "market-source-test",
+        scenarioIds: ["expected"],
+        baselinePrices: currentCatalog.map(player => ({
+          name: player.name,
+          normalizedName: canonicalPlayerIdentityKey(player.name),
+          position: player.position,
+          price: player.expectedPrice,
+        })),
+      },
+    });
+    const pukaSnapshot = (
+      expectBodyRecord(rebuilt.body).snapshots as readonly {
+        rows: readonly { playerName: string; marketPrice: number; scenarioPrice: number }[];
+      }[]
+    )[0]?.rows.find(row => row.playerName === "Puka Nacua");
+
+    expect(pukaSnapshot?.scenarioPrice).toBeGreaterThan(pukaSnapshot?.marketPrice ?? Number.NaN);
+    await expect(handle({
+      method: "GET",
+      path: "/player-catalog",
+      query: { seasonId: season.id, strategy: "balanced" },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        players: expect.arrayContaining([
+          expect.objectContaining({ name: "Puka Nacua", marketPrice: 50, myValue: 55 }),
+        ]),
+      },
+    });
+  });
+
   it("reviews ESPN league settings for a signed-in commissioner before creating anything", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const outcome = {
@@ -799,7 +888,7 @@ describe("platform HTTP contract", () => {
     })).at(-1);
     const pukaPrice = latestPricing?.rows.find(row => row.playerName === "Puka Nacua");
     const pukaRoomPlayer = roomAfterKeeperUpdate.playerCatalog.find(player => player.name === "Puka Nacua");
-    expect(pukaRoomPlayer?.expectedPrice).toBe(Math.round(pukaPrice?.personalValue ?? Number.NaN));
+    expect(pukaRoomPlayer?.expectedPrice).toBe(Math.round(pukaPrice?.scenarioPrice ?? Number.NaN));
     expect(pukaRoomPlayer?.marketPrice).toBe(73);
 
     const pukaRoomPriceBeforeFailure = roomAfterKeeperUpdate.playerCatalog
@@ -924,7 +1013,7 @@ describe("platform HTTP contract", () => {
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-keepers-v1",
+      modelVersion: "league-history-keepers-v2",
       scenarioIds: ["expected"],
       baselinePrices: playerCatalog
         .filter(player => player.name !== "De'Von Achane")
@@ -1006,7 +1095,7 @@ describe("platform HTTP contract", () => {
       actorSessionToken: cam.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-v1",
+      modelVersion: "league-history-v2",
       scenarioIds: ["expected"],
       baselinePrices: playerCatalog.map(player => ({
         name: player.name,
@@ -2932,7 +3021,7 @@ describe("platform HTTP contract", () => {
       snapshots: [
         expect.objectContaining({
           scenarioId: "balanced",
-          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 50 })],
+          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 60 })],
         }),
       ],
     });

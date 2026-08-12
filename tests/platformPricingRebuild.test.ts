@@ -44,6 +44,15 @@ const historicalSale = (
   ...overrides,
 });
 
+const historicalSaleWithoutPublicPrice = (
+  overrides: Partial<HistoricalSaleRecord> = {},
+): HistoricalSaleRecord => {
+  const sale = historicalSale(overrides);
+  delete sale.publicPriceDollars;
+
+  return sale;
+};
+
 describe("league-calibrated pricing rebuild", () => {
   it("blends exact player historical sales into baseline prices", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
@@ -72,7 +81,7 @@ describe("league-calibrated pricing rebuild", () => {
       warnings: [
         "baseline note",
         "league auction allocation unavailable; team count, budget, roster size, minimum bid, and keeper count were not fully provided",
-        "historical inflation moved price by $10",
+        "league history moved price up by $10",
       ],
     });
   });
@@ -143,7 +152,7 @@ describe("league-calibrated pricing rebuild", () => {
     expect(snapshot?.rows[0]).toMatchObject({ marketPrice: 96, scenarioPrice: 96 });
   });
 
-  it("does not invent inflation when same-season public values are absent", () => {
+  it("uses the raw league sale curve when same-season public values are absent", () => {
     const saleWithoutPublicValue = historicalSale();
     delete saleWithoutPublicValue.publicPriceDollars;
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
@@ -156,11 +165,111 @@ describe("league-calibrated pricing rebuild", () => {
     });
 
     expect(snapshot?.rows[0]).toMatchObject({
-      marketPrice: 50,
+      marketPrice: 60,
       warnings: expect.arrayContaining([
-        "same-season public auction values unavailable; using baseline market prices",
+        "same-season public auction values unavailable; calibrated from league sale-price curves",
       ]),
     });
+  });
+
+  it("calibrates market prices from league sale curves when public values are absent", () => {
+    const sales = [
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2024-alpha",
+        seasonYear: 2024,
+        playerId: "player-alpha-runner",
+        playerName: "Alpha Runner",
+        priceDollars: 70,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2024-bravo",
+        seasonYear: 2024,
+        playerId: "player-bravo-runner",
+        playerName: "Bravo Runner",
+        priceDollars: 40,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2025-charlie",
+        seasonYear: 2025,
+        playerId: "player-charlie-runner",
+        playerName: "Charlie Runner",
+        priceDollars: 76,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2025-delta",
+        seasonYear: 2025,
+        playerId: "player-delta-runner",
+        playerName: "Delta Runner",
+        priceDollars: 45,
+      }),
+    ];
+    const [snapshot] = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v1",
+      scenarioIds: ["balanced"],
+      baselinePrices: [
+        { name: "Current RB One", normalizedName: "current rb one", position: "RB", price: 80 },
+        { name: "Current RB Two", normalizedName: "current rb two", position: "RB", price: 50 },
+      ],
+      historicalSaleRecords: sales,
+    });
+
+    expect(snapshot?.rows).toEqual([
+      expect.objectContaining({
+        playerName: "Current RB One",
+        marketPrice: 77,
+        warnings: expect.arrayContaining([
+          "same-season public auction values unavailable; calibrated from league sale-price curves",
+        ]),
+      }),
+      expect.objectContaining({
+        playerName: "Current RB Two",
+        marketPrice: 46,
+      }),
+    ]);
+  });
+
+  it("weights sparse public values by their position coverage instead of replacing the sale curve", () => {
+    const [snapshot] = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v2",
+      scenarioIds: ["balanced"],
+      baselinePrices: [
+        { name: "Current WR One", normalizedName: "current wr one", position: "WR", price: 60 },
+        { name: "Current WR Two", normalizedName: "current wr two", position: "WR", price: 20 },
+      ],
+      historicalSaleRecords: [
+        historicalSale({
+          id: "sale-public-top-wr",
+          playerId: "player-public-top-wr",
+          playerName: "Public Top WR",
+          position: "WR",
+          priceDollars: 70,
+          publicPriceDollars: 60,
+        }),
+        historicalSaleWithoutPublicPrice({
+          id: "sale-curve-second-wr",
+          playerId: "player-curve-second-wr",
+          playerName: "Curve Second WR",
+          position: "WR",
+          priceDollars: 30,
+        }),
+        historicalSaleWithoutPublicPrice({
+          id: "sale-curve-third-wr",
+          playerId: "player-curve-third-wr",
+          playerName: "Curve Third WR",
+          position: "WR",
+          priceDollars: 10,
+        }),
+      ],
+    });
+
+    expect(snapshot?.rows).toEqual([
+      expect.objectContaining({ playerName: "Current WR One", marketPrice: 65 }),
+      expect.objectContaining({ playerName: "Current WR Two", marketPrice: 24 }),
+    ]);
   });
 
   it("creates deterministic snapshots for multiple scenarios", () => {

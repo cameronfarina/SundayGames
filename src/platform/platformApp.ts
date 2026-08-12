@@ -300,6 +300,7 @@ export interface PreviewPlatformHistoricalImportInput {
   seasonYear: number;
   currentSeasonId?: string | undefined;
   sourceText: string;
+  inferFirstRosterRowAsKeeper?: boolean | undefined;
   replacementRequested?: boolean | undefined;
   playerCatalog?: readonly HistoricalImportPlayerCatalogEntry[] | undefined;
   ownerMappings?: readonly HistoricalOwnerMapping[] | undefined;
@@ -1455,6 +1456,9 @@ export const createPlatformApp = ({
           ? {}
           : { seasonContext: { currentLeagueSeason } }),
         sourceText: input.sourceText,
+        ...(input.inferFirstRosterRowAsKeeper === undefined
+          ? {}
+          : { inferFirstRosterRowAsKeeper: input.inferFirstRosterRowAsKeeper }),
         uploadedByUserId: account.id,
         ...(input.replacementRequested === undefined ? {} : { replacementRequested: input.replacementRequested }),
         ...(input.playerCatalog === undefined ? {} : { playerCatalog: input.playerCatalog }),
