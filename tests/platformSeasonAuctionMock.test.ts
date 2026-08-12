@@ -53,6 +53,7 @@ const setup: LiveDraftRoomSetup = {
     name: `Player ${index + 1}`,
     position,
     expectedPrice: 50 - index,
+    week1Projection: 20 - index,
   })),
   initialRosters: [{
     teamId: "team-2",
@@ -82,7 +83,12 @@ describe("season auction mock adapter", () => {
     expect(config.budgetDollars).toBe(200);
     expect(config.rosterSlots).toEqual([{ slot: "BENCH", count: 2, eligiblePositions: ["QB", "RB", "WR", "TE", "K", "DST"] }]);
     expect(config.keepers).toEqual([{ teamId: "team-2", playerId: "player 2", price: 25 }]);
-    expect(config.players[0]).toMatchObject({ id: "player 1", expectedPrice: 64, humanValue: 71 });
+    expect(config.players[0]).toMatchObject({
+      id: "player 1",
+      expectedPrice: 64,
+      humanValue: 71,
+      week1Projection: 20,
+    });
   });
 
   it("uses canonical hybrid eligibility and excludes IR from mock capacity", () => {

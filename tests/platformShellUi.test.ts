@@ -226,6 +226,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="mock-draft-workspace"');
     expect(platformShellHtml).toContain('id="mock-draft-player-rows"');
     expect(platformShellHtml).toContain('id="mock-draft-roster"');
+    expect(platformShellHtml).toContain('id="mock-draft-position-filters"');
+    expect(platformShellHtml).toContain('data-mock-position="FLEX"');
+    expect(platformShellHtml).toContain('id="mock-draft-results"');
+    expect(platformShellHtml).toContain('id="mock-draft-results-grid"');
     expect(platformShellHtml).toContain('id="mock-draft-player-scroll" class="table-scroll player-board-scroll"');
     expect(platformShellHtml).toContain('class="workspace-section mock-roster-panel"');
     expect(platformShellHtml).toContain('id="mock-draft-buy"');
@@ -245,6 +249,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain(".workspace > * { min-width: 0; }");
     expect(platformShellHtml).toContain(".mock-auction-stage > * { min-width: 0; }");
     expect(platformShellHtml).toContain("myTeam.maxBid");
+    expect(platformShellHtml).toContain("mockPositionFilter");
+    expect(platformShellHtml).toContain("renderMockDraftResults");
+    expect(platformShellHtml).toContain("player.week1Points || 0");
+    expect(platformShellHtml).toContain('setHidden(mockDraftResults, sessionState.status !== "completed")');
     expect(platformShellHtml).toContain('setHidden(mockDraftStart, sessionState.status !== "setup")');
     expect(platformShellHtml).toContain('fetch("/season-mock-drafts"');
     expect(platformShellHtml).toContain("strategy: requestedStrategy");

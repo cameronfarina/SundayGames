@@ -430,6 +430,16 @@ const exerciseDurableMockWorkspace = async (
   expect(mockViewport.clientHeight).toBeLessThanOrEqual(720);
   expect(mockViewport.maxHeight).not.toBe("none");
 
+  const rbFilter = page.locator('[data-mock-position="RB"]');
+  await rbFilter.click();
+  await expect(rbFilter).toHaveAttribute("aria-pressed", "true");
+  const visiblePositions = await page.locator("#mock-draft-player-rows tr").evaluateAll(rows =>
+    rows.map(row => row.getAttribute("data-position"))
+  );
+  expect(visiblePositions.length).toBeGreaterThan(0);
+  expect(new Set(visiblePositions)).toEqual(new Set(["RB"]));
+  await page.locator('[data-mock-position="ALL"]').click();
+
   await page.locator("#mock-draft-start").click();
   await expect(page.locator("#mock-draft-state")).toHaveText("Active");
   await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");

@@ -30,6 +30,7 @@ export interface SnakeDraftPlayer {
   leagueExpectedPick?: number | undefined;
   personalRank?: number | undefined;
   reachLimit?: number | undefined;
+  week1Projection?: number | undefined;
 }
 
 export interface SnakeDraftKeeperPlacement {
@@ -89,6 +90,7 @@ export interface SnakeDraftBoardPlayer {
   leagueExpectedPick: number;
   personalRank: number | undefined;
   reachLimit: number | undefined;
+  week1Projection?: number | undefined;
   available: boolean;
 }
 

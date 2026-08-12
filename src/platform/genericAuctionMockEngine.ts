@@ -32,6 +32,7 @@ export interface GenericAuctionMockPlayer {
   position: string;
   expectedPrice: number;
   humanValue?: number | undefined;
+  week1Projection?: number | undefined;
 }
 
 export interface GenericAuctionMockKeeper {

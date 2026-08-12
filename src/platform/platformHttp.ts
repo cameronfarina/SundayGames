@@ -148,6 +148,7 @@ import {
   GenericAuctionMockError,
   type GenericAuctionMockState,
 } from "./genericAuctionMockEngine.js";
+import { buildSeasonMockResults } from "./seasonMockResults.js";
 import {
   maximumSeasonSimulationRunCount,
   runSeasonSimulations,
@@ -2316,6 +2317,17 @@ const stateForSeasonMock = async (
       );
 };
 
+const seasonMockResponseBody = (
+  mockSession: MockDraftSession,
+  state: SnakeDraftState | GenericAuctionMockState,
+) => ({
+  mockSession,
+  state,
+  ...(state.session.status === "completed"
+    ? { results: buildSeasonMockResults(state) }
+    : {}),
+});
+
 const serializedSeasonMockCommand = (value: unknown): string => {
   const serialized = JSON.stringify(value);
   if (serialized === undefined) {
@@ -2359,20 +2371,16 @@ const routeSeasonMockDrafts = async (
       now: request.now,
     });
 
-    return {
-      status: 201,
-      body: { mockSession, state: await stateForSeasonMock(context, mockSession) },
-    };
+    const state = await stateForSeasonMock(context, mockSession);
+    return { status: 201, body: seasonMockResponseBody(mockSession, state) };
   }
 
   const mockSession = await findSeasonMockDraftSession(app, request, context, sessionId ?? "");
   if (request.segments.length === 2) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    return {
-      status: 200,
-      body: { mockSession, state: await stateForSeasonMock(context, mockSession) },
-    };
+    const state = await stateForSeasonMock(context, mockSession);
+    return { status: 200, body: seasonMockResponseBody(mockSession, state) };
   }
 
   if (request.segments.length === 3 && action === "commands") {
@@ -2389,12 +2397,10 @@ const routeSeasonMockDrafts = async (
       now: request.now,
     });
     if (storedRetry !== undefined) {
+      const state = await stateForSeasonMock(context, storedRetry.session);
       return {
         status: 200,
-        body: {
-          mockSession: storedRetry.session,
-          state: await stateForSeasonMock(context, storedRetry.session),
-        },
+        body: seasonMockResponseBody(storedRetry.session, state),
       };
     }
     const state = await stateForSeasonMock(context, mockSession, command);
@@ -2417,7 +2423,7 @@ const routeSeasonMockDrafts = async (
       });
     }
 
-    return { status: 200, body: { mockSession: updatedMockSession, state } };
+    return { status: 200, body: seasonMockResponseBody(updatedMockSession, state) };
   }
 
   return notFound();

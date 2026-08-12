@@ -53,6 +53,7 @@ const setup: LiveDraftRoomSetup = {
     name: `Player ${index + 1}`,
     position,
     expectedPrice: 50 - index,
+    week1Projection: 20 - index,
   })),
   initialRosters: [{
     teamId: "team-2",
@@ -79,6 +80,7 @@ describe("season snake mock adapter", () => {
 
     expect(config.teamOrder).toEqual(["team-1", "team-2", "team-3", "team-4"]);
     expect(config.teams.map(team => team.name)).toEqual(["Cam Team", "Sam Team", "Matt Team", "Nick Team"]);
+    expect(config.players[0]).toMatchObject({ id: "player 1", week1Projection: 20 });
     expect(config.keepers).toEqual([{ teamId: "team-2", playerId: "player 2", round: 2, pickInRound: 3 }]);
     const started = applySnakeDraftCommand(createSnakeDraftState(config), { type: "start", expectedRevision: 0 });
     expect(started.board.picks.find(pick => pick.round === 2 && pick.teamId === "team-2")?.selection)

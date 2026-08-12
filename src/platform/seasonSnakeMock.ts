@@ -123,6 +123,9 @@ export const buildSeasonSnakeMockConfig = ({
       rank: index + 1,
       adp: index + 1,
       leagueExpectedPick: index + 1,
+      ...(player.week1Projection === undefined
+        ? {}
+        : { week1Projection: player.week1Projection }),
     })),
   };
   const scheduledPicks = createSnakeDraftState(baseConfig).board.picks;

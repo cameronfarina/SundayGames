@@ -1371,6 +1371,19 @@ describe("platform HTTP contract", () => {
       body: {
         mockSession: { status: "completed" },
         state: { session: { status: "completed", revision: 4 } },
+        results: {
+          teams: expect.arrayContaining([
+            expect.objectContaining({
+              teamId: "snake-team-1",
+              isUserTeam: true,
+              rank: expect.any(Number),
+              roster: expect.arrayContaining([
+                expect.objectContaining({ playerName: "Player 1", week1Points: 0 }),
+              ]),
+            }),
+          ]),
+          rosteredPlayerCount: 8,
+        },
       },
     });
 
