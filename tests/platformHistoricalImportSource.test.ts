@@ -2,6 +2,87 @@ import { describe, expect, it } from "vitest";
 import { parseHistoricalImportSource } from "../src/platform/historicalImportSource.js";
 
 describe("platform historical import source parsing", () => {
+  it("normalizes repeating owner blocks from a wide auction results sheet", () => {
+    const result = parseHistoricalImportSource([
+      "Team,Cam,,,Sam,,",
+      "Money Left,$0,,,$1,,",
+      "Max Bid,$1,,,$2,,",
+      "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
+      "2,$61,WR,Ja'Marr Chase,$2,K,Jake Elliott",
+      "Spent,$111,,,$5,,",
+      "Budget,$200,,,$200,,",
+      "Available,$89,,,$195,,",
+      "Slots,Selected,Available,0,Selected,Available,0",
+      "QB,1,1,,0,1,",
+    ].join("\n"));
+
+    expect(result.warnings).toEqual([]);
+    expect(result.rows).toEqual([
+      {
+        sourceRowNumber: 2,
+        ownerDisplayName: "Cam",
+        playerName: "De'Von Achane",
+        position: "RB",
+        priceDollars: 50,
+      },
+      {
+        sourceRowNumber: 3,
+        ownerDisplayName: "Sam",
+        playerName: "New England Patriots",
+        position: "DST",
+        priceDollars: 3,
+      },
+      {
+        sourceRowNumber: 4,
+        ownerDisplayName: "Cam",
+        playerName: "Ja'Marr Chase",
+        position: "WR",
+        priceDollars: 61,
+      },
+      {
+        sourceRowNumber: 5,
+        ownerDisplayName: "Sam",
+        playerName: "Jake Elliott",
+        position: "K",
+        priceDollars: 2,
+      },
+    ]);
+    expect(result.sourceRowCount).toBe(5);
+  });
+
+  it("keeps incomplete wide-sheet player cells for downstream validation", () => {
+    const result = parseHistoricalImportSource([
+      "Team,Cam,,,Sam,,",
+      "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
+      "2,$4,,Mystery Player,$2,K,",
+    ].join("\n"));
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({ ownerDisplayName: "Cam", playerName: "De'Von Achane", position: "RB" }),
+      expect.objectContaining({ ownerDisplayName: "Sam", playerName: "New England Patriots", position: "DST" }),
+      { sourceRowNumber: 4, ownerDisplayName: "Cam", playerName: "Mystery Player", priceDollars: 4 },
+      { sourceRowNumber: 5, ownerDisplayName: "Sam", position: "K", priceDollars: 2 },
+    ]);
+  });
+
+  it("keeps the existing row-oriented format and normalizes DEF to DST", () => {
+    const result = parseHistoricalImportSource([
+      "owner,player,position,price",
+      "Cam,New England Patriots,DEF,$3",
+    ].join("\n"));
+
+    expect(result.warnings).toEqual([]);
+    expect(result.rows).toEqual([
+      {
+        sourceRowNumber: 2,
+        ownerDisplayName: "Cam",
+        playerName: "New England Patriots",
+        position: "DST",
+        priceDollars: 3,
+      },
+    ]);
+  });
+
   it("auto-detects tab and semicolon delimiters from alias headers", () => {
     const tabResult = parseHistoricalImportSource([
       "team\tname\tposition\tamount\tespn aav\tyear\tplayer id\tis keeper\tacquisition",

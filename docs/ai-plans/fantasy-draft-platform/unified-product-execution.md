@@ -60,9 +60,12 @@ UI placement never grants access. Server ownership checks remain authoritative.
 4. The user confirms draft format, team count, scoring, roster rules, and
    auction or snake settings.
 5. They upload a League Members screenshot and map every team/profile.
-6. They upload historical `.csv` or `.xlsx` results and resolve ambiguous rows.
+6. They drop one or more historical `.csv`, `.tsv`, or `.xlsx` results. Mockd
+   imports complete standard or wide auction sheets directly and rejects an
+   invalid file as a whole with an actionable error.
 7. They enter keepers with commands such as `Cam keeping Achane 50`; the number
-   means cost for auction and round for snake.
+   means cost for auction and round for snake. Confirmed keepers save
+   immediately and remain editable after publication until the draft starts.
 8. Applying shared inputs schedules an automatic pricing/ranking rebuild.
 
 ## Format Semantics
@@ -119,8 +122,9 @@ unavailable states rather than generated advice.
   product.
 - League creation imports ESPN settings from an id or URL, accepts a League
   Members screenshot for team and manager names, and provides manual review.
-- The setup flow persists auction or snake settings, historical auction files,
-  natural-language keepers, and an explicit final review before publication.
+- The setup flow persists auction or snake settings, direct multi-file
+  historical auction imports, auto-saved natural-language keepers, and an
+  explicit final review before publication.
 - The board is public-data capable without a league and becomes league-aware
   when an authenticated user selects a season. Auction values include market
   and personal columns.

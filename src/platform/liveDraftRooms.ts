@@ -82,6 +82,7 @@ export interface LiveDraftRoomActor {
 export type LiveDraftRoomMutationAction =
   | "read"
   | "cancel"
+  | "sync_initial_rosters"
   | "start"
   | "pause"
   | "resume"
@@ -104,6 +105,9 @@ export interface LiveDraftRoomRepository {
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   hasRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   hasStartedRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
+  synchronizeInitialRostersForSeason(
+    input: SynchronizeLiveDraftRoomInitialRostersInput,
+  ): LiveDraftRoomRepositoryResult<LiveDraftRoom | null>;
   cancelRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<void>;
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
@@ -208,6 +212,20 @@ export type LiveDraftRoomEvent =
     occurredAt: Date;
     idempotencyKey?: string | undefined;
     mutationHash?: string | undefined;
+  }
+  | {
+    id: string;
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    revision: number;
+    type: "initial_rosters_synchronized";
+    actorUserId: string;
+    occurredAt: Date;
+    idempotencyKey: string;
+    mutationHash: string;
+    initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
+    playerCatalog: readonly LiveDraftRoomBoardPlayer[];
   }
   | {
     id: string;
@@ -335,6 +353,16 @@ export interface MutateLiveDraftRoomInput {
   actor: LiveDraftRoomActor;
   expectedRevision?: number | undefined;
   idempotencyKey?: string | undefined;
+  now?: Date | undefined;
+}
+
+export interface SynchronizeLiveDraftRoomInitialRostersInput {
+  seasonId: string;
+  actor: LiveDraftRoomActor;
+  initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
+  expectedRevision?: number | undefined;
+  idempotencyKey: string;
   now?: Date | undefined;
 }
 
@@ -800,6 +828,8 @@ const actionForEventType = (
   switch (eventType) {
     case "room_started":
       return "start";
+    case "initial_rosters_synchronized":
+      return "sync_initial_rosters";
     case "room_paused":
       return "pause";
     case "room_resumed":
@@ -1102,6 +1132,15 @@ const assertExpectedRevision = (
   }
 };
 
+const assertIdempotencyKey = (idempotencyKey: string | undefined): void => {
+  if (idempotencyKey === undefined || idempotencyKey.trim().length === 0) {
+    throw new LiveDraftRoomError(
+      "idempotency_key_required",
+      "Draft room mutation requires an idempotency key.",
+    );
+  }
+};
+
 const assertMutationMetadata = (
   input: MutateLiveDraftRoomInput,
 ): void => {
@@ -1112,12 +1151,7 @@ const assertMutationMetadata = (
     );
   }
 
-  if (input.idempotencyKey === undefined || input.idempotencyKey.trim().length === 0) {
-    throw new LiveDraftRoomError(
-      "idempotency_key_required",
-      "Draft room mutation requires an idempotency key.",
-    );
-  }
+  assertIdempotencyKey(input.idempotencyKey);
 };
 
 const assertRoomNotEnded = (room: LiveDraftRoom): void => {
@@ -1144,6 +1178,18 @@ const assertRoomCanBeCancelled = (room: LiveDraftRoom): void => {
 const assertRoomCanStart = (room: LiveDraftRoom): void => {
   if (room.status === "live" || room.status === "paused") {
     throw new LiveDraftRoomError("room_already_live", "Draft room has already started.");
+  }
+};
+
+const assertRoomCanSynchronizeInitialRosters = (room: LiveDraftRoom): void => {
+  if (
+    (room.status !== "setup" && room.status !== "countdown")
+    || room.events.some(event => event.type === "room_started")
+  ) {
+    throw new LiveDraftRoomError(
+      "room_already_live",
+      "Keepers are locked after the live draft starts.",
+    );
   }
 };
 
@@ -1338,6 +1384,61 @@ export class InMemoryLiveDraftRoomRepository {
 
   hasRoomForSeason(seasonId: string): boolean {
     return [...this.#roomsById.values()].some(room => room.seasonId === seasonId);
+  }
+
+  synchronizeInitialRostersForSeason(
+    input: SynchronizeLiveDraftRoomInitialRostersInput,
+  ): LiveDraftRoom | null {
+    const room = [...this.#roomsById.values()]
+      .find(candidate => candidate.seasonId === input.seasonId);
+    if (room === undefined) return null;
+
+    assertWriter(room, input.actor, "sync_initial_rosters", this.authorizer);
+    assertExpectedRevision(room, input.expectedRevision);
+    assertIdempotencyKey(input.idempotencyKey);
+    const playerCatalog = normalizeCatalog(input.playerCatalog);
+    const mutationHash = mutationHashFor("sync_initial_rosters", {
+      initialRosters: input.initialRosters,
+      playerCatalog,
+    });
+    const replayedRoom = replayIdempotentMutation(
+      room,
+      "sync_initial_rosters",
+      input.idempotencyKey,
+      mutationHash,
+    );
+    if (replayedRoom !== undefined) return replayedRoom;
+    assertRoomCanSynchronizeInitialRosters(room);
+    validateInitialRosters(room.season, input.initialRosters);
+
+    const now = input.now ?? new Date();
+    const revision = room.revision + 1;
+    const event: LiveDraftRoomEvent = {
+      id: eventIdFor(room.roomId, revision, "initial_rosters_synchronized"),
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      revision,
+      type: "initial_rosters_synchronized",
+      actorUserId: input.actor.userId,
+      occurredAt: now,
+      idempotencyKey: input.idempotencyKey,
+      mutationHash,
+      initialRosters: structuredClone(input.initialRosters),
+      playerCatalog: structuredClone(playerCatalog),
+    };
+    const updatedRoom = roomWithProjection({
+      ...room,
+      revision,
+      updatedAt: now,
+      initialRosters: structuredClone(input.initialRosters),
+      playerCatalog: structuredClone(playerCatalog),
+      events: [...room.events, event],
+    });
+
+    this.#roomsById.set(updatedRoom.roomId, updatedRoom);
+
+    return updatedRoom;
   }
 
   cancelRoom(input: MutateLiveDraftRoomInput): void {

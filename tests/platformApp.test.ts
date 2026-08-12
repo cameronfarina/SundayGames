@@ -136,6 +136,12 @@ class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.hasRoomForSeason(seasonId);
   }
 
+  async synchronizeInitialRostersForSeason(
+    input: Parameters<LiveDraftRoomRepository["synchronizeInitialRostersForSeason"]>[0],
+  ) {
+    return this.inner.synchronizeInitialRostersForSeason(input);
+  }
+
   async cancelRoom(input: MutateLiveDraftRoomInput) {
     return this.inner.cancelRoom(input);
   }

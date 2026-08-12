@@ -11,6 +11,7 @@ import {
   type LiveDraftRoomRepository,
   type LogLiveDraftRoomSaleInput,
   type MutateLiveDraftRoomInput,
+  type SynchronizeLiveDraftRoomInitialRostersInput,
 } from "./liveDraftRooms.js";
 import { deserializePlatformStoreSnapshot } from "./platformStoreSnapshotCodec.js";
 import type { PostgresTransactionalQueryClient } from "./postgresJobQueue.js";
@@ -69,6 +70,11 @@ const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown>
   switch (event.type) {
     case "sale_logged":
       return { sale: event.sale };
+    case "initial_rosters_synchronized":
+      return {
+        initialRosters: event.initialRosters,
+        playerCatalog: event.playerCatalog,
+      };
     case "sale_undone":
       return {
         undoneSaleEventId: event.undoneSaleEventId,
@@ -109,6 +115,27 @@ ORDER BY revision DESC
 LIMIT 1
 `.trim(),
     [roomId],
+  );
+  const row = firstRow(result);
+
+  return row === undefined ? undefined : roomFromSnapshotJson(row.snapshot_json);
+};
+
+const latestRoomSnapshotForSeason = async (
+  client: PostgresQueryClient,
+  seasonId: string,
+): Promise<LiveDraftRoom | undefined> => {
+  const result = await client.query<DraftRoomSnapshotRow>(
+    `
+SELECT snapshots.snapshot_json
+FROM draft_room_snapshots AS snapshots
+JOIN draft_rooms AS rooms ON rooms.id = snapshots.draft_room_id
+WHERE rooms.league_season_id = $1
+  AND rooms.room_type = 'real'
+ORDER BY snapshots.revision DESC
+LIMIT 1
+`.trim(),
+    [seasonId],
   );
   const row = firstRow(result);
 
@@ -455,6 +482,31 @@ SELECT EXISTS (
     );
 
     return result.rows[0]?.has_room === true;
+  }
+
+  async synchronizeInitialRostersForSeason(
+    input: SynchronizeLiveDraftRoomInitialRostersInput,
+  ): Promise<LiveDraftRoom | null> {
+    return await this.client.transaction(async client => {
+      const currentRoom = await latestRoomSnapshotForSeason(client, input.seasonId);
+      if (currentRoom === undefined) return null;
+
+      const updatedRoom = repositoryForRoom(currentRoom, this.authorizer)
+        .synchronizeInitialRostersForSeason(input);
+      if (updatedRoom === null) return null;
+      if (updatedRoom.revision === currentRoom.revision) return cloneRoom(updatedRoom);
+
+      const newEvent = updatedRoom.events.find(event => event.revision === updatedRoom.revision);
+      if (newEvent === undefined) {
+        throw new Error(`Live draft room revision ${updatedRoom.revision} did not produce an event.`);
+      }
+
+      await updateDraftRoomRevision(client, updatedRoom, currentRoom.revision);
+      await insertDraftRoomEvent(client, newEvent, currentRoom.revision);
+      await insertDraftRoomSnapshot(client, updatedRoom);
+
+      return cloneRoom(updatedRoom);
+    });
   }
 
   async cancelRoom(input: MutateLiveDraftRoomInput): Promise<void> {

@@ -282,6 +282,7 @@ const roomCreatedSnapshotRoom = (room: LiveDraftRoom, event: LiveDraftRoomEvent)
 const eventNameFor = (event: LiveDraftRoomEvent): LiveDraftRoomSseEventName => {
   switch (event.type) {
     case "room_created":
+    case "initial_rosters_synchronized":
     case "sale_corrected":
     case "sale_undone":
       return "room.snapshot";

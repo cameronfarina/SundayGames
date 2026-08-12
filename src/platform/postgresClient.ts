@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Pool } from "pg";
 import type {
   PostgresQueryClient,
@@ -44,8 +45,17 @@ const platformResultFor = <TRow>(
   rowCount: result.rowCount,
 });
 
+const platformClientFor = (client: PostgresPoolClientLike): PostgresQueryClient => ({
+  query: async <TRow = Record<string, unknown>>(
+    text: string,
+    values: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<TRow>> =>
+    platformResultFor(await client.query<TRow>(text, mutableValues(values))),
+});
+
 export class NodePostgresClient implements PostgresTransactionalQueryClient {
   readonly pool: PostgresPoolLike;
+  readonly #transactionConnections = new AsyncLocalStorage<PostgresPoolClientLike>();
 
   constructor(pool: PostgresPoolLike) {
     this.pool = pool;
@@ -55,22 +65,26 @@ export class NodePostgresClient implements PostgresTransactionalQueryClient {
     text: string,
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResult<TRow>> {
-    return platformResultFor(await this.pool.query<TRow>(text, mutableValues(values)));
+    const transactionConnection = this.#transactionConnections.getStore();
+
+    return platformResultFor(await (transactionConnection ?? this.pool)
+      .query<TRow>(text, mutableValues(values)));
   }
 
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    const activeConnection = this.#transactionConnections.getStore();
+    if (activeConnection !== undefined) {
+      return await operation(platformClientFor(activeConnection));
+    }
+
     const client = await this.pool.connect();
 
     try {
       await client.query("BEGIN");
-      const transactionClient: PostgresQueryClient = {
-        query: async <TRow = Record<string, unknown>>(
-          text: string,
-          values: readonly unknown[] = [],
-        ): Promise<PostgresQueryResult<TRow>> =>
-          platformResultFor(await client.query<TRow>(text, mutableValues(values))),
-      };
-      const result = await operation(transactionClient);
+      const result = await this.#transactionConnections.run(
+        client,
+        async () => await operation(platformClientFor(client)),
+      );
       await client.query("COMMIT");
 
       return result;

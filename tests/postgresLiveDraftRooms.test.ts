@@ -165,6 +165,22 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       };
     }
 
+    if (normalizedSql.startsWith("SELECT snapshots.snapshot_json FROM draft_room_snapshots AS snapshots")) {
+      const [seasonId] = values as readonly [string];
+      const roomIds = new Set([...this.rooms.values()]
+        .filter(room => room.league_season_id === seasonId && room.room_type === "real")
+        .map(room => room.id));
+      const snapshot = this.snapshots
+        .filter(row => roomIds.has(row.draft_room_id))
+        .sort((left, right) => right.revision - left.revision)[0];
+
+      return {
+        rows: snapshot === undefined
+          ? []
+          : [{ snapshot_json: cloneSnapshotRow(snapshot).snapshot_json } as TRow],
+      };
+    }
+
     if (normalizedSql.startsWith("SELECT EXISTS") && normalizedSql.includes("FROM draft_rooms")) {
       const [seasonId] = values as readonly [string];
       if (normalizedSql.includes("AS has_room")) {
@@ -437,6 +453,102 @@ const publishedSeason = (): LeagueSeason =>
   });
 
 describe("Postgres live draft rooms", () => {
+  it("persists idempotent keeper and catalog synchronization until the room starts", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const season = publishedSeason();
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const created = await repository.createRoom({
+      season,
+      roomId: "room_sunday",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const input = {
+      seasonId: season.id,
+      actor: commissioner,
+      initialRosters: [{
+        teamId: camTeam.id,
+        playerId: "puka nacua",
+        playerName: "Puka Nacua",
+        position: "WR" as const,
+        price: 50,
+        expectedPrice: 73,
+        source: "keeper" as const,
+      }],
+      playerCatalog: playerCatalog.map(player => ({
+        ...player,
+        expectedPrice: player.name === "Jahmyr Gibbs" ? 86 : player.expectedPrice,
+      })),
+      idempotencyKey: "keepers:version-1",
+      now: new Date(now.getTime() + 1_000),
+    };
+
+    const synchronized = await repository.synchronizeInitialRostersForSeason(input);
+    const retried = await repository.synchronizeInitialRostersForSeason(input);
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(created.roomId);
+
+    expect(retried).toEqual(synchronized);
+    expect(reloaded).toEqual(synchronized);
+    expect(reloaded.projection.teams.find(team => team.teamId === camTeam.id)).toMatchObject({
+      spent: 50,
+      budgetRemaining: 150,
+      rosterSlotsRemaining: 15,
+      roster: [{ name: "Puka Nacua", source: "keeper", price: 50 }],
+    });
+    expect(reloaded.projection.board.map(player => player.name)).not.toContain("Puka Nacua");
+    expect(reloaded.projection.board).toContainEqual(expect.objectContaining({
+      name: "Jahmyr Gibbs",
+      expectedPrice: 86,
+    }));
+    expect(client.events.map(event => [event.revision, event.event_type, event.idempotency_key])).toEqual([
+      [1, "room_created", null],
+      [2, "initial_rosters_synchronized", "keepers:version-1"],
+    ]);
+    expect(client.events[1]?.payload_json).toMatchObject({
+      initialRosters: input.initialRosters,
+      playerCatalog: expect.arrayContaining([
+        expect.objectContaining({ name: "Jahmyr Gibbs", expectedPrice: 86 }),
+      ]),
+    });
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2]);
+
+    await expect(repository.synchronizeInitialRostersForSeason({
+      ...input,
+      initialRosters: [],
+      playerCatalog: [],
+      idempotencyKey: "keepers:invalid-catalog",
+      now: new Date(now.getTime() + 1_500),
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "player_not_found",
+      "Player catalog must contain at least one player.",
+    ));
+    await expect(repository.getRoom(created.roomId)).resolves.toEqual(synchronized);
+    expect(client.events).toHaveLength(2);
+    expect(client.snapshots).toHaveLength(2);
+
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: synchronized?.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 2_000),
+    });
+    await expect(repository.synchronizeInitialRostersForSeason({
+      ...input,
+      initialRosters: [],
+      idempotencyKey: "keepers:version-2",
+      now: new Date(now.getTime() + 3_000),
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "room_already_live",
+      "Keepers are locked after the live draft starts.",
+    ));
+    expect(client.events).toHaveLength(started.revision);
+  });
+
   it("transactionally cancels a setup room, unlocks its season, and permits recreation", async () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);

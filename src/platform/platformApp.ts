@@ -67,6 +67,11 @@ import {
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
 import {
+  InMemoryLiveDraftRoomSetupRepository,
+  liveDraftRoomSetupContentHash,
+  type LiveDraftRoomSetup,
+} from "./liveDraftRoomSetups.js";
+import {
   buildLiveDraftRoomReadModel,
   liveDraftRoomEventsAfterRevision,
   type LiveDraftRoomEventsAfterRevisionResult,
@@ -382,6 +387,16 @@ export interface GetPlatformLiveDraftRoomInput {
   now?: Date | undefined;
 }
 
+export interface SynchronizePlatformLiveDraftRoomInitialRostersInput {
+  actorSessionToken: string;
+  seasonId: string;
+  initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
+  expectedRevision?: number | undefined;
+  idempotencyKey: string;
+  now?: Date | undefined;
+}
+
 export interface GetPlatformLiveDraftRoomEventsInput extends GetPlatformLiveDraftRoomInput {
   afterRevision: number;
 }
@@ -443,6 +458,7 @@ export interface InMemoryPlatformStoreSnapshot {
   mockDraftSessions: readonly MockDraftSession[];
   simulationRuns: readonly SimulationRun[];
   liveDraftRooms: readonly LiveDraftRoom[];
+  liveDraftRoomSetups: readonly LiveDraftRoomSetup[];
   historicalImportBatches: readonly HistoricalImportBatch[];
   historicalSaleRecords: readonly HistoricalSaleRecord[];
   pricingSnapshots: readonly PricingSnapshot[];
@@ -484,6 +500,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   readonly pricingSnapshots: PricingSnapshotRepository = createInMemoryPricingSnapshotRepository();
   readonly simulations = new InMemorySimulationRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
+  readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
   readonly #leagueSeasonsById = new Map<string, LeagueSeason>();
   readonly #membershipsByUserAndLeague = new Map<string, PlatformLeagueMembership>();
 
@@ -643,6 +660,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
       mockDraftSessions: this.mockDraftSessions.sessions(),
       simulationRuns: this.simulations.runs(),
       liveDraftRooms: this.liveDraftRooms.rooms(),
+      liveDraftRoomSetups: this.liveDraftRoomSetups.setups(),
       historicalImportBatches: this.historicalImports.batches(),
       historicalSaleRecords: this.historicalImports.records(),
       pricingSnapshots: this.pricingSnapshots.list(),
@@ -707,6 +725,25 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
       snapshot.exportArtifactContents ?? [],
     );
     this.liveDraftRooms.replaceRooms(snapshot.liveDraftRooms);
+    const storedDraftSetups = snapshot.liveDraftRoomSetups ?? [];
+    const storedSetupSeasonIds = new Set(storedDraftSetups.map(setup => setup.seasonId));
+    const recoveredDraftSetups = snapshot.liveDraftRooms
+      .filter(room => !storedSetupSeasonIds.has(room.seasonId))
+      .map(room => {
+        const input = {
+          seasonId: room.seasonId,
+          sourceVersion: `recovered-live-room:${room.roomId}`,
+          playerCatalog: room.playerCatalog,
+          initialRosters: room.initialRosters,
+          updatedAt: room.updatedAt,
+        };
+
+        return {
+          ...input,
+          contentHash: liveDraftRoomSetupContentHash(input),
+        };
+      });
+    this.liveDraftRoomSetups.replaceSetups([...storedDraftSetups, ...recoveredDraftSetups]);
     this.mockDraftSessions.replaceSessions(snapshot.mockDraftSessions ?? []);
     this.simulations.replaceRuns(snapshot.simulationRuns ?? []);
   }
@@ -1605,6 +1642,29 @@ export const createPlatformApp = ({
 
     hasLiveDraftRoomForSeason: async (seasonId: string): Promise<boolean> =>
       await liveDraftRooms.hasRoomForSeason(seasonId),
+
+    hasStartedLiveDraftRoomForSeason: async (seasonId: string): Promise<boolean> =>
+      await liveDraftRooms.hasStartedRoomForSeason(seasonId),
+
+    synchronizeLiveDraftRoomInitialRosters: async (
+      input: SynchronizePlatformLiveDraftRoomInitialRostersInput,
+    ): Promise<LiveDraftRoom | null> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const season = await requireSeason(input.seasonId);
+      const membership = await requireSharedMutation(account, season.leagueId);
+
+      const room = await liveDraftRooms.synchronizeInitialRostersForSeason({
+        seasonId: season.id,
+        actor: liveActorFor(account, season.leagueId, membership),
+        initialRosters: cloneForRead(input.initialRosters),
+        playerCatalog: cloneForRead(input.playerCatalog),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      });
+
+      return room === null ? null : cloneForRead(room);
+    },
 
     cancelLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<void> => {
       const account = await requireAccount(input.actorSessionToken, input.now);

@@ -24,7 +24,17 @@ export interface SaveLiveDraftRoomSetupInput {
 
 export interface LiveDraftRoomSetupRepository {
   findForSeason(seasonId: string): Promise<LiveDraftRoomSetup | null>;
-  save(input: SaveLiveDraftRoomSetupInput): Promise<LiveDraftRoomSetup>;
+  save(
+    input: SaveLiveDraftRoomSetupInput,
+    options?: { expectedContentHash?: string | null | undefined },
+  ): Promise<LiveDraftRoomSetup>;
+}
+
+export class LiveDraftRoomSetupWriteConflictError extends Error {
+  constructor() {
+    super("Draft setup changed while this update was being saved. Reload and try again.");
+    this.name = "LiveDraftRoomSetupWriteConflictError";
+  }
 }
 
 export interface LiveDraftRoomSetupPostgresRow {
@@ -78,13 +88,35 @@ const setupFromRow = (row: LiveDraftRoomSetupPostgresRow): LiveDraftRoomSetup =>
 export class InMemoryLiveDraftRoomSetupRepository implements LiveDraftRoomSetupRepository {
   readonly #setups = new Map<string, LiveDraftRoomSetup>();
 
+  setups(): readonly LiveDraftRoomSetup[] {
+    return [...this.#setups.values()].map(setup => structuredClone(setup));
+  }
+
+  replaceSetups(setups: readonly LiveDraftRoomSetup[]): void {
+    this.#setups.clear();
+    for (const setup of setups) {
+      this.#setups.set(setup.seasonId, structuredClone(setup));
+    }
+  }
+
   async findForSeason(seasonId: string): Promise<LiveDraftRoomSetup | null> {
     const setup = this.#setups.get(seasonId);
     return setup === undefined ? null : structuredClone(setup);
   }
 
-  async save(input: SaveLiveDraftRoomSetupInput): Promise<LiveDraftRoomSetup> {
+  async save(
+    input: SaveLiveDraftRoomSetupInput,
+    options: { expectedContentHash?: string | null | undefined } = {},
+  ): Promise<LiveDraftRoomSetup> {
     const setup = setupFor(input);
+    const current = this.#setups.get(setup.seasonId);
+    const expectedContentHash = options.expectedContentHash;
+    if (
+      (expectedContentHash === null && current !== undefined) ||
+      (typeof expectedContentHash === "string" && current?.contentHash !== expectedContentHash)
+    ) {
+      throw new LiveDraftRoomSetupWriteConflictError();
+    }
     this.#setups.set(setup.seasonId, setup);
     return structuredClone(setup);
   }
@@ -104,19 +136,43 @@ WHERE league_season_id = $1;
     return row === undefined ? null : setupFromRow(row);
   }
 
-  async save(input: SaveLiveDraftRoomSetupInput): Promise<LiveDraftRoomSetup> {
+  async save(
+    input: SaveLiveDraftRoomSetupInput,
+    options: { expectedContentHash?: string | null | undefined } = {},
+  ): Promise<LiveDraftRoomSetup> {
     const setup = setupFor(input);
-    const result = await this.client.query<LiveDraftRoomSetupPostgresRow>(`
+    const expectedContentHash = options.expectedContentHash;
+    const result = typeof expectedContentHash === "string"
+      ? await this.client.query<LiveDraftRoomSetupPostgresRow>(`
+UPDATE league_season_draft_setups SET
+  source_version = $2,
+  player_catalog_json = $3::jsonb,
+  initial_rosters_json = $4::jsonb,
+  content_hash = $5,
+  updated_at = $6
+WHERE league_season_id = $1 AND content_hash = $7
+RETURNING league_season_id, source_version, player_catalog_json, initial_rosters_json,
+          content_hash, updated_at;
+`.trim(), [
+        setup.seasonId,
+        setup.sourceVersion,
+        JSON.stringify(setup.playerCatalog),
+        JSON.stringify(setup.initialRosters),
+        setup.contentHash,
+        setup.updatedAt,
+        expectedContentHash,
+      ])
+      : await this.client.query<LiveDraftRoomSetupPostgresRow>(`
 INSERT INTO league_season_draft_setups (
   league_season_id, source_version, player_catalog_json, initial_rosters_json,
   content_hash, created_at, updated_at
 ) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $6)
-ON CONFLICT (league_season_id) DO UPDATE SET
+ON CONFLICT (league_season_id) ${expectedContentHash === null ? "DO NOTHING" : `DO UPDATE SET
   source_version = EXCLUDED.source_version,
   player_catalog_json = EXCLUDED.player_catalog_json,
   initial_rosters_json = EXCLUDED.initial_rosters_json,
   content_hash = EXCLUDED.content_hash,
-  updated_at = EXCLUDED.updated_at
+  updated_at = EXCLUDED.updated_at`}
 RETURNING league_season_id, source_version, player_catalog_json, initial_rosters_json,
           content_hash, updated_at;
 `.trim(), [
@@ -128,7 +184,7 @@ RETURNING league_season_id, source_version, player_catalog_json, initial_rosters
       setup.updatedAt,
     ]);
     const row = result.rows[0];
-    if (row === undefined) throw new Error(`Draft setup for season "${setup.seasonId}" could not be saved.`);
+    if (row === undefined) throw new LiveDraftRoomSetupWriteConflictError();
     return setupFromRow(row);
   }
 }

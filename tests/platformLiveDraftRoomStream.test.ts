@@ -234,6 +234,64 @@ describe("live draft room stream contract", () => {
     });
   });
 
+  it("streams keeper synchronization as a fresh room snapshot", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const created = createRoom(repository);
+    const camTeam = created.season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const synchronized = repository.synchronizeInitialRostersForSeason({
+      seasonId: created.seasonId,
+      actor: commissioner,
+      initialRosters: [{
+        teamId: camTeam.id,
+        playerName: "Puka Nacua",
+        position: "WR",
+        price: 40,
+        source: "keeper",
+      }],
+      playerCatalog: playerCatalog.map(player => ({
+        ...player,
+        expectedPrice: player.name === "Jahmyr Gibbs" ? 84 : player.expectedPrice,
+      })),
+      idempotencyKey: "keepers:stream-version-1",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const event = synchronized?.events.at(-1);
+    if (synchronized === null || event === undefined) throw new Error("Expected synchronized room fixture.");
+
+    const snapshotEvent = buildLiveDraftRoomSseEvent({ room: synchronized, event, actor: commissioner });
+    expect(snapshotEvent).toMatchObject({
+      event: "room.snapshot",
+      revision: 2,
+      data: {
+        revision: 2,
+        board: expect.arrayContaining([
+          expect.objectContaining({ name: "Jahmyr Gibbs", expectedPrice: 84 }),
+        ]),
+        teamSummaries: expect.arrayContaining([
+          expect.objectContaining({
+            teamId: camTeam.id,
+            spent: 40,
+            budgetRemaining: 160,
+            rosterSlotsRemaining: 15,
+            roster: [expect.objectContaining({ name: "Puka Nacua", source: "keeper" })],
+          }),
+        ]),
+      },
+    });
+    if (snapshotEvent.event !== "room.snapshot") throw new Error("Expected room snapshot event.");
+    expect(snapshotEvent.data.board.map(player => player.name)).not.toContain("Puka Nacua");
+    expect(liveDraftRoomEventsAfterRevision({
+      room: synchronized,
+      actor: commissioner,
+      afterRevision: 1,
+    })).toMatchObject({
+      currentRevision: 2,
+      requiresSnapshot: true,
+      events: [expect.objectContaining({ event: "room.snapshot", revision: 2 })],
+    });
+  });
+
   it("streams correction snapshots and pause/resume status events with the active replacement sale", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     createRoom(repository);

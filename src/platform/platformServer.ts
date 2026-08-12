@@ -42,6 +42,7 @@ import {
   type PlatformApp,
   type PlatformHttpHandler,
   type PlatformHttpRequest,
+  type PlatformHttpResponse,
 } from "./platformHttp.js";
 import {
   createPlatformJobHandlers,
@@ -68,7 +69,6 @@ import {
 } from "./platformInvitations.js";
 import { PostgresPlatformInvitationRepository } from "./postgresPlatformInvitations.js";
 import {
-  InMemoryLiveDraftRoomSetupRepository,
   liveDraftRoomSetupContentHash,
   PostgresLiveDraftRoomSetupRepository,
   type LiveDraftRoomSetup,
@@ -300,36 +300,102 @@ const isKeepAliveEventStreamResponse = (
     response.body === eventStreamKeepAliveBody;
 };
 
+export const liveDraftRoomRevisionNotificationFor = (
+  request: PlatformHttpRequest,
+  response: Awaited<ReturnType<PlatformHttpHandler>>,
+): { roomId: string; revision: number } | null => {
+  if (response.status < 200 || response.status >= 300) return null;
+
+  const segments = pathSegmentsFor(request);
+  if (segments === null) return null;
+  const method = request.method.toUpperCase();
+  const isLiveRoomMutation = segments[0] === "live-rooms" &&
+    method === "POST" &&
+    (
+      segments.length === 1 ||
+      (segments.length === 3 && liveRoomMutationActions.has(segments[2] ?? ""))
+    );
+  const isKeeperMutation = segments[0] === "seasons" &&
+    segments[2] === "keepers" &&
+    (
+      (method === "POST" && segments.length === 4 && segments[3] === "apply") ||
+      (method === "DELETE" && segments.length === 3)
+    );
+  const isHistoricalImportCommit = segments[0] === "historical-imports" &&
+    segments[2] === "commit" &&
+    method === "POST";
+  if (!isLiveRoomMutation && !isKeeperMutation && !isHistoricalImportCommit) return null;
+
+  const body = response.body;
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
+
+  const room = (body as { room?: unknown }).room;
+  if (room === null || typeof room !== "object" || Array.isArray(room)) return null;
+
+  const roomId = (room as { roomId?: unknown }).roomId;
+  const revision = (room as { revision?: unknown }).revision;
+  return typeof roomId === "string" && typeof revision === "number"
+    ? { roomId, revision }
+    : null;
+};
+
 const notifyLiveDraftRoomRevision = (
   notifier: LiveDraftRoomRevisionNotifier,
   request: PlatformHttpRequest,
   response: Awaited<ReturnType<PlatformHttpHandler>>,
 ): void => {
-  if (response.status < 200 || response.status >= 300) return;
+  const notification = liveDraftRoomRevisionNotificationFor(request, response);
+  if (notification === null) return;
 
+  notifier.notifyRevision(notification.roomId, notification.revision);
+};
+
+class DraftMutationResponseRollback extends Error {
+  constructor(readonly response: PlatformHttpResponse) {
+    super(`Draft mutation returned HTTP ${response.status}.`);
+  }
+}
+
+const draftMutationSeasonIdFor = async (
+  request: PlatformHttpRequest,
+  liveDraftRoomRepository: LiveDraftRoomRepository,
+): Promise<string | null> => {
   const segments = pathSegmentsFor(request);
-  if (segments === null || segments[0] !== "live-rooms") return;
+  if (segments === null) return null;
+  const method = request.method.toUpperCase();
   if (
-    request.method.toUpperCase() !== "POST" ||
+    segments[0] === "seasons" &&
+    typeof segments[1] === "string" &&
     (
-      segments.length !== 1 &&
-      (segments.length !== 3 || !liveRoomMutationActions.has(segments[2] ?? ""))
+      (segments[2] === "keepers" && (
+        (method === "POST" && segments[3] === "apply") ||
+        (method === "DELETE" && segments.length === 3)
+      )) ||
+      (segments[2] === "live-room" && method === "POST")
     )
   ) {
-    return;
+    return segments[1];
+  }
+  if (
+    segments[0] === "historical-imports" &&
+    segments[2] === "commit" &&
+    method === "POST" &&
+    request.body !== null &&
+    typeof request.body === "object" &&
+    !Array.isArray(request.body)
+  ) {
+    const seasonId = (request.body as { seasonId?: unknown }).seasonId;
+    return typeof seasonId === "string" && seasonId.length > 0 ? seasonId : null;
+  }
+  if (segments[0] === "live-rooms" && segments[2] === "start" && method === "POST") {
+    try {
+      return (await liveDraftRoomRepository.getRoom(segments[1] ?? "")).seasonId;
+    } catch {
+      return null;
+    }
   }
 
-  const body = response.body;
-  if (body === null || typeof body !== "object" || Array.isArray(body)) return;
-
-  const room = (body as { room?: unknown }).room;
-  if (room === null || typeof room !== "object" || Array.isArray(room)) return;
-
-  const roomId = (room as { roomId?: unknown }).roomId;
-  const revision = (room as { revision?: unknown }).revision;
-  if (typeof roomId === "string" && typeof revision === "number") {
-    notifier.notifyRevision(roomId, revision);
-  }
+  return null;
 };
 
 const isJobOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
@@ -857,7 +923,7 @@ export const createPlatformServer = async (
         : new PostgresPlatformOnboardingRepository(options.postgresClient));
     const liveDraftRoomSetupRepository = options.liveDraftRoomSetupRepository ??
       postgresLiveDraftRoomSetupRepository ??
-      new InMemoryLiveDraftRoomSetupRepository();
+      store.liveDraftRoomSetups;
     const liveDraftRoomSetupProvider = async (season: LeagueSeason): Promise<LiveDraftRoomSetup | null> => {
       const storedSetup = await liveDraftRoomSetupRepository.findForSeason(season.id);
       if (storedSetup !== null) return storedSetup;
@@ -1059,8 +1125,6 @@ export const createPlatformServer = async (
       }
     }
 
-    notifyLiveDraftRoomRevision(liveDraftRoomNotifier, requestWithNow, response);
-
     return response;
   };
 
@@ -1098,7 +1162,53 @@ export const createPlatformServer = async (
       return await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
     }
 
-    return runInSnapshotCriticalSection(() => runRequest(requestWithNow));
+    const runSerializedRequest = () => runInSnapshotCriticalSection(() => runRequest(requestWithNow));
+    const draftMutationSeasonId = await draftMutationSeasonIdFor(
+      requestWithNow,
+      runtime.liveDraftRoomRepository,
+    );
+    const postgresClient = options.postgresClient;
+    if (
+      draftMutationSeasonId !== null &&
+      postgresClient !== undefined &&
+      isTransactionalPostgresClient(postgresClient)
+    ) {
+      return await runInSnapshotCriticalSection(async () => {
+        let response: PlatformHttpResponse;
+        try {
+          response = await postgresClient.transaction(async client => {
+            await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+              `mockd:draft-mutation:${draftMutationSeasonId}`,
+            ]);
+            const transactionalResponse = await runRequest(requestWithNow);
+            if (transactionalResponse.status >= 400) {
+              throw new DraftMutationResponseRollback(transactionalResponse);
+            }
+
+            return transactionalResponse;
+          });
+        } catch (error) {
+          runtime = createRuntime(await loadStore({
+            postgresClient,
+            postgresSnapshotKey: options.postgresSnapshotKey,
+            now: options.now,
+          }));
+          if (error instanceof DraftMutationResponseRollback) {
+            response = error.response;
+          } else {
+            throw error;
+          }
+        }
+        notifyLiveDraftRoomRevision(liveDraftRoomNotifier, requestWithNow, response);
+
+        return response;
+      });
+    }
+
+    const response = await runSerializedRequest();
+    notifyLiveDraftRoomRevision(liveDraftRoomNotifier, requestWithNow, response);
+
+    return response;
   };
   const draftToolsAdapter = createPlatformDraftToolsAdapter({
     authorizeSeason: async (account, seasonId) => {

@@ -42,6 +42,7 @@ import {
 } from "../src/platform/platformJobOrchestrator.js";
 import {
   createPlatformServer,
+  liveDraftRoomRevisionNotificationFor,
   startPlatformServer,
   type PlatformServer,
 } from "../src/platform/platformServer.js";
@@ -502,8 +503,17 @@ class FakeTransactionalPlatformPostgresClient
   readonly sales = new Map<string, DraftRoomSaleRow>();
   readonly exports = new Map<string, DraftRoomExportRow>();
   readonly exportContents = new Map<string, DraftRoomExportContentRow>();
+  readonly advisoryLockKeys: string[] = [];
+  transactionsCommitted = 0;
+  transactionsRolledBack = 0;
+  failNextDraftRoomRevisionUpdate = false;
+  rollbackGate?: Promise<void>;
+  onRollbackStarted?: (() => void);
+  private transactionDepth = 0;
 
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    if (this.transactionDepth > 0) return await operation(this);
+    this.transactionDepth += 1;
     const rowBackup = this.row === undefined
       ? undefined
       : {
@@ -518,8 +528,13 @@ class FakeTransactionalPlatformPostgresClient
     const exportContentsBackup = new Map([...this.exportContents].map(([id, row]) => [id, cloneContentRow(row)]));
 
     try {
-      return await operation(this);
+      const result = await operation(this);
+      this.transactionsCommitted += 1;
+      return result;
     } catch (error) {
+      this.transactionsRolledBack += 1;
+      this.onRollbackStarted?.();
+      await this.rollbackGate;
       this.row = rowBackup;
       this.rooms.clear();
       for (const [id, row] of roomsBackup) this.rooms.set(id, row);
@@ -532,6 +547,8 @@ class FakeTransactionalPlatformPostgresClient
       this.exportContents.clear();
       for (const [id, row] of exportContentsBackup) this.exportContents.set(id, row);
       throw error;
+    } finally {
+      this.transactionDepth -= 1;
     }
   }
 
@@ -540,6 +557,11 @@ class FakeTransactionalPlatformPostgresClient
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResult<TRow>> {
     const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
+      this.advisoryLockKeys.push(String(values[0]));
+      return { rows: [] };
+    }
 
     if (normalizedSql.startsWith("SELECT snapshot_json FROM draft_room_snapshots")) {
       const [roomId] = values as readonly [string];
@@ -614,6 +636,10 @@ class FakeTransactionalPlatformPostgresClient
     }
 
     if (normalizedSql.startsWith("UPDATE draft_rooms SET status = $2")) {
+      if (this.failNextDraftRoomRevisionUpdate) {
+        this.failNextDraftRoomRevisionUpdate = false;
+        throw new Error("Injected draft room synchronization failure.");
+      }
       const [
         roomId,
         status,
@@ -1157,6 +1183,25 @@ const textFetch = async (
 };
 
 describe("platform server composition", () => {
+  it("publishes live-room revisions produced by keeper mutations", () => {
+    expect(liveDraftRoomRevisionNotificationFor({
+      method: "POST",
+      path: "/seasons/season_2026/keepers/apply",
+      body: {},
+    }, {
+      status: 200,
+      body: { room: { roomId: "room_2026", revision: 3 } },
+    })).toEqual({ roomId: "room_2026", revision: 3 });
+    expect(liveDraftRoomRevisionNotificationFor({
+      method: "POST",
+      path: "/historical-imports/batch_2025/commit",
+      body: { seasonId: "season_2026" },
+    }, {
+      status: 200,
+      body: { room: { roomId: "room_2026", revision: 4 } },
+    })).toEqual({ roomId: "room_2026", revision: 4 });
+  });
+
   let directory: string | undefined;
   const servers: PlatformServer[] = [];
 
@@ -1196,7 +1241,7 @@ describe("platform server composition", () => {
 
   it("reports dependency readiness through the real HTTP server", async () => {
     let ready = false;
-    const { baseUrl } = await createListeningServer({
+    const { platformServer, baseUrl } = await createListeningServer({
       readinessProbe: async () => ready,
     });
 
@@ -1724,6 +1769,20 @@ describe("platform server composition", () => {
         password: "secure password",
       }),
     });
+    await platformServer.liveDraftRoomSetupRepository?.save({
+      seasonId: "season_restart_2026",
+      sourceVersion: "catalog-2026",
+      playerCatalog: [{ name: "De'Von Achane", position: "RB", expectedPrice: 50 }],
+      initialRosters: [{
+        teamId: "team_cam",
+        playerName: "De'Von Achane",
+        position: "RB",
+        price: 48,
+        source: "keeper",
+      }],
+      updatedAt: now,
+    });
+    await platformServer.persist();
 
     const saved = await readFile(dataFilePath, "utf8");
     expect(saved).toContain("cam@example.com");
@@ -1739,6 +1798,10 @@ describe("platform server composition", () => {
           },
         ],
       },
+      liveDraftRoomSetups: [{
+        seasonId: "season_restart_2026",
+        initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
+      }],
     });
 
     await platformServer.close();
@@ -1765,6 +1828,11 @@ describe("platform server composition", () => {
         email: "cam@example.com",
       },
       sessionToken: expect.any(String),
+    });
+    await expect(
+      loadedServer.liveDraftRoomSetupRepository?.findForSeason("season_restart_2026"),
+    ).resolves.toMatchObject({
+      initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
     });
   });
 
@@ -1897,6 +1965,22 @@ describe("platform server composition", () => {
         ],
       }),
     });
+    const rollbacksBeforeConflict = postgresClient.transactionsRolledBack;
+    const failedStart = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/start", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({
+        expectedRevision: 99,
+        idempotencyKey: "start:room_postgres_normalized:stale",
+      }),
+    });
+    expect(failedStart.status).toBe(409);
+    expect(postgresClient.transactionsRolledBack).toBe(rollbacksBeforeConflict + 1);
+    expect(postgresClient.events).toHaveLength(1);
+    expect(postgresClient.rooms.get("room_postgres_normalized")?.current_revision).toBe(1);
     const roomStarted = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/start", {
       method: "POST",
       headers: {
@@ -1956,6 +2040,7 @@ describe("platform server composition", () => {
       status: 200,
       body: { room: { revision: 2, status: "live" } },
     });
+    expect(postgresClient.advisoryLockKeys).toContain(`mockd:draft-mutation:${season.id}`);
     expect(saleLogged).toMatchObject({
       status: 200,
       body: {
@@ -2059,6 +2144,127 @@ describe("platform server composition", () => {
     expect(retriedArtifact).toEqual(exportArtifact);
     expect(postgresClient.exports).toHaveLength(1);
     expect(postgresClient.exportContents).toHaveLength(1);
+  });
+
+  it("restores process-local pricing when historical room synchronization rolls back", async () => {
+    const postgresClient = new FakeTransactionalPlatformPostgresClient();
+    const { platformServer, baseUrl } = await createListeningServer({
+      postgresClient,
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+    });
+    const created = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+    });
+    const accountId = (created.body as { account: { id: string } }).account.id;
+    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Rollback League",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await jsonFetch(baseUrl, "/seasons", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
+      },
+      body: JSON.stringify({
+        season,
+        memberships: [{
+          userId: accountId,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: camTeam.ownerId,
+          teamId: camTeam.id,
+        }],
+      }),
+    });
+    const roomCreated = await jsonFetch(baseUrl, "/live-rooms", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+        "x-mockd-provisioning-token": "test-provisioning-token",
+      },
+      body: JSON.stringify({
+        seasonId: season.id,
+        roomId: "room_history_rollback",
+        viewerPasswordHashRef: "viewer-password-hash",
+        playerCatalog: [
+          { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+          { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
+        ],
+      }),
+    });
+    expect(roomCreated.status).toBe(201);
+    const preview = await platformServer.app.previewHistoricalImportSource({
+      actorSessionToken: sessionToken,
+      leagueId: season.leagueId,
+      seasonYear: 2025,
+      currentSeasonId: season.id,
+      sourceText: [
+        "owner,player,position,price,year,player id,keeper,acquisition",
+        "Cam,Puka Nacua,WR,$61,2025,player-puka,false,auction",
+      ].join("\n"),
+      now,
+    });
+    await platformServer.persist();
+    const batchId = preview.batch.id;
+    postgresClient.failNextDraftRoomRevisionUpdate = true;
+    let markRollbackStarted!: () => void;
+    const rollbackStarted = new Promise<void>(resolve => {
+      markRollbackStarted = resolve;
+    });
+    let releaseRollback!: () => void;
+    postgresClient.rollbackGate = new Promise<void>(resolve => {
+      releaseRollback = resolve;
+    });
+    postgresClient.onRollbackStarted = markRollbackStarted;
+
+    const failedCommitRequest = jsonFetch(baseUrl, `/historical-imports/${batchId}/commit`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-session-token": sessionToken,
+      },
+      body: JSON.stringify({ seasonId: season.id, seasonYear: 2025 }),
+    });
+    await rollbackStarted;
+    const pricingAfterRollbackRequest = jsonFetch(baseUrl, `/seasons/${season.id}/pricing-snapshots`, {
+      headers: { "x-session-token": sessionToken },
+    });
+    const concurrentReadState = await Promise.race([
+      pricingAfterRollbackRequest.then(() => "resolved"),
+      new Promise(resolve => setTimeout(() => resolve("blocked"), 50)),
+    ]);
+    releaseRollback();
+    const [failedCommit, pricingAfterRollback] = await Promise.all([
+      failedCommitRequest,
+      pricingAfterRollbackRequest,
+    ]);
+    const roomAfterRollback = await jsonFetch(baseUrl, "/live-rooms/room_history_rollback", {
+      headers: { "x-session-token": sessionToken },
+    });
+
+    expect(preview).toMatchObject({ batch: { status: "previewed" } });
+    expect(concurrentReadState).toBe("blocked");
+    expect(failedCommit.status).toBe(500);
+    expect(pricingAfterRollback).toMatchObject({ status: 200, body: { pricingSnapshots: [] } });
+    expect(roomAfterRollback).toMatchObject({
+      status: 200,
+      body: { room: { revision: 1, projection: { sales: [] } } },
+    });
+    expect((postgresClient.row?.snapshot_json as { pricingSnapshots?: unknown[] }).pricingSnapshots).toEqual([]);
   });
 
   it("uses app authorization for normalized live rooms when league setup is external", async () => {

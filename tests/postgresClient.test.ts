@@ -105,6 +105,28 @@ describe("node Postgres client adapter", () => {
     expect(pool.connectedClient.released).toBe(true);
   });
 
+  it("keeps base-client and nested transaction queries on the active connection", async () => {
+    const pool = new FakePool();
+    const client = new NodePostgresClient(pool);
+
+    await client.transaction(async transactionClient => {
+      await client.query("UPDATE draft_room_setups");
+      await client.transaction(async () => {
+        await client.query("UPDATE draft_rooms");
+      });
+      await transactionClient.query("UPDATE platform_store_snapshots");
+    });
+
+    expect(pool.queries).toEqual([]);
+    expect(pool.connectedClient.queries.map(query => query.text)).toEqual([
+      "BEGIN",
+      "UPDATE draft_room_setups",
+      "UPDATE draft_rooms",
+      "UPDATE platform_store_snapshots",
+      "COMMIT",
+    ]);
+  });
+
   it("creates a real pg pool from runtime connection settings", () => {
     const client = createNodePostgresClient({
       databaseUrl: "postgres://mockd:test@localhost:5432/mockd",

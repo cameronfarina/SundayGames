@@ -25,6 +25,7 @@ import {
 import { LeagueSetupWriteConflictError } from "./leagueSetup.js";
 import {
   LiveDraftRoomError,
+  type LiveDraftRoom,
   type LiveDraftRoomInitialRosterPlayer,
   type LiveDraftRoomPlayerCatalogEntry,
   type LiveDraftRoomSaleCommandInput,
@@ -34,7 +35,10 @@ import type {
   LiveDraftRoomSetup,
   LiveDraftRoomSetupRepository,
 } from "./liveDraftRoomSetups.js";
-import { liveDraftRoomSetupContentHash } from "./liveDraftRoomSetups.js";
+import {
+  liveDraftRoomSetupContentHash,
+  LiveDraftRoomSetupWriteConflictError,
+} from "./liveDraftRoomSetups.js";
 import {
   MockDraftSessionError,
   type MockDraftModeMetadata,
@@ -84,8 +88,13 @@ import {
 } from "./historicalSpreadsheetImport.js";
 import {
   PricingSnapshotError,
+  type PricingSnapshot,
   type PricingSourcePrice,
 } from "./pricingSnapshots.js";
+import type {
+  PreflightLeaguePricingWorkflowResult,
+  RebuildLeaguePricingWorkflowResult,
+} from "./platformPricingWorkflow.js";
 import {
   clearMockdSessionCookie,
   mockdSessionCookie,
@@ -859,6 +868,10 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
     return knownError(409, "league_setup_write_conflict", error.message);
   }
 
+  if (error instanceof LiveDraftRoomSetupWriteConflictError) {
+    return knownError(409, "draft_setup_write_conflict", error.message);
+  }
+
   if (error instanceof LeagueCreationError) {
     return knownError(400, "invalid_league_setup", error.message);
   }
@@ -1113,6 +1126,13 @@ const routeSeasonHistoricalImports = async (
     seasonId: seasonId ?? "",
     now: request.now,
   });
+  if (await app.hasStartedLiveDraftRoomForSeason(season.id)) {
+    return knownError(
+      409,
+      "historical_import_locked",
+      "Draft history is locked after the live draft starts.",
+    );
+  }
   const sourceText = action === "upload-preview"
     ? await historicalSpreadsheetUploadToSourceText({
         fileName: stringValue(request.body.fileName),
@@ -1193,13 +1213,16 @@ const seasonDraftSetupForKeeperEditing = async (
   season: LeagueSeason,
   request: ParsedPlatformHttpRequest,
   services: PlatformHttpServices,
-): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
+): Promise<{
+  setup: LiveDraftRoomSetup;
+  expectedContentHash: string | null;
+} | PlatformHttpResponse> => {
   if (services.liveDraftRoomSetupRepository === undefined) {
     return knownError(503, "keeper_setup_unavailable", "Keeper setup is unavailable.");
   }
   const repository = services.liveDraftRoomSetupRepository;
   const stored = await repository.findForSeason(season.id);
-  if (stored !== null) return stored;
+  if (stored !== null) return { setup: stored, expectedContentHash: stored.contentHash };
   const fallback = await services.liveDraftRoomSetupProvider?.(season) ?? null;
   if (fallback === null) {
     return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
@@ -1213,13 +1236,16 @@ const seasonDraftSetupForKeeperEditing = async (
   };
 
   return {
-    ...setupInput,
-    contentHash: liveDraftRoomSetupContentHash(setupInput),
+    setup: {
+      ...setupInput,
+      contentHash: liveDraftRoomSetupContentHash(setupInput),
+    },
+    expectedContentHash: null,
   };
 };
 
 const isPlatformHttpResponse = (
-  value: LiveDraftRoomSetup | PlatformHttpResponse,
+  value: object,
 ): value is PlatformHttpResponse => "status" in value;
 
 const rebuildPricingAfterKeeperChange = async (
@@ -1232,7 +1258,7 @@ const rebuildPricingAfterKeeperChange = async (
     historicalSaleRecords?: readonly HistoricalSaleRecord[];
     modelVersion?: string;
   } = {},
-): Promise<unknown | undefined> => {
+): Promise<PreflightLeaguePricingWorkflowResult | RebuildLeaguePricingWorkflowResult | undefined> => {
   if (season.settings.draftFormat === "snake") return undefined;
   const keepers = listSeasonKeepers(setup);
   const keeperPlayerKeys = new Set(keepers.map(keeper => canonicalPlayerIdentityKey(keeper.playerName)));
@@ -1249,7 +1275,7 @@ const rebuildPricingAfterKeeperChange = async (
         name: player.name,
         normalizedName: canonicalPlayerIdentityKey(player.name),
         position: player.position,
-        price: player.expectedPrice,
+        price: player.marketPrice ?? player.expectedPrice,
       })),
     currentKeeperCount: keepers.length,
     keeperLockedSpend: keepers.reduce((total, keeper) => total + keeper.price, 0),
@@ -1264,6 +1290,139 @@ const rebuildPricingAfterKeeperChange = async (
     : await app.rebuildLeaguePricing(input);
 };
 
+const playerCatalogWithPricingSnapshot = (
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+  snapshot: PricingSnapshot | undefined,
+): readonly LiveDraftRoomPlayerCatalogEntry[] => {
+  if (snapshot === undefined) return playerCatalog;
+  const rowsByPlayer = new Map(
+    snapshot.rows.map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
+  );
+
+  return playerCatalog.map(player => {
+    const pricing = rowsByPlayer.get(canonicalPlayerIdentityKey(player.name));
+    if (pricing === undefined) return player;
+
+    return {
+      ...player,
+      marketPrice: player.marketPrice ?? player.expectedPrice,
+      expectedPrice: Math.max(1, Math.round(pricing.personalValue)),
+    };
+  });
+};
+
+const synchronizeUnopenedLiveRoomAfterKeeperChange = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  season: LeagueSeason,
+  setup: LiveDraftRoomSetup,
+  playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+  idempotencyKey = `keepers:${setup.contentHash}:${setup.updatedAt.toISOString()}`,
+  expectedRevision?: number,
+) => await app.synchronizeLiveDraftRoomInitialRosters({
+  actorSessionToken: request.sessionToken,
+  seasonId: season.id,
+  initialRosters: setup.initialRosters,
+  playerCatalog,
+  idempotencyKey,
+  ...(expectedRevision === undefined ? {} : { expectedRevision }),
+  now: request.now,
+});
+
+const saveKeeperSetupAndSynchronizeLiveRoom = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  season: LeagueSeason,
+  repository: LiveDraftRoomSetupRepository,
+  previous: LiveDraftRoomSetup,
+  proposed: LiveDraftRoomSetup,
+  expectedContentHash: string | null,
+  proposedRoomCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
+): Promise<{ saved: LiveDraftRoomSetup; room: LiveDraftRoom | null }> => {
+  const saved = await repository.save(proposed, { expectedContentHash });
+
+  try {
+    return {
+      saved,
+      room: await synchronizeUnopenedLiveRoomAfterKeeperChange(
+        app,
+        request,
+        season,
+        saved,
+        proposedRoomCatalog,
+      ),
+    };
+  } catch (error) {
+    await repository.save(previous, { expectedContentHash: saved.contentHash });
+    throw error;
+  }
+};
+
+const persistKeeperSetupChange = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  season: LeagueSeason,
+  repository: LiveDraftRoomSetupRepository,
+  previous: LiveDraftRoomSetup,
+  proposed: LiveDraftRoomSetup,
+  expectedContentHash: string | null,
+): Promise<{
+  saved: LiveDraftRoomSetup;
+  room: LiveDraftRoom | null;
+  pricing: RebuildLeaguePricingWorkflowResult | undefined;
+}> => {
+  const previousRoomCatalog = await liveRoomCatalogForSeason(
+    app,
+    request,
+    season,
+    previous.playerCatalog,
+  );
+  const pricingPreflight = await rebuildPricingAfterKeeperChange(
+    app,
+    request,
+    season,
+    proposed,
+    { preflight: true },
+  );
+  const proposedRoomCatalog = playerCatalogWithPricingSnapshot(
+    proposed.playerCatalog,
+    pricingPreflight?.snapshots.at(-1),
+  );
+  const { saved, room } = await saveKeeperSetupAndSynchronizeLiveRoom(
+    app,
+    request,
+    season,
+    repository,
+    previous,
+    proposed,
+    expectedContentHash,
+    proposedRoomCatalog,
+  );
+
+  try {
+    const pricingResult = await rebuildPricingAfterKeeperChange(app, request, season, saved);
+    if (pricingResult !== undefined && !("savedSnapshotIds" in pricingResult)) {
+      throw new Error("Keeper pricing rebuild returned an uncommitted preview.");
+    }
+    const pricing = pricingResult;
+    return { saved, room, pricing };
+  } catch (error) {
+    if (room !== null) {
+      await synchronizeUnopenedLiveRoomAfterKeeperChange(
+        app,
+        request,
+        season,
+        previous,
+        previousRoomCatalog,
+        `keepers-rollback:${saved.contentHash}:${previous.contentHash}`,
+        room.revision,
+      );
+    }
+    await repository.save(previous, { expectedContentHash: saved.contentHash });
+    throw error;
+  }
+};
+
 const routeSeasonKeepers = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -1276,8 +1435,9 @@ const routeSeasonKeepers = async (
     seasonId: seasonId ?? "",
     now: request.now,
   });
-  const setup = await seasonDraftSetupForKeeperEditing(season, request, services);
-  if (isPlatformHttpResponse(setup)) return setup;
+  const editableSetup = await seasonDraftSetupForKeeperEditing(season, request, services);
+  if (isPlatformHttpResponse(editableSetup)) return editableSetup;
+  const { setup, expectedContentHash } = editableSetup;
   const repository = services.liveDraftRoomSetupRepository;
   if (repository === undefined) {
     return knownError(503, "keeper_setup_unavailable", "Keeper setup is unavailable.");
@@ -1288,8 +1448,8 @@ const routeSeasonKeepers = async (
   }
 
   await requireSeasonManager(app, request, season.id);
-  if (await app.hasLiveDraftRoomForSeason(season.id)) {
-    return knownError(409, "keeper_setup_locked", "Keepers are locked after the live draft room is created.");
+  if (await app.hasStartedLiveDraftRoomForSeason(season.id)) {
+    return knownError(409, "keeper_setup_locked", "Keepers are locked after the live draft starts.");
   }
 
   if (request.segments.length === 4 && action === "preview") {
@@ -1325,15 +1485,22 @@ const routeSeasonKeepers = async (
       contentHash: liveDraftRoomSetupContentHash(proposedInput),
       updatedAt: proposedInput.updatedAt ?? request.now ?? new Date(),
     };
-    await rebuildPricingAfterKeeperChange(app, request, season, proposed, { preflight: true });
-    const saved = await repository.save(proposed);
-    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, saved);
+    const { saved, room, pricing } = await persistKeeperSetupChange(
+      app,
+      request,
+      season,
+      repository,
+      setup,
+      proposed,
+      expectedContentHash,
+    );
 
     return {
       status: 200,
       body: {
         preview,
         keepers: listSeasonKeepers(saved),
+        ...(room === null ? {} : { room }),
         ...(pricing === undefined ? {} : { pricing }),
       },
     };
@@ -1350,14 +1517,21 @@ const routeSeasonKeepers = async (
       contentHash: liveDraftRoomSetupContentHash(proposedInput),
       updatedAt: proposedInput.updatedAt ?? request.now ?? new Date(),
     };
-    await rebuildPricingAfterKeeperChange(app, request, season, proposed, { preflight: true });
-    const saved = await repository.save(proposed);
-    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, saved);
+    const { saved, room, pricing } = await persistKeeperSetupChange(
+      app,
+      request,
+      season,
+      repository,
+      setup,
+      proposed,
+      expectedContentHash,
+    );
 
     return {
       status: 200,
       body: {
         keepers: listSeasonKeepers(saved),
+        ...(room === null ? {} : { room }),
         ...(pricing === undefined ? {} : { pricing }),
       },
     };
@@ -1380,20 +1554,7 @@ const liveRoomCatalogForSeason = async (
     scenarioId: "expected",
     now: request.now,
   });
-  const rowsByPlayer = new Map(
-    (snapshots.at(-1)?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
-  );
-
-  return playerCatalog.map(player => {
-    const pricing = rowsByPlayer.get(canonicalPlayerIdentityKey(player.name));
-    if (pricing === undefined) return player;
-
-    return {
-      ...player,
-      marketPrice: player.expectedPrice,
-      expectedPrice: Math.max(1, Math.round(pricing.personalValue)),
-    };
-  });
+  return playerCatalogWithPricingSnapshot(playerCatalog, snapshots.at(-1));
 };
 
 const routeSeason = async (
@@ -1501,7 +1662,8 @@ const routeSeason = async (
     if (request.body.startsAt !== undefined && startsAt === undefined) {
       return knownError(400, "invalid_draft_time", "Choose a valid draft date and time.");
     }
-    const setup = await services.liveDraftRoomSetupProvider?.(season) ?? null;
+    const storedSetup = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
+    const setup = storedSetup ?? await services.liveDraftRoomSetupProvider?.(season) ?? null;
     if (setup === null) {
       return knownError(
         409,
@@ -1676,6 +1838,13 @@ const routeHistoricalImports = async (
     seasonId,
     now: request.now,
   });
+  if (await app.hasStartedLiveDraftRoomForSeason(season.id)) {
+    return knownError(
+      409,
+      "historical_import_locked",
+      "Draft history is locked after the live draft starts.",
+    );
+  }
   const setup = season.settings.draftFormat === "auction"
     ? await historicalDraftSetupFor(season, services, request.now ?? new Date())
     : null;
@@ -1708,10 +1877,28 @@ const routeHistoricalImports = async (
   });
 
   if (season.settings.draftFormat !== "snake" && setup !== null) {
-    const pricing = await rebuildPricingAfterKeeperChange(app, request, season, setup, {
+    const pricingResult = await rebuildPricingAfterKeeperChange(app, request, season, setup, {
       modelVersion: "league-history-v1",
     });
-    return { status: 200, body: { ...result, pricing } };
+    if (pricingResult === undefined || !("savedSnapshotIds" in pricingResult)) {
+      throw new Error("Historical pricing rebuild did not persist a snapshot.");
+    }
+    const room = await synchronizeUnopenedLiveRoomAfterKeeperChange(
+      app,
+      request,
+      season,
+      setup,
+      playerCatalogWithPricingSnapshot(setup.playerCatalog, pricingResult.snapshots.at(-1)),
+      `history:${result.batch.id}:${pricingResult.modelRunId}`,
+    );
+    return {
+      status: 200,
+      body: {
+        ...result,
+        pricing: pricingResult,
+        ...(room === null ? {} : { room }),
+      },
+    };
   }
 
   return { status: 200, body: result };

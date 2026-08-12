@@ -35,6 +35,7 @@ export type HistoricalImportIssueCode =
   | "season_missing"
   | "owner_unknown"
   | "owner_ambiguous"
+  | "owner_fuzzy_match"
   | "position_invalid"
   | "player_missing"
   | "price_invalid"
@@ -42,6 +43,7 @@ export type HistoricalImportIssueCode =
   | "player_duplicate"
   | "player_ambiguous"
   | "player_unresolved"
+  | "player_historical_only"
   | "season_spend_mismatch"
   | "keeper_inferred"
   | "acquisition_type_inferred";
@@ -105,7 +107,7 @@ export interface HistoricalOwnerMapping {
 
 export interface HistoricalImportIdentityAudit {
   sourceOwnerOrTeamLabel: string;
-  resolution: "exact" | "explicit" | "ambiguous" | "unresolved";
+  resolution: "exact" | "explicit" | "fuzzy" | "ambiguous" | "unresolved";
   mappedTeamId?: string;
   mappedCurrentOwnerDisplayName?: string;
   mappedCurrentTeamDisplayName?: string;
@@ -245,8 +247,69 @@ const normalizeIdentityLabel = (value: string | undefined): string =>
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/gu, "")
     .toLowerCase()
+    .replace(/[\u0027\u2019]s\b/gu, "")
+    .replace(/[^a-z0-9]+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
+
+const editDistance = (left: string, right: string): number => {
+  if (left === right) return 0;
+  if (left.length === 0) return right.length;
+  if (right.length === 0) return left.length;
+
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      current[rightIndex] = Math.min(
+        (current[rightIndex - 1] ?? rightIndex) + 1,
+        (previous[rightIndex] ?? leftIndex) + 1,
+        (previous[rightIndex - 1] ?? 0) + substitutionCost,
+      );
+    }
+    previous = current;
+  }
+
+  return previous[right.length] ?? Math.max(left.length, right.length);
+};
+
+const maximumFuzzyDistanceFor = (length: number): number => {
+  if (length < 7) return 1;
+  if (length < 14) return 2;
+
+  return 3;
+};
+
+const genericIdentityTokens = new Set([
+  "draft",
+  "league",
+  "manager",
+  "new",
+  "old",
+  "owner",
+  "team",
+  "the",
+]);
+
+const identityLabelsFuzzilyMatch = (source: string, candidate: string): boolean => {
+  if (source.length < 3 || candidate.length < 3) return false;
+
+  const sourceTokens = source.split(" ");
+  const candidateTokens = candidate.split(" ");
+  const shorterTokens = sourceTokens.length <= candidateTokens.length ? sourceTokens : candidateTokens;
+  const longerTokens = sourceTokens.length <= candidateTokens.length ? candidateTokens : sourceTokens;
+  const meaningfulShorterTokens = shorterTokens.filter(token => !genericIdentityTokens.has(token));
+  if (
+    meaningfulShorterTokens.length > 0
+    && meaningfulShorterTokens.every(token => longerTokens.includes(token))
+  ) return true;
+
+  const longestLength = Math.max(source.length, candidate.length);
+  const distance = editDistance(source, candidate);
+
+  return distance <= maximumFuzzyDistanceFor(longestLength) && distance / longestLength <= 0.2;
+};
 
 const ownerCandidateFor = (team: FantasyTeam): HistoricalOwnerResolutionCandidate => ({
   teamId: team.id,
@@ -336,12 +399,44 @@ const teamResolutionForOwner = (
     }
   }
 
+  if (exactTeams.length > 1) {
+    return {
+      team: null,
+      audit: {
+        sourceOwnerOrTeamLabel,
+        resolution: "ambiguous",
+        candidates: exactTeams.map(ownerCandidateFor),
+      },
+    };
+  }
+
+  const fuzzyTeams = uniqueTeams(teams.filter(team =>
+    identityLabelsFor(team).some(label =>
+      identityLabelsFuzzilyMatch(normalizedOwner, normalizeIdentityLabel(label))
+    )
+  ));
+  if (fuzzyTeams.length === 1) {
+    const team = fuzzyTeams[0];
+    if (team !== undefined) {
+      return {
+        team,
+        audit: {
+          sourceOwnerOrTeamLabel,
+          resolution: "fuzzy",
+          mappedTeamId: team.id,
+          mappedCurrentOwnerDisplayName: team.ownerDisplayName,
+          mappedCurrentTeamDisplayName: team.displayName,
+        },
+      };
+    }
+  }
+
   return {
     team: null,
     audit: {
       sourceOwnerOrTeamLabel,
-      resolution: exactTeams.length > 1 ? "ambiguous" : "unresolved",
-      candidates: exactTeams.length > 1 ? exactTeams.map(ownerCandidateFor) : allCandidates,
+      resolution: fuzzyTeams.length > 1 ? "ambiguous" : "unresolved",
+      candidates: fuzzyTeams.length > 1 ? fuzzyTeams.map(ownerCandidateFor) : allCandidates,
     },
   };
 };
@@ -399,6 +494,42 @@ const catalogCandidatesFor = (
 
     return playerCandidateFor(entry, playerId);
   });
+};
+
+const likelyPlayerCandidatesFor = (
+  playerName: string,
+  position: Position,
+  catalog: readonly {
+    entry: HistoricalImportPlayerCatalogEntry;
+    candidate: HistoricalPlayerResolutionCandidate;
+  }[],
+): HistoricalPlayerResolutionCandidate[] => {
+  const sourceKey = canonicalPlayerIdentityKey(playerName);
+  const rankedCandidates = catalog
+    .filter(candidate => resolvePosition(candidate.entry.position) === position)
+    .map(candidate => {
+      const candidateKey = canonicalPlayerIdentityKey(candidate.entry.name);
+      return {
+        candidate: candidate.candidate,
+        distance: editDistance(sourceKey, candidateKey),
+        longestLength: Math.max(sourceKey.length, candidateKey.length),
+      };
+    })
+    .filter(({ distance, longestLength }) => {
+      return distance > 0
+        && distance <= maximumFuzzyDistanceFor(longestLength)
+        && distance / longestLength <= 0.2;
+    })
+    .sort((left, right) =>
+      left.distance - right.distance
+      || left.candidate.playerName.localeCompare(right.candidate.playerName)
+    );
+  const closestDistance = rankedCandidates[0]?.distance;
+
+  return rankedCandidates
+    .filter(candidate => candidate.distance === closestDistance)
+    .slice(0, 3)
+    .map(candidate => candidate.candidate);
 };
 
 export interface ResolveHistoricalImportPlayersInput {
@@ -499,6 +630,41 @@ export const resolveHistoricalImportPlayers = ({
           },
         };
       }
+    }
+
+    if (sameName.length === 0) {
+      const historicalPlayerId = basePlayerIdForCatalogEntry({
+        name: playerName,
+        position,
+      });
+      const likelyCandidates = likelyPlayerCandidatesFor(playerName, position, catalog);
+      const likelyMatchCopy = likelyCandidates.length === 0
+        ? "If this is a typo, correct the source file and replace this draft year."
+        : `Possible current match: ${likelyCandidates
+          .map(candidate => `${candidate.playerName} (${candidate.position})`)
+          .join(", ")}. Correct the source file and replace this draft year if needed.`;
+      issues.push(issue(
+        "player_historical_only",
+        "warning",
+        `${playerName} (${position}) is not in the current player catalog and was imported as a historical-only player. ${likelyMatchCopy}`,
+        row.sourceRowNumber,
+        {
+          sourceValue: playerName,
+          ...(likelyCandidates.length === 0 ? {} : { candidates: likelyCandidates }),
+        },
+      ));
+      return {
+        ...row,
+        playerId: historicalPlayerId,
+        playerName,
+        position,
+        playerResolution: {
+          status: "resolved" as const,
+          playerId: historicalPlayerId,
+          playerName,
+          position,
+        },
+      };
     }
 
     const candidates = exactCandidates.length > 1
@@ -788,6 +954,16 @@ export const previewHistoricalImportBatch = async ({
 
     if (importRow.acquisitionType === undefined) {
       rowWarnings.push(issue("acquisition_type_inferred", "warning", `Acquisition type was inferred as ${acquisitionType}.`, rowNumber));
+    }
+
+    if (teamResolution.audit.resolution === "fuzzy" && team !== null) {
+      rowWarnings.push(issue(
+        "owner_fuzzy_match",
+        "warning",
+        `Matched historical owner or team label "${teamResolution.audit.sourceOwnerOrTeamLabel}" to current team "${team.displayName}".`,
+        rowNumber,
+        { sourceValue: teamResolution.audit.sourceOwnerOrTeamLabel },
+      ));
     }
 
     if (importRow.seasonYear !== undefined && importRow.seasonYear !== seasonYear) {

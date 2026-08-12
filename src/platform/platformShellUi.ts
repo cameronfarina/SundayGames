@@ -330,6 +330,15 @@ export const platformShellHtml = `<!doctype html>
     .setup-layout > *, .context-bar > * { min-width: 0; }
 
     .keeper-list { display: grid; gap: 8px; margin-top: 12px; }
+    .section-title-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+    }
+    .section-title-row h2 { margin-bottom: 0; }
+    .saved-indicator { color: var(--accent-strong); font-size: 13px; font-weight: 750; }
     .keeper-row {
       align-items: center;
       border: 1px solid var(--line);
@@ -337,6 +346,32 @@ export const platformShellHtml = `<!doctype html>
       gap: 12px;
       grid-template-columns: minmax(0, 1fr) auto auto;
       padding: 10px 12px;
+    }
+    .historical-file-list { display: grid; gap: 8px; margin-top: 12px; }
+    .historical-file-row {
+      align-items: end;
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(120px, .28fr) auto;
+      padding: 12px;
+    }
+    .historical-file-row strong, .historical-file-row span { display: block; overflow-wrap: anywhere; }
+    .historical-file-row span { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .historical-file-row[data-status="imported"] { border-left: 3px solid var(--accent); }
+    .historical-file-row[data-status="error"] { border-left: 3px solid var(--warning); }
+    .historical-owner-mappings {
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 10px;
+      grid-column: 1 / -1;
+      padding-top: 12px;
+    }
+    .historical-owner-mapping {
+      align-items: end;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr);
     }
     .setup-fields { display: grid; gap: 12px; }
     .confirmation-label {
@@ -673,6 +708,7 @@ export const platformShellHtml = `<!doctype html>
       .league-wizard-footer .status { flex: 1 0 100%; order: -1; }
       .league-import-actions { grid-template-columns: 1fr; }
       .league-team-grid { grid-template-columns: 1fr; }
+      .historical-file-row { grid-template-columns: 1fr; }
       .player-board-scroll { max-height: min(58vh, 520px); }
       .mock-roster-panel { order: -1; }
       .player-board { min-width: 0; }
@@ -1194,37 +1230,29 @@ export const platformShellHtml = `<!doctype html>
           </section>
           <section class="workspace-section" aria-labelledby="history-title">
             <h2 id="history-title">Draft history</h2>
-            <p id="historical-import-description" class="lede">Upload a prior auction draft as CSV, TSV, or XLSX with Team, Player, Position, and Price columns. Add a Public value, ESPN value, or AAV column so Mockd can measure league inflation and recalibrate values.</p>
-            <div class="setup-fields" style="margin-top: 16px">
-              <div>
-                <label for="historical-import-file">Draft results file</label>
-                <input id="historical-import-file" type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-              </div>
-              <div>
-                <label for="historical-import-year">Draft year</label>
-                <input id="historical-import-year" type="number" min="2000" max="2100" step="1">
-              </div>
+            <p id="historical-import-description" class="lede">Add one or more prior auction draft sheets. Mockd accepts a standard row list or a wide sheet with each team's players in a separate column group.</p>
+            <div id="historical-import-dropzone" class="league-screenshot-dropzone" style="margin-top: 16px">
+              <strong>Drop prior draft files here</strong>
+              <span>CSV, TSV, or XLSX, up to 5 MB each</span>
+              <button id="historical-import-choose" type="button">Choose files</button>
+              <input id="historical-import-file" class="hidden" type="file" multiple accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
             </div>
+            <div id="historical-import-file-list" class="historical-file-list"></div>
             <div class="actions" style="margin-top: 12px">
-              <button id="historical-preview-button" type="button">Review file</button>
-              <button id="historical-commit-button" class="primary" type="button" disabled>Import and update values</button>
+              <button id="historical-import-button" class="primary" type="button" disabled>Import files</button>
             </div>
             <label class="confirmation-label" for="historical-replace-input" style="margin-top: 12px">
               <input id="historical-replace-input" type="checkbox">
-              <span>Replace an existing import for this draft year.</span>
+              <span>Replace an existing import when a file uses the same draft year.</span>
             </label>
             <p id="historical-import-status" class="status" role="status" aria-live="polite"></p>
-            <ul id="historical-import-issues" class="result-list"></ul>
-            <div id="historical-import-preview-table" class="table-scroll hidden">
-              <table class="setup-preview-table">
-                <thead><tr><th>Row</th><th>Team</th><th>Player</th><th>Pos</th><th>Price</th><th>Public value</th><th>Status</th></tr></thead>
-                <tbody id="historical-import-preview-body"></tbody>
-              </table>
-            </div>
           </section>
           <section class="workspace-section" aria-labelledby="keepers-title">
-            <h2 id="keepers-title">Keepers</h2>
-            <p class="lede">Enter one keeper at a time using a team or manager name, player, and auction cost or snake round.</p>
+            <div class="section-title-row">
+              <h2 id="keepers-title">Keepers</h2>
+              <span id="keeper-save-state" class="saved-indicator">Loading keepers...</span>
+            </div>
+            <p class="lede">Enter one keeper at a time using a team or manager name, player, and auction cost or snake round. Keepers save automatically, and you can return to edit them until the draft starts.</p>
             <div style="margin-top: 16px">
               <label for="keeper-command-input">Keeper command</label>
               <input id="keeper-command-input" placeholder="Cam keeping Achane 50" autocomplete="off">
@@ -1315,6 +1343,7 @@ export const platformShellHtml = `<!doctype html>
       selectedLeague: null,
       invitations: [],
       setupLocked: false,
+      draftHasStarted: false,
       workspaceRequestGeneration: 0,
       currentSeason: null,
       claimedTeamIds: new Set(),
@@ -1328,9 +1357,8 @@ export const platformShellHtml = `<!doctype html>
       leagueCreationScreenshotFile: null,
       leagueCreationScreenshotRequestGeneration: 0,
       leagueCreationScreenshotAbortController: null,
-      historicalImportBatchId: null,
-      historicalOwnerMappings: {},
-      historicalPlayerMappings: {},
+      historicalImportFiles: [],
+      historicalImportBusy: false,
       keeperPreviewCommand: null,
       mockSession: null,
       mockDraft: null,
@@ -1381,21 +1409,20 @@ export const platformShellHtml = `<!doctype html>
     const setupPreviewTable = byId("setup-preview-table");
     const setupPreviewBody = byId("setup-preview-body");
     const setupInvitations = byId("setup-invitations");
+    const historicalImportDropzone = byId("historical-import-dropzone");
+    const historicalImportChoose = byId("historical-import-choose");
     const historicalImportFile = byId("historical-import-file");
-    const historicalImportYear = byId("historical-import-year");
-    const historicalPreviewButton = byId("historical-preview-button");
-    const historicalCommitButton = byId("historical-commit-button");
+    const historicalImportFileList = byId("historical-import-file-list");
+    const historicalImportButton = byId("historical-import-button");
     const historicalReplaceInput = byId("historical-replace-input");
     const historicalImportStatus = byId("historical-import-status");
-    const historicalImportIssues = byId("historical-import-issues");
-    const historicalImportPreviewTable = byId("historical-import-preview-table");
-    const historicalImportPreviewBody = byId("historical-import-preview-body");
     const historicalImportDescription = byId("historical-import-description");
     const keeperCommandInput = byId("keeper-command-input");
     const keeperPreviewButton = byId("keeper-preview-button");
     const keeperApplyButton = byId("keeper-apply-button");
     const keeperStatus = byId("keeper-status");
     const keeperList = byId("keeper-list");
+    const keeperSaveState = byId("keeper-save-state");
     const myTeamStatus = byId("my-team-status");
     const myTeamClaimLink = byId("my-team-claim-link");
     const myTeamResults = byId("my-team-results");
@@ -2137,7 +2164,7 @@ export const platformShellHtml = `<!doctype html>
       setHidden(leagueCreateScreenshotPanel, state.leagueCreationScreenshotAvailable !== true);
     };
 
-    const leagueCreationImageBase64For = file => new Promise((resolve, reject) => {
+    const fileBase64For = file => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.addEventListener("error", () => reject(new Error("The screenshot could not be read.")));
       reader.addEventListener("load", () => {
@@ -2191,7 +2218,7 @@ export const platformShellHtml = `<!doctype html>
       leagueCreateScreenshotAnalyze.disabled = true;
       leagueCreateScreenshotStatus.textContent = "Reading teams from the screenshot...";
       try {
-        const base64 = await leagueCreationImageBase64For(file);
+        const base64 = await fileBase64For(file);
         if (requestGeneration !== state.leagueCreationScreenshotRequestGeneration) return;
         const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
           method: "POST",
@@ -2574,9 +2601,6 @@ export const platformShellHtml = `<!doctype html>
       const settings = season?.settings;
       renderSettingsFacts(setupSettingsSummary, settings);
       const isDraftSetup = season?.setupStatus === "draft";
-      if (!historicalImportYear.value && season?.seasonYear) {
-        historicalImportYear.value = String(season.seasonYear - 1);
-      }
       setHidden(publishSeasonButton, !isDraftSetup || state.setupLocked);
       const isSnake = season?.settings?.draftFormat === "snake";
       setupFinalReview.disabled = !isDraftSetup || state.setupLocked;
@@ -2584,11 +2608,8 @@ export const platformShellHtml = `<!doctype html>
       publishSeasonButton.disabled = !setupFinalReview.checked;
       historicalImportDescription.textContent = isSnake
         ? "Historical snake draft imports are not available yet. This does not block league mocks."
-        : "Upload a prior auction draft as CSV, TSV, or XLSX with Team, Player, Position, and Price columns. Add a Public value, ESPN value, or AAV column so Mockd can measure league inflation and recalibrate values.";
-      historicalImportFile.disabled = isSnake || state.setupLocked;
-      historicalImportYear.disabled = isSnake || state.setupLocked;
-      historicalPreviewButton.disabled = isSnake || state.setupLocked;
-      historicalReplaceInput.disabled = isSnake || state.setupLocked;
+        : "Add one or more prior auction draft sheets. Mockd accepts a standard row list or a wide sheet with each team's players in a separate column group.";
+      updateHistoricalImportControls();
       createLiveRoomButton.disabled = isDraftSetup || isSnake;
       if (isSnake && !state.setupLocked) {
         liveRoomSetupStatus.textContent = "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.";
@@ -2619,7 +2640,10 @@ export const platformShellHtml = `<!doctype html>
     const renderLiveRoomSetup = selectedLeague => {
       const room = selectedLeague.liveDraft;
       const hasRoom = Boolean(room?.roomId);
+      const roomIsUnstarted = hasRoom && (room.status === "setup" || room.status === "countdown");
+      const draftHasStarted = hasRoom && !roomIsUnstarted;
       state.setupLocked = hasRoom;
+      state.draftHasStarted = draftHasStarted;
       setHidden(createLiveRoomButton, hasRoom);
       setHidden(openSetupLiveRoom, !hasRoom);
       setHidden(cancelLiveRoomButton, !hasRoom || (room.status !== "setup" && room.status !== "countdown"));
@@ -2628,18 +2652,18 @@ export const platformShellHtml = `<!doctype html>
       setupRowsInput.disabled = hasRoom;
       setupPreviewButton.disabled = hasRoom;
       setupApplyButton.disabled = true;
-      historicalImportFile.disabled = hasRoom;
-      historicalImportYear.disabled = hasRoom;
-      historicalPreviewButton.disabled = hasRoom;
-      historicalReplaceInput.disabled = hasRoom;
-      historicalCommitButton.disabled = hasRoom || state.historicalImportBatchId === null;
-      keeperCommandInput.disabled = hasRoom;
-      keeperPreviewButton.disabled = hasRoom;
-      keeperApplyButton.disabled = hasRoom || state.keeperPreviewCommand === null;
+      updateHistoricalImportControls();
+      keeperCommandInput.disabled = draftHasStarted;
+      keeperPreviewButton.disabled = draftHasStarted;
+      keeperApplyButton.disabled = draftHasStarted || state.keeperPreviewCommand === null;
       if (hasRoom) {
         openSetupLiveRoom.href = draftRoomPathFor(selectedLeague.seasonId, room.roomId);
-        liveRoomSetupStatus.textContent = "The shared draft room is ready.";
-        setupStatus.textContent = "Team assignments are locked after the live draft room is created.";
+        liveRoomSetupStatus.textContent = draftHasStarted
+          ? "The draft has started. League setup is now locked."
+          : "The shared draft room is ready. Keepers and draft history remain editable until the draft starts.";
+        setupStatus.textContent = draftHasStarted
+          ? "League setup is locked after the draft starts."
+          : "Team assignments are locked. Keepers and draft history remain editable until the draft starts.";
       } else {
         openSetupLiveRoom.removeAttribute("href");
         liveRoomSetupStatus.textContent = "No live draft room has been created for this season.";
@@ -2933,14 +2957,15 @@ export const platformShellHtml = `<!doctype html>
         state.workspaceRequestGeneration += 1;
         state.currentSeason = null;
         state.claimedTeamIds = new Set();
-        state.historicalImportBatchId = null;
+        state.historicalImportFiles = [];
+        state.historicalImportBusy = false;
         state.keeperPreviewCommand = null;
         state.mockRequestGeneration += 1;
         state.mockSession = null;
         state.mockDraft = null;
-        historicalCommitButton.disabled = true;
+        historicalImportButton.disabled = true;
         historicalImportStatus.textContent = "";
-        historicalImportIssues.replaceChildren();
+        historicalImportFileList.replaceChildren();
         keeperApplyButton.disabled = true;
         keeperStatus.textContent = "";
         keeperList.replaceChildren();
@@ -3027,7 +3052,10 @@ export const platformShellHtml = `<!doctype html>
             if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = error.message;
           });
           loadSeasonKeepers(seasonId, requestGeneration).catch(error => {
-            if (isCurrentSetupRequest(seasonId, requestGeneration)) keeperStatus.textContent = error.message;
+            if (isCurrentSetupRequest(seasonId, requestGeneration)) {
+              keeperStatus.textContent = error.message;
+              keeperSaveState.textContent = "Could not load";
+            }
           });
         } else {
           setHidden(byId("setup-access-denied"), false);
@@ -3357,217 +3385,374 @@ export const platformShellHtml = `<!doctype html>
       isCurrentWorkspaceRequest(seasonId, requestGeneration) &&
       byId("setup-season-id-input").value === seasonId;
 
-    const renderHistoricalIssues = issues => {
-      historicalImportIssues.replaceChildren();
-      (issues || []).forEach(issue => {
-        const item = document.createElement("li");
-        const message = document.createElement("span");
-        message.textContent = issue.message || "This import row needs attention.";
-        item.append(message);
-        if (
-          (issue.code === "owner_unknown" || issue.code === "owner_ambiguous")
-          && issue.sourceValue
-          && state.currentSeason?.teams?.length
-        ) {
-          const picker = document.createElement("select");
-          picker.setAttribute("aria-label", "Map " + issue.sourceValue + " to a current team");
-          const placeholder = document.createElement("option");
-          placeholder.value = "";
-          placeholder.textContent = "Choose current team";
-          picker.append(placeholder);
-          state.currentSeason.teams.forEach(team => {
-            const option = document.createElement("option");
-            option.value = team.id;
-            option.textContent = team.displayName + " (" + team.ownerDisplayName + ")";
-            picker.append(option);
-          });
-          picker.value = state.historicalOwnerMappings[issue.sourceValue] || "";
-          picker.addEventListener("change", () => {
-            if (picker.value) state.historicalOwnerMappings[issue.sourceValue] = picker.value;
-            else delete state.historicalOwnerMappings[issue.sourceValue];
-            state.historicalImportBatchId = null;
-            historicalCommitButton.disabled = true;
-            historicalImportStatus.textContent = "Review the file again with the selected team mapping.";
-          });
-          item.append(picker);
-        }
-        if (
-          (issue.code === "player_ambiguous" || issue.code === "player_unresolved")
-          && issue.rowNumber
-          && (issue.candidates || []).some(candidate => candidate.playerId)
-        ) {
-          const picker = document.createElement("select");
-          picker.setAttribute("aria-label", "Resolve player on row " + issue.rowNumber);
-          const placeholder = document.createElement("option");
-          placeholder.value = "";
-          placeholder.textContent = "Choose player";
-          picker.append(placeholder);
-          (issue.candidates || []).filter(candidate => candidate.playerId).forEach(candidate => {
-            const option = document.createElement("option");
-            option.value = candidate.playerId;
-            option.textContent = candidate.playerName + " (" + candidate.position + ")";
-            picker.append(option);
-          });
-          picker.value = state.historicalPlayerMappings[issue.rowNumber] || "";
-          picker.addEventListener("change", () => {
-            if (picker.value) state.historicalPlayerMappings[issue.rowNumber] = picker.value;
-            else delete state.historicalPlayerMappings[issue.rowNumber];
-            state.historicalImportBatchId = null;
-            historicalCommitButton.disabled = true;
-            historicalImportStatus.textContent = "Review the file again with the selected player mapping.";
-          });
-          item.append(picker);
-        }
-        historicalImportIssues.append(item);
-      });
+    const historicalFileKeyFor = file => [file.name, file.size, file.lastModified].join(":");
+    const inferHistoricalImportYear = (file, index) => {
+      const namedYears = file.name.match(/(?:19|20)\\d{2}/gu) || [];
+      const namedYear = Number(namedYears.at(-1));
+      if (Number.isInteger(namedYear)) return namedYear;
+      return Math.max(2000, (state.currentSeason?.seasonYear || new Date().getFullYear()) - 1 - index);
     };
 
-    const renderHistoricalRows = rows => {
+    const itemCountLabel = (count, singular) =>
+      count + " " + singular + (count === 1 ? "" : "s");
+
+    const pendingHistoricalImportFiles = () =>
+      state.historicalImportFiles.filter(item => item.status !== "imported");
+
+    const duplicateHistoricalImportYears = items => {
+      const yearCounts = items.reduce((counts, item) => {
+        if (!Number.isInteger(item.seasonYear)) return counts;
+        counts.set(item.seasonYear, (counts.get(item.seasonYear) || 0) + 1);
+        return counts;
+      }, new Map());
+      return [...yearCounts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([year]) => year)
+        .sort((left, right) => left - right);
+    };
+
+    const duplicateHistoricalImportYearMessage = years => years.length === 1
+      ? "Each selected file needs a different draft year. " + years[0] + " is selected more than once."
+      : "Each selected file needs a different draft year. " + years.join(", ") + " are each selected more than once.";
+
+    const historicalImportQueueIssue = () => {
+      const pendingFiles = pendingHistoricalImportFiles();
+      if (pendingFiles.some(item => !Number.isInteger(item.seasonYear) || item.seasonYear < 2000 || item.seasonYear > 2100)) {
+        return "Choose a valid draft year for every file.";
+      }
+      const duplicateYears = duplicateHistoricalImportYears(pendingFiles);
+      if (duplicateYears.length > 0) return duplicateHistoricalImportYearMessage(duplicateYears);
+      const hasIncompleteOwnerMappings = pendingFiles.some(item =>
+        (item.ownerMappingNeeds || []).some(sourceLabel =>
+          !(item.ownerMappings || []).some(mapping =>
+            mapping.sourceOwnerOrTeamLabel === sourceLabel && mapping.teamId
+          )
+        )
+      );
+      return hasIncompleteOwnerMappings
+        ? "Match every historical team name to a current team before importing again."
+        : "";
+    };
+
+    const updateHistoricalImportControls = () => {
+      const unavailable = state.currentSeason?.settings?.draftFormat === "snake" || state.draftHasStarted;
+      historicalImportFile.disabled = unavailable;
+      historicalImportChoose.disabled = unavailable;
+      historicalReplaceInput.disabled = unavailable;
+      historicalImportButton.disabled = unavailable || state.historicalImportBusy
+        || pendingHistoricalImportFiles().length === 0
+        || historicalImportQueueIssue().length > 0;
+    };
+
+    const renderHistoricalImportFiles = () => {
       const fragment = document.createDocumentFragment();
-      (rows || []).forEach(rowPreview => {
-        const row = document.createElement("tr");
-        const record = rowPreview.record;
-        const playerIssue = (rowPreview.blockers || []).find(issue =>
-          issue.code === "player_ambiguous" || issue.code === "player_unresolved"
-        );
-        const values = [
-          rowPreview.rowNumber,
-          record?.ownerDisplayName || rowPreview.identityAudit?.sourceOwnerOrTeamLabel || "-",
-          record?.playerName || playerIssue?.sourceValue || "-",
-          record?.position || "-",
-          record ? "$" + record.priceDollars : "-",
-          record?.publicPriceDollars ? "$" + record.publicPriceDollars : "-",
-          rowPreview.status === "ready" ? "Ready" : "Needs review",
-        ];
-        values.forEach(value => {
-          const cell = document.createElement("td");
-          cell.textContent = String(value);
-          row.append(cell);
-        });
+      state.historicalImportFiles.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "historical-file-row";
+        row.dataset.status = item.status;
+
+        const identity = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = item.file.name;
+        const status = document.createElement("span");
+        status.textContent = item.message;
+        identity.append(name, status);
+
+        const yearField = document.createElement("div");
+        const yearLabel = document.createElement("label");
+        yearLabel.textContent = "Draft year";
+        yearLabel.htmlFor = "historical-year-" + item.id;
+        const yearInput = document.createElement("input");
+        yearInput.id = yearLabel.htmlFor;
+        yearInput.type = "number";
+        yearInput.min = "2000";
+        yearInput.max = "2100";
+        yearInput.step = "1";
+        yearInput.value = String(item.seasonYear);
+        yearInput.dataset.historicalYear = item.id;
+        yearInput.disabled = state.historicalImportBusy || item.status === "imported";
+        yearField.append(yearLabel, yearInput);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.dataset.historicalRemove = item.id;
+        remove.disabled = state.historicalImportBusy;
+        row.append(identity, yearField, remove);
+        if ((item.ownerMappingNeeds || []).length > 0) {
+          const mappingPanel = document.createElement("div");
+          mappingPanel.className = "historical-owner-mappings";
+          const heading = document.createElement("strong");
+          heading.textContent = "Match historical team names";
+          mappingPanel.append(heading);
+          const teams = [...(state.currentSeason?.teams || [])]
+            .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
+          item.ownerMappingNeeds.forEach(sourceLabel => {
+            const field = document.createElement("div");
+            field.className = "historical-owner-mapping";
+            const label = document.createElement("label");
+            label.textContent = 'Historical name: "' + sourceLabel + '"';
+            const select = document.createElement("select");
+            select.dataset.historicalOwnerFile = item.id;
+            select.dataset.historicalOwnerLabel = sourceLabel;
+            select.disabled = state.historicalImportBusy;
+            const prompt = document.createElement("option");
+            prompt.value = "";
+            prompt.textContent = "Choose current team";
+            select.append(prompt);
+            teams.forEach(team => {
+              const option = document.createElement("option");
+              option.value = team.id;
+              option.textContent = team.draftOrderPosition + ". " + team.displayName;
+              select.append(option);
+            });
+            select.value = (item.ownerMappings || [])
+              .find(mapping => mapping.sourceOwnerOrTeamLabel === sourceLabel)?.teamId || "";
+            field.append(label, select);
+            mappingPanel.append(field);
+          });
+          row.append(mappingPanel);
+        }
         fragment.append(row);
       });
-      historicalImportPreviewBody.replaceChildren(fragment);
-      setHidden(historicalImportPreviewTable, !rows?.length);
+      historicalImportFileList.replaceChildren(fragment);
+      updateHistoricalImportControls();
     };
 
+    const selectHistoricalImportFiles = files => {
+      const acceptedExtensions = new Set(["csv", "tsv", "xlsx"]);
+      const existingKeys = new Set(state.historicalImportFiles.map(item => item.id));
+      const nextFiles = [...files].filter(file => {
+        const extension = file.name.toLowerCase().split(".").at(-1);
+        return acceptedExtensions.has(extension) && file.size <= 5 * 1024 * 1024;
+      });
+      const firstNewFileIndex = state.historicalImportFiles.length;
+      nextFiles.forEach((file, index) => {
+        const id = historicalFileKeyFor(file);
+        if (existingKeys.has(id)) return;
+        existingKeys.add(id);
+        state.historicalImportFiles.push({
+          id,
+          file,
+          seasonYear: inferHistoricalImportYear(file, firstNewFileIndex + index),
+          status: "ready",
+          message: "Ready to import",
+          ownerMappingNeeds: [],
+          ownerMappings: [],
+        });
+      });
+      renderHistoricalImportFiles();
+      historicalImportFile.value = "";
+      historicalImportStatus.textContent = historicalImportQueueIssue() || (nextFiles.length
+        ? itemCountLabel(state.historicalImportFiles.length, "file") + " selected."
+        : "Choose CSV, TSV, or XLSX files no larger than 5 MB.");
+    };
+
+    const historicalImportFailureMessage = body => {
+      const issues = [
+        ...(body.source?.sourceWarnings || []),
+        ...(body.batch?.blockers || []),
+      ].map(issue => issue.message).filter(Boolean);
+      if (!issues.length) return "Mockd could not find complete player, position, price, and team data in this file.";
+      const summary = issues.slice(0, 2).join(" ");
+      return summary + (issues.length > 2 ? " " + (issues.length - 2) + " more issues were found." : "");
+    };
+
+    const importHistoricalFile = async (item, seasonId) => {
+      const preview = await readJson(await fetch(
+        "/seasons/" + encodeURIComponent(seasonId) + "/historical-imports/upload-preview",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            fileName: item.file.name,
+            mimeType: item.file.type || "application/octet-stream",
+            base64: await fileBase64For(item.file),
+            seasonYear: item.seasonYear,
+            replacementRequested: historicalReplaceInput.checked,
+            ownerMappings: item.ownerMappings || [],
+          }),
+        },
+      ));
+      const batch = preview.batch || {};
+      if (batch.status === "blocked") {
+        const ownerMappingNeeds = [...new Set((batch.rows || []).flatMap(row => {
+          const needsMapping = (row.blockers || []).some(blocker =>
+            blocker.code === "owner_unknown" || blocker.code === "owner_ambiguous"
+          );
+          const sourceLabel = row.identityAudit?.sourceOwnerOrTeamLabel;
+          return needsMapping && sourceLabel ? [sourceLabel] : [];
+        }))];
+        const error = new Error(historicalImportFailureMessage(preview));
+        error.ownerMappingNeeds = ownerMappingNeeds;
+        throw error;
+      }
+      if (!["previewed", "committed", "superseded"].includes(batch.status) || !batch.id) {
+        throw new Error(historicalImportFailureMessage(preview));
+      }
+      const committed = await readJson(await fetch(
+        "/historical-imports/" + encodeURIComponent(batch.id) + "/commit",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ seasonId: seasonId, seasonYear: item.seasonYear }),
+        },
+      ));
+      return { ...committed, source: preview.source };
+    };
+
+    historicalImportChoose.addEventListener("click", () => historicalImportFile.click());
     historicalImportFile.addEventListener("change", () => {
-      state.historicalImportBatchId = null;
-      state.historicalOwnerMappings = {};
-      state.historicalPlayerMappings = {};
-      historicalCommitButton.disabled = true;
-      historicalImportStatus.textContent = "";
-      renderHistoricalIssues([]);
-      renderHistoricalRows([]);
+      selectHistoricalImportFiles(historicalImportFile.files || []);
+    });
+    historicalImportDropzone.addEventListener("dragover", event => {
+      event.preventDefault();
+      historicalImportDropzone.classList.add("is-dragging");
+    });
+    historicalImportDropzone.addEventListener("dragleave", () => {
+      historicalImportDropzone.classList.remove("is-dragging");
+    });
+    historicalImportDropzone.addEventListener("drop", event => {
+      event.preventDefault();
+      historicalImportDropzone.classList.remove("is-dragging");
+      selectHistoricalImportFiles(event.dataTransfer?.files || []);
+    });
+    historicalImportFileList.addEventListener("input", event => {
+      const input = event.target.closest("input[data-historical-year]");
+      if (!input) return;
+      const item = state.historicalImportFiles.find(candidate => candidate.id === input.dataset.historicalYear);
+      if (!item) return;
+      item.seasonYear = Number(input.value);
+      item.status = "ready";
+      item.message = "Ready to import";
+      const row = input.closest(".historical-file-row");
+      if (row) {
+        row.dataset.status = item.status;
+        const status = row.querySelector("span");
+        if (status) status.textContent = item.message;
+      }
+      updateHistoricalImportControls();
+      historicalImportStatus.textContent = historicalImportQueueIssue()
+        || itemCountLabel(state.historicalImportFiles.length, "file") + " selected.";
+    });
+    historicalImportFileList.addEventListener("change", event => {
+      const select = event.target.closest("select[data-historical-owner-file]");
+      if (!select) return;
+      const item = state.historicalImportFiles.find(candidate => candidate.id === select.dataset.historicalOwnerFile);
+      if (!item) return;
+      item.ownerMappings = (item.ownerMappings || [])
+        .filter(mapping => mapping.sourceOwnerOrTeamLabel !== select.dataset.historicalOwnerLabel);
+      if (select.value) {
+        item.ownerMappings.push({
+          sourceOwnerOrTeamLabel: select.dataset.historicalOwnerLabel,
+          teamId: select.value,
+        });
+      }
+      const allMapped = item.ownerMappingNeeds.every(sourceLabel =>
+        item.ownerMappings.some(mapping => mapping.sourceOwnerOrTeamLabel === sourceLabel && mapping.teamId)
+      );
+      item.status = allMapped ? "ready" : "error";
+      item.message = allMapped ? "Team names matched. Ready to import." : "Match every historical team name below.";
+      renderHistoricalImportFiles();
+      historicalImportStatus.textContent = historicalImportQueueIssue()
+        || itemCountLabel(state.historicalImportFiles.length, "file") + " selected.";
+    });
+    historicalImportFileList.addEventListener("click", event => {
+      const button = event.target.closest("button[data-historical-remove]");
+      if (!button) return;
+      state.historicalImportFiles = state.historicalImportFiles.filter(item => item.id !== button.dataset.historicalRemove);
+      renderHistoricalImportFiles();
+      historicalImportStatus.textContent = historicalImportQueueIssue()
+        || (state.historicalImportFiles.length > 0
+          ? itemCountLabel(state.historicalImportFiles.length, "file") + " selected."
+          : "Choose CSV, TSV, or XLSX files no larger than 5 MB.");
     });
 
-    historicalPreviewButton.addEventListener("click", async () => {
-      const seasonId = byId("setup-season-id-input").value;
-      const file = historicalImportFile.files?.[0];
-      const seasonYear = Number(historicalImportYear.value);
-      if (!file) {
-        historicalImportStatus.textContent = "Choose a CSV, TSV, or XLSX draft file first.";
-        historicalImportFile.focus();
-        return;
+    const playerWarningDetail = warnings => {
+      if (!warnings.length) return "";
+      const remainingCount = warnings.length - 1;
+
+      return ". " + warnings[0].message
+        + (remainingCount === 0 ? "" : " " + remainingCount + " more player-name warnings.");
+    };
+
+    const historicalImportSummary = ({ importedCount, selectedCount, publicValueCount, warningCount }) => {
+      if (importedCount !== selectedCount) {
+        return "Imported " + importedCount + " of " + selectedCount
+          + " files. Fix or remove the files marked in yellow, then retry.";
       }
-      if (!Number.isInteger(seasonYear) || seasonYear < 2000 || seasonYear > 2100) {
-        historicalImportStatus.textContent = "Choose the year these draft results came from.";
-        historicalImportYear.focus();
-        return;
+      const warningCopy = warningCount === 0
+        ? ""
+        : " Check " + itemCountLabel(warningCount, "player-name warning") + " shown with the imported files.";
+      const importedCopy = "Imported " + itemCountLabel(importedCount, "draft file") + ". ";
+      if (publicValueCount > 0) {
+        return importedCopy
+          + "Public/AAV values affect league calibration only within the three-year window ending with the latest imported draft season."
+          + warningCopy;
       }
 
-      state.historicalImportBatchId = null;
-      historicalPreviewButton.disabled = true;
-      historicalCommitButton.disabled = true;
-      historicalImportStatus.textContent = "Checking draft history...";
-      renderHistoricalIssues([]);
-      try {
-        const body = await readJson(await fetch(
-          "/seasons/" + encodeURIComponent(seasonId) + "/historical-imports/upload-preview",
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({
-              fileName: file.name,
-              mimeType: file.type || "application/octet-stream",
-              base64: await imageBase64For(file),
-              seasonYear: seasonYear,
-              replacementRequested: historicalReplaceInput.checked,
-              ownerMappings: Object.entries(state.historicalOwnerMappings).map(entry => ({
-                sourceOwnerOrTeamLabel: entry[0],
-                teamId: entry[1],
-              })),
-              playerMappings: Object.entries(state.historicalPlayerMappings).map(entry => ({
-                rowNumber: Number(entry[0]),
-                playerId: entry[1],
-              })),
-            }),
-          },
-        ));
-        const batch = body.batch || {};
-        const issues = [
-          ...(body.source?.sourceWarnings || []),
-          ...(batch.blockers || []),
-          ...(batch.warnings || []),
-        ];
-        renderHistoricalIssues(issues);
-        renderHistoricalRows(batch.rows || []);
-        if (batch.status === "previewed") {
-          state.historicalImportBatchId = batch.id;
-          historicalCommitButton.disabled = state.setupLocked;
-          const readyRows = (batch.rows || []).filter(row => row.status === "ready");
-          const publicValueRows = readyRows.filter(row => row.record?.publicPriceDollars).length;
-          historicalImportStatus.textContent = publicValueRows
-            ? readyRows.length + " draft rows are ready; " + publicValueRows + " can calibrate league inflation."
-            : readyRows.length + " draft rows are ready. History will be saved, but values cannot be recalibrated without a Public value, ESPN value, or AAV column.";
-        } else {
-          historicalImportStatus.textContent = "Resolve the import issues before continuing.";
+      return importedCopy
+        + "Draft history is saved. These files do not include public/AAV values. Mockd uses eligible public/AAV values from the three-year window ending with the latest imported draft season."
+        + warningCopy;
+    };
+
+    historicalImportButton.addEventListener("click", async () => {
+      const seasonId = byId("setup-season-id-input").value;
+      const pendingFiles = pendingHistoricalImportFiles();
+      if (!pendingFiles.length || state.historicalImportBusy) return;
+      const queueIssue = historicalImportQueueIssue();
+      if (queueIssue) {
+        historicalImportStatus.textContent = queueIssue;
+        return;
+      }
+      state.historicalImportBusy = true;
+      historicalImportStatus.textContent = "Importing " + itemCountLabel(pendingFiles.length, "draft file") + "...";
+      renderHistoricalImportFiles();
+      let importedCount = 0;
+      let publicValueComparisonCount = 0;
+      let playerNameWarningCount = 0;
+      for (const item of pendingFiles) {
+        item.status = "importing";
+        item.message = "Importing...";
+        renderHistoricalImportFiles();
+        try {
+          const body = await importHistoricalFile(item, seasonId);
+          const rowCount = (body.committedRecords || []).length;
+          const playerNameWarnings = (body.source?.playerResolutionIssues || [])
+            .filter(issue => issue.code === "player_historical_only" && issue.severity === "warning");
+          item.status = "imported";
+          item.message = rowCount + " draft rows imported for " + item.seasonYear
+            + playerWarningDetail(playerNameWarnings);
+          importedCount += 1;
+          playerNameWarningCount += playerNameWarnings.length;
+          publicValueComparisonCount += (body.committedRecords || [])
+            .filter(record => Number.isFinite(record.publicPriceDollars)).length;
+        } catch (error) {
+          item.status = "error";
+          item.ownerMappingNeeds = Array.isArray(error.ownerMappingNeeds) ? error.ownerMappingNeeds : [];
+          item.message = item.ownerMappingNeeds.length > 0
+            ? "Match " + itemCountLabel(item.ownerMappingNeeds.length, "historical team name") + " below, then import again."
+            : error.message;
         }
-      } catch (error) {
-        historicalImportStatus.textContent = error.message;
-      } finally {
-        historicalPreviewButton.disabled = state.setupLocked;
+        renderHistoricalImportFiles();
       }
-    });
-
-    historicalCommitButton.addEventListener("click", async () => {
-      const seasonId = byId("setup-season-id-input").value;
-      const batchId = state.historicalImportBatchId;
-      if (!batchId) return;
-      historicalCommitButton.disabled = true;
-      historicalImportStatus.textContent = "Importing draft history and updating league values...";
-      try {
-        const body = await readJson(await fetch(
-          "/historical-imports/" + encodeURIComponent(batchId) + "/commit",
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({
-              seasonId: seasonId,
-              seasonYear: Number(historicalImportYear.value),
-            }),
-          },
-        ));
-        const importedYear = body.batch?.seasonYear;
-        const importedRecords = body.committedRecords || [];
-        const rowCount = importedRecords.length;
-        const publicValueRows = importedRecords.filter(record => record.publicPriceDollars).length;
-        historicalImportStatus.textContent = publicValueRows
-          ? rowCount + " draft rows imported for " + importedYear + ". League values were recalibrated from " + publicValueRows + " public-value comparisons."
-          : rowCount + " draft rows imported for " + importedYear + ". History was saved, but values were not recalibrated because the file had no public-value column.";
-        state.historicalImportBatchId = null;
-        state.playerCatalog = null;
-        state.playerCatalogSeasonId = null;
-        historicalImportFile.value = "";
-      } catch (error) {
-        historicalImportStatus.textContent = error.message;
-        historicalCommitButton.disabled = state.setupLocked;
-      }
+      state.historicalImportBusy = false;
+      state.playerCatalog = null;
+      state.playerCatalogSeasonId = null;
+      historicalImportStatus.textContent = historicalImportSummary({
+        importedCount,
+        selectedCount: pendingFiles.length,
+        publicValueCount: publicValueComparisonCount,
+        warningCount: playerNameWarningCount,
+      });
+      renderHistoricalImportFiles();
     });
 
     const renderSeasonKeepers = keepers => {
       keeperList.replaceChildren();
+      keeperSaveState.textContent = itemCountLabel(keepers.length, "keeper") + " saved";
       if (!keepers.length) {
         const empty = document.createElement("p");
         empty.className = "empty-state";
@@ -3591,13 +3776,14 @@ export const platformShellHtml = `<!doctype html>
         remove.dataset.keeperAction = "remove";
         remove.dataset.teamId = keeper.teamId;
         remove.dataset.playerId = keeper.playerId || "";
-        remove.disabled = state.setupLocked;
+        remove.disabled = state.draftHasStarted;
         row.append(identity, value, remove);
         keeperList.append(row);
       });
     };
 
     const loadSeasonKeepers = async (seasonId, requestGeneration = state.workspaceRequestGeneration) => {
+      keeperSaveState.textContent = "Loading keepers...";
       const body = await readJson(await fetch(
         "/seasons/" + encodeURIComponent(seasonId) + "/keepers",
         { credentials: "same-origin" },
@@ -3642,12 +3828,12 @@ export const platformShellHtml = `<!doctype html>
           ? "round " + body.keeper.keeperRound
           : "$" + body.keeper.auctionCostDollars;
         keeperStatus.textContent = body.team.name + " keeps " + body.player.name + " for " + value + ".";
-        keeperApplyButton.disabled = state.setupLocked;
+        keeperApplyButton.disabled = state.draftHasStarted;
       } catch (error) {
         state.keeperPreviewCommand = null;
         keeperStatus.textContent = error.message;
       } finally {
-        keeperPreviewButton.disabled = state.setupLocked;
+        keeperPreviewButton.disabled = state.draftHasStarted;
       }
     });
 
@@ -3657,6 +3843,7 @@ export const platformShellHtml = `<!doctype html>
       if (!command) return;
       keeperApplyButton.disabled = true;
       keeperStatus.textContent = "Adding keeper and updating league values...";
+      keeperSaveState.textContent = "Saving...";
       try {
         const body = await readJson(await fetch(
           "/seasons/" + encodeURIComponent(seasonId) + "/keepers/apply",
@@ -3672,10 +3859,13 @@ export const platformShellHtml = `<!doctype html>
         state.keeperPreviewCommand = null;
         state.playerCatalog = null;
         state.playerCatalogSeasonId = null;
-        keeperStatus.textContent = "Keeper added. League values are updated.";
+        keeperStatus.textContent = body.room
+          ? "Saved. League values and the draft room are updated."
+          : "Saved. League values are updated.";
       } catch (error) {
         keeperStatus.textContent = error.message;
-        keeperApplyButton.disabled = state.setupLocked;
+        keeperSaveState.textContent = "Could not save";
+        keeperApplyButton.disabled = state.draftHasStarted;
       }
     });
 
@@ -3685,6 +3875,7 @@ export const platformShellHtml = `<!doctype html>
       const seasonId = byId("setup-season-id-input").value;
       button.disabled = true;
       keeperStatus.textContent = "Removing keeper...";
+      keeperSaveState.textContent = "Saving...";
       try {
         const body = await readJson(await fetch(
           "/seasons/" + encodeURIComponent(seasonId) + "/keepers",
@@ -3698,9 +3889,12 @@ export const platformShellHtml = `<!doctype html>
         renderSeasonKeepers(body.keepers || []);
         state.playerCatalog = null;
         state.playerCatalogSeasonId = null;
-        keeperStatus.textContent = "Keeper removed. League values are updated.";
+        keeperStatus.textContent = body.room
+          ? "Removed and saved. League values and the draft room are updated."
+          : "Removed and saved. League values are updated.";
       } catch (error) {
         keeperStatus.textContent = error.message;
+        keeperSaveState.textContent = "Could not save";
         button.disabled = false;
       }
     });

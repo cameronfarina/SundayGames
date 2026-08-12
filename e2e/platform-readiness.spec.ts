@@ -6,6 +6,7 @@ import type { LiveDraftRoom } from "../src/platform/liveDraftRooms.js";
 import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
 import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
 import type { PlatformOnboardingLeague } from "../src/platform/platformOnboarding.js";
+import type { PricingSnapshot } from "../src/platform/pricingSnapshots.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 
@@ -73,6 +74,10 @@ interface SeasonBody {
 
 interface LiveDraftRoomBody {
   room: LiveDraftRoom;
+}
+
+interface PricingSnapshotsBody {
+  pricingSnapshots: readonly PricingSnapshot[];
 }
 
 interface EventsBody {
@@ -821,6 +826,145 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
 test("local platform supports fixture signup, setup, invitation, realtime draft, and export", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
+});
+
+test("commissioner history and keepers persist into an unopened live room", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "keeper.history.e2e@example.com");
+  const owners = ["Cam", "Sam", "Seth", "Alex"];
+  const baseSeason = buildCurrentMockdLeagueSeason(owners, { ...leagueConfig, teams: owners.length }, {
+    leagueName: "Keeper history E2E",
+    setupStatus: "draft",
+  });
+  const leagueId = `${baseSeason.leagueId}-keeper-history`;
+  const seasonId = `${leagueId}-season-${baseSeason.seasonYear}`;
+  const season: LeagueSeason = {
+    ...baseSeason,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...baseSeason.league,
+      id: leagueId,
+      externalLeagueId: `${baseSeason.league.externalLeagueId}-keeper-history`,
+    },
+    teams: baseSeason.teams.map((team, index) => ({
+      ...team,
+      id: `${seasonId}-team-${index + 1}`,
+      leagueSeasonId: seasonId,
+      ownerId: `${team.ownerId}-keeper-history`,
+    })),
+  };
+  const claimedTeam = teamByOwner(season, "Alex");
+  expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
+    body: {
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+    },
+  }));
+
+  const wideDraft = (camPrice: number, samPrice: number): string => [
+    "Team,Cam,,,Sam,,",
+    `1,$${camPrice},RB,De'Von Achane,$${samPrice},WR,CeeDee Lamb`,
+    "2,$61,WR,Ja'Marr Chase,$9,QB,Trevor Lawrence",
+  ].join("\n");
+
+  await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#keeper-save-state")).toHaveText("2 keepers saved");
+  await page.locator("#historical-import-file").setInputFiles([
+    {
+      name: "league-auction-2023.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(wideDraft(42, 58)),
+    },
+    {
+      name: "league-auction-2024.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(wideDraft(45, 61)),
+    },
+  ]);
+  const historyRows = page.locator("#historical-import-file-list .historical-file-row");
+  await expect(historyRows).toHaveCount(2);
+  await expect(historyRows.nth(0).locator("input[data-historical-year]")).toHaveValue("2023");
+  await expect(historyRows.nth(1).locator("input[data-historical-year]")).toHaveValue("2024");
+  await historyRows.nth(1).locator("input[data-historical-year]").fill("2023");
+  await expect(page.locator("#historical-import-button")).toBeDisabled();
+  await expect(page.locator("#historical-import-status")).toHaveText(
+    "Each selected file needs a different draft year. 2023 is selected more than once.",
+  );
+  await historyRows.nth(1).locator("input[data-historical-year]").fill("2024");
+  await expect(page.locator("#historical-import-button")).toBeEnabled();
+  await page.locator("#historical-import-button").click();
+  await expect(page.locator("#historical-import-status")).toHaveText(
+    "Imported 2 draft files. Draft history is saved. These files do not include public/AAV values. Mockd uses eligible public/AAV values from the three-year window ending with the latest imported draft season.",
+  );
+  await expect(historyRows.nth(0)).toContainText("4 draft rows imported for 2023");
+  await expect(historyRows.nth(1)).toContainText("4 draft rows imported for 2024");
+
+  const keeperCommand = page.locator("#keeper-command-input");
+  await keeperCommand.fill("Alex keeping Lamb 50");
+  await page.locator("#keeper-preview-button").click();
+  await expect(page.locator("#keeper-status")).toHaveText("Alex keeps CeeDee Lamb for $50.");
+  await page.locator("#keeper-apply-button").click();
+  await expect(page.locator("#keeper-save-state")).toHaveText("3 keepers saved");
+  await expect(page.locator("#keeper-list")).toContainText("Alex · CeeDee Lamb");
+  await expect(page.locator("#keeper-list")).toContainText("$50");
+
+  await page.reload();
+  await expect(page.locator("#keeper-save-state")).toHaveText("3 keepers saved");
+  await expect(page.locator("#keeper-list")).toContainText("Alex · CeeDee Lamb");
+  await page.locator("#setup-final-review").check();
+  await page.getByRole("button", { name: "Publish league" }).click();
+  await expect(page.locator("#live-room-setup-status")).toHaveText(
+    "League setup published. The shared draft room can now be created.",
+  );
+
+  const room = await createLiveRoomFromSetup(page, season);
+  await expect(page.locator("#draft-team-budget")).toHaveText("$150");
+  await expect(page.locator("#draft-team-spent")).toHaveText("$50");
+  await expect(page.locator("#draft-team-open-slots")).toHaveText("15");
+  await expect(page.locator("#draft-team-roster")).toContainText("CeeDee Lamb");
+
+  await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#keeper-save-state")).toHaveText("3 keepers saved");
+  await expect(keeperCommand).toBeEnabled();
+  await keeperCommand.fill("Alex keeping Lamb 47");
+  await page.locator("#keeper-preview-button").click();
+  await expect(page.locator("#keeper-status")).toHaveText("Alex keeps CeeDee Lamb for $47.");
+  await page.locator("#keeper-apply-button").click();
+  await expect(page.locator("#keeper-status")).toHaveText(
+    "Saved. League values and the draft room are updated.",
+  );
+  await page.goto(
+    `/draft-room?seasonId=${encodeURIComponent(season.id)}&roomId=${encodeURIComponent(room.roomId)}`,
+  );
+  await expect(page.locator("#draft-team-budget")).toHaveText("$153");
+  await expect(page.locator("#draft-team-spent")).toHaveText("$47");
+  await expect(page.locator("#draft-team-open-slots")).toHaveText("15");
+  await expect(page.locator("#draft-team-roster")).toContainText("CeeDee Lamb");
+  await expect(page.locator("#draft-team-roster")).toContainText("$47");
+
+  const updatedRoom = expectOk(await api<LiveDraftRoomBody>(
+    page,
+    `/live-rooms/${encodeURIComponent(room.roomId)}`,
+  )).room;
+  const latestPricing = expectOk(await api<PricingSnapshotsBody>(
+    page,
+    `/seasons/${encodeURIComponent(season.id)}/pricing-snapshots?scenarioId=expected`,
+  )).pricingSnapshots.at(-1);
+  const expectedPukaPrice = latestPricing?.rows.find(row => row.playerName === "Puka Nacua")?.personalValue;
+  expect(expectedPukaPrice).toBeDefined();
+  expect(updatedRoom.playerCatalog.find(player => player.name === "Puka Nacua")?.expectedPrice)
+    .toBe(Math.round(expectedPukaPrice ?? Number.NaN));
+  const pukaRow = page.locator('#draft-board-rows tr[data-player-name="Puka Nacua"]');
+  await expect(pukaRow.locator("td").last()).toHaveText(`$${Math.round(expectedPukaPrice ?? Number.NaN)}`);
 });
 
 test("commissioner league switching discards stale setup fetch responses", async ({ browser }) => {

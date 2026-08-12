@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   InMemoryLiveDraftRoomSetupRepository,
+  LiveDraftRoomSetupWriteConflictError,
   PostgresLiveDraftRoomSetupRepository,
   type LiveDraftRoomSetupPostgresRow,
 } from "../src/platform/liveDraftRoomSetups.js";
@@ -28,6 +29,17 @@ class SetupClient implements PostgresQueryClient {
   async query<TRow>(sql: string, params: readonly unknown[] = []): Promise<PostgresQueryResult<TRow>> {
     this.queries.push({ sql, params });
     if (sql.startsWith("INSERT INTO")) {
+      if (sql.includes("DO NOTHING") && this.stored !== undefined) return { rows: [] };
+      this.stored = {
+        league_season_id: String(params[0]),
+        source_version: String(params[1]),
+        player_catalog_json: JSON.parse(String(params[2])),
+        initial_rosters_json: JSON.parse(String(params[3])),
+        content_hash: String(params[4]),
+        updated_at: params[5] as Date,
+      };
+    } else if (sql.startsWith("UPDATE ")) {
+      if (this.stored?.content_hash !== params[6]) return { rows: [] };
       this.stored = {
         league_season_id: String(params[0]),
         source_version: String(params[1]),
@@ -62,5 +74,31 @@ describe("live draft room setup repositories", () => {
     expect(saved).toEqual(loaded);
     expect(client.queries[0]?.sql).toContain("ON CONFLICT (league_season_id)");
     expect(client.queries[1]?.params).toEqual([input.seasonId]);
+  });
+
+  it("rejects stale in-memory setup updates", async () => {
+    const repository = new InMemoryLiveDraftRoomSetupRepository();
+    const saved = await repository.save(input, { expectedContentHash: null });
+
+    await expect(repository.save({ ...input, sourceVersion: "new" }, {
+      expectedContentHash: "stale-hash",
+    })).rejects.toBeInstanceOf(LiveDraftRoomSetupWriteConflictError);
+    await expect(repository.findForSeason(input.seasonId)).resolves.toEqual(saved);
+  });
+
+  it("uses compare-and-swap updates in Postgres", async () => {
+    const client = new SetupClient();
+    const repository = new PostgresLiveDraftRoomSetupRepository(client);
+    const saved = await repository.save(input, { expectedContentHash: null });
+
+    await expect(repository.save({ ...input, sourceVersion: "stale" }, {
+      expectedContentHash: "stale-hash",
+    })).rejects.toBeInstanceOf(LiveDraftRoomSetupWriteConflictError);
+    const updated = await repository.save({ ...input, sourceVersion: "current" }, {
+      expectedContentHash: saved.contentHash,
+    });
+
+    expect(updated.sourceVersion).toBe("current");
+    expect(client.queries.at(-1)?.sql).toContain("WHERE league_season_id = $1 AND content_hash = $7");
   });
 });

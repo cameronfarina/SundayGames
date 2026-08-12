@@ -58,6 +58,11 @@ interface DelimiterScore {
   cellCount: number;
 }
 
+interface WideAuctionOwnerBlock {
+  ownerDisplayName: string;
+  priceColumnIndex: number;
+}
+
 const delimiters = [",", "\t", ";"] as const satisfies readonly HistoricalImportSourceDelimiter[];
 const sourceColumns = [
   "owner",
@@ -94,6 +99,8 @@ const headerAliases: Record<HistoricalImportSourceColumn, ReadonlySet<string>> =
 const truthyKeeperValues = new Set(["true", "yes", "y", "keeper", "1"]);
 const falseyKeeperValues = new Set(["false", "no", "n", "auction", "0"]);
 const integerCellPattern = /^-?\d+(?:\.0+)?$/u;
+const rosterRowPattern = /^\d+$/u;
+const historicalPositions = new Set(["QB", "RB", "WR", "TE", "K", "DST", "DEF"]);
 
 const normalizeSourceText = (sourceText: string): string => {
   const lines = sourceText
@@ -322,6 +329,78 @@ const parseIntegerCell = (value: string): number | undefined => {
 const parsePriceDollars = (value: string): number | undefined =>
   parseIntegerCell(cleanCell(value).replace(/\$/gu, "").replace(/,/gu, ""));
 
+const normalizeHistoricalPosition = (value: string): string => {
+  const cleaned = cleanCell(value);
+
+  return cleaned.toUpperCase() === "DEF" ? "DST" : cleaned;
+};
+
+const wideAuctionPosition = (value: string | undefined): string | null => {
+  const normalized = cleanCell(value).toUpperCase();
+
+  if (!historicalPositions.has(normalized)) return null;
+
+  return normalized === "DEF" ? "DST" : normalized;
+};
+
+const isWideAuctionRosterRow = (row: ParsedDelimitedRow): boolean =>
+  rosterRowPattern.test(cleanCell(row.cells[0]));
+
+const wideAuctionOwnerBlocks = (
+  rows: readonly ParsedDelimitedRow[],
+): WideAuctionOwnerBlock[] | null => {
+  const headerRow = rows.find(row => normalizeHeader(row.cells[0] ?? "") === "team");
+  if (headerRow === undefined) return null;
+
+  const rosterRows = rows.filter(isWideAuctionRosterRow);
+  const blocks: WideAuctionOwnerBlock[] = [];
+  headerRow.cells.forEach((cell, priceColumnIndex) => {
+    const ownerDisplayName = cleanCell(cell);
+    if (priceColumnIndex === 0 || ownerDisplayName.length === 0) return;
+
+    const hasRosterRecord = rosterRows.some(row =>
+      wideAuctionPosition(row.cells[priceColumnIndex + 1]) !== null
+        && cleanCell(row.cells[priceColumnIndex + 2]).length > 0
+    );
+
+    if (hasRosterRecord) blocks.push({ ownerDisplayName, priceColumnIndex });
+  });
+
+  return blocks.length >= 2 ? blocks : null;
+};
+
+const rowsFromWideAuctionSource = (
+  rows: readonly ParsedDelimitedRow[],
+  blocks: readonly WideAuctionOwnerBlock[],
+): NormalizedHistoricalImportRow[] => {
+  const normalizedRows: NormalizedHistoricalImportRow[] = [];
+
+  for (const sourceRow of rows) {
+    if (!isWideAuctionRosterRow(sourceRow)) continue;
+
+    for (const block of blocks) {
+      const priceValue = cleanCell(sourceRow.cells[block.priceColumnIndex]);
+      const positionValue = cleanCell(sourceRow.cells[block.priceColumnIndex + 1]);
+      const position = wideAuctionPosition(sourceRow.cells[block.priceColumnIndex + 1]);
+      const playerName = cleanCell(sourceRow.cells[block.priceColumnIndex + 2]);
+      if (priceValue.length === 0 && positionValue.length === 0 && playerName.length === 0) continue;
+
+      const row: NormalizedHistoricalImportRow = {
+        sourceRowNumber: normalizedRows.length + 2,
+        ownerDisplayName: block.ownerDisplayName,
+      };
+      if (playerName.length > 0) row.playerName = playerName;
+      if (position !== null) row.position = position;
+      else if (positionValue.length > 0) row.position = positionValue;
+      const priceDollars = parsePriceDollars(priceValue);
+      if (priceDollars !== undefined) row.priceDollars = priceDollars;
+      normalizedRows.push(row);
+    }
+  }
+
+  return normalizedRows;
+};
+
 const parseKeeper = (value: string): boolean | undefined => {
   const normalizedValue = cleanCell(value).toLowerCase();
 
@@ -353,7 +432,7 @@ const rowFor = (
   const ownerDisplayName = cellValue(row, headerMap, "owner");
   const playerName = cellValue(row, headerMap, "player");
   const playerId = cellValue(row, headerMap, "playerId");
-  const position = cellValue(row, headerMap, "position");
+  const position = normalizeHistoricalPosition(cellValue(row, headerMap, "position"));
   const priceDollars = parsePriceDollars(cellValue(row, headerMap, "price"));
   const publicPriceValue = cellValue(row, headerMap, "publicPrice");
   const publicPriceDollars = parsePriceDollars(publicPriceValue);
@@ -441,6 +520,18 @@ export const parseHistoricalImportSource = (
       fileHash,
       sourceRowCount: 0,
       warnings: [warning("source_empty", "Historical import source is empty.")],
+    };
+  }
+
+  const wideAuctionSource = wideAuctionOwnerBlocks(sourceRows);
+  if (wideAuctionSource !== null) {
+    const rows = rowsFromWideAuctionSource(sourceRows, wideAuctionSource);
+
+    return {
+      rows,
+      fileHash,
+      sourceRowCount: rows.length + 1,
+      warnings: parsedSource.warnings,
     };
   }
 
