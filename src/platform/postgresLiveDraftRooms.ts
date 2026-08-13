@@ -22,7 +22,30 @@ import type {
 } from "./postgresPlatformStore.js";
 
 interface DraftRoomSnapshotRow {
+  draft_room_id?: string;
   snapshot_json: unknown;
+}
+
+interface DraftRoomEventPersistenceRow {
+  id: string;
+  draft_room_id: string;
+  revision: number;
+  event_type: LiveDraftRoomEvent["type"];
+  actor_user_id: string;
+  idempotency_key: string | null;
+  mutation_hash: string | null;
+  payload_json: unknown;
+  occurred_at: Date;
+}
+
+interface CompactDraftRoomSnapshotV2 {
+  formatVersion: 2;
+  room: {
+    status: LiveDraftRoom["status"];
+    revision: number;
+    updatedAt: string;
+    endedAt: string | null;
+  };
 }
 
 interface RevisionUpdateRow {
@@ -37,14 +60,33 @@ interface DeletedRoomRow {
   id: string;
 }
 
+const compactSnapshotWindow = 2;
+const liveDraftRoomStatuses = new Set<LiveDraftRoom["status"]>([
+  "setup",
+  "countdown",
+  "live",
+  "paused",
+  "ended",
+]);
+
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
 
 const jsonbParameter = (value: unknown): string => JSON.stringify(value);
 
 const cloneRoom = (room: LiveDraftRoom): LiveDraftRoom => structuredClone(room);
 
-const snapshotJsonForRoom = (room: LiveDraftRoom): unknown =>
+const fullSnapshotJsonForRoom = (room: LiveDraftRoom): unknown =>
   JSON.parse(JSON.stringify(room)) as unknown;
+
+const compactSnapshotJsonForRoom = (room: LiveDraftRoom): CompactDraftRoomSnapshotV2 => ({
+  formatVersion: 2,
+  room: {
+    status: room.status,
+    revision: room.revision,
+    updatedAt: room.updatedAt.toISOString(),
+    endedAt: room.endedAt?.toISOString() ?? null,
+  },
+});
 
 const snapshotHashFor = (snapshotJson: unknown): string =>
   createHash("sha256").update(JSON.stringify(snapshotJson)).digest("hex");
@@ -58,6 +100,192 @@ const roomFromSnapshotJson = (value: unknown): LiveDraftRoom => {
 
   return room;
 };
+
+const recordValue = (value: unknown): Record<string, unknown> => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Postgres draft room event payload was malformed.");
+  }
+
+  return value as Record<string, unknown>;
+};
+
+const isValidDateString = (value: unknown): value is string =>
+  typeof value === "string" && !Number.isNaN(new Date(value).getTime());
+
+const isCompactSnapshot = (value: unknown): value is CompactDraftRoomSnapshotV2 => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const snapshot = value as Partial<CompactDraftRoomSnapshotV2>;
+  const room = snapshot.room;
+
+  return snapshot.formatVersion === 2
+    && room !== undefined
+    && typeof room === "object"
+    && liveDraftRoomStatuses.has(room.status)
+    && Number.isInteger(room.revision)
+    && room.revision > 0
+    && isValidDateString(room.updatedAt)
+    && (room.endedAt === null || isValidDateString(room.endedAt));
+};
+
+const persistedEventFromRow = (
+  row: DraftRoomEventPersistenceRow,
+  baseRoom: LiveDraftRoom,
+): LiveDraftRoomEvent => {
+  const payload = recordValue(row.payload_json);
+  const common = {
+    id: row.id,
+    roomId: row.draft_room_id,
+    leagueId: baseRoom.leagueId,
+    seasonId: baseRoom.seasonId,
+    revision: row.revision,
+    actorUserId: row.actor_user_id,
+    occurredAt: row.occurred_at,
+    ...(row.idempotency_key === null ? {} : { idempotencyKey: row.idempotency_key }),
+    ...(row.mutation_hash === null ? {} : { mutationHash: row.mutation_hash }),
+  };
+
+  switch (row.event_type) {
+    case "room_created":
+    case "room_started":
+    case "room_paused":
+    case "room_resumed":
+    case "room_reopened":
+      return { ...common, type: row.event_type };
+    case "initial_rosters_synchronized":
+      if (row.idempotency_key === null || row.mutation_hash === null) {
+        throw new Error("Postgres initial roster synchronization metadata was malformed.");
+      }
+      return {
+        ...common,
+        type: row.event_type,
+        idempotencyKey: row.idempotency_key,
+        mutationHash: row.mutation_hash,
+        initialRosters: payload.initialRosters as readonly LiveDraftRoom["initialRosters"][number][],
+        playerCatalog: payload.playerCatalog as LiveDraftRoom["playerCatalog"],
+      };
+    case "sale_logged":
+      return {
+        ...common,
+        type: row.event_type,
+        sale: payload.sale as Extract<LiveDraftRoomEvent, { type: "sale_logged" }>["sale"],
+      };
+    case "sale_undone":
+      return {
+        ...common,
+        type: row.event_type,
+        undoneSaleEventId: String(payload.undoneSaleEventId),
+        undoneSale: payload.undoneSale as Extract<LiveDraftRoomEvent, { type: "sale_undone" }>["undoneSale"],
+      };
+    case "sale_corrected":
+      return {
+        ...common,
+        type: row.event_type,
+        correctedSaleEventId: String(payload.correctedSaleEventId),
+        previousSale: payload.previousSale as Extract<LiveDraftRoomEvent, { type: "sale_corrected" }>["previousSale"],
+        replacementSale: payload.replacementSale as Extract<LiveDraftRoomEvent, { type: "sale_corrected" }>["replacementSale"],
+      };
+    case "room_ended":
+      return {
+        ...common,
+        type: row.event_type,
+        incomplete: payload.incomplete === true,
+        incompleteTeams: Array.isArray(payload.incompleteTeams)
+          ? payload.incompleteTeams as Extract<LiveDraftRoomEvent, { type: "room_ended" }>["incompleteTeams"]
+          : [],
+      };
+  }
+};
+
+const baseRoomSnapshot = async (
+  client: PostgresQueryClient,
+  roomId: string,
+): Promise<LiveDraftRoom> => {
+  const result = await client.query<DraftRoomSnapshotRow>(
+    `
+SELECT snapshot_json
+FROM draft_room_snapshots
+WHERE draft_room_id = $1
+ORDER BY revision ASC
+LIMIT 1
+`.trim(),
+    [roomId],
+  );
+  const row = firstRow(result);
+  if (row === undefined || isCompactSnapshot(row.snapshot_json)) {
+    throw new Error("Postgres draft room is missing its full recovery base snapshot.");
+  }
+
+  return roomFromSnapshotJson(row.snapshot_json);
+};
+
+const persistedEventsThroughRevision = async (
+  client: PostgresQueryClient,
+  baseRoom: LiveDraftRoom,
+  revision: number,
+): Promise<readonly LiveDraftRoomEvent[]> => {
+  const result = await client.query<DraftRoomEventPersistenceRow>(
+    `
+SELECT
+  id,
+  draft_room_id,
+  revision,
+  event_type,
+  actor_user_id,
+  idempotency_key,
+  mutation_hash,
+  payload_json,
+  occurred_at
+FROM draft_room_events
+WHERE draft_room_id = $1
+  AND revision <= $2
+ORDER BY revision ASC
+`.trim(),
+    [baseRoom.roomId, revision],
+  );
+
+  return result.rows.map(row => persistedEventFromRow(row, baseRoom));
+};
+
+const roomFromCompactSnapshot = async (
+  client: PostgresQueryClient,
+  roomId: string,
+  snapshot: CompactDraftRoomSnapshotV2,
+): Promise<LiveDraftRoom> => {
+  const baseRoom = await baseRoomSnapshot(client, roomId);
+  const events = await persistedEventsThroughRevision(client, baseRoom, snapshot.room.revision);
+  const hasCompleteHistory = events.length === snapshot.room.revision
+    && events.every((event, index) => event.revision === index + 1);
+  if (!hasCompleteHistory) {
+    throw new Error("Postgres draft room event history was incomplete for its compact snapshot.");
+  }
+  const latestRosterSync = [...events].reverse().find(
+    (event): event is Extract<LiveDraftRoomEvent, { type: "initial_rosters_synchronized" }> =>
+      event.type === "initial_rosters_synchronized",
+  );
+  const { endedAt: _baseEndedAt, ...baseWithoutEndedAt } = baseRoom;
+  const hydratedRoom: LiveDraftRoom = {
+    ...baseWithoutEndedAt,
+    status: snapshot.room.status,
+    revision: snapshot.room.revision,
+    updatedAt: new Date(snapshot.room.updatedAt),
+    ...(snapshot.room.endedAt === null ? {} : { endedAt: new Date(snapshot.room.endedAt) }),
+    initialRosters: latestRosterSync?.initialRosters ?? baseRoom.initialRosters,
+    playerCatalog: latestRosterSync?.playerCatalog ?? baseRoom.playerCatalog,
+    events,
+  };
+  const repository = new InMemoryLiveDraftRoomRepository();
+  repository.replaceRooms([hydratedRoom]);
+
+  return repository.getRoom(roomId);
+};
+
+const roomFromPersistedSnapshot = async (
+  client: PostgresQueryClient,
+  roomId: string,
+  snapshotJson: unknown,
+): Promise<LiveDraftRoom> => isCompactSnapshot(snapshotJson)
+  ? await roomFromCompactSnapshot(client, roomId, snapshotJson)
+  : roomFromSnapshotJson(snapshotJson);
 
 const startedAtFor = (room: LiveDraftRoom): Date | null =>
   room.events.find(event => event.type === "room_started")?.occurredAt ?? null;
@@ -124,7 +352,7 @@ LIMIT 1
   );
   const row = firstRow(result);
 
-  return row === undefined ? undefined : roomFromSnapshotJson(row.snapshot_json);
+  return row === undefined ? undefined : await roomFromPersistedSnapshot(client, roomId, row.snapshot_json);
 };
 
 const latestRoomSnapshotForSeason = async (
@@ -133,7 +361,7 @@ const latestRoomSnapshotForSeason = async (
 ): Promise<LiveDraftRoom | undefined> => {
   const result = await client.query<DraftRoomSnapshotRow>(
     `
-SELECT snapshots.snapshot_json
+SELECT snapshots.draft_room_id, snapshots.snapshot_json
 FROM draft_room_snapshots AS snapshots
 JOIN draft_rooms AS rooms ON rooms.id = snapshots.draft_room_id
 WHERE rooms.league_season_id = $1
@@ -145,7 +373,9 @@ LIMIT 1
   );
   const row = firstRow(result);
 
-  return row === undefined ? undefined : roomFromSnapshotJson(row.snapshot_json);
+  return row === undefined || row.draft_room_id === undefined
+    ? undefined
+    : await roomFromPersistedSnapshot(client, row.draft_room_id, row.snapshot_json);
 };
 
 const insertDraftRoom = async (
@@ -299,7 +529,9 @@ const insertDraftRoomSnapshot = async (
   client: PostgresQueryClient,
   room: LiveDraftRoom,
 ): Promise<void> => {
-  const snapshotJson = snapshotJsonForRoom(room);
+  const snapshotJson = room.revision === 1
+    ? fullSnapshotJsonForRoom(room)
+    : compactSnapshotJsonForRoom(room);
 
   await client.query(
     `
@@ -320,6 +552,21 @@ INSERT INTO draft_room_snapshots (
       snapshotHashFor(snapshotJson),
       room.updatedAt,
     ],
+  );
+
+  // Keep the immutable full recovery base plus a bounded compact recovery window.
+  await client.query(
+    `
+DELETE FROM draft_room_snapshots
+WHERE draft_room_id = $1
+  AND revision <> (
+    SELECT MIN(revision)
+    FROM draft_room_snapshots
+    WHERE draft_room_id = $1
+  )
+  AND revision < $2
+`.trim(),
+    [room.roomId, Math.max(2, room.revision - compactSnapshotWindow + 1)],
   );
 };
 
@@ -574,13 +821,19 @@ SELECT EXISTS (
   async rooms(): Promise<readonly LiveDraftRoom[]> {
     const result = await this.client.query<DraftRoomSnapshotRow>(
       `
-SELECT DISTINCT ON (draft_room_id) snapshot_json
+SELECT DISTINCT ON (draft_room_id) draft_room_id, snapshot_json
 FROM draft_room_snapshots
 ORDER BY draft_room_id, revision DESC
 `.trim(),
     );
 
-    return result.rows.map(row => cloneRoom(roomFromSnapshotJson(row.snapshot_json)));
+    return await Promise.all(result.rows.map(async row => {
+      if (row.draft_room_id === undefined) {
+        throw new Error("Postgres draft room snapshot did not identify its room.");
+      }
+
+      return cloneRoom(await roomFromPersistedSnapshot(this.client, row.draft_room_id, row.snapshot_json));
+    }));
   }
 
   private async mutateRoom(

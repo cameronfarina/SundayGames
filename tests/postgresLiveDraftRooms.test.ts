@@ -156,7 +156,9 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       const [roomId] = values as readonly [string];
       const snapshot = this.snapshots
         .filter(row => row.draft_room_id === roomId)
-        .sort((left, right) => right.revision - left.revision)[0];
+        .sort((left, right) => normalizedSql.includes("ORDER BY revision ASC")
+          ? left.revision - right.revision
+          : right.revision - left.revision)[0];
 
       return {
         rows: snapshot === undefined
@@ -165,7 +167,20 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       };
     }
 
-    if (normalizedSql.startsWith("SELECT snapshots.snapshot_json FROM draft_room_snapshots AS snapshots")) {
+    if (normalizedSql.startsWith("SELECT id, draft_room_id, revision, event_type")) {
+      const [roomId, throughRevision] = values as readonly [string, number];
+      return {
+        rows: this.events
+          .filter(row => row.draft_room_id === roomId && row.revision <= throughRevision)
+          .sort((left, right) => left.revision - right.revision)
+          .map(row => cloneEventRow(row) as TRow),
+      };
+    }
+
+    if (
+      normalizedSql.startsWith("SELECT snapshots.snapshot_json FROM draft_room_snapshots AS snapshots")
+      || normalizedSql.startsWith("SELECT snapshots.draft_room_id, snapshots.snapshot_json FROM draft_room_snapshots AS snapshots")
+    ) {
       const [seasonId] = values as readonly [string];
       const roomIds = new Set([...this.rooms.values()]
         .filter(room => room.league_season_id === seasonId && room.room_type === "real")
@@ -177,7 +192,10 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       return {
         rows: snapshot === undefined
           ? []
-          : [{ snapshot_json: cloneSnapshotRow(snapshot).snapshot_json } as TRow],
+          : [{
+            draft_room_id: snapshot.draft_room_id,
+            snapshot_json: cloneSnapshotRow(snapshot).snapshot_json,
+          } as TRow],
       };
     }
 
@@ -365,6 +383,24 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
       });
 
       return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("DELETE FROM draft_room_snapshots")) {
+      const [roomId, minimumRecentRevision] = values as readonly [string, number];
+      const baseRevision = this.snapshots
+        .filter(snapshot => snapshot.draft_room_id === roomId)
+        .reduce((minimum, snapshot) => Math.min(minimum, snapshot.revision), Number.POSITIVE_INFINITY);
+      this.snapshots.splice(
+        0,
+        this.snapshots.length,
+        ...this.snapshots.filter(snapshot =>
+          snapshot.draft_room_id !== roomId
+          || snapshot.revision === baseRevision
+          || snapshot.revision >= minimumRecentRevision
+        ),
+      );
+
+      return { rows: [], rowCount: 0 };
     }
 
     if (normalizedSql.startsWith("INSERT INTO draft_room_sales")) {
@@ -756,6 +792,100 @@ describe("Postgres live draft rooms", () => {
     ]);
   });
 
+  it("transitions an existing full-snapshot room to bounded compact recovery", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_legacy_snapshots",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const legacySnapshot = client.snapshots.find(snapshot => snapshot.revision === started.revision);
+    if (legacySnapshot === undefined) throw new Error("Expected started room snapshot.");
+    legacySnapshot.snapshot_json = cloneJson(started);
+
+    const restartedRepository = new PostgresLiveDraftRoomRepository(client);
+    const paused = await restartedRepository.pauseRoom({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "pause-room",
+      now: new Date(now.getTime() + 2_000),
+    });
+    const resumed = await restartedRepository.resumeRoom({
+      roomId: paused.roomId,
+      actor: commissioner,
+      expectedRevision: paused.revision,
+      idempotencyKey: "resume-room",
+      now: new Date(now.getTime() + 3_000),
+    });
+
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 3, 4]);
+    expect(client.snapshots.at(-1)?.snapshot_json).toMatchObject({ formatVersion: 2 });
+    await expect(new PostgresLiveDraftRoomRepository(client).getRoom(resumed.roomId)).resolves.toEqual(resumed);
+  });
+
+  it("bounds compact recovery snapshots and reloads complete event-derived state", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_bounded_snapshots",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    let room = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    for (let index = 0; index < 12; index += 1) {
+      const pause = room.status === "live";
+      room = await (pause ? repository.pauseRoom.bind(repository) : repository.resumeRoom.bind(repository))({
+        roomId: room.roomId,
+        actor: commissioner,
+        expectedRevision: room.revision,
+        idempotencyKey: `${pause ? "pause" : "resume"}-${index}`,
+        now: new Date(now.getTime() + 2_000 + index),
+      });
+    }
+
+    const persistedSnapshotBytes = client.snapshots.reduce(
+      (total, snapshot) => total + JSON.stringify(snapshot.snapshot_json).length,
+      0,
+    );
+    const baseSnapshotBytes = JSON.stringify(client.snapshots[0]?.snapshot_json).length;
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(room.roomId);
+
+    expect(client.snapshots).toHaveLength(3);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 13, 14]);
+    expect(persistedSnapshotBytes).toBeLessThan(baseSnapshotBytes * 2);
+    for (const snapshot of client.snapshots.slice(1)) {
+      expect(snapshot.snapshot_json).toMatchObject({ formatVersion: 2 });
+      expect(snapshot.snapshot_json).not.toHaveProperty("events");
+      expect(snapshot.snapshot_json).not.toHaveProperty("playerCatalog");
+      expect(snapshot.snapshot_json).not.toHaveProperty("projection");
+      expect(snapshot.snapshot_json).not.toHaveProperty("season");
+    }
+    expect(client.events).toHaveLength(14);
+    expect(reloaded).toEqual(room);
+  });
+
   it("replays idempotent start and sale mutations without appending duplicate events", async () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);
@@ -918,15 +1048,14 @@ describe("Postgres live draft rooms", () => {
       allowIncomplete: true,
       now: new Date(now.getTime() + 4_000),
     });
-    const endedSnapshot = client.snapshots.at(-1);
-    if (endedSnapshot === undefined) throw new Error("Expected ended room snapshot.");
-    const legacySnapshot = endedSnapshot.snapshot_json as {
-      events: Array<{ type: string; incomplete?: boolean; incompleteTeams?: unknown }>;
+    const persistedEndedEvent = client.events.find(event => event.event_type === "room_ended");
+    if (persistedEndedEvent === undefined) throw new Error("Expected ended room event.");
+    const legacyPayload = persistedEndedEvent.payload_json as {
+      incomplete?: boolean;
+      incompleteTeams?: unknown;
     };
-    const legacyEndedEvent = legacySnapshot.events.find(event => event.type === "room_ended");
-    if (legacyEndedEvent === undefined) throw new Error("Expected ended room event.");
-    delete legacyEndedEvent.incomplete;
-    delete legacyEndedEvent.incompleteTeams;
+    delete legacyPayload.incomplete;
+    delete legacyPayload.incompleteTeams;
     const reopened = await repository.reopenRoom({
       roomId: ended.roomId,
       actor: commissioner,
@@ -948,7 +1077,7 @@ describe("Postgres live draft rooms", () => {
       [5, "room_ended"],
       [6, "room_reopened"],
     ]);
-    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 5, 6]);
     expect([...client.sales.values()]).toMatchObject([
       {
         source_event_id: "room_sunday-rev-3-sale_logged",

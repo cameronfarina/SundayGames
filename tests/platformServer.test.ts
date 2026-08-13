@@ -599,7 +599,9 @@ class FakeTransactionalPlatformPostgresClient
       const [roomId] = values as readonly [string];
       const snapshot = this.roomSnapshots
         .filter(row => row.draft_room_id === roomId)
-        .sort((left, right) => right.revision - left.revision)[0];
+        .sort((left, right) => normalizedSql.includes("ORDER BY revision ASC")
+          ? left.revision - right.revision
+          : right.revision - left.revision)[0];
 
       return {
         rows: snapshot === undefined
@@ -608,14 +610,49 @@ class FakeTransactionalPlatformPostgresClient
       };
     }
 
-    if (normalizedSql.startsWith("SELECT DISTINCT ON (draft_room_id) snapshot_json FROM draft_room_snapshots")) {
+    if (normalizedSql.startsWith("SELECT snapshots.draft_room_id, snapshots.snapshot_json FROM draft_room_snapshots AS snapshots")) {
+      const [seasonId] = values as readonly [string];
+      const roomIds = new Set([...this.rooms.values()]
+        .filter(room => room.league_season_id === seasonId && room.room_type === "real")
+        .map(room => room.id));
+      const snapshot = this.roomSnapshots
+        .filter(row => roomIds.has(row.draft_room_id))
+        .sort((left, right) => right.revision - left.revision)[0];
+
+      return {
+        rows: snapshot === undefined
+          ? []
+          : [{
+            draft_room_id: snapshot.draft_room_id,
+            snapshot_json: cloneDraftRoomSnapshotRow(snapshot).snapshot_json,
+          } as TRow],
+      };
+    }
+
+    if (normalizedSql.startsWith("SELECT id, draft_room_id, revision, event_type")) {
+      const [roomId, throughRevision] = values as readonly [string, number];
+      return {
+        rows: this.events
+          .filter(row => row.draft_room_id === roomId && row.revision <= throughRevision)
+          .sort((left, right) => left.revision - right.revision)
+          .map(row => cloneEventRow(row) as TRow),
+      };
+    }
+
+    if (
+      normalizedSql.startsWith("SELECT DISTINCT ON (draft_room_id) snapshot_json FROM draft_room_snapshots")
+      || normalizedSql.startsWith("SELECT DISTINCT ON (draft_room_id) draft_room_id, snapshot_json FROM draft_room_snapshots")
+    ) {
       const rows = [...new Set(this.roomSnapshots.map(snapshot => snapshot.draft_room_id))]
         .flatMap(roomId => {
           const snapshot = this.roomSnapshots
             .filter(row => row.draft_room_id === roomId)
             .sort((left, right) => right.revision - left.revision)[0];
 
-          return snapshot === undefined ? [] : [{ snapshot_json: cloneDraftRoomSnapshotRow(snapshot).snapshot_json } as TRow];
+          return snapshot === undefined ? [] : [{
+            draft_room_id: snapshot.draft_room_id,
+            snapshot_json: cloneDraftRoomSnapshotRow(snapshot).snapshot_json,
+          } as TRow];
         });
 
       return { rows };
@@ -759,6 +796,24 @@ class FakeTransactionalPlatformPostgresClient
       });
 
       return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("DELETE FROM draft_room_snapshots")) {
+      const [roomId, minimumRecentRevision] = values as readonly [string, number];
+      const baseRevision = this.roomSnapshots
+        .filter(snapshot => snapshot.draft_room_id === roomId)
+        .reduce((minimum, snapshot) => Math.min(minimum, snapshot.revision), Number.POSITIVE_INFINITY);
+      this.roomSnapshots.splice(
+        0,
+        this.roomSnapshots.length,
+        ...this.roomSnapshots.filter(snapshot =>
+          snapshot.draft_room_id !== roomId
+          || snapshot.revision === baseRevision
+          || snapshot.revision >= minimumRecentRevision
+        ),
+      );
+
+      return { rows: [], rowCount: 0 };
     }
 
     if (normalizedSql.startsWith("INSERT INTO draft_room_sales")) {

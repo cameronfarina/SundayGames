@@ -154,6 +154,7 @@ export interface CreatePlatformServerOptions {
   screenshotImportIngressRateLimiter?: ClientAddressRateLimiter | undefined;
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRateLimiter?: ClientAddressRateLimiter | undefined;
+  liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -838,6 +839,12 @@ export const createPlatformServer = async (
     windowMs: 15 * 60 * 1_000,
     maxTrackedEmails: 10_000,
   });
+  const liveDraftMutationRateLimiter = options.liveDraftMutationRateLimiter
+    ?? createClientAddressRateLimiter({
+      maxAttempts: 30,
+      windowMs: 60 * 1_000,
+      maxTrackedEmails: 10_000,
+    });
   const seasonSimulationRunner = options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner();
   let activeSeasonSimulationCapture: (() => void) | undefined;
   const httpSeasonSimulationRunner: SeasonSimulationRunner = (input, runOptions) => {
@@ -1066,6 +1073,7 @@ export const createPlatformServer = async (
         screenshotImportRateLimiter,
         leagueImportRateLimiter,
         simulationRateLimiter,
+        liveDraftMutationRateLimiter,
         seasonSimulationRunner: httpSeasonSimulationRunner,
         ...(options.leagueMembersScreenshotAnalyzer === undefined
           ? {}

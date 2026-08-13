@@ -226,6 +226,7 @@ export interface PlatformHttpServices {
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRateLimiter?: ClientAddressRateLimiter | undefined;
+  liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
 }
 
@@ -1028,6 +1029,19 @@ const actionRateLimitResponse = (
     body: { error: { code: "rate_limited", message } },
   };
 };
+
+const liveDraftMutationActions = new Set([
+  "start",
+  "pause",
+  "resume",
+  "reopen",
+  "sales",
+  "sale",
+  "undo",
+  "corrections",
+  "correction",
+  "end",
+]);
 
 const routeSeasonSetupImport = async (
   app: PlatformApp,
@@ -2914,6 +2928,16 @@ const routeLiveRooms = async (
   }
 
   if (request.method !== "POST") return methodNotAllowed();
+
+  if (!liveDraftMutationActions.has(action ?? "")) return notFound();
+  const account = await requireRequestAccount(app, request);
+  const limited = actionRateLimitResponse(
+    request,
+    services.liveDraftMutationRateLimiter,
+    `${account.id}:${roomId ?? ""}`,
+    "Too many live draft changes. Try again shortly.",
+  );
+  if (limited !== null) return limited;
 
   if (action === "start") {
     await app.startLiveDraftRoom({

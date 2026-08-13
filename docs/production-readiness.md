@@ -57,6 +57,8 @@ Commissioners enter league identity, team numbers, abbreviations, team names, an
 
 Screenshot analysis remains optional. Set `MOCKD_SCREENSHOT_IMPORT_MODE=openai` and `OPENAI_API_KEY` only when the deploy owner deliberately enables it; `MOCKD_SCREENSHOT_IMPORT_MODEL` can override the built-in model default. Images are limited to 5 MB, analysis is rate-limited and concurrency-limited, OpenAI request storage is disabled, and screenshot analysis does not block health checks or snapshot writes. The production Blueprint uses `MOCKD_SCREENSHOT_IMPORT_MODE=disabled`, and readiness treats manual commissioner entry as launch-ready without any OpenAI configuration.
 
+Hosted live auction mutations are limited to 30 changes per account and room each minute. Postgres retains one full room recovery base and the two newest compact revision snapshots. Compact snapshots contain only mutable room metadata; normalized draft events and sales remain the authoritative audit trail, and room projections are rebuilt from that trail during restart.
+
 ## Hosted Domain Gate
 
 A public domain is no-go until `docs/ai-plans/fantasy-draft-platform/production-runbook.md` is all pass.

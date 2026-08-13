@@ -222,6 +222,50 @@ const createLoggedInAccount = async (
 };
 
 describe("platform HTTP contract", () => {
+  it("rate limits live draft mutations before invoking domain changes", async () => {
+    const pauseLiveDraftRoom = vi.fn(async () => undefined);
+    const getLiveDraftRoomState = vi.fn(async () => ({ status: "paused", revision: 2 }));
+    const app = {
+      findAccountBySessionToken: vi.fn(async () => ({ id: "account-1" })),
+      pauseLiveDraftRoom,
+      getLiveDraftRoomState,
+    } as unknown as PlatformApp;
+    const handle = createPlatformHttpHandler(app, {
+      liveDraftMutationRateLimiter: createClientAddressRateLimiter({
+        maxAttempts: 1,
+        windowMs: 60_000,
+        maxTrackedEmails: 100,
+      }),
+    });
+    const request = {
+      method: "POST",
+      path: "/live-rooms/room-1/pause",
+      sessionToken: "session-1",
+      now,
+      body: {
+        expectedRevision: 1,
+        idempotencyKey: "pause-1",
+      },
+    } as const;
+
+    await expect(handle(request)).resolves.toMatchObject({ status: 200 });
+    await expect(handle({
+      ...request,
+      body: { expectedRevision: 2, idempotencyKey: "pause-2" },
+    })).resolves.toEqual({
+      status: 429,
+      headers: { "Retry-After": "60" },
+      body: {
+        error: {
+          code: "rate_limited",
+          message: "Too many live draft changes. Try again shortly.",
+        },
+      },
+    });
+    expect(pauseLiveDraftRoom).toHaveBeenCalledTimes(1);
+    expect(getLiveDraftRoomState).toHaveBeenCalledTimes(1);
+  });
+
   it("verifies production signups and resets passwords without enumerating accounts", async () => {
     const mailSender = new CapturingAuthMailSender();
     const app = createPlatformApp({
