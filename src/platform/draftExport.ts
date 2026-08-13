@@ -154,7 +154,9 @@ const slotsByKeyFor = (
   new Map(team.slots.map(slot => [slot.slot, slot]));
 
 const csvCell = (cell: DraftExportCell): string => {
-  const value = String(cell);
+  const value = typeof cell === "string" && /^\s*[=+\-@]/u.test(cell)
+    ? `'${cell}`
+    : String(cell);
 
   if (!/[",\n\r]/.test(value)) return value;
 

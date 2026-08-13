@@ -155,6 +155,44 @@ describe("draft export generator", () => {
     expect(exportResult.csv).toContain("WR1,\"Amon-Ra \"\"Sun God\"\", St. Brown\",28");
   });
 
+  it("neutralizes spreadsheet formulas in user-controlled CSV cells", () => {
+    const exportResult = generateDraftExport({
+      ...baseState,
+      leagueName: "=HYPERLINK(\"https://example.test\")",
+      teams: [
+        {
+          teamId: "team_formula",
+          teamName: "  +SUM(1,1)",
+          ownerName: "\t@IMPORTDATA(\"https://example.test\")",
+          slots: [
+            {
+              slot: "WR1",
+              player: {
+                name: " -2+3",
+                price: 28,
+              },
+            },
+            {
+              slot: "RB1",
+              player: {
+                name: "Normal Player",
+                price: 19,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exportResult.csv).toContain("\"'=HYPERLINK(\"\"https://example.test\"\")\"");
+    expect(exportResult.csv).toContain("\"'  +SUM(1,1)\"");
+    expect(exportResult.csv).toContain("\"'\t@IMPORTDATA(\"\"https://example.test\"\")\"");
+    expect(exportResult.csv).toContain("WR1,' -2+3,28");
+    expect(exportResult.csv).toContain("RB1,Normal Player,19");
+    expect(exportResult.table[0]?.[1]).toBe("=HYPERLINK(\"https://example.test\")");
+    expect(exportResult.table.find(row => row[0] === "RB1")?.[2]).toBe(19);
+  });
+
   it("rejects duplicate players across committed team slots", () => {
     expect(() =>
       generateDraftExport({
