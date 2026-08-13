@@ -248,4 +248,21 @@ describe("platform historical import source parsing", () => {
       parseHistoricalImportSource(base).fileHash,
     );
   });
+
+  it("rejects delimited sources that exceed row or cell limits", () => {
+    const csv = [
+      "owner,player,position,price",
+      "Cam,Player One,RB,1",
+      "Sam,Player Two,WR,2",
+    ].join("\n");
+    const tsv = [
+      "owner\tplayer\tposition\tprice",
+      "Cam\tPlayer One\tRB\t1",
+    ].join("\n");
+
+    expect(() => parseHistoricalImportSource(csv, { maxRows: 2, maxCells: 100 }))
+      .toThrow("Historical draft files may contain at most 2 rows.");
+    expect(() => parseHistoricalImportSource(tsv, { maxRows: 10, maxCells: 7 }))
+      .toThrow("Historical draft files may contain at most 7 cells.");
+  });
 });

@@ -101,6 +101,43 @@ describe("platform historical imports", () => {
     ]);
   });
 
+  it("expires abandoned previews and replaces the oldest preview at the league cap", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const preview = async (fileHash: string, createdAt: Date) => await previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash,
+      rows: [row({ playerId: fileHash, playerResolution: { status: "resolved", playerId: fileHash } })],
+      maxActivePreviewBatches: 2,
+      previewTtlMs: 1_000,
+      now: createdAt,
+    });
+
+    const committedPreview = await preview("sha256:committed", now);
+    await commitHistoricalImportBatch({ repository, batchId: committedPreview.id, now });
+    const expiredPreview = await preview("sha256:expired", now);
+    const retainedPreview = await preview(
+      "sha256:retained",
+      new Date(now.getTime() + 1_500),
+    );
+    const newestPreview = await preview(
+      "sha256:newest",
+      new Date(now.getTime() + 2_000),
+    );
+    const capReplacement = await preview(
+      "sha256:cap-replacement",
+      new Date(now.getTime() + 2_400),
+    );
+
+    expect(repository.findBatchById(committedPreview.id)).toMatchObject({ status: "committed" });
+    expect(repository.findBatchById(expiredPreview.id)).toBeNull();
+    expect(repository.findBatchById(retainedPreview.id)).toBeNull();
+    expect(repository.findBatchById(newestPreview.id)).toMatchObject({ status: "previewed" });
+    expect(repository.findBatchById(capReplacement.id)).toMatchObject({ status: "previewed" });
+    expect(repository.batches().filter(batch => batch.status === "previewed")).toHaveLength(2);
+  });
+
   it("rejects a 14-team historical file before offering mappings for a four-team league", async () => {
     const fourTeamSeason = {
       ...leagueSeason,

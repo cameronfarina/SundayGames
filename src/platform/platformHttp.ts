@@ -96,6 +96,7 @@ import {
   historicalSpreadsheetUploadToSourceText,
   HistoricalSpreadsheetUploadError,
 } from "./historicalSpreadsheetImport.js";
+import { HistoricalImportDocumentLimitError } from "./historicalImportLimits.js";
 import {
   PricingSnapshotError,
   type PricingSnapshot,
@@ -864,6 +865,10 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof HistoricalImportTargetError) {
     return knownError(409, error.code, error.message);
+  }
+
+  if (error instanceof HistoricalImportDocumentLimitError) {
+    return knownError(422, error.code, error.message);
   }
 
   if (error instanceof HistoricalSpreadsheetUploadError) {

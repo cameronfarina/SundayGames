@@ -3,6 +3,13 @@ import type {
   HistoricalAcquisitionType,
   NormalizedHistoricalImportRow,
 } from "./historicalImports.js";
+import {
+  assertHistoricalImportCellCount,
+  assertHistoricalImportRowCount,
+  resolveHistoricalImportDocumentLimits,
+  type HistoricalImportDocumentLimits,
+  type ResolvedHistoricalImportDocumentLimits,
+} from "./historicalImportLimits.js";
 
 type HistoricalImportSourceDelimiter = "," | "\t" | ";";
 
@@ -41,7 +48,7 @@ export interface HistoricalImportSourceParseResult {
   warnings: HistoricalImportSourceWarning[];
 }
 
-export interface HistoricalImportSourceOptions {
+export interface HistoricalImportSourceOptions extends HistoricalImportDocumentLimits {
   inferFirstRosterRowAsKeeper?: boolean;
 }
 
@@ -162,6 +169,7 @@ const warning = (
 const parseDelimitedRows = (
   sourceText: string,
   delimiter: HistoricalImportSourceDelimiter,
+  limits: ResolvedHistoricalImportDocumentLimits = resolveHistoricalImportDocumentLimits(),
 ): { rows: ParsedDelimitedRow[]; warnings: HistoricalImportSourceWarning[] } => {
   const rows: ParsedDelimitedRow[] = [];
   const warnings: HistoricalImportSourceWarning[] = [];
@@ -170,14 +178,18 @@ const parseDelimitedRows = (
   let inQuotes = false;
   let lineNumber = 1;
   let currentRowNumber = 1;
+  let cellCount = 0;
 
   const pushCell = (): void => {
+    cellCount += 1;
+    assertHistoricalImportCellCount(cellCount, limits);
     cells.push(cleanCell(cell));
     cell = "";
   };
 
   const pushRow = (): void => {
     pushCell();
+    assertHistoricalImportRowCount(rows.length + 1, limits);
     rows.push({
       rowNumber: currentRowNumber,
       cells,
@@ -515,8 +527,9 @@ export const parseHistoricalImportSource = (
   options: HistoricalImportSourceOptions = {},
 ): HistoricalImportSourceParseResult => {
   const normalizedSourceText = normalizeSourceText(sourceText);
+  const limits = resolveHistoricalImportDocumentLimits(options);
   const fileHash = fileHashFor(normalizedSourceText);
-  const initiallyParsedRows = nonEmptyRows(parseDelimitedRows(normalizedSourceText, ",").rows);
+  const initiallyParsedRows = nonEmptyRows(parseDelimitedRows(normalizedSourceText, ",", limits).rows);
   const headerRow = initiallyParsedRows[0];
 
   if (headerRow === undefined) {
@@ -529,7 +542,7 @@ export const parseHistoricalImportSource = (
   }
 
   const delimiter = detectDelimiter(headerRow);
-  const parsedSource = parseDelimitedRows(normalizedSourceText, delimiter);
+  const parsedSource = parseDelimitedRows(normalizedSourceText, delimiter, limits);
   const sourceRows = nonEmptyRows(parsedSource.rows);
   const mappedHeaderRow = sourceRows[0];
 

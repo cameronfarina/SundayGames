@@ -5,6 +5,7 @@ import {
   type HistoricalImportRepository,
   type HistoricalImportRowPreview,
   type HistoricalSaleRecord,
+  type PruneHistoricalImportPreviewsInput,
 } from "./historicalImports.js";
 import type { PostgresTransactionalQueryClient } from "./postgresJobQueue.js";
 import {
@@ -282,6 +283,36 @@ export class PostgresHistoricalImportRepository implements HistoricalImportRepos
     );
 
     return Number(firstRow(result)?.count ?? 0) + 1;
+  }
+
+  async prunePreviewBatches({
+    leagueId,
+    expiresBefore,
+    maxRetained,
+  }: PruneHistoricalImportPreviewsInput): Promise<void> {
+    await this.#client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1))",
+      [`historical-import-previews:${leagueId}`],
+    );
+    await this.#client.query(
+      `DELETE FROM historical_import_batches
+WHERE league_id = $1
+  AND status IN ('previewed', 'blocked')
+  AND created_at <= $2`,
+      [leagueId, expiresBefore],
+    );
+    await this.#client.query(
+      `DELETE FROM historical_import_batches
+WHERE id IN (
+  SELECT id
+  FROM historical_import_batches
+  WHERE league_id = $1
+    AND status IN ('previewed', 'blocked')
+  ORDER BY created_at DESC, id DESC
+  OFFSET $2
+)`,
+      [leagueId, maxRetained],
+    );
   }
 
   async createBatch(batch: HistoricalImportBatch): Promise<HistoricalImportBatch> {

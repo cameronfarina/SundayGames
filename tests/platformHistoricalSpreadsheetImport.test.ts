@@ -55,6 +55,33 @@ describe("historical spreadsheet uploads", () => {
     expect(readWorkbook).not.toHaveBeenCalled();
   });
 
+  it("rejects workbooks that exceed row or cell limits before creating source text", async () => {
+    const rows = [
+      ["owner", "player", "position", "price"],
+      ["Cam", "Player One", "RB", 1],
+      ["Sam", "Player Two", "WR", 2],
+    ];
+
+    await expect(historicalSpreadsheetUploadToSourceText({
+      fileName: "draft-2025.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      base64: xlsxBase64For(),
+    }, {
+      maxRows: 2,
+      maxCells: 100,
+      readWorkbook: async () => rows,
+    })).rejects.toThrow("Historical draft files may contain at most 2 rows.");
+    await expect(historicalSpreadsheetUploadToSourceText({
+      fileName: "draft-2025.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      base64: xlsxBase64For(),
+    }, {
+      maxRows: 10,
+      maxCells: 11,
+      readWorkbook: async () => rows,
+    })).rejects.toThrow("Historical draft files may contain at most 11 cells.");
+  });
+
   it("rejects unsupported, empty, oversized, and mislabeled files", async () => {
     await expect(historicalSpreadsheetUploadToSourceText({
       fileName: "draft.pdf",

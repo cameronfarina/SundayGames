@@ -30,12 +30,21 @@ export interface PlatformNodeHttpAdapterOptions {
   maxBodyBytes?: number | undefined;
   screenshotImportMaxBodyBytes?: number | undefined;
   screenshotImportPreflight?: PlatformNodeHttpPreflight | undefined;
+  historicalImportPreflight?: PlatformNodeHttpAdmission | undefined;
   trustProxy?: boolean | undefined;
 }
 
 export type PlatformNodeHttpPreflight = (
   request: PlatformHttpRequest,
 ) => Promise<PlatformHttpResponse | null>;
+
+export interface PlatformNodeHttpAdmissionPermit {
+  release(): void;
+}
+
+export type PlatformNodeHttpAdmission = (
+  request: PlatformHttpRequest,
+) => Promise<PlatformHttpResponse | PlatformNodeHttpAdmissionPermit>;
 
 export interface PlatformNodeHttpLogEntry {
   timestamp: string;
@@ -581,6 +590,20 @@ const isHistoricalSpreadsheetUploadRequest = (request: IncomingMessage): boolean
   }
 };
 
+const isHistoricalImportPreviewRequest = (request: IncomingMessage): boolean => {
+  if (request.method?.toUpperCase() !== "POST") return false;
+  try {
+    const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+    return /^\/seasons\/[^/]+\/historical-imports\/(?:preview|upload-preview)$/u.test(pathname);
+  } catch {
+    return false;
+  }
+};
+
+const isPlatformHttpResponse = (
+  result: PlatformHttpResponse | PlatformNodeHttpAdmissionPermit,
+): result is PlatformHttpResponse => "status" in result;
+
 const bodyLimitForRequest = (
   request: IncomingMessage,
   defaultLimit: number,
@@ -600,6 +623,7 @@ export const createPlatformNodeHttpAdapter = (
   const screenshotImportMaxBodyBytes = options.screenshotImportMaxBodyBytes
     ?? defaultPlatformScreenshotImportBodyLimitBytes;
   const screenshotImportPreflight = options.screenshotImportPreflight;
+  const historicalImportPreflight = options.historicalImportPreflight;
   const trustProxy = options.trustProxy ?? false;
 
   return async (request, response) => {
@@ -631,6 +655,20 @@ export const createPlatformNodeHttpAdapter = (
         }
       }
 
+      let historicalImportPermit: PlatformNodeHttpAdmissionPermit | undefined;
+      if (isHistoricalImportPreviewRequest(request) && historicalImportPreflight !== undefined) {
+        const admission = await historicalImportPreflight(
+          platformRequestMetadataFor(request, trustProxy),
+        );
+        if (isPlatformHttpResponse(admission)) {
+          response.shouldKeepAlive = false;
+          response.setHeader("Connection", "close");
+          writeJsonResponse(response, admission);
+          return;
+        }
+        historicalImportPermit = admission;
+      }
+
       const requestAbort = new AbortController();
       const abortForIncompleteRequest = (): void => requestAbort.abort();
       const abortForClosedResponse = (): void => {
@@ -649,6 +687,7 @@ export const createPlatformNodeHttpAdapter = (
 
         if (!response.destroyed) writeJsonResponse(response, platformResponse);
       } finally {
+        historicalImportPermit?.release();
         request.removeListener("aborted", abortForIncompleteRequest);
         response.removeListener("close", abortForClosedResponse);
       }

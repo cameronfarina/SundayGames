@@ -190,7 +190,15 @@ export interface PreviewHistoricalImportBatchInput {
   ownerMappings?: readonly HistoricalOwnerMapping[];
   requireCompleteTeamMapping?: boolean;
   rows: readonly NormalizedHistoricalImportRow[];
+  maxActivePreviewBatches?: number;
+  previewTtlMs?: number;
   now?: Date;
+}
+
+export interface PruneHistoricalImportPreviewsInput {
+  leagueId: string;
+  expiresBefore: Date;
+  maxRetained: number;
 }
 
 export interface CommitHistoricalImportBatchInput {
@@ -215,6 +223,7 @@ export interface HistoricalImportRepository {
   findCommittedBatchByFileHash(leagueId: string, seasonYear: number, fileHash: string): MaybePromise<HistoricalImportBatch | null>;
   findCurrentCommittedBatch(leagueId: string, seasonYear: number): MaybePromise<HistoricalImportBatch | null>;
   nextBatchOrdinal(leagueId: string, seasonYear: number, fileHash: string): MaybePromise<number>;
+  prunePreviewBatches(input: PruneHistoricalImportPreviewsInput): MaybePromise<void>;
   createBatch(batch: HistoricalImportBatch): MaybePromise<HistoricalImportBatch>;
   updateBatch(batch: HistoricalImportBatch): MaybePromise<HistoricalImportBatch>;
   addRecords(records: readonly HistoricalSaleRecord[]): MaybePromise<void>;
@@ -732,6 +741,22 @@ const addRowBlocker = (
 const batchBaseId = (leagueId: string, seasonYear: number, fileHash: string): string =>
   `historical-import-${sanitizeIdSegment(leagueId)}-${seasonYear}-${sanitizeIdSegment(fileHash)}`;
 
+export const defaultHistoricalImportMaxActivePreviewBatches = 8;
+export const defaultHistoricalImportPreviewTtlMs = 24 * 60 * 60 * 1_000;
+
+const previewRetentionValue = (
+  value: number | undefined,
+  fallback: number,
+  name: string,
+): number => {
+  const resolved = value ?? fallback;
+  if (!Number.isSafeInteger(resolved) || resolved <= 0) {
+    throw new RangeError(`${name} must be a positive safe integer.`);
+  }
+
+  return resolved;
+};
+
 export class InMemoryHistoricalImportRepository implements HistoricalImportRepository {
   readonly #leagueSeasons = new Map<string, LeagueSeason>();
   readonly #batchesById = new Map<string, HistoricalImportBatch>();
@@ -787,6 +812,31 @@ export class InMemoryHistoricalImportRepository implements HistoricalImportRepos
     const baseId = batchBaseId(leagueId, seasonYear, fileHash);
 
     return this.batches().filter(batch => batch.id.startsWith(`${baseId}-`)).length + 1;
+  }
+
+  prunePreviewBatches({
+    leagueId,
+    expiresBefore,
+    maxRetained,
+  }: PruneHistoricalImportPreviewsInput): void {
+    const activePreviews = [...this.#batchesById.values()]
+      .filter(batch =>
+        batch.leagueId === leagueId &&
+        (batch.status === "previewed" || batch.status === "blocked")
+      )
+      .sort((left, right) =>
+        right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id)
+      );
+    const retainedIds = new Set(
+      activePreviews
+        .filter(batch => batch.createdAt > expiresBefore)
+        .slice(0, maxRetained)
+        .map(batch => batch.id),
+    );
+
+    for (const batch of activePreviews) {
+      if (!retainedIds.has(batch.id)) this.#batchesById.delete(batch.id);
+    }
   }
 
   createBatch(batch: HistoricalImportBatch): HistoricalImportBatch {
@@ -870,7 +920,7 @@ export class InMemoryHistoricalImportRepository implements HistoricalImportRepos
   }
 }
 
-export const previewHistoricalImportBatch = async ({
+const previewHistoricalImportBatchInRepository = async ({
   repository,
   leagueId,
   seasonYear,
@@ -881,8 +931,26 @@ export const previewHistoricalImportBatch = async ({
   ownerMappings = [],
   requireCompleteTeamMapping = false,
   rows,
+  maxActivePreviewBatches: configuredMaxActivePreviewBatches,
+  previewTtlMs: configuredPreviewTtlMs,
   now = new Date(),
 }: PreviewHistoricalImportBatchInput): Promise<HistoricalImportBatch> => {
+  const maxActivePreviewBatches = previewRetentionValue(
+    configuredMaxActivePreviewBatches,
+    defaultHistoricalImportMaxActivePreviewBatches,
+    "maxActivePreviewBatches",
+  );
+  const previewTtlMs = previewRetentionValue(
+    configuredPreviewTtlMs,
+    defaultHistoricalImportPreviewTtlMs,
+    "previewTtlMs",
+  );
+  const expiresBefore = new Date(now.getTime() - previewTtlMs);
+  await repository.prunePreviewBatches({
+    leagueId,
+    expiresBefore,
+    maxRetained: maxActivePreviewBatches,
+  });
   const existingBatch = replacementRequested
     ? null
     : await repository.findBatchByFileHash(leagueId, seasonYear, fileHash);
@@ -890,6 +958,12 @@ export const previewHistoricalImportBatch = async ({
   if (existingBatch !== null && existingBatch.status !== "blocked") {
     return existingBatch;
   }
+
+  await repository.prunePreviewBatches({
+    leagueId,
+    expiresBefore,
+    maxRetained: maxActivePreviewBatches - 1,
+  });
 
   const exactSeason = seasonContext === undefined
     ? await repository.findLeagueSeason(leagueId, seasonYear)
@@ -1206,6 +1280,18 @@ export const previewHistoricalImportBatch = async ({
     warnings,
     rows: rowPreviews,
   });
+};
+
+export const previewHistoricalImportBatch = async (
+  input: PreviewHistoricalImportBatchInput,
+): Promise<HistoricalImportBatch> => {
+  if (input.repository.withTransaction === undefined) {
+    return await previewHistoricalImportBatchInRepository(input);
+  }
+
+  return await input.repository.withTransaction(repository =>
+    previewHistoricalImportBatchInRepository({ ...input, repository })
+  );
 };
 
 const runHistoricalImportTransaction = async <T>(

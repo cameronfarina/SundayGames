@@ -745,6 +745,46 @@ describe("platform Node HTTP adapter", () => {
     expect(preflightRequest).not.toHaveProperty("body");
   });
 
+  it("releases historical import admission after malformed request bodies", async () => {
+    let activeAdmissions = 0;
+    let releases = 0;
+    const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }), {
+      historicalImportPreflight: async () => {
+        activeAdmissions += 1;
+        if (activeAdmissions > 1) {
+          return {
+            status: 429,
+            body: { error: { code: "historical_import_busy", message: "Try again later." } },
+          };
+        }
+
+        return {
+          release: () => {
+            activeAdmissions -= 1;
+            releases += 1;
+          },
+        };
+      },
+    });
+    const path = "/seasons/season-1/historical-imports/upload-preview";
+
+    await expect(jsonFetch(baseUrl, path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_json" } },
+    });
+    await expect(jsonFetch(baseUrl, path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: "draft.csv" }),
+    })).resolves.toMatchObject({ status: 200 });
+    expect(activeAdmissions).toBe(0);
+    expect(releases).toBe(2);
+  });
+
   it("builds login and logout Set-Cookie values without tokenHash material", () => {
     const accidentalCookieOptions = { secure: true, tokenHash: "sha256-token-hash" };
 

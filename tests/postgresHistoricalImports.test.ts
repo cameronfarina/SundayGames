@@ -137,6 +137,41 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
       return { rows: [] };
     }
 
+    if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
+      if (!this.#inTransaction) throw new Error("Preview pruning must hold a transaction lock.");
+      return { rows: [] };
+    }
+
+    if (
+      normalizedSql.startsWith("DELETE FROM historical_import_batches") &&
+      normalizedSql.includes("created_at <= $2")
+    ) {
+      const [leagueId, expiresBefore] = values as readonly [string, Date];
+      for (const [id, batch] of this.batches) {
+        if (
+          batch.league_id === leagueId &&
+          (batch.status === "previewed" || batch.status === "blocked") &&
+          batch.created_at <= expiresBefore
+        ) this.batches.delete(id);
+      }
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith("DELETE FROM historical_import_batches")) {
+      const [leagueId, maxRetained] = values as readonly [string, number];
+      const discarded = [...this.batches.values()]
+        .filter(batch =>
+          batch.league_id === leagueId &&
+          (batch.status === "previewed" || batch.status === "blocked")
+        )
+        .sort((left, right) =>
+          right.created_at.getTime() - left.created_at.getTime() || right.id.localeCompare(left.id)
+        )
+        .slice(maxRetained);
+      for (const batch of discarded) this.batches.delete(batch.id);
+      return { rows: [] };
+    }
+
     if (normalizedSql.startsWith("SELECT id, league_season_id, team_key")) {
       const [seasonId] = values as readonly [string];
       if (seasonId !== this.season.id) return { rows: [] };
@@ -401,7 +436,7 @@ describe("Postgres historical import repository", () => {
       status: "committed",
       committedAt: new Date("2026-08-09T12:01:00.000Z"),
     });
-    expect(client.transactionCount).toBe(1);
+    expect(client.transactionCount).toBe(2);
     await expect(repository.currentRecords(season.leagueId, 2025)).resolves.toEqual([
       expect.objectContaining({
         batchId: preview.id,
@@ -465,5 +500,34 @@ describe("Postgres historical import repository", () => {
         priceDollars: 68,
       }),
     ]);
+  });
+
+  it("bounds active previews under the same transaction that creates the next batch", async () => {
+    const season = buildSeason();
+    const client = new FakePostgresHistoricalImportClient(season);
+    const repository = new PostgresHistoricalImportRepository(client);
+    const preview = async (fileHash: string, createdAt: Date) => await previewHistoricalImportBatch({
+      repository,
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      fileHash,
+      uploadedByUserId: "acct_cam",
+      rows: [row({ playerId: fileHash, playerResolution: { status: "resolved", playerId: fileHash } })],
+      maxActivePreviewBatches: 2,
+      previewTtlMs: 1_000,
+      now: createdAt,
+    });
+
+    const expired = await preview("sha256:expired", now);
+    const retained = await preview("sha256:retained", new Date(now.getTime() + 1_500));
+    const newest = await preview("sha256:newest", new Date(now.getTime() + 2_000));
+    const replacement = await preview("sha256:replacement", new Date(now.getTime() + 2_400));
+
+    expect(client.batches.has(expired.id)).toBe(false);
+    expect(client.batches.has(retained.id)).toBe(false);
+    expect(client.batches.has(newest.id)).toBe(true);
+    expect(client.batches.has(replacement.id)).toBe(true);
+    expect([...client.batches.values()].filter(batch => batch.status === "previewed")).toHaveLength(2);
+    expect(client.transactionCount).toBe(4);
   });
 });

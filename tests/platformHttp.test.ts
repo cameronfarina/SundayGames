@@ -1449,6 +1449,46 @@ describe("platform HTTP contract", () => {
     });
   });
 
+  it("returns a clear document limit error without saving a historical preview", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const owner = await createLoggedInAccount(handle, "history-size-limit@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: owner.sessionToken,
+      body: {
+        season,
+        memberships: [{ userId: owner.account.id, leagueId: season.leagueId, role: "owner" }],
+      },
+    });
+    const rows = Array.from(
+      { length: 2_500 },
+      (_, index) => `Cam,Player ${index + 1},RB,1,2025`,
+    );
+
+    await expect(handle({
+      method: "POST",
+      path: `/seasons/${season.id}/historical-imports/preview`,
+      sessionToken: owner.sessionToken,
+      body: {
+        sourceText: ["owner,player,position,price,year", ...rows].join("\n"),
+        seasonYear: 2025,
+      },
+    })).resolves.toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: "historical_import_document_too_large",
+          message: "Historical draft files may contain at most 2500 rows.",
+        },
+      },
+    });
+    expect(store.historicalImports.batches()).toEqual([]);
+  });
+
   it("creates and replays a league-aware snake mock for the claimed team", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     let currentSnakeCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = snakePlayerCatalog;

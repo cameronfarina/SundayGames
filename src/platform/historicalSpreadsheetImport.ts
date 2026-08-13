@@ -1,6 +1,11 @@
 import { Buffer } from "node:buffer";
 import { Unzip } from "fflate";
 import { readSheet } from "read-excel-file/node";
+import {
+  assertHistoricalImportTableDimensions,
+  HistoricalImportDocumentLimitError,
+  type HistoricalImportDocumentLimits,
+} from "./historicalImportLimits.js";
 
 export interface HistoricalSpreadsheetUploadInput {
   fileName: string;
@@ -12,7 +17,7 @@ export type HistoricalWorkbookReader = (
   bytes: Uint8Array,
 ) => Promise<readonly (readonly unknown[])[]>;
 
-export interface HistoricalSpreadsheetUploadOptions {
+export interface HistoricalSpreadsheetUploadOptions extends HistoricalImportDocumentLimits {
   maxBytes?: number;
   maxUncompressedBytes?: number;
   maxArchiveEntries?: number;
@@ -126,9 +131,13 @@ export const historicalSpreadsheetUploadToSourceText = async (
     try {
       const rows = await (options.readWorkbook ?? defaultWorkbookReader)(bytes);
       if (rows.length === 0) throw new Error("empty workbook");
+      assertHistoricalImportTableDimensions(rows, options);
       return rowsToCsv(rows);
     } catch (error) {
-      if (error instanceof HistoricalSpreadsheetUploadError) throw error;
+      if (
+        error instanceof HistoricalSpreadsheetUploadError ||
+        error instanceof HistoricalImportDocumentLimitError
+      ) throw error;
       throw new HistoricalSpreadsheetUploadError("The XLSX workbook could not be read.");
     }
   }

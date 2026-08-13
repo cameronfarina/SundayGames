@@ -9,6 +9,7 @@ import {
   type NormalizedEmailRateLimiter,
 } from "./authRateLimit.js";
 import type { HistoricalImportRepository } from "./historicalImports.js";
+import { createHistoricalImportRequestAdmission } from "./historicalImportRequestAdmission.js";
 import type { LeagueSetupRepository } from "./leagueSetup.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import { applyPlatformPostgresMigrations } from "./platformMigrations.js";
@@ -152,6 +153,10 @@ export interface CreatePlatformServerOptions {
   authClientRateLimiter?: ClientAddressRateLimiter | undefined;
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
   screenshotImportIngressRateLimiter?: ClientAddressRateLimiter | undefined;
+  historicalImportAccountRateLimiter?: ClientAddressRateLimiter | undefined;
+  historicalImportClientRateLimiter?: ClientAddressRateLimiter | undefined;
+  historicalImportMaxConcurrentPerAccount?: number | undefined;
+  historicalImportMaxConcurrentPerClient?: number | undefined;
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRateLimiter?: ClientAddressRateLimiter | undefined;
   liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
@@ -829,6 +834,20 @@ export const createPlatformServer = async (
       windowMs: 60 * 60 * 1_000,
       maxTrackedEmails: 10_000,
     });
+  const historicalImportRequestAdmission = createHistoricalImportRequestAdmission({
+    accountRateLimiter: options.historicalImportAccountRateLimiter ?? createClientAddressRateLimiter({
+      maxAttempts: 30,
+      windowMs: 60 * 60 * 1_000,
+      maxTrackedEmails: 10_000,
+    }),
+    clientRateLimiter: options.historicalImportClientRateLimiter ?? createClientAddressRateLimiter({
+      maxAttempts: 60,
+      windowMs: 60 * 60 * 1_000,
+      maxTrackedEmails: 10_000,
+    }),
+    maxConcurrentPerAccount: options.historicalImportMaxConcurrentPerAccount ?? 2,
+    maxConcurrentPerClient: options.historicalImportMaxConcurrentPerClient ?? 4,
+  });
   const leagueImportRateLimiter = options.leagueImportRateLimiter ?? createClientAddressRateLimiter({
     maxAttempts: 10,
     windowMs: 15 * 60 * 1_000,
@@ -1444,6 +1463,79 @@ export const createPlatformServer = async (
       }
 
       return null;
+    },
+    historicalImportPreflight: async request => {
+      const segments = pathSegmentsFor(request);
+      const sessionToken = request.sessionToken;
+      const account = sessionToken === undefined
+        ? null
+        : await runtime.app.findAccountBySessionToken(sessionToken, options.now?.());
+      if (account === null) {
+        return {
+          status: 401,
+          body: {
+            error: {
+              code: "auth_required",
+              message: "Sign in before using this workspace.",
+            },
+          },
+        };
+      }
+
+      const seasonId = segments?.[1] ?? "";
+      const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
+      if (season === null) {
+        return {
+          status: 404,
+          body: {
+            error: {
+              code: "season_not_found",
+              message: "League season was not found.",
+            },
+          },
+        };
+      }
+
+      const membership = await runtime.leagueSetupRepository.findMembership(
+        account.id,
+        season.leagueId,
+      );
+      if (membership?.role !== "owner" && membership?.role !== "admin") {
+        return {
+          status: 403,
+          body: {
+            error: {
+              code: "shared_mutation_denied",
+              message: "Only league owners and admins can manage league setup.",
+            },
+          },
+        };
+      }
+
+      const decision = historicalImportRequestAdmission.acquire({
+        accountId: account.id,
+        clientAddress: request.clientAddress ?? "unknown",
+        now: options.now?.(),
+      });
+      if (!decision.allowed) {
+        const concurrencyLimited = decision.reason === "concurrency_limited";
+        return {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))),
+          },
+          body: {
+            error: {
+              code: concurrencyLimited ? "historical_import_busy" : "rate_limited",
+              message: concurrencyLimited
+                ? "Another historical draft import is already being processed. Try again in a moment."
+                : "Too many historical draft imports. Try again later.",
+            },
+          },
+        };
+      }
+
+      return decision.permit;
     },
     trustProxy: options.trustProxy,
   });
