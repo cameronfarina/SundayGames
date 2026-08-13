@@ -124,6 +124,10 @@ const defaultSecurityHeaders = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 } as const;
+const htmlAntiFramingHeaders = {
+  "Content-Security-Policy": "frame-ancestors 'none'",
+  "X-Frame-Options": "DENY",
+} as const;
 const requestIds = new WeakMap<IncomingMessage, string>();
 
 const ensurePlatformRequestId = (
@@ -381,6 +385,13 @@ const setDefaultSecurityHeaders = (response: ServerResponse): void => {
   }
 };
 
+const setHtmlSecurityHeaders = (response: ServerResponse): void => {
+  setDefaultSecurityHeaders(response);
+  for (const [name, value] of Object.entries(htmlAntiFramingHeaders)) {
+    if (!response.hasHeader(name)) response.setHeader(name, value);
+  }
+};
+
 const isDirectSecureRequest = (request: IncomingMessage): boolean =>
   "encrypted" in request.socket && request.socket.encrypted === true;
 
@@ -479,7 +490,7 @@ const writeHtmlResponse = (
 ): void => {
   response.statusCode = 200;
   response.setHeader("Content-Type", htmlContentType);
-  setDefaultSecurityHeaders(response);
+  setHtmlSecurityHeaders(response);
   response.setHeader("Content-Length", Buffer.byteLength(html));
   response.end(html);
 };

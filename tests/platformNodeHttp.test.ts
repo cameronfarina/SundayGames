@@ -465,7 +465,7 @@ describe("platform Node HTTP adapter", () => {
     expect(callCount).toBe(0);
   });
 
-  it("adds minimal security headers to JSON and HTML responses", async () => {
+  it("adds baseline security headers to JSON and strict anti-framing headers to HTML", async () => {
     const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }), {
       appHtml: "<!doctype html><title>Mockd app</title>",
     });
@@ -477,6 +477,11 @@ describe("platform Node HTTP adapter", () => {
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     }
+
+    expect(htmlResponse.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(htmlResponse.headers.get("x-frame-options")).toBe("DENY");
+    expect(jsonResponse.headers.get("content-security-policy")).toBeNull();
+    expect(jsonResponse.headers.get("x-frame-options")).toBeNull();
   });
 
   it("marks platform requests as secure for directly HTTPS traffic", async () => {
@@ -520,12 +525,16 @@ describe("platform Node HTTP adapter", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+      expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(await response.text()).toBe(authShellHtml);
     }
 
     const draftRoomResponse = await fetch(`${baseUrl}/draft-room`);
     expect(draftRoomResponse.status).toBe(200);
     expect(draftRoomResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(draftRoomResponse.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(draftRoomResponse.headers.get("x-frame-options")).toBe("DENY");
     expect(await draftRoomResponse.text()).toBe(draftRoomHtml);
 
     expect(callCount).toBe(0);
