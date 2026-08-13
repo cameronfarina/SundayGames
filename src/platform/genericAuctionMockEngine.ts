@@ -35,6 +35,9 @@ export interface GenericAuctionMockPlayer {
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
   week1Projection?: number | undefined;
+  weeks1To4Projection?: number | undefined;
+  seasonProjection?: number | undefined;
+  projectedStarter?: boolean | undefined;
 }
 
 export interface GenericAuctionMockKeeper {
@@ -378,6 +381,10 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
       || !isNonBlank(player.position)
       || !isNonNegativeFinite(player.expectedPrice)
       || (player.humanValue !== undefined && !isNonNegativeFinite(player.humanValue))
+      || (player.week1Projection !== undefined && !isNonNegativeFinite(player.week1Projection))
+      || (player.weeks1To4Projection !== undefined
+        && !isNonNegativeFinite(player.weeks1To4Projection))
+      || (player.seasonProjection !== undefined && !isNonNegativeFinite(player.seasonProjection))
     )
   ) {
     throw new GenericAuctionMockError(
@@ -603,6 +610,7 @@ const eligibleAiTeamsFor = (
 ): readonly GenericAuctionMockTeamReadModel[] => state.teams.filter(team =>
   !team.isHuman
   && canAcquire(state, team, player, state.configuration.minimumBidDollars)
+  && isAutomatedAuctionAcquisitionEligible(state, team, player)
 );
 
 const averageRosterNeedFor = (
@@ -638,6 +646,118 @@ const expectedSecondHighestNoiseFraction = (bidderCount: number): number =>
   bidderCount < 2 ? 0 : (bidderCount - 3) / (bidderCount + 1);
 
 const auctionClearingPriceCushionDollars = 2;
+
+const projectedWeeklyProductionFor = (player: GenericAuctionMockPlayer): number =>
+  player.week1Projection
+  ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection / 4)
+  ?? (player.seasonProjection === undefined ? 0 : player.seasonProjection / 17);
+
+const hasOpenDedicatedStarterSlotFor = (
+  team: GenericAuctionMockTeamReadModel,
+  position: string,
+): boolean => team.slots.some(slot =>
+  slot.playerId === undefined
+  && slot.eligiblePositions.length === 1
+  && slot.eligiblePositions[0] === position
+);
+
+const openDedicatedStarterDemandFor = (
+  state: GenericAuctionMockState,
+  position: string,
+): number => state.teams.reduce((total, team) => total + team.slots.filter(slot =>
+  slot.playerId === undefined
+  && slot.eligiblePositions.length === 1
+  && slot.eligiblePositions[0] === position
+).length, 0);
+
+const remainingProjectedStartersFor = (
+  state: GenericAuctionMockState,
+  position: string,
+): readonly GenericAuctionMockBoardPlayer[] => state.board.players.filter(player =>
+  player.position === position
+  && player.projectedStarter === true
+  && player.status !== "sold"
+);
+
+const benchOnlySpecialistPositions = new Set(["QB", "TE", "K", "DST"]);
+
+const hasProjectedRbOrWrAlternative = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+): boolean => state.board.players.some(candidate =>
+  candidate.status === "available"
+  && (candidate.position === "RB" || candidate.position === "WR")
+  && projectedWeeklyProductionFor(candidate) > 0
+  && canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
+);
+
+export const isAutomatedAuctionAcquisitionEligible = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+): boolean => {
+  const assignedSlot = assignableSlotFor(team, player);
+  if (assignedSlot === undefined) return false;
+  if (
+    benchOnlySpecialistPositions.has(player.position)
+    && !hasOpenDedicatedStarterSlotFor(team, player.position)
+    && hasProjectedRbOrWrAlternative(state, team)
+  ) return false;
+
+  const projectedStarters = remainingProjectedStartersFor(state, player.position);
+  if (projectedStarters.length === 0) return true;
+
+  if (hasOpenDedicatedStarterSlotFor(team, player.position)) {
+    return player.projectedStarter === true || !projectedStarters.some(candidate =>
+      canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
+    );
+  }
+  if (player.projectedStarter !== true) return true;
+
+  return projectedStarters.length > openDedicatedStarterDemandFor(state, player.position);
+};
+
+export const maximumAutomatedAuctionBidFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockPlayer,
+): number => {
+  const assignedSlot = assignableSlotFor(team, player);
+  if (assignedSlot === undefined) return 0;
+
+  const remainingSlots = team.slots.filter(slot =>
+    slot.playerId === undefined && slot.slot !== assignedSlot.slot
+  );
+  let reserve = remainingSlots.length * state.configuration.minimumBidDollars;
+  const positionsNeedingProjectedStarters = new Set(remainingSlots
+    .filter(slot => slot.eligiblePositions.length === 1)
+    .map(slot => slot.eligiblePositions[0])
+    .filter((position): position is string => position !== undefined));
+
+  for (const position of positionsNeedingProjectedStarters) {
+    const needed = remainingSlots.filter(slot =>
+      slot.eligiblePositions.length === 1 && slot.eligiblePositions[0] === position
+    ).length;
+    const affordableStarters = remainingProjectedStartersFor(state, position)
+      .filter(candidate => candidate.id !== player.id)
+      .sort((left, right) =>
+        left.expectedPrice - right.expectedPrice
+        || projectedWeeklyProductionFor(right) - projectedWeeklyProductionFor(left)
+        || left.id.localeCompare(right.id)
+      )
+      .slice(0, needed);
+    if (affordableStarters.length < needed) continue;
+
+    reserve += affordableStarters.reduce((total, starter) => total + Math.max(
+      0,
+      Math.round(starter.expectedPrice)
+        + auctionClearingPriceCushionDollars
+        - state.configuration.minimumBidDollars,
+    ), 0);
+  }
+
+  return Math.max(0, team.budgetRemaining - reserve);
+};
 
 const projectedRosterPricesAfterAcquiring = (
   state: GenericAuctionMockState,
@@ -727,6 +847,7 @@ const aiMaxBidFor = (
   ignoreSpendPacingExclusions = false,
 ): number => {
   if (!canAcquire(state, team, player, state.configuration.minimumBidDollars)) return 0;
+  if (!isAutomatedAuctionAcquisitionEligible(state, team, player)) return 0;
 
   const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
   const bidMultiplier = tendency?.bidMultiplier
@@ -757,7 +878,7 @@ const aiMaxBidFor = (
     - competitionNoiseBias,
   ));
 
-  return Math.min(team.maxBid, Math.max(
+  return Math.min(team.maxBid, maximumAutomatedAuctionBidFor(state, team, player), Math.max(
     willingness,
     aiSpendPacingBidFor(state, team, player, ignoreSpendPacingExclusions),
   ));
@@ -772,9 +893,14 @@ const nominationScoreFor = (
   const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
   const positionWeight = tendency?.nominationPositionWeights?.[player.position] ?? 1;
   const needWeight = state.configuration.ai?.rosterNeedDollars ?? 1;
+  const projectedStarterNeed = player.projectedStarter === true
+    && hasOpenDedicatedStarterSlotFor(team, player.position);
 
   return player.expectedPrice * positionWeight
+    + (projectedStarterNeed ? 1_000 : 0)
+    + (player.week1Projection === 0 ? -10_000 : 0)
     + rosterNeedFor(team, player.position) * needWeight
+    + projectedWeeklyProductionFor(player) * 0.01
     + deterministicFraction(
       `${state.session.seed}:nomination:${nominationNumber}:${team.id}:${player.id}`,
     ) * 0.001;
@@ -797,7 +923,8 @@ const availableNominationPlayersFor = (
   team: GenericAuctionMockTeamReadModel,
 ): readonly GenericAuctionMockBoardPlayer[] => state.board.players.filter(player =>
   player.status === "available"
-  && canAcquire(state, team, player, state.configuration.minimumBidDollars),
+  && canAcquire(state, team, player, state.configuration.minimumBidDollars)
+  && (team.isHuman || isAutomatedAuctionAcquisitionEligible(state, team, player)),
 );
 
 const selectAiNomination = (

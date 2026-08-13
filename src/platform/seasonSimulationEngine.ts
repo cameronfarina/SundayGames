@@ -2,6 +2,8 @@ import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import {
   applyGenericAuctionMockCommand,
   GenericAuctionMockError,
+  isAutomatedAuctionAcquisitionEligible,
+  maximumAutomatedAuctionBidFor,
   type GenericAuctionMockBoardPlayer,
   type GenericAuctionMockState,
   type GenericAuctionMockTeamReadModel,
@@ -434,6 +436,21 @@ const auctionRosterNeedFor = (
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
 
+const auctionProjectedWeeklyProductionFor = (
+  player: GenericAuctionMockBoardPlayer,
+): number => player.week1Projection
+  ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection / 4)
+  ?? (player.seasonProjection === undefined ? 0 : player.seasonProjection / 17);
+
+const needsDedicatedStarterFor = (
+  team: GenericAuctionMockTeamReadModel,
+  position: string,
+): boolean => team.slots.some(slot =>
+  slot.playerId === undefined
+  && slot.eligiblePositions.length === 1
+  && slot.eligiblePositions[0] === position
+);
+
 const targetsFor = (
   strategy: ParsedSeasonSimulationStrategy,
 ): readonly SeasonSimulationTargetConstraint[] => strategy.targets
@@ -550,7 +567,10 @@ const selectAuctionNomination = (
     return index < 0 ? 0 : targetPriorityBase + (targetIds.length - index) * targetOrderStep;
   };
   const selected = state.board.players
-    .filter(player => canAuctionTeamAcquire(state, humanTeam, player))
+    .filter(player =>
+      canAuctionTeamAcquire(state, humanTeam, player)
+      && isAutomatedAuctionAcquisitionEligible(state, humanTeam, player)
+    )
     .map(player => ({
       player,
       score: targetPriorityFor(player.id)
@@ -561,8 +581,12 @@ const selectAuctionNomination = (
           player,
           pairPlayerId,
         ) ? 10_000 : 0)
+        + (player.projectedStarter === true
+          && needsDedicatedStarterFor(humanTeam, player.position) ? 1_000 : 0)
+        + (player.week1Projection === 0 ? -10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
         + (player.humanValue ?? player.expectedPrice)
+        + auctionProjectedWeeklyProductionFor(player) * 0.01
         + deterministicFraction(`${seed}:nominate:${state.session.revision}:${player.id}`) * 0.001,
     }))
     .sort((left, right) =>
@@ -587,6 +611,8 @@ const auctionWillingnessFor = (
   strategy: ParsedSeasonSimulationStrategy,
   preferences: readonly ResolvedSeasonSimulationPreference[],
 ): number => {
+  if (!isAutomatedAuctionAcquisitionEligible(state, team, player)) return 0;
+
   const target = targetsByPlayerId.get(player.id);
   const isTarget = target !== undefined;
   const isPair = player.id === pairPlayerId;
@@ -631,6 +657,7 @@ const auctionWillingnessFor = (
   );
   const strategyLimit = Math.min(
     team.maxBid,
+    maximumAutomatedAuctionBidFor(state, team, player),
     Math.max(0, team.maxBid - reservedTargetBudget),
     preservesTargetSlots ? team.maxBid : 0,
     target?.maxAuctionPrice ?? team.maxBid,

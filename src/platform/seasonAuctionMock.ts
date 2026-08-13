@@ -37,6 +37,47 @@ export interface BuildSeasonAuctionMockConfigInput {
 }
 
 const allPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
+const protectedStarterPositions = new Set(["QB", "TE", "K", "DST"]);
+
+const projectedProductionFor = (
+  player: LiveDraftRoomSetup["playerCatalog"][number],
+): number => player.seasonProjection
+  ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection * 4.25)
+  ?? (player.week1Projection === undefined ? 0 : player.week1Projection * 17);
+
+const hasProjectedWeekOneRole = (
+  player: LiveDraftRoomSetup["playerCatalog"][number],
+): boolean => player.week1Projection === undefined
+  ? projectedProductionFor(player) > 0
+  : player.week1Projection > 0;
+
+const projectedStarterPlayerIdsFor = (
+  setup: LiveDraftRoomSetup,
+  teamCount: number,
+  rosterSlots: readonly GenericAuctionMockRosterSlotConfig[],
+): ReadonlySet<string> => {
+  const ids = new Set<string>();
+  for (const position of protectedStarterPositions) {
+    const required = rosterSlots
+      .filter(slot => slot.eligiblePositions.length === 1 && slot.eligiblePositions[0] === position)
+      .reduce((total, slot) => total + slot.count, 0) * teamCount;
+    if (required === 0) continue;
+
+    const projected = setup.playerCatalog
+      .filter(player => player.position === position && hasProjectedWeekOneRole(player))
+      .sort((left, right) =>
+        projectedProductionFor(right) - projectedProductionFor(left)
+        || right.expectedPrice - left.expectedPrice
+        || left.name.localeCompare(right.name)
+      );
+    if (projected.length < required) continue;
+    for (const player of projected.slice(0, required)) {
+      ids.add(canonicalPlayerIdentityKey(player.name));
+    }
+  }
+
+  return ids;
+};
 
 const rosterSlotsFor = (season: LeagueSeason): readonly GenericAuctionMockRosterSlotConfig[] => {
   const analysis = analyzeRosterSlots(season.settings.roster.lineup);
@@ -128,6 +169,13 @@ export const buildSeasonAuctionMockConfig = ({
     throw new SeasonAuctionMockError("human_team_missing", "Claim a team before starting an auction mock draft.");
   }
 
+  const rosterSlots = rosterSlotsFor(season);
+  const projectedStarterPlayerIds = projectedStarterPlayerIdsFor(
+    setup,
+    season.teams.length,
+    rosterSlots,
+  );
+
   return {
     sessionId,
     seed,
@@ -135,7 +183,7 @@ export const buildSeasonAuctionMockConfig = ({
     budgetDollars: season.settings.auction.budgetDollars,
     minimumBidDollars: season.settings.auction.minimumBidDollars,
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),
-    rosterSlots: rosterSlotsFor(season),
+    rosterSlots,
     positionMaximums: positionMaximumsFor(season, setup),
     ai: { targetEndingBudgetDollars: 0 },
     players: setup.playerCatalog.map(player => {
@@ -153,6 +201,13 @@ export const buildSeasonAuctionMockConfig = ({
         ...(player.week1Projection === undefined
           ? {}
           : { week1Projection: player.week1Projection }),
+        ...(player.weeks1To4Projection === undefined
+          ? {}
+          : { weeks1To4Projection: player.weeks1To4Projection }),
+        ...(player.seasonProjection === undefined
+          ? {}
+          : { seasonProjection: player.seasonProjection }),
+        ...(projectedStarterPlayerIds.has(id) ? { projectedStarter: true } : {}),
       };
     }),
     keepers: setup.initialRosters

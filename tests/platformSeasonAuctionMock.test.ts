@@ -128,6 +128,63 @@ describe("season auction mock adapter", () => {
     expect(config.positionMaximums).toEqual({ QB: 3, RB: 4, WR: 5, TE: 4, K: 1, DST: 1 });
   });
 
+  it("marks only enough projected specialists to fill every starting lineup", () => {
+    const specialistPositions = ["QB", "TE", "K", "DST"] as const;
+    const specialistSeason: LeagueSeason = {
+      ...season,
+      settings: {
+        ...season.settings,
+        roster: {
+          rosterSize: 4,
+          lineup: { QB: 1, TE: 1, K: 1, DST: 1 },
+          lineupSlotCount: 4,
+          rosterMaximums: { QB: 1, RB: 0, WR: 0, TE: 1, K: 1, DST: 1 },
+        },
+      },
+    };
+    const specialistSetup: LiveDraftRoomSetup = {
+      ...setup,
+      initialRosters: [],
+      playerCatalog: specialistPositions.flatMap(position =>
+        Array.from({ length: 6 }, (_, index) => ({
+          name: `${position} Option ${index + 1}`,
+          position,
+          expectedPrice: Math.max(1, 5 - index),
+          week1Projection: index === 5 ? 0 : 20 - index,
+          weeks1To4Projection: index === 5 ? 100 : 80 - index,
+          seasonProjection: index === 5 ? 400 : 300 - index,
+        }))
+      ),
+    };
+
+    const config = buildSeasonAuctionMockConfig({
+      season: specialistSeason,
+      setup: specialistSetup,
+      humanTeamId: "team-1",
+      sessionId: "specialist-mock",
+      seed: "specialist-seed",
+    });
+
+    for (const position of specialistPositions) {
+      const players = config.players.filter(player => player.position === position);
+      expect(players.filter(player => player.projectedStarter).map(player => player.name))
+        .toEqual(Array.from({ length: 4 }, (_, index) => `${position} Option ${index + 1}`));
+      expect(players[4]).toMatchObject({
+        name: `${position} Option 5`,
+        week1Projection: 16,
+        weeks1To4Projection: 76,
+        seasonProjection: 296,
+      });
+      expect(players[4]?.projectedStarter).toBeUndefined();
+      expect(players[5]).toMatchObject({
+        name: `${position} Option 6`,
+        week1Projection: 0,
+        seasonProjection: 400,
+      });
+      expect(players[5]?.projectedStarter).toBeUndefined();
+    }
+  });
+
   it("rejects unknown legacy roster slots", () => {
     const unsupportedSeason: LeagueSeason = {
       ...season,
