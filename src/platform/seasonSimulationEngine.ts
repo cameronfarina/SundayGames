@@ -457,18 +457,23 @@ const targetsFor = (
 ): readonly SeasonSimulationTargetConstraint[] => strategy.targets
   ?? (strategy.target === undefined ? [] : [strategy.target]);
 
-const canAuctionTeamAcquire = (
+const canAuctionTeamRoster = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockBoardPlayer,
-): boolean => player.available
-  && team.rosterSlotsRemaining > 0
+): boolean => team.rosterSlotsRemaining > 0
   && team.maxBid >= state.configuration.minimumBidDollars
   && (team.positionCounts[player.position] ?? 0)
     < (state.configuration.positionMaximums[player.position] ?? 0)
   && team.slots.some(slot =>
     slot.playerId === undefined && slot.eligiblePositions.includes(player.position)
   );
+
+const canAuctionTeamAcquire = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockBoardPlayer,
+): boolean => player.available && canAuctionTeamRoster(state, team, player);
 
 const availableTargetPlayersFor = (
   state: GenericAuctionMockState,
@@ -619,7 +624,7 @@ const auctionWillingnessFor = (
   const isUncappedTarget = isTarget && target.maxAuctionPrice === undefined;
   if (
     isUncappedTarget
-      ? !canAuctionTeamAcquire(state, team, player)
+      ? !canAuctionTeamRoster(state, team, player)
       : !isAutomatedAuctionAcquisitionEligible(state, team, player)
   ) return 0;
 
@@ -658,10 +663,8 @@ const auctionWillingnessFor = (
   ) return 0;
   const reservedTargetBudget = availableTargetPlayers.reduce((total, targetPlayer) => {
     const targetConstraint = targetsByPlayerId.get(targetPlayer.id);
-    const targetBudget = targetConstraint?.maxAuctionPrice ?? Math.round(Math.max(
-      targetPlayer.expectedPrice,
-      targetPlayer.humanValue ?? 0,
-    )) + humanClearingPriceCushionDollars;
+    const targetBudget = targetConstraint?.maxAuctionPrice
+      ?? Math.round(targetPlayer.expectedPrice) + humanClearingPriceCushionDollars;
     return total + Math.max(0, targetBudget - state.configuration.minimumBidDollars);
   }, 0);
   const preservesTargetSlots = preservesSlotsForTargets(
@@ -672,7 +675,7 @@ const auctionWillingnessFor = (
   );
   const strategyLimit = Math.min(
     team.maxBid,
-    maximumAutomatedAuctionBidFor(state, team, player),
+    isUncappedTarget ? team.maxBid : maximumAutomatedAuctionBidFor(state, team, player),
     Math.max(0, team.maxBid - reservedTargetBudget),
     preservesTargetSlots ? team.maxBid : 0,
     target?.maxAuctionPrice ?? team.maxBid,
@@ -681,7 +684,6 @@ const auctionWillingnessFor = (
       : positionCap.maxAuctionPrice,
     isTarget ? team.maxBid : positionPreference?.preference.maxAuctionPrice ?? team.maxBid,
   );
-
   const minimumBid = state.configuration.minimumBidDollars;
   const discretionaryBudget = Math.max(
     0,
