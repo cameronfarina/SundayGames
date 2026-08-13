@@ -379,7 +379,7 @@ describe("post-draft My Team analysis", () => {
     ));
   });
 
-  it("reports a risk when the owned roster cannot fill every starter slot", () => {
+  it("does not rank or claim strengths for a roster that cannot fill every starter slot", () => {
     const analysis = analyzePostDraftTeam({
       ...baseInput,
       completedDraftRoster: {
@@ -390,19 +390,41 @@ describe("post-draft My Team analysis", () => {
       },
     });
 
-    expect(analysis.ranking).toMatchObject({
-      status: "available",
-      components: {
-        starterProjection: {
-          filledSlots: 3,
-          requiredSlots: 4,
-        },
+    expect(analysis.ranking).toEqual({
+      status: "unavailable",
+      teamCount: 3,
+      reasons: [{
+        code: "roster_materially_incomplete",
+        message: "The roster fills 3 of 4 required starter slots, so draft rank and strengths are unavailable.",
+        projectionSnapshotId: "projections-1",
+      }],
+    });
+    expect(analysis.strengths).toEqual([]);
+    expect(analysis.risks).toEqual([]);
+  });
+
+  it("does not rank or claim strengths for an empty roster", () => {
+    const analysis = analyzePostDraftTeam({
+      ...baseInput,
+      completedDraftRoster: {
+        ...baseInput.completedDraftRoster,
+        teams: baseInput.completedDraftRoster.teams.map(team => team.teamId === "team_cam"
+          ? { ...team, players: [] }
+          : team),
       },
     });
-    expect(analysis.risks).toContainEqual(expect.objectContaining({
-      code: "starter_slots_unfilled",
-      component: "starterProjection",
-    }));
+
+    expect(analysis.ranking).toEqual({
+      status: "unavailable",
+      teamCount: 3,
+      reasons: [{
+        code: "roster_materially_incomplete",
+        message: "The roster is empty, so draft rank and strengths are unavailable.",
+        projectionSnapshotId: "projections-1",
+      }],
+    });
+    expect(analysis.strengths).toEqual([]);
+    expect(analysis.risks).toEqual([]);
   });
 
   it("readies pickup/drop only when weekly, roster, and free-agent snapshots are fresh", () => {

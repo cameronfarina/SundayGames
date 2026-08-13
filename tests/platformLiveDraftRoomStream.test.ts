@@ -157,9 +157,11 @@ describe("live draft room stream contract", () => {
         }),
       ],
       exportReadiness: {
-        status: "ready",
-        completedRevision: 4,
-        blockers: [],
+        status: "blocked",
+        blockers: expect.arrayContaining([
+          "Beaton has 16 open roster slots.",
+          "Cam has 14 open roster slots.",
+        ]),
       },
     });
     expect(memberModel.teamSummaries.find(team => team.ownerDisplayName === "Cam")).toMatchObject({

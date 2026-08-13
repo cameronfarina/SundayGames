@@ -705,6 +705,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
           <div class="complete-buttons">
             <a class="header-link primary-link" id="draft-view-my-team" href="/my-team">View My Team</a>
             <button id="draft-export" type="button" disabled hidden>Export results CSV</button>
+            <button id="draft-reopen" type="button" hidden>Reopen draft</button>
           </div>
         </div>
         <p class="member-command-note" id="draft-member-note">League members can follow the live board, sales, budgets, and rosters here.</p>
@@ -887,6 +888,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const undoButton = byId("draft-undo");
     const endButton = byId("draft-end");
     const exportButton = byId("draft-export");
+    const reopenButton = byId("draft-reopen");
     const exportDownload = byId("draft-export-download");
     const salesList = byId("draft-sales");
     const salesCount = byId("draft-sales-count");
@@ -996,12 +998,14 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       const isLive = model.status === "live";
       const isPaused = model.status === "paused";
       const isComplete = model.status === "ended" || model.status === "complete";
+      const endedIncomplete = isComplete && model.teamSummaries.some(team => team.rosterSlotsRemaining > 0);
       const hasSales = model.salesLog.length > 0;
       commissionerControls.hidden = !canManage || isComplete;
       completeActions.hidden = !isComplete;
       memberNote.hidden = canManage || isComplete;
       viewMyTeamLink.hidden = model.role === "observer";
       exportButton.hidden = !canManage || !isComplete;
+      reopenButton.hidden = !canManage || !endedIncomplete;
       if (canManage) accessLabel.textContent = "Commissioner";
       else if (model.role === "observer") accessLabel.textContent = "Observer";
       else accessLabel.textContent = "League member";
@@ -1013,6 +1017,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       undoButton.disabled = !canManage || !isLive || !hasSales || state.mutationPending;
       endButton.disabled = !canManage || (!isLive && !isPaused) || state.mutationPending;
       exportButton.disabled = !canManage || !isComplete || model.exportReadiness?.status !== "ready" || state.mutationPending;
+      reopenButton.disabled = !canManage || !endedIncomplete || state.mutationPending;
     };
 
     const renderStatus = model => {
@@ -1576,9 +1581,30 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       mutateRoom("undo", {}, "Undoing latest sale...").catch(error => setFeedback(error.message, "error"));
     });
 
-    endButton.addEventListener("click", () => {
-      if (!window.confirm("End and lock the draft now? Any open roster slots will remain empty.")) return;
-      mutateRoom("end", { allowIncomplete: true }, "Ending draft...")
+    endButton.addEventListener("click", async () => {
+      if (!window.confirm("End and lock the completed draft now?")) return;
+      try {
+        await mutateRoom("end", {}, "Checking draft rosters...");
+      } catch (error) {
+        if (error?.code !== "draft_incomplete") {
+          setFeedback(error.message, "error");
+          return;
+        }
+        const confirmed = window.confirm(
+          error.message + "\n\nEnd this incomplete draft anyway? You can reopen the room to finish it later.",
+        );
+        if (!confirmed) {
+          setFeedback("Draft remains open.", "neutral");
+          return;
+        }
+        mutateRoom("end", { allowIncomplete: true }, "Ending incomplete draft...")
+          .catch(emergencyError => setFeedback(emergencyError.message, "error"));
+      }
+    });
+
+    reopenButton.addEventListener("click", () => {
+      if (!window.confirm("Reopen this draft in a paused state so the remaining roster spots can be filled?")) return;
+      mutateRoom("reopen", {}, "Reopening draft...")
         .catch(error => setFeedback(error.message, "error"));
     });
 

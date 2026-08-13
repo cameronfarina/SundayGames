@@ -4165,7 +4165,12 @@ describe("platform HTTP contract", () => {
         },
         analysis: {
           ownership: { userId: cam.account.id, teamId: camTeam.id },
-          ranking: expect.objectContaining({ teamCount: season.teams.length }),
+          ranking: {
+            status: "unavailable",
+            teamCount: season.teams.length,
+            reasons: [expect.objectContaining({ code: "roster_materially_incomplete" })],
+          },
+          strengths: [],
         },
       },
     });
@@ -4191,22 +4196,30 @@ describe("platform HTTP contract", () => {
         exportedAt: "2026-08-09T12:00:10.000Z",
       },
     });
-    const retriedExportArtifact = await handle({
-      method: "POST",
-      path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: cam.sessionToken,
+    expect(exportArtifact).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "draft_room_not_final",
+          message: "Final export requires every team to fill every roster slot.",
+        },
+      },
     });
 
-    expect(exportArtifact.status).toBe(201);
-    expect(exportArtifact.body).toMatchObject({
-      artifact: expect.objectContaining({
-        roomId: "room_214674_2026",
-        format: "csv",
-        sourceRevision: 10,
-      }),
-      content: expect.stringContaining("Puka Nacua,62"),
+    const reopenedRoom = await handle({
+      method: "POST",
+      path: "/live-rooms/room_214674_2026/reopen",
+      sessionToken: cam.sessionToken,
+      body: {
+        expectedRevision: 10,
+        idempotencyKey: "reopen-room",
+        now: new Date(now.getTime() + 11_000),
+      },
     });
-    expect(retriedExportArtifact).toEqual(exportArtifact);
+    expect(reopenedRoom.body).toMatchObject({
+      room: expect.objectContaining({ status: "paused", revision: 11 }),
+    });
+    expectPublicBrowserPayload(reopenedRoom.body);
   });
 
   it("maps known domain errors and unexpected failures without leaking stack traces", async () => {

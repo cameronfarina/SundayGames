@@ -678,6 +678,7 @@ const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): number => {
     case "room_not_live":
     case "room_not_cancellable":
     case "room_not_paused":
+    case "room_not_reopenable":
     case "room_paused":
     case "roster_full":
     case "sale_not_active":
@@ -2874,6 +2875,18 @@ const routeLiveRooms = async (
 
   if (action === "resume") {
     await app.resumeLiveDraftRoom({
+      actorSessionToken: request.sessionToken,
+      roomId: roomId ?? "",
+      expectedRevision: optionalNumber(request.body.expectedRevision),
+      idempotencyKey: optionalString(request.body.idempotencyKey),
+      now: request.now,
+    });
+
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
+  }
+
+  if (action === "reopen") {
+    await app.reopenLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),

@@ -91,8 +91,13 @@ const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown>
     case "room_started":
     case "room_paused":
     case "room_resumed":
-    case "room_ended":
+    case "room_reopened":
       return {};
+    case "room_ended":
+      return {
+        incomplete: event.incomplete,
+        incompleteTeams: event.incompleteTeams,
+      };
   }
 };
 
@@ -544,6 +549,10 @@ SELECT EXISTS (
 
   async resumeRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
     return await this.mutateRoom(input, repository => repository.resumeRoom(input));
+  }
+
+  async reopenRoom(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+    return await this.mutateRoom(input, repository => repository.reopenRoom(input));
   }
 
   async logSaleCommand(input: LogLiveDraftRoomSaleInput): Promise<LiveDraftRoom> {

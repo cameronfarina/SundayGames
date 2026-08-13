@@ -3,8 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
-import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
+import type {
+  LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPlayerCatalogEntry,
+} from "../src/platform/liveDraftRooms.js";
 import { FilePlatformStore } from "../src/platform/filePlatformStore.js";
 import { createPlatformApp } from "../src/platform/platformApp.js";
 import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
@@ -16,6 +19,24 @@ const playerCatalog = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
 ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+
+const completeInitialRostersFor = (
+  season: LeagueSeason,
+): LiveDraftRoomInitialRosterPlayer[] => {
+  const positions = [
+    "QB", "QB", "QB", "RB", "RB", "RB", "RB", "WR",
+    "WR", "WR", "WR", "WR", "TE", "TE", "K", "DST",
+  ] as const;
+
+  return season.teams.flatMap(team => positions.map((position, index) => ({
+    teamId: team.id,
+    playerName: `${team.id} ${position} ${index + 1}`,
+    position,
+    price: 1,
+    expectedPrice: 1,
+    source: "imported" as const,
+  })));
+};
 
 const baselinePrices = [
   { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
@@ -360,6 +381,7 @@ describe("file-backed platform store", () => {
       roomId: "room_export_artifact",
       viewerPasswordHashRef: "viewer-password-hash",
       playerCatalog,
+      initialRosters: completeInitialRostersFor(season),
       now,
     });
     await app.startLiveDraftRoom({
@@ -369,20 +391,11 @@ describe("file-backed platform store", () => {
       idempotencyKey: "start:room_export_artifact",
       now: new Date(now.getTime() + 3_500),
     });
-    const sold = await app.logLiveDraftSale({
-      actorSessionToken: cam.sessionToken,
-      roomId: room.roomId,
-      expectedRevision: 2,
-      idempotencyKey: "sale:puka:70",
-      sale: "cam puka 70",
-      now: new Date(now.getTime() + 3_750),
-    });
     await app.endLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
-      expectedRevision: sold.revision,
+      expectedRevision: 2,
       idempotencyKey: "end:room_export_artifact",
-      allowIncomplete: true,
       now: new Date(now.getTime() + 3_900),
     });
     const exportArtifact = await app.createLiveDraftRoomExportArtifact({

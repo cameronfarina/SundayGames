@@ -117,6 +117,7 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('mutateRoom("corrections"');
     expect(hostedDraftRoomHtml).toContain("{ saleEventId, replacementSale: command }");
     expect(hostedDraftRoomHtml).toContain('mutateRoom("end"');
+    expect(hostedDraftRoomHtml).toContain('mutateRoom("reopen"');
     expect(hostedDraftRoomHtml).toContain("fetch(roomEndpoint(action)");
     expect(hostedDraftRoomHtml).toContain("expectedRevision: currentRevision()");
     expect(hostedDraftRoomHtml).toContain("idempotencyKey:");
@@ -135,13 +136,22 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain('id="draft-complete-actions" hidden');
     expect(hostedDraftRoomHtml).toContain('id="draft-view-my-team" href="/my-team"');
     expect(hostedDraftRoomHtml).toContain('id="draft-export" type="button" disabled hidden>Export results CSV</button>');
+    expect(hostedDraftRoomHtml).toContain('id="draft-reopen" type="button" hidden>Reopen draft</button>');
     expect(hostedDraftRoomHtml).toContain('"/my-team?seasonId=" + encodeURIComponent(seasonId)');
     expect(hostedDraftRoomHtml).toContain("commissionerControls.hidden = !canManage || isComplete;");
     expect(hostedDraftRoomHtml).toContain("completeActions.hidden = !isComplete;");
     expect(hostedDraftRoomHtml).toContain('viewMyTeamLink.hidden = model.role === "observer";');
     expect(hostedDraftRoomHtml).toContain("exportButton.hidden = !canManage || !isComplete;");
+    expect(hostedDraftRoomHtml).toContain("reopenButton.hidden = !canManage || !endedIncomplete;");
     expect(hostedDraftRoomHtml).toContain("Open My Team to see your final roster and which analysis is available.");
     expect(hostedDraftRoomHtml).not.toContain("draft rank, and coach review are ready");
+  });
+
+  it("tries a normal end before offering an explicitly recoverable emergency end", () => {
+    expect(hostedDraftRoomHtml).toContain('mutateRoom("end", {}, "Checking draft rosters...")');
+    expect(hostedDraftRoomHtml).toContain('error?.code !== "draft_incomplete"');
+    expect(hostedDraftRoomHtml).toContain("You can reopen the room to finish it later.");
+    expect(hostedDraftRoomHtml).toContain('mutateRoom("end", { allowIncomplete: true }, "Ending incomplete draft...")');
   });
 
   it("does not render board sale actions for members or observers", () => {

@@ -185,6 +185,10 @@ class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.resumeRoom(input);
   }
 
+  async reopenRoom(input: MutateLiveDraftRoomInput) {
+    return this.inner.reopenRoom(input);
+  }
+
   async logSaleCommand(input: LogLiveDraftRoomSaleInput) {
     return this.inner.logSaleCommand(input);
   }
@@ -1469,15 +1473,20 @@ describe("platform app service", () => {
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
     ));
-    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+    await expect(app.createLiveDraftRoomExportArtifact({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 13_000),
-    });
-    const replayedArtifactResult = await app.createLiveDraftRoomExportArtifact({
+    })).rejects.toThrow(new PlatformAppError(
+      "draft_room_not_final",
+      "Final export requires every team to fill every roster slot.",
+    ));
+    const reopened = await app.reopenLiveDraftRoom({
       actorSessionToken: cam.sessionToken,
       roomId: room.roomId,
-      exportedAt: new Date(now.getTime() + 14_000),
+      expectedRevision: ended.revision,
+      idempotencyKey: "reopen-room-after-emergency-end",
+      now: new Date(now.getTime() + 14_000),
     });
 
     expect(exportResult.sheetName).toBe("Draft Results");
@@ -1493,16 +1502,8 @@ describe("platform app service", () => {
     expect(rb1Row?.slice(camColumn, camColumn + 3)).toEqual(["RB1", "De'Von Achane", 50]);
     expect(wr1Row?.slice(camColumn, camColumn + 3)).toEqual(["WR1", "Puka Nacua", 62]);
     expect(exportResult.csv).toContain("Puka Nacua,62");
-    expect(artifactResult.artifact).toMatchObject({
-      leagueId: season.leagueId,
-      seasonId: season.id,
-      roomId: room.roomId,
-      sourceRevision: ended.revision,
-      format: "csv",
-      contentType: "text/csv; charset=utf-8",
-    });
-    expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
-    expect(replayedArtifactResult).toEqual(artifactResult);
+    expect(reopened).toMatchObject({ status: "paused", revision: ended.revision + 1 });
+    expect(reopened.endedAt).toBeUndefined();
   });
 
   it("rejects snake hosted rooms before delegating creation to the repository", async () => {
@@ -1657,16 +1658,18 @@ describe("platform app service", () => {
       allowIncomplete: true,
       now: new Date(now.getTime() + 3_000),
     });
-    const artifactResult = await app.createLiveDraftRoomExportArtifact({
+    await expect(app.createLiveDraftRoomExportArtifact({
       actorSessionToken: cam.sessionToken,
       roomId: created.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
-    });
+    })).rejects.toThrow(new PlatformAppError(
+      "draft_room_not_final",
+      "Final export requires every team to fill every roster slot.",
+    ));
 
     expect(ended.revision).toBe(4);
-    expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
-    expect(exportArtifactRepository.savedByUserIds).toEqual([cam.account.id]);
-    expect(exportArtifactRepository.savedResults[0]?.artifact.sourceRevision).toBe(ended.revision);
+    expect(exportArtifactRepository.savedByUserIds).toEqual([]);
+    expect(exportArtifactRepository.savedResults).toEqual([]);
     expect(app.store.liveDraftRooms.rooms()).toEqual([]);
     expect(app.store.exportArtifacts.artifacts()).toEqual([]);
   });

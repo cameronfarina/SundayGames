@@ -253,11 +253,12 @@ const viewedTeamIdFor = (
 ): string | undefined => input.viewedTeamId ?? selectedTeam?.teamId;
 
 const exportBlockersFor = (teams: readonly LiveDraftRoomTeamSummary[]): readonly string[] =>
-  teams.flatMap(team =>
-    team.budgetRemaining < 0
-      ? [`${team.ownerDisplayName} has a negative budget.`]
-      : []
-  );
+  teams.flatMap(team => [
+    ...(team.budgetRemaining < 0 ? [`${team.ownerDisplayName} has a negative budget.`] : []),
+    ...(team.rosterSlotsRemaining > 0
+      ? [`${team.ownerDisplayName} has ${team.rosterSlotsRemaining} open roster slots.`]
+      : []),
+  ]);
 
 const exportReadinessFor = (
   room: LiveDraftRoom,
@@ -281,6 +282,7 @@ const eventNameFor = (event: LiveDraftRoomEvent): LiveDraftRoomSseEventName => {
   switch (event.type) {
     case "room_created":
     case "initial_rosters_synchronized":
+    case "room_reopened":
     case "sale_corrected":
     case "sale_undone":
       return "room.snapshot";

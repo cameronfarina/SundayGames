@@ -33,6 +33,7 @@ export type LiveDraftRoomErrorCode =
   | "room_not_cancellable"
   | "room_not_live"
   | "room_not_paused"
+  | "room_not_reopenable"
   | "room_paused"
   | "room_already_exists"
   | "room_already_ended"
@@ -90,6 +91,7 @@ export type LiveDraftRoomMutationAction =
   | "start"
   | "pause"
   | "resume"
+  | "reopen"
   | "log_sale"
   | "correct_sale"
   | "undo_sale"
@@ -116,6 +118,7 @@ export interface LiveDraftRoomRepository {
   startRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   pauseRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   resumeRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  reopenRoom(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   logSaleCommand(input: LogLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   correctSale(input: CorrectLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
@@ -202,6 +205,13 @@ export interface LiveDraftRoomProjection {
   teams: readonly LiveDraftRoomTeamState[];
   board: readonly LiveDraftRoomBoardPlayer[];
   sales: readonly LiveDraftRoomSale[];
+}
+
+export interface LiveDraftRoomIncompleteTeam {
+  teamId: string;
+  ownerDisplayName: string;
+  teamDisplayName: string;
+  openRosterSlots: number;
 }
 
 export type LiveDraftRoomEvent =
@@ -316,6 +326,20 @@ export type LiveDraftRoomEvent =
     seasonId: string;
     revision: number;
     type: "room_ended";
+    actorUserId: string;
+    occurredAt: Date;
+    idempotencyKey?: string | undefined;
+    mutationHash?: string | undefined;
+    incomplete: boolean;
+    incompleteTeams: readonly LiveDraftRoomIncompleteTeam[];
+  }
+  | {
+    id: string;
+    roomId: string;
+    leagueId: string;
+    seasonId: string;
+    revision: number;
+    type: "room_reopened";
     actorUserId: string;
     occurredAt: Date;
     idempotencyKey?: string | undefined;
@@ -855,6 +879,8 @@ const actionForEventType = (
       return "pause";
     case "room_resumed":
       return "resume";
+    case "room_reopened":
+      return "reopen";
     case "sale_logged":
       return "log_sale";
     case "sale_corrected":
@@ -1704,11 +1730,20 @@ export class InMemoryLiveDraftRoomRepository {
     if (replayedRoom !== undefined) return replayedRoom;
     assertExpectedRevision(room, input.expectedRevision);
     assertRoomNotEnded(room);
-    const incompleteTeams = room.projection.teams.filter(team => team.rosterSlotsRemaining > 0);
+    const incompleteTeams = room.projection.teams
+      .filter(team => team.rosterSlotsRemaining > 0)
+      .map(team => ({
+        teamId: team.teamId,
+        ownerDisplayName: team.ownerDisplayName,
+        teamDisplayName: team.teamDisplayName,
+        openRosterSlots: team.rosterSlotsRemaining,
+      }));
     if (incompleteTeams.length > 0 && input.allowIncomplete !== true) {
       throw new LiveDraftRoomError(
         "draft_incomplete",
-        `Draft is incomplete: ${incompleteTeams.length} teams still have open roster slots.`,
+        `Draft is incomplete: ${incompleteTeams.length} teams have open roster slots: ${incompleteTeams
+          .map(team => `${team.ownerDisplayName} (${team.openRosterSlots})`)
+          .join(", ")}.`,
       );
     }
 
@@ -1724,8 +1759,60 @@ export class InMemoryLiveDraftRoomRepository {
       actorUserId: input.actor.userId,
       occurredAt: now,
       ...mutationMetadataFor(input, mutationHash),
+      incomplete: incompleteTeams.length > 0,
+      incompleteTeams,
     };
     const updatedRoom = appendEvent(room, event, "ended", now, now);
+
+    this.#roomsById.set(updatedRoom.roomId, updatedRoom);
+
+    return updatedRoom;
+  }
+
+  reopenRoom(input: MutateLiveDraftRoomInput): LiveDraftRoom {
+    const room = this.getRoom(input.roomId);
+    const mutationHash = mutationHashFor("reopen", {});
+    assertWriter(room, input.actor, "reopen", this.authorizer);
+    assertMutationMetadata(input);
+    const replayedRoom = replayIdempotentMutation(room, "reopen", input.idempotencyKey, mutationHash);
+    if (replayedRoom !== undefined) return replayedRoom;
+    assertExpectedRevision(room, input.expectedRevision);
+    const endedEvent = [...room.events].reverse().find(event => event.type === "room_ended");
+    const hasOpenRosterSlots = room.projection.teams.some(team => team.rosterSlotsRemaining > 0);
+    const endedIncomplete = endedEvent?.type === "room_ended"
+      && (endedEvent.incomplete === true || hasOpenRosterSlots);
+    if (room.status !== "ended" || !endedIncomplete) {
+      throw new LiveDraftRoomError(
+        "room_not_reopenable",
+        "Only a draft that ended with open roster slots can be reopened.",
+      );
+    }
+
+    const now = input.now ?? new Date();
+    const revision = room.revision + 1;
+    const event: LiveDraftRoomEvent = {
+      id: eventIdFor(room.roomId, revision, "room_reopened"),
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      revision,
+      type: "room_reopened",
+      actorUserId: input.actor.userId,
+      occurredAt: now,
+      ...mutationMetadataFor(input, mutationHash),
+    };
+    const {
+      endedAt: _endedAt,
+      projection: _projection,
+      ...roomWithoutEndedState
+    } = room;
+    const updatedRoom = roomWithProjection({
+      ...roomWithoutEndedState,
+      status: "paused",
+      revision,
+      updatedAt: now,
+      events: [...room.events, event],
+    });
 
     this.#roomsById.set(updatedRoom.roomId, updatedRoom);
 

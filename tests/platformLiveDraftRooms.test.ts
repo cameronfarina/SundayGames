@@ -1201,10 +1201,12 @@ describe("live draft rooms", () => {
       expectedRevision: 4,
       idempotencyKey: "end:room_sunday:without-override",
       now: new Date(now.getTime() + 4_000),
-    })).toThrow(new LiveDraftRoomError(
-      "draft_incomplete",
-      "Draft is incomplete: 14 teams still have open roster slots.",
-    ));
+    })).toThrowError(expect.objectContaining({
+      code: "draft_incomplete",
+      message: expect.stringMatching(
+        /Draft is incomplete: 14 teams have open roster slots: Beaton \(16\).+Cam \(16\)/,
+      ),
+    }));
 
     const ended = repository.endRoom({
       roomId: "room_sunday",
@@ -1217,7 +1219,48 @@ describe("live draft rooms", () => {
 
     expect(ended.status).toBe("ended");
     expect(ended.revision).toBe(5);
-    expect(ended.events.at(-1)).toMatchObject({ type: "room_ended", revision: 5 });
+    expect(ended.events.at(-1)).toMatchObject({
+      type: "room_ended",
+      revision: 5,
+      incomplete: true,
+      incompleteTeams: expect.arrayContaining([
+        expect.objectContaining({
+          ownerDisplayName: "Cam",
+          openRosterSlots: 16,
+        }),
+      ]),
+    });
+
+    expect(() => repository.reopenRoom({
+      roomId: "room_sunday",
+      actor: member,
+      expectedRevision: 5,
+      idempotencyKey: "reopen:member",
+    })).toThrow(new LiveDraftRoomError(
+      "mutation_denied",
+      "Only the commissioner or league admins can change this draft room.",
+    ));
+
+    const reopened = repository.reopenRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 5,
+      idempotencyKey: "reopen:room_sunday",
+      now: new Date(now.getTime() + 5_000),
+    });
+
+    expect(reopened).toMatchObject({ status: "paused", revision: 6 });
+    expect(reopened.endedAt).toBeUndefined();
+    expect(reopened.events.at(-1)).toMatchObject({ type: "room_reopened", revision: 6 });
+
+    const resumed = repository.resumeRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 6,
+      idempotencyKey: "resume:reopened-room",
+      now: new Date(now.getTime() + 6_000),
+    });
+    expect(resumed.status).toBe("live");
   });
 
   it("logs natural-language sales for multiword owner names, team names, and unique aliases", () => {

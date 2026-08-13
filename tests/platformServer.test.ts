@@ -22,7 +22,9 @@ import {
 import {
   buildCurrentMockdLeagueSeason,
   defaultScoringSettings,
+  type LeagueSeason,
 } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomInitialRosterPlayer } from "../src/platform/liveDraftRooms.js";
 import {
   currentLeagueInitialRostersFor,
   loadCurrentPlayerCatalog,
@@ -64,6 +66,27 @@ import { runSeasonSimulations } from "../src/platform/seasonSimulationEngine.js"
 import { InMemoryPracticeShortlistRepository } from "../src/platform/practiceShortlists.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
+
+const completeInitialRostersFor = (
+  season: LeagueSeason,
+  openTeamId?: string,
+): LiveDraftRoomInitialRosterPlayer[] => {
+  const positions = [
+    "QB", "QB", "QB", "RB", "RB", "RB", "RB", "WR",
+    "WR", "WR", "WR", "WR", "TE", "TE", "K", "DST",
+  ] as const;
+
+  return season.teams.flatMap(team => positions
+    .filter((_, index) => team.id !== openTeamId || index !== 11)
+    .map((position, index) => ({
+      teamId: team.id,
+      playerName: `${team.id} ${position} ${index + 1}`,
+      position,
+      price: 1,
+      expectedPrice: 1,
+      source: "imported" as const,
+    })));
+};
 
 const mockRunner: SimulationMockBatchRunner = ({
   runsPerScenario,
@@ -1985,6 +2008,7 @@ describe("platform server composition", () => {
           { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
           { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
         ],
+        initialRosters: completeInitialRostersFor(season, camTeam.id),
       }),
     });
     const rollbacksBeforeConflict = postgresClient.transactionsRolledBack;
@@ -2035,7 +2059,6 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 3,
         idempotencyKey: "end:room_postgres_normalized",
-        allowIncomplete: true,
       }),
     });
     const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/export-artifacts", {
@@ -2356,6 +2379,7 @@ describe("platform server composition", () => {
           { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
           { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
         ],
+        initialRosters: completeInitialRostersFor(season),
       }),
     });
     const roomStarted = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/start", {
@@ -2378,7 +2402,6 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 2,
         idempotencyKey: "end:room_external_setup",
-        allowIncomplete: true,
       }),
     });
     const exportArtifact = await jsonFetch(baseUrl, "/live-rooms/room_external_setup/export-artifacts", {

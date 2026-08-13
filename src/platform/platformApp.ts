@@ -1986,6 +1986,20 @@ export const createPlatformApp = ({
       }));
     },
 
+    reopenLiveDraftRoom: async (input: MutatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const room = await liveDraftRooms.getRoom(input.roomId);
+      const membership = await requireSharedMutation(account, room.leagueId);
+
+      return cloneForRead(await liveDraftRooms.reopenRoom({
+        roomId: input.roomId,
+        actor: liveActorFor(account, room.leagueId, membership),
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: input.idempotencyKey,
+        now: input.now,
+      }));
+    },
+
     logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
       const room = await liveDraftRooms.getRoom(input.roomId);
@@ -2072,6 +2086,12 @@ export const createPlatformApp = ({
         throw new PlatformAppError(
           "draft_room_not_final",
           "Draft room must be ended before creating a final export artifact.",
+        );
+      }
+      if (room.projection.teams.some(team => team.rosterSlotsRemaining > 0)) {
+        throw new PlatformAppError(
+          "draft_room_not_final",
+          "Final export requires every team to fill every roster slot.",
         );
       }
       const existingArtifactResult = await exportArtifacts.findByRoomRevision(room.roomId, room.revision);

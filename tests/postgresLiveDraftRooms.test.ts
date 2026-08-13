@@ -877,7 +877,7 @@ describe("Postgres live draft rooms", () => {
     expect(client.sales).toHaveLength(0);
   });
 
-  it("persists undo and end events with contiguous revisions for polling fallback", async () => {
+  it("persists undo, incomplete end, and reopen events with contiguous revisions", async () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);
     const created = await repository.createRoom({
@@ -918,18 +918,37 @@ describe("Postgres live draft rooms", () => {
       allowIncomplete: true,
       now: new Date(now.getTime() + 4_000),
     });
+    const endedSnapshot = client.snapshots.at(-1);
+    if (endedSnapshot === undefined) throw new Error("Expected ended room snapshot.");
+    const legacySnapshot = endedSnapshot.snapshot_json as {
+      events: Array<{ type: string; incomplete?: boolean; incompleteTeams?: unknown }>;
+    };
+    const legacyEndedEvent = legacySnapshot.events.find(event => event.type === "room_ended");
+    if (legacyEndedEvent === undefined) throw new Error("Expected ended room event.");
+    delete legacyEndedEvent.incomplete;
+    delete legacyEndedEvent.incompleteTeams;
+    const reopened = await repository.reopenRoom({
+      roomId: ended.roomId,
+      actor: commissioner,
+      expectedRevision: ended.revision,
+      idempotencyKey: "reopen-room",
+      now: new Date(now.getTime() + 5_000),
+    });
     const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom("room_sunday");
 
     expect(ended.status).toBe("ended");
-    expect(reloaded).toEqual(ended);
+    expect(reopened).toMatchObject({ status: "paused", revision: 6 });
+    expect(reopened.endedAt).toBeUndefined();
+    expect(reloaded).toEqual(reopened);
     expect(client.events.map(event => [event.revision, event.event_type])).toEqual([
       [1, "room_created"],
       [2, "room_started"],
       [3, "sale_logged"],
       [4, "sale_undone"],
       [5, "room_ended"],
+      [6, "room_reopened"],
     ]);
-    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3, 4, 5]);
+    expect(client.snapshots.map(snapshot => snapshot.revision)).toEqual([1, 2, 3, 4, 5, 6]);
     expect([...client.sales.values()]).toMatchObject([
       {
         source_event_id: "room_sunday-rev-3-sale_logged",

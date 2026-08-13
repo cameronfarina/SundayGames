@@ -208,7 +208,8 @@ export interface AvailablePostDraftTeamRanking {
 export type TeamRankingUnavailableReasonCode =
   | "projection_coverage_incomplete"
   | "projection_scoring_settings_mismatch"
-  | "projection_scoring_settings_unverified";
+  | "projection_scoring_settings_unverified"
+  | "roster_materially_incomplete";
 
 export interface TeamRankingUnavailableReason {
   code: TeamRankingUnavailableReasonCode;
@@ -1135,9 +1136,36 @@ export const analyzePostDraftTeam = (input: AnalyzePostDraftTeamInput): PostDraf
     });
   }
 
-  const rankedTeams = rankTeams(input.completedDraftRoster.teams.map(team =>
+  const teamComponents = input.completedDraftRoster.teams.map(team =>
     componentValuesFor(team, input.leagueSettings.roster, projectionsByPlayerId)
-  ));
+  );
+  const ownedRoster = input.completedDraftRoster.teams.find(team => team.teamId === input.ownership.teamId);
+  if (ownedRoster === undefined) {
+    throw new PostDraftTeamAnalysisError(
+      "owned_team_missing",
+      `Completed draft roster does not include owned team ${input.ownership.teamId}.`,
+    );
+  }
+  const ownedTeamComponents = teamComponents.find(team => team.teamId === input.ownership.teamId);
+  if (ownedTeamComponents === undefined) {
+    throw new PostDraftTeamAnalysisError(
+      "owned_team_missing",
+      `Completed draft roster does not include owned team ${input.ownership.teamId}.`,
+    );
+  }
+  const requiredStarterSlots = input.leagueSettings.roster.starterSlots.length;
+  if (ownedRoster.players.length === 0 || ownedTeamComponents.filledSlots < requiredStarterSlots) {
+    const message = ownedRoster.players.length === 0
+      ? "The roster is empty, so draft rank and strengths are unavailable."
+      : `The roster fills ${ownedTeamComponents.filledSlots} of ${requiredStarterSlots} required starter slots, so draft rank and strengths are unavailable.`;
+    return unavailableAnalysis(input, recommendationReadiness, {
+      code: "roster_materially_incomplete",
+      message,
+      projectionSnapshotId: input.projectionSnapshot.metadata.snapshotId,
+    });
+  }
+
+  const rankedTeams = rankTeams(teamComponents);
   const ownedTeam = rankedTeams.find(team => team.teamId === input.ownership.teamId);
 
   if (ownedTeam === undefined) {
