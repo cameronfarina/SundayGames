@@ -536,24 +536,54 @@ const exerciseDurableMockWorkspace = async (
   await expect(page.locator("#mock-draft-state")).toHaveText("Active");
 };
 
-const exerciseBoardSimulations = async (page: Page): Promise<void> => {
+const exerciseBoardSimulations = async (
+  page: Page,
+  season: LeagueSeason,
+): Promise<void> => {
+  const runNote = "Local E2E simulation history";
   const panel = page.locator("#simulation-panel");
   await expect(panel).toBeVisible();
-  await panel.locator("summary").click();
+  await panel.locator(":scope > summary").click();
   await page.locator("#simulation-count").fill("2");
   await page.locator("#simulation-strategy").fill("Target an elite RB");
+  await page.locator("#simulation-note").fill(runNote);
   await page.locator("#simulation-run").click();
   await expect(page.locator("#simulation-results")).toBeVisible();
   await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
   await expect(page.locator("#simulation-format")).toHaveText(/Auction|Snake/);
   await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
   await expect(page.locator("#simulation-run-picker option")).toHaveCount(2);
-  expect(await page.locator(".simulation-team").count()).toBeGreaterThan(1);
+  await expect(page.locator("#simulation-league-grid .simulation-team")).toHaveCount(season.teams.length);
   await expect(page.locator('.simulation-team[data-user-team="true"]')).toHaveCount(1);
-  const weekOneTotal = await page.locator('.simulation-team[data-user-team="true"] .simulation-team-score')
-    .textContent();
-  expect(Number.parseFloat(weekOneTotal ?? "0")).toBeGreaterThan(0);
-  await expect(page.locator("#simulation-exposure-body tr").first()).toBeVisible();
+  const assertLeagueRun = async (): Promise<void> => {
+    const teams = page.locator("#simulation-league-grid .simulation-team");
+    await expect(teams).toHaveCount(season.teams.length);
+    for (let index = 0; index < season.teams.length; index += 1) {
+      const team = teams.nth(index);
+      expect(Number.parseFloat(await team.locator(".simulation-team-score").innerText())).toBeGreaterThan(0);
+      expect(await team.locator(".simulation-team-roster tbody tr").count()).toBeGreaterThan(0);
+      await expect(team.locator(".simulation-team-roster thead")).toContainText("W1");
+    }
+  };
+  await assertLeagueRun();
+  await page.locator("#simulation-run-picker").selectOption("1");
+  await expect(page.locator("#simulation-run-picker")).toHaveValue("1");
+  await assertLeagueRun();
+  expect(await page.locator("#simulation-exposure-body tr").count()).toBeGreaterThan(0);
+  await expect(page.locator("#simulation-history")).toBeVisible();
+  await expect(page.locator("#simulation-history-picker option")).toHaveCount(1);
+  await expect(page.locator("#simulation-history-note")).toHaveText(runNote);
+
+  await page.reload();
+  await expect(panel).toBeVisible();
+  await panel.locator(":scope > summary").click();
+  await expect(page.locator("#simulation-history-picker option")).toHaveCount(1);
+  await expect(page.locator("#simulation-history-note")).toHaveText(runNote);
+  await page.locator("#simulation-history-open").click();
+  await expect(page.locator("#simulation-results")).toBeVisible();
+  await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
+  await expect(page.locator("#simulation-league-grid .simulation-team")).toHaveCount(season.teams.length);
+  await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
 };
 
 const createLiveRoomFromSetup = async (
@@ -792,7 +822,7 @@ const exerciseDeployedWorkspace = async (browser: Browser): Promise<void> => {
 
   await openUnifiedBoard(commissionerPage, season.id);
   await openUnifiedBoard(memberPage, season.id);
-  await exerciseBoardSimulations(memberPage);
+  await exerciseBoardSimulations(memberPage, season);
   await expect(memberPage.locator("#standalone-board-open-mock")).toHaveAttribute(
     "href",
     `/mock-drafts?seasonId=${encodeURIComponent(season.id)}`,
@@ -840,6 +870,7 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await expect(camPage.locator("#league-context")).toBeHidden();
 
   await openUnifiedBoard(sethPage, appliedSeason.id, fullPlayerCount);
+  await exerciseBoardSimulations(sethPage, appliedSeason);
   await exerciseDurableMockWorkspace(sethPage, appliedSeason);
 
   await Promise.all([
