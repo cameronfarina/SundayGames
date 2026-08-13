@@ -71,6 +71,99 @@ describe("interactive mock session resource policy", () => {
       .toBe("setup");
   });
 
+  it("rejects reset when reactivation would exceed the season active-session limit", () => {
+    const repository = new InMemoryMockDraftSessionRepository([], {
+      maxActiveSessionsPerUser: 2,
+      maxActiveSessionsPerUserSeason: 1,
+      maxCreationsPerWindow: 100,
+    });
+    const completed = createSession(repository, "season_2026", now);
+    repository.markCompleted({
+      userId: "account_cam",
+      sessionId: completed.id,
+      expectedRevision: completed.revision,
+      now: new Date(now.getTime() + 1_000),
+    });
+    createSession(repository, "season_2026", new Date(now.getTime() + 2_000));
+
+    expect(() => repository.resetSession({
+      userId: "account_cam",
+      sessionId: completed.id,
+      expectedRevision: completed.revision,
+      now: new Date(now.getTime() + 3_000),
+    })).toThrow(new MockDraftSessionError(
+      "season_active_session_limit",
+      "Finish or abandon an active mock draft for this season before starting another.",
+    ));
+    expect(repository.getSession({
+      userId: "account_cam",
+      sessionId: completed.id,
+      now: new Date(now.getTime() + 3_000),
+    })).toMatchObject({
+      status: "completed",
+      revision: completed.revision,
+      completedAt: new Date(now.getTime() + 1_000),
+    });
+  });
+
+  it("rejects reset when reactivation would exceed the user's active-session limit", () => {
+    const repository = new InMemoryMockDraftSessionRepository([], {
+      maxActiveSessionsPerUser: 2,
+      maxActiveSessionsPerUserSeason: 2,
+      maxCreationsPerWindow: 100,
+    });
+    const completed = createSession(repository, "season_2026", now);
+    repository.markCompleted({
+      userId: "account_cam",
+      sessionId: completed.id,
+      expectedRevision: completed.revision,
+      now: new Date(now.getTime() + 1_000),
+    });
+    createSession(repository, "season_2026", new Date(now.getTime() + 2_000));
+    createSession(repository, "season_2027", new Date(now.getTime() + 3_000));
+
+    expect(() => repository.resetSession({
+      userId: "account_cam",
+      sessionId: completed.id,
+      expectedRevision: completed.revision,
+      now: new Date(now.getTime() + 4_000),
+    })).toThrow(new MockDraftSessionError(
+      "user_active_session_limit",
+      "Finish or abandon an active mock draft before starting another.",
+    ));
+  });
+
+  it("excludes an already-active reset target from active-session quotas", () => {
+    const repository = new InMemoryMockDraftSessionRepository([], {
+      maxActiveSessionsPerUser: 1,
+      maxActiveSessionsPerUserSeason: 1,
+      maxCreationsPerWindow: 100,
+    });
+    const setup = createSession(repository, "season_2026", now);
+    const active = repository.appendCommand({
+      userId: "account_cam",
+      sessionId: setup.id,
+      expectedRevision: setup.revision,
+      expectedCommandCount: 0,
+      commandId: "command_1",
+      command: "draft Puka Nacua for 62",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(repository.resetSession({
+      userId: "account_cam",
+      sessionId: active.id,
+      expectedRevision: active.revision,
+      now: new Date(now.getTime() + 2_000),
+    })).toMatchObject({
+      id: active.id,
+      status: "active",
+      revision: active.revision + 1,
+      commandLog: [],
+      startedAt: new Date(now.getTime() + 2_000),
+    });
+  });
+
   it("persists creation rate limits and reports when another session can be created", () => {
     const policy = {
       maxActiveSessionsPerUser: 100,

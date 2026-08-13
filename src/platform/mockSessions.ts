@@ -134,6 +134,12 @@ export interface AssertMockDraftSessionCreationAllowedInput {
   now?: Date | undefined;
 }
 
+interface AssertActiveMockDraftSessionCapacityInput {
+  userId: string;
+  seasonId: string;
+  excludeSessionId?: string | undefined;
+}
+
 export interface GetMockDraftSessionInput {
   userId: string;
   sessionId: string;
@@ -378,8 +384,14 @@ export class InMemoryMockDraftSessionRepository {
         Math.max(1, Math.ceil(retryAfterMs / 1_000)),
       );
     }
+    this.#assertActiveSessionCapacity(input);
+  }
+
+  #assertActiveSessionCapacity(input: AssertActiveMockDraftSessionCapacityInput): void {
     const activeSessions = [...this.#sessionsById.values()].filter(session =>
-      session.userId === input.userId && (session.status === "setup" || session.status === "active")
+      session.userId === input.userId
+      && session.id !== input.excludeSessionId
+      && (session.status === "setup" || session.status === "active")
     );
     const activeSeasonSessions = activeSessions.filter(session => session.seasonId === input.seasonId);
     if (activeSeasonSessions.length >= this.#resourcePolicy.maxActiveSessionsPerUserSeason) {
@@ -519,6 +531,12 @@ export class InMemoryMockDraftSessionRepository {
     if (session.status === "abandoned") {
       throw new MockDraftSessionError("session_not_reusable", "Abandoned mock draft sessions cannot be reset.");
     }
+
+    this.#assertActiveSessionCapacity({
+      userId: input.userId,
+      seasonId: session.seasonId,
+      excludeSessionId: session.id,
+    });
 
     const updatedSession: MockDraftSession = {
       ...session,

@@ -1655,6 +1655,76 @@ describe("platform HTTP contract", () => {
     expect(setupProvider).toHaveBeenCalledTimes(2);
   });
 
+  it("returns the typed active-session quota response when reset would reactivate past the limit", async () => {
+    const store = new InMemoryPlatformStore(undefined, {
+      mockDraftSessionResourcePolicy: {
+        maxActiveSessionsPerUser: 2,
+        maxActiveSessionsPerUserSeason: 1,
+        maxCreationsPerWindow: 100,
+      },
+    });
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const cam = await createLoggedInAccount(handle, "mock-reset-limit@example.com");
+    const season = snakeSeason();
+    const team = season.teams[0];
+    if (team === undefined) throw new Error("Expected a team fixture.");
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: team.ownerId,
+          teamId: team.id,
+        }],
+      },
+    });
+    const createMock = (createdAt: Date) => handle({
+      method: "POST",
+      path: "/mock-sessions",
+      sessionToken: cam.sessionToken,
+      now: createdAt,
+      body: {
+        leagueId: season.leagueId,
+        seasonId: season.id,
+        ownerId: team.ownerId,
+        teamId: team.id,
+        draftMode: { format: "snake", mockCount: 1 },
+      },
+    });
+    const completedResponse = await createMock(now);
+    const completedSession = expectBodyRecord(expectBodyRecord(completedResponse.body).mockSession);
+    const completedSessionId = expectString(completedSession.id);
+    store.mockDraftSessions.markCompleted({
+      userId: cam.account.id,
+      sessionId: completedSessionId,
+      expectedRevision: 1,
+      now: new Date(now.getTime() + 1_000),
+    });
+    await expect(createMock(new Date(now.getTime() + 2_000))).resolves.toMatchObject({ status: 201 });
+
+    await expect(handle({
+      method: "POST",
+      path: `/mock-sessions/${completedSessionId}/reset`,
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 3_000),
+      body: { expectedRevision: 1 },
+    })).resolves.toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "season_active_session_limit",
+          message: "Finish or abandon an active mock draft for this season before starting another.",
+        },
+      },
+    });
+  });
+
   it("uses the same durable mock contract for auction leagues", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
