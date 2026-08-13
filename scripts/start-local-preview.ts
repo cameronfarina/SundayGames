@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 
 const platformPort = "4319";
 
+export const localPreviewPlatformCommand = ["run", "platform:web:dev"] as const;
+
 interface LocalPreviewPathOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
@@ -95,7 +97,7 @@ export const startLocalPreview = async (
   const seedExitCode = await waitForExit(seed);
   if (seedExitCode !== 0) throw new Error(`Local platform seed exited with code ${seedExitCode}.`);
 
-  const platform = spawn(npmCommand(), ["run", "platform:web"], {
+  const platform = spawn(npmCommand(), localPreviewPlatformCommand, {
     env: platformEnv,
     stdio: "inherit",
   });

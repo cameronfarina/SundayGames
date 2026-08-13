@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  localPreviewPlatformCommand,
   readPrimaryWorktreeDirectory,
   resolveLocalPreviewPaths,
 } from "../scripts/start-local-preview.js";
@@ -103,5 +104,9 @@ describe("local preview paths", () => {
       dataFile,
       draftToolsDirectory,
     });
+  });
+
+  it("runs the platform server from current TypeScript source", () => {
+    expect(localPreviewPlatformCommand).toEqual(["run", "platform:web:dev"]);
   });
 });
