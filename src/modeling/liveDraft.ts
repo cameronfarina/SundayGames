@@ -401,7 +401,7 @@ const maxBidFor = (budgetRemaining: number, rosterSlotsRemaining: number): numbe
 
 export const parseLiveDraftSaleCommand = (input: string): ParsedLiveDraftSaleCommand => {
   const cleaned = input.trim().replace(/\s+/g, " ");
-  const salePattern = /^(\S+)\s+(?:drafted|bought|won|got|took)\s+(.+?)\s+(?:for|at|@)\s+\$?(\d+)$/i;
+  const salePattern = /^(.+?)\s+(?:drafted|bought|won|got|took)\s+(.+?)\s+(?:for|at|@)\s+\$?(\d+)$/i;
   const compactPattern = /^(\S+)\s+(.+?)\s+\$?(\d+)$/i;
   const match = cleaned.match(salePattern) ?? cleaned.match(compactPattern);
 

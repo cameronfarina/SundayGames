@@ -127,7 +127,8 @@ describe("platform hosted draft room UI", () => {
     expect(hostedDraftRoomHtml).toContain("state.mutationPending = false");
     expect(hostedDraftRoomHtml).not.toContain("canCorrect && index === 0");
     expect(hostedDraftRoomHtml).toContain("allSales.some(sale => sale.saleEventId === state.correctionSaleId)");
-    expect(hostedDraftRoomHtml).toContain('team.ownerDisplayName + " " + player.name + " "');
+    expect(hostedDraftRoomHtml).toContain('team.ownerDisplayName + " drafted " + player.name + " for "');
+    expect(hostedDraftRoomHtml).toContain('sale.ownerDisplayName + " drafted " + sale.playerName + " for " + sale.price');
   });
 
   it("replaces active controls with post-draft actions when the room is complete", () => {

@@ -1044,7 +1044,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       button.addEventListener("click", () => {
         const team = state.model === null ? null : viewedTeamFor(state.model);
         saleCommand.value = team
-          ? team.ownerDisplayName + " " + player.name + " "
+          ? team.ownerDisplayName + " drafted " + player.name + " for "
           : player.name + " ";
         saleCommand.focus();
       });
@@ -1291,7 +1291,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
     const openCorrection = sale => {
       state.correctionSaleId = sale.saleEventId;
       correctionSaleId.value = sale.saleEventId;
-      correctionCommand.value = sale.ownerDisplayName + " " + sale.playerName + " " + sale.price;
+      correctionCommand.value = sale.ownerDisplayName + " drafted " + sale.playerName + " for " + sale.price;
       correctionForm.hidden = false;
       correctionCommand.focus();
       correctionCommand.select();

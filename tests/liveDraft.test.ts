@@ -54,6 +54,19 @@ describe("live draft room", () => {
     });
   });
 
+  it("preserves multiword owner and team labels in natural-language sale commands", () => {
+    expect(parseLiveDraftSaleCommand("Cam Audit drafted Puka Nacua for 62")).toEqual({
+      ownerText: "Cam Audit",
+      playerText: "Puka Nacua",
+      price: 62,
+    });
+    expect(parseLiveDraftSaleCommand("Audit Aces won Jahmyr Gibbs at $74")).toEqual({
+      ownerText: "Audit Aces",
+      playerText: "Jahmyr Gibbs",
+      price: 74,
+    });
+  });
+
   it("applies a live Kittle sale from projection fallback data and reprices Cam targets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();

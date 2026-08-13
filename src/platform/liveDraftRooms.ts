@@ -723,6 +723,13 @@ const resolveTeam = (
     return fuzzyMatches[0] as FantasyTeam;
   }
 
+  if (fuzzyMatches.length > 1) {
+    throw new LiveDraftRoomError(
+      "owner_not_found",
+      `Owner or team "${ownerText}" matches multiple teams: ${fuzzyMatches.map(teamLabelFor).join(", ")}.`,
+    );
+  }
+
   throw new LiveDraftRoomError("owner_not_found", `Unknown owner or team "${ownerText}".`);
 };
 
