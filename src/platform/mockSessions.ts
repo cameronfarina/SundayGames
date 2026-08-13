@@ -62,6 +62,11 @@ export const defaultMockDraftSessionResourcePolicy: MockDraftSessionResourcePoli
   completedRetentionMs: dayMs,
 };
 
+interface MockDraftSessionRetention {
+  anchor: Date;
+  durationMs: number;
+}
+
 export type MockDraftMetadataValue =
   | null
   | boolean
@@ -275,6 +280,27 @@ const assertExpectedCommandCount = (session: MockDraftSession, expectedCommandCo
       "stale_command_count",
       `Mock draft session expected ${expectedCommandCount} command(s), but it has ${session.commandLog.length}. Refresh and try again.`,
     );
+  }
+};
+
+const retentionForSession = (
+  session: MockDraftSession,
+  resourcePolicy: MockDraftSessionResourcePolicy,
+): MockDraftSessionRetention | undefined => {
+  switch (session.status) {
+    case "abandoned":
+      return {
+        anchor: session.abandonedAt ?? session.updatedAt,
+        durationMs: resourcePolicy.abandonedRetentionMs,
+      };
+    case "completed":
+      return {
+        anchor: session.completedAt ?? session.updatedAt,
+        durationMs: resourcePolicy.completedRetentionMs,
+      };
+    case "active":
+    case "setup":
+      return undefined;
   }
 };
 
@@ -567,21 +593,8 @@ export class InMemoryMockDraftSessionRepository {
         this.#sessionsById.set(sessionId, session);
       }
 
-      const retentionAnchor = session.status === "abandoned"
-        ? session.abandonedAt ?? session.updatedAt
-        : session.status === "completed"
-          ? session.completedAt ?? session.updatedAt
-          : undefined;
-      const retentionMs = session.status === "abandoned"
-        ? this.#resourcePolicy.abandonedRetentionMs
-        : session.status === "completed"
-          ? this.#resourcePolicy.completedRetentionMs
-          : undefined;
-      if (
-        retentionAnchor !== undefined
-        && retentionMs !== undefined
-        && retentionAnchor.getTime() + retentionMs <= now.getTime()
-      ) {
+      const retention = retentionForSession(session, this.#resourcePolicy);
+      if (retention !== undefined && retention.anchor.getTime() + retention.durationMs <= now.getTime()) {
         this.#sessionsById.delete(sessionId);
       }
     }

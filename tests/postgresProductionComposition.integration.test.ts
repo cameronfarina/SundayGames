@@ -35,6 +35,21 @@ const jsonRequest = async (
   };
 };
 
+const postJson = (
+  baseUrl: string,
+  path: string,
+  body: unknown,
+  sessionCookie?: string,
+): Promise<{ status: number; setCookie: string | null; body: unknown }> =>
+  jsonRequest(baseUrl, path, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(sessionCookie === undefined ? {} : { cookie: sessionCookie }),
+    },
+    body: JSON.stringify(body),
+  });
+
 const recordValue = (value: unknown, label: string): Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Expected ${label} to be an object.`);
@@ -123,10 +138,9 @@ describeWithPostgres("production Postgres composition", () => {
 
     runtime = await startPlatformWebFromEnv(env, { authMailSender: mailSender });
     const baseUrl = runtime.server.url;
-    const signup = await jsonRequest(baseUrl, "/accounts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "commissioner@example.com", password: "secure password" }),
+    const signup = await postJson(baseUrl, "/accounts", {
+      email: "commissioner@example.com",
+      password: "secure password",
     });
     expect(signup).toMatchObject({ status: 202, body: { accepted: true } });
 
@@ -135,52 +149,41 @@ describeWithPostgres("production Postgres composition", () => {
       ? ""
       : new URL(verificationUrl).searchParams.get("token") ?? "";
     expect(verificationToken).not.toBe("");
-    await expect(jsonRequest(baseUrl, "/email-verifications/consume", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: verificationToken }),
+    await expect(postJson(baseUrl, "/email-verifications/consume", {
+      token: verificationToken,
     })).resolves.toMatchObject({ status: 200, body: { verified: true } });
 
-    const login = await jsonRequest(baseUrl, "/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "commissioner@example.com", password: "secure password" }),
+    const login = await postJson(baseUrl, "/sessions", {
+      email: "commissioner@example.com",
+      password: "secure password",
     });
     expect(login.status).toBe(200);
     const cookie = sessionCookieFor(login.setCookie);
-    const authenticatedHeaders = {
-      "content-type": "application/json",
-      cookie,
-    };
 
-    const leagueCreated = await jsonRequest(baseUrl, "/leagues", {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({
-        setup: {
-          provider: "mockd",
-          externalLeagueId: "production-smoke-2026",
-          leagueName: "Production Smoke League",
-          seasonYear: 2026,
-          expectedTeamCount: 2,
-          teams: [
-            { externalTeamId: "cam", displayName: "Cam's Team", managerNames: ["Cam"] },
-            { externalTeamId: "seth", displayName: "Seth's Team", managerNames: ["Seth"] },
-          ],
-          draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
-          scoring: {
-            passingYards: 0.04,
-            passingTouchdown: 4,
-            rushingYards: 0.1,
-            rushingTouchdown: 6,
-            receivingYards: 0.1,
-            receivingTouchdown: 6,
-            reception: 0.5,
-          },
-          rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DST: 1, K: 1, BENCH: 1 },
+    const leagueCreated = await postJson(baseUrl, "/leagues", {
+      setup: {
+        provider: "mockd",
+        externalLeagueId: "production-smoke-2026",
+        leagueName: "Production Smoke League",
+        seasonYear: 2026,
+        expectedTeamCount: 2,
+        teams: [
+          { externalTeamId: "cam", displayName: "Cam's Team", managerNames: ["Cam"] },
+          { externalTeamId: "seth", displayName: "Seth's Team", managerNames: ["Seth"] },
+        ],
+        draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+        scoring: {
+          passingYards: 0.04,
+          passingTouchdown: 4,
+          rushingYards: 0.1,
+          rushingTouchdown: 6,
+          receivingYards: 0.1,
+          receivingTouchdown: 6,
+          reception: 0.5,
         },
-      }),
-    });
+        rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DST: 1, K: 1, BENCH: 1 },
+      },
+    }, cookie);
     expect(leagueCreated.status).toBe(201);
     const season = recordValue(recordValue(leagueCreated.body, "league response").season, "season");
     const seasonId = stringValue(season.id, "season id");
@@ -192,20 +195,18 @@ describeWithPostgres("production Postgres composition", () => {
     const camTeamId = stringValue(camTeam.id, "commissioner team id");
     const camOwnerId = stringValue(camTeam.ownerId, "commissioner owner id");
 
-    await expect(jsonRequest(baseUrl, `/seasons/${seasonId}/team-claims`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({ ownerId: camOwnerId, teamId: camTeamId }),
-    })).resolves.toMatchObject({
+    await expect(postJson(baseUrl, `/seasons/${seasonId}/team-claims`, {
+      ownerId: camOwnerId,
+      teamId: camTeamId,
+    }, cookie)).resolves.toMatchObject({
       status: 200,
       body: { membership: { teamId: camTeamId, ownerId: camOwnerId, role: "owner" } },
     });
 
-    const keeperSaved = await jsonRequest(baseUrl, `/seasons/${seasonId}/keepers/apply`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({ command: "Cam keeping De'Von Achane 50", confirmed: true }),
-    });
+    const keeperSaved = await postJson(baseUrl, `/seasons/${seasonId}/keepers/apply`, {
+      command: "Cam keeping De'Von Achane 50",
+      confirmed: true,
+    }, cookie);
     expect(keeperSaved).toMatchObject({
       status: 200,
       body: {
@@ -217,37 +218,26 @@ describeWithPostgres("production Postgres composition", () => {
       },
     });
 
-    await expect(jsonRequest(baseUrl, `/seasons/${seasonId}/publish`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({ confirmed: true }),
-    })).resolves.toMatchObject({ status: 200, body: { season: { setupStatus: "published" } } });
+    await expect(postJson(baseUrl, `/seasons/${seasonId}/publish`, {
+      confirmed: true,
+    }, cookie)).resolves.toMatchObject({ status: 200, body: { season: { setupStatus: "published" } } });
 
-    const roomCreated = await jsonRequest(baseUrl, `/seasons/${seasonId}/live-room`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: "{}",
-    });
+    const roomCreated = await postJson(baseUrl, `/seasons/${seasonId}/live-room`, {}, cookie);
     expect(roomCreated).toMatchObject({
       status: 201,
       body: { room: { roomId: `room-${seasonId}-real`, revision: 1, status: "setup" } },
     });
     const roomId = `room-${seasonId}-real`;
-    await expect(jsonRequest(baseUrl, `/live-rooms/${roomId}/start`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({ expectedRevision: 1, idempotencyKey: "production-smoke:start" }),
-    })).resolves.toMatchObject({ status: 200, body: { room: { revision: 2, status: "live" } } });
+    await expect(postJson(baseUrl, `/live-rooms/${roomId}/start`, {
+      expectedRevision: 1,
+      idempotencyKey: "production-smoke:start",
+    }, cookie)).resolves.toMatchObject({ status: 200, body: { room: { revision: 2, status: "live" } } });
 
-    await expect(jsonRequest(baseUrl, `/live-rooms/${roomId}/sales`, {
-      method: "POST",
-      headers: authenticatedHeaders,
-      body: JSON.stringify({
-        expectedRevision: 2,
-        idempotencyKey: "production-smoke:puka:62",
-        sale: "Cam Puka 62",
-      }),
-    })).resolves.toMatchObject({
+    await expect(postJson(baseUrl, `/live-rooms/${roomId}/sales`, {
+      expectedRevision: 2,
+      idempotencyKey: "production-smoke:puka:62",
+      sale: "Cam Puka 62",
+    }, cookie)).resolves.toMatchObject({
       status: 200,
       body: {
         room: {
@@ -266,10 +256,9 @@ describeWithPostgres("production Postgres composition", () => {
     runtime = undefined;
     runtime = await startPlatformWebFromEnv(env, { authMailSender: mailSender });
     const restartedBaseUrl = runtime.server.url;
-    const restartedLogin = await jsonRequest(restartedBaseUrl, "/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "commissioner@example.com", password: "secure password" }),
+    const restartedLogin = await postJson(restartedBaseUrl, "/sessions", {
+      email: "commissioner@example.com",
+      password: "secure password",
     });
     expect(restartedLogin).toMatchObject({
       status: 200,
