@@ -2084,12 +2084,25 @@ export const platformShellHtml = `<!doctype html>
 
     const returnPath = () => routePath + window.location.search;
 
-    const authenticationReturnPath = () => {
-      const requestedPath = new URLSearchParams(window.location.search).get("returnTo");
-      return requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
-        ? requestedPath
-        : "/practice";
+    const safeAuthenticationReturnPath = requestedPath => {
+      if (!requestedPath || !requestedPath.startsWith("/")) return null;
+      if (requestedPath.includes("\\\\") || requestedPath.startsWith("//")) return null;
+      const queryIndex = requestedPath.search(/[?#]/);
+      const encodedPathname = queryIndex === -1 ? requestedPath : requestedPath.slice(0, queryIndex);
+      if (/%(?:25)*(?:2f|5c)/i.test(encodedPathname)) return null;
+      let destination;
+      try {
+        destination = new URL(requestedPath, window.location.origin);
+      } catch {
+        return null;
+      }
+      if (destination.origin !== window.location.origin) return null;
+      return destination.pathname + destination.search + destination.hash;
     };
+
+    const authenticationReturnPath = () => safeAuthenticationReturnPath(
+      new URLSearchParams(window.location.search).get("returnTo"),
+    ) || "/practice";
 
     const invitationReturnPath = () => {
       const candidatePath = routePath === "/invite" ? returnPath() : authenticationReturnPath();

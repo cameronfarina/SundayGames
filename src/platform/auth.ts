@@ -1,4 +1,5 @@
 import { createHash, randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
+import { sameOriginAuthenticationReturnPath } from "./authenticationReturnPath.js";
 
 export type AuthErrorCode =
   | "auth_required"
@@ -796,13 +797,8 @@ const sendAuthAction = async (input: SendAuthActionInput): Promise<void> => {
   const route = input.purpose === "email_verification" ? "/verify-email" : "/reset-password";
   const actionUrl = new URL(route, input.publicBaseUrl);
   actionUrl.searchParams.set("token", rawToken);
-  if (
-    input.returnTo !== undefined
-    && input.returnTo.startsWith("/")
-    && !input.returnTo.startsWith("//")
-  ) {
-    actionUrl.searchParams.set("returnTo", input.returnTo);
-  }
+  const returnTo = sameOriginAuthenticationReturnPath(input.returnTo, input.publicBaseUrl);
+  if (returnTo !== undefined) actionUrl.searchParams.set("returnTo", returnTo);
   const verification = input.purpose === "email_verification";
   await input.mailSender.send({
     to: input.account.email,

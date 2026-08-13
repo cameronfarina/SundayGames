@@ -6,6 +6,19 @@ import {
   rosterSlotDisplayOrder,
 } from "../src/platform/platformShellUi.js";
 
+const authenticationReturnPathFromShell = (returnTo: string | null): string => {
+  const functionStart = platformShellHtml.indexOf("    const safeAuthenticationReturnPath =");
+  const functionEnd = platformShellHtml.indexOf("\n\n    const invitationReturnPath", functionStart);
+  const declarations = platformShellHtml.slice(functionStart, functionEnd);
+  const search = returnTo === null ? "" : `?${new URLSearchParams({ returnTo }).toString()}`;
+  const evaluate = new Function(
+    "window",
+    `${declarations}\nreturn authenticationReturnPath();`,
+  ) as (window: { location: { origin: string; search: string } }) => string;
+
+  return evaluate({ location: { origin: "https://mockd.example.com", search } });
+};
+
 describe("platform shell UI", () => {
   it("renders roster slots in fantasy lineup order", () => {
     expect(rosterSlotDisplayOrder).toEqual([
@@ -51,13 +64,29 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('fetch("/email-verifications/consume"');
     expect(platformShellHtml).toContain('fetch("/password-resets/consume"');
     expect(platformShellHtml).toContain("Resend verification");
-    expect(platformShellHtml).toContain(': "/practice";');
+    expect(platformShellHtml).toContain(') || "/practice";');
     expect(platformShellHtml).toContain("setHidden(authModePrompt, false)");
     expect(platformShellHtml).toContain("invitationToken: signupInvitationToken()");
     expect(platformShellHtml).toContain("returnTo: authenticationReturnPath()");
     expect(platformShellHtml).toContain('"&returnTo=" + encodeURIComponent(authenticationReturnPath())');
     expect(platformShellHtml).toContain("minlength=\"8\"");
     expect(platformShellHtml).toContain("autocomplete=\"new-password\"");
+  });
+
+  it.each([
+    "/\\evil.example/phish",
+    "/%5Cevil.example/phish",
+    "/%255Cevil.example/phish",
+    "/%2525252525252525255Cevil.example/phish",
+    "//evil.example/phish",
+    "https://evil.example/phish",
+  ])("keeps unsafe authentication return path %s on Mockd", returnTo => {
+    expect(authenticationReturnPathFromShell(returnTo)).toBe("/practice");
+  });
+
+  it("preserves a local invitation return path", () => {
+    expect(authenticationReturnPathFromShell("/invite?token=league-invite"))
+      .toBe("/invite?token=league-invite");
   });
 
   it("bootstraps durable league and team identity before enabling workspaces", () => {

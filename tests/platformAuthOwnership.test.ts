@@ -55,6 +55,32 @@ describe("email ownership and password recovery", () => {
     })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
   });
 
+  it.each([
+    "/\\evil.example/phish",
+    "/%5Cevil.example/phish",
+    "/%255Cevil.example/phish",
+    "/%2525252525252525255Cevil.example/phish",
+    "//evil.example/phish",
+  ])("does not preserve unsafe return path %s in verification mail", async verificationReturnTo => {
+    const repository = new InMemoryAuthRepository();
+    const mailSender = new CapturingAuthMailSender();
+    const auth = createAuthService({
+      repository,
+      emailVerificationRequired: true,
+      mailSender,
+      publicBaseUrl: "https://mockd.example.com",
+    });
+
+    await auth.createUser({
+      email: "owner@example.com",
+      password: "first secure password",
+      verificationReturnTo,
+      now,
+    });
+
+    expect(new URL(mailSender.messages[0]!.actionUrl).searchParams.has("returnTo")).toBe(false);
+  });
+
   it("reissues a pending signup token without replacing the original password", async () => {
     const repository = new InMemoryAuthRepository();
     const mailSender = new CapturingAuthMailSender();
