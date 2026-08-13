@@ -98,6 +98,7 @@ const platformPostgresTables = [
       { name: "account_id", type: "text" },
       { name: "purpose", type: "text" },
       { name: "token_hash", type: "text" },
+      { name: "auth_version", type: "bigint", default: "1" },
       { name: "expires_at", type: "timestamptz" },
       { name: "consumed_at", type: "timestamptz", nullable: true },
       createdAtColumn,

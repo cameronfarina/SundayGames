@@ -4,6 +4,7 @@ import {
   CapturingAuthMailSender,
   createAuthService,
   type AccountRecord,
+  type PendingAccountRegistrationResult,
   type SessionRecord,
 } from "../src/platform/auth.js";
 import type {
@@ -13,6 +14,10 @@ import type {
 import { PostgresAuthRepository } from "../src/platform/postgresAuth.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
+const credentialVersionOf = (registration: PendingAccountRegistrationResult): number => {
+  if (registration.status === "verified") throw new Error("Expected a pending account registration.");
+  return registration.credentialVersion;
+};
 
 interface StoredAccountRow {
   id: string;
@@ -43,6 +48,7 @@ interface StoredAuthTokenRow {
   account_id: string;
   purpose: "email_verification" | "password_reset";
   token_hash: string;
+  auth_version: number;
   created_at: Date;
   expires_at: Date;
   consumed_at: Date | null;
@@ -98,6 +104,9 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         const existing = [...this.accounts.values()].find(row => row.email_normalized === email);
         if (existing !== undefined && existing.email_verified_at !== null) return { rows: [], rowCount: 0 };
         if (existing !== undefined) {
+          existing.password_hash = passwordHash;
+          existing.auth_version += 1;
+          existing.updated_at = createdAt;
           return { rows: [{ ...cloneAccountRow(existing), was_inserted: false } as TRow], rowCount: 1 };
         }
         const pending: StoredAccountRow = {
@@ -144,15 +153,24 @@ class FakePostgresAuthClient implements PostgresQueryClient {
       return { rows: [cloneAccountRow(row) as TRow], rowCount: 1 };
     }
 
-    if (normalizedSql.startsWith("WITH consumed_tokens AS")) {
-      const [id, accountId, purpose, tokenHash, createdAt, expiresAt] = values as readonly [
+    if (normalizedSql.startsWith("WITH eligible_account AS")) {
+      const [id, accountId, purpose, tokenHash, createdAt, expiresAt, expectedCredentialVersion] = values as readonly [
         string,
         string,
         StoredAuthTokenRow["purpose"],
         string,
         Date,
         Date,
+        number | null,
       ];
+      const account = this.accounts.get(accountId);
+      if (
+        account === undefined ||
+        account.status !== "active" ||
+        (expectedCredentialVersion !== null && account.auth_version !== expectedCredentialVersion)
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
       for (const token of this.authTokens.values()) {
         if (token.account_id === accountId && token.purpose === purpose && token.consumed_at === null) {
           token.consumed_at = createdAt;
@@ -163,6 +181,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         account_id: accountId,
         purpose,
         token_hash: tokenHash,
+        auth_version: account.auth_version,
         created_at: createdAt,
         expires_at: expiresAt,
         consumed_at: null,
@@ -179,6 +198,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
       ];
       const token = this.authTokens.get(tokenHash);
       const usable = token !== undefined &&
+        this.accounts.get(token.account_id)?.auth_version === token.auth_version &&
         token.purpose === purpose &&
         token.consumed_at === null &&
         token.expires_at > checkedAt;
@@ -193,7 +213,11 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         return { rows: [], rowCount: 0 };
       }
       const account = this.accounts.get(token.account_id);
-      if (account === undefined || account.email_verified_at !== null) return { rows: [], rowCount: 0 };
+      if (
+        account === undefined ||
+        account.email_verified_at !== null ||
+        account.auth_version !== token.auth_version
+      ) return { rows: [], rowCount: 0 };
       token.consumed_at = verifiedAt;
       account.email_verified_at = verifiedAt;
       account.updated_at = verifiedAt;
@@ -207,7 +231,11 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         return { rows: [], rowCount: 0 };
       }
       const account = this.accounts.get(token.account_id);
-      if (account === undefined || account.email_verified_at === null) return { rows: [], rowCount: 0 };
+      if (
+        account === undefined ||
+        account.email_verified_at === null ||
+        account.auth_version !== token.auth_version
+      ) return { rows: [], rowCount: 0 };
       token.consumed_at = resetAt;
       account.password_hash = passwordHash;
       account.auth_version += 1;
@@ -377,12 +405,12 @@ describe("Postgres auth repository", () => {
       email: "owner@example.com",
       password: "first secure password",
       now: new Date(now.getTime() + 2_001),
-    })).resolves.not.toBeNull();
+    })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
       password: "replacement secure password",
       now: new Date(now.getTime() + 2_001),
-    })).resolves.toBeNull();
+    })).resolves.not.toBeNull();
 
     await auth.requestPasswordReset({ email: "owner@example.com", now: new Date(now.getTime() + 3_000) });
     const resetMessage = mailSender.messages[2];
@@ -399,6 +427,68 @@ describe("Postgres auth repository", () => {
       newPasswordConfirmation: "another secure password",
       now: new Date(now.getTime() + 5_000),
     })).rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
+  });
+
+  it("rejects verification tokens from a stale concurrent pending signup", async () => {
+    const client = new FakePostgresAuthClient();
+    const repository = new PostgresAuthRepository(client);
+    const initial = await repository.createOrReplacePendingAccount({
+      id: "acct_owner",
+      email: "owner@example.com",
+      passwordHash: "attacker hash",
+      now,
+    });
+    await repository.replaceAuthToken({
+      id: "token_initial",
+      accountId: initial.account.id,
+      purpose: "email_verification",
+      tokenHash: "initial token hash",
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+      expectedCredentialVersion: credentialVersionOf(initial),
+    });
+
+    const stale = await repository.createOrReplacePendingAccount({
+      id: "acct_stale",
+      email: "owner@example.com",
+      passwordHash: "stale attacker hash",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const current = await repository.createOrReplacePendingAccount({
+      id: "acct_current",
+      email: "owner@example.com",
+      passwordHash: "victim hash",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    await expect(repository.replaceAuthToken({
+      id: "token_stale",
+      accountId: stale.account.id,
+      purpose: "email_verification",
+      tokenHash: "stale token hash",
+      createdAt: new Date(now.getTime() + 1_000),
+      expiresAt: new Date(now.getTime() + 61_000),
+      expectedCredentialVersion: credentialVersionOf(stale),
+    })).resolves.toBeNull();
+    await expect(repository.replaceAuthToken({
+      id: "token_current",
+      accountId: current.account.id,
+      purpose: "email_verification",
+      tokenHash: "current token hash",
+      createdAt: new Date(now.getTime() + 2_000),
+      expiresAt: new Date(now.getTime() + 62_000),
+      expectedCredentialVersion: credentialVersionOf(current),
+    })).resolves.not.toBeNull();
+    await expect(repository.verifyEmailByToken({
+      tokenHash: "initial token hash",
+      now: new Date(now.getTime() + 3_000),
+    })).resolves.toBeNull();
+    await expect(repository.verifyEmailByToken({
+      tokenHash: "current token hash",
+      now: new Date(now.getTime() + 3_000),
+    })).resolves.not.toBeNull();
+    await expect(repository.findAccountCredentialByEmail("owner@example.com"))
+      .resolves.toMatchObject({ passwordHash: "victim hash" });
   });
 
   it("creates normalized unique accounts and keeps raw passwords out of storage", async () => {

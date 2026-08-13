@@ -4,10 +4,15 @@ import {
   CapturingAuthMailSender,
   InMemoryAuthRepository,
   createAuthService,
+  type PendingAccountRegistrationResult,
 } from "../src/platform/auth.js";
 
 const now = new Date("2026-08-11T13:00:00.000Z");
 const verificationTokenFrom = (url: string): string => new URL(url).searchParams.get("token") ?? "";
+const credentialVersionOf = (registration: PendingAccountRegistrationResult): number => {
+  if (registration.status === "verified") throw new Error("Expected a pending account registration.");
+  return registration.credentialVersion;
+};
 
 describe("email ownership and password recovery", () => {
   it("keeps production signups pending until a single-use verification token is consumed", async () => {
@@ -81,7 +86,7 @@ describe("email ownership and password recovery", () => {
     expect(new URL(mailSender.messages[0]!.actionUrl).searchParams.has("returnTo")).toBe(false);
   });
 
-  it("reissues a pending signup token without replacing the original password", async () => {
+  it("reissues a pending signup token with the replacement password", async () => {
     const repository = new InMemoryAuthRepository();
     const mailSender = new CapturingAuthMailSender();
     const auth = createAuthService({
@@ -108,12 +113,12 @@ describe("email ownership and password recovery", () => {
       email: "owner@example.com",
       password: "first secure password",
       now: new Date(now.getTime() + 3_000),
-    })).resolves.not.toBeNull();
+    })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
       password: "replacement secure password",
       now: new Date(now.getTime() + 3_000),
-    })).resolves.toBeNull();
+    })).resolves.not.toBeNull();
 
     await auth.createUser({
       email: "owner@example.com",
@@ -123,7 +128,7 @@ describe("email ownership and password recovery", () => {
     expect(mailSender.messages).toHaveLength(2);
     await expect(auth.login({
       email: "owner@example.com",
-      password: "first secure password",
+      password: "replacement secure password",
       now: new Date(now.getTime() + 5_000),
     })).resolves.not.toBeNull();
     await expect(auth.login({
@@ -131,6 +136,66 @@ describe("email ownership and password recovery", () => {
       password: "attacker controlled password",
       now: new Date(now.getTime() + 5_000),
     })).resolves.toBeNull();
+  });
+
+  it("rejects verification tokens from a stale concurrent pending signup", () => {
+    const repository = new InMemoryAuthRepository();
+    const initial = repository.createOrReplacePendingAccount({
+      id: "acct_owner",
+      email: "owner@example.com",
+      passwordHash: "attacker hash",
+      now,
+    });
+    repository.replaceAuthToken({
+      id: "token_initial",
+      accountId: initial.account.id,
+      purpose: "email_verification",
+      tokenHash: "initial token hash",
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+      expectedCredentialVersion: credentialVersionOf(initial),
+    });
+
+    const stale = repository.createOrReplacePendingAccount({
+      id: "acct_stale",
+      email: "owner@example.com",
+      passwordHash: "stale attacker hash",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const current = repository.createOrReplacePendingAccount({
+      id: "acct_current",
+      email: "owner@example.com",
+      passwordHash: "victim hash",
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    expect(repository.replaceAuthToken({
+      id: "token_stale",
+      accountId: stale.account.id,
+      purpose: "email_verification",
+      tokenHash: "stale token hash",
+      createdAt: new Date(now.getTime() + 1_000),
+      expiresAt: new Date(now.getTime() + 61_000),
+      expectedCredentialVersion: credentialVersionOf(stale),
+    })).toBeNull();
+    expect(repository.replaceAuthToken({
+      id: "token_current",
+      accountId: current.account.id,
+      purpose: "email_verification",
+      tokenHash: "current token hash",
+      createdAt: new Date(now.getTime() + 2_000),
+      expiresAt: new Date(now.getTime() + 62_000),
+      expectedCredentialVersion: credentialVersionOf(current),
+    })).not.toBeNull();
+    expect(repository.verifyEmailByToken({
+      tokenHash: "initial token hash",
+      now: new Date(now.getTime() + 3_000),
+    })).toBeNull();
+    expect(repository.verifyEmailByToken({
+      tokenHash: "current token hash",
+      now: new Date(now.getTime() + 3_000),
+    })).not.toBeNull();
+    expect(repository.findAccountCredentialByEmail("owner@example.com")?.passwordHash).toBe("victim hash");
   });
 
   it("issues non-enumerating reset requests and atomically consumes reset tokens", async () => {

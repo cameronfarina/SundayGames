@@ -68,10 +68,16 @@ export interface CreateAccountRecordInput {
 
 export interface CreateOrReplacePendingAccountInput extends CreateAccountRecordInput {}
 
-export interface PendingAccountRegistrationResult {
-  account: AccountRecord;
-  status: "created" | "reissued" | "verified";
-}
+export type PendingAccountRegistrationResult =
+  | {
+    account: AccountRecord;
+    status: "created" | "reissued";
+    credentialVersion: number;
+  }
+  | {
+    account: AccountRecord;
+    status: "verified";
+  };
 
 export interface ReplaceAuthTokenInput {
   id: string;
@@ -80,6 +86,7 @@ export interface ReplaceAuthTokenInput {
   tokenHash: string;
   createdAt: Date;
   expiresAt: Date;
+  expectedCredentialVersion?: number | undefined;
 }
 
 export interface ConsumeAuthTokenInput {
@@ -130,7 +137,7 @@ export interface AuthRepository {
   findSessionById(sessionId: string): MaybePromise<SessionRecord | null>;
   revokeSession(sessionId: string, revokedAt: Date): MaybePromise<SessionRecord | null>;
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): MaybePromise<PasswordReplacementResult | null>;
-  replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord>;
+  replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord | null>;
   hasUsableAuthToken(input: FindUsableAuthTokenInput): MaybePromise<boolean>;
   verifyEmailByToken(input: ConsumeAuthTokenInput): MaybePromise<AccountRecord | null>;
   resetPasswordByToken(input: ResetPasswordByTokenInput): MaybePromise<PasswordReplacementResult | null>;
@@ -302,6 +309,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   readonly #authVersionsByAccountId = new Map<string, number>();
   readonly #authVersionsBySessionId = new Map<string, number>();
   readonly #authTokensByHash = new Map<string, AuthTokenRecord>();
+  readonly #authVersionsByTokenHash = new Map<string, number>();
 
   createAccount(input: CreateAccountRecordInput): AccountRecord {
     if (this.#accountIdsByEmail.has(input.email)) {
@@ -338,7 +346,7 @@ export class InMemoryAuthRepository implements AuthRepository {
       this.#accountsById.set(input.id, { account, passwordHash: input.passwordHash });
       this.#accountIdsByEmail.set(input.email, input.id);
       this.#authVersionsByAccountId.set(input.id, 1);
-      return { account, status: "created" };
+      return { account, status: "created", credentialVersion: 1 };
     }
 
     const existing = this.#accountsById.get(existingId);
@@ -347,7 +355,12 @@ export class InMemoryAuthRepository implements AuthRepository {
       return { account: existing.account, status: "verified" };
     }
 
-    return { account: existing.account, status: "reissued" };
+    const credentialVersion = (this.#authVersionsByAccountId.get(existingId) ?? 1) + 1;
+    const account = { ...existing.account, updatedAt: input.now };
+    this.#accountsById.set(existingId, { account, passwordHash: input.passwordHash });
+    this.#authVersionsByAccountId.set(existingId, credentialVersion);
+
+    return { account, status: "reissued", credentialVersion };
   }
 
   findAccountCredentialByEmail(normalizedEmail: string): AccountCredentialRecord | null {
@@ -459,14 +472,31 @@ export class InMemoryAuthRepository implements AuthRepository {
     return { account, revokedSessionCount };
   }
 
-  replaceAuthToken(input: ReplaceAuthTokenInput): AuthTokenRecord {
+  replaceAuthToken(input: ReplaceAuthTokenInput): AuthTokenRecord | null {
+    const credentialVersion = this.#authVersionsByAccountId.get(input.accountId);
+    if (
+      credentialVersion === undefined ||
+      (input.expectedCredentialVersion !== undefined &&
+        input.expectedCredentialVersion !== credentialVersion)
+    ) {
+      return null;
+    }
     for (const [tokenHash, token] of this.#authTokensByHash) {
       if (token.accountId === input.accountId && token.purpose === input.purpose && token.consumedAt === undefined) {
         this.#authTokensByHash.set(tokenHash, { ...token, consumedAt: input.createdAt });
       }
     }
-    const token: AuthTokenRecord = { ...input, consumedAt: undefined };
+    const token: AuthTokenRecord = {
+      id: input.id,
+      accountId: input.accountId,
+      purpose: input.purpose,
+      tokenHash: input.tokenHash,
+      createdAt: input.createdAt,
+      expiresAt: input.expiresAt,
+      consumedAt: undefined,
+    };
     this.#authTokensByHash.set(input.tokenHash, token);
+    this.#authVersionsByTokenHash.set(input.tokenHash, credentialVersion);
     return token;
   }
 
@@ -504,7 +534,9 @@ export class InMemoryAuthRepository implements AuthRepository {
 
   #validToken(tokenHash: string, purpose: AuthTokenPurpose, now: Date): AuthTokenRecord | null {
     const token = this.#authTokensByHash.get(tokenHash);
-    return token !== undefined && token.purpose === purpose && token.consumedAt === undefined && token.expiresAt > now
+    return token !== undefined &&
+        this.#authVersionsByTokenHash.get(tokenHash) === this.#authVersionsByAccountId.get(token.accountId) &&
+        token.purpose === purpose && token.consumedAt === undefined && token.expiresAt > now
       ? token
       : null;
   }
@@ -525,6 +557,7 @@ export class InMemoryAuthRepository implements AuthRepository {
     this.#authVersionsByAccountId.clear();
     this.#authVersionsBySessionId.clear();
     this.#authTokensByHash.clear();
+    this.#authVersionsByTokenHash.clear();
   }
 }
 
@@ -565,6 +598,7 @@ export const createAuthService = ({
         returnTo: verificationReturnTo,
         now,
         ttlMs: verificationTokenTtlMs,
+        expectedCredentialVersion: registration.credentialVersion,
       });
     }
     return registration.account;
@@ -779,6 +813,7 @@ interface SendAuthActionInput {
   returnTo?: string | undefined;
   now: Date;
   ttlMs: number;
+  expectedCredentialVersion?: number | undefined;
 }
 
 const sendAuthAction = async (input: SendAuthActionInput): Promise<void> => {
@@ -786,14 +821,16 @@ const sendAuthAction = async (input: SendAuthActionInput): Promise<void> => {
     throw new Error("Auth mail delivery and public base URL must be configured.");
   }
   const rawToken = randomBytes(authTokenBytes).toString("base64url");
-  await input.repository.replaceAuthToken({
+  const storedToken = await input.repository.replaceAuthToken({
     id: createId("auth"),
     accountId: input.account.id,
     purpose: input.purpose,
     tokenHash: hashAuthToken(rawToken),
     createdAt: input.now,
     expiresAt: new Date(input.now.getTime() + input.ttlMs),
+    expectedCredentialVersion: input.expectedCredentialVersion,
   });
+  if (storedToken === null) return;
   const route = input.purpose === "email_verification" ? "/verify-email" : "/reset-password";
   const actionUrl = new URL(route, input.publicBaseUrl);
   actionUrl.searchParams.set("token", rawToken);

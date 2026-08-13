@@ -166,6 +166,7 @@ describe("platform Postgres migrations", () => {
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -190,6 +191,7 @@ describe("platform Postgres migrations", () => {
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -214,6 +216,7 @@ describe("platform Postgres migrations", () => {
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
@@ -260,6 +263,19 @@ describe("platform Postgres migrations", () => {
     expect(client.statements).toContainEqual(expect.stringContaining("account_auth_tokens"));
   });
 
+  it("versions auth tokens against the credential that issued them", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(id => id !== "platform-auth-token-version-v12")
+      .forEach(id => client.appliedMigrationIds.add(id));
+
+    await applyPlatformPostgresMigrations(client);
+
+    expect(client.statements).toContainEqual(
+      "ALTER TABLE account_auth_tokens ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    );
+  });
+
   it("reports every required migration missing from the migration ledger", async () => {
     const client = new RecordingPostgresClient();
     client.appliedMigrationIds.add("platform-schema-v1");
@@ -275,6 +291,7 @@ describe("platform Postgres migrations", () => {
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -288,6 +305,7 @@ describe("platform Postgres migrations", () => {
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
     ]);
   });
 

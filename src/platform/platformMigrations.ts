@@ -27,6 +27,7 @@ const authOwnershipMigrationId = "platform-auth-ownership-v8";
 const historicalPricingOwnershipMigrationId = "platform-historical-pricing-ownership-v9";
 const sharedLeagueInvitationsMigrationId = "platform-shared-league-invitations-v10";
 const leagueArchiveMigrationId = "platform-league-archive-v11";
+const authTokenVersionMigrationId = "platform-auth-token-version-v12";
 const platformMigrationAdvisoryLockKeys = [1_297_040_203, 1_146_113_113] as const;
 
 const migrationStatementStartingWith = (prefix: string): string => {
@@ -177,6 +178,12 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
       "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
       "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_by_user_id text REFERENCES accounts(id) ON DELETE RESTRICT;",
       "CREATE INDEX IF NOT EXISTS leagues_active_created_by_user_id_idx ON leagues (created_by_user_id) WHERE archived_at IS NULL;",
+    ],
+  },
+  {
+    id: authTokenVersionMigrationId,
+    statements: [
+      "ALTER TABLE account_auth_tokens ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
     ],
   },
 ];
