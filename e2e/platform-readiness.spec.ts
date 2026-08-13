@@ -499,6 +499,41 @@ const exerciseDurableMockWorkspace = async (
   await expect(page.locator("#mock-draft-progress")).toHaveText(persistedProgress ?? "");
   await expect(page.locator(decisionSelector)).toHaveText(persistedDecision ?? "");
   await expect(page.locator("#mock-draft-roster")).toHaveText(persistedRoster ?? "");
+
+  let abandonConfirmationCount = 0;
+  page.once("dialog", dialog => {
+    abandonConfirmationCount += 1;
+    expect(dialog.type()).toBe("confirm");
+    expect(dialog.message()).toBe("Abandon this mock draft? Your current mock picks will be discarded.");
+    void dialog.accept();
+  });
+  await page.locator("#mock-draft-abandon").click();
+  expect(abandonConfirmationCount).toBe(1);
+  await expect(page.locator("#mock-draft-state")).toHaveText("Abandoned");
+  await expect(page.locator("#mock-draft-abandoned")).toBeVisible();
+  await expect(page.locator("#mock-draft-abandoned")).toBeFocused();
+  await expect(page.locator("#mock-draft-abandoned")).toContainText(
+    "Your active mock slot is available again.",
+  );
+  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBeNull();
+
+  await page.goto(
+    `/mock-drafts?seasonId=${encodeURIComponent(season.id)}&mockSessionId=${encodeURIComponent(persistedSessionId ?? "")}`,
+  );
+  await expect(page.locator("#mock-draft-state")).toHaveText("Abandoned");
+  await expect(page.locator("#mock-draft-abandoned")).toContainText(
+    "Your active mock slot is available again.",
+  );
+
+  await page.locator("#mock-draft-start-another").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-abandoned")).toBeHidden();
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Opening your league mock...");
+  const replacementSessionId = new URL(page.url()).searchParams.get("mockSessionId");
+  expect(replacementSessionId).toBeTruthy();
+  expect(replacementSessionId).not.toBe(persistedSessionId);
+  await page.locator("#mock-draft-start").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
 };
 
 const exerciseBoardSimulations = async (page: Page): Promise<void> => {
