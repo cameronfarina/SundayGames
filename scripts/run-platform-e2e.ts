@@ -57,6 +57,7 @@ interface ParsedOptionValue {
 const defaultServerStartupTimeoutMs = 30_000;
 const defaultDeployedPreflightTimeoutMs = 15_000;
 const shutdownTimeoutMs = 5_000;
+const screenshotAnalysisE2eApiKey = "mockd-e2e-deterministic-analyzer";
 const deployedSmokeEnvironment = {
   commissionerEmail: "MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL",
   commissionerPassword: "MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD",
@@ -605,14 +606,20 @@ const runLocalPlatformE2e = async (config: PlatformE2eRunConfig): Promise<number
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "mockd-platform-e2e-"));
   const externalDataFilePath = optionalEnv("MOCKD_E2E_DATA_FILE");
   const dataFilePath = externalDataFilePath ?? join(temporaryDirectory, "platform-store.json");
+  const screenshotDataFilePath = join(temporaryDirectory, "screenshot-platform-store.json");
   const port = await availablePort();
+  let screenshotPort = await availablePort();
+  while (screenshotPort === port) screenshotPort = await availablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const screenshotBaseUrl = `http://127.0.0.1:${screenshotPort}`;
   let platformProcess: ChildProcess | undefined;
+  let screenshotPlatformProcess: ChildProcess | undefined;
 
   try {
     if (externalDataFilePath === undefined) {
       await writePlatformStoreSnapshot(dataFilePath, emptyPlatformStoreSnapshot());
     }
+    await writePlatformStoreSnapshot(screenshotDataFilePath, emptyPlatformStoreSnapshot());
 
     platformProcess = spawn(commandFor("npm"), ["run", "platform:web"], {
       env: {
@@ -626,20 +633,50 @@ const runLocalPlatformE2e = async (config: PlatformE2eRunConfig): Promise<number
         MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
         MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
         MOCKD_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
+        MOCKD_SCREENSHOT_IMPORT_MODE: "disabled",
+        OPENAI_API_KEY: "",
       },
       stdio: "inherit",
     });
+    screenshotPlatformProcess = spawn(
+      commandFor("node"),
+      ["dist/scripts/start-screenshot-analysis-e2e.js"],
+      {
+        env: {
+          ...process.env,
+          HOST: "127.0.0.1",
+          PORT: String(screenshotPort),
+          DATABASE_URL: "",
+          MOCKD_DATABASE_URL: "",
+          MOCKD_PLATFORM_DATA_FILE: screenshotDataFilePath,
+          MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: join(temporaryDirectory, "screenshot-draft-tools"),
+          MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
+          MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+          MOCKD_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
+          MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
+          OPENAI_API_KEY: screenshotAnalysisE2eApiKey,
+        },
+        stdio: "inherit",
+      },
+    );
 
-    await waitForPlatformServer(baseUrl, platformProcess, config.serverStartupTimeoutMs);
+    await Promise.all([
+      waitForPlatformServer(baseUrl, platformProcess, config.serverStartupTimeoutMs),
+      waitForPlatformServer(screenshotBaseUrl, screenshotPlatformProcess, config.serverStartupTimeoutMs),
+    ]);
 
     const exitCode = await runChild("playwright", ["test", ...config.playwrightArgs], {
       ...playwrightEnvFor(config, dataFilePath),
       PLAYWRIGHT_BASE_URL: baseUrl,
+      MOCKD_E2E_SCREENSHOT_BASE_URL: screenshotBaseUrl,
       MOCKD_E2E_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
     });
     return exitCode;
   } finally {
-    await terminate(platformProcess);
+    await Promise.all([
+      terminate(platformProcess),
+      terminate(screenshotPlatformProcess),
+    ]);
     if (externalDataFilePath === undefined) {
       await rm(temporaryDirectory, { force: true, recursive: true });
     }
