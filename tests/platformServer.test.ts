@@ -89,8 +89,16 @@ const mockRunner: SimulationMockBatchRunner = ({
 interface JsonFetchResult {
   status: number;
   contentType: string | null;
+  setCookie?: string | null;
   body: unknown;
 }
+
+const sessionTokenFrom = (response: JsonFetchResult): string => {
+  const match = response.setCookie?.match(/(?:^|;\s*)mockd_session=([^;]+)/);
+  if (match?.[1] === undefined) throw new Error("Expected a Mockd session cookie.");
+
+  return decodeURIComponent(match[1]);
+};
 
 interface StoredSnapshotRow {
   revision: number;
@@ -1119,10 +1127,12 @@ const jsonFetch = async (
   init: RequestInit = {},
 ): Promise<JsonFetchResult> => {
   const response = await fetch(`${baseUrl}${path}`, init);
+  const setCookie = response.headers.get("set-cookie");
 
   return {
     status: response.status,
     contentType: response.headers.get("content-type"),
+    ...(setCookie === null ? {} : { setCookie }),
     body: await response.json(),
   };
 };
@@ -1150,9 +1160,11 @@ const requestBeforeSendingBody = async (
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
       incomingResponse.on("end", () => {
+        const setCookie = incomingResponse.headers["set-cookie"]?.[0];
         resolve({
           status: incomingResponse.statusCode ?? 0,
           contentType: incomingResponse.headers["content-type"] ?? null,
+          ...(setCookie === undefined ? {} : { setCookie }),
           body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
         });
       });
@@ -1317,9 +1329,10 @@ describe("platform server composition", () => {
           accountId: expect.any(String),
           createdAt: now.toISOString(),
         },
-        sessionToken: expect.any(String),
       },
     });
+    expect(login.setCookie).toContain("mockd_session=");
+    expect(login.body).not.toHaveProperty("sessionToken");
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
   });
 
@@ -1386,7 +1399,7 @@ describe("platform server composition", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password" }),
     });
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const headers = {
       "content-type": "application/json",
       "x-session-token": sessionToken,
@@ -1431,13 +1444,13 @@ describe("platform server composition", () => {
       status: 201,
       body: {
         room: {
-          season: { id: seasonId },
-          projection: { board: expect.any(Array) },
+          seasonId,
+          board: expect.any(Array),
         },
       },
     });
-    expect((liveRoom.body as { room: { projection: { board: unknown[] } } })
-      .room.projection.board).toHaveLength(currentPlayerCatalog.length);
+    expect((liveRoom.body as { room: { board: unknown[] } })
+      .room.board).toHaveLength(currentPlayerCatalog.length);
   });
 
   it("passes the trusted proxy client address to auth rate limiting", async () => {
@@ -1537,7 +1550,7 @@ describe("platform server composition", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: "prep@example.com", password: "secure password" }),
     });
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const accountId = (prepAccount.body as { account: { id: string } }).account.id;
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
@@ -1571,7 +1584,7 @@ describe("platform server composition", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: "outsider@example.com", password: "secure password" }),
     });
-    const outsiderSessionToken = (outsiderLogin.body as { sessionToken: string }).sessionToken;
+    const outsiderSessionToken = sessionTokenFrom(outsiderLogin);
 
     const missingSeason = await fetch(`${baseUrl}/practice`, {
       headers: { "x-session-token": sessionToken },
@@ -1629,8 +1642,8 @@ describe("platform server composition", () => {
     });
     const camAccount = (camCreated.body as { account: { id: string } }).account;
     const sethAccount = (sethCreated.body as { account: { id: string } }).account;
-    const camSessionToken = (camLogin.body as { sessionToken: string }).sessionToken;
-    const sethSessionToken = (sethLogin.body as { sessionToken: string }).sessionToken;
+    const camSessionToken = sessionTokenFrom(camLogin);
+    const sethSessionToken = sessionTokenFrom(sethLogin);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -1836,8 +1849,8 @@ describe("platform server composition", () => {
       account: {
         email: "cam@example.com",
       },
-      sessionToken: expect.any(String),
     });
+    expect(login.setCookie).toContain("mockd_session=");
     await expect(
       loadedServer.liveDraftRoomSetupRepository?.findForSeason("season_restart_2026"),
     ).resolves.toMatchObject({
@@ -1901,8 +1914,8 @@ describe("platform server composition", () => {
       account: {
         email: "cam@example.com",
       },
-      sessionToken: expect.any(String),
     });
+    expect(login.setCookie).toContain("mockd_session=");
   });
 
   it("uses normalized Postgres live room and export artifact repositories across server restart", async () => {
@@ -1928,7 +1941,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -2055,14 +2068,12 @@ describe("platform server composition", () => {
       body: {
         room: {
           revision: 3,
-          projection: {
-            sales: [
-              expect.objectContaining({
-                playerName: "Puka Nacua",
-                price: 62,
-              }),
-            ],
-          },
+          salesLog: [
+            expect.objectContaining({
+              playerName: "Puka Nacua",
+              price: 62,
+            }),
+          ],
         },
       },
     });
@@ -2139,14 +2150,12 @@ describe("platform server composition", () => {
           roomId: "room_postgres_normalized",
           status: "ended",
           revision: 4,
-          projection: {
-            sales: [
-              expect.objectContaining({
-                playerName: "Puka Nacua",
-                price: 62,
-              }),
-            ],
-          },
+          salesLog: [
+            expect.objectContaining({
+              playerName: "Puka Nacua",
+              price: 62,
+            }),
+          ],
         },
       },
     });
@@ -2172,7 +2181,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Rollback League",
       setupStatus: "published",
@@ -2271,7 +2280,7 @@ describe("platform server composition", () => {
     expect(pricingAfterRollback).toMatchObject({ status: 200, body: { pricingSnapshots: [] } });
     expect(roomAfterRollback).toMatchObject({
       status: 200,
-      body: { room: { revision: 1, projection: { sales: [] } } },
+      body: { room: { revision: 1, salesLog: [] } },
     });
     expect((postgresClient.row?.snapshot_json as { pricingSnapshots?: unknown[] }).pricingSnapshots).toEqual([]);
   });
@@ -2304,7 +2313,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -2442,7 +2451,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
 
     expect(platformServer.authRepository).toBe(platformServer.postgresAuthRepository);
     expect(postgresClient.row).toBeUndefined();
@@ -2616,7 +2625,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -3860,7 +3869,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 214674",
       setupStatus: "published",
@@ -3968,7 +3977,7 @@ describe("platform server composition", () => {
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
-    const sessionToken = (login.body as { sessionToken: string }).sessionToken;
+    const sessionToken = sessionTokenFrom(login);
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
     if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
     const memberships = [{

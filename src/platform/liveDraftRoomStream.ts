@@ -118,7 +118,6 @@ export type LiveDraftRoomSsePayload =
       status: "live";
       revision: number;
       occurredAt: string;
-      actorUserId: string;
       sale: LiveDraftRoomSaleLogEntry;
     };
   }
@@ -133,7 +132,6 @@ export type LiveDraftRoomSsePayload =
       status: "live" | "paused" | "ended";
       revision: number;
       occurredAt: string;
-      actorUserId: string;
     };
   }
   | {
@@ -397,7 +395,6 @@ export const buildLiveDraftRoomSseEvent = (
         status: "live",
         revision: input.event.revision,
         occurredAt: isoStringFor(input.event.occurredAt),
-        actorUserId: input.event.actorUserId,
         sale: saleLogEntryFor(input.event.sale, input.event.revision, input.event.occurredAt),
       },
     };
@@ -425,7 +422,6 @@ export const buildLiveDraftRoomSseEvent = (
         status,
         revision: input.event.revision,
         occurredAt: isoStringFor(input.event.occurredAt),
-        actorUserId: input.event.actorUserId,
       },
     };
   }
@@ -441,7 +437,6 @@ export const buildLiveDraftRoomSseEvent = (
       status: "ended",
       revision: input.event.revision,
       occurredAt: isoStringFor(input.event.occurredAt),
-      actorUserId: input.event.actorUserId,
     },
   };
 };

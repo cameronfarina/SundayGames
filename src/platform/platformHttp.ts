@@ -1701,7 +1701,16 @@ const routeSeason = async (
       now: request.now,
     });
 
-    return { status: 201, body: { room } };
+    return {
+      status: 201,
+      body: {
+        room: await app.getLiveDraftRoomState({
+          actorSessionToken: request.sessionToken,
+          roomId: room.roomId,
+          now: request.now,
+        }),
+      },
+    };
   }
 
   if (seasonAction === "team-claims" && request.segments.length === 3) {
@@ -2661,6 +2670,18 @@ const routePracticeShortlist = async (
   return { status: 200, body: { item } };
 };
 
+const liveDraftRoomReadModelForRequest = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  roomId: string,
+) => await app.getLiveDraftRoomState({
+  actorSessionToken: request.sessionToken,
+  roomId,
+  selectedTeamId: optionalString(request.query.selectedTeamId),
+  viewedTeamId: optionalString(request.query.viewedTeamId),
+  now: request.now,
+});
+
 const routeLiveRooms = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -2685,17 +2706,18 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 201, body: { room } };
+    return {
+      status: 201,
+      body: {
+        room: await liveDraftRoomReadModelForRequest(app, request, room.roomId),
+      },
+    };
   }
 
   if (request.segments.length === 2) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const room = await app.getLiveDraftRoom({
-      actorSessionToken: request.sessionToken,
-      roomId: roomId ?? "",
-      now: request.now,
-    });
+    const room = await liveDraftRoomReadModelForRequest(app, request, roomId ?? "");
 
     return { status: 200, body: { room } };
   }
@@ -2826,7 +2848,7 @@ const routeLiveRooms = async (
   if (request.method !== "POST") return methodNotAllowed();
 
   if (action === "start") {
-    const room = await app.startLiveDraftRoom({
+    await app.startLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2834,11 +2856,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "pause") {
-    const room = await app.pauseLiveDraftRoom({
+    await app.pauseLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2846,11 +2868,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "resume") {
-    const room = await app.resumeLiveDraftRoom({
+    await app.resumeLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2858,11 +2880,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "sales" || action === "sale") {
-    const room = await app.logLiveDraftSale({
+    await app.logLiveDraftSale({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2871,11 +2893,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "undo") {
-    const room = await app.undoLastLiveDraftSale({
+    await app.undoLastLiveDraftSale({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2883,11 +2905,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "corrections" || action === "correction") {
-    const room = await app.correctLiveDraftSale({
+    await app.correctLiveDraftSale({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2897,11 +2919,11 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   if (action === "end") {
-    const room = await app.endLiveDraftRoom({
+    await app.endLiveDraftRoom({
       actorSessionToken: request.sessionToken,
       roomId: roomId ?? "",
       expectedRevision: optionalNumber(request.body.expectedRevision),
@@ -2910,7 +2932,7 @@ const routeLiveRooms = async (
       now: request.now,
     });
 
-    return { status: 200, body: { room } };
+    return { status: 200, body: { room: await liveDraftRoomReadModelForRequest(app, request, roomId ?? "") } };
   }
 
   return notFound();
@@ -3498,7 +3520,6 @@ export const createPlatformHttpHandler = (
           body: {
             account: login.account,
             session: publicSessionFor(login.session),
-            sessionToken: login.sessionToken,
           },
         };
       }

@@ -32,6 +32,13 @@ const stringValue = (value: unknown): string => {
   return value;
 };
 
+const sessionTokenFrom = (setCookie: string | readonly string[] | undefined): string => {
+  const cookie = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+  const match = cookie?.match(/(?:^|;\s*)mockd_session=([^;]+)/);
+
+  return stringValue(match?.[1]);
+};
+
 afterEach(async () => {
   await startedProcess?.close();
   startedProcess = undefined;
@@ -216,7 +223,7 @@ describe("platform web startup", () => {
     const loginBody = recordValue(login.body);
     const account = recordValue(loginBody.account);
     const accountId = stringValue(account.id);
-    const sessionToken = stringValue(loginBody.sessionToken);
+    const sessionToken = sessionTokenFrom(login.headers?.["Set-Cookie"]);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Local fixture league",
       setupStatus: "published",
@@ -253,7 +260,7 @@ describe("platform web startup", () => {
       body: {
         room: {
           seasonId: season.id,
-          playerCatalog: expect.arrayContaining([
+          board: expect.arrayContaining([
             expect.objectContaining({ name: "Puka Nacua" }),
           ]),
         },

@@ -30,6 +30,7 @@ import {
   type PlatformApp,
   type PlatformHttpHandler,
   type PlatformHttpRequest,
+  type PlatformHttpResponse,
 } from "../src/platform/platformHttp.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
@@ -149,6 +150,43 @@ const expectAccount = (value: unknown): AccountRecord => {
   };
 };
 
+const sessionTokenFrom = (response: PlatformHttpResponse): string => {
+  const setCookie = response.headers?.["Set-Cookie"];
+  const cookie = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+  const match = cookie?.match(/(?:^|;\s*)mockd_session=([^;]+)/);
+  if (match?.[1] === undefined) throw new Error("Expected a Mockd session cookie.");
+
+  return decodeURIComponent(match[1]);
+};
+
+const browserPayloadDenylist = new Set([
+  "actorUserId",
+  "commissionerUserId",
+  "idempotencyKey",
+  "mutationHash",
+  "passwordHash",
+  "sessionToken",
+  "tokenHash",
+  "viewerPasswordHashRef",
+]);
+
+const expectPublicBrowserPayload = (value: unknown): void => {
+  const visit = (candidate: unknown): void => {
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit);
+      return;
+    }
+    if (!isRecord(candidate)) return;
+
+    for (const [key, nestedValue] of Object.entries(candidate)) {
+      expect(browserPayloadDenylist, `Browser payload exposed ${key}.`).not.toContain(key);
+      visit(nestedValue);
+    }
+  };
+
+  visit(value);
+};
+
 const createLoggedInAccount = async (
   handle: PlatformHttpHandler,
   email: string,
@@ -176,7 +214,7 @@ const createLoggedInAccount = async (
 
   return {
     account: expectAccount(loginBody.account),
-    sessionToken: expectString(loginBody.sessionToken),
+    sessionToken: sessionTokenFrom(login),
   };
 };
 
@@ -868,23 +906,22 @@ describe("platform HTTP contract", () => {
       status: 201,
       body: {
         room: {
-          playerCatalog: expect.arrayContaining([
+          board: expect.arrayContaining([
             expect.objectContaining({ name: "Puka Nacua", marketPrice: 73, expectedPrice: 73 }),
           ]),
-          projection: {
-            teams: expect.arrayContaining([
-              expect.objectContaining({
-                teamId: camTeam.id,
-                spent: 50,
-                budgetRemaining: 150,
-                rosterSlotsRemaining: 15,
-                roster: [expect.objectContaining({ name: "De'Von Achane", source: "keeper", price: 50 })],
-              }),
-            ]),
-          },
+          teamSummaries: expect.arrayContaining([
+            expect.objectContaining({
+              teamId: camTeam.id,
+              spent: 50,
+              budgetRemaining: 150,
+              rosterSlotsRemaining: 15,
+              roster: [expect.objectContaining({ name: "De'Von Achane", source: "keeper", price: 50 })],
+            }),
+          ]),
         },
       },
     });
+    expectPublicBrowserPayload(createdRoomResponse.body);
 
     const synchronizeInitialRosters = vi.spyOn(app, "synchronizeLiveDraftRoomInitialRosters")
       .mockRejectedValueOnce(new Error("The draft started while the keeper was being saved."));
@@ -1711,7 +1748,7 @@ describe("platform HTTP contract", () => {
       path: "/sessions",
       body: { email: firstLogin.account.email, password: "secure password" },
     });
-    const secondToken = expectString(expectBodyRecord(secondLogin.body).sessionToken);
+    const secondToken = sessionTokenFrom(secondLogin);
 
     await expect(handle({
       method: "PUT",
@@ -2408,8 +2445,8 @@ describe("platform HTTP contract", () => {
         id: expect.stringMatching(/^sess_/),
         accountId: expect.any(String),
       },
-      sessionToken: expect.any(String),
     });
+    expectPublicBrowserPayload(login.body);
     expect(JSON.stringify(login.body)).not.toContain("tokenHash");
     expect(JSON.stringify(login.body)).not.toContain("scrypt");
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("mockd_session="));
@@ -2613,8 +2650,7 @@ describe("platform HTTP contract", () => {
       },
     } satisfies PlatformHttpRequest;
     const login = await handle(loginRequest);
-    const loginBody = expectBodyRecord(login.body);
-    const sessionToken = expectString(loginBody.sessionToken);
+    const sessionToken = sessionTokenFrom(login);
 
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("Secure"));
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("SameSite=Lax"));
@@ -2671,8 +2707,7 @@ describe("platform HTTP contract", () => {
         now,
       },
     });
-    const loginBody = expectBodyRecord(login.body);
-    const sessionToken = expectString(loginBody.sessionToken);
+    const sessionToken = sessionTokenFrom(login);
 
     expect(login.headers?.["Set-Cookie"]).toEqual(expect.stringContaining("SameSite=Lax"));
     expect(login.headers?.["Set-Cookie"]).not.toEqual(expect.stringContaining("Secure"));
@@ -2744,7 +2779,7 @@ describe("platform HTTP contract", () => {
       },
     });
     const account = expectAccount(expectBodyRecord(created.body).account);
-    const sessionToken = expectString(expectBodyRecord(login.body).sessionToken);
+    const sessionToken = sessionTokenFrom(login);
     const afterDefaultSessionExpiry = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
 
     expect(account.createdAt).toEqual(now);
@@ -3025,13 +3060,15 @@ describe("platform HTTP contract", () => {
           roomId: `room-${season.id}-real`,
           seasonId: season.id,
           status: "countdown",
-          startsAt: new Date(startsAt),
-          playerCatalog: expect.arrayContaining([
+          board: expect.arrayContaining([
             expect.objectContaining({ name: "Puka Nacua" }),
           ]),
+          role: "commissioner",
+          canMutateRoom: true,
         },
       },
     });
+    expectPublicBrowserPayload(created.body);
     await expect(handle({
       method: "DELETE",
       path: `/seasons/${season.id}/live-room`,
@@ -3629,8 +3666,11 @@ describe("platform HTTP contract", () => {
       room: expect.objectContaining({
         roomId: "room_214674_2026",
         status: "setup",
+        role: "commissioner",
+        canMutateRoom: true,
       }),
     });
+    expectPublicBrowserPayload(createdRoom.body);
 
     const fetchedRoom = await handle({
       method: "GET",
@@ -3639,8 +3679,25 @@ describe("platform HTTP contract", () => {
     });
 
     expect(fetchedRoom.body).toMatchObject({
-      room: expect.objectContaining({ roomId: "room_214674_2026" }),
+      room: expect.objectContaining({
+        roomId: "room_214674_2026",
+        role: "member",
+        canMutateRoom: false,
+      }),
     });
+    expectPublicBrowserPayload(fetchedRoom.body);
+
+    const initialEvents = await handle({
+      method: "GET",
+      path: "/live-rooms/room_214674_2026/events?afterRevision=0",
+      sessionToken: seth.sessionToken,
+    });
+    expect(initialEvents.body).toMatchObject({
+      events: {
+        events: [expect.objectContaining({ event: "room.snapshot" })],
+      },
+    });
+    expectPublicBrowserPayload(initialEvents.body);
 
     const startedRoom = await handle({
       method: "POST",
@@ -3656,6 +3713,7 @@ describe("platform HTTP contract", () => {
     expect(startedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "live", revision: 2 }),
     });
+    expectPublicBrowserPayload(startedRoom.body);
 
     const pausedRoom = await handle({
       method: "POST",
@@ -3670,6 +3728,7 @@ describe("platform HTTP contract", () => {
     expect(pausedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "paused", revision: 3 }),
     });
+    expectPublicBrowserPayload(pausedRoom.body);
 
     const saleWhilePaused = await handle({
       method: "POST",
@@ -3699,6 +3758,7 @@ describe("platform HTTP contract", () => {
     expect(resumedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "live", revision: 4 }),
     });
+    expectPublicBrowserPayload(resumedRoom.body);
 
     const memberRoomState = await handle({
       method: "GET",
@@ -3712,6 +3772,7 @@ describe("platform HTTP contract", () => {
         selectedTeam: expect.objectContaining({ teamId: sethTeam.id }),
       }),
     });
+    expectPublicBrowserPayload(memberRoomState.body);
 
     const mismatchedStructuredSale = await handle({
       method: "POST",
@@ -3797,11 +3858,10 @@ describe("platform HTTP contract", () => {
     expect(soldRoom.body).toMatchObject({
       room: expect.objectContaining({
         revision: 5,
-        projection: expect.objectContaining({
-          sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
-        }),
+        salesLog: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
       }),
     });
+    expectPublicBrowserPayload(soldRoom.body);
 
     const retriedSoldRoom = await handle({
       method: "POST",
@@ -3818,11 +3878,10 @@ describe("platform HTTP contract", () => {
     expect(retriedSoldRoom.body).toMatchObject({
       room: expect.objectContaining({
         revision: 5,
-        projection: expect.objectContaining({
-          sales: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
-        }),
+        salesLog: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
       }),
     });
+    expectPublicBrowserPayload(retriedSoldRoom.body);
 
     const saleEvents = await handle({
       method: "GET",
@@ -3846,6 +3905,7 @@ describe("platform HTTP contract", () => {
         ],
       },
     });
+    expectPublicBrowserPayload(saleEvents.body);
 
     const saleEventStream = await handle({
       method: "GET",
@@ -3861,6 +3921,12 @@ describe("platform HTTP contract", () => {
     expect(saleEventStream.body).toContain("id: room_214674_2026:5\n");
     expect(saleEventStream.body).toContain("event: room.sale\n");
     expect(saleEventStream.body).toContain("\"playerName\":\"Puka Nacua\"");
+    for (const payload of expectString(saleEventStream.body)
+      .split("\n")
+      .filter(line => line.startsWith("data: "))
+      .map(line => JSON.parse(line.slice("data: ".length)))) {
+      expectPublicBrowserPayload(payload);
+    }
 
     const undoneRoom = await handle({
       method: "POST",
@@ -3876,9 +3942,10 @@ describe("platform HTTP contract", () => {
     expect(undoneRoom.body).toMatchObject({
       room: expect.objectContaining({
         revision: 6,
-        projection: expect.objectContaining({ sales: [] }),
+        salesLog: [],
       }),
     });
+    expectPublicBrowserPayload(undoneRoom.body);
 
     const resoldRoom = await handle({
       method: "POST",
@@ -3893,9 +3960,10 @@ describe("platform HTTP contract", () => {
     });
 
     const resoldSale = (resoldRoom.body as {
-      room: { projection: { sales: Array<{ saleEventId: string }> } };
-    }).room.projection.sales[0];
+      room: { salesLog: Array<{ saleEventId: string }> };
+    }).room.salesLog[0];
     if (resoldSale === undefined) throw new Error("Expected the replacement sale fixture.");
+    expectPublicBrowserPayload(resoldRoom.body);
 
     const correctedRoom = await handle({
       method: "POST",
@@ -3912,11 +3980,10 @@ describe("platform HTTP contract", () => {
     expect(correctedRoom.body).toMatchObject({
       room: expect.objectContaining({
         revision: 8,
-        projection: expect.objectContaining({
-          sales: [expect.objectContaining({ ownerDisplayName: "Seth", price: 41 })],
-        }),
+        salesLog: [expect.objectContaining({ ownerDisplayName: "Seth", price: 41 })],
       }),
     });
+    expectPublicBrowserPayload(correctedRoom.body);
 
     const undoneCorrection = await handle({
       method: "POST",
@@ -3931,11 +3998,10 @@ describe("platform HTTP contract", () => {
     expect(undoneCorrection.body).toMatchObject({
       room: expect.objectContaining({
         revision: 9,
-        projection: expect.objectContaining({
-          sales: [expect.objectContaining({ ownerDisplayName: "Cam", price: 62 })],
-        }),
+        salesLog: [expect.objectContaining({ ownerDisplayName: "Cam", price: 62 })],
       }),
     });
+    expectPublicBrowserPayload(undoneCorrection.body);
 
     const memberExportArtifact = await handle({
       method: "POST",
@@ -3990,6 +4056,7 @@ describe("platform HTTP contract", () => {
     expect(endedRoom.body).toMatchObject({
       room: expect.objectContaining({ status: "ended", revision: 10 }),
     });
+    expectPublicBrowserPayload(endedRoom.body);
 
     const myTeam = await handle({
       method: "GET",
