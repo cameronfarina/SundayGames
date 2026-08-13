@@ -1136,6 +1136,82 @@ test("completed auction mock shows every team's priced Week 1 roster", async ({ 
   await exerciseCompletedAuctionMockResults(page, createdSeason, claimedTeam.id);
 });
 
+test("auction mock only enables legal nominations for the final open slot", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "final.slot.mock.e2e@example.com");
+  const owners = ["Alpha", "Bravo", "Charlie", "Delta"];
+  const baseSeason = buildCurrentMockdLeagueSeason(owners, {
+    ...leagueConfig,
+    teams: owners.length,
+    rosterSize: 1,
+    lineup: { QB: 1 },
+    rosterMaximums: { QB: 1, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+  }, {
+    leagueName: "Final slot nomination E2E",
+    setupStatus: "published",
+  });
+  const leagueId = `${baseSeason.leagueId}-final-slot-mock`;
+  const seasonId = `${leagueId}-season-${baseSeason.seasonYear}`;
+  const season: LeagueSeason = {
+    ...baseSeason,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...baseSeason.league,
+      id: leagueId,
+      externalLeagueId: `${baseSeason.league.externalLeagueId}-final-slot-mock`,
+    },
+    teams: baseSeason.teams.map((team, index) => ({
+      ...team,
+      id: `${seasonId}-team-${index + 1}`,
+      leagueSeasonId: seasonId,
+      ownerId: `${team.ownerId}-final-slot-mock`,
+    })),
+  };
+  const claimedTeam = teamByOwner(season, "Alpha");
+  const createdSeason = expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
+    body: {
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+    },
+  })).season;
+
+  await page.goto(`/practice?seasonId=${encodeURIComponent(createdSeason.id)}`);
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-start")).toBeEnabled();
+  await page.locator("#mock-draft-start").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
+  await expect(page.locator("#mock-draft-open-slots")).toHaveText("1");
+
+  const quarterbackAction = page.locator(
+    '#mock-draft-player-rows tr[data-position="QB"] .mock-player-action',
+  ).first();
+  const invalidAction = page.locator(
+    '#mock-draft-player-rows tr:not([data-position="QB"]) .mock-player-action',
+  ).first();
+  await expect(quarterbackAction).toBeEnabled();
+  await expect(invalidAction).toBeDisabled();
+  await expect(invalidAction).toHaveAttribute("title", "No open roster slot can accept this position.");
+
+  const nominationResponse = page.waitForResponse(response =>
+    response.request().method() === "POST"
+    && response.url().includes("/season-mock-drafts/")
+    && response.url().endsWith("/commands")
+  );
+  await quarterbackAction.click();
+  expect((await nominationResponse).status()).toBe(200);
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
+});
+
 test("commissioner history and keepers persist into an unopened live room", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const { page, account } = await pageForLocalFixtureUser(browser, "keeper.history.e2e@example.com");

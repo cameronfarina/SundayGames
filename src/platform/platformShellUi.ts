@@ -15,6 +15,30 @@ export const rosterSlotDisplayOrder = [
   "BENCH",
 ] as const;
 
+interface MockRosterEligibilityTeam {
+  positionCounts?: Readonly<Record<string, number>> | undefined;
+  slots?: readonly {
+    eligiblePositions?: readonly string[] | undefined;
+    playerId?: string | undefined;
+  }[] | undefined;
+}
+
+export const canMockTeamRosterPlayer = (
+  team: MockRosterEligibilityTeam | undefined,
+  playerPosition: string,
+  positionMaximums: Readonly<Record<string, number>> | undefined,
+): boolean => {
+  if (team === undefined) return false;
+  const positionCount = Number(team.positionCounts?.[playerPosition] ?? 0);
+  const positionMaximum = Number(positionMaximums?.[playerPosition] ?? 0);
+  if (positionCount >= positionMaximum) return false;
+
+  return (team.slots ?? []).some(slot =>
+    slot.playerId === undefined
+    && (slot.eligiblePositions ?? []).includes(playerPosition)
+  );
+};
+
 export const draftRoomPathFor = (input: { seasonId: string; roomId: string }): string => {
   const query = new URLSearchParams({ seasonId: input.seasonId, roomId: input.roomId });
   return `/draft-room?${query.toString()}`;
@@ -3645,6 +3669,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
 
     const auctionMoney = value => "$" + Math.round(Number(value || 0));
     const mockRosterPositionLabels = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
+    const canMockTeamRosterPlayer = ${canMockTeamRosterPlayer.toString()};
 
     const mockAuctionFeedItem = event => {
       const item = document.createElement("li");
@@ -3744,6 +3769,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const canPick = sessionState.status === "active" && (auction
         ? sessionState.phase === "awaiting_human_nomination"
         : currentPick?.teamId === session.teamId);
+      const controlledTeam = (draft.teams || []).find(team => team.id === session.teamId);
       const fragment = document.createDocumentFragment();
       players.forEach(player => {
         const row = document.createElement("tr");
@@ -3787,7 +3813,15 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         actionButton.className = "mock-player-action";
         actionButton.dataset.mockPlayerId = player.id;
         actionButton.textContent = auction ? "Nominate" : "Draft";
-        actionButton.disabled = !canPick;
+        const canRosterPlayer = !auction || canMockTeamRosterPlayer(
+          controlledTeam,
+          player.position,
+          draft.configuration?.positionMaximums,
+        );
+        actionButton.disabled = !canPick || !canRosterPlayer;
+        if (auction && !canRosterPlayer) {
+          actionButton.title = "No open roster slot can accept this position.";
+        }
         actionCell.append(actionButton);
         row.append(actionCell);
         fragment.append(row);

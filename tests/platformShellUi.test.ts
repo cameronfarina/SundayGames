@@ -1,11 +1,46 @@
 import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
+  canMockTeamRosterPlayer,
   createPlatformShellHtml,
   draftRoomPathFor,
   platformShellNavigation,
   rosterSlotDisplayOrder,
 } from "../src/platform/platformShellUi.js";
+
+describe("canMockTeamRosterPlayer", () => {
+  const finalOpenQuarterbackSlot = {
+    positionCounts: { QB: 0, RB: 1, WR: 1 },
+    slots: [
+      { slot: "QB", eligiblePositions: ["QB"] },
+      { slot: "RB", eligiblePositions: ["RB"], playerId: "rb-1" },
+      { slot: "WR", eligiblePositions: ["WR"], playerId: "wr-1" },
+    ],
+  };
+
+  it("only allows players who can fill the team's final open roster slot", () => {
+    const positionMaximums = { QB: 1, RB: 1, WR: 1 };
+
+    expect(canMockTeamRosterPlayer(finalOpenQuarterbackSlot, "QB", positionMaximums)).toBe(true);
+    expect(canMockTeamRosterPlayer(finalOpenQuarterbackSlot, "RB", positionMaximums)).toBe(false);
+    expect(canMockTeamRosterPlayer(finalOpenQuarterbackSlot, "WR", positionMaximums)).toBe(false);
+  });
+
+  it("retains position-maximum enforcement for flexible open slots", () => {
+    const team = {
+      positionCounts: { RB: 2, WR: 0 },
+      slots: [
+        { slot: "RB1", eligiblePositions: ["RB"], playerId: "rb-1" },
+        { slot: "RB2", eligiblePositions: ["RB"], playerId: "rb-2" },
+        { slot: "FLEX", eligiblePositions: ["RB", "WR", "TE"] },
+      ],
+    };
+    const positionMaximums = { RB: 2, WR: 1, TE: 1 };
+
+    expect(canMockTeamRosterPlayer(team, "RB", positionMaximums)).toBe(false);
+    expect(canMockTeamRosterPlayer(team, "WR", positionMaximums)).toBe(true);
+  });
+});
 
 const platformShellHtml = createPlatformShellHtml({
   leagueCreationScreenshotAnalysis: true,
