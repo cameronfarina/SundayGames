@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 This backlog contains only issues reproduced in the browser or confirmed in code with a focused test. Hosted snake drafts remain out of scope. Auction simulations, auction mock drafts, and hosted auction drafts are the launch path.
 
-Status: all 39 verified tickets are implemented on the release branch. Final GitHub closure follows the green `main` build.
+Status: all 40 verified tickets are implemented on the release branch. Final GitHub closure follows the green `main` build.
 
 ## Tickets
 
@@ -231,6 +231,10 @@ Repeated commissioner mutations persisted complete room snapshots containing acc
 ### 39. [Bound and expire historical import preview resources](https://github.com/cameronfarina/Mockd/issues/39)
 
 Historical imports were parsed before import-specific admission checks, had no row or cell cap, and retained an unbounded number of durable previews.
+
+### 40. [Use a production-valid league fixture in the Postgres composition smoke](https://github.com/cameronfarina/Mockd/issues/40)
+
+The production Postgres smoke used a two-team fixture even though launch validation correctly requires leagues to contain between four and 20 teams, so CI stopped before exercising hosted-auction persistence and restart behavior.
 
 ## Verified Strengths
 
