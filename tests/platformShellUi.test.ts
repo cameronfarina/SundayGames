@@ -396,6 +396,29 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).not.toContain('["Decision support", "Strategy"');
   });
 
+  it("keeps commissioner team lists readable and operable on mobile", () => {
+    expect(platformShellHtml).toContain(
+      'id="setup-team-table" class="responsive-team-table hidden"',
+    );
+    expect(platformShellHtml).toContain(
+      '<table class="setup-preview-table commissioner-team-table" aria-label="Configured teams">',
+    );
+    expect(platformShellHtml).toContain(
+      '<table class="setup-preview-table commissioner-team-table" aria-label="Team changes preview">',
+    );
+    expect(platformShellHtml).toContain('<th scope="col">Team #</th>');
+    expect(platformShellHtml).toContain("cell.dataset.label = label;");
+    expect(platformShellHtml).toContain(
+      ".commissioner-team-table { min-width: 0; table-layout: fixed; }",
+    );
+    expect(platformShellHtml).toContain(".commissioner-team-table thead { display: none; }");
+    expect(platformShellHtml).toContain(
+      '.commissioner-team-table td[data-label]::before',
+    );
+    expect(platformShellHtml).toContain("content: attr(data-label);");
+    expect(platformShellHtml).toContain(".setup-team-actions button { width: 100%; }");
+  });
+
   it("announces loading and errors and keeps useful content first on mobile", () => {
     expect(platformShellHtml).toContain("id=\"app-status\" class=\"status\" role=\"status\" aria-live=\"polite\"");
     expect(platformShellHtml).toContain("id=\"app-error\" class=\"error hidden\" role=\"alert\"");

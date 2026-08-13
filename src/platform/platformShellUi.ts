@@ -656,6 +656,7 @@ export const platformShellHtml = `<!doctype html>
     }
 
     .table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; }
+    .responsive-team-table { max-width: 100%; min-width: 0; }
     .player-board-scroll {
       border-bottom: 1px solid var(--line);
       border-top: 1px solid var(--line);
@@ -670,6 +671,7 @@ export const platformShellHtml = `<!doctype html>
       z-index: 1;
     }
     .setup-preview-table { border-collapse: collapse; min-width: 620px; width: 100%; }
+    .commissioner-team-table { min-width: 0; table-layout: fixed; }
     .setup-preview-table th, .setup-preview-table td {
       border-bottom: 1px solid var(--line);
       padding: 10px 12px;
@@ -1088,6 +1090,36 @@ export const platformShellHtml = `<!doctype html>
       .league-wizard-footer .status { flex: 1 0 100%; order: -1; }
       .league-import-actions { grid-template-columns: 1fr; }
       .league-team-grid { grid-template-columns: 1fr; }
+      .setup-team-actions button { width: 100%; }
+      .commissioner-team-table { display: block; }
+      .commissioner-team-table thead { display: none; }
+      .commissioner-team-table tbody {
+        display: grid;
+        gap: 10px;
+      }
+      .commissioner-team-table tr {
+        background: var(--surface);
+        border-left: 3px solid var(--accent);
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+      .commissioner-team-table td {
+        align-items: start;
+        border: 0;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(86px, .38fr) minmax(0, 1fr);
+        overflow-wrap: anywhere;
+        padding: 0;
+      }
+      .commissioner-team-table td[data-label]::before {
+        color: var(--muted);
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
       .historical-file-row { grid-template-columns: 1fr; }
       .keeper-command-form { grid-template-columns: 1fr; }
       .keeper-command-form button { width: 100%; }
@@ -1676,9 +1708,9 @@ export const platformShellHtml = `<!doctype html>
             <h2>Teams and owners</h2>
             <input id="setup-season-id-input" type="hidden">
             <p id="setup-team-summary" class="lede">Loading teams...</p>
-            <div id="setup-team-table" class="table-scroll hidden">
-              <table class="setup-preview-table">
-                <thead><tr><th>Team #</th><th>Abbr</th><th>Mockd profile</th><th>Managers</th><th>Team</th></tr></thead>
+            <div id="setup-team-table" class="responsive-team-table hidden">
+              <table class="setup-preview-table commissioner-team-table" aria-label="Configured teams">
+                <thead><tr><th scope="col">Team #</th><th scope="col">Abbr</th><th scope="col">Mockd profile</th><th scope="col">Managers</th><th scope="col">Team</th></tr></thead>
                 <tbody id="setup-team-body"></tbody>
               </table>
             </div>
@@ -1690,7 +1722,7 @@ export const platformShellHtml = `<!doctype html>
                   <label for="setup-rows-input">Owner rows</label>
                   <textarea id="setup-rows-input" spellcheck="false" placeholder="owner,team,email,role"></textarea>
                 </div>
-                <div class="actions">
+                <div class="actions setup-team-actions">
                   <button id="setup-preview-button" type="button">Preview</button>
                   <button id="setup-apply-button" class="primary" type="button" disabled>Apply changes</button>
                 </div>
@@ -1698,9 +1730,9 @@ export const platformShellHtml = `<!doctype html>
             </details>
             <p id="setup-status" class="status" role="status" aria-live="polite"></p>
             <ul id="setup-blockers" class="result-list"></ul>
-            <div id="setup-preview-table" class="table-scroll hidden">
-              <table class="setup-preview-table">
-                <thead><tr><th>Owner</th><th>Team</th><th>Email</th><th>Role</th></tr></thead>
+            <div id="setup-preview-table" class="responsive-team-table hidden">
+              <table class="setup-preview-table commissioner-team-table" aria-label="Team changes preview">
+                <thead><tr><th scope="col">Owner</th><th scope="col">Team</th><th scope="col">Email</th><th scope="col">Role</th></tr></thead>
                 <tbody id="setup-preview-body"></tbody>
               </table>
             </div>
@@ -3341,6 +3373,15 @@ export const platformShellHtml = `<!doctype html>
       });
     };
 
+    const appendLabeledTableCells = (row, values) => {
+      values.forEach(([label, value]) => {
+        const cell = document.createElement("td");
+        cell.dataset.label = label;
+        cell.textContent = String(value);
+        row.append(cell);
+      });
+    };
+
     const renderLeagueOverview = (season, keepers = []) => {
       renderSettingsFacts(leagueOverviewSettings, season?.settings);
       const teams = [...(season?.teams || [])]
@@ -3382,11 +3423,13 @@ export const platformShellHtml = `<!doctype html>
         const managers = team.managerDisplayNames?.length
           ? team.managerDisplayNames.join(", ")
           : team.ownerDisplayName;
-        [team.draftOrderPosition, team.abbreviation || "-", team.ownerDisplayName, managers, team.displayName].forEach(value => {
-          const cell = document.createElement("td");
-          cell.textContent = String(value);
-          row.append(cell);
-        });
+        appendLabeledTableCells(row, [
+          ["Team #", team.draftOrderPosition],
+          ["Abbr", team.abbreviation || "-"],
+          ["Mockd profile", team.ownerDisplayName],
+          ["Managers", managers],
+          ["Team", team.displayName],
+        ]);
         setupTeamBody.append(row);
       });
       setupTeamSummary.textContent = teams.length
@@ -5120,12 +5163,12 @@ export const platformShellHtml = `<!doctype html>
       setupPreviewBody.replaceChildren();
       records.forEach(record => {
         const row = document.createElement("tr");
-        [record.ownerDisplayName, record.teamDisplayName, record.email || "No email", titleCase(record.role)]
-          .forEach(value => {
-            const cell = document.createElement("td");
-            cell.textContent = value;
-            row.append(cell);
-          });
+        appendLabeledTableCells(row, [
+          ["Owner", record.ownerDisplayName],
+          ["Team", record.teamDisplayName],
+          ["Email", record.email || "No email"],
+          ["Role", titleCase(record.role)],
+        ]);
         setupPreviewBody.append(row);
       });
       setHidden(setupPreviewTable, records.length === 0);
