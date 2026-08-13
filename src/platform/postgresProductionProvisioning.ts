@@ -5,6 +5,10 @@ import {
   type SaveLiveDraftRoomSetupInput,
 } from "./liveDraftRoomSetups.js";
 import type { LeagueSetupRepository, PlatformLeagueMembership } from "./leagueSetup.js";
+import {
+  normalizeLeagueSeasonSettings,
+  type LeagueSeason,
+} from "./leagueSeason.js";
 import type {
   ProductionProvisioningChange,
   ProductionProvisioningContext,
@@ -97,15 +101,15 @@ const draftSetupInputFor = (
   })),
 });
 
-const seasonComparable = (document: ResolvedProductionProvisioningDocument): unknown => ({
-  id: document.season.id,
-  league: document.season.league,
-  leagueId: document.season.leagueId,
-  seasonYear: document.season.seasonYear,
-  teams: document.season.teams,
-  settings: document.season.settings,
-  setupStatus: document.season.setupStatus,
-  ...(document.season.draft === undefined ? {} : { draft: document.season.draft }),
+const seasonComparable = (season: LeagueSeason): unknown => ({
+  id: season.id,
+  league: season.league,
+  leagueId: season.leagueId,
+  seasonYear: season.seasonYear,
+  teams: season.teams,
+  settings: normalizeLeagueSeasonSettings(season.settings),
+  setupStatus: season.setupStatus,
+  ...(season.draft === undefined ? {} : { draft: season.draft }),
 });
 
 export class PostgresProductionProvisioningRepository implements ProductionProvisioningRepository {
@@ -129,10 +133,8 @@ export class PostgresProductionProvisioningRepository implements ProductionProvi
     const conflicts: string[] = [];
 
     for (const account of document.accounts) {
-      const [accountById, credentialByEmail] = await Promise.all([
-        this.#authRepository.findAccountById(account.id),
-        this.#authRepository.findAccountCredentialByEmail(account.email),
-      ]);
+      const accountById = await this.#authRepository.findAccountById(account.id);
+      const credentialByEmail = await this.#authRepository.findAccountCredentialByEmail(account.email);
       if (accountById === null && credentialByEmail === null) {
         changes.push(change("account", account.id, "create"));
         continue;
@@ -150,14 +152,14 @@ export class PostgresProductionProvisioningRepository implements ProductionProvi
       changes.push(change("account", account.id, "unchanged"));
     }
 
-    const [seasonById, seasonForYear, existingMemberships] = await Promise.all([
-      this.#leagueSetupRepository.findLeagueSeason(document.season.id),
-      this.#leagueSetupRepository.findLeagueSeasonForLeagueYear(
-        document.league.id,
-        document.season.seasonYear,
-      ),
-      this.#leagueSetupRepository.membershipsForLeague(document.league.id),
-    ]);
+    const seasonById = await this.#leagueSetupRepository.findLeagueSeason(document.season.id);
+    const seasonForYear = await this.#leagueSetupRepository.findLeagueSeasonForLeagueYear(
+      document.league.id,
+      document.season.seasonYear,
+    );
+    const existingMemberships = await this.#leagueSetupRepository.membershipsForLeague(
+      document.league.id,
+    );
     if (seasonById === null) {
       if (seasonForYear !== null) {
         conflicts.push(
@@ -168,7 +170,7 @@ export class PostgresProductionProvisioningRepository implements ProductionProvi
         conflicts.push(`League ${document.league.id} already has memberships outside this provisioning receipt.`);
       }
       changes.push(change("league-season", document.season.id, "create"));
-    } else if (!sameValue(seasonComparable(document), seasonById)) {
+    } else if (!sameValue(seasonComparable(document.season), seasonComparable(seasonById))) {
       conflicts.push(`League season ${document.season.id} differs from the provisioning document.`);
       changes.push(change("league-season", document.season.id, "unchanged"));
     } else if (!sameValue(normalizedMemberships(existingMemberships), normalizedMemberships(document.memberships))) {
