@@ -21,6 +21,7 @@ export interface PlatformRuntimeConfig {
   postgresSnapshotKey: string | undefined;
   initializePostgresSchema: boolean;
   draftToolsSessionDirectory: string;
+  legacyMockBatchEnabled: boolean;
   allowPublicSignup: boolean;
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
@@ -188,6 +189,15 @@ const booleanEnv = (
   }
 };
 
+const legacyMockBatchEnabled = (env: PlatformRuntimeEnv): boolean => {
+  const enabled = booleanEnv(env, "MOCKD_ENABLE_LEGACY_MOCK_BATCH");
+  if (enabled && optionalEnvString(env, "NODE_ENV") === "production") {
+    throw new Error("MOCKD_ENABLE_LEGACY_MOCK_BATCH cannot be enabled in production.");
+  }
+
+  return enabled;
+};
+
 const runtimeWorkerId = (env: PlatformRuntimeEnv): string =>
   optionalEnvString(env, "MOCKD_WORKER_ID") ??
   `worker_${randomBytes(8).toString("base64url")}`;
@@ -332,6 +342,7 @@ export const readPlatformRuntimeConfig = (
     postgresSnapshotKey: optionalEnvString(env, "MOCKD_POSTGRES_SNAPSHOT_KEY"),
     initializePostgresSchema: booleanEnv(env, "MOCKD_INITIALIZE_POSTGRES_SCHEMA"),
     draftToolsSessionDirectory: optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ?? defaultDraftToolsSessionDirectory,
+    legacyMockBatchEnabled: legacyMockBatchEnabled(env),
     allowPublicSignup: booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP"),
     trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
     liveDraftDataMode: parsedLiveDraftDataMode,

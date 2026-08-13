@@ -775,6 +775,7 @@ export interface CreateLiveDraftServerOptions {
   mockBatchNow?: () => Date;
   mockBatchResourceManager?: MockBatchResourceManager;
   mockBatchResourceScope?: MockBatchResourceScope;
+  legacyMockBatchEnabled?: boolean | undefined;
 }
 
 export interface LiveDraftServerApp {
@@ -1408,6 +1409,7 @@ export const createLiveDraftServer = async (
   );
   const mockBatchNow = options.mockBatchNow ?? (() => new Date());
   const mockBatchResourceManager = options.mockBatchResourceManager ?? new MockBatchResourceManager();
+  const legacyMockBatchEnabled = options.legacyMockBatchEnabled ?? false;
   const bodyLimitForPath = (pathname: string): number =>
     pathname === "/api/import" ? importMaxBodyBytes : maxBodyBytes;
   const sessionStorePairs = new Map<string, Promise<{
@@ -2824,6 +2826,19 @@ export const createLiveDraftServer = async (
           ...(result.body.mockBatchJob === undefined
             ? {}
             : { mockBatchJob: mockBatchJobResponseFor(result.body.mockBatchJob) }),
+        });
+        return;
+      }
+
+      const isLegacyMockBatchRoute = url.pathname === "/api/mock-batch" ||
+        url.pathname === "/api/mock-batch/latest" ||
+        url.pathname.startsWith("/api/mock-batch/");
+      if (isLegacyMockBatchRoute && !legacyMockBatchEnabled) {
+        sendJson(response, 404, {
+          error: {
+            code: "legacy_mock_batch_disabled",
+            message: "Legacy mock batch jobs are disabled.",
+          },
         });
         return;
       }

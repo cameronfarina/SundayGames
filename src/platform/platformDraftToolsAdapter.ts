@@ -44,6 +44,7 @@ export interface CreatePlatformDraftToolsAdapterOptions {
   createLiveDraftServer?: PlatformDraftToolsServerFactory | undefined;
   idleTimeoutMs?: number | undefined;
   importMaxBodyBytes?: number | undefined;
+  legacyMockBatchEnabled?: boolean | undefined;
   maxBodyBytes?: number | undefined;
   maxRetainedApps?: number | undefined;
   mockBatchResourceLimits?: MockBatchResourceLimits | undefined;
@@ -318,6 +319,7 @@ export const createPlatformDraftToolsAdapter = (
       const app = await createLiveDraftServer({
         ...seasonOptions,
         importMaxBodyBytes,
+        legacyMockBatchEnabled: options.legacyMockBatchEnabled ?? false,
         maxBodyBytes,
         mockBatchResourceManager,
         mockBatchResourceScope: { accountId, seasonId },

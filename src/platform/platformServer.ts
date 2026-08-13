@@ -156,6 +156,7 @@ export interface CreatePlatformServerOptions {
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
   screenshotImportBodyLimitBytes?: number | undefined;
+  legacyMockBatchEnabled?: boolean | undefined;
   shellCapabilities?: PlatformShellCapabilities | undefined;
   draftToolsSessionDirectory?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
@@ -1272,6 +1273,7 @@ export const createPlatformServer = async (
     },
     baseSessionDirectory: options.draftToolsSessionDirectory ?? "data/platform-draft-tools",
     importMaxBodyBytes: options.screenshotImportBodyLimitBytes,
+    legacyMockBatchEnabled: options.legacyMockBatchEnabled ?? false,
     maxBodyBytes: options.bodyLimitBytes,
     resolveSeasonOptions: async seasonId => {
       const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);

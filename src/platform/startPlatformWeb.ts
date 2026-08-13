@@ -130,6 +130,7 @@ export const startPlatformWebFromEnv = async (
       postgresSnapshotKey: config.postgresSnapshotKey,
       initializePostgresSchema: config.initializePostgresSchema,
       draftToolsSessionDirectory: config.draftToolsSessionDirectory,
+      legacyMockBatchEnabled: config.legacyMockBatchEnabled,
       allowPublicSignup: config.allowPublicSignup,
       emailVerificationRequired: config.authEmail.mode === "resend",
       ...(authMailSender === undefined ? {} : { authMailSender }),

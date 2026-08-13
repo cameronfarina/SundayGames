@@ -165,6 +165,10 @@ local or throwaway-staging tools only. This branch has no production league
 seed command yet; use an approved admin/UI/API path before domain cutover.
 The hosted scripts execute compiled JavaScript from `dist`, so the runtime
 artifact does not need `tsx`, TypeScript, Vitest, or Playwright installed.
+The retired `/api/mock-batch` experiment is disabled by default and cannot be
+enabled in production. Local engine work can opt in with
+`MOCKD_ENABLE_LEGACY_MOCK_BATCH=true`; current Practice simulations and
+interactive mock drafts do not use that route.
 
 Commissioners can import ESPN league members from a PNG, JPEG, or WebP screenshot
 after the season exists. Set `MOCKD_SCREENSHOT_IMPORT_MODE=openai` and

@@ -116,6 +116,7 @@ Implemented bootstrap variables:
 - `MOCKD_PROVISIONING_TOKEN`: optional secret for deployment-only HTTP bootstrap routes. Normal production setup happens in the product, so leave this unset unless an approved recovery workflow needs those routes.
 - `MOCKD_WORKER_ID`, `MOCKD_WORKER_JOB_KINDS`, `MOCKD_WORKER_POLL_INTERVAL_MS`, and `MOCKD_WORKER_LOCK_TTL_MS`: legacy worker settings; leave them unset in the first production topology.
 - `MOCKD_SIMULATION_DATA_MODE`: legacy fixture-runner switch. Keep it `disabled` in production; league-aware interactive simulations do not use it.
+- `MOCKD_ENABLE_LEGACY_MOCK_BATCH`: local-only opt-in for the retired `/api/mock-batch` experiment. It defaults to `false`, production rejects `true`, and current Practice simulations and interactive mock drafts do not use it.
 
 Local and smoke-only variables:
 

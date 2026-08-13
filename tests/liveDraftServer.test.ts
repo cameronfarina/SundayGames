@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ownerOrder } from "../config/league.js";
 import {
-  createLiveDraftServer,
+  createLiveDraftServer as createRuntimeLiveDraftServer,
   type CreateLiveDraftServerOptions,
 } from "../src/liveDraftServer.js";
 import {
@@ -17,6 +17,10 @@ import { MockBatchResourceManager } from "../src/mockBatchResourceManager.js";
 
 const tempSessionDirectory = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "mockd-live-draft-server-"));
+
+const createLiveDraftServer = (
+  options: CreateLiveDraftServerOptions = {},
+) => createRuntimeLiveDraftServer({ legacyMockBatchEnabled: true, ...options });
 
 type TestServer = Awaited<ReturnType<typeof createLiveDraftServer>>["server"];
 
@@ -386,6 +390,41 @@ describe("live draft server", () => {
   afterEach(async () => {
     await Promise.all(servers.map(server => new Promise<void>(resolve => server.close(() => resolve()))));
     servers.length = 0;
+  });
+
+  it("rejects disabled legacy mock batches before reading or allocating work", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      let runnerCalls = 0;
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        legacyMockBatchEnabled: false,
+        mockBatchRunner: options => {
+          runnerCalls += 1;
+          return mockBatchRunner(options);
+        },
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+
+      const response = await fetch(`${baseUrl}/api/mock-batch`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "not-json",
+      });
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "legacy_mock_batch_disabled",
+          message: "Legacy mock batch jobs are disabled.",
+        },
+      });
+      expect(runnerCalls).toBe(0);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
   });
 
   it("rejects a declared oversized API body without waiting for the body", async () => {

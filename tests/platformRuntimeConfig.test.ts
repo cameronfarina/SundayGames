@@ -46,6 +46,7 @@ describe("platform runtime config", () => {
       postgresSnapshotKey: "prod",
       initializePostgresSchema: true,
       draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
+      legacyMockBatchEnabled: false,
       allowPublicSignup: true,
       trustProxy: true,
       liveDraftDataMode: "postgres",
@@ -84,6 +85,7 @@ describe("platform runtime config", () => {
     expect(config.databaseUrl).toBeUndefined();
     expect(config.dataFilePath).toBe("/tmp/mockd-platform.json");
     expect(config.draftToolsSessionDirectory).toBe("data/platform-draft-tools");
+    expect(config.legacyMockBatchEnabled).toBe(false);
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
     expect(config.liveDraftDataMode).toBe("local-fixtures");
@@ -139,6 +141,21 @@ describe("platform runtime config", () => {
     expect(() => readPlatformRuntimeConfig({
       MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
     })).toThrow("OPENAI_API_KEY is required when screenshot import mode is openai.");
+  });
+
+  it("requires an explicit non-production opt-in for legacy mock batches", () => {
+    expect(readPlatformRuntimeConfig({
+      MOCKD_ENABLE_LEGACY_MOCK_BATCH: "true",
+    }).legacyMockBatchEnabled).toBe(true);
+
+    expect(readPlatformRuntimeConfig({
+      NODE_ENV: "production",
+    }).legacyMockBatchEnabled).toBe(false);
+
+    expect(() => readPlatformRuntimeConfig({
+      NODE_ENV: "production",
+      MOCKD_ENABLE_LEGACY_MOCK_BATCH: "true",
+    })).toThrow("MOCKD_ENABLE_LEGACY_MOCK_BATCH cannot be enabled in production.");
   });
 
   it("can require Postgres for production entrypoints", () => {

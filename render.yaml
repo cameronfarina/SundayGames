@@ -66,3 +66,5 @@ services:
         value: mockd-production
       - key: MOCKD_SCREENSHOT_IMPORT_MODE
         value: disabled
+      - key: MOCKD_ENABLE_LEGACY_MOCK_BATCH
+        value: "false"

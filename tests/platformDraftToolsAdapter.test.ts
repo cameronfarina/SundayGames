@@ -306,6 +306,7 @@ describe("platform draft tools adapter", () => {
       expect(createClassicServer.mock.calls[index]?.[0]).toEqual({
         ...seasonOptions.get(requestSeasonId),
         importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
+        legacyMockBatchEnabled: false,
         maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
         mockBatchResourceManager: expect.any(MockBatchResourceManager),
         mockBatchResourceScope: {
@@ -330,6 +331,7 @@ describe("platform draft tools adapter", () => {
       baseSessionDirectory,
       createLiveDraftServer: createClassicServer,
       importMaxBodyBytes: 200,
+      legacyMockBatchEnabled: true,
       maxBodyBytes: 100,
       resolveAccount: async () => ({ id: "account-cam" }),
     });
@@ -338,6 +340,7 @@ describe("platform draft tools adapter", () => {
     expect((await fetch(`${baseUrl}/api/state?seasonId=${seasonId}`)).status).toBe(200);
     expect(createClassicServer).toHaveBeenCalledWith(expect.objectContaining({
       importMaxBodyBytes: 200,
+      legacyMockBatchEnabled: true,
       maxBodyBytes: 100,
     }));
   });
@@ -402,6 +405,7 @@ describe("platform draft tools adapter", () => {
     expect(createClassicServer).toHaveBeenCalledTimes(1);
     expect(createClassicServer).toHaveBeenCalledWith({
       importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
+      legacyMockBatchEnabled: false,
       maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
       mockBatchResourceManager: expect.any(MockBatchResourceManager),
       mockBatchResourceScope: {
