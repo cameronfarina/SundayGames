@@ -9,9 +9,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type {
-  CreateLiveDraftServerOptions,
-  LiveDraftServerApp,
+import {
+  defaultLiveDraftImportBodyLimitBytes,
+  defaultLiveDraftJsonBodyLimitBytes,
+  type CreateLiveDraftServerOptions,
+  type LiveDraftServerApp,
 } from "../src/liveDraftServer.js";
 import {
   createPlatformDraftToolsAdapter,
@@ -302,11 +304,33 @@ describe("platform draft tools adapter", () => {
       );
       expect(createClassicServer.mock.calls[index]?.[0]).toEqual({
         ...seasonOptions.get(requestSeasonId),
+        importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
+        maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
         sessionDirectory: expect.stringMatching(
           new RegExp(`/season-${createHash("sha256").update(requestSeasonId).digest("hex")}$`),
         ),
       });
     }
+  });
+
+  it("passes platform body limits to every delegated draft tools app", async () => {
+    const baseSessionDirectory = await temporaryDirectory();
+    const createClassicServer = vi.fn(async () => recordingClassicServer([]));
+    const adapter = createPlatformDraftToolsAdapter({
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory,
+      createLiveDraftServer: createClassicServer,
+      importMaxBodyBytes: 200,
+      maxBodyBytes: 100,
+      resolveAccount: async () => ({ id: "account-cam" }),
+    });
+    const baseUrl = await listen(adapter);
+
+    expect((await fetch(`${baseUrl}/api/state?seasonId=${seasonId}`)).status).toBe(200);
+    expect(createClassicServer).toHaveBeenCalledWith(expect.objectContaining({
+      importMaxBodyBytes: 200,
+      maxBodyBytes: 100,
+    }));
   });
 
   it("returns a typed unavailable response when a legacy route has no draft tools options", async () => {
@@ -368,6 +392,8 @@ describe("platform draft tools adapter", () => {
     expect(resolveAccount).toHaveBeenCalledTimes(2);
     expect(createClassicServer).toHaveBeenCalledTimes(1);
     expect(createClassicServer).toHaveBeenCalledWith({
+      importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
+      maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
       sessionDirectory: join(
         baseSessionDirectory,
         `account-${createHash("sha256").update("../../same-account").digest("hex")}`,

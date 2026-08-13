@@ -174,15 +174,74 @@ const portFromOptions = (): number => {
 const sessionDirectoryFromOptions = (): string | undefined =>
   optionValue("--session-dir") ?? process.env.MOCKD_LIVE_DRAFT_DIR;
 
-const readRequestBody = async (request: IncomingMessage): Promise<string> =>
+export const defaultLiveDraftJsonBodyLimitBytes = 1_048_576;
+export const defaultLiveDraftImportBodyLimitBytes = 7_100_000;
+
+class RequestBodyTooLargeError extends Error {}
+
+const contentLengthFor = (request: IncomingMessage): number | undefined => {
+  const rawContentLength = request.headers["content-length"];
+  if (rawContentLength === undefined || Array.isArray(rawContentLength)) return undefined;
+
+  const contentLength = Number(rawContentLength);
+  return Number.isSafeInteger(contentLength) && contentLength >= 0 ? contentLength : undefined;
+};
+
+const positiveIntegerOption = (value: number | undefined, fallback: number, name: string): number => {
+  const resolvedValue = value ?? fallback;
+  if (!Number.isSafeInteger(resolvedValue) || resolvedValue <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return resolvedValue;
+};
+
+const readRequestBody = async (
+  request: IncomingMessage,
+  maxBodyBytes: number,
+): Promise<string> =>
   new Promise((resolve, reject) => {
-    let body = "";
-    request.setEncoding("utf8");
-    request.on("data", chunk => {
-      body += chunk;
-    });
-    request.on("end", () => resolve(body));
-    request.on("error", reject);
+    if ((contentLengthFor(request) ?? 0) > maxBodyBytes) {
+      request.pause();
+      reject(new RequestBodyTooLargeError());
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    let byteLength = 0;
+    const cleanup = (): void => {
+      request.off("data", onData);
+      request.off("end", onEnd);
+      request.off("error", onError);
+      request.off("aborted", onAborted);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      byteLength += buffer.byteLength;
+      if (byteLength > maxBodyBytes) {
+        request.pause();
+        cleanup();
+        reject(new RequestBodyTooLargeError());
+        return;
+      }
+      chunks.push(buffer);
+    };
+    const onEnd = (): void => {
+      cleanup();
+      resolve(Buffer.concat(chunks, byteLength).toString("utf8"));
+    };
+    const onError = (error: Error): void => {
+      cleanup();
+      reject(error);
+    };
+    const onAborted = (): void => {
+      cleanup();
+      reject(new Error("Request body was aborted."));
+    };
+
+    request.on("data", onData);
+    request.once("end", onEnd);
+    request.once("error", onError);
+    request.once("aborted", onAborted);
   });
 
 const sendJson = (response: ServerResponse, statusCode: number, body: unknown): void => {
@@ -482,8 +541,11 @@ const importFormatFor = (value: unknown): LiveDraftCommandImportFormat => {
   throw new Error("Import format must be json or csv.");
 };
 
-const parseJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> =>
-  JSON.parse(await readRequestBody(request) || "{}") as Record<string, unknown>;
+const parseJsonBody = async (
+  request: IncomingMessage,
+  maxBodyBytes: number,
+): Promise<Record<string, unknown>> =>
+  JSON.parse(await readRequestBody(request, maxBodyBytes) || "{}") as Record<string, unknown>;
 
 const isMissingFileError = (error: unknown): boolean =>
   error instanceof Error &&
@@ -693,6 +755,8 @@ export interface CreateLiveDraftServerOptions {
   mockBatchRunner?: MockBatchRunner;
   playerNewsProvider?: PlayerNewsProvider;
   sleeperSyncPreviewProvider?: SleeperSyncPreviewProvider;
+  maxBodyBytes?: number;
+  importMaxBodyBytes?: number;
 }
 
 export interface LiveDraftServerApp {
@@ -1303,6 +1367,18 @@ export const createLiveDraftServer = async (
   const pricingConfig = options.pricingConfig ?? (await buildPricingConfigFromSources());
   const configuredKeepers = options.keepers ?? keepers;
   const baseSessionDirectory = options.sessionDirectory ?? defaultLiveDraftSessionDirectory;
+  const maxBodyBytes = positiveIntegerOption(
+    options.maxBodyBytes,
+    defaultLiveDraftJsonBodyLimitBytes,
+    "maxBodyBytes",
+  );
+  const importMaxBodyBytes = positiveIntegerOption(
+    options.importMaxBodyBytes,
+    defaultLiveDraftImportBodyLimitBytes,
+    "importMaxBodyBytes",
+  );
+  const bodyLimitForPath = (pathname: string): number =>
+    pathname === "/api/import" ? importMaxBodyBytes : maxBodyBytes;
   const sessionStorePairs = new Map<string, Promise<{
     real: FileBackedLiveDraftSessionStore;
     interactiveMock: FileBackedLiveDraftSessionStore;
@@ -2426,7 +2502,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/events") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
@@ -2463,7 +2539,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/mock/advance") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
@@ -2585,7 +2661,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/mock/session-results") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
@@ -2682,7 +2758,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/mock-batch") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
@@ -2747,7 +2823,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/import") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
@@ -2814,7 +2890,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/undo") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
@@ -2850,7 +2926,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "POST" && url.pathname === "/api/reset") {
-        const body = await parseJsonBody(request);
+        const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
         const draftSessionKey = draftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
@@ -2887,6 +2963,19 @@ export const createLiveDraftServer = async (
 
       sendJson(response, 404, { error: "Not found" });
     } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        request.pause();
+        response.shouldKeepAlive = false;
+        response.setHeader("connection", "close");
+        response.once("finish", () => request.destroy());
+        sendJson(response, 413, {
+          error: {
+            code: "request_body_too_large",
+            message: "Request body exceeds the configured size limit.",
+          },
+        });
+        return;
+      }
       sendJson(response, 500, {
         error: error instanceof Error ? error.message : "Unknown live draft server error.",
       });

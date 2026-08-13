@@ -3,6 +3,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import {
   createLiveDraftServer as createClassicLiveDraftServer,
+  defaultLiveDraftImportBodyLimitBytes,
+  defaultLiveDraftJsonBodyLimitBytes,
   type CreateLiveDraftServerOptions,
   type LiveDraftServerApp,
 } from "../liveDraftServer.js";
@@ -37,6 +39,8 @@ export interface CreatePlatformDraftToolsAdapterOptions {
   resolveAccount: PlatformDraftToolsAccountResolver;
   createLiveDraftServer?: PlatformDraftToolsServerFactory | undefined;
   idleTimeoutMs?: number | undefined;
+  importMaxBodyBytes?: number | undefined;
+  maxBodyBytes?: number | undefined;
   maxRetainedApps?: number | undefined;
   now?: (() => number) | undefined;
   resolveSeasonOptions?: PlatformDraftToolsSeasonOptionsResolver | undefined;
@@ -240,6 +244,16 @@ export const createPlatformDraftToolsAdapter = (
     defaultMaxRetainedApps,
     "maxRetainedApps",
   );
+  const maxBodyBytes = positiveIntegerOption(
+    options.maxBodyBytes,
+    defaultLiveDraftJsonBodyLimitBytes,
+    "maxBodyBytes",
+  );
+  const importMaxBodyBytes = positiveIntegerOption(
+    options.importMaxBodyBytes,
+    defaultLiveDraftImportBodyLimitBytes,
+    "importMaxBodyBytes",
+  );
   const now = options.now ?? Date.now;
   const appsByScope = new Map<string, RetainedDraftToolsApp>();
   let closed = false;
@@ -288,6 +302,8 @@ export const createPlatformDraftToolsAdapter = (
 
       const app = await createLiveDraftServer({
         ...seasonOptions,
+        importMaxBodyBytes,
+        maxBodyBytes,
         sessionDirectory: scopedSessionDirectory(baseSessionDirectory, accountId, seasonId),
       });
       if (app.server.listening) {

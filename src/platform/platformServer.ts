@@ -1266,6 +1266,8 @@ export const createPlatformServer = async (
       return await runtime.leagueSetupRepository.findMembership(account.id, season.leagueId) !== null;
     },
     baseSessionDirectory: options.draftToolsSessionDirectory ?? "data/platform-draft-tools",
+    importMaxBodyBytes: options.screenshotImportBodyLimitBytes,
+    maxBodyBytes: options.bodyLimitBytes,
     resolveSeasonOptions: async seasonId => {
       const season = await runtime.leagueSetupRepository.findLeagueSeason(seasonId);
       if (season === null) return null;

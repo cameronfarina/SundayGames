@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { request as httpRequest, type ClientRequest, type IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -320,6 +321,25 @@ const post = async (baseUrl: string, path: string, body: Record<string, unknown>
   };
 };
 
+const collectJsonResponse = async (
+  request: ClientRequest,
+): Promise<{ status: number; data: unknown }> =>
+  await new Promise((resolve, reject) => {
+    request.once("response", (response: IncomingMessage) => {
+      const chunks: Buffer[] = [];
+      response.on("data", chunk => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      response.on("end", () => {
+        resolve({
+          status: response.statusCode ?? 0,
+          data: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
+        });
+      });
+    });
+    request.once("error", reject);
+  });
+
 const waitForMockBatchJob = async (
   baseUrl: string,
   jobId: string,
@@ -365,6 +385,110 @@ describe("live draft server", () => {
   afterEach(async () => {
     await Promise.all(servers.map(server => new Promise<void>(resolve => server.close(() => resolve()))));
     servers.length = 0;
+  });
+
+  it("rejects a declared oversized API body without waiting for the body", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        maxBodyBytes: 32,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+      const request = httpRequest(`${baseUrl}/api/events`, {
+        method: "POST",
+        headers: {
+          "content-length": "1000",
+          "content-type": "application/json",
+        },
+      });
+      const responsePromise = collectJsonResponse(request);
+      request.flushHeaders();
+
+      const response = await new Promise<{ status: number; data: unknown }>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          request.destroy();
+          reject(new Error("Server waited for the oversized body."));
+        }, 250);
+        responsePromise.then(result => {
+          clearTimeout(timeout);
+          resolve(result);
+        }, error => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+
+      expect(response).toEqual({
+        status: 413,
+        data: {
+          error: {
+            code: "request_body_too_large",
+            message: "Request body exceeds the configured size limit.",
+          },
+        },
+      });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects chunked API bodies as soon as the streamed bytes exceed the limit", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        maxBodyBytes: 32,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+      const request = httpRequest(`${baseUrl}/api/events`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const responsePromise = collectJsonResponse(request);
+
+      request.write('{"command":"');
+      request.write("x".repeat(32));
+
+      expect(await responsePromise).toEqual({
+        status: 413,
+        data: {
+          error: {
+            code: "request_body_too_large",
+            message: "Request body exceeds the configured size limit.",
+          },
+        },
+      });
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("uses the larger configured body limit only for draft imports", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createLiveDraftServer({
+        importMaxBodyBytes: 256,
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        maxBodyBytes: 32,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+      const body = { content: "x".repeat(48), format: "csv" };
+
+      expect((await post(baseUrl, "/api/events", body)).status).toBe(413);
+      expect((await post(baseUrl, "/api/import", body)).status).not.toBe(413);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
   });
 
   it("serves the mature draft workspace at the draft-room browser route", async () => {
