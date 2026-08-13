@@ -4,7 +4,7 @@ import type { KeeperDeclaration } from "../../config/keepers.js";
 import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import type { CreateLiveDraftServerOptions } from "../liveDraftServer.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
-import { loadEspnWeeksOneToFour, type ProjectionRecord } from "../projections.js";
+import { loadCurrentProjections, type ProjectionRecord } from "../projections.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import { buildCurrentMockdLeagueSeason } from "./leagueSeason.js";
 import type { LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
@@ -54,6 +54,9 @@ const projectionFor = (
     weeks: source?.weeks ?? {},
     weeks1To4: source?.weeks1To4 ?? 0,
     ...(source?.seasonProjection === undefined ? {} : { seasonProjection: source.seasonProjection }),
+    ...(source?.projectionCalibration === undefined
+      ? {}
+      : { projectionCalibration: source.projectionCalibration }),
     espnRank: index + 1,
     espnAuctionValue: player.expectedPrice,
   };
@@ -68,7 +71,7 @@ export const buildSeasonDraftToolsOptions = async (
   }
   assertSupportedSeason(season);
 
-  const sourceProjections = await loadEspnWeeksOneToFour(projectionPath);
+  const sourceProjections = await loadCurrentProjections({ projectionPath });
   const sourceByIdentity = new Map(
     sourceProjections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
   );

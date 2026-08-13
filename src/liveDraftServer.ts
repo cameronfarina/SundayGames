@@ -83,7 +83,7 @@ import {
   type PlayerNewsPlayerMetadata,
   type PlayerNewsSourceMode,
 } from "./modeling/playerNews.js";
-import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
+import { loadCurrentProjections, type ProjectionRecord } from "./projections.js";
 import type { PricingConfig } from "./modeling/basePricing.js";
 import {
   MockBatchCapacityError,
@@ -1391,7 +1391,7 @@ export const createLiveDraftServer = async (
   options: CreateLiveDraftServerOptions = {},
 ): Promise<LiveDraftServerApp> => {
   const workspaceHtml = options.workspaceHtml ?? liveDraftHtml;
-  const projections = options.projections ?? (await loadEspnWeeksOneToFour(projectionPath));
+  const projections = options.projections ?? (await loadCurrentProjections({ projectionPath }));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
   const draftRoomRankings = options.draftRoomRankings ?? (await loadDraftRoomRankings(defaultDraftRoomRankingPath));
   const pricingConfig = options.pricingConfig ?? (await buildPricingConfigFromSources());

@@ -1,5 +1,10 @@
 import fs from "node:fs/promises";
-import type { Position } from "../config/league.js";
+import { leagueConfig, type Position } from "../config/league.js";
+import {
+  applySeasonLongProjectionCalibrations,
+  loadSeasonLongProjectionInputs,
+  type SeasonLongProjectionCalibration,
+} from "./modeling/seasonLongProjection.js";
 
 const positionMap: Record<number, Position | undefined> = {
   1: "QB",
@@ -20,7 +25,18 @@ export interface ProjectionRecord {
   seasonProjection?: number;
   espnRank?: number;
   espnAuctionValue?: number;
+  projectionCalibration?: SeasonLongProjectionCalibration;
 }
+
+export interface LoadCurrentProjectionsOptions {
+  projectionPath?: string;
+  seasonLongProjectionPath?: string;
+}
+
+export const defaultProjectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+export const defaultSeasonLongProjectionPath = "data/raw/season-long-projections-2026.json";
+
+export type { SeasonLongProjectionCalibration } from "./modeling/seasonLongProjection.js";
 
 export const loadEspnWeeksOneToFour = async (path: string): Promise<ProjectionRecord[]> => {
   const parsed = JSON.parse(await fs.readFile(path, "utf8")) as any;
@@ -69,4 +85,20 @@ export const loadEspnWeeksOneToFour = async (path: string): Promise<ProjectionRe
   }
 
   return [...records.values()];
+};
+
+export const loadCurrentProjections = async ({
+  projectionPath = defaultProjectionPath,
+  seasonLongProjectionPath = defaultSeasonLongProjectionPath,
+}: LoadCurrentProjectionsOptions = {}): Promise<ProjectionRecord[]> => {
+  const [projections, seasonLongInputs] = await Promise.all([
+    loadEspnWeeksOneToFour(projectionPath),
+    loadSeasonLongProjectionInputs(seasonLongProjectionPath),
+  ]);
+
+  return applySeasonLongProjectionCalibrations(
+    projections,
+    seasonLongInputs,
+    leagueConfig.scoring,
+  );
 };

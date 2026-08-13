@@ -6,7 +6,7 @@ export interface ProjectionRanking extends ProjectionRecord {
   normalizedName: string;
   projectionRank: number;
   rankGap?: number;
-  rankBasis: "ESPN Weeks 1-4 appliedTotal positional rank";
+  rankBasis: "Weeks 1-4 projected fantasy points positional rank";
 }
 
 const missingEspnRank = Number.MAX_SAFE_INTEGER;
@@ -31,7 +31,7 @@ export const buildProjectionRankings = (
           normalizedName: normalizePlayerName(record.name),
           projectionRank,
           ...(record.espnRank === undefined ? {} : { rankGap: projectionRank - record.espnRank }),
-          rankBasis: "ESPN Weeks 1-4 appliedTotal positional rank",
+          rankBasis: "Weeks 1-4 projected fantasy points positional rank",
         };
       }),
   );

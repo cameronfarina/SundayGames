@@ -7,7 +7,10 @@ import type {
 } from "../../config/playerContext.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
-import type { ProjectionRecord } from "../projections.js";
+import type {
+  ProjectionRecord,
+  SeasonLongProjectionCalibration,
+} from "../projections.js";
 import type { BasePrice, PricingConfig } from "./basePricing.js";
 import { buildBasePrices, defaultPricingConfig } from "./basePricing.js";
 import {
@@ -35,6 +38,8 @@ export interface PlayerAuditIdentity {
   normalizedName: string;
   week1: number;
   weeks1To4: number;
+  seasonProjection: number | null;
+  projectionCalibration?: SeasonLongProjectionCalibration;
 }
 
 export interface PlayerAuditPricing {
@@ -237,10 +242,19 @@ const explanationFor = (
     : `ESPN anchor $${basePrice.publicAnchorValue}`;
   const baseExplanation =
     `${anchorDescription} becomes a $${basePrice.price} base price after rank gap, league multipliers, context, and spend reconciliation.`;
+  const projectionExplanation = basePrice.projectionCalibration === undefined
+    ? []
+    : [
+        `${basePrice.projectionCalibration.provider} ${basePrice.projectionCalibration.sourceDescription} converts to ` +
+          `${basePrice.projectionCalibration.calibratedSeasonProjection} points under league scoring, replacing the ` +
+          `${roundToTwo(basePrice.projectionCalibration.baselineSeasonProjection)}-point ESPN season projection and scaling ` +
+          `ESPN weekly estimates by ${roundToTwo(basePrice.projectionCalibration.weeklyScaleFactor)}x.`,
+      ];
 
   if (!scenario.available) {
     const reason = scenario.unavailableReason ? `: ${scenario.unavailableReason}` : ".";
     return [
+      ...projectionExplanation,
       baseExplanation,
       `${scenario.label} scenario has this player removed from the auction pool${reason}`,
       `Across ${mockSale.runCount} mock run(s), the player was not available for a mock sale.`,
@@ -248,6 +262,7 @@ const explanationFor = (
   }
 
   return [
+    ...projectionExplanation,
     baseExplanation,
     `${scenario.label} keeper inflation applies a ${roundToTwo(scenario.scenarioFactor)}x ${basePrice.position} factor, moving the auction-pool anchor to $${scenario.scenarioPrice}.`,
     mockSale.averageSalePrice === null
@@ -469,6 +484,10 @@ export const buildPlayerPriceAudit = ({
       normalizedName: basePrice.normalizedName,
       week1: basePrice.weeks[1] ?? 0,
       weeks1To4: basePrice.weeks1To4,
+      seasonProjection: basePrice.seasonProjection ?? null,
+      ...(basePrice.projectionCalibration === undefined
+        ? {}
+        : { projectionCalibration: basePrice.projectionCalibration }),
     },
     pricing: auditPricingFor(basePrice),
     scenario: auditScenario,

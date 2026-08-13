@@ -2,7 +2,7 @@ import { keepers } from "../../config/keepers.js";
 import { loadHistoricalAuctionRecords } from "../data/parseHistoricalBoards.js";
 import { runMockBatch, type RunMockBatchOptions } from "../modeling/mockBatch.js";
 import { buildPricingConfigFromSources, playerEvidencePathFor } from "../pricingConfig.js";
-import { loadEspnWeeksOneToFour } from "../projections.js";
+import { loadCurrentProjections } from "../projections.js";
 import type { SimulationMockBatchRunner } from "./simulations.js";
 import type { PlatformRuntimeConfig } from "./platformRuntimeConfig.js";
 
@@ -33,7 +33,7 @@ export const createCurrentLeagueSimulationRunner = async ({
       ...(resolvedPlayerEvidencePath === undefined ? {} : { playerEvidencePath: resolvedPlayerEvidencePath }),
       useDefaultEvidence,
     }),
-    loadEspnWeeksOneToFour(projectionPath),
+    loadCurrentProjections({ projectionPath }),
     loadHistoricalAuctionRecords(),
   ]);
 

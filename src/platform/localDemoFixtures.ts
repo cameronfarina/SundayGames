@@ -1,7 +1,7 @@
 import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import { keepers } from "../../config/keepers.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
-import { loadEspnWeeksOneToFour } from "../projections.js";
+import { loadCurrentProjections } from "../projections.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
@@ -110,7 +110,7 @@ export const localDemoPlayerCatalog = localDemoRankedPlayers.map((player, index)
 })) satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
-  const projections = await loadEspnWeeksOneToFour(localDemoProjectionPath);
+  const projections = await loadCurrentProjections({ projectionPath: localDemoProjectionPath });
   const projectionsByIdentity = new Map(
     projections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
   );

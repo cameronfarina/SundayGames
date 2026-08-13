@@ -70,7 +70,10 @@ import {
 } from "./modeling/strategyLab.js";
 import { buildTopPlayerSanityReport } from "./modeling/topPlayerSanity.js";
 import { buildPricingConfigFromSources, playerEvidencePathFor } from "./pricingConfig.js";
-import { loadEspnWeeksOneToFour } from "./projections.js";
+import {
+  defaultSeasonLongProjectionPath,
+  loadCurrentProjections,
+} from "./projections.js";
 
 const command = process.argv[2];
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
@@ -388,7 +391,7 @@ const buildPlayerEvidenceQueueFromOptions = async (
   defaultSeedPrefix: string,
 ): Promise<PlayerEvidenceQueue> => {
   const pricingConfig = await pricingConfigFromOptions();
-  const players = await loadEspnWeeksOneToFour(projectionPath);
+  const players = await loadCurrentProjections({ projectionPath });
   const historicalRecords = await loadHistoricalAuctionRecords();
   const sanityReport = buildTopPlayerSanityReport({
     projections: players,
@@ -408,7 +411,7 @@ const buildPlayerOutlierReviewQueueFromOptions = async (
   defaultSeedPrefix: string,
 ): Promise<PlayerOutlierReviewQueue> => {
   const pricingConfig = await pricingConfigFromOptions();
-  const players = await loadEspnWeeksOneToFour(projectionPath);
+  const players = await loadCurrentProjections({ projectionPath });
   const historicalRecords = await loadHistoricalAuctionRecords();
   const sanityReport = buildTopPlayerSanityReport({
     projections: players,
@@ -449,16 +452,17 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "rankings") {
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const rankings = buildProjectionRankings(players);
 
     console.log(JSON.stringify({
       source: {
         projectionFile: projectionPath,
+        seasonLongProjectionFile: defaultSeasonLongProjectionPath,
         projectionLeagueId: 278452,
         historicalLeagueId: leagueConfig.leagueId,
         caveat: "Projection scoring is equivalent, but historical auction prices come only from league 214674 boards.",
-        rankBasis: "ESPN Weeks 1-4 appliedTotal positional rank",
+        rankBasis: "Weeks 1-4 projected fantasy points positional rank",
       },
       count: rankings.length,
       rankings,
@@ -468,7 +472,7 @@ const main = async (): Promise<void> => {
 
   if (command === "prices") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const prices = buildBasePrices(players, historicalRecords, pricingConfig);
 
@@ -490,7 +494,7 @@ const main = async (): Promise<void> => {
 
   if (command === "scenarios") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const prices = buildBasePrices(players, historicalRecords, pricingConfig);
     const scenarios = buildKeeperScenarios(keepers);
@@ -506,7 +510,7 @@ const main = async (): Promise<void> => {
 
   if (command === "scenarios-sensitivity") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const prices = buildBasePrices(players, historicalRecords, pricingConfig);
     const report = buildKeeperScenarioSensitivityReport({
@@ -528,7 +532,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "validate") {
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const visibleDraftRecords = historicalRecords.filter(record => record.acquisitionType !== "post-draft waiver");
 
@@ -540,7 +544,7 @@ const main = async (): Promise<void> => {
 
   if (command === "audit") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
 
     console.log(JSON.stringify(buildPlayerPriceAudit({
@@ -558,7 +562,7 @@ const main = async (): Promise<void> => {
 
   if (command === "sanity") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
 
     console.log(JSON.stringify(buildTopPlayerSanityReport({
@@ -646,7 +650,7 @@ const main = async (): Promise<void> => {
 
   if (command === "mock") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const result = runMock({
       projections: players,
@@ -704,7 +708,7 @@ const main = async (): Promise<void> => {
 
   if (command === "mocks") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const batch = runMockBatch({
       projections: players,
@@ -726,7 +730,7 @@ const main = async (): Promise<void> => {
 
   if (command === "strategy-lab") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const customScenarios = strategyLabScenariosFromOptions();
     const report = await runStrategyLab({
@@ -754,7 +758,7 @@ const main = async (): Promise<void> => {
 
   if (command === "teams") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const scenarioKey = scenarioOptionValue();
     const owner = ownerOptionValue();
@@ -800,7 +804,7 @@ const main = async (): Promise<void> => {
 
   if (command === "draft-ready") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const scenarioKey = scenarioOptionValue();
     const owner = ownerOptionValue();
@@ -897,7 +901,7 @@ const main = async (): Promise<void> => {
 
   if (command === "smoke") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const scenarioKey = scenarioOptionValue();
     const seed = optionValue("--seed") ?? "smoke";
@@ -919,7 +923,7 @@ const main = async (): Promise<void> => {
 
   if (command === "calibration") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const batch = runMockBatch({
       projections: players,
@@ -947,7 +951,7 @@ const main = async (): Promise<void> => {
 
   if (command === "qa") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const selectedScenarioKeys = scenarioListOptionValue();
     const evidenceScenarioKey = selectedScenarioKeys[0] ?? "expected";
@@ -1014,7 +1018,7 @@ const main = async (): Promise<void> => {
 
   if (command === "outputs") {
     const pricingConfig = await pricingConfigFromOptions();
-    const players = await loadEspnWeeksOneToFour(projectionPath);
+    const players = await loadCurrentProjections({ projectionPath });
     const historicalRecords = await loadHistoricalAuctionRecords();
     const selectedScenarioKeys = scenarioListOptionValue();
     const evidenceScenarioKey = selectedScenarioKeys[0] ?? "expected";

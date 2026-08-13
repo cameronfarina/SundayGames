@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "season": 2026,
+  "projections": [
+    {
+      "player": "De'Von Achane",
+      "position": "RB",
+      "provider": "First Down Studio",
+      "sourceDate": "2026-08-12",
+      "sourceUrl": "https://www.firstdown.studio/season-rankings/flex",
+      "sourceDescription": "Vegas prop-driven season projection",
+      "stats": {
+        "rushingYards": 979,
+        "rushingTouchdowns": 5.3,
+        "receptions": 58,
+        "receivingYards": 375,
+        "receivingTouchdowns": 2
+      }
+    }
+  ]
+}

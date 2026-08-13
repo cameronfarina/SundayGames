@@ -1,7 +1,7 @@
 import { keepers } from "../../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner } from "../../config/league.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
-import { loadEspnWeeksOneToFour } from "../projections.js";
+import { loadCurrentProjections } from "../projections.js";
 import { normalizeEmail } from "./auth.js";
 import { buildCurrentMockdLeagueSeason } from "./leagueSeason.js";
 import { loadCurrentPlayerCatalog } from "./localDemoFixtures.js";
@@ -214,7 +214,7 @@ export const generateProductionProvisioningDocument = async (
 
   const [currentCatalog, projections] = await Promise.all([
     loadCurrentPlayerCatalog(),
-    loadEspnWeeksOneToFour(currentProjectionPath),
+    loadCurrentProjections({ projectionPath: currentProjectionPath }),
   ]);
   const projectionByIdentity = new Map(
     projections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
