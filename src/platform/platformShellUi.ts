@@ -83,6 +83,11 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       --surface: #101216;
       --surface-raised: #171a20;
       --line: #2b3039;
+      --control-bg: #11151b;
+      --control-bg-hover: #151a22;
+      --control-border: #3b424e;
+      --control-border-hover: #596474;
+      --control-placeholder: #7f8998;
       --text: #f3f5f7;
       --muted: #a5acb8;
       --accent: #67d8b0;
@@ -157,10 +162,11 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
 
     .header-league-switcher { min-width: 0; }
     .header-league-switcher select {
-      background: var(--bg);
-      max-width: min(46vw, 280px);
-      min-height: 38px;
-      padding: 7px 34px 7px 10px;
+      background-color: var(--control-bg);
+      font-weight: 650;
+      max-width: min(52vw, 340px);
+      min-height: 40px;
+      padding-block: 7px;
     }
 
     .account-menu { border: 0; padding: 0; position: relative; }
@@ -283,13 +289,133 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
     .actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
     input, select, textarea {
-      background: var(--surface);
-      border: 1px solid var(--line);
+      background-color: var(--control-bg);
+      border: 1px solid var(--control-border);
       border-radius: 6px;
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / .025), 0 1px 2px rgb(0 0 0 / .18);
+      caret-color: var(--accent-strong);
       color: var(--text);
       min-height: 44px;
       padding: 10px 12px;
+      transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
       width: 100%;
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: var(--control-placeholder);
+      opacity: 1;
+    }
+
+    input:hover:not(:disabled):not([readonly]),
+    select:hover:not(:disabled),
+    textarea:hover:not(:disabled):not([readonly]) {
+      background-color: var(--control-bg-hover);
+      border-color: var(--control-border-hover);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      background-color: var(--control-bg-hover);
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px rgb(113 183 255 / .15), inset 0 1px 0 rgb(255 255 255 / .035);
+      outline: none;
+    }
+
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%23B8C0CC' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-position: right 12px center;
+      background-repeat: no-repeat;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+
+    input[type="checkbox"], input[type="radio"] {
+      appearance: none;
+      -webkit-appearance: none;
+      accent-color: var(--accent);
+      align-items: center;
+      background: var(--control-bg);
+      border: 1px solid var(--control-border-hover);
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / .035);
+      display: inline-grid;
+      justify-content: center;
+      min-height: 18px;
+      padding: 0;
+      transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+      width: 18px;
+    }
+
+    input[type="checkbox"] { border-radius: 4px; }
+    input[type="radio"] { border-radius: 50%; }
+
+    input[type="checkbox"]::before {
+      border-bottom: 2px solid #06110d;
+      border-left: 2px solid #06110d;
+      content: "";
+      height: 4px;
+      transform: translateY(-1px) rotate(-45deg) scale(0);
+      transition: transform 100ms ease;
+      width: 8px;
+    }
+
+    input[type="radio"]::before {
+      background: #06110d;
+      border-radius: 50%;
+      content: "";
+      height: 7px;
+      transform: scale(0);
+      transition: transform 100ms ease;
+      width: 7px;
+    }
+
+    input[type="checkbox"]:checked, input[type="radio"]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgb(103 216 176 / .1);
+    }
+
+    input[type="checkbox"]:checked::before,
+    input[type="radio"]:checked::before { transform: translateY(-1px) rotate(-45deg) scale(1); }
+    input[type="radio"]:checked::before { transform: scale(1); }
+
+    input[type="search"]::-webkit-search-cancel-button { cursor: pointer; filter: invert(.75); }
+    input[type="number"] { font-variant-numeric: tabular-nums; }
+
+    input::file-selector-button {
+      background: var(--surface-raised);
+      border: 1px solid var(--control-border);
+      border-radius: 5px;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 750;
+      margin: -5px 10px -5px -7px;
+      min-height: 34px;
+      padding: 6px 11px;
+    }
+
+    input[type="file"]:hover::file-selector-button {
+      background: #20242c;
+      border-color: var(--control-border-hover);
+    }
+
+    input:disabled, select:disabled, textarea:disabled,
+    input[readonly], textarea[readonly] {
+      background-color: #0d1015;
+      border-color: #292f38;
+      box-shadow: none;
+      color: #858e9c;
+      cursor: not-allowed;
+      opacity: .72;
+    }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--text);
+      box-shadow: 0 0 0 1000px var(--control-bg) inset;
+      caret-color: var(--accent-strong);
     }
 
     textarea {

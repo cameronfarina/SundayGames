@@ -63,6 +63,21 @@ const authenticationReturnPathFromShell = (returnTo: string | null): string => {
 };
 
 describe("platform shell UI", () => {
+  it("styles form controls as a consistent dark product surface", () => {
+    expect(platformShellHtml).toContain("color-scheme: dark;");
+    expect(platformShellHtml).toContain("input::placeholder, textarea::placeholder");
+    expect(platformShellHtml).toContain("input:hover:not(:disabled):not([readonly])");
+    expect(platformShellHtml).toContain("select:hover:not(:disabled)");
+    expect(platformShellHtml).toContain("input:focus, select:focus, textarea:focus");
+    expect(platformShellHtml).toContain("select {\n      appearance: none;");
+    expect(platformShellHtml).toContain("background-image: url(\"data:image/svg+xml");
+    expect(platformShellHtml).toContain("input::file-selector-button");
+    expect(platformShellHtml).toContain("input[type=\"checkbox\"]");
+    expect(platformShellHtml).toContain("input[type=\"checkbox\"]:checked");
+    expect(platformShellHtml).toContain("input:-webkit-autofill");
+    expect(platformShellHtml).toContain("input:disabled, select:disabled, textarea:disabled");
+  });
+
   it("renders the manual league wizard without screenshot controls when analysis is disabled", () => {
     const html = createPlatformShellHtml({ leagueCreationScreenshotAnalysis: false });
 

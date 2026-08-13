@@ -13,6 +13,10 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       --surface-soft: #0c1014;
       --line: #2b3039;
       --line-strong: #454b57;
+      --control-bg: #11151b;
+      --control-bg-hover: #151a22;
+      --control-border-hover: #606a79;
+      --control-placeholder: #7f8998;
       --text: #f3f5f7;
       --muted: #a5acb8;
       --accent: #67d8b0;
@@ -41,13 +45,54 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
       min-height: 40px;
       border: 1px solid var(--line-strong);
       border-radius: 5px;
-      background: var(--surface-soft);
+      background-color: var(--control-bg);
       color: var(--text);
     }
 
     input, select {
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / .025), 0 1px 2px rgb(0 0 0 / .18);
+      caret-color: var(--accent-strong);
       width: 100%;
       padding: 8px 10px;
+      transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    input::placeholder {
+      color: var(--control-placeholder);
+      opacity: 1;
+    }
+
+    input:hover:not(:disabled):not([readonly]),
+    select:hover:not(:disabled) {
+      background-color: var(--control-bg-hover);
+      border-color: var(--control-border-hover);
+    }
+
+    input:focus, select:focus {
+      background-color: var(--control-bg-hover);
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px rgb(113 183 255 / .15), inset 0 1px 0 rgb(255 255 255 / .035);
+      outline: none;
+    }
+
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%23B8C0CC' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-position: right 12px center;
+      background-repeat: no-repeat;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+
+    input:disabled, select:disabled,
+    input[readonly] {
+      background-color: #0d1015;
+      border-color: #292f38;
+      box-shadow: none;
+      color: #858e9c;
+      cursor: not-allowed;
+      opacity: .72;
     }
 
     button {

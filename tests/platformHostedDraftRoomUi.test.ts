@@ -8,6 +8,17 @@ import {
 } from "../src/platform/hostedDraftRoomUi.js";
 
 describe("platform hosted draft room UI", () => {
+  it("keeps live-room inputs visually consistent with the product shell", () => {
+    expect(hostedDraftRoomHtml).toContain("color-scheme: dark;");
+    expect(hostedDraftRoomHtml).toContain("input::placeholder");
+    expect(hostedDraftRoomHtml).toContain("input:hover:not(:disabled):not([readonly])");
+    expect(hostedDraftRoomHtml).toContain("select:hover:not(:disabled)");
+    expect(hostedDraftRoomHtml).toContain("input:focus, select:focus");
+    expect(hostedDraftRoomHtml).toContain("select {\n      appearance: none;");
+    expect(hostedDraftRoomHtml).toContain("background-image: url(\"data:image/svg+xml");
+    expect(hostedDraftRoomHtml).toContain("input:disabled, select:disabled");
+  });
+
   it("emits a browser module that parses", () => {
     const moduleScript = hostedDraftRoomHtml.match(
       /<script type="module">([\s\S]*?)<\/script>/,
