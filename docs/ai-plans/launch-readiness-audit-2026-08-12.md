@@ -4,6 +4,8 @@ Date: 2026-08-12
 
 This backlog contains only issues reproduced in the browser or confirmed in code with a focused test. Hosted snake drafts remain out of scope. Auction simulations, auction mock drafts, and hosted auction drafts are the launch path.
 
+Status: all 39 verified tickets are implemented on the release branch. Final GitHub closure follows the green `main` build.
+
 ## Tickets
 
 ### 1. [Minimize sensitive browser API responses](https://github.com/cameronfarina/Mockd/issues/1)
@@ -154,6 +156,82 @@ A crafted authentication return path containing a backslash could normalize into
 
 HTML responses had no framing restriction and could be embedded for UI-redress attacks.
 
+### 21. [Remove OpenAI as a launch-time production dependency](https://github.com/cameronfarina/Mockd/issues/21)
+
+The Render Blueprint still required OpenAI screenshot analysis even though the launch product uses manual commissioner entry and should not require an API key.
+
+### 22. [Fix transactional production provisioning apply](https://github.com/cameronfarina/Mockd/issues/22)
+
+A clean production provisioning document passed dry-run but failed during apply while recording its audit receipt, blocking the documented recovery path and a real restore rehearsal.
+
+### 23. [Hide unavailable screenshot analysis from league setup](https://github.com/cameronfarina/Mockd/issues/23)
+
+Disabling screenshot analysis still left upload controls visible in the league wizard, advertising a workflow that could only fail after submission.
+
+### 24. [Run screenshot E2E only when analysis is enabled](https://github.com/cameronfarina/Mockd/issues/24)
+
+The browser release suite still ran screenshot-only scenarios in the default manual setup mode, where those controls are intentionally absent.
+
+### 25. [Bound durable interactive mock sessions](https://github.com/cameronfarina/Mockd/issues/25)
+
+Authenticated members could create unlimited durable interactive mock sessions, continually growing the shared platform snapshot and its serialization cost.
+
+### 26. [Disable or strictly bound the legacy mock-batch endpoint](https://github.com/cameronfarina/Mockd/issues/26)
+
+The unused authenticated legacy mock-batch endpoint retained large complete results and could pin application scopes until the web process exhausted memory.
+
+### 27. [Exercise mutating product flows against production Postgres](https://github.com/cameronfarina/Mockd/issues/27)
+
+The production-container CI job verified migrations and process health, but did not prove that signup, league mutations, keepers, hosted auction sales, and reloads persisted through the production Postgres composition.
+
+### 28. [Enforce interactive mock quotas when resetting sessions](https://github.com/cameronfarina/Mockd/issues/28)
+
+Completed interactive mocks could be reset to active without rechecking the per-user and per-season active-session quotas.
+
+### 29. [Let users abandon active interactive mocks](https://github.com/cameronfarina/Mockd/issues/29)
+
+Users could exhaust their active mock allowance but had no HTTP or product action to abandon an unfinished mock and immediately release capacity.
+
+### 30. [Bound interactive mock command logs](https://github.com/cameronfarina/Mockd/issues/30)
+
+One authenticated interactive mock could retain an unlimited command history and continually enlarge durable shared snapshots despite the session-count bounds.
+
+### 31. [Add local browser coverage for simulation results and history](https://github.com/cameronfarina/Mockd/issues/31)
+
+Simulation submission, per-run league results, Week 1 estimates, and saved history were exercised only by a deployed smoke path, leaving the local release gate incomplete.
+
+### 32. [Add browser coverage for completed mock results](https://github.com/cameronfarina/Mockd/issues/32)
+
+The local browser suite started and advanced an interactive auction mock but did not finish it or assert the all-team results grid.
+
+### 33. [Add browser coverage for abandoning and replacing a mock](https://github.com/cameronfarina/Mockd/issues/33)
+
+The abandon flow had HTTP and generated-UI tests but no executable browser regression for confirmation, recovery focus, quota release, and replacement-session creation.
+
+### 34. [Prevent pending-account signup pre-hijacking](https://github.com/cameronfarina/Mockd/issues/34)
+
+Repeated signup for an unverified email could reissue verification while retaining the first signup password hash, allowing an attacker-controlled credential to survive the victim's verification.
+
+### 35. [Disable or bound legacy scratch draft sessions in production](https://github.com/cameronfarina/Mockd/issues/35)
+
+Authenticated members could allocate unlimited persistent scratch draft stores and process-map entries outside the newer interactive mock quotas.
+
+### 36. [Disable invalid mock nominations for unfillable roster positions](https://github.com/cameronfarina/Mockd/issues/36)
+
+Interactive auction mocks could present an enabled nomination action for a player position that could not fill the controlled team's remaining roster slots, then fail with a predictable `409` after the click.
+
+### 37. [Bound live-draft event-stream connections and clean up disconnects](https://github.com/cameronfarina/Mockd/issues/37)
+
+Authenticated members could open unlimited live-room long polls, and disconnected requests retained their waiters until timeout.
+
+### 38. [Bound live-room snapshot growth and mutation churn](https://github.com/cameronfarina/Mockd/issues/38)
+
+Repeated commissioner mutations persisted complete room snapshots containing accumulated events and static draft data, creating superlinear Postgres growth.
+
+### 39. [Bound and expire historical import preview resources](https://github.com/cameronfarina/Mockd/issues/39)
+
+Historical imports were parsed before import-specific admission checks, had no row or cell cap, and retained an unbounded number of durable previews.
+
 ## Verified Strengths
 
 - Signup logs the user in locally; password hashing, reset-token storage, enumeration resistance, and session revocation passed review.
@@ -164,5 +242,22 @@ HTML responses had no framing restriction and could be embedded for UI-redress a
 - Auction bidding includes scarcity, keeper budget effects, competition, max bids, and complete-roster economics.
 - Mock completion/results, shortlist persistence, responsive member views, and pre-draft My Team state work.
 - Import file type and expansion limits, invitation token handling, logs, secret validation, and container privileges passed review.
-- `npm audit` reports zero known vulnerabilities; 1,082 unit/integration tests passed before remediation.
+- `npm audit` reports zero known vulnerabilities; 1,184 unit/integration tests pass after remediation.
 - The assembled browser release gate covers commissioner and member onboarding, imports, simulations, mock auction, hosted auction, realtime updates, mobile layouts, keeper persistence, and incomplete-draft recovery.
+
+## Final Verification
+
+- `npm run build`: passed.
+- `npm test`: 145 files, 1,186 tests total, 1,184 passed, and two production Postgres integration tests skipped locally and delegated to CI.
+- `npm run test:e2e`: 12 browser scenarios passed; two deployed-only smoke scenarios skipped locally.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
+- `render.yaml`: valid against the checked Render Blueprint schema.
+- Production Postgres composition coverage exercises signup, verification, login, league and keeper mutations, hosted auction sales, restart, and persistence in CI.
+- A local container restore rehearsal could not run because the existing Docker daemon was unresponsive. The repository restore tests pass, but a managed backup and restore rehearsal remains a hosting operation before public launch.
+
+## Product Roles And Scope
+
+- The Commissioner navigation is visible only to an owner or admin of the active league. API authorization independently enforces the same boundary.
+- Any signed-in user can create a league and becomes its commissioner. Invited members use Practice, League, and My Team after claiming a team from the shared league link.
+- League imports, keeper administration, invitations, publishing, and hosted auction controls are commissioner actions. Shortlists, simulations, and interactive mocks are private to each signed-in account.
+- Snake preparation, simulations, and interactive mocks are available as beta workflows. Hosting a real snake draft is intentionally disabled and is not part of this launch.
