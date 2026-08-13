@@ -1,3 +1,5 @@
+import { Script } from "node:vm";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +8,15 @@ import {
 } from "../src/platform/hostedDraftRoomUi.js";
 
 describe("platform hosted draft room UI", () => {
+  it("emits a browser module that parses", () => {
+    const moduleScript = hostedDraftRoomHtml.match(
+      /<script type="module">([\s\S]*?)<\/script>/,
+    );
+
+    expect(moduleScript).not.toBeNull();
+    expect(() => new Script(moduleScript?.[1] ?? "")).not.toThrow();
+  });
+
   it("exposes the stable, accessible browser release-gate controls", () => {
     expect(platformHostedDraftRoomHtml).toBe(hostedDraftRoomHtml);
     expect(hostedDraftRoomHtml).toContain('id="draft-room-view" data-platform-live-room');

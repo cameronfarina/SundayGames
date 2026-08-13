@@ -1591,7 +1591,7 @@ export const platformHostedDraftRoomHtml = `<!doctype html>
           return;
         }
         const confirmed = window.confirm(
-          error.message + "\n\nEnd this incomplete draft anyway? You can reopen the room to finish it later.",
+          error.message + "\\n\\nEnd this incomplete draft anyway? You can reopen the room to finish it later.",
         );
         if (!confirmed) {
           setFeedback("Draft remains open.", "neutral");
