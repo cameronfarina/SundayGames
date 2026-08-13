@@ -3802,14 +3802,13 @@ export const createPlatformHttpHandler = (
             },
           };
         }
-        const snapshots = await app.listLeaguePricingSnapshots({
+        const latest = await app.getLatestLeaguePricingSnapshot({
           actorSessionToken: parsedRequest.sessionToken,
           leagueId: season.leagueId,
           seasonYear: season.seasonYear,
           scenarioId: "expected",
           now: parsedRequest.now,
         });
-        const latest = snapshots.at(-1);
         const pricingByPlayer = new Map(
           (latest?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
         );

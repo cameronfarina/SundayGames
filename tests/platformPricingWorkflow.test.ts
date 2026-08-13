@@ -6,6 +6,7 @@ import {
 } from "../src/platform/pricingSnapshots.js";
 import {
   listLeaguePricingSnapshotsWorkflow,
+  readLatestLeaguePricingSnapshotWorkflow,
   readLatestPricingSnapshotWorkflow,
   rebuildLeaguePricingWorkflow,
   type RebuildLeaguePricingWorkflowInput,
@@ -153,5 +154,29 @@ describe("platform pricing workflow", () => {
       scenarioId: "upside",
     })).toEqual([league2026.snapshots[1]]);
     expect(upsideSnapshot).toEqual(league2026.snapshots[1]);
+  });
+
+  it("reads the latest snapshot for one league season and scenario", () => {
+    const repository = createInMemoryPricingSnapshotRepository();
+    rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      modelVersion: "league-history-v1",
+      createdAt: "2026-08-09T12:00:00.000Z",
+    }));
+    const latest = rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      modelVersion: "league-history-v2",
+      createdAt: "2026-08-09T12:01:00.000Z",
+    }));
+    rebuildLeaguePricingWorkflow(workflowInput(repository, {
+      leagueId: "league-rival",
+      historicalSaleRecords: [historicalSale({ leagueId: "league-rival" })],
+      modelVersion: "league-history-v3",
+      createdAt: "2026-08-09T12:02:00.000Z",
+    }));
+
+    expect(readLatestLeaguePricingSnapshotWorkflow(repository, {
+      leagueId: "league-214674",
+      seasonYear: "2026",
+      scenarioId: "balanced",
+    })).toEqual(latest.snapshots[0]);
   });
 });

@@ -90,9 +90,17 @@ export interface PricingStrategyOverlay {
   recommendedMaxBidDeltas?: Readonly<Record<string, number>>;
 }
 
+export interface LatestPricingSnapshotFilters {
+  leagueId: string;
+  seasonYear: number | string;
+  modelRunId?: string;
+  scenarioId?: string;
+}
+
 export interface PricingSnapshotRepository {
   save(snapshot: PricingSnapshot): PricingSnapshot;
   get(modelRunId: string, scenarioId?: string): PricingSnapshot | undefined;
+  findLatest(filters: LatestPricingSnapshotFilters): PricingSnapshot | undefined;
   list(): readonly PricingSnapshot[];
 }
 
@@ -346,6 +354,22 @@ export const createInMemoryPricingSnapshotRepository = (): PricingSnapshotReposi
         : snapshots.get(snapshotStorageKey(modelRunId, scenarioId));
 
       return existing ? immutableSnapshot(existing.snapshot) : undefined;
+    },
+    findLatest(filters) {
+      let latest: PricingSnapshot | undefined;
+      for (const entry of snapshots.values()) {
+        const snapshot = entry.snapshot;
+        if (
+          snapshot.leagueId === filters.leagueId
+          && String(snapshot.seasonYear) === String(filters.seasonYear)
+          && (filters.modelRunId === undefined || snapshot.modelRunId === filters.modelRunId)
+          && (filters.scenarioId === undefined || snapshot.scenarioId === filters.scenarioId)
+        ) {
+          latest = snapshot;
+        }
+      }
+
+      return latest === undefined ? undefined : immutableSnapshot(latest);
     },
     list() {
       return [...snapshots.values()].map(entry => immutableSnapshot(entry.snapshot));

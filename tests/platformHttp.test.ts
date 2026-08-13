@@ -29,6 +29,10 @@ import {
   type PlatformLeagueMembership,
 } from "../src/platform/platformApp.js";
 import {
+  createPricingSnapshot,
+  hashPricingSnapshotInputs,
+} from "../src/platform/pricingSnapshots.js";
+import {
   createPlatformHttpHandler,
   type PlatformApp,
   type PlatformHttpHandler,
@@ -454,6 +458,82 @@ describe("platform HTTP contract", () => {
       sessionToken: login.sessionToken,
     })).resolves.toMatchObject({ status: 405 });
     expect(currentPlayerCatalogProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("prices Practice from only the latest matching league snapshot", async () => {
+    const store = new InMemoryPlatformStore();
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app, {
+      currentPlayerCatalogProvider: async () => playerCatalog,
+    });
+    const cam = await createLoggedInAccount(handle, "latest-practice-pricing@example.com");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+    store.pricingSnapshots.save(createPricingSnapshot({
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: "older-large-model",
+      scenarioId: "expected",
+      inputSnapshot: {
+        id: "older-large-input",
+        hash: hashPricingSnapshotInputs({ version: "older-large" }),
+      },
+      prices: Array.from({ length: 5_000 }, (_, index) => ({
+        name: `Older Player ${index}`,
+        normalizedName: `older player ${index}`,
+        position: "WR" as const,
+        price: 1,
+      })),
+    }));
+    const latest = store.pricingSnapshots.save(createPricingSnapshot({
+      leagueId: season.leagueId,
+      seasonYear: season.seasonYear,
+      modelVersion: "latest-model",
+      scenarioId: "expected",
+      inputSnapshot: {
+        id: "latest-input",
+        hash: hashPricingSnapshotInputs({ version: "latest" }),
+      },
+      prices: playerCatalog.map(player => ({
+        name: player.name,
+        normalizedName: canonicalPlayerIdentityKey(player.name),
+        position: player.position,
+        price: player.name === "Puka Nacua" ? 41 : player.expectedPrice,
+      })),
+    }));
+    const legacyList = vi.spyOn(app, "listLeaguePricingSnapshots")
+      .mockRejectedValue(new Error("Practice must not list every pricing snapshot."));
+
+    await expect(handle({
+      method: "GET",
+      path: "/player-catalog",
+      query: { seasonId: season.id },
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        personalized: true,
+        pricingModelRunId: latest.modelRunId,
+        players: expect.arrayContaining([
+          expect.objectContaining({ name: "Puka Nacua", marketPrice: 41 }),
+        ]),
+      },
+    });
+    expect(legacyList).not.toHaveBeenCalled();
   });
 
   it("marks snake keepers on the Practice catalog", async () => {

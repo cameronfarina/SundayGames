@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   applyStrategyOverlay,
   createInMemoryPricingSnapshotRepository,
@@ -194,6 +194,52 @@ describe("pricing snapshot contracts", () => {
     expect(repository.get(expectedSnapshot.modelRunId, "expected")?.scenarioId).toBe("expected");
     expect(repository.get(expectedSnapshot.modelRunId, "highRetention")?.scenarioId).toBe("highRetention");
     expect(repository.list().map(snapshot => snapshot.scenarioId)).toEqual(["expected", "highRetention"]);
+  });
+
+  it("returns only the latest matching snapshot without cloning older large snapshots", () => {
+    const repository = createInMemoryPricingSnapshotRepository();
+    const olderSnapshot = createPricingSnapshot({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "auction-v1",
+      scenarioId: "expected",
+      inputSnapshot: {
+        id: "input-snapshot-older",
+        hash: hashPricingSnapshotInputs({ version: "older" }),
+      },
+      prices: Array.from({ length: 5_000 }, (_, index) => ({
+        name: `Older Player ${index}`,
+        normalizedName: `older player ${index}`,
+        position: "WR" as const,
+        price: 1,
+      })),
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const latestSnapshot = createPricingSnapshot({
+      leagueId: "league-214674",
+      seasonYear: 2026,
+      modelVersion: "auction-v2",
+      scenarioId: "expected",
+      inputSnapshot: {
+        id: "input-snapshot-latest",
+        hash: hashPricingSnapshotInputs({ version: "latest" }),
+      },
+      prices: sourcePrices,
+      createdAt: "2026-08-02T12:00:00.000Z",
+    });
+    repository.save(olderSnapshot);
+    repository.save(latestSnapshot);
+    const structuredCloneSpy = vi.spyOn(globalThis, "structuredClone");
+
+    const result = repository.findLatest({
+      leagueId: "league-214674",
+      seasonYear: "2026",
+      scenarioId: "expected",
+    });
+
+    expect(result).toEqual(latestSnapshot);
+    expect(structuredCloneSpy).toHaveBeenCalledTimes(1);
+    structuredCloneSpy.mockRestore();
   });
 
   it("creates strategy overlays with derived personal values without mutating market prices", () => {

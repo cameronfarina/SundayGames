@@ -116,6 +116,7 @@ import {
 } from "./platformJobOrchestrator.js";
 import {
   listLeaguePricingSnapshotsWorkflow,
+  readLatestLeaguePricingSnapshotWorkflow,
   readLatestPricingSnapshotWorkflow,
   rebuildLeaguePricingWorkflow,
   preflightLeaguePricingWorkflow,
@@ -368,6 +369,8 @@ export interface ListPlatformPricingSnapshotsInput {
   scenarioId?: string | undefined;
   now?: Date | undefined;
 }
+
+export interface GetLatestLeaguePricingSnapshotInput extends ListPlatformPricingSnapshotsInput {}
 
 export interface GetPlatformPricingSnapshotInput {
   actorSessionToken: string;
@@ -1819,6 +1822,22 @@ export const createPlatformApp = ({
         ...(input.modelRunId === undefined ? {} : { modelRunId: input.modelRunId }),
         ...(input.scenarioId === undefined ? {} : { scenarioId: input.scenarioId }),
       }).map(snapshot => cloneForRead(snapshot));
+    },
+
+    getLatestLeaguePricingSnapshot: async (
+      input: GetLatestLeaguePricingSnapshotInput,
+    ): Promise<PricingSnapshot | undefined> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      await requireSeasonForLeagueYear(input.leagueId, Number(input.seasonYear));
+      await requireSharedRead(account, input.leagueId);
+      const snapshot = readLatestLeaguePricingSnapshotWorkflow(store.pricingSnapshots, {
+        leagueId: input.leagueId,
+        seasonYear: input.seasonYear,
+        ...(input.modelRunId === undefined ? {} : { modelRunId: input.modelRunId }),
+        ...(input.scenarioId === undefined ? {} : { scenarioId: input.scenarioId }),
+      });
+
+      return snapshot === undefined ? undefined : cloneForRead(snapshot);
     },
 
     getPricingSnapshot: async (input: GetPlatformPricingSnapshotInput): Promise<PricingSnapshot> => {

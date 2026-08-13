@@ -78,6 +78,12 @@ export const readLatestPricingSnapshotWorkflow = (
 ): PricingSnapshot | undefined =>
   repository.get(filters.modelRunId, filters.scenarioId);
 
+export const readLatestLeaguePricingSnapshotWorkflow = (
+  repository: PricingSnapshotRepository,
+  filters: ListLeaguePricingSnapshotsWorkflowFilters,
+): PricingSnapshot | undefined =>
+  repository.findLatest(filters);
+
 export const listLeaguePricingSnapshotsWorkflow = (
   repository: PricingSnapshotRepository,
   filters: ListLeaguePricingSnapshotsWorkflowFilters,
