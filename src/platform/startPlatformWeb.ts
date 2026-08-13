@@ -26,11 +26,16 @@ import {
 } from "./espnLeagueSettingsImport.js";
 import { loadCurrentPostDraftProjectionSnapshot } from "./currentPostDraftProjectionSnapshot.js";
 import { createResendAuthMailSender } from "./resendAuthMailSender.js";
+import type { AuthMailSender } from "./auth.js";
 
 export interface StartedPlatformWebProcess {
   server: StartedPlatformServer;
   postgresClient: NodePostgresClient | undefined;
   close: () => Promise<void>;
+}
+
+export interface StartPlatformWebDependencies {
+  authMailSender?: AuthMailSender | undefined;
 }
 
 export const createPlatformWebReadinessProbe = (
@@ -88,6 +93,7 @@ const importEspnLeagueSettingsForRuntime = (
 
 export const startPlatformWebFromEnv = async (
   env: NodeJS.ProcessEnv = process.env,
+  dependencies: StartPlatformWebDependencies = {},
 ): Promise<StartedPlatformWebProcess> => {
   const config = readPlatformWebRuntimeConfig(env);
   const simulationRunner = await createSimulationRunnerForRuntime(config);
@@ -99,11 +105,11 @@ export const startPlatformWebFromEnv = async (
       statementTimeoutMs: config.postgresStatementTimeoutMs,
     });
   const readinessProbe = createPlatformWebReadinessProbe(config, postgresClient);
-  const authMailSender = config.authEmail.mode === "resend"
+  const authMailSender = dependencies.authMailSender ?? (config.authEmail.mode === "resend"
     && config.authEmail.resendApiKey !== undefined
     && config.authEmail.from !== undefined
       ? createResendAuthMailSender({ apiKey: config.authEmail.resendApiKey, from: config.authEmail.from })
-      : undefined;
+      : undefined);
   const screenshotAnalyzer = config.screenshotImport.mode === "openai" && config.screenshotImport.apiKey !== undefined
     ? createOpenAiLeagueMembersScreenshotAnalyzer({
         apiKey: config.screenshotImport.apiKey,
