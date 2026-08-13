@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
 import {
   normalizeSeasonMockConfigurationSnapshot,
@@ -15,6 +16,8 @@ export type MockDraftSessionErrorCode =
   | "user_active_session_limit"
   | "access_denied"
   | "command_idempotency_conflict"
+  | "session_command_bytes_limit"
+  | "session_command_count_limit"
   | "command_key_required"
   | "command_required"
   | "mock_count_required"
@@ -39,6 +42,8 @@ export class MockDraftSessionError extends Error {
 }
 
 export interface MockDraftSessionResourcePolicy {
+  maxCommandsPerSession: number;
+  maxCommandBytesPerSession: number;
   maxActiveSessionsPerUser: number;
   maxActiveSessionsPerUserSeason: number;
   maxCreationsPerWindow: number;
@@ -53,6 +58,8 @@ const hourMs = 60 * minuteMs;
 const dayMs = 24 * hourMs;
 
 export const defaultMockDraftSessionResourcePolicy: MockDraftSessionResourcePolicy = {
+  maxCommandsPerSession: 512,
+  maxCommandBytesPerSession: 256 * 1_024,
   maxActiveSessionsPerUser: 8,
   maxActiveSessionsPerUserSeason: 3,
   maxCreationsPerWindow: 5,
@@ -289,6 +296,34 @@ const assertExpectedCommandCount = (session: MockDraftSession, expectedCommandCo
   }
 };
 
+const assertCommandLogCapacity = (
+  session: MockDraftSession,
+  command: Pick<MockDraftCommand, "id" | "idempotencyKey" | "command">,
+  resourcePolicy: MockDraftSessionResourcePolicy,
+): void => {
+  if (session.commandLog.length >= resourcePolicy.maxCommandsPerSession) {
+    throw new MockDraftSessionError(
+      "session_command_count_limit",
+      "This mock draft reached its command limit. Finish or reset it before continuing.",
+    );
+  }
+
+  const commandBytes = (storedCommand: Pick<MockDraftCommand, "id" | "idempotencyKey" | "command">): number =>
+    Buffer.byteLength(storedCommand.id, "utf8")
+    + Buffer.byteLength(storedCommand.idempotencyKey, "utf8")
+    + Buffer.byteLength(storedCommand.command, "utf8");
+  const storedCommandBytes = session.commandLog.reduce(
+    (total, storedCommand) => total + commandBytes(storedCommand),
+    0,
+  );
+  if (storedCommandBytes + commandBytes(command) > resourcePolicy.maxCommandBytesPerSession) {
+    throw new MockDraftSessionError(
+      "session_command_bytes_limit",
+      "This mock draft reached its command storage limit. Finish or reset it before continuing.",
+    );
+  }
+};
+
 const retentionForSession = (
   session: MockDraftSession,
   resourcePolicy: MockDraftSessionResourcePolicy,
@@ -448,9 +483,9 @@ export class InMemoryMockDraftSessionRepository {
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
 
     assertWritableForCommand(session);
-
     assertExpectedRevision(session, input.expectedRevision);
     assertExpectedCommandCount(session, input.expectedCommandCount);
+    assertCommandLogCapacity(session, { id: commandId, idempotencyKey, command }, this.#resourcePolicy);
 
     const updatedSession: MockDraftSession = {
       ...session,

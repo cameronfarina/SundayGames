@@ -272,6 +272,71 @@ describe("platform mock draft sessions", () => {
     ));
   });
 
+  it("rejects new commands at the per-session count limit while preserving idempotent retries", () => {
+    const repository = new InMemoryMockDraftSessionRepository([], {
+      maxCommandsPerSession: 1,
+    });
+    const session = createCamSession(repository);
+    const command = {
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "cmd_puka",
+      idempotencyKey: "sale:puka:62",
+      command: "draft Puka Nacua for $62",
+      now,
+    } as const;
+    const appended = repository.appendCommand(command);
+
+    expect(repository.appendCommand(command)).toBe(appended);
+    expect(() => repository.appendCommand({
+      ...command,
+      expectedCommandCount: 1,
+      commandId: "cmd_ladd",
+      idempotencyKey: "sale:ladd:21",
+      command: "draft Ladd McConkey for $21",
+    })).toThrow(new MockDraftSessionError(
+      "session_command_count_limit",
+      "This mock draft reached its command limit. Finish or reset it before continuing.",
+    ));
+    expect(repository.getSession({ userId: "user_cam", sessionId: session.id, now }).commandLog)
+      .toEqual(appended.commandLog);
+  });
+
+  it("rejects commands that exceed the cumulative UTF-8 byte limit before storing them", () => {
+    const repository = new InMemoryMockDraftSessionRepository([], {
+      maxCommandBytesPerSession: 10,
+    });
+    const session = createCamSession(repository);
+    const appended = repository.appendCommand({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 1,
+      expectedCommandCount: 0,
+      commandId: "a",
+      idempotencyKey: "b",
+      command: "éé",
+      now,
+    });
+
+    expect(() => repository.appendCommand({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 1,
+      expectedCommandCount: 1,
+      commandId: "long",
+      idempotencyKey: "k",
+      command: "x",
+      now,
+    })).toThrow(new MockDraftSessionError(
+      "session_command_bytes_limit",
+      "This mock draft reached its command storage limit. Finish or reset it before continuing.",
+    ));
+    expect(repository.getSession({ userId: "user_cam", sessionId: session.id, now }).commandLog)
+      .toEqual(appended.commandLog);
+  });
+
   it("finds stored command retries before replay while preserving privacy and conflict checks", () => {
     const repository = new InMemoryMockDraftSessionRepository();
     const session = createCamSession(repository);

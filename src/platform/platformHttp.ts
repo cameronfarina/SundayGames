@@ -588,10 +588,13 @@ const mockSessionErrorStatus = (code: MockDraftSessionError["code"]): number => 
       return 403;
     case "session_not_found":
       return 404;
+    case "session_command_bytes_limit":
+      return 413;
     case "session_creation_rate_limited":
       return 429;
     case "command_idempotency_conflict":
     case "season_active_session_limit":
+    case "session_command_count_limit":
     case "session_not_reusable":
     case "session_not_writable":
     case "stale_command_count":
