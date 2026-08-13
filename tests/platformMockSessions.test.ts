@@ -116,21 +116,23 @@ describe("platform mock draft sessions", () => {
       completedAt: undefined,
       abandonedAt: undefined,
     });
-    expect(repository.getSession({ userId: "user_cam", sessionId: camSession.id })).toBe(camSession);
+    expect(repository.getSession({ userId: "user_cam", sessionId: camSession.id, now })).toBe(camSession);
     expect(repository.listSessionsForOwner({
       userId: "user_cam",
       leagueId,
       seasonId,
       ownerId: "owner_cam",
+      now,
     })).toEqual([camSession]);
     expect(repository.listSessionsForOwner({
       userId: "user_rival",
       leagueId,
       seasonId,
       ownerId: "owner_cam",
+      now,
     })).not.toContain(camSession);
     expect(() =>
-      repository.getSession({ userId: "user_rival", sessionId: camSession.id }),
+      repository.getSession({ userId: "user_rival", sessionId: camSession.id, now }),
     ).toThrow(new MockDraftSessionError("access_denied", "Mock draft session belongs to another user."));
   });
 
@@ -171,7 +173,7 @@ describe("platform mock draft sessions", () => {
       }),
     ).toThrow(new MockDraftSessionError("mock_count_required", "Mock count must be a positive whole number."));
     expect(() =>
-      repository.getSession({ userId: "user_cam", sessionId: "missing-session" }),
+      repository.getSession({ userId: "user_cam", sessionId: "missing-session", now }),
     ).toThrow(new MockDraftSessionError("session_not_found", "Mock draft session was not found."));
 
     const session = createCamSession(repository);
@@ -290,6 +292,7 @@ describe("platform mock draft sessions", () => {
       commandId: "cmd_puka",
       idempotencyKey: "sale:puka:62",
       command: "draft Puka Nacua for $62",
+      now: new Date(now.getTime() + 1_000),
     })).toEqual({
       session: appended,
       command: appended.commandLog[0],
@@ -306,6 +309,7 @@ describe("platform mock draft sessions", () => {
       commandId: "cmd_puka",
       idempotencyKey: "sale:puka:62",
       command: "draft Puka Nacua for $62",
+      now: new Date(now.getTime() + 1_000),
     })?.session).toBe(completed);
     expect(repository.appendCommand({
       userId: "user_cam",
@@ -323,6 +327,7 @@ describe("platform mock draft sessions", () => {
       commandId: "cmd_ladd",
       idempotencyKey: "sale:ladd:21",
       command: "draft Ladd McConkey for $21",
+      now: new Date(now.getTime() + 2_000),
     })).toBeUndefined();
     expect(() => repository.findStoredCommandForRetry({
       userId: "user_cam",
@@ -330,6 +335,7 @@ describe("platform mock draft sessions", () => {
       commandId: "cmd_changed",
       idempotencyKey: "sale:puka:62",
       command: "draft Puka Nacua for $61",
+      now: new Date(now.getTime() + 2_000),
     })).toThrow(new MockDraftSessionError(
       "command_idempotency_conflict",
       "A command already exists for this idempotency key with different input.",
@@ -340,6 +346,7 @@ describe("platform mock draft sessions", () => {
       commandId: "cmd_puka",
       idempotencyKey: "sale:puka:62",
       command: "draft Puka Nacua for $62",
+      now: new Date(now.getTime() + 2_000),
     })).toThrow(new MockDraftSessionError("access_denied", "Mock draft session belongs to another user."));
   });
 
