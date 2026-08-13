@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import {
@@ -124,5 +124,32 @@ describe("season simulation worker runner", () => {
     await expect(runner(await simulationInput())).rejects.toMatchObject({
       code: "simulation_timeout",
     });
+  });
+
+  it("allows production-sized work to run beyond the old 30-second cutoff", async () => {
+    const input = await simulationInput();
+    const started = deferred();
+    const release = deferred();
+    vi.useFakeTimers();
+
+    try {
+      const runner = createBoundedSeasonSimulationRunner(async () => {
+        started.resolve();
+        await release.promise;
+        return runSeasonSimulations({ ...input, runCount: 1 });
+      }, {
+        maxConcurrent: 1,
+        maxPending: 1,
+      });
+      const result = runner(input);
+      await started.promise;
+
+      await vi.advanceTimersByTimeAsync(30_001);
+      release.resolve();
+
+      await expect(result).resolves.toMatchObject({ completedCount: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

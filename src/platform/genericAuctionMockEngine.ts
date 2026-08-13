@@ -605,23 +605,35 @@ const rosterNeedFor = (
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
 
 interface GenericAuctionMockAnalysisCache {
+  availablePlayersByExpectedPrice: readonly GenericAuctionMockBoardPlayer[] | undefined;
   eligibleAiTeamsByPlayerId: Map<string, readonly GenericAuctionMockTeamReadModel[]>;
+  projectedRosterPricesByTeamAndPlayerId: Map<string, readonly number[]>;
   projectedRbOrWrAlternativeByTeamId: Map<string, boolean>;
   remainingProjectedStartersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
 }
 
-const analysisCacheByState = new WeakMap<GenericAuctionMockState, GenericAuctionMockAnalysisCache>();
+interface GenericAuctionMockAnalysisCacheEntry {
+  teams: readonly GenericAuctionMockTeamReadModel[];
+  cache: GenericAuctionMockAnalysisCache;
+}
+
+const analysisCacheByBoard = new WeakMap<
+  GenericAuctionMockBoardReadModel,
+  GenericAuctionMockAnalysisCacheEntry
+>();
 
 const analysisCacheFor = (state: GenericAuctionMockState): GenericAuctionMockAnalysisCache => {
-  const cached = analysisCacheByState.get(state);
-  if (cached !== undefined) return cached;
+  const cached = analysisCacheByBoard.get(state.board);
+  if (cached?.teams === state.teams) return cached.cache;
 
   const created: GenericAuctionMockAnalysisCache = {
+    availablePlayersByExpectedPrice: undefined,
     eligibleAiTeamsByPlayerId: new Map(),
+    projectedRosterPricesByTeamAndPlayerId: new Map(),
     projectedRbOrWrAlternativeByTeamId: new Map(),
     remainingProjectedStartersByPosition: new Map(),
   };
-  analysisCacheByState.set(state, created);
+  analysisCacheByBoard.set(state.board, { teams: state.teams, cache: created });
   return created;
 };
 
@@ -809,6 +821,11 @@ const projectedRosterPricesAfterAcquiring = (
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockPlayer,
 ): readonly number[] => {
+  const analysis = analysisCacheFor(state);
+  const cacheKey = `${team.id}\u0000${player.id}`;
+  const cached = analysis.projectedRosterPricesByTeamAndPlayerId.get(cacheKey);
+  if (cached !== undefined) return cached;
+
   const assignedSlot = assignableSlotFor(team, player);
   if (assignedSlot === undefined) return [];
 
@@ -820,14 +837,16 @@ const projectedRosterPricesAfterAcquiring = (
     [player.position]: (team.positionCounts[player.position] ?? 0) + 1,
   };
   const prices = [player.expectedPrice];
-  const candidates = state.board.players
-    .filter(candidate => candidate.id !== player.id && candidate.status === "available")
+  const candidates = analysis.availablePlayersByExpectedPrice ?? state.board.players
+    .filter(candidate => candidate.status === "available")
     .sort((left, right) =>
       right.expectedPrice - left.expectedPrice || left.id.localeCompare(right.id)
     );
+  analysis.availablePlayersByExpectedPrice = candidates;
 
   for (const candidate of candidates) {
     if (prices.length >= team.rosterSlotsRemaining) break;
+    if (candidate.id === player.id) continue;
     if ((positionCounts[candidate.position] ?? 0)
       >= (state.configuration.positionMaximums[candidate.position] ?? 0)) continue;
     const slotIndex = openSlots
@@ -844,6 +863,7 @@ const projectedRosterPricesAfterAcquiring = (
     prices.push(candidate.expectedPrice);
   }
 
+  analysis.projectedRosterPricesByTeamAndPlayerId.set(cacheKey, prices);
   return prices;
 };
 

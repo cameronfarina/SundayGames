@@ -46,6 +46,8 @@ interface PendingSimulation {
   reject: (error: Error) => void;
 }
 
+const defaultSeasonSimulationTimeoutMs = 120_000;
+
 const workerModuleUrl = (): URL => import.meta.url.endsWith(".ts")
   ? new URL("./seasonSimulationWorkerThread.ts", import.meta.url)
   : new URL("./seasonSimulationWorkerThread.js", import.meta.url);
@@ -126,7 +128,7 @@ export const createBoundedSeasonSimulationRunner = (
   {
     maxConcurrent = 2,
     maxPending = 8,
-    timeoutMs = 30_000,
+    timeoutMs = defaultSeasonSimulationTimeoutMs,
   }: CreateNodeSeasonSimulationRunnerOptions = {},
 ): SeasonSimulationRunner => {
   if (!positiveWholeNumber(maxConcurrent)) {
@@ -223,7 +225,7 @@ export const createBoundedSeasonSimulationRunner = (
 export const createNodeSeasonSimulationRunner = ({
   maxConcurrent = 2,
   maxPending = 8,
-  timeoutMs = 30_000,
+  timeoutMs = defaultSeasonSimulationTimeoutMs,
 }: CreateNodeSeasonSimulationRunnerOptions = {}): SeasonSimulationRunner => {
   return createBoundedSeasonSimulationRunner(runInWorker, {
     maxConcurrent,
