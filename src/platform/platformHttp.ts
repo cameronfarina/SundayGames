@@ -1,6 +1,10 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import {
+  espnPpr300AuctionBaseline2026Source,
+  espnPpr300AuctionBaselineValueFor,
+} from "../data/espnPpr300AuctionBaseline2026.js";
+import {
   liveDraftStrategies,
   parseLiveDraftStrategyKey,
   type LiveDraftStrategyKey,
@@ -3766,8 +3770,36 @@ export const createPlatformHttpHandler = (
           return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
         }
         const players = await services.currentPlayerCatalogProvider();
+        const playersWithBaselineSource = players.map(player => {
+          const baselineValueSource = espnPpr300AuctionBaselineValueFor(player.name) === undefined
+            ? "mockd_projection" as const
+            : "espn" as const;
+          return { ...player, baselineValueSource };
+        });
+        const espnPlayerCount = playersWithBaselineSource.filter(
+          player => player.baselineValueSource === "espn",
+        ).length;
+        const baselineMetadata = {
+          baselinePricingSource: espnPpr300AuctionBaseline2026Source,
+          pricingCoverage: {
+            espnPlayerCount,
+            fallbackPlayerCount: players.length - espnPlayerCount,
+            totalPlayerCount: players.length,
+          },
+        };
         const seasonId = optionalString(parsedRequest.query.seasonId);
-        if (seasonId === undefined) return { status: 200, body: { players } };
+        if (seasonId === undefined) {
+          return {
+            status: 200,
+            body: {
+              ...baselineMetadata,
+              players: playersWithBaselineSource.map(player => ({
+                ...player,
+                marketValueSource: player.baselineValueSource,
+              })),
+            },
+          };
+        }
         const season = await app.getLeagueSeason({
           actorSessionToken: parsedRequest.sessionToken,
           seasonId,
@@ -3785,12 +3817,14 @@ export const createPlatformHttpHandler = (
             body: {
               draftFormat: "snake",
               personalized: false,
-              players: players.map((player, index) => {
+              ...baselineMetadata,
+              players: playersWithBaselineSource.map((player, index) => {
                 const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
                 return {
                   ...player,
                   marketRank: index + 1,
                   leagueRank: index + 1,
+                  marketValueSource: "baseline_rank",
                   isKeeper: keeper !== undefined,
                   ...(keeper === undefined ? {} : {
                     keeperTeamId: keeper.teamId,
@@ -3831,10 +3865,11 @@ export const createPlatformHttpHandler = (
           body: {
             draftFormat: "auction",
             personalized: latest !== undefined,
+            ...baselineMetadata,
             strategyKey,
             strategyLabel: strategy.label,
             ...(latest === undefined ? {} : { pricingModelRunId: latest.modelRunId }),
-            players: players.map(player => {
+            players: playersWithBaselineSource.map(player => {
               const playerKey = canonicalPlayerIdentityKey(player.name);
               const pricing = pricingByPlayer.get(playerKey);
               const marketPrice = values.playerExpectedPrices[playerKey] ?? player.expectedPrice;
@@ -3847,6 +3882,7 @@ export const createPlatformHttpHandler = (
                 myValue,
                 leagueValue: myValue,
                 recommendedMaxBid: Math.min(myValue, pricing?.recommendedMaxBid ?? myValue),
+                marketValueSource: pricing === undefined ? "league_model" : "league_history",
                 isKeeper: keeper !== undefined,
                 ...(keeper === undefined ? {} : {
                   keeperTeamId: keeper.teamId,

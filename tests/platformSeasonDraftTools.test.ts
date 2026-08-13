@@ -27,7 +27,7 @@ describe("season-backed private draft tools", () => {
     expect(options.projections).toHaveLength(500);
     expect(options.projections?.[0]).toMatchObject({
       name: "Jahmyr Gibbs",
-      espnAuctionValue: 74,
+      espnAuctionValue: 57,
       espnRank: 1,
     });
     expect(options.keepers).toContainEqual(expect.objectContaining({

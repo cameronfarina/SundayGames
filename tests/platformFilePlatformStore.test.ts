@@ -1,14 +1,18 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "../src/platform/liveDraftRooms.js";
-import { FilePlatformStore } from "../src/platform/filePlatformStore.js";
+import {
+  FilePlatformStore,
+  migrateLegacyPlatformAuthSnapshot,
+  writePlatformStoreSnapshot,
+} from "../src/platform/filePlatformStore.js";
 import { createPlatformApp } from "../src/platform/platformApp.js";
 import type { PricingSourcePrice } from "../src/platform/pricingSnapshots.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
@@ -202,7 +206,7 @@ describe("file-backed platform store", () => {
     ]);
   });
 
-  it("saves auth token hashes without raw session tokens", async () => {
+  it("saves auth token hashes only in the auth sidecar without raw session tokens", async () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
@@ -211,17 +215,99 @@ describe("file-backed platform store", () => {
     if (cam === null) throw new Error("Expected login.");
 
     await fileStore.save();
-    const saved = await readFile(path, "utf8");
-    const savedJson: unknown = JSON.parse(saved);
-    const savedRoot = asRecord(savedJson, "saved store");
+    const savedWorkspace = await readFile(path, "utf8");
+    const savedAuth = await readFile(fileStore.authPath, "utf8");
+    const savedJson: unknown = JSON.parse(savedAuth);
+    const savedRoot = asRecord(savedJson, "saved auth sidecar");
     const auth = asRecord(savedRoot.auth, "auth");
     if (!Array.isArray(auth.sessions)) throw new Error("Expected auth.sessions to be an array.");
     const firstSession = asRecord(auth.sessions[0], "first session");
 
     expect(firstSession.tokenHash).toBe(cam.session.tokenHash);
-    expect(saved).not.toContain(cam.sessionToken);
-    expect(saved).not.toContain("sessionToken");
-    expect(saved).not.toContain("cam password");
+    expect(asRecord(JSON.parse(savedWorkspace), "saved workspace").auth).toEqual({
+      accountCredentials: [],
+      sessions: [],
+    });
+    expect(savedWorkspace).not.toContain(cam.sessionToken);
+    expect(savedAuth).not.toContain(cam.sessionToken);
+    expect(savedAuth).not.toContain("sessionToken");
+    expect(savedAuth).not.toContain("cam password");
+  });
+
+  it("does not restore stale credentials when the auth sidecar is missing", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    await fileStore.save();
+
+    await rm(fileStore.authPath);
+    const loaded = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loaded.store, simulationRunner: mockRunner });
+
+    await expect(loadedApp.findAccountBySessionToken(cam.sessionToken, now)).resolves.toBeNull();
+    expect(loaded.store.snapshot().auth).toEqual({ accountCredentials: [], sessions: [] });
+  });
+
+  it("migrates legacy embedded auth into the sidecar and redacts the workspace", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    await writePlatformStoreSnapshot(path, fileStore.store.snapshot());
+
+    const loaded = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loaded.store, simulationRunner: mockRunner });
+    const migratedWorkspace = asRecord(JSON.parse(await readFile(path, "utf8")), "migrated workspace");
+
+    await expect(loadedApp.findAccountBySessionToken(cam.sessionToken, now)).resolves.toMatchObject({
+      email: "cam@example.com",
+    });
+    expect(migratedWorkspace.auth).toEqual({ accountCredentials: [], sessions: [] });
+    await expect(readFile(loaded.authPath, "utf8")).resolves.toContain(cam.session.tokenHash);
+  });
+
+  it("preserves legacy credentials in the sidecar when workspace redaction is interrupted", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    await rm(path, { force: true });
+    await mkdir(path);
+
+    await expect(migrateLegacyPlatformAuthSnapshot(path, fileStore.store.snapshot())).rejects.toThrow();
+
+    await expect(readFile(fileStore.authPath, "utf8")).resolves.toContain(cam.session.tokenHash);
+  });
+
+  it("persists auth changes in a small sidecar without rewriting the workspace snapshot", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
+    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
+    await fileStore.save();
+    const workspaceBefore = await readFile(path, "utf8");
+
+    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
+    if (cam === null) throw new Error("Expected login.");
+    const workspaceSnapshot = vi.spyOn(fileStore.store, "snapshot");
+    await fileStore.saveAuth();
+
+    expect(workspaceSnapshot).not.toHaveBeenCalled();
+    expect(await readFile(path, "utf8")).toBe(workspaceBefore);
+    expect((await readFile(fileStore.authPath, "utf8")).length).toBeLessThan(10_000);
+
+    const loaded = await FilePlatformStore.load(path);
+    const loadedApp = createPlatformApp({ store: loaded.store, simulationRunner: mockRunner });
+    await expect(loadedApp.findAccountBySessionToken(cam.sessionToken, now)).resolves.toMatchObject({
+      email: "cam@example.com",
+    });
   });
 
   it("roundtrips private simulation and mock draft session state", async () => {

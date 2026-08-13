@@ -146,21 +146,42 @@ describe("platform shell UI", () => {
     expect(draftRoomPathFor({ seasonId: "season 2026", roomId: "room/live" })).toBe(
       "/draft-room?seasonId=season+2026&roomId=room%2Flive",
     );
-    expect(platformShellHtml).toContain("<nav class=\"product-nav\" aria-label=\"Primary\">");
+    expect(platformShellHtml).toContain("<nav id=\"product-navigation\" class=\"product-nav\" aria-label=\"Primary\">");
     expect(platformShellHtml).toContain("aria-current");
+    expect(platformShellHtml).toContain("let routePath = window.location.pathname;");
+    expect(platformShellHtml).toContain("const navigateWithinShell = (destination, historyMode = \"push\") =>");
+    expect(platformShellHtml).toContain("const announceShellRoute = url =>");
+    expect(platformShellHtml).toContain('document.title = label + " | Mockd"');
+    expect(platformShellHtml).toContain('heading.focus({ preventScroll: true })');
+    expect(platformShellHtml).toContain('id="route-announcer"');
+    expect(platformShellHtml).toContain('productNavigation.addEventListener("click", event =>');
+    expect(platformShellHtml).toContain('byId("standalone-board-open-mock").addEventListener("click", event =>');
+    expect(platformShellHtml).toContain('window.addEventListener("popstate", () =>');
+    expect(platformShellHtml).toContain("announceShellRoute(new URL(window.location.href));");
+    expect(platformShellHtml).toContain("renderSelectedLeague(selectedLeague);");
     expect(platformShellHtml).not.toContain("localhost:4317");
     expect(platformShellHtml).not.toContain("draftBoardUrl.port");
   });
 
+  it("keeps auth and mock state scoped to successful current requests", () => {
+    expect(platformShellHtml).toContain('await readJson(await fetch("/session", { method: "DELETE"');
+    expect(platformShellHtml).toContain('showAppError("Could not sign out. Try again.")');
+    expect(platformShellHtml).toContain("const requestIsCurrent = () =>");
+    expect(platformShellHtml).toContain("if (!requestIsCurrent()) return;");
+    expect(platformShellHtml).toContain("animateMockAuctionEvents(previousDraft, body.state, requestIsCurrent)");
+    expect(platformShellHtml).toContain("const abandonRequestIsCurrent = () =>");
+  });
+
   it("renders login, signup, verification, and password recovery modes", () => {
-    expect(platformShellHtml).toContain("window.location.pathname === \"/signup\"");
+    expect(platformShellHtml).toContain("let signupMode = routePath === \"/signup\"");
+    expect(platformShellHtml).toContain("signupMode = routePath === \"/signup\"");
     expect(platformShellHtml).toContain("id=\"auth-title\"");
     expect(platformShellHtml).toContain("id=\"auth-submit-button\"");
     expect(platformShellHtml).toContain("id=\"auth-mode-link\"");
     expect(platformShellHtml).toContain("New to Mockd?");
-    expect(platformShellHtml).toContain('window.location.pathname === "/verify-email"');
-    expect(platformShellHtml).toContain('window.location.pathname === "/forgot-password"');
-    expect(platformShellHtml).toContain('window.location.pathname === "/reset-password"');
+    expect(platformShellHtml).toContain('verificationMode = routePath === "/verify-email"');
+    expect(platformShellHtml).toContain('forgotPasswordMode = routePath === "/forgot-password"');
+    expect(platformShellHtml).toContain('resetPasswordMode = routePath === "/reset-password"');
     expect(platformShellHtml).toContain('fetch("/email-verifications/consume"');
     expect(platformShellHtml).toContain('fetch("/password-resets/consume"');
     expect(platformShellHtml).toContain("Resend verification");
@@ -227,6 +248,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("My value starts with current season projections");
     expect(platformShellHtml).toContain('id="practice-strategy"');
     expect(platformShellHtml).toContain('id="standalone-pricing-source"');
+    expect(platformShellHtml).toContain("pricingSource: body.baselinePricingSource || null");
+    expect(platformShellHtml).toContain("pricingCoverage: body.pricingCoverage || null");
+    expect(platformShellHtml).toContain("baselineSource.lastUpdated");
+    expect(platformShellHtml).toContain("standalonePricingSource.href = baselineSource.url");
     expect(platformShellHtml).toContain('id="standalone-pricing-warnings"');
     expect(platformShellHtml).toContain('body.personalized === true ? "mine" : "market"');
     expect(platformShellHtml).toContain('displayRank: index + 1');
@@ -400,7 +425,8 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('aria-controls="no-league-invitation-instructions"');
     expect(platformShellHtml).toContain('id="no-league-invitation-instructions"');
     expect(platformShellHtml).toContain("Open the private league link your commissioner shared");
-    expect(platformShellHtml).toContain("Without a league, this board uses baseline market values.");
+    expect(platformShellHtml).toContain("players in ESPN's 2026 PPR Top 300 use its 10-team, $200 auction values");
+    expect(platformShellHtml).toContain("Remaining players use Mockd's projection baseline");
     expect(platformShellHtml).toContain("Simulations, mock drafts, keepers, and league-specific pricing unlock after you create or join a league.");
     expect(platformShellHtml).toContain("setHidden(noLeaguePracticeOnboarding, Boolean(selectedLeague))");
     expect(platformShellHtml).toContain('noLeagueInvitationHelp.setAttribute("aria-expanded"');
@@ -408,7 +434,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("const invitationReturnPath = () =>");
     expect(platformShellHtml).toContain("const signupInvitationToken = () => authenticationInvitationToken();");
     expect(platformShellHtml).toContain("invitationToken: signupInvitationToken()");
-    expect(platformShellHtml).toContain("window.location.assign(authenticationReturnPath())");
+    expect(platformShellHtml).toContain('navigateWithinShell(authenticationReturnPath(), "replace")');
     expect(platformShellHtml).toContain('window.location.assign(pathWithSeason("/league", seasonId))');
     expect(platformShellHtml).toContain('appStatus.textContent = "";');
     expect(platformShellHtml).not.toContain('onboarding.leagues.length ? "" : "No league memberships found."');
@@ -493,6 +519,14 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('type: "nominate"');
     expect(platformShellHtml).toContain('type: "buy"');
     expect(platformShellHtml).toContain('type: "pass"');
+    expect(platformShellHtml).toContain("if (requestGeneration !== state.mockRequestGeneration) return;");
+    expect(platformShellHtml).toContain("const claimedTeamChanged = state.selectedLeague?.membership?.teamId");
+    expect(platformShellHtml).toContain("if (seasonChanged || claimedTeamChanged)");
+    expect(platformShellHtml).toContain("state.playerCatalogTeamId !== teamId");
+    expect(platformShellHtml).toContain("state.playerCatalogTeamId = teamId;");
+    expect(platformShellHtml).toContain("(state.selectedLeague?.membership?.teamId || null) !== teamId");
+    expect(platformShellHtml).toContain("const selectedLeague = selectedLeagueFor(onboarding);");
+    expect(platformShellHtml).not.toContain("state.selectedLeague = selectedLeagueFor(onboarding);");
     expect(platformShellHtml).toContain('type: "undo"');
     expect(platformShellHtml).toContain('routePath === "/mock-drafts"');
     expect(platformShellHtml).not.toContain('featureRoutes[routePath]');
@@ -651,6 +685,22 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('newPasswordConfirmation: confirmPasswordInput.value');
     expect(platformShellHtml).toContain('window.location.assign("/login?passwordChanged=1")');
     expect(platformShellHtml).toContain('id="auth-notice"');
+    expect(platformShellHtml).toContain('document.addEventListener("pointerdown", event =>');
+    expect(platformShellHtml).toContain('if (!accountMenu.open || accountMenu.contains(event.target)) return;');
+    expect(platformShellHtml).toContain('event.key !== "Escape"');
+    expect(platformShellHtml).toContain('accountMenuButton.focus();');
+    expect(platformShellHtml).toContain('accountMenu.addEventListener("toggle", () =>');
+    expect(platformShellHtml).toContain('accountMenu.open ? "Close account menu" : "Open account menu"');
+    expect(platformShellHtml).toContain('byId("account-menu-email").textContent = "";');
+    expect(platformShellHtml).toContain('byId("account-avatar-initials").textContent = "?";');
+  });
+
+  it("uses the no-league card width for actions without creating an unreadable copy line", () => {
+    expect(platformShellHtml).toContain('class="no-league-practice-copy"');
+    expect(platformShellHtml).toContain("grid-template-columns: minmax(0, 1fr) auto;");
+    expect(platformShellHtml).toContain("max-width: 70ch;");
+    expect(platformShellHtml).toContain("grid-column: 1 / -1;");
+    expect(platformShellHtml).toContain("flex-wrap: nowrap;");
   });
 
   it("keeps live drafting on League and shows keepers with league teams", () => {

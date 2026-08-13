@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
+import { espnPpr300AuctionBaseline2026Source } from "../src/data/espnPpr300AuctionBaseline2026.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
 import { CapturingAuthMailSender, type AccountRecord } from "../src/platform/auth.js";
 import {
@@ -436,7 +437,12 @@ describe("platform HTTP contract", () => {
 
   it("serves the current player catalog to signed-in users without requiring a league", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const currentPlayerCatalogProvider = vi.fn(async () => playerCatalog);
+    const fallbackPlayer = { name: "Unlisted Player", position: "WR" as const, expectedPrice: 1 };
+    const catalogWithFallback = [
+      ...playerCatalog,
+      fallbackPlayer,
+    ];
+    const currentPlayerCatalogProvider = vi.fn(async () => catalogWithFallback);
     const handle = createPlatformHttpHandler(app, { currentPlayerCatalogProvider });
     const login = await createLoggedInAccount(handle, "board-first@example.com");
 
@@ -450,7 +456,26 @@ describe("platform HTTP contract", () => {
       sessionToken: login.sessionToken,
     })).resolves.toEqual({
       status: 200,
-      body: { players: playerCatalog },
+      body: {
+        baselinePricingSource: espnPpr300AuctionBaseline2026Source,
+        pricingCoverage: {
+          espnPlayerCount: 4,
+          fallbackPlayerCount: 1,
+          totalPlayerCount: 5,
+        },
+        players: [
+          ...playerCatalog.map(player => ({
+            ...player,
+            baselineValueSource: "espn",
+            marketValueSource: "espn",
+          })),
+          {
+            ...fallbackPlayer,
+            baselineValueSource: "mockd_projection",
+            marketValueSource: "mockd_projection",
+          },
+        ],
+      },
     });
     await expect(handle({
       method: "POST",

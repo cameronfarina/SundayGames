@@ -806,19 +806,37 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.historicalImports.replaceBatchesAndRecords([], []);
   }
 
+  authSnapshot(): InMemoryPlatformStoreSnapshot["auth"] {
+    return {
+      accountCredentials: this.authRepository.accounts().map(account => {
+        const credential = this.authRepository.findAccountCredentialByEmail(account.email);
+        if (credential === null) {
+          throw new Error(`Missing credential for account "${account.id}".`);
+        }
+
+        return cloneForRead(credential);
+      }),
+      sessions: this.authRepository.sessions().map(session => cloneForRead(session)),
+    };
+  }
+
+  onboardingSnapshot(): {
+    leagueSeasons: readonly LeagueSeason[];
+    leagueCreationRecords: readonly LeagueCreationRecord[];
+    memberships: readonly PlatformLeagueMembership[];
+    liveDraftRooms: ReturnType<InMemoryLiveDraftRoomRepository["roomSummaries"]>;
+  } {
+    return {
+      leagueSeasons: [...this.#leagueSeasonsById.values()].map(season => cloneForRead(season)),
+      leagueCreationRecords: [...this.#leagueCreationRecordsByLeagueId.values()].map(record => cloneForRead(record)),
+      memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),
+      liveDraftRooms: this.liveDraftRooms.roomSummaries(),
+    };
+  }
+
   snapshot(): InMemoryPlatformStoreSnapshot {
     return {
-      auth: {
-        accountCredentials: this.authRepository.accounts().map(account => {
-          const credential = this.authRepository.findAccountCredentialByEmail(account.email);
-          if (credential === null) {
-            throw new Error(`Missing credential for account "${account.id}".`);
-          }
-
-          return cloneForRead(credential);
-        }),
-        sessions: this.authRepository.sessions().map(session => cloneForRead(session)),
-      },
+      auth: this.authSnapshot(),
       leagueSeasons: [...this.#leagueSeasonsById.values()].map(season => cloneForRead(season)),
       leagueCreationRecords: [...this.#leagueCreationRecordsByLeagueId.values()].map(record => cloneForRead(record)),
       memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   InMemoryPlatformOnboardingRepository,
   loadPlatformOnboarding,
@@ -6,6 +6,7 @@ import {
   type PlatformOnboardingRow,
 } from "../src/platform/platformOnboarding.js";
 import type { PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
+import { InMemoryPlatformStore } from "../src/platform/platformApp.js";
 
 class OnboardingClient {
   readonly queries: Array<{ sql: string; params: readonly unknown[] }> = [];
@@ -19,6 +20,24 @@ class OnboardingClient {
 }
 
 describe("platform onboarding", () => {
+  it("builds its local source without cloning simulation or pricing history", () => {
+    const store = new InMemoryPlatformStore();
+    const simulationReads = vi.spyOn(store.simulations, "runs").mockImplementation(() => {
+      throw new Error("onboarding must not read simulations");
+    });
+    const pricingReads = vi.spyOn(store.pricingSnapshots, "list").mockImplementation(() => {
+      throw new Error("onboarding must not read pricing history");
+    });
+
+    expect(store.onboardingSnapshot()).toEqual({
+      leagueSeasons: [],
+      leagueCreationRecords: [],
+      memberships: [],
+      liveDraftRooms: [],
+    });
+    expect(simulationReads).not.toHaveBeenCalled();
+    expect(pricingReads).not.toHaveBeenCalled();
+  });
   it("builds the same onboarding view from the local platform snapshot", async () => {
     const repository = new InMemoryPlatformOnboardingRepository(() => ({
       leagueSeasons: [{

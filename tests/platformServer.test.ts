@@ -2029,23 +2029,30 @@ describe("platform server composition", () => {
     await platformServer.persist();
 
     const saved = await readFile(dataFilePath, "utf8");
-    expect(saved).toContain("cam@example.com");
+    const savedAuth = await readFile(`${dataFilePath}.auth.json`, "utf8");
+    expect(saved).not.toContain("cam@example.com");
+    expect(savedAuth).toContain("cam@example.com");
     expect(JSON.parse(saved)).toMatchObject({
       schemaVersion: 1,
       auth: {
-        accountCredentials: [
-          {
-            account: {
-              email: "cam@example.com",
-              createdAt: now.toISOString(),
-            },
-          },
-        ],
+        accountCredentials: [],
+        sessions: [],
       },
       liveDraftRoomSetups: [{
         seasonId: "season_restart_2026",
         initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
       }],
+    });
+    expect(JSON.parse(savedAuth)).toMatchObject({
+      schemaVersion: 1,
+      auth: {
+        accountCredentials: [{
+          account: {
+            email: "cam@example.com",
+            createdAt: now.toISOString(),
+          },
+        }],
+      },
     });
 
     await platformServer.close();
@@ -2078,6 +2085,35 @@ describe("platform server composition", () => {
     ).resolves.toMatchObject({
       initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
     });
+  });
+
+  it("persists file-backed auth requests without rewriting workspace state", async () => {
+    const dataFilePath = await storePath();
+    const { platformServer, baseUrl } = await createListeningServer({ dataFilePath });
+    await platformServer.persist();
+    const workspaceBefore = await readFile(dataFilePath, "utf8");
+
+    await expect(jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password" }),
+    })).resolves.toMatchObject({ status: 201 });
+    expect(await readFile(dataFilePath, "utf8")).toBe(workspaceBefore);
+    expect(await readFile(`${dataFilePath}.auth.json`, "utf8")).toContain("fast-auth@example.com");
+
+    const login = await jsonFetch(baseUrl, "/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password" }),
+    });
+    expect(login.status).toBe(200);
+    expect(await readFile(dataFilePath, "utf8")).toBe(workspaceBefore);
+
+    await expect(jsonFetch(baseUrl, "/session", {
+      method: "DELETE",
+      headers: { "x-session-token": sessionTokenFrom(login) },
+    })).resolves.toMatchObject({ status: 200 });
+    expect(await readFile(dataFilePath, "utf8")).toBe(workspaceBefore);
   });
 
   it("loads Postgres-backed state on startup and persists successful mutations", async () => {

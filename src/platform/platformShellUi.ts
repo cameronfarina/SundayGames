@@ -194,11 +194,12 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       box-shadow: 0 18px 48px rgb(0 0 0 / .45);
       display: grid;
       gap: 8px;
-      min-width: 280px;
+      min-width: 0;
       padding: 14px;
       position: absolute;
       right: 0;
       top: calc(100% + 10px);
+      width: min(320px, calc(100vw - 32px));
       z-index: 10;
     }
     .account-menu-email { font-size: 13px; overflow-wrap: anywhere; }
@@ -603,7 +604,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
     .no-league-practice-onboarding h2,
     .no-league-practice-onboarding p { margin: 0; }
     .no-league-practice-onboarding h2 { font-size: 18px; }
-    .no-league-practice-onboarding .lede { max-width: 760px; }
+    .no-league-practice-copy .lede { max-width: 70ch; }
     .no-league-invitation-instructions {
       color: var(--muted);
       line-height: 1.5;
@@ -1320,6 +1321,16 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
     }
 
     @media (min-width: 860px) {
+      .no-league-practice-onboarding {
+        align-items: center;
+        column-gap: 32px;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .no-league-practice-onboarding > .actions {
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+      }
+      .no-league-invitation-instructions { grid-column: 1 / -1; }
       .topbar { padding-left: 28px; padding-right: 28px; }
       .product-nav { padding-left: max(20px, calc((100vw - 1240px) / 2)); }
       .shell-main { padding-left: 28px; padding-right: 28px; }
@@ -1466,7 +1477,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
         </details>
       </div>
     </div>
-    <nav class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
+    <nav id="product-navigation" class="product-nav" aria-label="Primary">${navigationMarkup}<a id="commissioner-nav-item" class="product-nav-link hidden" data-nav-path="/setup" href="/setup">Commissioner</a></nav>
   </header>
 
   <dialog id="password-dialog" aria-labelledby="password-dialog-title" aria-describedby="password-dialog-description">
@@ -1541,10 +1552,11 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
         <button id="retry-onboarding-button" type="button">Try again</button>
       </div>
       <p id="app-status" class="status" role="status" aria-live="polite"></p>
+      <p id="route-announcer" class="visually-hidden" role="status" aria-live="polite"></p>
 
       <section id="standalone-board" class="workspace hidden">
         <div class="workspace-header">
-          <div>
+          <div class="no-league-practice-copy">
             <p class="eyebrow">Practice</p>
             <h1>Draft lab</h1>
             <p id="standalone-board-description" class="lede">Explore current player rankings and compare baseline values.</p>
@@ -1558,7 +1570,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
           <div>
             <p class="eyebrow">Board-only access</p>
             <h2 id="no-league-practice-title">Use the player board now</h2>
-            <p class="lede">Without a league, this board uses baseline market values. Simulations, mock drafts, keepers, and league-specific pricing unlock after you create or join a league.</p>
+            <p class="lede">Without a league, players in ESPN's 2026 PPR Top 300 use its 10-team, $200 auction values. Remaining players use Mockd's projection baseline. Simulations, mock drafts, keepers, and league-specific pricing unlock after you create or join a league.</p>
           </div>
           <div class="actions">
             <a id="no-league-create-league" class="button primary" href="/league?create=1">Create league</a>
@@ -1599,7 +1611,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
         </div>
         <p id="standalone-board-status" class="status" role="status" aria-live="polite"></p>
         <section id="standalone-pricing-context" class="board-pricing-context" aria-labelledby="standalone-pricing-source">
-          <strong id="standalone-pricing-source">Pricing source: current market board</strong>
+          <a id="standalone-pricing-source">Pricing source: current market board</a>
           <ul id="standalone-pricing-warnings" class="hidden"></ul>
         </section>
         <details id="simulation-panel" class="workspace-section hidden">
@@ -2120,11 +2132,11 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
   </main>
 
   <script>
-    const routePath = window.location.pathname;
-    const signupMode = window.location.pathname === "/signup";
-    const verificationMode = window.location.pathname === "/verify-email";
-    const forgotPasswordMode = window.location.pathname === "/forgot-password";
-    const resetPasswordMode = window.location.pathname === "/reset-password";
+    let routePath = window.location.pathname;
+    let signupMode = routePath === "/signup";
+    let verificationMode = routePath === "/verify-email";
+    let forgotPasswordMode = routePath === "/forgot-password";
+    let resetPasswordMode = routePath === "/reset-password";
     const navigation = ${JSON.stringify(platformShellNavigation)};
     const leagueCreationScreenshotAnalysisEnabled = ${JSON.stringify(capabilities.leagueCreationScreenshotAnalysis)};
     const state = {
@@ -2141,6 +2153,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       claimedTeamIds: new Set(),
       playerCatalog: null,
       playerCatalogSeasonId: null,
+      playerCatalogTeamId: null,
       playerCatalogStrategyKey: null,
       playerCatalogMeta: null,
       playerBoardSort: null,
@@ -2194,7 +2207,9 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const leaguePicker = byId("header-league-picker");
     const headerLeagueSwitcher = byId("header-league-switcher");
     const accountMenu = byId("account-menu");
+    const accountMenuButton = byId("account-menu-button");
     const accountMenuLeagues = byId("account-menu-leagues");
+    const productNavigation = byId("product-navigation");
     const commissionerNavItem = byId("commissioner-nav-item");
     const teamClaimPanel = byId("team-claim-panel");
     const teamClaimPicker = byId("team-claim-picker");
@@ -2512,6 +2527,10 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     };
 
     const configureAuthMode = () => {
+      signupMode = routePath === "/signup";
+      verificationMode = routePath === "/verify-email";
+      forgotPasswordMode = routePath === "/forgot-password";
+      resetPasswordMode = routePath === "/reset-password";
       authTitle.textContent = signupMode
         ? "Create your account"
         : verificationMode
@@ -2576,6 +2595,8 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
 
     const showAuth = () => {
       document.body.dataset.sessionState = "signed-out";
+      byId("account-menu-email").textContent = "";
+      byId("account-avatar-initials").textContent = "?";
       setHidden(bootPanel, true);
       setHidden(appHeader, true);
       setHidden(appShell, true);
@@ -2847,13 +2868,26 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const personalized = state.playerCatalogMeta?.personalized === true;
       const warnings = state.playerCatalogMeta?.pricingWarnings || [];
       const historyUnavailable = warnings.some(warning => warning.toLowerCase().includes("history unavailable"));
+      const baselineSource = state.playerCatalogMeta?.pricingSource;
+      const usesStandaloneBaseline = !state.playerCatalogMeta?.draftFormat && baselineSource?.url;
       standalonePricingSource.textContent = personalized && !historyUnavailable
         ? "Market blends the current baseline with up to three years of your league's open-auction sales; keeper rows are excluded. My value starts with current season projections, then applies your " + state.playerCatalogMeta.strategyLabel + " strategy and roster context."
         : personalized
           ? "Market uses the current baseline. Import draft history to calibrate it to your league. My value starts with current season projections, then applies your " + state.playerCatalogMeta.strategyLabel + " strategy and roster context."
         : state.playerCatalogMeta?.draftFormat
           ? "Market uses the current baseline. Import draft history to calibrate it to your league. My value starts with current season projections, then applies your strategy and roster context."
-          : "Pricing source: current market board. Create a league to add history and keeper context.";
+          : baselineSource
+            ? "Pricing source: " + baselineSource.provider + " 2026 PPR Top 300 · updated " + baselineSource.lastUpdated + " · " + baselineSource.teamCount + " teams · $" + baselineSource.salaryCap + " budget. Players outside the Top 300 use Mockd's projection baseline; ESPN $0 values use Mockd's $1 minimum bid."
+            : "Pricing source: current market board.";
+      if (usesStandaloneBaseline) {
+        standalonePricingSource.href = baselineSource.url;
+        standalonePricingSource.target = "_blank";
+        standalonePricingSource.rel = "noreferrer";
+      } else {
+        standalonePricingSource.removeAttribute("href");
+        standalonePricingSource.removeAttribute("target");
+        standalonePricingSource.removeAttribute("rel");
+      }
       standalonePricingWarnings.replaceChildren();
       warnings.slice(0, 6).forEach(warning => {
         const item = document.createElement("li");
@@ -2880,8 +2914,14 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const loadStandaloneBoard = async () => {
       setHidden(byId("standalone-board"), false);
       const seasonId = state.selectedLeague?.seasonId || null;
+      const teamId = state.selectedLeague?.membership?.teamId || null;
       const strategyKey = practiceStrategy.value;
-      if (state.playerCatalog === null || state.playerCatalogSeasonId !== seasonId || state.playerCatalogStrategyKey !== strategyKey) {
+      if (
+        state.playerCatalog === null
+        || state.playerCatalogSeasonId !== seasonId
+        || state.playerCatalogTeamId !== teamId
+        || state.playerCatalogStrategyKey !== strategyKey
+      ) {
         const requestGeneration = ++state.boardRequestGeneration;
         standaloneBoardStatus.textContent = "Loading players...";
         const endpoint = seasonId
@@ -2891,10 +2931,12 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         if (
           requestGeneration !== state.boardRequestGeneration
           || (state.selectedLeague?.seasonId || null) !== seasonId
+          || (state.selectedLeague?.membership?.teamId || null) !== teamId
           || practiceStrategy.value !== strategyKey
         ) return;
         state.playerCatalog = (body.players || []).map((player, index) => ({ ...player, rank: index + 1 }));
         state.playerCatalogSeasonId = seasonId;
+        state.playerCatalogTeamId = teamId;
         state.playerCatalogStrategyKey = strategyKey;
         const pricingWarnings = [...new Set((body.players || []).flatMap(player =>
           Array.isArray(player.pricingWarnings)
@@ -2905,6 +2947,8 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
           draftFormat: body.draftFormat || null,
           personalized: body.personalized === true,
           strategyLabel: body.strategyLabel || "balanced",
+          pricingSource: body.baselinePricingSource || null,
+          pricingCoverage: body.pricingCoverage || null,
           pricingWarnings: pricingWarnings,
         };
         state.playerBoardSort = body.personalized === true ? "mine" : "market";
@@ -4461,17 +4505,18 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       return [...groupedEvents[0], ...groupedEvents.at(-1)];
     };
 
-    const animateMockAuctionEvents = async (previousDraft, nextDraft) => {
+    const animateMockAuctionEvents = async (previousDraft, nextDraft, requestIsCurrent) => {
       const previousSequence = (previousDraft?.auctionEvents || []).at(-1)?.sequence || 0;
       const newEvents = (nextDraft.auctionEvents || [])
         .filter(event => event.sequence > previousSequence);
-      if (!newEvents.length || state.mockSession?.draftMode?.format !== "auction") return;
+      if (!newEvents.length || state.mockSession?.draftMode?.format !== "auction" || !requestIsCurrent()) return;
 
       setHidden(mockAuctionStage, false);
       let visibleEvents = (previousDraft?.auctionEvents || [])
         .filter(event => event.type !== "countdown")
         .slice(-7);
       for (const event of selectMockAuctionEventsForAnimation(newEvents)) {
+        if (!requestIsCurrent()) return;
         const player = nextDraft.board?.players?.find(candidate => candidate.id === event.playerId);
         mockAuctionStage.dataset.position = player?.position || "";
         mockAuctionPlayer.textContent = event.playerName;
@@ -4502,6 +4547,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
           mockAuctionFeed.replaceChildren(...visibleEvents.map(mockAuctionFeedItem));
         }
         await pauseMockAuction(event.type === "countdown" ? 280 : event.type === "sold" ? 420 : 180);
+        if (!requestIsCurrent()) return;
       }
       setHidden(mockAuctionCountdown, true);
     };
@@ -4510,6 +4556,12 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const selectedLeague = state.selectedLeague;
       const session = state.mockSession;
       if (!selectedLeague || !session) return;
+      const requestGeneration = state.mockRequestGeneration;
+      const sessionId = session.id;
+      const requestIsCurrent = () =>
+        requestGeneration === state.mockRequestGeneration
+        && state.selectedLeague?.seasonId === selectedLeague.seasonId
+        && state.mockSession?.id === sessionId;
       const controls = [
         mockDraftStart,
         mockDraftBuy,
@@ -4536,12 +4588,15 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
             }),
           },
         ));
+        if (!requestIsCurrent()) return;
         state.mockSession = body.mockSession;
-        await animateMockAuctionEvents(previousDraft, body.state);
+        await animateMockAuctionEvents(previousDraft, body.state, requestIsCurrent);
+        if (!requestIsCurrent()) return;
         state.mockDraft = body.state;
         state.mockResults = body.results || null;
         renderMockDraft();
       } catch (error) {
+        if (!requestIsCurrent()) return;
         mockDraftStatus.textContent = error.message;
         renderMockDraft();
       }
@@ -4560,19 +4615,25 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const query = new URLSearchParams(window.location.search);
       const requestedSessionId = query.get("mockSessionId");
       const requestedStrategy = query.get("strategy") || "balanced";
-      const response = requestedSessionId
-        ? await fetch(
-            "/season-mock-drafts/" + encodeURIComponent(requestedSessionId)
-              + "?seasonId=" + encodeURIComponent(selectedLeague.seasonId),
-            { credentials: "same-origin" },
-          )
-        : await fetch("/season-mock-drafts", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ seasonId: selectedLeague.seasonId, strategy: requestedStrategy }),
-          });
-      const body = await readJson(response);
+      let body;
+      try {
+        const response = requestedSessionId
+          ? await fetch(
+              "/season-mock-drafts/" + encodeURIComponent(requestedSessionId)
+                + "?seasonId=" + encodeURIComponent(selectedLeague.seasonId),
+              { credentials: "same-origin" },
+            )
+          : await fetch("/season-mock-drafts", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ seasonId: selectedLeague.seasonId, strategy: requestedStrategy }),
+            });
+        body = await readJson(response);
+      } catch (error) {
+        if (requestGeneration !== state.mockRequestGeneration) return;
+        throw error;
+      }
       if (requestGeneration !== state.mockRequestGeneration) return;
       state.mockSession = body.mockSession;
       state.mockDraft = body.state;
@@ -4596,6 +4657,12 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const session = state.mockSession;
       if (!selectedLeague || !session || !["setup", "active"].includes(session.status)) return;
       if (!window.confirm("Abandon this mock draft? Your current mock picks will be discarded.")) return;
+      const requestGeneration = state.mockRequestGeneration;
+      const sessionId = session.id;
+      const abandonRequestIsCurrent = () =>
+        requestGeneration === state.mockRequestGeneration
+        && state.selectedLeague?.seasonId === selectedLeague.seasonId
+        && state.mockSession?.id === sessionId;
       mockDraftAbandon.disabled = true;
       mockDraftStatus.textContent = "Abandoning mock...";
       try {
@@ -4611,6 +4678,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
             }),
           },
         ));
+        if (!abandonRequestIsCurrent()) return;
         state.mockSession = body.mockSession;
         state.mockDraft = null;
         state.mockResults = null;
@@ -4618,6 +4686,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         renderMockDraft();
         mockDraftAbandoned.focus();
       } catch (error) {
+        if (!abandonRequestIsCurrent()) return;
         mockDraftStatus.textContent = error.message;
         renderMockDraft();
       }
@@ -4713,7 +4782,10 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     };
 
     const renderSelectedLeague = selectedLeague => {
-      if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
+      const seasonChanged = state.selectedLeague?.seasonId !== selectedLeague?.seasonId;
+      const claimedTeamChanged = state.selectedLeague?.membership?.teamId
+        !== selectedLeague?.membership?.teamId;
+      if (seasonChanged || claimedTeamChanged) {
         state.simulationAbortController?.abort();
         state.simulationAbortController = null;
         clearTaskButtonBusy(simulationRun, true);
@@ -4732,6 +4804,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         state.mockRosterTeamId = null;
         state.playerCatalog = null;
         state.playerCatalogSeasonId = null;
+        state.playerCatalogTeamId = null;
         state.playerCatalogStrategyKey = null;
         state.playerCatalogMeta = null;
         state.playerBoardSort = null;
@@ -4969,14 +5042,66 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       setHidden(headerLeagueSwitcher, onboarding.leagues.length === 0);
     };
 
+    const shellRoutePaths = new Set(["/practice", "/league", "/my-team", "/setup", "/mock-drafts", "/invite"]);
+    const shellRouteLabels = {
+      "/practice": "Practice",
+      "/league": "League",
+      "/my-team": "My team",
+      "/setup": "Commissioner",
+      "/mock-drafts": "Mock draft",
+      "/invite": "League invitation",
+    };
+
+    const announceShellRoute = url => {
+      const label = shellRouteLabels[routePath] || "Mockd";
+      document.title = label + " | Mockd";
+      byId("route-announcer").textContent = label;
+      requestAnimationFrame(() => {
+        const hashTarget = url.hash ? document.querySelector(url.hash) : null;
+        const heading = hashTarget || document.querySelector(
+          "#app-shell .workspace:not(.hidden) h1, #setup-access-denied:not(.hidden) h1",
+        );
+        if (!(heading instanceof HTMLElement)) return;
+        if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+        heading.focus({ preventScroll: true });
+        if (hashTarget) hashTarget.scrollIntoView();
+      });
+    };
+
+    const navigateWithinShell = (destination, historyMode = "push") => {
+      const url = new URL(destination, window.location.origin);
+      if (url.origin !== window.location.origin || !shellRoutePaths.has(url.pathname)) {
+        window.location.assign(url.toString());
+        return false;
+      }
+      state.simulationAbortController?.abort();
+      state.simulationAbortController = null;
+      clearTaskButtonBusy(simulationRun, true);
+      state.workspaceRequestGeneration += 1;
+      state.boardRequestGeneration += 1;
+      state.mockRequestGeneration += 1;
+      routePath = url.pathname;
+      window.history[historyMode + "State"](null, "", url.pathname + url.search + url.hash);
+      markCurrentNavigation();
+      if (state.onboarding) {
+        const selectedLeague = selectedLeagueFor(state.onboarding);
+        renderSelectedLeague(selectedLeague);
+        renderLeaguePicker(state.onboarding);
+      }
+      accountMenu.open = false;
+      window.scrollTo({ top: 0, behavior: "instant" });
+      announceShellRoute(url);
+      return true;
+    };
+
     const loadOnboarding = async () => {
       clearAppError();
       appStatus.textContent = "Loading your league...";
       const onboarding = await readJson(await fetch("/onboarding", { credentials: "same-origin" }));
       state.onboarding = onboarding;
-      state.selectedLeague = selectedLeagueFor(onboarding);
+      const selectedLeague = selectedLeagueFor(onboarding);
       renderLeaguePicker(onboarding);
-      renderSelectedLeague(state.selectedLeague);
+      renderSelectedLeague(selectedLeague);
       appStatus.textContent = "";
     };
 
@@ -5015,8 +5140,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
 
     const finishAuthentication = account => {
       if (routePath === "/login" || routePath === "/signup") {
-        window.location.assign(authenticationReturnPath());
-        return;
+        navigateWithinShell(authenticationReturnPath(), "replace");
       }
       return showSignedInApp(account);
     };
@@ -5097,9 +5221,43 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         .finally(() => { authSubmitButton.disabled = false; });
     });
 
-    byId("sign-out-button").addEventListener("click", () => {
-      fetch("/session", { method: "DELETE", credentials: "same-origin" })
-        .finally(() => window.location.assign("/login"));
+    byId("sign-out-button").addEventListener("click", async () => {
+      const signOutButton = byId("sign-out-button");
+      signOutButton.disabled = true;
+      signOutButton.textContent = "Signing out...";
+      try {
+        await readJson(await fetch("/session", { method: "DELETE", credentials: "same-origin" }));
+        state.simulationAbortController?.abort();
+        state.account = null;
+        state.onboarding = null;
+        state.selectedLeague = null;
+        routePath = "/login";
+        window.history.replaceState(null, "", "/login");
+        accountMenu.open = false;
+        showAuth();
+      } catch {
+        accountMenu.open = false;
+        showAppError("Could not sign out. Try again.");
+      } finally {
+        signOutButton.disabled = false;
+        signOutButton.textContent = "Sign out";
+      }
+    });
+
+    document.addEventListener("pointerdown", event => {
+      if (!accountMenu.open || accountMenu.contains(event.target)) return;
+      accountMenu.open = false;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !accountMenu.open) return;
+      accountMenu.open = false;
+      accountMenuButton.focus();
+    });
+    accountMenu.addEventListener("toggle", () => {
+      accountMenuButton.setAttribute(
+        "aria-label",
+        accountMenu.open ? "Close account menu" : "Open account menu",
+      );
     });
 
     const openPasswordDialog = () => {
@@ -5159,6 +5317,41 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       renderSelectedLeague(selectedLeague);
       renderLeaguePicker(state.onboarding);
       accountMenu.open = false;
+    });
+
+    productNavigation.addEventListener("click", event => {
+      const link = event.target.closest("a[href]");
+      if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithinShell(link.href);
+    });
+    document.querySelector(".brand").addEventListener("click", event => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithinShell(event.currentTarget.href);
+    });
+    accountMenuLeagues.addEventListener("click", event => {
+      const link = event.target.closest("a[href]");
+      if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithinShell(link.href);
+    });
+    byId("standalone-board-open-mock").addEventListener("click", event => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithinShell(event.currentTarget.href);
+    });
+    window.addEventListener("popstate", () => {
+      routePath = window.location.pathname;
+      state.workspaceRequestGeneration += 1;
+      state.boardRequestGeneration += 1;
+      state.mockRequestGeneration += 1;
+      markCurrentNavigation();
+      if (state.onboarding) {
+        renderSelectedLeague(selectedLeagueFor(state.onboarding));
+        renderLeaguePicker(state.onboarding);
+      }
+      announceShellRoute(new URL(window.location.href));
     });
 
     const setupEndpoint = action => "/seasons/" + encodeURIComponent(byId("setup-season-id-input").value) + "/setup-import/" + action;

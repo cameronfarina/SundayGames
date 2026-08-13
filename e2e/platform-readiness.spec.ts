@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Dialog, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Dialog, type Page, type Route } from "@playwright/test";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { AccountRecord } from "../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
@@ -294,11 +294,36 @@ const setupRowsFor = (camEmail: string): string =>
 const seedSeasonFromBrowser = async (
   page: Page,
   camAccount: AccountRecord,
+  namespace?: string,
 ): Promise<LeagueSeason> => {
-  const season = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+  const baseSeason = namespacedSeasonForSmoke(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName,
     setupStatus: "draft",
   }));
+  const namespaceSlug = namespace === undefined ? undefined : cleanIdFragment(namespace);
+  const season = namespaceSlug === undefined
+    ? baseSeason
+    : (() => {
+      const leagueId = `${baseSeason.leagueId}-${namespaceSlug}`;
+      const seasonId = `${leagueId}-season-${baseSeason.seasonYear}`;
+
+      return {
+        ...baseSeason,
+        id: seasonId,
+        leagueId,
+        league: {
+          ...baseSeason.league,
+          id: leagueId,
+          externalLeagueId: `${baseSeason.league.externalLeagueId}-${namespaceSlug}`,
+        },
+        teams: baseSeason.teams.map((team, index) => ({
+          ...team,
+          id: `${seasonId}-team-${String(index + 1).padStart(2, "0")}`,
+          leagueSeasonId: seasonId,
+          ownerId: `${team.ownerId}-${namespaceSlug}`,
+        })),
+      };
+    })();
   const camTeam = teamByOwner(season, "Cam");
 
   return expectOk(await api<SeasonBody>(page, "/seasons", {
@@ -1087,19 +1112,9 @@ test("local platform supports fixture signup, setup, invitation, realtime draft,
 
 test("primary navigation stays in the current document and the account menu dismisses accessibly", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
-  const context = await browser.newContext();
-  const page = await context.newPage();
   const email = "soft.navigation.e2e@example.com";
-  await page.goto("/login");
-  const account = expectOk(await api<AccountBody>(page, "/accounts", {
-    method: "POST",
-    body: { email, password },
-  })).account;
-  expectOk(await api<AccountBody>(page, "/sessions", {
-    method: "POST",
-    body: { email, password },
-  }));
-  const season = await seedSeasonFromBrowser(page, account);
+  const { page, account } = await pageForLocalFixtureUser(browser, email);
+  const season = await seedSeasonFromBrowser(page, account, "soft-navigation");
   const requestCounts = {
     document: 0,
     onboarding: 0,
@@ -1124,16 +1139,18 @@ test("primary navigation stays in the current document and the account menu dism
   await page.evaluate(id => {
     document.documentElement.dataset.softNavigationDocument = id;
   }, documentId);
-  const expectCurrentDocument = async (): Promise<void> => {
+  const expectCurrentDocument = async (sessionCalls = 1): Promise<void> => {
     await expect.poll(async () => await page.evaluate(() =>
       document.documentElement.dataset.softNavigationDocument
     )).toBe(documentId);
-    expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: 1 });
+    expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: sessionCalls });
   };
 
   await page.getByRole("link", { name: "League", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
   await expect(page.locator("#league-workspace")).toBeVisible();
+  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
 
   await page.getByRole("link", { name: "My team", exact: true }).click();
@@ -1144,18 +1161,26 @@ test("primary navigation stays in the current document and the account menu dism
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
   await expect(page.locator("#league-workspace")).toBeVisible();
+  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/practice\\?seasonId=${season.id}$`, "u"));
   await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-board h1")).toBeFocused();
+  await expect(page).toHaveTitle("Practice | Mockd");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
   await expect(page.locator("#league-workspace")).toBeVisible();
+  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
   await expect(page.locator("#my-team-workspace")).toBeVisible();
+  await expect(page.locator("#my-team-workspace h1")).toBeFocused();
+  await expect(page).toHaveTitle("My team | Mockd");
   await expectCurrentDocument();
 
   const accountMenu = page.locator("#account-menu");
@@ -1170,6 +1195,79 @@ test("primary navigation stays in the current document and the account menu dism
   await page.keyboard.press("Escape");
   await expect(accountMenu).not.toHaveAttribute("open", "");
   await expect(accountMenuButton).toBeFocused();
+
+  let rejectSignOut = true;
+  await page.route("**/session", async route => {
+    if (route.request().method() === "DELETE" && rejectSignOut) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "internal_error", message: "Something went wrong." } }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await accountMenuButton.click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.locator("#app-error")).toBeVisible();
+  await expect(page.locator("#app-error-message")).toHaveText("Could not sign out. Try again.");
+  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expectCurrentDocument(2);
+
+  rejectSignOut = false;
+  await accountMenuButton.click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login$/u);
+  await expect(page.locator("#auth-panel")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expectCurrentDocument(3);
+});
+
+test("a stale failed mock request cannot overwrite a newer mock session", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "stale.mock.e2e@example.com");
+  const season = await seedSeasonFromBrowser(page, account, "stale-mock-load");
+  await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.dataset.staleMockDocument = "original";
+  });
+
+  const pendingFirstRequest: { route?: Route } = {};
+  let requestCount = 0;
+  await page.route("**/season-mock-drafts", async route => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    requestCount += 1;
+    if (requestCount === 1) {
+      pendingFirstRequest.route = route;
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.locator("#standalone-board-open-mock").click();
+  await expect.poll(() => pendingFirstRequest.route !== undefined).toBe(true);
+  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-start")).toBeEnabled();
+  await expect.poll(async () => await page.evaluate(() =>
+    document.documentElement.dataset.staleMockDocument
+  )).toBe("original");
+
+  await pendingFirstRequest.route?.fulfill({
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: { code: "stale_failure", message: "Stale request failed." } }),
+  });
+  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expect(page.locator("#mock-draft-start")).toBeEnabled();
+  await expect(page.locator("#mock-draft-status")).not.toHaveText("Stale request failed.");
 });
 
 test("completed auction mock shows every team's priced Week 1 roster", async ({ browser }) => {

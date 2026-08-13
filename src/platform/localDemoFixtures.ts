@@ -2,6 +2,7 @@ import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import { keepers } from "../../config/keepers.js";
 import { leagueConfig, positions } from "../../config/league.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
+import { espnPpr300AuctionBaselineValueFor } from "../data/espnPpr300AuctionBaseline2026.js";
 import { projectionRankAdjustmentFactor } from "../modeling/liveDraftStrategies.js";
 import { buildProjectionRankings } from "../modeling/projectionRankings.js";
 import { loadCurrentProjections } from "../projections.js";
@@ -108,9 +109,12 @@ const localDemoRankedPlayers = [
 const expectedPriceForRank = (rank: number): number =>
   Math.max(1, Math.round(74 * Math.exp(-(rank - 1) / 34)));
 
+const currentBaselinePriceFor = (name: string, fallback: number): number =>
+  Math.max(1, espnPpr300AuctionBaselineValueFor(name)?.auctionValue ?? fallback);
+
 export const localDemoPlayerCatalog = localDemoRankedPlayers.map((player, index) => ({
   ...player,
-  expectedPrice: expectedPriceForRank(index + 1),
+  expectedPrice: currentBaselinePriceFor(player.name, expectedPriceForRank(index + 1)),
 })) satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 const buildCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
@@ -170,7 +174,10 @@ const buildCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayer
     catalog.push({
       name: projection.name,
       position: projection.position,
-      expectedPrice: Math.max(1, Math.round(projection.espnAuctionValue ?? expectedPriceForRank(catalog.length + 1))),
+      expectedPrice: currentBaselinePriceFor(
+        projection.name,
+        Math.round(projection.espnAuctionValue ?? expectedPriceForRank(catalog.length + 1)),
+      ),
       ...projectionFields(projection),
       ...(team === undefined ? {} : { teamAbbreviation: team.abbreviation, byeWeek: team.byeWeek }),
     });

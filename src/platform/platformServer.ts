@@ -490,7 +490,7 @@ const isJobAndSimulationOnlyMutationRequest = (request: PlatformHttpRequest): bo
 };
 
 const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
-  if (request.method.toUpperCase() !== "POST") return false;
+  const method = request.method.toUpperCase();
 
   try {
     const segments = new URL(request.path, "http://mockd.local").pathname
@@ -498,14 +498,19 @@ const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
       .filter(Boolean)
       .map(segment => decodeURIComponent(segment));
 
-    if (segments.length === 1) {
+    if (segments.length === 1 && method === "POST") {
       return segments[0] === "accounts" ||
         segments[0] === "sessions" ||
         segments[0] === "email-verifications" ||
         segments[0] === "password-resets";
     }
 
-    return segments.length === 2 &&
+    if (segments.length === 1 && method === "DELETE") return segments[0] === "session";
+    if (segments.length === 2 && method === "PUT") {
+      return segments[0] === "session" && segments[1] === "password";
+    }
+
+    return method === "POST" && segments.length === 2 &&
       (segments[0] === "email-verifications" || segments[0] === "password-resets") &&
       segments[1] === "consume";
   } catch {
@@ -981,7 +986,7 @@ export const createPlatformServer = async (
       new InMemoryPlatformInvitationRepository();
     const onboardingRepository = options.onboardingRepository ??
       (options.postgresClient === undefined
-        ? new InMemoryPlatformOnboardingRepository(() => store.snapshot())
+        ? new InMemoryPlatformOnboardingRepository(() => store.onboardingSnapshot())
         : new PostgresPlatformOnboardingRepository(options.postgresClient));
     const liveDraftRoomSetupRepository = options.liveDraftRoomSetupRepository ??
       postgresLiveDraftRoomSetupRepository ??
@@ -1156,9 +1161,11 @@ export const createPlatformServer = async (
       runtime.practiceShortlistRepository !== runtime.store.practiceShortlists;
     const usesExternalLiveDraftRoomRepository = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
     const usesExternalExportArtifactRepository = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
+    const usesFileAuthSidecar = runtime.fileStore !== undefined && isAuthOnlyMutationRequest(requestWithNow);
     const skipSnapshotPersist =
       isLeagueMembersScreenshotAnalysisRequest(requestWithNow) ||
       isSeasonSimulationRequest(requestWithNow) ||
+      usesFileAuthSidecar ||
       (
         usesExternalAuthRepository &&
         isAuthOnlyMutationRequest(requestWithNow)
@@ -1198,6 +1205,11 @@ export const createPlatformServer = async (
       );
 
     if (
+      shouldPersistAfter(requestWithNow, response.status) &&
+      usesFileAuthSidecar
+    ) {
+      await runtime.fileStore?.saveAuth();
+    } else if (
       shouldPersistAfter(requestWithNow, response.status) &&
       !skipSnapshotPersist
     ) {

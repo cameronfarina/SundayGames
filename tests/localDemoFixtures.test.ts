@@ -22,6 +22,16 @@ describe("current player catalog valuation inputs", () => {
     )).toBe(true);
   });
 
+  it("uses ESPN's published 2026 PPR auction values as the no-league baseline", async () => {
+    const catalog = await loadCurrentPlayerCatalog();
+    const valueFor = (name: string) => catalog.find(player => player.name === name)?.expectedPrice;
+
+    expect(valueFor("Jahmyr Gibbs")).toBe(57);
+    expect(valueFor("Ja'Marr Chase")).toBe(56);
+    expect(valueFor("De'Von Achane")).toBe(50);
+    expect(valueFor("Ladd McConkey")).toBe(17);
+  });
+
   it("uses direct season-line calibration first and positional rank calibration elsewhere", async () => {
     const catalog = await loadCurrentPlayerCatalog();
     const player = (name: string) => catalog.find(candidate => candidate.name === name);

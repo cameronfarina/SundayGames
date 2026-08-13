@@ -368,6 +368,11 @@ export interface LiveDraftRoom {
   projection: LiveDraftRoomProjection;
 }
 
+export type LiveDraftRoomSummary = Pick<
+  LiveDraftRoom,
+  "roomId" | "leagueId" | "seasonId" | "status" | "startsAt" | "createdAt"
+>;
+
 export interface CreateLiveDraftRoomInput {
   season: LeagueSeason;
   roomId: string;
@@ -1824,6 +1829,17 @@ export class InMemoryLiveDraftRoomRepository {
 
   rooms(): readonly LiveDraftRoom[] {
     return [...this.#roomsById.values()].map(room => structuredClone(room));
+  }
+
+  roomSummaries(): readonly LiveDraftRoomSummary[] {
+    return [...this.#roomsById.values()].map(room => ({
+      roomId: room.roomId,
+      leagueId: room.leagueId,
+      seasonId: room.seasonId,
+      status: room.status,
+      ...(room.startsAt === undefined ? {} : { startsAt: new Date(room.startsAt) }),
+      createdAt: new Date(room.createdAt),
+    }));
   }
 
   replaceRooms(rooms: readonly LiveDraftRoom[]): void {
