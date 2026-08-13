@@ -166,10 +166,12 @@ describeWithPostgres("production Postgres composition", () => {
         externalLeagueId: "production-smoke-2026",
         leagueName: "Production Smoke League",
         seasonYear: 2026,
-        expectedTeamCount: 2,
+        expectedTeamCount: 4,
         teams: [
           { externalTeamId: "cam", displayName: "Cam's Team", managerNames: ["Cam"] },
           { externalTeamId: "seth", displayName: "Seth's Team", managerNames: ["Seth"] },
+          { externalTeamId: "alex", displayName: "Alex's Team", managerNames: ["Alex"] },
+          { externalTeamId: "blair", displayName: "Blair's Team", managerNames: ["Blair"] },
         ],
         draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
         scoring: {
@@ -184,7 +186,10 @@ describeWithPostgres("production Postgres composition", () => {
         rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DST: 1, K: 1, BENCH: 1 },
       },
     }, cookie);
-    expect(leagueCreated.status).toBe(201);
+    expect(
+      leagueCreated.status,
+      `League creation returned HTTP ${leagueCreated.status}: ${JSON.stringify(leagueCreated.body)}`,
+    ).toBe(201);
     const season = recordValue(recordValue(leagueCreated.body, "league response").season, "season");
     const seasonId = stringValue(season.id, "season id");
     const teams = arrayValue(season.teams, "season teams").map((team, index) =>
