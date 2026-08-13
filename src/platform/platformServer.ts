@@ -17,7 +17,10 @@ import {
   InMemoryPlatformStore,
 } from "./platformApp.js";
 import type { ExportArtifactRepository } from "./exportArtifacts.js";
-import { LiveDraftRoomRevisionNotifier } from "./liveDraftRoomRealtime.js";
+import {
+  LiveDraftRoomRevisionNotifier,
+  LiveDraftRoomWaitLimitError,
+} from "./liveDraftRoomRealtime.js";
 import type {
   LiveDraftRoomPlayerCatalogEntry,
   LiveDraftRoomRepository,
@@ -154,6 +157,9 @@ export interface CreatePlatformServerOptions {
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
+  liveDraftRoomEventStreamMaxConnectionsPerAccount?: number | undefined;
+  liveDraftRoomEventStreamMaxConnections?: number | undefined;
+  liveDraftRoomEventStreamRetryAfterSeconds?: number | undefined;
   bodyLimitBytes?: number | undefined;
   screenshotImportBodyLimitBytes?: number | undefined;
   legacyMockBatchEnabled?: boolean | undefined;
@@ -1103,7 +1109,12 @@ export const createPlatformServer = async (
   };
 
   runtime = createRuntime(await loadStore(options));
-  const liveDraftRoomNotifier = new LiveDraftRoomRevisionNotifier();
+  const liveDraftRoomNotifier = new LiveDraftRoomRevisionNotifier({
+    maxConcurrentWaitersPerAccount:
+      options.liveDraftRoomEventStreamMaxConnectionsPerAccount,
+    maxConcurrentWaiters: options.liveDraftRoomEventStreamMaxConnections,
+    retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
+  });
 
   const runRequest = async (
     requestWithNow: PlatformHttpRequest,
@@ -1211,7 +1222,44 @@ export const createPlatformServer = async (
       const initialResponse = await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
       if (!isKeepAliveEventStreamResponse(initialResponse)) return initialResponse;
 
-      await liveDraftRoomNotifier.waitForRevision(eventStreamRequest);
+      const account = await runtime.app.findAccountBySessionToken(
+        requestWithNow.sessionToken ?? "",
+        requestWithNow.now,
+      );
+      if (account === null) {
+        return {
+          status: 401,
+          body: {
+            error: {
+              code: "auth_required",
+              message: "Sign in before using this workspace.",
+            },
+          },
+        };
+      }
+
+      try {
+        await liveDraftRoomNotifier.waitForRevision({
+          ...eventStreamRequest,
+          accountId: account.id,
+          signal: requestWithNow.signal,
+        });
+      } catch (error) {
+        if (!(error instanceof LiveDraftRoomWaitLimitError)) throw error;
+
+        return {
+          status: 429,
+          headers: { "Retry-After": String(error.retryAfterSeconds) },
+          body: {
+            error: {
+              code: "live_draft_event_stream_limit",
+              message: "Too many live draft connections. Try again shortly.",
+            },
+          },
+        };
+      }
+
+      if (requestWithNow.signal?.aborted === true) return initialResponse;
 
       return await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
     }

@@ -353,6 +353,13 @@ Polling fallback:
 - It is only a fallback or stale-client recovery path.
 - It must never become a second write path.
 
+Event-stream connection limits:
+
+- Long polls are capped at 4 concurrent requests per authenticated account and 200 concurrent requests per web process.
+- Overflow receives `429 Too Many Requests` with `Retry-After: 5`.
+- Completed, timed-out, and disconnected requests release capacity immediately.
+- The global ceiling is process-local. Keep the launch web service at one instance, or add a shared connection gate before scaling horizontally.
+
 ## Offline Live Draft Flow
 
 - Commissioner prepares league settings, teams, owners, keepers, and historical imports before draft day.

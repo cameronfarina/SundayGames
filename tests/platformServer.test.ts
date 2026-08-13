@@ -1678,8 +1678,12 @@ describe("platform server composition", () => {
     });
   });
 
-  it("keeps live room event streams open until the next draft revision", async () => {
-    const { baseUrl } = await createListeningServer();
+  it("bounds event streams and releases capacity after completion or disconnect", async () => {
+    const { baseUrl } = await createListeningServer({
+      liveDraftRoomEventStreamMaxConnectionsPerAccount: 1,
+      liveDraftRoomEventStreamMaxConnections: 1,
+      liveDraftRoomEventStreamRetryAfterSeconds: 3,
+    });
     const camCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1763,6 +1767,32 @@ describe("platform server composition", () => {
     });
     await new Promise(resolve => setTimeout(resolve, 20));
 
+    const limitedStream = await fetch(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`,
+      {
+        headers: { "x-session-token": sethSessionToken },
+        signal: AbortSignal.timeout(1_000),
+      },
+    );
+    expect(limitedStream.status).toBe(429);
+    expect(limitedStream.headers.get("retry-after")).toBe("3");
+    await expect(limitedStream.json()).resolves.toEqual({
+      error: {
+        code: "live_draft_event_stream_limit",
+        message: "Too many live draft connections. Try again shortly.",
+      },
+    });
+
+    const globallyLimitedStream = await fetch(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`,
+      {
+        headers: { "x-session-token": camSessionToken },
+        signal: AbortSignal.timeout(1_000),
+      },
+    );
+    expect(globallyLimitedStream.status).toBe(429);
+    expect(globallyLimitedStream.headers.get("retry-after")).toBe("3");
+
     const sale = await Promise.race([
       jsonFetch(baseUrl, "/live-rooms/room_stream_wait/sales", {
         method: "POST",
@@ -1783,6 +1813,71 @@ describe("platform server composition", () => {
     expect(sale.status).toBe(200);
     expect(streamText).toContain("event: room.sale\n");
     expect(streamText).toContain("\"playerName\":\"Puka Nacua\"");
+
+    const recoveredStreamPromise = fetch(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=3`,
+      { headers: { "x-session-token": sethSessionToken } },
+    ).then(async response => {
+      expect(response.status).toBe(200);
+
+      return await response.text();
+    });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/pause", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({
+        expectedRevision: 3,
+        idempotencyKey: "pause:room_stream_wait",
+      }),
+    });
+
+    await expect(Promise.race([
+      recoveredStreamPromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for recovered event stream.")), 1_000)),
+    ])).resolves.toContain("event: room.paused\n");
+
+    const disconnectedStream = httpRequest(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
+      { headers: { "x-session-token": sethSessionToken } },
+    );
+    disconnectedStream.on("error", () => undefined);
+    disconnectedStream.end();
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    const disconnectProbe = await fetch(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
+      {
+        headers: { "x-session-token": sethSessionToken },
+        signal: AbortSignal.timeout(1_000),
+      },
+    );
+    expect(disconnectProbe.status).toBe(429);
+
+    disconnectedStream.destroy();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const afterDisconnectStreamPromise = fetch(
+      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
+      { headers: { "x-session-token": sethSessionToken } },
+    ).then(async response => {
+      expect(response.status).toBe(200);
+
+      return await response.text();
+    });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/resume", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({
+        expectedRevision: 4,
+        idempotencyKey: "resume:room_stream_wait",
+      }),
+    });
+
+    await expect(Promise.race([
+      afterDisconnectStreamPromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting after disconnect cleanup.")), 1_000)),
+    ])).resolves.toContain("event: room.resumed\n");
   });
 
   it("keeps createPlatformServer unbound and starts listening only through the start helper", async () => {
