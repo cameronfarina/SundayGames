@@ -186,6 +186,15 @@ export const defaultMaxCompletedMockBatchJobs = 50;
 
 class RequestBodyTooLargeError extends Error {}
 
+class ScratchSessionsDisabledError extends Error {}
+
+const scratchSessionsDisabledBody = {
+  error: {
+    code: "scratch_sessions_disabled",
+    message: "Scratch draft sessions are not available.",
+  },
+} as const;
+
 const contentLengthFor = (request: IncomingMessage): number | undefined => {
   const rawContentLength = request.headers["content-length"];
   if (rawContentLength === undefined || Array.isArray(rawContentLength)) return undefined;
@@ -776,6 +785,7 @@ export interface CreateLiveDraftServerOptions {
   mockBatchResourceManager?: MockBatchResourceManager;
   mockBatchResourceScope?: MockBatchResourceScope;
   legacyMockBatchEnabled?: boolean | undefined;
+  scratchSessionsEnabled?: boolean | undefined;
 }
 
 export interface LiveDraftServerApp {
@@ -1410,6 +1420,28 @@ export const createLiveDraftServer = async (
   const mockBatchNow = options.mockBatchNow ?? (() => new Date());
   const mockBatchResourceManager = options.mockBatchResourceManager ?? new MockBatchResourceManager();
   const legacyMockBatchEnabled = options.legacyMockBatchEnabled ?? false;
+  const scratchSessionsEnabled = options.scratchSessionsEnabled ?? false;
+  const assertDraftSessionEnabled = (draftSessionKey: string): void => {
+    if (!scratchSessionsEnabled && draftSessionKey.startsWith(scratchSessionPrefix)) {
+      throw new ScratchSessionsDisabledError();
+    }
+  };
+  const enabledDraftSessionKeyFromQuery = (
+    url: URL,
+    fallback = defaultLiveDraftSessionKey,
+  ): string => {
+    const draftSessionKey = draftSessionKeyFromQuery(url, fallback);
+    assertDraftSessionEnabled(draftSessionKey);
+    return draftSessionKey;
+  };
+  const enabledDraftSessionKeyFromBody = (
+    body: Record<string, unknown>,
+    fallback = defaultLiveDraftSessionKey,
+  ): string => {
+    const draftSessionKey = draftSessionKeyFromBody(body, fallback);
+    assertDraftSessionEnabled(draftSessionKey);
+    return draftSessionKey;
+  };
   const bodyLimitForPath = (pathname: string): number =>
     pathname === "/api/import" ? importMaxBodyBytes : maxBodyBytes;
   const sessionStorePairs = new Map<string, Promise<{
@@ -1420,6 +1452,7 @@ export const createLiveDraftServer = async (
     real: FileBackedLiveDraftSessionStore;
     interactiveMock: FileBackedLiveDraftSessionStore;
   }> => {
+    assertDraftSessionEnabled(draftSessionKey);
     const existing = sessionStorePairs.get(draftSessionKey);
     if (existing) return existing;
 
@@ -1588,7 +1621,7 @@ export const createLiveDraftServer = async (
     const currentWeek = currentWeekFromQuery(url);
     const watchOwner = watchOwnerFromQuery(url);
     const draftState = await stateFor({
-      draftSessionKey: draftSessionKeyFromQuery(url),
+      draftSessionKey: enabledDraftSessionKeyFromQuery(url),
       mode: sessionModeFromQuery(url),
       strategyKey: strategyKeyFromQuery(url),
       watchOwner,
@@ -1672,7 +1705,7 @@ export const createLiveDraftServer = async (
       rawNewsItems,
       playerMetadata: playerNewsMetadataFor(projections),
       draftState: await stateFor({
-        draftSessionKey: draftSessionKeyFromQuery(url),
+        draftSessionKey: enabledDraftSessionKeyFromQuery(url),
         mode: sessionModeFromQuery(url),
         strategyKey: strategyKeyFromQuery(url),
       }),
@@ -2471,7 +2504,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/state") {
-        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const draftSessionKey = enabledDraftSessionKeyFromQuery(url);
         sendJson(response, 200, await stateFor({
           draftSessionKey,
           mode: sessionModeFromQueryForSession(url, draftSessionKey),
@@ -2488,7 +2521,7 @@ export const createLiveDraftServer = async (
         const nominatedPrice = nominatedPriceFromValue(url.searchParams.get("nominatedPrice"));
         sendJson(response, 200, await stateWithMockDraft({
           ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
-          draftSessionKey: draftSessionKeyFromQuery(url),
+          draftSessionKey: enabledDraftSessionKeyFromQuery(url),
           watchOwner: watchOwnerFromQuery(url),
         }));
         return;
@@ -2553,7 +2586,7 @@ export const createLiveDraftServer = async (
 
       if (request.method === "GET" && url.pathname === "/api/export") {
         const format = url.searchParams.get("format") === "csv" ? "csv" : "json";
-        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const draftSessionKey = enabledDraftSessionKeyFromQuery(url);
         const store = await storeFor(draftSessionKey, sessionModeFromQueryForSession(url, draftSessionKey));
         const commands = store.currentCommands();
         if (format === "csv") {
@@ -2565,7 +2598,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname === "/api/export-bundle") {
-        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const draftSessionKey = enabledDraftSessionKeyFromQuery(url);
         sendText(response, 200, "application/json", `${JSON.stringify(await exportBundleFor({
           draftSessionKey,
           mode: sessionModeFromQueryForSession(url, draftSessionKey),
@@ -2577,7 +2610,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/events") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const store = await storeFor(draftSessionKey, mode);
@@ -2614,7 +2647,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/mock/advance") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
         const seed = seedFromValue(body.seed);
         const nominatedPlayer = nominatedPlayerFromValue(body.nominatedPlayer);
@@ -2736,7 +2769,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/mock/session-results") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
         const seed = seedFromValue(body.seed ?? body.seedPrefix);
         const lock = draftNightLockFor(draftSessionKey);
@@ -2846,7 +2879,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/mock-batch") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const watchOwner = watchOwnerFromBody(body);
         let script: MockDraftScript | undefined;
         try {
@@ -2891,7 +2924,7 @@ export const createLiveDraftServer = async (
 
       if (request.method === "GET" && url.pathname === "/api/mock-batch/latest") {
         pruneMockBatchJobs();
-        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const draftSessionKey = enabledDraftSessionKeyFromQuery(url);
         const watchOwner = watchOwnerFromQuery(url);
         const latestJobId = latestMockBatchJobIds.get(mockResultScopeKey(draftSessionKey, watchOwner));
         const job = latestJobId === undefined ? undefined : mockBatchJobs.get(latestJobId);
@@ -2908,7 +2941,7 @@ export const createLiveDraftServer = async (
         pruneMockBatchJobs();
         const jobId = decodeURIComponent(url.pathname.slice("/api/mock-batch/".length));
         const job = mockBatchJobs.get(jobId);
-        const draftSessionKey = draftSessionKeyFromQuery(url);
+        const draftSessionKey = enabledDraftSessionKeyFromQuery(url);
         const watchOwner = watchOwnerFromQuery(url);
         if (!job || job.draftSessionKey !== draftSessionKey || job.watchOwner !== watchOwner) {
           sendJson(response, 404, { error: `Unknown mock batch job "${jobId}".` });
@@ -2922,7 +2955,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/import") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
@@ -2989,7 +3022,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/undo") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
@@ -3025,7 +3058,7 @@ export const createLiveDraftServer = async (
       if (request.method === "POST" && url.pathname === "/api/reset") {
         const body = await parseJsonBody(request, bodyLimitForPath(url.pathname));
         const strategyKey = strategyKeyFromBody(body);
-        const draftSessionKey = draftSessionKeyFromBody(body);
+        const draftSessionKey = enabledDraftSessionKeyFromBody(body);
         const mode = sessionModeFromBodyForSession(body, draftSessionKey);
         const watchOwner = watchOwnerFromBody(body);
         const store = await storeFor(draftSessionKey, mode);
@@ -3060,6 +3093,10 @@ export const createLiveDraftServer = async (
 
       sendJson(response, 404, { error: "Not found" });
     } catch (error) {
+      if (error instanceof ScratchSessionsDisabledError) {
+        sendJson(response, 404, scratchSessionsDisabledBody);
+        return;
+      }
       if (error instanceof RequestBodyTooLargeError) {
         request.pause();
         response.shouldKeepAlive = false;
@@ -3091,9 +3128,10 @@ export const createLiveDraftServer = async (
 const main = async (): Promise<void> => {
   const port = portFromOptions();
   const sessionDirectory = sessionDirectoryFromOptions();
-  const { server } = await createLiveDraftServer(
-    sessionDirectory === undefined ? {} : { sessionDirectory },
-  );
+  const { server } = await createLiveDraftServer({
+    scratchSessionsEnabled: process.env.NODE_ENV !== "production",
+    ...(sessionDirectory === undefined ? {} : { sessionDirectory }),
+  });
 
   server.listen(port, () => {
     console.log(`Mockd live draft UI: http://localhost:${port}`);

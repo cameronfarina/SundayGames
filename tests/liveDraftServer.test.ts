@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { request as httpRequest, type ClientRequest, type IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +20,11 @@ const tempSessionDirectory = async (): Promise<string> =>
 
 const createLiveDraftServer = (
   options: CreateLiveDraftServerOptions = {},
-) => createRuntimeLiveDraftServer({ legacyMockBatchEnabled: true, ...options });
+) => createRuntimeLiveDraftServer({
+  legacyMockBatchEnabled: true,
+  scratchSessionsEnabled: true,
+  ...options,
+});
 
 type TestServer = Awaited<ReturnType<typeof createLiveDraftServer>>["server"];
 
@@ -1092,6 +1096,55 @@ describe("live draft server", () => {
       });
       expect(practiceMock.status).toBe(200);
       expect(practiceMock.data.session.paths.directory).toBe(join(directory, "practice-3rb", "interactive-mock"));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects unique scratch sessions before allocating production resources", async () => {
+    const directory = await tempSessionDirectory();
+    try {
+      const app = await createRuntimeLiveDraftServer({
+        sessionDirectory: directory,
+        interactiveMockDraft,
+        mockBatchRunner,
+      });
+      servers.push(app.server);
+      const baseUrl = await listen(app.server);
+      const filesBefore = await readdir(directory, { recursive: true });
+
+      for (let index = 0; index < 25; index += 1) {
+        const draftSession = `scratch:production-probe-${index}`;
+        const response = index % 2 === 0
+          ? await fetch(`${baseUrl}/api/state?draftSession=${encodeURIComponent(draftSession)}&mode=real`)
+          : await fetch(`${baseUrl}/api/events`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              draftSession,
+              mode: "real",
+              strategyKey: "three-rb",
+              command: "Seth drafted Derrick Henry for 62",
+            }),
+          });
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toEqual({
+          error: {
+            code: "scratch_sessions_disabled",
+            message: "Scratch draft sessions are not available.",
+          },
+        });
+      }
+
+      expect(await readdir(directory, { recursive: true })).toEqual(filesBefore);
+
+      const liveState = await fetch(`${baseUrl}/api/state?draftSession=live&mode=real`);
+      const practiceState = await fetch(
+        `${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock`,
+      );
+      expect(liveState.status).toBe(200);
+      expect(practiceState.status).toBe(200);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
