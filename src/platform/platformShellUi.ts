@@ -1549,6 +1549,7 @@ export const platformShellHtml = `<!doctype html>
           <div class="fact"><span>Progress</span><strong id="mock-draft-progress">-</strong></div>
           <div class="fact"><span>Budget left</span><strong id="mock-draft-budget-left">-</strong></div>
           <div class="fact"><span>Spent</span><strong id="mock-draft-spent">-</strong></div>
+          <div class="fact"><span>Open slots</span><strong id="mock-draft-open-slots">-</strong></div>
           <div class="fact"><span>Max bid</span><strong id="mock-draft-max-bid">-</strong></div>
         </div>
         <p id="mock-draft-status" class="status" role="status" aria-live="polite"></p>
@@ -3752,6 +3753,9 @@ export const platformShellHtml = `<!doctype html>
         : "-";
       byId("mock-draft-spent").textContent = auction && myTeam
         ? auctionMoney(myTeam.spent)
+        : "-";
+      byId("mock-draft-open-slots").textContent = auction && myTeam
+        ? String(myTeam.rosterSlotsRemaining)
         : "-";
       byId("mock-draft-max-bid").textContent = auction && myTeam
         ? auctionMoney(myTeam.maxBid)

@@ -1440,7 +1440,7 @@ export const createGenericAuctionMockState = (
   assertConfiguration(config);
   const rosterCapacity = rosterCapacityFor(config);
 
-  return {
+  return applyKeepers({
     configuration: config,
     nextNominatorIndex: 0,
     decisionHistory: [],
@@ -1480,7 +1480,7 @@ export const createGenericAuctionMockState = (
     })),
     sales: [],
     auctionEvents: [],
-  };
+  });
 };
 
 export const applyGenericAuctionMockCommand = (
@@ -1498,13 +1498,13 @@ export const applyGenericAuctionMockCommand = (
     if (state.session.status !== "setup") {
       throw new GenericAuctionMockError("invalid_status", "The auction mock has already started.");
     }
-    const started = advanceToHumanDecision(applyKeepers({
+    const started = advanceToHumanDecision({
       ...state,
       session: {
         ...state.session,
         status: "active",
       },
-    }));
+    });
 
     return finalizeCommand(state, started, command);
   }

@@ -251,6 +251,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="mock-draft-buy"');
     expect(platformShellHtml).toContain('id="mock-draft-pass"');
     expect(platformShellHtml).toContain('id="mock-draft-budget-left"');
+    expect(platformShellHtml).toContain('id="mock-draft-open-slots"');
     expect(platformShellHtml).toContain('id="mock-draft-max-bid"');
     expect(platformShellHtml).toContain('id="mock-auction-stage"');
     expect(platformShellHtml).toContain('id="mock-auction-player"');
@@ -265,6 +266,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain(".workspace > * { min-width: 0; }");
     expect(platformShellHtml).toContain(".mock-auction-stage > * { min-width: 0; }");
     expect(platformShellHtml).toContain("myTeam.maxBid");
+    expect(platformShellHtml).toContain("myTeam.rosterSlotsRemaining");
     expect(platformShellHtml).toContain('label: "NFL"');
     expect(platformShellHtml).toContain('label: "Bye"');
     expect(platformShellHtml).toContain('label: "Our value"');

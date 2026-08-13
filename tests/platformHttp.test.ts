@@ -1510,7 +1510,17 @@ describe("platform HTTP contract", () => {
   it("uses the same durable mock contract for auction leagues", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
-      liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
+      liveDraftRoomSetupProvider: async () => ({
+        playerCatalog: snakePlayerCatalog,
+        initialRosters: [{
+          teamId: "snake-team-1",
+          playerId: "player 1",
+          playerName: "Player 1",
+          position: "RB",
+          price: 42,
+          source: "keeper",
+        }],
+      }),
     });
     const cam = await createLoggedInAccount(handle, "auction-mock@example.com");
     const snake = snakeSeason();
@@ -1562,14 +1572,35 @@ describe("platform HTTP contract", () => {
           session: { status: "setup", phase: "not_started" },
           board: {
             players: expect.arrayContaining([
-              expect.objectContaining({ expectedPrice: expect.any(Number), humanValue: expect.any(Number) }),
+              expect.objectContaining({
+                id: "player 1",
+                expectedPrice: expect.any(Number),
+                humanValue: expect.any(Number),
+                available: false,
+              }),
             ]),
           },
+          teams: expect.arrayContaining([
+            expect.objectContaining({
+              id: "snake-team-1",
+              spent: 42,
+              budgetRemaining: 158,
+              rosterSlotsRemaining: 1,
+              maxBid: 158,
+              roster: [expect.objectContaining({
+                playerId: "player 1",
+                price: 42,
+                source: "keeper",
+              })],
+            }),
+          ]),
         },
       },
     });
-    const mockSession = expectBodyRecord(created.body).mockSession as { id: string };
-    await expect(handle({
+    const createdBody = expectBodyRecord(created.body);
+    const mockSession = createdBody.mockSession as { id: string };
+    const setupState = createdBody.state as { teams: readonly unknown[] };
+    const started = await handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
       sessionToken: cam.sessionToken,
@@ -1578,10 +1609,12 @@ describe("platform HTTP contract", () => {
         commandId: "start-auction",
         command: { type: "start", expectedRevision: 0 },
       },
-    })).resolves.toMatchObject({
+    });
+    expect(started).toMatchObject({
       status: 200,
       body: { state: { session: { status: "active", phase: "awaiting_human_nomination" } } },
     });
+    expect(expectBodyRecord(expectBodyRecord(started.body).state).teams).toEqual(setupState.teams);
   });
 
   it("runs private league-aware simulations for a claimed team", async () => {

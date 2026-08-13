@@ -511,14 +511,14 @@ describe("generic auction mock engine", () => {
     });
   });
 
-  it("preloads keepers while preserving budget, roster, availability, and max-bid invariants", () => {
-    const started = start(baseConfig({
+  it("preloads keepers before start without changing team economics when the draft starts", () => {
+    const setup = createGenericAuctionMockState(baseConfig({
       keepers: [
         { teamId: "team-a", playerId: "rb-1", price: 10 },
         { teamId: "team-b", playerId: "qb-1", price: 8 },
       ],
     }));
-    const human = started.teams.find(team => team.id === "team-a");
+    const human = setup.teams.find(team => team.id === "team-a");
 
     expect(human).toMatchObject({
       spent: 10,
@@ -532,9 +532,17 @@ describe("generic auction mock engine", () => {
       source: "keeper",
       rosterSlot: "FLEX",
     });
-    expect(started.board.players.find(player => player.id === "rb-1"))
+    expect(setup.board.players.find(player => player.id === "rb-1"))
       .toMatchObject({ status: "sold", available: false });
-    expect(started.sales[0]).toMatchObject({ playerId: "rb-1", source: "keeper" });
+    expect(setup.sales[0]).toMatchObject({ playerId: "rb-1", source: "keeper" });
+
+    const started = applyGenericAuctionMockCommand(setup, {
+      type: "start",
+      expectedRevision: 0,
+    });
+    expect(started.teams).toEqual(setup.teams);
+    expect(started.board).toEqual(setup.board);
+    expect(started.sales).toEqual(setup.sales);
   });
 
   it("rejects bids above max bid and nominations that violate position or slot limits", () => {
@@ -568,27 +576,17 @@ describe("generic auction mock engine", () => {
     })).toThrowError(expect.objectContaining({ code: "max_bid_exceeded" }));
   });
 
-  it("rejects duplicate or unaffordable keepers without partially mutating setup", () => {
-    const duplicate = createGenericAuctionMockState(baseConfig({
+  it("rejects duplicate or unaffordable keepers before exposing setup state", () => {
+    expect(() => createGenericAuctionMockState(baseConfig({
       keepers: [
         { teamId: "team-a", playerId: "rb-1", price: 5 },
         { teamId: "team-b", playerId: "rb-1", price: 5 },
       ],
-    }));
-    expect(() => applyGenericAuctionMockCommand(duplicate, {
-      type: "start",
-      expectedRevision: 0,
-    })).toThrowError(expect.objectContaining({ code: "duplicate_player" }));
-    expect(duplicate.sales).toEqual([]);
+    }))).toThrowError(expect.objectContaining({ code: "duplicate_player" }));
 
-    const unaffordable = createGenericAuctionMockState(baseConfig({
+    expect(() => createGenericAuctionMockState(baseConfig({
       keepers: [{ teamId: "team-a", playerId: "rb-1", price: 20 }],
-    }));
-    expect(() => applyGenericAuctionMockCommand(unaffordable, {
-      type: "start",
-      expectedRevision: 0,
-    })).toThrowError(expect.objectContaining({ code: "max_bid_exceeded" }));
-    expect(unaffordable.teams[0]?.spent).toBe(0);
+    }))).toThrowError(expect.objectContaining({ code: "max_bid_exceeded" }));
   });
 
   it("undoes the latest human decision and every automatic consequence after it", () => {
