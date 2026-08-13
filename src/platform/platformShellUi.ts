@@ -843,7 +843,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       border-top: 1px solid var(--line);
       max-height: min(68vh, 720px);
       overflow: auto;
-      overscroll-behavior: contain;
+      overscroll-behavior: auto;
     }
     .player-board-scroll .player-board thead th {
       background: var(--bg);
@@ -975,6 +975,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
 
     .mock-layout { display: grid; gap: 24px; min-width: 0; }
     .mock-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mock-facts .fact { min-height: 68px; padding: 10px 14px; }
     .mock-auction-stage {
       background: var(--surface);
       border: 1px solid rgb(103 216 176 / .56);
@@ -1235,7 +1236,8 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       .shell-main { padding-left: 28px; padding-right: 28px; }
       .context-bar { grid-template-columns: minmax(260px, 380px) 1fr 1fr; }
       .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .mock-facts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .mock-facts { grid-template-columns: repeat(6, max-content); }
+      .mock-facts .fact strong { white-space: nowrap; }
       .setup-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
       .setup-fields { grid-template-columns: minmax(0, 1fr) minmax(180px, .5fr); }
       .board-controls { grid-template-columns: minmax(0, 1fr) 140px 180px 165px auto; }

@@ -78,6 +78,13 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("input:disabled, select:disabled, textarea:disabled");
   });
 
+  it("keeps mock facts compact and lets board scrolling return to the page", () => {
+    expect(platformShellHtml).toContain(".mock-facts { grid-template-columns: repeat(6, max-content); }");
+    expect(platformShellHtml).toContain(".mock-facts .fact strong { white-space: nowrap; }");
+    expect(platformShellHtml).toContain("overscroll-behavior: auto;");
+    expect(platformShellHtml).not.toContain("overscroll-behavior: contain;");
+  });
+
   it("renders the manual league wizard without screenshot controls when analysis is disabled", () => {
     const html = createPlatformShellHtml({ leagueCreationScreenshotAnalysis: false });
 
