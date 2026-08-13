@@ -65,8 +65,4 @@ services:
       - key: MOCKD_POSTGRES_SNAPSHOT_KEY
         value: mockd-production
       - key: MOCKD_SCREENSHOT_IMPORT_MODE
-        value: openai
-      - key: MOCKD_SCREENSHOT_IMPORT_MODEL
-        value: gpt-5.6-terra
-      - key: OPENAI_API_KEY
-        sync: false
+        value: disabled

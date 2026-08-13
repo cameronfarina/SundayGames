@@ -102,8 +102,9 @@ describe("Render production blueprint", () => {
     expect(envFor(web!, "MOCKD_PUBLIC_BASE_URL")).toEqual({ key: "MOCKD_PUBLIC_BASE_URL", sync: false });
     expect(envFor(web!, "MOCKD_TRUST_PROXY")?.value).toBe("true");
     expect(envFor(web!, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
-    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("openai");
-    expect(envFor(web!, "OPENAI_API_KEY")).toEqual({ key: "OPENAI_API_KEY", sync: false });
+    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");
+    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODEL")).toBeUndefined();
+    expect(envFor(web!, "OPENAI_API_KEY")).toBeUndefined();
   });
 
   it("does not deploy the legacy fixture-backed simulation worker", async () => {

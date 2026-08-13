@@ -139,8 +139,7 @@ jobs:
             --env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com \
             --env MOCKD_INVITATION_TOKEN_SECRET=ci-placeholder-invitation-token-secret-at-least-32-characters \
             --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
-            --env MOCKD_SCREENSHOT_IMPORT_MODE=openai \
-            --env OPENAI_API_KEY=ci-placeholder-not-used \
+            --env MOCKD_SCREENSHOT_IMPORT_MODE=disabled \
             --volume mockd-ci-draft-tools:/var/lib/mockd/draft-tools \
             mockd-ci /bin/sh -c \
             'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'

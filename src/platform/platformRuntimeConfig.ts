@@ -96,7 +96,7 @@ const productionReadinessNextSteps = [
   "Create a commissioner account, import a staging league, and verify its settings, members, keepers, and pricing; use `npm run platform:seed:e2e` only for local rehearsal fixtures.",
   "Start `npm run platform:web` behind the domain/proxy.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",
-  "Configure OPENAI_API_KEY for commissioner screenshot imports and monitor provider usage.",
+  "Optional: set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY to enable commissioner screenshot analysis.",
 ] as const;
 
 const optionalEnvString = (env: PlatformRuntimeEnv, key: string): string | undefined => {
@@ -548,10 +548,15 @@ export const assessPlatformProductionReadiness = (
     }
   }
 
-  if (
-    optionalEnvString(env, "MOCKD_SCREENSHOT_IMPORT_MODE") === "openai" &&
-    optionalEnvString(env, "OPENAI_API_KEY") !== undefined
-  ) {
+  const screenshotImportMode = optionalEnvString(env, "MOCKD_SCREENSHOT_IMPORT_MODE") ?? "disabled";
+  const screenshotImportApiKey = optionalEnvString(env, "OPENAI_API_KEY");
+  if (screenshotImportMode === "disabled") {
+    checks.push({
+      status: "pass",
+      label: "Screenshot import",
+      detail: "Commissioner setup uses manual entry; OpenAI screenshot analysis is optional.",
+    });
+  } else if (screenshotImportMode === "openai" && screenshotImportApiKey !== undefined) {
     checks.push({
       status: "pass",
       label: "Screenshot import",
@@ -561,7 +566,9 @@ export const assessPlatformProductionReadiness = (
     checks.push({
       status: "fail",
       label: "Screenshot import",
-      detail: "Set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY.",
+      detail: screenshotImportMode === "openai"
+        ? "OPENAI_API_KEY is required when screenshot import mode is openai."
+        : "MOCKD_SCREENSHOT_IMPORT_MODE must be disabled or openai.",
     });
   }
 

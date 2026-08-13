@@ -333,20 +333,30 @@ describe("platform runtime config", () => {
     );
   });
 
-  it("blocks production/domain readiness when screenshot analysis is not configured", () => {
+  it("reports manual commissioner entry as ready without OpenAI configuration", () => {
     const report = assessPlatformProductionReadiness({
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
       HOST: "0.0.0.0",
       PORT: "4361",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
+      MOCKD_SCREENSHOT_IMPORT_MODE: "disabled",
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "production-resend-key",
+      MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
+      MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
     });
 
-    expect(report.ready).toBe(false);
+    expect(report.ready).toBe(true);
     expect(report.checks).toContainEqual({
-      status: "fail",
+      status: "pass",
       label: "Screenshot import",
-      detail: "Set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY.",
+      detail: "Commissioner setup uses manual entry; OpenAI screenshot analysis is optional.",
     });
+    expect(report.nextSteps.join("\n")).toContain(
+      "Optional: set MOCKD_SCREENSHOT_IMPORT_MODE=openai",
+    );
   });
 
   it("blocks production/domain readiness when private draft storage is not configured", () => {

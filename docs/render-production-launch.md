@@ -19,10 +19,9 @@ The web service intentionally stays at one instance. Render persistent disks att
 2. In Render, choose **New > Blueprint** and connect this repository.
 3. Select `render.yaml` and review both resources before applying it.
 4. Verify a sending domain in Resend. Add `RESEND_API_KEY`, set `MOCKD_EMAIL_FROM` to that verified sender, and set `MOCKD_PUBLIC_BASE_URL` to the generated Render HTTPS origin for staging.
-5. Add the prompted `OPENAI_API_KEY` secret to `mockd-web`. The Blueprint enables screenshot import with `MOCKD_SCREENSHOT_IMPORT_MODE=openai`; never add provider keys to the repository.
-6. Confirm no provisioning token or password-hash variables are present in the Blueprint.
-7. Apply the Blueprint and wait for the web service and database to become healthy.
-8. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, the public HTTPS origin, or the screenshot-import API key.
+5. Confirm no provisioning token or password-hash variables are present in the Blueprint.
+6. Apply the Blueprint and wait for the web service and database to become healthy.
+7. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, or the public HTTPS origin. OpenAI is not required.
 
 Do not add the public domain yet. Use the generated `onrender.com` hostname for setup and staging smoke.
 
@@ -33,14 +32,14 @@ Create a commissioner account through the public signup flow, open the verificat
 In Commissioner Setup:
 
 1. Import the ESPN league settings URL or ID and review the detected draft format, team count, scoring, budget, roster slots, and position limits.
-2. Upload a screenshot of the ESPN League Members table. The review imports team numbers, abbreviations, team names, and manager names only. It does not import email addresses or invitation status.
-3. Correct truncated or uncertain fields and apply only after each row maps to one unique team.
+2. Enter the team names and optional manager names from the league membership page.
+3. Confirm each row maps to one unique team.
 4. Upload sanitized prior draft results as CSV, TSV, XLS, or XLSX and review player matching before commit.
 5. Enter keepers in the command box, review the resulting roster and budget constraints, and publish the setup only after the final confirmation check passes.
 
 Create each manager's private signup link in the separate **Invitations** section and deliver it through the league's existing secure channel. Claimed teams and accounts that already belong to the league are unavailable for invitation. Invitation links expire after seven days. The plaintext token is shown only when a link is created or reissued, so copy it before leaving the page.
 
-Screenshot bytes and raw model output are not persisted by Mockd. The web service sends the image to the OpenAI Responses API with request storage disabled, keeps only the commissioner-approved team fields, limits images to 5 MB, and rate-limits analysis per commissioner and season. Use a screenshot that contains no information beyond the league membership table.
+The launch Blueprint disables screenshot analysis, so commissioners enter league membership information manually. To enable the optional analyzer later, set `MOCKD_SCREENSHOT_IMPORT_MODE=openai`, add `OPENAI_API_KEY`, and optionally set `MOCKD_SCREENSHOT_IMPORT_MODEL` on `mockd-web`; never add provider keys to the repository. Screenshot bytes and raw model output are not persisted by Mockd. The web service sends the image to the OpenAI Responses API with request storage disabled, keeps only the commissioner-approved team fields, limits images to 5 MB, and rate-limits analysis per commissioner and season. Use a screenshot that contains no information beyond the league membership table.
 
 Owners normally recover access through **Forgot password** on the sign-in page. The operator command remains an emergency-only fallback when email delivery is unavailable. The target email comes from the environment and the replacement password comes from exactly one non-interactive stdin line, so neither belongs in command arguments:
 
@@ -92,7 +91,7 @@ Create a protected GitHub `production` Environment with required reviewers. Add 
 
 The deployed smoke is deliberately read-only: it verifies both roles, league home, board, mock draft, simulations, and commissioner setup without creating, starting, selling into, or ending the real draft room. It is safe to rerun before and after DNS cutover. The full mutation and realtime flow remains covered by local E2E and the production-container gate; also complete the multi-browser draft-night rehearsal in the production runbook.
 
-Before the first real import, create a temporary staging season with the production team count and run one sanitized screenshot through analyze, profile mapping, review, apply, and invitation-link creation. Confirm uncertain rows cannot apply without commissioner confirmation, duplicate or missing profile mappings cannot apply, stale reviews return a conflict instead of overwriting newer setup, and the imported team IDs remain stable when rows are reordered or a name is corrected. Delete or archive the temporary records before DNS cutover.
+Before the first real import, create a temporary staging season with the production team count and run manual team entry, profile mapping, apply, and invitation-link creation. Confirm duplicate or missing profile mappings cannot apply and team IDs remain stable when rows are reordered or a name is corrected. If optional screenshot analysis is deliberately enabled, also run one sanitized screenshot through analyze and review and confirm uncertain rows cannot apply without commissioner confirmation and stale reviews return a conflict instead of overwriting newer setup. Delete or archive the temporary records before DNS cutover.
 
 ## 6. Attach The Domain
 
