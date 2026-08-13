@@ -95,6 +95,7 @@ export interface RunSeasonSimulationsInput {
   strategyInput?: string | undefined;
   seedPrefix?: string | undefined;
   playerExpectedPrices?: Readonly<Record<string, number>> | undefined;
+  playerHumanValues?: Readonly<Record<string, number>> | undefined;
   week1Projections?: Readonly<Record<string, number>> | undefined;
 }
 
@@ -561,7 +562,7 @@ const selectAuctionNomination = (
           pairPlayerId,
         ) ? 10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
-        + player.expectedPrice
+        + (player.humanValue ?? player.expectedPrice)
         + deterministicFraction(`${seed}:nominate:${state.session.revision}:${player.id}`) * 0.001,
     }))
     .sort((left, right) =>
@@ -604,11 +605,12 @@ const auctionWillingnessFor = (
     .find(cap => cap.position === player.position);
   const isPreferred = preference !== undefined;
   const needDollars = Math.ceil(auctionRosterNeedFor(team, player.position) * 2);
-  const preferenceDollars = isPreferred ? Math.ceil(player.expectedPrice * 0.15) : 0;
-  const targetDollars = isTarget || isPair ? Math.ceil(player.expectedPrice * 0.1) : 0;
+  const baseValue = team.isHuman ? player.humanValue ?? player.expectedPrice : player.expectedPrice;
+  const preferenceDollars = isPreferred ? Math.ceil(baseValue * 0.15) : 0;
+  const targetDollars = isTarget || isPair ? Math.ceil(baseValue * 0.1) : 0;
   const valueLimit = Math.max(
     state.configuration.minimumBidDollars,
-    Math.round(player.expectedPrice) + needDollars + preferenceDollars + targetDollars,
+    Math.round(baseValue) + needDollars + preferenceDollars + targetDollars,
   );
   const availableTargetPlayers = availableTargetPlayersFor(
     state,
@@ -1321,6 +1323,7 @@ const runSeasonSimulationsUnchecked = (
       sessionId: `${seedPrefix}-auction-${runNumber}`,
       seed,
       playerExpectedPrices: input.playerExpectedPrices,
+      playerHumanValues: input.playerHumanValues,
     });
     const state = runAuctionSimulation({
       config,

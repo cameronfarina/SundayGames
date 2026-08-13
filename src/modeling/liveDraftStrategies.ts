@@ -145,6 +145,37 @@ export const parseLiveDraftStrategyKey = (value: unknown): LiveDraftStrategyKey 
   return defaultLiveDraftStrategyKey;
 };
 
+export interface ProjectionRankAdjustmentInput {
+  projectionPositionRank?: number | undefined;
+  publicPositionRank?: number | undefined;
+}
+
+const projectionRankAdjustmentPerPlace = 0.01;
+const maximumProjectionRankAdjustment = 0.12;
+
+export const projectionRankAdjustmentFactor = ({
+  projectionPositionRank,
+  publicPositionRank,
+}: ProjectionRankAdjustmentInput): number => {
+  if (
+    projectionPositionRank === undefined
+    || publicPositionRank === undefined
+    || !Number.isInteger(projectionPositionRank)
+    || !Number.isInteger(publicPositionRank)
+    || projectionPositionRank < 1
+    || publicPositionRank < 1
+  ) return 1;
+
+  const adjustment = Math.max(
+    -maximumProjectionRankAdjustment,
+    Math.min(
+      maximumProjectionRankAdjustment,
+      (publicPositionRank - projectionPositionRank) * projectionRankAdjustmentPerPlace,
+    ),
+  );
+  return Number((1 + adjustment).toFixed(2));
+};
+
 export interface ProjectionAdjustedAuctionValueInput {
   marketValue: number;
   projectionAdjustmentFactor?: number | undefined;

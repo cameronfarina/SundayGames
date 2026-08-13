@@ -3,9 +3,6 @@ import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import {
   liveDraftStrategies,
   parseLiveDraftStrategyKey,
-  projectionAdjustedAuctionValue,
-  projectionScoringMatches,
-  strategyAdjustedAuctionValue,
   type LiveDraftStrategyKey,
 } from "../modeling/liveDraftStrategies.js";
 import { AuthError, normalizeEmail } from "./auth.js";
@@ -63,6 +60,7 @@ import {
   SeasonMockConfigurationSnapshotError,
   type SeasonMockConfigurationSnapshotV2,
 } from "./seasonMockSnapshot.js";
+import { buildSeasonPlayerValues } from "./seasonPlayerValues.js";
 import {
   createPlatformApp,
   PlatformAppError,
@@ -2187,55 +2185,14 @@ const seasonMockConfigurationSnapshotFor = async (
       row.marketPrice,
     ]),
   );
-  const humanKeepers = context.setup.initialRosters.filter(player =>
-    player.source === "keeper" && player.teamId === context.membership.teamId
-  );
-  const positionCounts = humanKeepers.reduce<Record<string, number>>((counts, keeper) => {
-    counts[keeper.position] = (counts[keeper.position] ?? 0) + 1;
-    return counts;
-  }, {});
-  const flexTarget = ["RB", "WR", "TE"].reduce(
-    (total, position) => total + Number(context.season.settings.roster.lineup[position] ?? 0),
-    Number(context.season.settings.roster.lineup.FLEX ?? 0),
-  );
-  const currentFlexPlayers = ["RB", "WR", "TE"].reduce(
-    (total, position) => total + (positionCounts[position] ?? 0),
-    0,
-  );
-  const isAuction = context.season.settings.draftFormat === "auction";
-  const budget = isAuction ? context.season.settings.auction.budgetDollars : 1;
-  const minimumBid = isAuction ? context.season.settings.auction.minimumBidDollars : 1;
-  const budgetRemaining = budget - humanKeepers.reduce((total, keeper) => total + keeper.price, 0);
-  const openRosterSlots = Math.max(0, context.season.settings.roster.rosterSize - humanKeepers.length);
-  const humanMaximumBid = Math.max(
-    0,
-    budgetRemaining - Math.max(0, openRosterSlots - 1) * minimumBid,
-  );
-  const playerExpectedPrices = Object.fromEntries(context.setup.playerCatalog.map(player => {
-    const playerKey = canonicalPlayerIdentityKey(player.name);
-    const marketValue = marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice;
-    return [playerKey, marketValue];
-  }));
-  const playerHumanValues = Object.fromEntries(context.setup.playerCatalog.map(player => {
-    const playerKey = canonicalPlayerIdentityKey(player.name);
-    const marketValue = marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice;
-    const projectionBaseline = projectionAdjustedAuctionValue({
-      marketValue,
-      projectionAdjustmentFactor: projectionScoringMatches(
-        player.seasonProjectionScoring,
-        context.season.settings.scoring,
-      ) ? player.seasonProjectionAdjustmentFactor : undefined,
-    });
-    return [playerKey, isAuction ? strategyAdjustedAuctionValue({
-      marketValue: projectionBaseline,
-      position: player.position,
-      strategyKey,
-      positionCount: positionCounts[player.position] ?? 0,
-      starterCount: Number(context.season.settings.roster.lineup[player.position] ?? 0),
-      flexNeedsPlayer: currentFlexPlayers < flexTarget,
-      maximumBid: humanMaximumBid,
-    }) : marketValue];
-  }));
+  const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
+    season: context.season,
+    playerCatalog: context.setup.playerCatalog,
+    initialRosters: context.setup.initialRosters,
+    humanTeamId: context.membership.teamId,
+    strategyKey,
+    marketPrices,
+  });
   return createSeasonMockConfigurationSnapshot({
     season: context.season,
     setup: context.setup,
@@ -2629,13 +2586,21 @@ const routeSeasonSimulations = async (
         now: request.now,
       })
     : [];
-  const playerExpectedPrices = Object.fromEntries(
+  const marketPrices = new Map(
     (snapshots.at(-1)?.rows ?? []).map(row => [
       canonicalPlayerIdentityKey(row.playerName),
       row.marketPrice,
     ]),
   );
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
+  const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
+    season: context.season,
+    playerCatalog: context.setup.playerCatalog,
+    initialRosters: context.setup.initialRosters,
+    humanTeamId: context.membership.teamId,
+    strategyKey: strategyPreset,
+    marketPrices,
+  });
   const presetStrategyInput: Readonly<Record<LiveDraftStrategyKey, string>> = {
     balanced: "",
     "three-rb": "prioritize 3 elite RBs",
@@ -2659,7 +2624,9 @@ const routeSeasonSimulations = async (
     strategyInput,
     seedPrefix,
     week1Projections,
-    ...(context.season.settings.draftFormat === "auction" ? { playerExpectedPrices } : {}),
+    ...(context.season.settings.draftFormat === "auction"
+      ? { playerExpectedPrices, playerHumanValues }
+      : {}),
   };
   const simulation = services.seasonSimulationRunner === undefined
     ? runSeasonSimulations(simulationInput)
@@ -3765,27 +3732,16 @@ export const createPlatformHttpHandler = (
         const strategy = liveDraftStrategies[strategyKey];
         const membership = (await app.listLeagueMemberships(season.leagueId))
           .find(candidate => candidate.userId === account.id);
-        const myKeepers = keepers.filter(keeper => keeper.teamId === membership?.teamId);
-        const keeperPositionCounts = myKeepers.reduce<Record<string, number>>((counts, keeper) => {
-          counts[keeper.position] = (counts[keeper.position] ?? 0) + 1;
-          return counts;
-        }, {});
-        const flexTarget = ["RB", "WR", "TE"].reduce(
-          (total, position) => total + Number(season.settings.roster.lineup[position] ?? 0),
-          Number(season.settings.roster.lineup.FLEX ?? 0),
-        );
-        const currentFlexPlayers = ["RB", "WR", "TE"].reduce(
-          (total, position) => total + (keeperPositionCounts[position] ?? 0),
-          0,
-        );
-        const keeperSpend = myKeepers.reduce((total, keeper) => total + keeper.price, 0);
-        const openRosterSlots = Math.max(0, season.settings.roster.rosterSize - myKeepers.length);
-        const maximumBid = Math.max(
-          0,
-          season.settings.auction.budgetDollars
-            - keeperSpend
-            - Math.max(0, openRosterSlots - 1) * season.settings.auction.minimumBidDollars,
-        );
+        const values = buildSeasonPlayerValues({
+          season,
+          playerCatalog: players,
+          initialRosters: keepers,
+          humanTeamId: membership?.teamId,
+          strategyKey,
+          marketPrices: new Map(
+            [...pricingByPlayer].map(([playerKey, pricing]) => [playerKey, pricing.marketPrice]),
+          ),
+        });
         return {
           status: 200,
           body: {
@@ -3795,25 +3751,11 @@ export const createPlatformHttpHandler = (
             strategyLabel: strategy.label,
             ...(latest === undefined ? {} : { pricingModelRunId: latest.modelRunId }),
             players: players.map(player => {
-              const pricing = pricingByPlayer.get(canonicalPlayerIdentityKey(player.name));
-              const marketPrice = pricing?.marketPrice ?? player.expectedPrice;
-              const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
-              const projectionBaseline = projectionAdjustedAuctionValue({
-                marketValue: marketPrice,
-                projectionAdjustmentFactor: projectionScoringMatches(
-                  player.seasonProjectionScoring,
-                  season.settings.scoring,
-                ) ? player.seasonProjectionAdjustmentFactor : undefined,
-              });
-              const myValue = strategyAdjustedAuctionValue({
-                marketValue: projectionBaseline,
-                position: player.position,
-                strategyKey,
-                positionCount: keeperPositionCounts[player.position] ?? 0,
-                starterCount: Number(season.settings.roster.lineup[player.position] ?? 0),
-                flexNeedsPlayer: currentFlexPlayers < flexTarget,
-                maximumBid,
-              });
+              const playerKey = canonicalPlayerIdentityKey(player.name);
+              const pricing = pricingByPlayer.get(playerKey);
+              const marketPrice = values.playerExpectedPrices[playerKey] ?? player.expectedPrice;
+              const myValue = values.playerHumanValues[playerKey] ?? marketPrice;
+              const keeper = keeperByPlayer.get(playerKey);
 
               return {
                 ...player,

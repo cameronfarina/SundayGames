@@ -595,12 +595,14 @@ describe("platform HTTP contract", () => {
       { name: "Jake Elliott", position: "K", expectedPrice: 5 },
     ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
     let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
+    let simulationHumanValues: Readonly<Record<string, number>> | undefined;
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => currentCatalog,
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentCatalog, initialRosters: [] }),
       seasonSimulationRunner: async input => {
         simulationExpectedPrices = input.playerExpectedPrices;
+        simulationHumanValues = input.playerHumanValues;
         return {
           draftFormat: "auction",
           runCount: input.runCount,
@@ -722,6 +724,8 @@ describe("platform HTTP contract", () => {
       body: { seasonId: season.id, count: 1 },
     })).resolves.toMatchObject({ status: 200 });
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
+    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
+    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
 
     const fullPprSeason: LeagueSeason = {
       ...season,

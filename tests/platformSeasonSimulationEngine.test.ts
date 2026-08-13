@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import type {
   AuctionLeagueSeasonSettings,
   LeagueSeason,
@@ -385,6 +386,27 @@ describe("season simulation runner", () => {
     });
     expect(result.runs[0]?.teams.every(team => team.roster.length === 2)).toBe(true);
     expect(runSeasonSimulations(input)).toEqual(result);
+  });
+
+  it("uses personal values when choosing players for the claimed team", () => {
+    const playerHumanValues = Object.fromEntries(
+      auctionSetup.playerCatalog.map(player => [canonicalPlayerIdentityKey(player.name), 1]),
+    );
+    playerHumanValues["runner five"] = 20;
+
+    const result = runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      playerHumanValues,
+      seedPrefix: "personal-value-priority",
+    });
+    const humanRoster = result.runs[0]?.teams.find(team => team.isUserTeam)?.roster ?? [];
+
+    expect(humanRoster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "Runner Five" }),
+    ]));
   });
 
   it("does not let AI teams complete auction rosters with material unused budget", () => {

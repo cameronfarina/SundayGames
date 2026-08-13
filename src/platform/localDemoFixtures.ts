@@ -1,6 +1,9 @@
 import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import { keepers } from "../../config/keepers.js";
+import { leagueConfig, positions } from "../../config/league.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
+import { projectionRankAdjustmentFactor } from "../modeling/liveDraftStrategies.js";
+import { buildProjectionRankings } from "../modeling/projectionRankings.js";
 import { loadCurrentProjections } from "../projections.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import type {
@@ -114,18 +117,34 @@ export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoom
   const projectionsByIdentity = new Map(
     projections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
   );
+  const projectionPositionRanks = new Map(
+    buildProjectionRankings(projections).map(projection => [projection.id, projection.projectionRank]),
+  );
+  const publicPositionRanks = new Map<number, number>();
+  for (const position of positions) {
+    projections
+      .filter(projection => projection.position === position && projection.espnRank !== undefined)
+      .sort((left, right) =>
+        (left.espnRank ?? Number.MAX_SAFE_INTEGER) - (right.espnRank ?? Number.MAX_SAFE_INTEGER)
+        || left.name.localeCompare(right.name)
+      )
+      .forEach((projection, index) => publicPositionRanks.set(projection.id, index + 1));
+  }
   const projectionFields = (projection: (typeof projections)[number] | undefined) => projection === undefined
-    ? {}
+    ? {
+        seasonProjectionAdjustmentFactor: 1,
+        seasonProjectionScoring: leagueConfig.scoring,
+      }
     : {
         week1Projection: projection.weeks[1] ?? 0,
         weeks1To4Projection: projection.weeks1To4,
         ...(projection.seasonProjection === undefined ? {} : { seasonProjection: projection.seasonProjection }),
-        ...(projection.projectionCalibration === undefined
-          ? {}
-          : {
-              seasonProjectionAdjustmentFactor: projection.projectionCalibration.weeklyScaleFactor,
-              seasonProjectionScoring: projection.projectionCalibration.scoring,
-            }),
+        seasonProjectionAdjustmentFactor: projection.projectionCalibration?.weeklyScaleFactor
+          ?? projectionRankAdjustmentFactor({
+            projectionPositionRank: projectionPositionRanks.get(projection.id),
+            publicPositionRank: publicPositionRanks.get(projection.id),
+          }),
+        seasonProjectionScoring: projection.projectionCalibration?.scoring ?? leagueConfig.scoring,
       };
   const catalog: LiveDraftRoomPlayerCatalogEntry[] = localDemoPlayerCatalog.map(player => ({
     ...player,

@@ -1,11 +1,38 @@
 import { describe, expect, it } from "vitest";
 import {
   projectionAdjustedAuctionValue,
+  projectionRankAdjustmentFactor,
   projectionScoringMatches,
   strategyAdjustedAuctionValue,
 } from "../src/modeling/liveDraftStrategies.js";
 
 describe("projection-adjusted auction values", () => {
+  it("turns positional projection rank differences into a capped adjustment", () => {
+    expect(projectionRankAdjustmentFactor({
+      projectionPositionRank: 3,
+      publicPositionRank: 5,
+    })).toBe(1.02);
+    expect(projectionRankAdjustmentFactor({
+      projectionPositionRank: 17,
+      publicPositionRank: 5,
+    })).toBe(0.88);
+    expect(projectionRankAdjustmentFactor({
+      projectionPositionRank: 1,
+      publicPositionRank: 30,
+    })).toBe(1.12);
+  });
+
+  it("keeps the market baseline when either positional rank is unavailable", () => {
+    expect(projectionRankAdjustmentFactor({
+      projectionPositionRank: undefined,
+      publicPositionRank: 4,
+    })).toBe(1);
+    expect(projectionRankAdjustmentFactor({
+      projectionPositionRank: 4,
+      publicPositionRank: undefined,
+    })).toBe(1);
+  });
+
   it("adjusts the player's market anchor by its calibrated projection ratio", () => {
     expect(projectionAdjustedAuctionValue({
       marketValue: 60,
