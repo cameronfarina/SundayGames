@@ -24,7 +24,29 @@ const navigationMarkup = platformShellNavigation
   .map(item => `<a class="product-nav-link" data-nav-path="${item.path}" href="${item.path}">${item.label}</a>`)
   .join("");
 
-export const platformShellHtml = `<!doctype html>
+export interface PlatformShellCapabilities {
+  leagueCreationScreenshotAnalysis: boolean;
+}
+
+const leagueCreationScreenshotPanelMarkup = `
+                  <section id="league-create-screenshot-panel" class="league-import-panel hidden" aria-labelledby="league-create-screenshot-title">
+                    <div>
+                      <h4 id="league-create-screenshot-title">Fill teams from an ESPN screenshot</h4>
+                      <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
+                    </div>
+                    <div id="league-create-screenshot-dropzone" class="league-screenshot-dropzone">
+                      <strong>Drop a League Members screenshot here</strong>
+                      <span>PNG, JPEG, or WebP, up to 5 MB</span>
+                      <button id="league-create-screenshot-choose" type="button">Choose screenshot</button>
+                      <input id="league-create-screenshot-file" class="hidden" type="file" accept="image/png,image/jpeg,image/webp">
+                    </div>
+                    <div class="actions">
+                      <button id="league-create-screenshot-analyze" type="button" disabled>Analyze screenshot</button>
+                    </div>
+                    <p id="league-create-screenshot-status" class="status" role="status" aria-live="polite"></p>
+                  </section>`;
+
+export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities): string => `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -1497,22 +1519,7 @@ export const platformShellHtml = `<!doctype html>
                     <h3>Teams</h3>
                     <p class="lede">Team names are required. Manager names and abbreviations are optional.</p>
                   </header>
-                  <section id="league-create-screenshot-panel" class="league-import-panel hidden" aria-labelledby="league-create-screenshot-title">
-                    <div>
-                      <h4 id="league-create-screenshot-title">Fill teams from an ESPN screenshot</h4>
-                      <p class="lede">Your entire selected image is sent to OpenAI for analysis. Before uploading, crop it to only the team and manager rows and remove invite links and email addresses. Mockd retains only the team number, abbreviation, team name, and manager names you approve.</p>
-                    </div>
-                    <div id="league-create-screenshot-dropzone" class="league-screenshot-dropzone">
-                      <strong>Drop a League Members screenshot here</strong>
-                      <span>PNG, JPEG, or WebP, up to 5 MB</span>
-                      <button id="league-create-screenshot-choose" type="button">Choose screenshot</button>
-                      <input id="league-create-screenshot-file" class="hidden" type="file" accept="image/png,image/jpeg,image/webp">
-                    </div>
-                    <div class="actions">
-                      <button id="league-create-screenshot-analyze" type="button" disabled>Analyze screenshot</button>
-                    </div>
-                    <p id="league-create-screenshot-status" class="status" role="status" aria-live="polite"></p>
-                  </section>
+${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelMarkup : ""}
                   <p id="league-create-team-progress" class="league-team-progress"></p>
                   <div id="league-create-team-rows" class="league-team-grid"></div>
                 </section>
@@ -1859,6 +1866,7 @@ export const platformShellHtml = `<!doctype html>
     const forgotPasswordMode = window.location.pathname === "/forgot-password";
     const resetPasswordMode = window.location.pathname === "/reset-password";
     const navigation = ${JSON.stringify(platformShellNavigation)};
+    const leagueCreationScreenshotAnalysisEnabled = ${JSON.stringify(capabilities.leagueCreationScreenshotAnalysis)};
     const state = {
       account: null,
       onboarding: null,
@@ -1883,7 +1891,6 @@ export const platformShellHtml = `<!doctype html>
       selectedSimulationRunIndex: 0,
       leagueCreation: null,
       leagueCreationStep: "basics",
-      leagueCreationScreenshotAvailable: null,
       leagueCreationScreenshotFile: null,
       leagueCreationScreenshotRequestGeneration: 0,
       leagueCreationScreenshotAbortController: null,
@@ -3036,18 +3043,6 @@ export const platformShellHtml = `<!doctype html>
       renderLeagueCreationTeamRows(state.leagueCreation.teams);
     };
 
-    const loadLeagueCreationScreenshotCapability = async () => {
-      try {
-        const body = await readJson(await fetch("/league-imports/espn/members-screenshot-review", {
-          credentials: "same-origin",
-        }));
-        state.leagueCreationScreenshotAvailable = body.available === true;
-      } catch {
-        state.leagueCreationScreenshotAvailable = false;
-      }
-      setHidden(leagueCreateScreenshotPanel, state.leagueCreationScreenshotAvailable !== true);
-    };
-
     const fileBase64For = file => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.addEventListener("error", () => reject(new Error("The screenshot could not be read.")));
@@ -3224,15 +3219,17 @@ export const platformShellHtml = `<!doctype html>
       leagueCreateBack.disabled = stepIndex === 0;
       setHidden(leagueCreateNext, step === "teams");
       setHidden(leagueCreateSubmit, step !== "teams");
-      setHidden(leagueCreateScreenshotPanel, state.leagueCreationScreenshotAvailable !== true);
+      if (leagueCreateScreenshotPanel) setHidden(leagueCreateScreenshotPanel, false);
       leagueCreateStatus.textContent = "";
       if (step === "teams") {
-        leagueCreateScreenshotAnalyze.disabled = state.leagueCreationScreenshotFile === null;
-        if (
-          state.leagueCreationScreenshotFile
-          && leagueCreateScreenshotStatus.textContent === "Reading teams from the screenshot..."
-        ) {
-          leagueCreateScreenshotStatus.textContent = state.leagueCreationScreenshotFile.name + " is ready to analyze.";
+        if (leagueCreationScreenshotAnalysisEnabled) {
+          leagueCreateScreenshotAnalyze.disabled = state.leagueCreationScreenshotFile === null;
+          if (
+            state.leagueCreationScreenshotFile
+            && leagueCreateScreenshotStatus.textContent === "Reading teams from the screenshot..."
+          ) {
+            leagueCreateScreenshotStatus.textContent = state.leagueCreationScreenshotFile.name + " is ready to analyze.";
+          }
         }
         updateLeagueCreationSubmit();
       }
@@ -5446,37 +5443,39 @@ export const platformShellHtml = `<!doctype html>
       if (!state.leagueCreation) applyLeagueCreationReview(manualLeagueCreationReview());
       cancelLeagueCreationScreenshotRequest();
       state.leagueCreationScreenshotFile = null;
-      leagueCreateScreenshotFile.value = "";
-      leagueCreateScreenshotAnalyze.disabled = true;
-      leagueCreateScreenshotStatus.textContent = "";
-      setHidden(leagueCreateScreenshotPanel, true);
-      loadLeagueCreationScreenshotCapability();
+      if (leagueCreationScreenshotAnalysisEnabled) {
+        leagueCreateScreenshotFile.value = "";
+        leagueCreateScreenshotAnalyze.disabled = true;
+        leagueCreateScreenshotStatus.textContent = "";
+      }
       showLeagueCreationStep("basics");
       leagueSetupDialog.showModal();
     });
     byId("league-setup-close").addEventListener("click", () => leagueSetupDialog.close());
     leagueSetupDialog.addEventListener("close", () => {
       cancelLeagueCreationScreenshotRequest();
-      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+      leagueCreateScreenshotDropzone?.classList.remove("is-dragging");
     });
 
-    leagueCreateScreenshotChoose.addEventListener("click", () => leagueCreateScreenshotFile.click());
-    leagueCreateScreenshotFile.addEventListener("change", () => {
-      selectLeagueCreationScreenshot(leagueCreateScreenshotFile.files?.[0] || null);
-    });
-    leagueCreateScreenshotDropzone.addEventListener("dragover", event => {
-      event.preventDefault();
-      leagueCreateScreenshotDropzone.classList.add("is-dragging");
-    });
-    leagueCreateScreenshotDropzone.addEventListener("dragleave", () => {
-      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
-    });
-    leagueCreateScreenshotDropzone.addEventListener("drop", event => {
-      event.preventDefault();
-      leagueCreateScreenshotDropzone.classList.remove("is-dragging");
-      selectLeagueCreationScreenshot(event.dataTransfer?.files?.[0] || null);
-    });
-    leagueCreateScreenshotAnalyze.addEventListener("click", analyzeLeagueCreationScreenshot);
+    if (leagueCreationScreenshotAnalysisEnabled) {
+      leagueCreateScreenshotChoose.addEventListener("click", () => leagueCreateScreenshotFile.click());
+      leagueCreateScreenshotFile.addEventListener("change", () => {
+        selectLeagueCreationScreenshot(leagueCreateScreenshotFile.files?.[0] || null);
+      });
+      leagueCreateScreenshotDropzone.addEventListener("dragover", event => {
+        event.preventDefault();
+        leagueCreateScreenshotDropzone.classList.add("is-dragging");
+      });
+      leagueCreateScreenshotDropzone.addEventListener("dragleave", () => {
+        leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+      });
+      leagueCreateScreenshotDropzone.addEventListener("drop", event => {
+        event.preventDefault();
+        leagueCreateScreenshotDropzone.classList.remove("is-dragging");
+        selectLeagueCreationScreenshot(event.dataTransfer?.files?.[0] || null);
+      });
+      leagueCreateScreenshotAnalyze.addEventListener("click", analyzeLeagueCreationScreenshot);
+    }
 
     byId("league-create-review-espn").addEventListener("click", async () => {
       const leagueIdOrUrl = leagueCreateEspnId.value.trim();

@@ -1,10 +1,18 @@
+import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
+  createPlatformShellHtml,
   draftRoomPathFor,
-  platformShellHtml,
   platformShellNavigation,
   rosterSlotDisplayOrder,
 } from "../src/platform/platformShellUi.js";
+
+const platformShellHtml = createPlatformShellHtml({
+  leagueCreationScreenshotAnalysis: true,
+});
+
+const inlineScriptFor = (html: string): string =>
+  html.match(/<script>([\s\S]*)<\/script>/u)?.[1] ?? "";
 
 const authenticationReturnPathFromShell = (returnTo: string | null): string => {
   const functionStart = platformShellHtml.indexOf("    const safeAuthenticationReturnPath =");
@@ -20,6 +28,41 @@ const authenticationReturnPathFromShell = (returnTo: string | null): string => {
 };
 
 describe("platform shell UI", () => {
+  it("renders the manual league wizard without screenshot controls when analysis is disabled", () => {
+    const html = createPlatformShellHtml({ leagueCreationScreenshotAnalysis: false });
+
+    expect(html).toContain('data-league-step="scoring"');
+    expect(html).toContain('data-league-step="roster"');
+    expect(html).toContain('data-league-step="teams"');
+    expect(html).toContain('id="league-create-team-rows"');
+    expect(html).not.toContain('id="league-create-screenshot-panel"');
+    expect(html).not.toContain('id="league-create-screenshot-dropzone"');
+    expect(html).not.toContain('id="league-create-screenshot-file"');
+    expect(html).not.toContain('id="league-create-screenshot-analyze"');
+    expect(html).not.toContain("Your entire selected image is sent to OpenAI for analysis.");
+    expect(html).not.toContain("loadLeagueCreationScreenshotCapability");
+  });
+
+  it("renders the accessible screenshot flow when analysis is enabled", () => {
+    const html = createPlatformShellHtml({ leagueCreationScreenshotAnalysis: true });
+
+    expect(html).toContain('id="league-create-screenshot-panel"');
+    expect(html).toContain('aria-labelledby="league-create-screenshot-title"');
+    expect(html).toContain('id="league-create-screenshot-dropzone"');
+    expect(html).toContain('id="league-create-screenshot-file"');
+    expect(html).toContain('id="league-create-screenshot-analyze"');
+    expect(html).toContain("Your entire selected image is sent to OpenAI for analysis.");
+    expect(html).not.toContain("loadLeagueCreationScreenshotCapability");
+  });
+
+  it("keeps both capability variants executable in the browser", () => {
+    for (const leagueCreationScreenshotAnalysis of [false, true]) {
+      const html = createPlatformShellHtml({ leagueCreationScreenshotAnalysis });
+
+      expect(() => new Script(inlineScriptFor(html))).not.toThrow();
+    }
+  });
+
   it("renders roster slots in fantasy lineup order", () => {
     expect(rosterSlotDisplayOrder).toEqual([
       "QB",

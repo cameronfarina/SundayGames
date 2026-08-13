@@ -63,7 +63,10 @@ import {
 } from "./platformDraftToolsAdapter.js";
 import { buildSeasonDraftToolsOptions } from "./platformSeasonDraftTools.js";
 import { platformHostedDraftRoomHtml } from "./hostedDraftRoomUi.js";
-import { platformShellHtml } from "./platformShellUi.js";
+import {
+  createPlatformShellHtml,
+  type PlatformShellCapabilities,
+} from "./platformShellUi.js";
 import {
   InMemoryPlatformInvitationRepository,
   type AcceptedPlatformInvitation,
@@ -153,6 +156,7 @@ export interface CreatePlatformServerOptions {
   simulationRunner: SimulationMockBatchRunner;
   bodyLimitBytes?: number | undefined;
   screenshotImportBodyLimitBytes?: number | undefined;
+  shellCapabilities?: PlatformShellCapabilities | undefined;
   draftToolsSessionDirectory?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   now?: PlatformClock | undefined;
@@ -1285,7 +1289,9 @@ export const createPlatformServer = async (
     },
   });
   const platformNodeHandler = createPlatformNodeHttpAdapter(handler, {
-    appHtml: platformShellHtml,
+    appHtml: createPlatformShellHtml(options.shellCapabilities ?? {
+      leagueCreationScreenshotAnalysis: false,
+    }),
     draftRoomHtml: platformHostedDraftRoomHtml,
     maxBodyBytes: options.bodyLimitBytes,
     screenshotImportMaxBodyBytes: options.screenshotImportBodyLimitBytes,

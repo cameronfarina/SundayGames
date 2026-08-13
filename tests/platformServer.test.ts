@@ -1543,6 +1543,24 @@ describe("platform server composition", () => {
     }
   });
 
+  it("renders screenshot controls only when the shell capability is enabled", async () => {
+    const manual = await createListeningServer({
+      shellCapabilities: { leagueCreationScreenshotAnalysis: false },
+    });
+    const openAi = await createListeningServer({
+      shellCapabilities: { leagueCreationScreenshotAnalysis: true },
+    });
+
+    const manualResponse = await textFetch(manual.baseUrl, "/league?create=1");
+    const openAiResponse = await textFetch(openAi.baseUrl, "/league?create=1");
+
+    expect(manualResponse.status).toBe(200);
+    expect(manualResponse.body).toContain('data-league-step="teams"');
+    expect(manualResponse.body).not.toContain('id="league-create-screenshot-panel"');
+    expect(openAiResponse.status).toBe(200);
+    expect(openAiResponse.body).toContain('id="league-create-screenshot-panel"');
+  });
+
   it("serves the dedicated draft room from the production draft route", async () => {
     const { baseUrl } = await createListeningServer();
 
