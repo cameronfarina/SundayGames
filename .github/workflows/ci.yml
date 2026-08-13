@@ -137,6 +137,7 @@ jobs:
             --env RESEND_API_KEY=ci-placeholder-not-used \
             --env MOCKD_EMAIL_FROM=accounts@mockd.example.com \
             --env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com \
+            --env MOCKD_INVITATION_TOKEN_SECRET=ci-placeholder-invitation-token-secret-at-least-32-characters \
             --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
             --env MOCKD_SCREENSHOT_IMPORT_MODE=openai \
             --env OPENAI_API_KEY=ci-placeholder-not-used \

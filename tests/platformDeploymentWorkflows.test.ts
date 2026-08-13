@@ -53,6 +53,9 @@ describe("production deployment workflows", () => {
     expect(content).toContain("--env RESEND_API_KEY=ci-placeholder-not-used");
     expect(content).toContain("--env MOCKD_EMAIL_FROM=accounts@mockd.example.com");
     expect(content).toContain("--env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com");
+    expect(content).toContain(
+      "--env MOCKD_INVITATION_TOKEN_SECRET=ci-placeholder-invitation-token-secret-at-least-32-characters",
+    );
     expect(content).toContain(".State.Running}}' mockd-ci-web");
     expect(content).not.toContain("mockd-ci-worker");
     expect(content).not.toContain("MOCKD_SIMULATION_DATA_MODE=local-fixtures");
