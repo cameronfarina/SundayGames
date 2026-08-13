@@ -604,14 +604,43 @@ const rosterNeedFor = (
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
 
+interface GenericAuctionMockAnalysisCache {
+  eligibleAiTeamsByPlayerId: Map<string, readonly GenericAuctionMockTeamReadModel[]>;
+  projectedRbOrWrAlternativeByTeamId: Map<string, boolean>;
+  remainingProjectedStartersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
+}
+
+const analysisCacheByState = new WeakMap<GenericAuctionMockState, GenericAuctionMockAnalysisCache>();
+
+const analysisCacheFor = (state: GenericAuctionMockState): GenericAuctionMockAnalysisCache => {
+  const cached = analysisCacheByState.get(state);
+  if (cached !== undefined) return cached;
+
+  const created: GenericAuctionMockAnalysisCache = {
+    eligibleAiTeamsByPlayerId: new Map(),
+    projectedRbOrWrAlternativeByTeamId: new Map(),
+    remainingProjectedStartersByPosition: new Map(),
+  };
+  analysisCacheByState.set(state, created);
+  return created;
+};
+
 const eligibleAiTeamsFor = (
   state: GenericAuctionMockState,
   player: GenericAuctionMockPlayer,
-): readonly GenericAuctionMockTeamReadModel[] => state.teams.filter(team =>
-  !team.isHuman
-  && canAcquire(state, team, player, state.configuration.minimumBidDollars)
-  && isAutomatedAuctionAcquisitionEligible(state, team, player)
-);
+): readonly GenericAuctionMockTeamReadModel[] => {
+  const byPlayer = analysisCacheFor(state).eligibleAiTeamsByPlayerId;
+  const cached = byPlayer.get(player.id);
+  if (cached !== undefined) return cached;
+
+  const eligible = state.teams.filter(team =>
+    !team.isHuman
+    && canAcquire(state, team, player, state.configuration.minimumBidDollars)
+    && isAutomatedAuctionAcquisitionEligible(state, team, player)
+  );
+  byPlayer.set(player.id, eligible);
+  return eligible;
+};
 
 const averageRosterNeedFor = (
   teams: readonly GenericAuctionMockTeamReadModel[],
@@ -673,23 +702,39 @@ const openDedicatedStarterDemandFor = (
 const remainingProjectedStartersFor = (
   state: GenericAuctionMockState,
   position: string,
-): readonly GenericAuctionMockBoardPlayer[] => state.board.players.filter(player =>
-  player.position === position
-  && player.projectedStarter === true
-  && player.status !== "sold"
-);
+): readonly GenericAuctionMockBoardPlayer[] => {
+  const byPosition = analysisCacheFor(state).remainingProjectedStartersByPosition;
+  const cached = byPosition.get(position);
+  if (cached !== undefined) return cached;
+
+  const remaining = state.board.players.filter(player =>
+    player.position === position
+    && player.projectedStarter === true
+    && player.status !== "sold"
+  );
+  byPosition.set(position, remaining);
+  return remaining;
+};
 
 const benchOnlySpecialistPositions = new Set(["QB", "TE", "K", "DST"]);
 
 const hasProjectedRbOrWrAlternative = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
-): boolean => state.board.players.some(candidate =>
-  candidate.status === "available"
-  && (candidate.position === "RB" || candidate.position === "WR")
-  && projectedWeeklyProductionFor(candidate) > 0
-  && canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
-);
+): boolean => {
+  const byTeam = analysisCacheFor(state).projectedRbOrWrAlternativeByTeamId;
+  const cached = byTeam.get(team.id);
+  if (cached !== undefined) return cached;
+
+  const hasAlternative = state.board.players.some(candidate =>
+    candidate.status === "available"
+    && (candidate.position === "RB" || candidate.position === "WR")
+    && projectedWeeklyProductionFor(candidate) > 0
+    && canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
+  );
+  byTeam.set(team.id, hasAlternative);
+  return hasAlternative;
+};
 
 export const isAutomatedAuctionAcquisitionEligible = (
   state: GenericAuctionMockState,
