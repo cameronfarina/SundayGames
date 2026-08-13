@@ -1807,6 +1807,7 @@ export const platformShellHtml = `<!doctype html>
       leagueCreationScreenshotRequestGeneration: 0,
       leagueCreationScreenshotAbortController: null,
       historicalImportFiles: [],
+      sharedHistoricalOwnerMappings: new Map(),
       historicalImportBusy: false,
       mockSession: null,
       mockDraft: null,
@@ -4025,6 +4026,7 @@ export const platformShellHtml = `<!doctype html>
         state.currentSeason = null;
         state.claimedTeamIds = new Set();
         state.historicalImportFiles = [];
+        state.sharedHistoricalOwnerMappings = new Map();
         state.historicalImportBusy = false;
         state.mockRequestGeneration += 1;
         state.mockSession = null;
@@ -4506,6 +4508,37 @@ export const platformShellHtml = `<!doctype html>
       ? "Each selected file needs a different draft year. " + years[0] + " is selected more than once."
       : "Each selected file needs a different draft year. " + years.join(", ") + " are each selected more than once.";
 
+    const normalizeHistoricalOwnerLabel = value => String(value || "")
+      .normalize("NFKD")
+      .replace(/[\\u0300-\\u036f]/gu, "")
+      .toLowerCase()
+      .replace(/[\\u0027\\u2019]s\\b/gu, "")
+      .replace(/[^a-z0-9]+/gu, " ")
+      .replace(/\\s+/gu, " ")
+      .trim();
+
+    const sharedHistoricalOwnerMappings = () =>
+      [...state.sharedHistoricalOwnerMappings.values()];
+
+    const historicalOwnerMappingsFor = item => {
+      const mappingsByLabel = new Map();
+      [...(item.ownerMappings || []), ...sharedHistoricalOwnerMappings()].forEach(mapping => {
+        const normalizedLabel = normalizeHistoricalOwnerLabel(mapping.sourceOwnerOrTeamLabel);
+        if (normalizedLabel) mappingsByLabel.set(normalizedLabel, mapping);
+      });
+      return [...mappingsByLabel.values()];
+    };
+
+    const historicalOwnerMappingAlreadyRendered = (itemId, sourceLabel) => {
+      const itemIndex = state.historicalImportFiles.findIndex(item => item.id === itemId);
+      const normalizedLabel = normalizeHistoricalOwnerLabel(sourceLabel);
+      return state.historicalImportFiles.slice(0, itemIndex).some(item =>
+        (item.ownerMappingNeeds || []).some(candidate =>
+          normalizeHistoricalOwnerLabel(candidate) === normalizedLabel
+        )
+      );
+    };
+
     const historicalImportQueueIssue = () => {
       const pendingFiles = pendingHistoricalImportFiles();
       if (pendingFiles.some(item => !Number.isInteger(item.seasonYear) || item.seasonYear < 2000 || item.seasonYear > 2100)) {
@@ -4515,13 +4548,26 @@ export const platformShellHtml = `<!doctype html>
       if (duplicateYears.length > 0) return duplicateHistoricalImportYearMessage(duplicateYears);
       const hasIncompleteOwnerMappings = pendingFiles.some(item =>
         (item.ownerMappingNeeds || []).some(sourceLabel =>
-          !(item.ownerMappings || []).some(mapping =>
-            mapping.sourceOwnerOrTeamLabel === sourceLabel && mapping.teamId
+          !historicalOwnerMappingsFor(item).some(mapping =>
+            normalizeHistoricalOwnerLabel(mapping.sourceOwnerOrTeamLabel)
+              === normalizeHistoricalOwnerLabel(sourceLabel) && mapping.teamId
           )
         )
       );
-      return hasIncompleteOwnerMappings
-        ? "Match every historical team name to a current team before importing again."
+      if (hasIncompleteOwnerMappings) {
+        return "Match every historical team name to a current team before importing again.";
+      }
+      const hasDuplicateTeamTargets = pendingFiles.some(item => {
+        const mappings = historicalOwnerMappingsFor(item).filter(mapping =>
+          (item.ownerMappingNeeds || []).some(sourceLabel =>
+            normalizeHistoricalOwnerLabel(sourceLabel)
+              === normalizeHistoricalOwnerLabel(mapping.sourceOwnerOrTeamLabel)
+          )
+        );
+        return new Set(mappings.map(mapping => mapping.teamId)).size !== mappings.length;
+      });
+      return hasDuplicateTeamTargets
+        ? "Each historical team must map to a different current team."
         : "";
     };
 
@@ -4571,7 +4617,10 @@ export const platformShellHtml = `<!doctype html>
         remove.dataset.historicalRemove = item.id;
         remove.disabled = state.historicalImportBusy;
         row.append(identity, yearField, remove);
-        if ((item.ownerMappingNeeds || []).length > 0) {
+        const visibleMappingNeeds = (item.ownerMappingNeeds || []).filter(sourceLabel =>
+          !historicalOwnerMappingAlreadyRendered(item.id, sourceLabel)
+        );
+        if (visibleMappingNeeds.length > 0) {
           const mappingPanel = document.createElement("div");
           mappingPanel.className = "historical-owner-mappings";
           const heading = document.createElement("strong");
@@ -4579,7 +4628,7 @@ export const platformShellHtml = `<!doctype html>
           mappingPanel.append(heading);
           const teams = [...(state.currentSeason?.teams || [])]
             .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
-          item.ownerMappingNeeds.forEach(sourceLabel => {
+          visibleMappingNeeds.forEach(sourceLabel => {
             const field = document.createElement("div");
             field.className = "historical-owner-mapping";
             const label = document.createElement("label");
@@ -4598,8 +4647,9 @@ export const platformShellHtml = `<!doctype html>
               option.textContent = team.draftOrderPosition + ". " + team.displayName;
               select.append(option);
             });
-            select.value = (item.ownerMappings || [])
-              .find(mapping => mapping.sourceOwnerOrTeamLabel === sourceLabel)?.teamId || "";
+            select.value = historicalOwnerMappingsFor(item)
+              .find(mapping => normalizeHistoricalOwnerLabel(mapping.sourceOwnerOrTeamLabel)
+                === normalizeHistoricalOwnerLabel(sourceLabel))?.teamId || "";
             field.append(label, select);
             mappingPanel.append(field);
           });
@@ -4664,7 +4714,8 @@ export const platformShellHtml = `<!doctype html>
             seasonYear: item.seasonYear,
             replacementRequested: historicalReplaceInput.checked,
             inferFirstRosterRowAsKeeper: historicalRowOneKeepersInput.checked,
-            ownerMappings: item.ownerMappings || [],
+            requireCompleteTeamMapping: true,
+            ownerMappings: historicalOwnerMappingsFor(item),
           }),
         },
       ));
@@ -4679,6 +4730,7 @@ export const platformShellHtml = `<!doctype html>
         }))];
         const error = new Error(historicalImportFailureMessage(preview));
         error.ownerMappingNeeds = ownerMappingNeeds;
+        error.teamCountMismatch = (batch.blockers || []).some(blocker => blocker.code === "team_count_mismatch");
         throw error;
       }
       if (!["previewed", "committed", "superseded"].includes(batch.status) || !batch.id) {
@@ -4735,16 +4787,22 @@ export const platformShellHtml = `<!doctype html>
       if (!select) return;
       const item = state.historicalImportFiles.find(candidate => candidate.id === select.dataset.historicalOwnerFile);
       if (!item) return;
-      item.ownerMappings = (item.ownerMappings || [])
-        .filter(mapping => mapping.sourceOwnerOrTeamLabel !== select.dataset.historicalOwnerLabel);
+      const normalizedLabel = normalizeHistoricalOwnerLabel(select.dataset.historicalOwnerLabel);
+      state.sharedHistoricalOwnerMappings.delete(normalizedLabel);
       if (select.value) {
-        item.ownerMappings.push({
+        state.sharedHistoricalOwnerMappings.set(normalizedLabel, {
           sourceOwnerOrTeamLabel: select.dataset.historicalOwnerLabel,
           teamId: select.value,
         });
       }
+      state.historicalImportFiles.forEach(candidate => {
+        candidate.ownerMappings = historicalOwnerMappingsFor(candidate);
+      });
       const allMapped = item.ownerMappingNeeds.every(sourceLabel =>
-        item.ownerMappings.some(mapping => mapping.sourceOwnerOrTeamLabel === sourceLabel && mapping.teamId)
+        historicalOwnerMappingsFor(item).some(mapping =>
+          normalizeHistoricalOwnerLabel(mapping.sourceOwnerOrTeamLabel)
+            === normalizeHistoricalOwnerLabel(sourceLabel) && mapping.teamId
+        )
       );
       item.status = allMapped ? "ready" : "error";
       item.message = allMapped ? "Team names matched. Ready to import." : "Match every historical team name below.";
@@ -4756,6 +4814,7 @@ export const platformShellHtml = `<!doctype html>
       const button = event.target.closest("button[data-historical-remove]");
       if (!button) return;
       state.historicalImportFiles = state.historicalImportFiles.filter(item => item.id !== button.dataset.historicalRemove);
+      if (state.historicalImportFiles.length === 0) state.sharedHistoricalOwnerMappings.clear();
       renderHistoricalImportFiles();
       historicalImportStatus.textContent = historicalImportQueueIssue()
         || (state.historicalImportFiles.length > 0
@@ -4824,8 +4883,13 @@ export const platformShellHtml = `<!doctype html>
             .filter(record => Number.isFinite(record.publicPriceDollars)).length;
         } catch (error) {
           item.status = "error";
-          item.ownerMappingNeeds = Array.isArray(error.ownerMappingNeeds) ? error.ownerMappingNeeds : [];
-          item.message = item.ownerMappingNeeds.length > 0
+          item.ownerMappingNeeds = error.teamCountMismatch
+            ? []
+            : Array.isArray(error.ownerMappingNeeds) ? error.ownerMappingNeeds : [];
+          item.ownerMappings = historicalOwnerMappingsFor(item);
+          item.message = error.teamCountMismatch
+            ? "This file does not match the current league's team count."
+            : item.ownerMappingNeeds.length > 0
             ? "Match " + itemCountLabel(item.ownerMappingNeeds.length, "historical team name") + " below, then import again."
             : error.message;
         }

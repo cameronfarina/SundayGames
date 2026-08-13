@@ -33,8 +33,10 @@ export class HistoricalImportTargetError extends Error {
 
 export type HistoricalImportIssueCode =
   | "season_missing"
+  | "team_count_mismatch"
   | "owner_unknown"
   | "owner_ambiguous"
+  | "owner_mapping_not_one_to_one"
   | "owner_fuzzy_match"
   | "position_invalid"
   | "player_missing"
@@ -186,6 +188,7 @@ export interface PreviewHistoricalImportBatchInput {
   uploadedByUserId?: string;
   replacementRequested?: boolean;
   ownerMappings?: readonly HistoricalOwnerMapping[];
+  requireCompleteTeamMapping?: boolean;
   rows: readonly NormalizedHistoricalImportRow[];
   now?: Date;
 }
@@ -876,6 +879,7 @@ export const previewHistoricalImportBatch = async ({
   uploadedByUserId,
   replacementRequested = false,
   ownerMappings = [],
+  requireCompleteTeamMapping = false,
   rows,
   now = new Date(),
 }: PreviewHistoricalImportBatchInput): Promise<HistoricalImportBatch> => {
@@ -921,6 +925,47 @@ export const previewHistoricalImportBatch = async ({
       replacementRequested,
       createdAt: batchCreatedAt,
       blockers: [issue("season_missing", "blocker", blockerMessage)],
+      warnings: [],
+      rows: rows.map(importRow => ({
+        rowNumber: importRow.sourceRowNumber,
+        status: "blocked",
+        blockers: [],
+        warnings: [],
+        record: null,
+        identityAudit: {
+          sourceOwnerOrTeamLabel: importRow.ownerDisplayName?.trim() ?? "",
+          resolution: "unresolved",
+        },
+      })),
+    });
+  }
+
+  const distinctHistoricalTeams = new Map<string, string>();
+  for (const importRow of rows) {
+    const sourceLabel = importRow.ownerDisplayName?.trim() ?? "";
+    const normalizedLabel = normalizeIdentityLabel(sourceLabel);
+    if (normalizedLabel.length > 0 && !distinctHistoricalTeams.has(normalizedLabel)) {
+      distinctHistoricalTeams.set(normalizedLabel, sourceLabel);
+    }
+  }
+  if (requireCompleteTeamMapping && distinctHistoricalTeams.size !== season.teams.length) {
+    const teamCountBlocker = issue(
+      "team_count_mismatch",
+      "blocker",
+      `This draft file contains ${distinctHistoricalTeams.size} teams, but the current league has ${season.teams.length} teams.`,
+    );
+
+    return await persistBatch({
+      id: batchId,
+      leagueId,
+      leagueSeasonId: season.id,
+      seasonYear,
+      fileHash,
+      ...(batchUploader === undefined ? {} : { uploadedByUserId: batchUploader }),
+      status: "blocked",
+      replacementRequested,
+      createdAt: batchCreatedAt,
+      blockers: [teamCountBlocker],
       warnings: [],
       rows: rows.map(importRow => ({
         rowNumber: importRow.sourceRowNumber,
@@ -1111,7 +1156,28 @@ export const previewHistoricalImportBatch = async ({
       issue("player_duplicate", "blocker", "Player appears more than once in this league season import.", rowPreview.rowNumber),
     );
   });
-  const blockers = rowPreviews.flatMap(rowPreview => rowPreview.blockers);
+  const resolvedTeamByHistoricalLabel = new Map<string, string>();
+  for (const rowPreview of rowPreviews) {
+    const normalizedLabel = normalizeIdentityLabel(rowPreview.identityAudit?.sourceOwnerOrTeamLabel);
+    const mappedTeamId = rowPreview.identityAudit?.mappedTeamId;
+    if (normalizedLabel.length > 0 && mappedTeamId !== undefined) {
+      resolvedTeamByHistoricalLabel.set(normalizedLabel, mappedTeamId);
+    }
+  }
+  const resolvedCurrentTeamIds = [...resolvedTeamByHistoricalLabel.values()];
+  const ownerMappingBlockers = requireCompleteTeamMapping
+    && resolvedTeamByHistoricalLabel.size === distinctHistoricalTeams.size
+    && new Set(resolvedCurrentTeamIds).size !== resolvedCurrentTeamIds.length
+    ? [issue(
+        "owner_mapping_not_one_to_one",
+        "blocker",
+        "Each historical team must map to a different current team.",
+      )]
+    : [];
+  const blockers = [
+    ...ownerMappingBlockers,
+    ...rowPreviews.flatMap(rowPreview => rowPreview.blockers),
+  ];
   const actualSpend = rowPreviews.reduce(
     (total, rowPreview) => total + (rowPreview.record?.priceDollars ?? 0),
     0,

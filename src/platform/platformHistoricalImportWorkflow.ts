@@ -26,6 +26,7 @@ export interface PreviewHistoricalImportSourceWorkflowInput {
   replacementRequested?: boolean;
   playerCatalog?: readonly HistoricalImportPlayerCatalogEntry[];
   ownerMappings?: readonly HistoricalOwnerMapping[];
+  requireCompleteTeamMapping?: boolean;
   playerMappings?: readonly HistoricalPlayerMapping[];
   now?: Date;
 }
@@ -79,6 +80,7 @@ export const previewHistoricalImportSourceWorkflow = async ({
   replacementRequested,
   playerCatalog,
   ownerMappings,
+  requireCompleteTeamMapping,
   playerMappings,
   now,
 }: PreviewHistoricalImportSourceWorkflowInput): Promise<PreviewHistoricalImportSourceWorkflowResult> => {
@@ -105,6 +107,7 @@ export const previewHistoricalImportSourceWorkflow = async ({
     ...(uploadedByUserId === undefined ? {} : { uploadedByUserId }),
     ...(replacementRequested === undefined ? {} : { replacementRequested }),
     ...(ownerMappings === undefined ? {} : { ownerMappings }),
+    ...(requireCompleteTeamMapping === undefined ? {} : { requireCompleteTeamMapping }),
     ...(now === undefined ? {} : { now }),
   });
 

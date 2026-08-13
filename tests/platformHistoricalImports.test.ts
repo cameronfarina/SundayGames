@@ -35,6 +35,25 @@ const row = (
 };
 
 describe("platform historical imports", () => {
+  const rowsForHistoricalTeams = (
+    labels: readonly string[],
+    seasonYear: number,
+  ): NormalizedHistoricalImportRow[] => labels.map((ownerDisplayName, index) => ({
+    sourceRowNumber: index + 2,
+    seasonYear,
+    ownerDisplayName,
+    playerName: `Historical Player ${seasonYear}-${index + 1}`,
+    playerId: `historical-player-${seasonYear}-${index + 1}`,
+    position: "WR",
+    priceDollars: 1,
+    playerResolution: {
+      status: "resolved",
+      playerId: `historical-player-${seasonYear}-${index + 1}`,
+    },
+    keeper: false,
+    acquisitionType: "auction",
+  }));
+
   it("creates a preview batch from normalized rows", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
 
@@ -80,6 +99,99 @@ describe("platform historical imports", () => {
         }),
       }),
     ]);
+  });
+
+  it("rejects a 14-team historical file before offering mappings for a four-team league", async () => {
+    const fourTeamSeason = {
+      ...leagueSeason,
+      teams: leagueSeason.teams.slice(0, 4),
+    };
+    const repository = new InMemoryHistoricalImportRepository([fourTeamSeason]);
+    const historicalLabels = Array.from({ length: 14 }, (_, index) => `Old Team ${index + 1}`);
+
+    const batch = await previewHistoricalImportBatch({
+      repository,
+      leagueId: fourTeamSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:fourteen-into-four",
+      requireCompleteTeamMapping: true,
+      rows: rowsForHistoricalTeams(historicalLabels, 2025),
+      now,
+    });
+
+    expect(batch.status).toBe("blocked");
+    expect(batch.blockers).toEqual([
+      expect.objectContaining({
+        code: "team_count_mismatch",
+        message: "This draft file contains 14 teams, but the current league has 4 teams.",
+      }),
+    ]);
+    expect(batch.rows.flatMap(batchRow => batchRow.blockers)).toEqual([]);
+  });
+
+  it("requires historical team mappings to target every current team exactly once", async () => {
+    const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
+    const historicalLabels = leagueSeason.teams.map((_, index) => `Legacy Team ${index + 1}`);
+    const ownerMappings = historicalLabels.map((sourceOwnerOrTeamLabel, index) => ({
+      sourceOwnerOrTeamLabel,
+      teamId: leagueSeason.teams[index === 1 ? 0 : index]?.id ?? "missing-team",
+    }));
+
+    const batch = await previewHistoricalImportBatch({
+      repository,
+      leagueId: leagueSeason.leagueId,
+      seasonYear: 2025,
+      fileHash: "sha256:duplicate-team-target",
+      ownerMappings,
+      requireCompleteTeamMapping: true,
+      rows: rowsForHistoricalTeams(historicalLabels, 2025),
+      now,
+    });
+
+    expect(batch.status).toBe("blocked");
+    expect(batch.blockers).toContainEqual(expect.objectContaining({
+      code: "owner_mapping_not_one_to_one",
+      message: "Each historical team must map to a different current team.",
+    }));
+  });
+
+  it("accepts one normalized 14-team mapping set across multiple historical years", async () => {
+    const currentSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      seasonYear: 2026,
+      setupStatus: "draft",
+    });
+    const repository = new InMemoryHistoricalImportRepository([currentSeason]);
+    const mappingLabels = currentSeason.teams.map((_, index) => ` Legacy Team ${index + 1} `);
+    const ownerMappings = mappingLabels.map((sourceOwnerOrTeamLabel, index) => ({
+      sourceOwnerOrTeamLabel,
+      teamId: currentSeason.teams[index]?.id ?? "missing-team",
+    }));
+
+    for (const seasonYear of [2024, 2025]) {
+      const sourceLabels = mappingLabels.map(label => label.trim().toUpperCase().replaceAll(" ", "   "));
+      const batch = await previewHistoricalImportBatch({
+        repository,
+        leagueId: currentSeason.leagueId,
+        seasonYear,
+        seasonContext: { currentLeagueSeason: currentSeason },
+        fileHash: `sha256:normalized-mappings-${seasonYear}`,
+        ownerMappings,
+        requireCompleteTeamMapping: true,
+        rows: rowsForHistoricalTeams(sourceLabels, seasonYear),
+        now,
+      });
+
+      expect(batch.status).toBe("previewed");
+      expect(batch.blockers).toEqual([]);
+      expect(new Set(batch.rows.map(batchRow => batchRow.record?.ownerId))).toHaveLength(14);
+      const committed = await commitHistoricalImportBatch({
+        repository,
+        batchId: batch.id,
+        now,
+      });
+      expect(committed.status).toBe("committed");
+    }
+    expect(repository.records()).toHaveLength(28);
   });
 
   it("blocks commit for missing season, invalid rows, duplicates, and unresolved required players", async () => {

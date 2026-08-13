@@ -309,6 +309,7 @@ export interface PreviewPlatformHistoricalImportInput {
   replacementRequested?: boolean | undefined;
   playerCatalog?: readonly HistoricalImportPlayerCatalogEntry[] | undefined;
   ownerMappings?: readonly HistoricalOwnerMapping[] | undefined;
+  requireCompleteTeamMapping?: boolean | undefined;
   playerMappings?: readonly HistoricalPlayerMapping[] | undefined;
   now?: Date | undefined;
 }
@@ -1554,6 +1555,9 @@ export const createPlatformApp = ({
         ...(input.replacementRequested === undefined ? {} : { replacementRequested: input.replacementRequested }),
         ...(input.playerCatalog === undefined ? {} : { playerCatalog: input.playerCatalog }),
         ...(input.ownerMappings === undefined ? {} : { ownerMappings: input.ownerMappings }),
+        ...(input.requireCompleteTeamMapping === undefined
+          ? {}
+          : { requireCompleteTeamMapping: input.requireCompleteTeamMapping }),
         ...(input.playerMappings === undefined ? {} : { playerMappings: input.playerMappings }),
         ...(input.now === undefined ? {} : { now: input.now }),
       }));

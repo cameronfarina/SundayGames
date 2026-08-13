@@ -1173,6 +1173,7 @@ const routeSeasonHistoricalImports = async (
     replacementRequested: optionalBoolean(request.body.replacementRequested),
     ...(historicalSetup === null ? {} : { playerCatalog: historicalSetup.playerCatalog }),
     ownerMappings: historicalOwnerMappingsFrom(request.body.ownerMappings),
+    requireCompleteTeamMapping: optionalBoolean(request.body.requireCompleteTeamMapping),
     playerMappings: historicalPlayerMappingsFrom(request.body.playerMappings),
     now: request.now,
   });

@@ -172,7 +172,12 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("Draft history is saved. Market now blends baseline projections with up to three years of open-auction sales; keeper rows are excluded. Files with same-season public/AAV values also improve player-level estimates.");
     expect(platformShellHtml).toContain("Public/AAV values affect league calibration only within the three-year window ending with the latest imported draft season.");
     expect(platformShellHtml).toContain("Match historical team names");
-    expect(platformShellHtml).toContain("ownerMappings: item.ownerMappings || []");
+    expect(platformShellHtml).toContain("normalizeHistoricalOwnerLabel");
+    expect(platformShellHtml).toContain("sharedHistoricalOwnerMappings");
+    expect(platformShellHtml).toContain("ownerMappings: historicalOwnerMappingsFor(item)");
+    expect(platformShellHtml).toContain("requireCompleteTeamMapping: true");
+    expect(platformShellHtml).toContain("historicalOwnerMappingAlreadyRendered");
+    expect(platformShellHtml).toContain("This file does not match the current league's team count.");
     expect(platformShellHtml).toContain("inferFirstRosterRowAsKeeper: historicalRowOneKeepersInput.checked");
     expect(platformShellHtml).toContain('blocker.code === "owner_unknown" || blocker.code === "owner_ambiguous"');
     expect(platformShellHtml).toContain('select.dataset.historicalOwnerFile = item.id');
