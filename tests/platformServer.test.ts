@@ -1227,6 +1227,17 @@ const textFetch = async (
 };
 
 describe("platform server composition", () => {
+  it("publishes live-room revisions produced by reopen mutations", () => {
+    expect(liveDraftRoomRevisionNotificationFor({
+      method: "POST",
+      path: "/live-rooms/room_2026/reopen",
+      body: {},
+    }, {
+      status: 200,
+      body: { room: { roomId: "room_2026", revision: 7 } },
+    })).toEqual({ roomId: "room_2026", revision: 7 });
+  });
+
   it("publishes live-room revisions produced by keeper mutations", () => {
     expect(liveDraftRoomRevisionNotificationFor({
       method: "POST",

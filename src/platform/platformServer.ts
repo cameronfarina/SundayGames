@@ -208,6 +208,7 @@ const liveRoomMutationActions = new Set([
   "start",
   "pause",
   "resume",
+  "reopen",
   "sales",
   "sale",
   "corrections",
