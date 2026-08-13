@@ -57,6 +57,7 @@ import {
   leagueSeasonSetupRevision,
 } from "./leagueSetup.js";
 import {
+  assertHostedLiveDraftRoomFormat,
   InMemoryLiveDraftRoomRepository,
   LiveDraftRoomError,
   type CreateLiveDraftRoomInput,
@@ -1825,6 +1826,7 @@ export const createPlatformApp = ({
       const account = await requireAccount(input.actorSessionToken, input.now);
       const season = await requireSeason(input.seasonId);
       await requireSharedMutation(account, season.leagueId);
+      assertHostedLiveDraftRoomFormat(season);
 
       return cloneForRead(await liveDraftRooms.createRoom({
         season,

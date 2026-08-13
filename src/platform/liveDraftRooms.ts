@@ -40,6 +40,7 @@ export type LiveDraftRoomErrorCode =
   | "roster_full"
   | "sale_not_active"
   | "season_not_ready"
+  | "snake_live_room_unavailable"
   | "stale_revision"
   | "team_not_found";
 
@@ -416,7 +417,17 @@ const assertPositiveWholeDollar = (
   }
 };
 
+export const assertHostedLiveDraftRoomFormat = (season: LeagueSeason): void => {
+  if (season.settings.draftFormat === "snake") {
+    throw new LiveDraftRoomError(
+      "snake_live_room_unavailable",
+      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+    );
+  }
+};
+
 const assertSeasonReady = (season: LeagueSeason): void => {
+  assertHostedLiveDraftRoomFormat(season);
   const readiness = assessLeagueSeasonReadiness(season);
   const unsupportedSlot = analyzeRosterSlots(season.settings.roster.lineup).unsupportedSlots[0];
 

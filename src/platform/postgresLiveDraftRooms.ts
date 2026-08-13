@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  assertHostedLiveDraftRoomFormat,
   InMemoryLiveDraftRoomRepository,
   LiveDraftRoomError,
   type CorrectLiveDraftRoomSaleInput,
@@ -418,6 +419,8 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
   ) {}
 
   async createRoom(input: CreateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+    assertHostedLiveDraftRoomFormat(input.season);
+
     return await this.client.transaction(async client => {
       const existingRoom = await latestRoomSnapshot(client, input.roomId);
       if (existingRoom !== undefined) {

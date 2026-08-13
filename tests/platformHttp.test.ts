@@ -12,7 +12,10 @@ import {
   defaultScoringSettings,
   type LeagueSeason,
 } from "../src/platform/leagueSeason.js";
-import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import {
+  InMemoryLiveDraftRoomRepository,
+  type LiveDraftRoomPlayerCatalogEntry,
+} from "../src/platform/liveDraftRooms.js";
 import { InMemoryLiveDraftRoomSetupRepository } from "../src/platform/liveDraftRoomSetups.js";
 import { postDraftScoringSettingsIdForSeason } from "../src/platform/postDraftLiveRoomAdapter.js";
 import {
@@ -467,6 +470,62 @@ describe("platform HTTP contract", () => {
         ]),
       },
     });
+  });
+
+  it("returns a typed conflict without persisting a snake hosted room through provisioning", async () => {
+    const liveDraftRoomRepository = new InMemoryLiveDraftRoomRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      liveDraftRoomRepository,
+      simulationRunner: mockRunner,
+    });
+    const handle = createPlatformHttpHandler(app, {
+      allowPublicSignup: true,
+      provisioningToken: "test-provisioning-token",
+    });
+    const cam = await createLoggedInAccount(handle, "snake-hosted-room@example.com");
+    const season = snakeSeason();
+
+    await handle({
+      method: "PUT",
+      path: `/seasons/${season.id}`,
+      sessionToken: cam.sessionToken,
+      body: {
+        season,
+        memberships: [{
+          userId: cam.account.id,
+          leagueId: season.leagueId,
+          role: "owner",
+          ownerId: season.teams[0]?.ownerId,
+          teamId: season.teams[0]?.id,
+        }],
+      },
+    });
+
+    const response = await handle({
+      method: "POST",
+      path: "/live-rooms",
+      sessionToken: cam.sessionToken,
+      headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
+      body: {
+        seasonId: season.id,
+        roomId: "room_snake",
+        viewerPasswordHashRef: "viewer-password-hash",
+        playerCatalog: snakePlayerCatalog,
+        now,
+      },
+    });
+
+    expect(response).toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "snake_live_room_unavailable",
+          message: "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+        },
+      },
+    });
+    expect(liveDraftRoomRepository.rooms()).toEqual([]);
   });
 
   it("keeps league Market and strategy values separate from auction-pool allocation", async () => {

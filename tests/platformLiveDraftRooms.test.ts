@@ -27,6 +27,26 @@ const publishedSeason = (): LeagueSeason =>
     leagueName: "Sunday league",
   });
 
+const publishedSnakeSeason = (): LeagueSeason => {
+  const season = publishedSeason();
+
+  return {
+    ...season,
+    settings: {
+      expectedTeamCount: season.settings.expectedTeamCount,
+      draftFormat: "snake",
+      scoring: season.settings.scoring,
+      snake: {
+        rounds: season.settings.roster.rosterSize,
+        order: season.teams.map(team => team.id),
+        reversal: "standard",
+      },
+      roster: season.settings.roster,
+      keeperPolicy: season.settings.keeperPolicy,
+    },
+  };
+};
+
 const createRoom = (
   repository = new InMemoryLiveDraftRoomRepository(),
   options: Partial<Parameters<InMemoryLiveDraftRoomRepository["createRoom"]>[0]> = {},
@@ -61,6 +81,19 @@ const teamByOwner = (season: LeagueSeason, ownerDisplayName: string) => {
 };
 
 describe("live draft rooms", () => {
+  it("rejects snake hosted rooms before storing a room or creation event", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+
+    expect(() => createRoom(repository, {
+      season: publishedSnakeSeason(),
+      roomId: "room_snake",
+    })).toThrow(new LiveDraftRoomError(
+      "snake_live_room_unavailable",
+      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+    ));
+    expect(repository.rooms()).toEqual([]);
+  });
+
   it("cancels only setup rooms and unlocks their season for replacement", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const room = createRoom(repository);

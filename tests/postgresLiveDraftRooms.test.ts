@@ -452,7 +452,48 @@ const publishedSeason = (): LeagueSeason =>
     leagueName: "Sunday league",
   });
 
+const publishedSnakeSeason = (): LeagueSeason => {
+  const season = publishedSeason();
+
+  return {
+    ...season,
+    settings: {
+      expectedTeamCount: season.settings.expectedTeamCount,
+      draftFormat: "snake",
+      scoring: season.settings.scoring,
+      snake: {
+        rounds: season.settings.roster.rosterSize,
+        order: season.teams.map(team => team.id),
+        reversal: "standard",
+      },
+      roster: season.settings.roster,
+      keeperPolicy: season.settings.keeperPolicy,
+    },
+  };
+};
+
 describe("Postgres live draft rooms", () => {
+  it("rejects snake hosted rooms before opening a transaction or writing rows", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+
+    await expect(repository.createRoom({
+      season: publishedSnakeSeason(),
+      roomId: "room_snake",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "snake_live_room_unavailable",
+      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+    ));
+    expect(client.queries).toEqual([]);
+    expect(client.rooms.size).toBe(0);
+    expect(client.events).toEqual([]);
+    expect(client.snapshots).toEqual([]);
+  });
+
   it("persists idempotent keeper and catalog synchronization until the room starts", async () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);

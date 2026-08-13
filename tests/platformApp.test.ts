@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { MockBatch } from "../src/modeling/mockBatch.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type {
   DraftExportArtifactResult,
   ExportArtifact,
@@ -20,6 +20,7 @@ import type {
 } from "../src/platform/leagueSetup.js";
 import {
   InMemoryLiveDraftRoomRepository,
+  LiveDraftRoomError,
   type CreateLiveDraftRoomInput,
   type LiveDraftRoom,
   type LiveDraftRoomPlayerCatalogEntry,
@@ -82,6 +83,22 @@ const signUpAndLogin = async (
   return login;
 };
 
+const asSnakeSeason = (season: LeagueSeason): LeagueSeason => ({
+  ...season,
+  settings: {
+    expectedTeamCount: season.settings.expectedTeamCount,
+    draftFormat: "snake",
+    scoring: season.settings.scoring,
+    snake: {
+      rounds: season.settings.roster.rosterSize,
+      order: season.teams.map(team => team.id),
+      reversal: "standard",
+    },
+    roster: season.settings.roster,
+    keeperPolicy: season.settings.keeperPolicy,
+  },
+});
+
 class AsyncLeagueSetupRepository implements LeagueSetupRepository {
   readonly inner = new InMemoryPlatformStore();
   readonly registerInputs: RegisterLeagueSeasonRepositoryInput[] = [];
@@ -123,8 +140,10 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
 
 class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
   readonly inner = new InMemoryLiveDraftRoomRepository();
+  readonly createInputs: CreateLiveDraftRoomInput[] = [];
 
   async createRoom(input: CreateLiveDraftRoomInput) {
+    this.createInputs.push(structuredClone(input));
     return this.inner.createRoom(input);
   }
 
@@ -1484,6 +1503,44 @@ describe("platform app service", () => {
     });
     expect(artifactResult.content.toString("utf8")).toContain("Puka Nacua,62");
     expect(replayedArtifactResult).toEqual(artifactResult);
+  });
+
+  it("rejects snake hosted rooms before delegating creation to the repository", async () => {
+    const liveDraftRoomRepository = new AsyncLiveDraftRoomRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      liveDraftRoomRepository,
+      simulationRunner: mockRunner,
+    });
+    const cam = await signUpAndLogin(app, "cam-snake-room@example.com", "cam password", now);
+    const season = asSnakeSeason(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Snake League",
+      setupStatus: "published",
+    }));
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+
+    await app.registerLeagueSeason({
+      actorSessionToken: cam.sessionToken,
+      season,
+      memberships: [
+        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+
+    await expect(app.createLiveDraftRoom({
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      roomId: "room_snake",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    })).rejects.toThrow(new LiveDraftRoomError(
+      "snake_live_room_unavailable",
+      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+    ));
+    expect(liveDraftRoomRepository.createInputs).toEqual([]);
+    expect(liveDraftRoomRepository.inner.rooms()).toEqual([]);
   });
 
   it("cancels a setup room idempotently so league setup can resume and the room can be recreated", async () => {
