@@ -177,6 +177,11 @@ export interface ClaimLeagueSeasonTeamInput {
   now?: Date | undefined;
 }
 
+export interface JoinInvitedLeagueSeasonTeamInput extends ClaimLeagueSeasonTeamInput {
+  role: PlatformLeagueMembership["role"];
+  invitationTokenHash: string;
+}
+
 export interface GetLeagueSeasonInput {
   actorSessionToken: string;
   seasonId: string;
@@ -619,6 +624,46 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.#membershipsByUserAndLeague.set(membershipKey, claimedMembership);
 
     return cloneForRead(claimedMembership);
+  }
+
+  joinLeagueSeasonTeam(input: {
+    seasonId: string;
+    leagueId: string;
+    userId: string;
+    ownerId: string;
+    teamId: string;
+    role: PlatformLeagueMembership["role"];
+    now?: Date | undefined;
+  }): PlatformLeagueMembership | null {
+    const season = this.#leagueSeasonsById.get(input.seasonId);
+    if (season === undefined || season.leagueId !== input.leagueId) return null;
+    const team = season.teams.find(candidate =>
+      candidate.id === input.teamId && candidate.ownerId === input.ownerId
+    );
+    if (team === undefined) return null;
+
+    const membershipKey = membershipKeyFor(input.userId, input.leagueId);
+    const existingMembership = this.#membershipsByUserAndLeague.get(membershipKey);
+    if (
+      existingMembership?.teamId !== undefined &&
+      (existingMembership.teamId !== input.teamId || existingMembership.ownerId !== input.ownerId)
+    ) return null;
+    const claimedByOther = [...this.#membershipsByUserAndLeague.values()].some(candidate =>
+      candidate.leagueId === input.leagueId &&
+      candidate.userId !== input.userId &&
+      candidate.teamId === input.teamId
+    );
+    if (claimedByOther) return null;
+
+    const membership: PlatformLeagueMembership = {
+      userId: input.userId,
+      leagueId: input.leagueId,
+      role: existingMembership?.role ?? input.role,
+      ownerId: input.ownerId,
+      teamId: input.teamId,
+    };
+    this.#membershipsByUserAndLeague.set(membershipKey, membership);
+    return cloneForRead(membership);
   }
 
   findLeagueSeason(seasonId: string): LeagueSeason | null {
@@ -1195,6 +1240,52 @@ export const createPlatformApp = ({
         });
       }
 
+      return cloneForRead(membership);
+    },
+
+    joinInvitedLeagueSeasonTeam: async (
+      input: JoinInvitedLeagueSeasonTeamInput,
+    ): Promise<PlatformLeagueMembership> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      const season = await requireSeason(input.seasonId);
+      const team = season.teams.find(candidate =>
+        candidate.id === input.teamId && candidate.ownerId === input.ownerId
+      );
+      if (team === undefined) {
+        throw new PlatformAppError("team_not_found", "Team was not found in this league season.");
+      }
+      const currentMembership = await leagueSetup.findMembership(account.id, season.leagueId);
+      if (
+        currentMembership?.teamId !== undefined &&
+        (currentMembership.teamId !== team.id || currentMembership.ownerId !== team.ownerId)
+      ) {
+        throw new PlatformAppError("team_already_claimed", "Your account already has a team in this league.");
+      }
+
+      const membership = await leagueSetup.joinLeagueSeasonTeam({
+        seasonId: season.id,
+        leagueId: season.leagueId,
+        userId: account.id,
+        ownerId: team.ownerId,
+        teamId: team.id,
+        role: input.role,
+        invitationTokenHash: input.invitationTokenHash,
+        now: input.now,
+      });
+      if (membership === null) {
+        throw new PlatformAppError("team_already_claimed", "That team is already claimed.");
+      }
+      if (usesExternalLeagueSetup) {
+        store.joinLeagueSeasonTeam({
+          seasonId: season.id,
+          leagueId: season.leagueId,
+          userId: account.id,
+          ownerId: team.ownerId,
+          teamId: team.id,
+          role: membership.role,
+          now: input.now,
+        });
+      }
       return cloneForRead(membership);
     },
 

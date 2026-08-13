@@ -132,6 +132,7 @@ export interface CreatePlatformServerOptions {
     now: Date,
   ) => Promise<PostDraftProjectionSnapshot>) | undefined;
   provisioningToken?: string | undefined;
+  invitationTokenSecret?: string | undefined;
   allowPublicSignup?: boolean | undefined;
   emailVerificationRequired?: boolean | undefined;
   authMailSender?: AuthMailSender | undefined;
@@ -992,7 +993,9 @@ export const createPlatformServer = async (
     });
     const applyAcceptedMembership = invitationRepository === postgresInvitationRepository
       ? undefined
-      : async (result: AcceptedPlatformInvitation): Promise<void> => {
+      : async (
+          result: AcceptedPlatformInvitation,
+        ): Promise<void> => {
           const season = await leagueSetupRepository.findLeagueSeason(result.invitation.seasonId);
           if (season === null) {
             throw new Error("The invited league season no longer exists.");
@@ -1021,6 +1024,7 @@ export const createPlatformServer = async (
       app,
       platformHandler: createPlatformHttpHandler(app, {
         invitationRepository,
+        leagueSetupRepository,
         onboardingRepository,
         ...(options.currentPlayerCatalogProvider === undefined
           ? {}
@@ -1034,6 +1038,9 @@ export const createPlatformServer = async (
           ? {}
           : { postDraftProjectionProvider: options.postDraftProjectionProvider }),
         ...(options.provisioningToken === undefined ? {} : { provisioningToken: options.provisioningToken }),
+        ...(options.invitationTokenSecret === undefined
+          ? {}
+          : { invitationTokenSecret: options.invitationTokenSecret }),
         ...(options.allowPublicSignup === undefined ? {} : { allowPublicSignup: options.allowPublicSignup }),
         ...(options.emailVerificationRequired === undefined
           ? {}

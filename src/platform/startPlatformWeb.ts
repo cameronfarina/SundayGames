@@ -136,6 +136,7 @@ export const startPlatformWebFromEnv = async (
       ...(config.authEmail.publicBaseUrl === undefined ? {} : { publicBaseUrl: config.authEmail.publicBaseUrl }),
       trustProxy: config.trustProxy,
       provisioningToken: config.provisioningToken,
+      invitationTokenSecret: config.invitationTokenSecret,
       screenshotImportBodyLimitBytes:
         Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
       currentPlayerCatalogProvider: loadCurrentPlayerCatalog,

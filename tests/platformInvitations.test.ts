@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   acceptPlatformInvitation,
+  derivePlatformLeagueInvitationToken,
   hashPlatformInvitationToken,
   InMemoryPlatformInvitationRepository,
   issuePlatformInvitation,
+  issuePlatformLeagueInvitation,
+  joinPlatformLeagueInvitation,
   listPlatformInvitations,
   PlatformInvitationError,
   reissuePlatformInvitation,
@@ -12,6 +15,7 @@ import {
 
 const now = new Date("2026-08-10T12:00:00.000Z");
 const expiresAt = new Date("2026-08-17T12:00:00.000Z");
+const leagueTokenSecret = "test-invitation-secret-at-least-32-characters";
 
 const invitationInput = {
   leagueId: "league_1",
@@ -28,6 +32,91 @@ const invitationInput = {
 };
 
 describe("platform invitations", () => {
+  it("issues one reusable league invitation for multiple accounts", async () => {
+    const repository = new InMemoryPlatformInvitationRepository();
+    const issued = await issuePlatformLeagueInvitation(repository, {
+      leagueId: "league_1",
+      seasonId: "season_2026",
+      invitedByUserId: "acct_cam",
+      now,
+      expiresAt,
+    }, {
+      idFactory: () => "invite_league_1",
+      leagueTokenSecret,
+    });
+    const token = derivePlatformLeagueInvitationToken("invite_league_1", leagueTokenSecret);
+
+    expect(issued).toMatchObject({
+      id: "invite_league_1",
+      kind: "league",
+      status: "pending",
+      acceptPath: `/invite?token=${token}`,
+    });
+    expect(issued).not.toHaveProperty("email");
+    expect(issued).not.toHaveProperty("teamId");
+    expect(token).not.toBe(issued.id);
+    expect(await repository.findByTokenHash(hashPlatformInvitationToken(token))).toMatchObject({
+      id: issued.id,
+      tokenHash: hashPlatformInvitationToken(token),
+    });
+
+    const firstJoin = await joinPlatformLeagueInvitation(repository, {
+      token,
+      account: { id: "acct_seth", email: "seth@example.com" },
+      now: new Date("2026-08-11T12:00:00.000Z"),
+    });
+    const secondJoin = await joinPlatformLeagueInvitation(repository, {
+      token,
+      account: { id: "acct_hoody", email: "hoody@example.com" },
+      now: new Date("2026-08-11T12:01:00.000Z"),
+    });
+
+    expect(firstJoin.membership).toEqual({
+      userId: "acct_seth",
+      leagueId: "league_1",
+      role: "member",
+    });
+    expect(secondJoin.membership).toEqual({
+      userId: "acct_hoody",
+      leagueId: "league_1",
+      role: "member",
+    });
+    expect(await repository.findById("invite_league_1")).toMatchObject({ status: "pending" });
+    expect(await listPlatformInvitations(repository, "season_2026", { leagueTokenSecret })).toEqual([
+      expect.objectContaining({ acceptPath: `/invite?token=${token}` }),
+    ]);
+    expect(await listPlatformInvitations(repository, "season_2026", {
+      leagueTokenSecret: "different-invitation-secret-at-least-32-characters",
+    })).toEqual([expect.not.objectContaining({ acceptPath: expect.anything() })]);
+  });
+
+  it("returns the surviving shared link when commissioners create one concurrently", async () => {
+    const repository = new InMemoryPlatformInvitationRepository();
+    const input = {
+      leagueId: "league_1",
+      seasonId: "season_2026",
+      invitedByUserId: "acct_cam",
+      now,
+      expiresAt,
+    };
+
+    const [first, second] = await Promise.all([
+      issuePlatformLeagueInvitation(repository, input, {
+        idFactory: () => "invite_league_1",
+        leagueTokenSecret,
+      }),
+      issuePlatformLeagueInvitation(repository, input, {
+        idFactory: () => "invite_league_2",
+        leagueTokenSecret,
+      }),
+    ]);
+
+    expect(second).toEqual(first);
+    expect((await repository.listForSeason(input.seasonId)).filter(record =>
+      record.kind === "league" && record.status === "pending"
+    )).toHaveLength(1);
+  });
+
   it("issues an actionable invitation while storing only a token hash", async () => {
     const repository = new InMemoryPlatformInvitationRepository();
     const issued = await issuePlatformInvitation(repository, invitationInput, {
@@ -140,5 +229,71 @@ describe("platform invitations", () => {
     expect(listed).toHaveLength(2);
     expect(listed[0]).not.toHaveProperty("tokenHash");
     expect(listed[0]).not.toHaveProperty("acceptPath");
+  });
+
+  it("keeps one pending replacement when commissioners regenerate concurrently", async () => {
+    const repository = new InMemoryPlatformInvitationRepository();
+    await issuePlatformInvitation(repository, invitationInput, {
+      idFactory: () => "invite_1",
+      tokenFactory: () => "first token",
+    });
+    const replacementInput = {
+      invitationId: "invite_1",
+      invitedByUserId: "acct_cam",
+      now: new Date("2026-08-11T12:00:00.000Z"),
+      expiresAt: new Date("2026-08-18T12:00:00.000Z"),
+    };
+
+    const results = await Promise.allSettled([
+      reissuePlatformInvitation(repository, replacementInput, {
+        idFactory: () => "invite_2",
+        tokenFactory: () => "second token",
+      }),
+      reissuePlatformInvitation(repository, replacementInput, {
+        idFactory: () => "invite_3",
+        tokenFactory: () => "third token",
+      }),
+    ]);
+
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect((await repository.listForSeason("season_2026")).filter(record => record.status === "pending"))
+      .toHaveLength(1);
+  });
+
+  it("returns the surviving shared link when commissioners regenerate concurrently", async () => {
+    const repository = new InMemoryPlatformInvitationRepository();
+    const issued = await issuePlatformLeagueInvitation(repository, {
+      leagueId: "league_1",
+      seasonId: "season_2026",
+      invitedByUserId: "acct_cam",
+      now,
+      expiresAt,
+    }, {
+      idFactory: () => "invite_league_1",
+      leagueTokenSecret,
+    });
+    const replacementInput = {
+      invitationId: issued.id,
+      invitedByUserId: "acct_cam",
+      now: new Date("2026-08-11T12:00:00.000Z"),
+      expiresAt: new Date("2026-09-11T12:00:00.000Z"),
+    };
+
+    const [first, second] = await Promise.all([
+      reissuePlatformInvitation(repository, replacementInput, {
+        idFactory: () => "invite_league_2",
+        leagueTokenSecret,
+      }),
+      reissuePlatformInvitation(repository, replacementInput, {
+        idFactory: () => "invite_league_3",
+        leagueTokenSecret,
+      }),
+    ]);
+
+    expect(second).toEqual(first);
+    expect((await repository.listForSeason("season_2026")).filter(record =>
+      record.kind === "league" && record.status === "pending"
+    )).toHaveLength(1);
   });
 });

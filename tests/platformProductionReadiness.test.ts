@@ -19,6 +19,7 @@ const productionEnv = {
   RESEND_API_KEY: "test-resend-key",
   MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
   MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+  MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
 };
 
 describe("platform production readiness check", () => {
@@ -48,10 +49,11 @@ describe("platform production readiness check", () => {
       label: "Postgres connectivity",
       detail: "Could not connect to the configured Postgres database.",
     });
-    expect(JSON.stringify(report)).not.toContain("secret");
+    expect(JSON.stringify(report)).not.toContain("mockd:secret");
     expect(JSON.stringify(report)).not.toContain("database.invalid");
     expect(JSON.stringify(report)).not.toContain(productionEnv.OPENAI_API_KEY);
     expect(JSON.stringify(report)).not.toContain(productionEnv.RESEND_API_KEY);
+    expect(JSON.stringify(report)).not.toContain(productionEnv.MOCKD_INVITATION_TOKEN_SECRET);
   });
 
   it("requires every platform migration to be applied", async () => {

@@ -144,7 +144,7 @@ const cleanIdFragment = (value: string): string => {
   return cleanValue.length === 0 ? "smoke" : cleanValue;
 };
 
-const emailFor = (name: "cam" | "seth"): string =>
+const emailFor = (name: "cam" | "seth" | "hoody"): string =>
   smokeRunId === undefined
     ? `${name}.e2e@example.com`
     : `${name}.e2e+${smokeRunId}@${emailDomain}`;
@@ -293,11 +293,11 @@ const teamByOwner = (
   return team;
 };
 
-const setupRowsFor = (camEmail: string, sethEmail: string): string =>
+const setupRowsFor = (camEmail: string): string =>
   [
     "owner,team,email,role",
     ...ownerOrder.map(owner => {
-      const email = owner === "Cam" ? camEmail : owner === "Seth" ? sethEmail : "";
+      const email = owner === "Cam" ? camEmail : "";
       const role = owner === "Cam" ? "admin" : "member";
 
       return `${owner},${owner},${email},${role}`;
@@ -336,22 +336,27 @@ const applyCommissionerSetup = async (
   page: Page,
   season: LeagueSeason,
   camEmail: string,
-  sethEmail: string,
 ): Promise<string> => {
   await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
   await expect(page.locator("#account-menu-email")).toHaveText(camEmail);
   await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
   await page.getByText("Advanced: paste a team list", { exact: true }).click();
-  await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail, sethEmail));
+  await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail));
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.locator("#setup-status")).toHaveText("Ready to apply.");
   await expect(page.locator("#setup-preview-body tr")).toHaveCount(ownerOrder.length);
   await page.getByRole("button", { name: "Apply changes" }).click();
   await expect(page.locator("#setup-status")).toHaveText("League setup updated.");
-  const sethInvitation = page.locator("#setup-invitations .invitation-row").filter({ hasText: sethEmail });
-  await expect(sethInvitation).toContainText("Pending");
-  await sethInvitation.getByRole("button", { name: "Copy invite link" }).click();
-  await expect(page.locator("#setup-status")).toHaveText("Invite link copied.");
+  await page.getByRole("button", { name: "Create league link" }).click();
+  await expect(page.locator("#league-invite-link-row")).toBeVisible();
+  const invitationUrl = await page.locator("#league-invite-link-input").inputValue();
+  expect(invitationUrl).toContain("/invite?token=");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.locator("#invitation-create-status")).toHaveText("League link copied.");
+  await page.reload();
+  await expect(page.locator("#league-invite-link-row")).toBeVisible();
+  await expect(page.locator("#league-invite-link-input")).toHaveValue(invitationUrl);
+  await expect(page.getByRole("button", { name: "Generate new link" })).toBeVisible();
 
   const finalReview = page.locator("#setup-final-review");
   const publishButton = page.getByRole("button", { name: "Publish league" });
@@ -378,7 +383,7 @@ const applyCommissionerSetup = async (
   await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
   await expect(page.getByRole("button", { name: "Create draft room" })).toBeEnabled();
 
-  return await page.evaluate(() => navigator.clipboard.readText());
+  return invitationUrl;
 };
 
 const openUnifiedBoard = async (
@@ -590,18 +595,21 @@ const waitForSaleEvent = async (
 const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace> => {
   const camEmail = emailFor("cam");
   const sethEmail = emailFor("seth");
+  const hoodyEmail = emailFor("hoody");
   const { page: camPage, account: camAccount } = await pageForLocalFixtureUser(browser, camEmail);
   const seedSeason = await seedSeasonFromBrowser(camPage, camAccount);
-  const invitationUrl = await applyCommissionerSetup(camPage, seedSeason, camEmail, sethEmail);
+  const invitationUrl = await applyCommissionerSetup(camPage, seedSeason, camEmail);
   const createdRoom = await createLiveRoomFromSetup(camPage, seedSeason);
   expect(createdRoom.playerCatalog).toHaveLength(500);
   expect(createdRoom.initialRosters).toHaveLength(7);
   const { page: sethPage } = await pageForLocalFixtureUser(browser, sethEmail);
   await sethPage.goto(invitationUrl);
   await expect(sethPage.locator("#invite-workspace")).toBeVisible();
+  const sethTeamRow = sethPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Seth" });
+  await expect(sethTeamRow).toContainText("Seth");
   await Promise.all([
-    sethPage.waitForURL(/\/app\?seasonId=/),
-    sethPage.getByRole("button", { name: "Accept invitation" }).click(),
+    sethPage.waitForURL(/\/league\?seasonId=/),
+    sethTeamRow.getByRole("button", { name: "Join as Seth" }).click(),
   ]);
   const acceptedOnboarding = expectOk(await api<{ leagues: Array<{ membership: PlatformLeagueMembership }> }>(
     sethPage,
@@ -609,13 +617,57 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   ));
   await expect(sethPage.locator("#league-name")).toHaveText(leagueName);
   await expect(sethPage.locator("#my-team-name")).toHaveText("Seth");
+  await sethPage.goto(invitationUrl);
+  await expect(sethPage.locator("#invite-open-league")).toBeVisible();
+  await expect(sethPage.locator("#invite-team-list")).toContainText("Your team");
+  await expect(sethPage.locator("#invite-team-list button")).toHaveCount(0);
+
+  const hoodyContext = await browser.newContext({
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const hoodyPage = await hoodyContext.newPage();
+  await hoodyPage.goto(invitationUrl);
+  await expect(hoodyPage.locator("#auth-panel")).toBeVisible();
+  await expect(hoodyPage.locator("#auth-title")).toHaveText("Join your league");
+  await expect(hoodyPage.locator("#auth-invite-league-name")).toHaveText(leagueName);
+  await expect(hoodyPage.locator("#auth-invite-team-list li")).toHaveCount(ownerOrder.length);
+  await expect(
+    hoodyPage.locator("#auth-invite-team-list li").filter({ hasText: "Seth" }),
+  ).toContainText("Claimed");
+  await hoodyPage.getByRole("link", { name: "Create account" }).click();
+  await expect(hoodyPage).toHaveURL(/\/signup\?returnTo=/);
+  await expect(hoodyPage.locator("#auth-invite-league-name")).toHaveText(leagueName);
+  await hoodyPage.getByLabel("Email", { exact: true }).fill(hoodyEmail);
+  await hoodyPage.getByLabel("Password", { exact: true }).fill(password);
+  await Promise.all([
+    hoodyPage.waitForURL(/\/invite\?token=/),
+    hoodyPage.getByRole("button", { name: "Create account" }).click(),
+  ]);
+  await expect(hoodyPage.locator("#invite-workspace")).toBeVisible();
+  const claimedSethRow = hoodyPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Seth" });
+  await expect(claimedSethRow).toContainText("Claimed");
+  const hoodyTeamRow = hoodyPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Hoody" });
+  await Promise.all([
+    hoodyPage.waitForURL(/\/league\?seasonId=/),
+    hoodyTeamRow.getByRole("button", { name: "Join as Hoody" }).click(),
+  ]);
+  await expect(hoodyPage.locator("#my-team-name")).toHaveText("Hoody");
 
   const appliedSeason = expectOk(await api<SeasonBody>(camPage, `/seasons/${seedSeason.id}`)).season;
-  const sethTeam = teamByOwner(appliedSeason, "Seth");
+  const appliedSethTeam = teamByOwner(appliedSeason, "Seth");
   expect(acceptedOnboarding.leagues[0]?.membership).toMatchObject({
     role: "member",
-    ownerId: sethTeam.ownerId,
-    teamId: sethTeam.id,
+    ownerId: appliedSethTeam.ownerId,
+    teamId: appliedSethTeam.id,
+  });
+  const acceptedHoodyOnboarding = expectOk(await api<{
+    leagues: Array<{ membership: PlatformLeagueMembership }>;
+  }>(hoodyPage, "/onboarding"));
+  const appliedHoodyTeam = teamByOwner(appliedSeason, "Hoody");
+  expect(acceptedHoodyOnboarding.leagues[0]?.membership).toMatchObject({
+    role: "member",
+    ownerId: appliedHoodyTeam.ownerId,
+    teamId: appliedHoodyTeam.id,
   });
 
   return {
@@ -1086,11 +1138,7 @@ test("commissioner league switching discards stale setup fetch responses", async
   }
   expectOk(await api(page, "/invitations", {
     method: "POST",
-    body: { seasonId: seasonA.id, teamId: seasonA.teams[1]?.id, email: "league-a@example.com" },
-  }));
-  expectOk(await api(page, "/invitations", {
-    method: "POST",
-    body: { seasonId: seasonB.id, teamId: seasonB.teams[1]?.id, email: "league-b@example.com" },
+    body: { seasonId: seasonA.id },
   }));
 
   const delay = async (milliseconds: number): Promise<void> => {
@@ -1116,10 +1164,12 @@ test("commissioner league switching discards stale setup fetch responses", async
   await page.goto(`/setup?seasonId=${encodeURIComponent(seasonA.id)}`);
   await expect(page.locator("#header-league-picker")).toHaveValue(seasonA.id);
   await page.locator("#header-league-picker").selectOption(seasonB.id);
-  await expect(page.locator("#setup-invitations")).toContainText("league-b@example.com");
+  await expect(page.locator("#invitation-create-status")).toHaveText("No league link is active yet.");
+  await expect(page.locator("#create-league-invite-button")).toHaveText("Create league link");
   await expect(page.locator("#setup-team-body")).toContainText("League B Cam");
   await delay(400);
-  await expect(page.locator("#setup-invitations")).not.toContainText("league-a@example.com");
+  await expect(page.locator("#invitation-create-status")).toHaveText("No league link is active yet.");
+  await expect(page.locator("#create-league-invite-button")).toHaveText("Create league link");
   await expect(page.locator("#setup-team-body")).not.toContainText("League A Cam");
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);

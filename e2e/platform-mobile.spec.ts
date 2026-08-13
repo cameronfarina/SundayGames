@@ -206,6 +206,82 @@ test.use({
   isMobile: true,
 });
 
+test("shared league invitation stays usable from mobile signup through team selection", async ({ page }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const commissionerEmail = `mobile.invite.commissioner.${namespace}@${emailDomain}`;
+  const memberEmail = `mobile.invite.member.${namespace}@${emailDomain}`;
+  const commissioner = await signUpAndLogIn(page, commissionerEmail);
+  const baseSeason = seasonForMobileRelease();
+  const leagueId = `${baseSeason.leagueId}-invite`;
+  const seasonId = `${baseSeason.id}-invite`;
+  const season: LeagueSeason = {
+    ...baseSeason,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...baseSeason.league,
+      id: leagueId,
+      externalLeagueId: `${baseSeason.league.externalLeagueId}-invite`,
+      name: `${leagueName} Invite`,
+    },
+    teams: baseSeason.teams.map(team => ({
+      ...team,
+      id: `${team.id}-invite`,
+      leagueSeasonId: seasonId,
+    })),
+  };
+  const commissionerTeam = season.teams[0];
+  const memberTeam = season.teams[1];
+  if (commissionerTeam === undefined || memberTeam === undefined) {
+    throw new Error("Expected two mobile invite fixture teams.");
+  }
+  expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
+    body: {
+      season,
+      memberships: [{
+        userId: commissioner.id,
+        leagueId,
+        role: "owner",
+        ownerId: commissionerTeam.ownerId,
+        teamId: commissionerTeam.id,
+      }],
+    },
+  }));
+  const issued = expectOk(await api<{ invitation: { acceptPath: string } }>(page, "/invitations", {
+    method: "POST",
+    body: { seasonId },
+  }));
+
+  await page.locator("#account-menu-button").click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await page.goto(issued.invitation.acceptPath);
+  await expect(page.locator("#auth-title")).toHaveText("Join your league");
+  await expect(page.locator("#auth-invite-league-name")).toHaveText(`${leagueName} Invite`);
+  await expect(page.locator("#auth-invite-team-list li")).toHaveCount(ownerOrder.length);
+  await expectNoHorizontalPageOverflow(page);
+
+  await page.getByRole("link", { name: "Create account" }).click();
+  await page.getByLabel("Email", { exact: true }).fill(memberEmail);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await Promise.all([
+    page.waitForURL(/\/invite\?token=/),
+    page.getByRole("button", { name: "Create account" }).click(),
+  ]);
+  const memberRow = page.locator("#invite-team-list .invite-team-row").filter({
+    hasText: memberTeam.displayName,
+  });
+  await expect(memberRow).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+  await Promise.all([
+    page.waitForURL(/\/league\?seasonId=/),
+    memberRow.getByRole("button", { name: `Join as ${memberTeam.displayName}` }).click(),
+  ]);
+  await expect(page.locator("#my-team-name")).toHaveText(memberTeam.displayName);
+});
+
 test("mobile shell and live draft preserve a commissioner sale through reconnect", async ({ page }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const email = smokeRunId === undefined

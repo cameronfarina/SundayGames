@@ -4,6 +4,7 @@ import type { PostgresQueryClient } from "./postgresPlatformStore.js";
 import type {
   PlatformInvitationRecord,
   PlatformInvitationRepository,
+  PlatformInvitationKind,
   PlatformInvitationStatus,
 } from "./platformInvitations.js";
 import type { WorkspaceRole } from "./workspacePrivacy.js";
@@ -12,12 +13,13 @@ export interface PlatformInvitationPostgresRow {
   id: string;
   league_id: string;
   season_id: string;
-  email_normalized: string;
+  invitation_kind: PlatformInvitationKind;
+  email_normalized: string | null;
   role: WorkspaceRole;
-  owner_id: string;
-  team_id: string;
-  owner_display_name: string;
-  team_display_name: string;
+  owner_id: string | null;
+  team_id: string | null;
+  owner_display_name: string | null;
+  team_display_name: string | null;
   invited_by_user_id: string;
   token_hash: string;
   status: PlatformInvitationStatus;
@@ -33,12 +35,13 @@ CREATE TABLE IF NOT EXISTS league_invitations (
   id text PRIMARY KEY,
   league_id text NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   season_id text NOT NULL REFERENCES league_seasons(id) ON DELETE CASCADE,
-  email_normalized text NOT NULL,
+  invitation_kind text NOT NULL DEFAULT 'team' CHECK (invitation_kind IN ('team', 'league')),
+  email_normalized text,
   role text NOT NULL CHECK (role IN ('owner', 'admin', 'member', 'observer')),
-  owner_id text NOT NULL,
-  team_id text NOT NULL REFERENCES fantasy_teams(id) ON DELETE CASCADE,
-  owner_display_name text NOT NULL,
-  team_display_name text NOT NULL,
+  owner_id text,
+  team_id text REFERENCES fantasy_teams(id) ON DELETE CASCADE,
+  owner_display_name text,
+  team_display_name text,
   invited_by_user_id text NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
   token_hash text NOT NULL UNIQUE,
   status text NOT NULL CHECK (status IN ('pending', 'accepted', 'revoked')),
@@ -47,14 +50,25 @@ CREATE TABLE IF NOT EXISTS league_invitations (
   accepted_by_user_id text REFERENCES accounts(id) ON DELETE SET NULL,
   revoked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT league_invitations_kind_fields_check CHECK (
+    (invitation_kind = 'league' AND email_normalized IS NULL AND owner_id IS NULL AND team_id IS NULL AND owner_display_name IS NULL AND team_display_name IS NULL)
+    OR
+    (invitation_kind = 'team' AND email_normalized IS NOT NULL AND owner_id IS NOT NULL AND team_id IS NOT NULL AND owner_display_name IS NOT NULL AND team_display_name IS NOT NULL)
+  )
 );
 `.trim();
 
 const pendingLeagueInvitationsIndexStatement = `
 CREATE UNIQUE INDEX IF NOT EXISTS league_invitations_pending_team_key
 ON league_invitations (season_id, team_id)
-WHERE status = 'pending';
+WHERE status = 'pending' AND invitation_kind = 'team';
+`.trim();
+
+const pendingLeagueLinkIndexStatement = `
+CREATE UNIQUE INDEX IF NOT EXISTS league_invitations_pending_league_key
+ON league_invitations (season_id)
+WHERE status = 'pending' AND invitation_kind = 'league';
 `.trim();
 
 const leagueInvitationsSeasonIndexStatement = `
@@ -65,32 +79,49 @@ ON league_invitations (season_id, status);
 export const platformInvitationSchemaStatements = [
   createLeagueInvitationsTableStatement,
   pendingLeagueInvitationsIndexStatement,
+  pendingLeagueLinkIndexStatement,
   leagueInvitationsSeasonIndexStatement,
 ] as const;
 
 const asDate = (value: Date | string): Date => value instanceof Date ? new Date(value) : new Date(value);
 
-const invitationForRow = (row: PlatformInvitationPostgresRow): PlatformInvitationRecord => ({
-  id: row.id,
-  leagueId: row.league_id,
-  seasonId: row.season_id,
-  email: row.email_normalized,
-  role: row.role,
-  ownerId: row.owner_id,
-  teamId: row.team_id,
-  ownerDisplayName: row.owner_display_name,
-  teamDisplayName: row.team_display_name,
-  invitedByUserId: row.invited_by_user_id,
-  tokenHash: row.token_hash,
-  status: row.status,
-  expiresAt: asDate(row.expires_at),
-  createdAt: asDate(row.created_at),
-  ...(row.accepted_at === null ? {} : { acceptedAt: asDate(row.accepted_at) }),
-  ...(row.accepted_by_user_id === null ? {} : { acceptedByUserId: row.accepted_by_user_id }),
-  ...(row.revoked_at === undefined || row.revoked_at === null
-    ? {}
-    : { revokedAt: asDate(row.revoked_at) }),
-});
+const invitationForRow = (row: PlatformInvitationPostgresRow): PlatformInvitationRecord => {
+  const base = {
+    id: row.id,
+    leagueId: row.league_id,
+    seasonId: row.season_id,
+    role: row.role,
+    invitedByUserId: row.invited_by_user_id,
+    tokenHash: row.token_hash,
+    status: row.status,
+    expiresAt: asDate(row.expires_at),
+    createdAt: asDate(row.created_at),
+    ...(row.accepted_at === null ? {} : { acceptedAt: asDate(row.accepted_at) }),
+    ...(row.accepted_by_user_id === null ? {} : { acceptedByUserId: row.accepted_by_user_id }),
+    ...(row.revoked_at === undefined || row.revoked_at === null
+      ? {}
+      : { revokedAt: asDate(row.revoked_at) }),
+  };
+  if (row.invitation_kind === "league") return { ...base, kind: "league" };
+  if (
+    row.email_normalized === null ||
+    row.owner_id === null ||
+    row.team_id === null ||
+    row.owner_display_name === null ||
+    row.team_display_name === null
+  ) {
+    throw new Error("Team invitation is missing its team-specific fields.");
+  }
+  return {
+    ...base,
+    kind: "team",
+    email: row.email_normalized,
+    ownerId: row.owner_id,
+    teamId: row.team_id,
+    ownerDisplayName: row.owner_display_name,
+    teamDisplayName: row.team_display_name,
+  };
+};
 
 export interface PostgresPlatformInvitationRepositoryOptions {
   membershipIdFactory?: () => string;
@@ -114,27 +145,39 @@ export class PostgresPlatformInvitationRepository implements PlatformInvitationR
   async savePending(invitation: PlatformInvitationRecord): Promise<PlatformInvitationRecord> {
     const result = await this.client.query<PlatformInvitationPostgresRow>(`
 INSERT INTO league_invitations (
-  id, league_id, season_id, email_normalized, role, owner_id, team_id,
+  id, league_id, season_id, invitation_kind, email_normalized, role, owner_id, team_id,
   owner_display_name, team_display_name, invited_by_user_id, token_hash,
   status, expires_at, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13, $13)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13, $14, $14)
+ON CONFLICT (season_id) WHERE status = 'pending' AND invitation_kind = 'league'
+DO NOTHING
 RETURNING *;
 `.trim(), [
       invitation.id,
       invitation.leagueId,
       invitation.seasonId,
-      invitation.email,
+      invitation.kind,
+      invitation.kind === "team" ? invitation.email : null,
       invitation.role,
-      invitation.ownerId,
-      invitation.teamId,
-      invitation.ownerDisplayName,
-      invitation.teamDisplayName,
+      invitation.kind === "team" ? invitation.ownerId : null,
+      invitation.kind === "team" ? invitation.teamId : null,
+      invitation.kind === "team" ? invitation.ownerDisplayName : null,
+      invitation.kind === "team" ? invitation.teamDisplayName : null,
       invitation.invitedByUserId,
       invitation.tokenHash,
       invitation.expiresAt,
       invitation.createdAt,
     ]);
-    const row = result.rows[0];
+    let row = result.rows[0];
+    if (row === undefined && invitation.kind === "league") {
+      const existing = await this.client.query<PlatformInvitationPostgresRow>(`
+SELECT *
+FROM league_invitations
+WHERE season_id = $1 AND status = 'pending' AND invitation_kind = 'league'
+LIMIT 1;
+`.trim(), [invitation.seasonId]);
+      row = existing.rows[0];
+    }
     if (row === undefined) throw new Error("Invitation was not persisted.");
     return invitationForRow(row);
   }
@@ -175,12 +218,14 @@ ORDER BY created_at DESC;
 UPDATE league_invitations
 SET status = 'accepted', accepted_by_user_id = $2, accepted_at = $3, updated_at = $3
 WHERE id = $1
+  AND invitation_kind = 'team'
   AND status = 'pending'
   AND expires_at >= $3
 RETURNING *;
 `.trim(), [invitationId, accountId, acceptedAt]);
       const acceptedRow = acceptedResult.rows[0];
       if (acceptedRow === undefined) return null;
+      if (acceptedRow.team_id === null) throw new Error("Team invitation is missing its team.");
 
       await transactionClient.query(`
 INSERT INTO league_memberships (id, league_id, user_id, role, status, created_at, updated_at)
@@ -210,6 +255,69 @@ RETURNING id;
       }
 
       return invitationForRow(acceptedRow);
+    });
+  }
+
+  async replacePending(
+    invitationId: string,
+    replacement: PlatformInvitationRecord,
+    replacedAt: Date,
+  ): Promise<PlatformInvitationRecord | null> {
+    return this.client.transaction(async transactionClient => {
+      const revoked = await transactionClient.query<{ id: string }>(`
+UPDATE league_invitations
+SET status = 'revoked', revoked_at = $2, updated_at = $2
+WHERE id = $1 AND status = 'pending'
+RETURNING id;
+`.trim(), [invitationId, replacedAt]);
+      if (revoked.rows[0] === undefined) {
+        if (replacement.kind !== "league") return null;
+        const current = await transactionClient.query<PlatformInvitationPostgresRow>(`
+SELECT *
+FROM league_invitations
+WHERE season_id = $1 AND status = 'pending' AND invitation_kind = 'league'
+LIMIT 1;
+`.trim(), [replacement.seasonId]);
+        return current.rows[0] === undefined ? null : invitationForRow(current.rows[0]);
+      }
+
+      const inserted = await transactionClient.query<PlatformInvitationPostgresRow>(`
+INSERT INTO league_invitations (
+  id, league_id, season_id, invitation_kind, email_normalized, role, owner_id, team_id,
+  owner_display_name, team_display_name, invited_by_user_id, token_hash,
+  status, expires_at, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13, $14, $14)
+ON CONFLICT (season_id) WHERE status = 'pending' AND invitation_kind = 'league'
+DO NOTHING
+RETURNING *;
+`.trim(), [
+        replacement.id,
+        replacement.leagueId,
+        replacement.seasonId,
+        replacement.kind,
+        replacement.kind === "team" ? replacement.email : null,
+        replacement.role,
+        replacement.kind === "team" ? replacement.ownerId : null,
+        replacement.kind === "team" ? replacement.teamId : null,
+        replacement.kind === "team" ? replacement.ownerDisplayName : null,
+        replacement.kind === "team" ? replacement.teamDisplayName : null,
+        replacement.invitedByUserId,
+        replacement.tokenHash,
+        replacement.expiresAt,
+        replacement.createdAt,
+      ]);
+      let row = inserted.rows[0];
+      if (row === undefined && replacement.kind === "league") {
+        const current = await transactionClient.query<PlatformInvitationPostgresRow>(`
+SELECT *
+FROM league_invitations
+WHERE season_id = $1 AND status = 'pending' AND invitation_kind = 'league'
+LIMIT 1;
+`.trim(), [replacement.seasonId]);
+        row = current.rows[0];
+      }
+      if (row === undefined) throw new Error("Replacement invitation was not persisted.");
+      return invitationForRow(row);
     });
   }
 

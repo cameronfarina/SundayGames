@@ -1003,6 +1003,10 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
     return this.inner.claimLeagueSeasonTeam(input);
   }
 
+  async joinLeagueSeasonTeam(input: Parameters<LeagueSetupRepository["joinLeagueSeasonTeam"]>[0]) {
+    return this.inner.joinLeagueSeasonTeam(input);
+  }
+
   async findLeagueSeason(seasonId: string) {
     return this.inner.findLeagueSeason(seasonId);
   }

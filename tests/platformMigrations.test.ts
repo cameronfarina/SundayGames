@@ -164,6 +164,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-formats-v7",
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -186,6 +187,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-formats-v7",
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -208,6 +210,7 @@ describe("platform Postgres migrations", () => {
       "platform-team-identities-v6",
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
@@ -238,6 +241,7 @@ describe("platform Postgres migrations", () => {
       "platform-team-identities-v6",
       "platform-league-formats-v7",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
@@ -265,6 +269,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-formats-v7",
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -276,7 +281,24 @@ describe("platform Postgres migrations", () => {
       "platform-league-formats-v7",
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
     ]);
+  });
+
+  it("upgrades team invitations to support one reusable league link", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-shared-league-invitations-v10")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE league_invitations ADD COLUMN IF NOT EXISTS invitation_kind text NOT NULL DEFAULT 'team';",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining("pending_league_key"));
+    expect(client.statements).toContainEqual(expect.stringContaining("invitation_kind = 'league'"));
   });
 
   it("stores historical public values and lets users import the same provider league independently", async () => {

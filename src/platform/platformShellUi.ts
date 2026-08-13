@@ -979,6 +979,43 @@ export const platformShellHtml = `<!doctype html>
     .invitation-copy { min-width: 0; }
     .invitation-copy strong, .invitation-copy span { display: block; overflow-wrap: anywhere; }
     .invitation-copy span { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .league-invite-link {
+      align-items: stretch;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      margin-top: 16px;
+    }
+    .league-invite-link input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .invite-team-list { display: grid; gap: 1px; margin-top: 20px; }
+    .invite-team-row {
+      align-items: center;
+      background: var(--surface);
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      min-height: 72px;
+      padding: 14px 16px;
+    }
+    .invite-team-copy { min-width: 0; }
+    .invite-team-copy strong, .invite-team-copy span { display: block; overflow-wrap: anywhere; }
+    .invite-team-copy span { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .invite-team-status { color: var(--muted); font-size: 13px; font-weight: 750; }
+    .auth-invite-context {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 18px;
+    }
+    .auth-invite-context h2 { font-size: 22px; margin: 4px 0 6px; }
+    .auth-invite-teams {
+      display: grid;
+      gap: 6px 18px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      list-style: none;
+      margin: 14px 0 0;
+      padding: 0;
+    }
+    .auth-invite-teams li { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+    .auth-invite-teams strong { color: var(--text); display: block; }
 
     .visually-hidden {
       clip: rect(0 0 0 0);
@@ -1003,6 +1040,13 @@ export const platformShellHtml = `<!doctype html>
       .mock-layout { grid-template-columns: minmax(0, 1fr) minmax(280px, .36fr); }
       .mock-roster-panel { order: 0; }
       .room-setup { grid-column: 1 / -1; }
+      .league-invite-section { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 560px) {
+      .league-invite-link, .invite-team-row { grid-template-columns: 1fr; }
+      .league-invite-link button, .invite-team-row button { width: 100%; }
+      .auth-invite-teams { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 700px) {
@@ -1140,6 +1184,12 @@ export const platformShellHtml = `<!doctype html>
         <p class="eyebrow">Mockd</p>
         <h1 id="auth-title">Sign in</h1>
         <p id="auth-description" class="lede">Open your league, draft tools, and live room.</p>
+      </div>
+      <div id="auth-invite-context" class="auth-invite-context hidden">
+        <p class="eyebrow">League invitation</p>
+        <h2 id="auth-invite-league-name">Loading league...</h2>
+        <p id="auth-invite-season" class="status"></p>
+        <ul id="auth-invite-team-list" class="auth-invite-teams"></ul>
       </div>
       <form id="auth-form" class="stack">
         <div>
@@ -1662,24 +1712,18 @@ export const platformShellHtml = `<!doctype html>
             <p id="keeper-status" class="status" role="status" aria-live="polite"></p>
             <div id="keeper-list" class="keeper-list"></div>
           </section>
-          <section class="workspace-section" aria-labelledby="invitations-title">
-            <h2 id="invitations-title">Invitations</h2>
-            <p class="lede">Create a private signup link for a manager after their team is configured.</p>
-            <form id="create-invitation-form" class="compact-stack" style="margin: 16px 0 20px">
-              <div>
-                <label for="invitation-team-picker">Team</label>
-                <select id="invitation-team-picker"></select>
-              </div>
-              <div>
-                <label for="invitation-email-input">Manager email</label>
-                <input id="invitation-email-input" type="email" autocomplete="email" required>
-              </div>
-              <div class="actions">
-                <button id="create-invitation-button" class="primary" type="submit" disabled>Create invite link</button>
-              </div>
-              <p id="invitation-create-status" class="status" role="status" aria-live="polite"></p>
-            </form>
-            <div id="setup-invitations" class="invitation-list"></div>
+          <section class="workspace-section league-invite-section" aria-labelledby="invitations-title">
+            <h2 id="invitations-title">Invite league</h2>
+            <p class="lede">Share one link with your group. Managers sign in or create an account, then choose their team. Claimed teams cannot be selected again.</p>
+            <div id="league-invite-link-row" class="league-invite-link hidden">
+              <label class="visually-hidden" for="league-invite-link-input">League invite link</label>
+              <input id="league-invite-link-input" type="text" readonly>
+              <button id="copy-league-invite-button" type="button">Copy link</button>
+            </div>
+            <div class="actions" style="margin-top: 16px">
+              <button id="create-league-invite-button" class="primary" type="button">Create league link</button>
+            </div>
+            <p id="invitation-create-status" class="status" role="status" aria-live="polite"></p>
           </section>
           <section class="workspace-section room-setup" aria-labelledby="live-room-setup-title">
             <h2 id="live-room-setup-title">Live draft room</h2>
@@ -1717,12 +1761,11 @@ export const platformShellHtml = `<!doctype html>
       <section id="invite-workspace" class="workspace hidden">
         <div>
           <p class="eyebrow">League invitation</p>
-          <h1>Join your league</h1>
-          <p class="lede">Your account email must match the invitation.</p>
+          <h1 id="invite-league-title">Join your league</h1>
+          <p id="invite-league-description" class="lede">Choose the team you manage. Your selection is linked to your Mockd account.</p>
         </div>
-        <div class="actions">
-          <button id="accept-invitation-button" class="primary" type="button">Accept invitation</button>
-        </div>
+        <div id="invite-team-list" class="invite-team-list" role="list"></div>
+        <a id="invite-open-league" class="button primary hidden" href="/league">Open league</a>
         <p id="invite-status" class="status" role="status" aria-live="polite"></p>
       </section>
     </div>
@@ -1740,6 +1783,7 @@ export const platformShellHtml = `<!doctype html>
       onboarding: null,
       selectedLeague: null,
       invitations: [],
+      leagueInvitation: null,
       setupLocked: false,
       draftHasStarted: false,
       workspaceRequestGeneration: 0,
@@ -1783,6 +1827,10 @@ export const platformShellHtml = `<!doctype html>
     const authModeLink = byId("auth-mode-link");
     const authError = byId("auth-error");
     const authNotice = byId("auth-notice");
+    const authInviteContext = byId("auth-invite-context");
+    const authInviteLeagueName = byId("auth-invite-league-name");
+    const authInviteSeason = byId("auth-invite-season");
+    const authInviteTeamList = byId("auth-invite-team-list");
     const emailInput = byId("email-input");
     const passwordInput = byId("password-input");
     const passwordConfirmationField = byId("password-confirmation-field");
@@ -1817,7 +1865,6 @@ export const platformShellHtml = `<!doctype html>
     const setupSettingsSummary = byId("setup-settings-summary");
     const setupPreviewTable = byId("setup-preview-table");
     const setupPreviewBody = byId("setup-preview-body");
-    const setupInvitations = byId("setup-invitations");
     const historicalImportDropzone = byId("historical-import-dropzone");
     const historicalImportChoose = byId("historical-import-choose");
     const historicalImportFile = byId("historical-import-file");
@@ -1838,11 +1885,14 @@ export const platformShellHtml = `<!doctype html>
     const myTeamResults = byId("my-team-results");
     const myTeamRosterBody = byId("my-team-roster-body");
     const myTeamFindings = byId("my-team-findings");
-    const invitationForm = byId("create-invitation-form");
-    const invitationTeamPicker = byId("invitation-team-picker");
-    const invitationEmailInput = byId("invitation-email-input");
-    const createInvitationButton = byId("create-invitation-button");
+    const leagueInviteLinkRow = byId("league-invite-link-row");
+    const leagueInviteLinkInput = byId("league-invite-link-input");
+    const copyLeagueInviteButton = byId("copy-league-invite-button");
+    const createLeagueInviteButton = byId("create-league-invite-button");
     const invitationCreateStatus = byId("invitation-create-status");
+    const inviteTeamList = byId("invite-team-list");
+    const inviteStatus = byId("invite-status");
+    const inviteOpenLeague = byId("invite-open-league");
     const draftStartsAtInput = byId("draft-starts-at-input");
     const createLiveRoomButton = byId("create-live-room-button");
     const publishSeasonButton = byId("publish-season-button");
@@ -1972,6 +2022,44 @@ export const platformShellHtml = `<!doctype html>
         : "/practice";
     };
 
+    const authenticationInvitationToken = () => {
+      if (routePath === "/invite") return new URLSearchParams(window.location.search).get("token");
+      const invitationUrl = new URL(authenticationReturnPath(), window.location.origin);
+      return invitationUrl.pathname === "/invite" ? invitationUrl.searchParams.get("token") : null;
+    };
+
+    const loadAuthenticationInvitation = async token => {
+      setHidden(authInviteContext, false);
+      authInviteLeagueName.textContent = "Loading league...";
+      authInviteSeason.textContent = "";
+      authInviteTeamList.replaceChildren();
+      try {
+        const body = await readJson(await fetch(
+          "/invitations/details?token=" + encodeURIComponent(token),
+          { credentials: "same-origin" },
+        ));
+        authInviteLeagueName.textContent = body.league?.name || "League invitation";
+        authInviteSeason.textContent = body.league?.seasonYear
+          ? body.league.seasonYear + " season"
+          : "Choose your team after signing in.";
+        (body.teams || []).forEach(team => {
+          const item = document.createElement("li");
+          const name = document.createElement("strong");
+          name.textContent = team.name;
+          item.append(name);
+          const details = [
+            ...(team.managerNames || []),
+            ...(team.status === "claimed" ? ["Claimed"] : []),
+          ].join(" · ");
+          if (details) item.append(document.createTextNode(details));
+          authInviteTeamList.append(item);
+        });
+      } catch (error) {
+        authInviteLeagueName.textContent = "Invitation unavailable";
+        authInviteSeason.textContent = error.message;
+      }
+    };
+
     const configureAuthMode = () => {
       authTitle.textContent = signupMode
         ? "Create your account"
@@ -1981,7 +2069,9 @@ export const platformShellHtml = `<!doctype html>
             ? "Reset your password"
             : resetPasswordMode
               ? "Choose a new password"
-              : "Sign in";
+              : routePath === "/invite"
+                ? "Join your league"
+                : "Sign in";
       authDescription.textContent = signupMode
         ? "Create a league as commissioner, or join one from an invitation."
         : verificationMode
@@ -1990,7 +2080,9 @@ export const platformShellHtml = `<!doctype html>
             ? "Enter your account email. We'll send a reset link if an account exists."
             : resetPasswordMode
               ? "Choose a new password for your Mockd account."
-              : "Open your league, draft tools, and live room.";
+              : routePath === "/invite"
+                ? "Sign in to choose your team, or create an account to get started."
+                : "Open your league, draft tools, and live room.";
       authSubmitButton.textContent = signupMode
         ? "Create account"
         : verificationMode
@@ -2038,6 +2130,9 @@ export const platformShellHtml = `<!doctype html>
       setHidden(appShell, true);
       setHidden(authPanel, false);
       configureAuthMode();
+      const invitationToken = authenticationInvitationToken();
+      setHidden(authInviteContext, !invitationToken);
+      if (invitationToken) loadAuthenticationInvitation(invitationToken);
       const verificationToken = verificationMode
         ? new URLSearchParams(window.location.search).get("token")
         : null;
@@ -3137,53 +3232,29 @@ export const platformShellHtml = `<!doctype html>
         .forEach(id => setHidden(byId(id), true));
     };
 
-    const renderInvitationRows = invitations => {
+    const renderLeagueInvitation = invitations => {
       state.invitations = invitations;
-      setupInvitations.replaceChildren();
-      if (!invitations.length) {
-        const empty = document.createElement("p");
-        empty.className = "empty-state";
-        empty.textContent = "No invitations yet.";
-        setupInvitations.append(empty);
-        return;
-      }
-
-      invitations.forEach(invitation => {
-        const row = document.createElement("div");
-        row.className = "invitation-row";
-        const copy = document.createElement("div");
-        copy.className = "invitation-copy";
-        const email = document.createElement("strong");
-        email.textContent = invitation.email;
-        const detail = document.createElement("span");
-        detail.textContent = invitation.teamDisplayName + " · " + titleCase(invitation.status);
-        copy.append(email, detail);
-        const actions = document.createElement("div");
-        actions.className = "actions";
-        if (invitation.status === "pending" && invitation.acceptPath) {
-          const copyButton = document.createElement("button");
-          copyButton.type = "button";
-          copyButton.dataset.invitationAction = "copy";
-          copyButton.dataset.invitationId = invitation.id;
-          copyButton.textContent = "Copy invite link";
-          actions.append(copyButton);
-        }
-        if (invitation.status === "pending") {
-          const reissueButton = document.createElement("button");
-          reissueButton.type = "button";
-          reissueButton.dataset.invitationAction = "reissue";
-          reissueButton.dataset.invitationId = invitation.id;
-          reissueButton.textContent = "Reissue";
-          const revokeButton = document.createElement("button");
-          revokeButton.type = "button";
-          revokeButton.dataset.invitationAction = "revoke";
-          revokeButton.dataset.invitationId = invitation.id;
-          revokeButton.textContent = "Revoke";
-          actions.append(reissueButton, revokeButton);
-        }
-        row.append(copy, actions);
-        setupInvitations.append(row);
-      });
+      const pendingInvitation = [...invitations]
+        .reverse()
+        .find(candidate => candidate.kind === "league" && candidate.status === "pending") || null;
+      const invitationExpiresAt = pendingInvitation ? Date.parse(pendingInvitation.expiresAt) : Number.NaN;
+      const invitation = pendingInvitation && invitationExpiresAt >= Date.now()
+        ? pendingInvitation
+        : null;
+      const acceptPath = invitation?.acceptPath;
+      setHidden(leagueInviteLinkRow, !acceptPath);
+      leagueInviteLinkInput.value = acceptPath
+        ? new URL(acceptPath, window.location.origin).toString()
+        : "";
+      copyLeagueInviteButton.disabled = !acceptPath;
+      createLeagueInviteButton.textContent = pendingInvitation ? "Generate new link" : "Create league link";
+      invitationCreateStatus.textContent = pendingInvitation && !invitation
+        ? "The league link expired. Generate a new one to invite managers."
+        : invitation
+        ? acceptPath
+          ? "This link is active for every unclaimed team."
+          : "A league link is active. Generate a new link if you need another copy; the old link will stop working."
+        : "No league link is active yet.";
     };
 
     const summariesForSettings = settings => {
@@ -3252,8 +3323,6 @@ export const platformShellHtml = `<!doctype html>
       const teams = [...(season?.teams || [])]
         .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
       setupTeamBody.replaceChildren();
-      const selectedInvitationTeamId = invitationTeamPicker.value;
-      invitationTeamPicker.replaceChildren();
       teams.forEach(team => {
         const row = document.createElement("tr");
         const managers = team.managerDisplayNames?.length
@@ -3265,19 +3334,7 @@ export const platformShellHtml = `<!doctype html>
           row.append(cell);
         });
         setupTeamBody.append(row);
-
-        if (!state.claimedTeamIds.has(team.id)) {
-          const option = document.createElement("option");
-          option.value = team.id;
-          option.textContent = team.draftOrderPosition + ". " + team.displayName + " · " + managers;
-          invitationTeamPicker.append(option);
-        }
       });
-      if ([...invitationTeamPicker.options].some(option => option.value === selectedInvitationTeamId)) {
-        invitationTeamPicker.value = selectedInvitationTeamId;
-      }
-      invitationTeamPicker.disabled = invitationTeamPicker.options.length === 0;
-      createInvitationButton.disabled = invitationTeamPicker.options.length === 0;
       setupTeamSummary.textContent = teams.length
         ? teams.length + " teams configured."
         : "No teams have been configured for this season.";
@@ -3881,6 +3938,86 @@ export const platformShellHtml = `<!doctype html>
         || null;
     };
 
+    const renderLeagueInvitationDetails = body => {
+      state.leagueInvitation = body;
+      const league = body.league || {};
+      byId("invite-league-title").textContent = league.name || "Join your league";
+      byId("invite-league-description").textContent = league.seasonYear
+        ? "Choose the team you manage for the " + league.seasonYear + " season."
+        : "Choose the team you manage. Your selection is linked to your Mockd account.";
+      inviteTeamList.replaceChildren();
+      const connectedLeague = state.onboarding?.leagues?.find(candidate =>
+        candidate.seasonId === body.invitation?.seasonId && candidate.membership?.teamId
+      );
+      const connectedTeamId = connectedLeague?.membership?.teamId;
+      (body.teams || []).forEach(team => {
+        const row = document.createElement("div");
+        row.className = "invite-team-row";
+        row.setAttribute("role", "listitem");
+        const copy = document.createElement("div");
+        copy.className = "invite-team-copy";
+        const name = document.createElement("strong");
+        name.textContent = team.name;
+        const managers = document.createElement("span");
+        managers.textContent = team.managerNames?.length
+          ? team.managerNames.join(", ")
+          : "Manager name not provided";
+        copy.append(name, managers);
+        if (team.status === "available" && !connectedLeague) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "primary";
+          button.dataset.inviteTeamId = team.id;
+          button.textContent = "Join as this team";
+          button.setAttribute("aria-label", "Join as " + team.name);
+          row.append(copy, button);
+        } else {
+          const status = document.createElement("span");
+          status.className = "invite-team-status";
+          status.textContent = connectedTeamId === team.id
+            ? "Your team"
+            : team.status === "claimed"
+              ? "Claimed"
+              : "Available";
+          row.append(copy, status);
+        }
+        inviteTeamList.append(row);
+      });
+      if (!(body.teams || []).length) {
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "No teams are configured for this league.";
+        inviteTeamList.append(empty);
+      }
+      setHidden(inviteOpenLeague, !connectedLeague);
+      if (connectedLeague) {
+        inviteOpenLeague.href = pathWithSeason("/league", connectedLeague.seasonId);
+        inviteStatus.textContent = "Your account is already connected to a team in this league.";
+      } else {
+        inviteStatus.textContent = "";
+      }
+    };
+
+    const loadLeagueInvitation = async () => {
+      const token = new URLSearchParams(window.location.search).get("token");
+      inviteTeamList.replaceChildren();
+      setHidden(inviteOpenLeague, true);
+      if (!token) {
+        inviteStatus.textContent = "This invitation link is missing its token.";
+        return;
+      }
+      inviteStatus.textContent = "Loading league teams...";
+      try {
+        const body = await readJson(await fetch(
+          "/invitations/details?token=" + encodeURIComponent(token),
+          { credentials: "same-origin" },
+        ));
+        renderLeagueInvitationDetails(body);
+      } catch (error) {
+        inviteStatus.textContent = error.message;
+      }
+    };
+
     const renderSelectedLeague = selectedLeague => {
       if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
         state.workspaceRequestGeneration += 1;
@@ -3921,6 +4058,7 @@ export const platformShellHtml = `<!doctype html>
       if (routePath === "/invite") {
         setHidden(commissionerNavItem, true);
         setHidden(byId("invite-workspace"), false);
+        loadLeagueInvitation();
         return;
       }
       if (!selectedLeague) {
@@ -3971,7 +4109,7 @@ export const platformShellHtml = `<!doctype html>
           const requestGeneration = state.workspaceRequestGeneration;
           const seasonId = selectedLeague.seasonId;
           byId("setup-season-id-input").value = selectedLeague.seasonId;
-          renderInvitationRows(selectedLeague.invitations || []);
+          renderLeagueInvitation(selectedLeague.invitations || []);
           renderLiveRoomSetup(selectedLeague);
           setHidden(byId("setup-workspace"), false);
           fetch("/seasons/" + encodeURIComponent(selectedLeague.seasonId), { credentials: "same-origin" })
@@ -4833,7 +4971,7 @@ export const platformShellHtml = `<!doctype html>
       }));
       if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
       state.claimedTeamIds = new Set(body.claimedTeamIds || []);
-      renderInvitationRows(body.invitations || []);
+      renderLeagueInvitation(body.invitations || []);
       if (state.currentSeason?.id === seasonId) renderSeasonTeams(state.currentSeason);
     };
 
@@ -4872,7 +5010,7 @@ export const platformShellHtml = `<!doctype html>
         setupPreviewBody.append(row);
       });
       setHidden(setupPreviewTable, records.length === 0);
-      if (body.invitations) renderInvitationRows(body.invitations);
+      if (body.invitations) renderLeagueInvitation(body.invitations);
     };
 
     const submitSetup = async action => {
@@ -5001,99 +5139,85 @@ export const platformShellHtml = `<!doctype html>
       publishSeasonButton.disabled = !setupFinalReview.checked || state.setupLocked;
     });
 
-    invitationForm.addEventListener("submit", async event => {
-      event.preventDefault();
+    createLeagueInviteButton.addEventListener("click", async () => {
       const seasonId = byId("setup-season-id-input").value;
       const requestGeneration = state.workspaceRequestGeneration;
-      if (!seasonId || !invitationTeamPicker.value) return;
-      createInvitationButton.disabled = true;
-      invitationCreateStatus.textContent = "Creating invite link...";
+      if (!seasonId) return;
+      const activeInvitation = state.invitations.find(candidate =>
+        candidate.kind === "league"
+          && candidate.status === "pending"
+          && Date.parse(candidate.expiresAt) >= Date.now()
+      );
+      if (
+        activeInvitation &&
+        !window.confirm("Generate a new league link? The current link will stop working.")
+      ) return;
+      createLeagueInviteButton.disabled = true;
+      invitationCreateStatus.textContent = activeInvitation
+        ? "Generating a new league link..."
+        : "Creating league link...";
       try {
         const body = await readJson(await fetch("/invitations", {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({
-            seasonId: seasonId,
-            teamId: invitationTeamPicker.value,
-            email: invitationEmailInput.value,
-          }),
+          body: JSON.stringify({ seasonId: seasonId }),
         }));
         if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
         const invitation = body.invitation;
-        renderInvitationRows([
+        renderLeagueInvitation([
           ...state.invitations.filter(candidate => !(
-            candidate.status === "pending"
-              && (candidate.email === invitation.email || candidate.teamDisplayName === invitation.teamDisplayName)
+            candidate.kind === "league" && candidate.status === "pending"
           )),
           invitation,
         ]);
-        invitationEmailInput.value = "";
-        invitationCreateStatus.textContent = "Invite link created. Copy it before leaving this page.";
+        invitationCreateStatus.textContent = "League link created. Copy it and share it with your group.";
       } catch (error) {
         if (isCurrentSetupRequest(seasonId, requestGeneration)) {
           invitationCreateStatus.textContent = error.message;
         }
       } finally {
         if (isCurrentSetupRequest(seasonId, requestGeneration)) {
-          createInvitationButton.disabled = invitationTeamPicker.options.length === 0;
+          createLeagueInviteButton.disabled = false;
         }
       }
     });
 
-    setupInvitations.addEventListener("click", event => {
-      const button = event.target.closest("button[data-invitation-action]");
-      if (!button) return;
-      const seasonId = byId("setup-season-id-input").value;
-      const requestGeneration = state.workspaceRequestGeneration;
-      const invitation = state.invitations.find(candidate => candidate.id === button.dataset.invitationId);
-      if (!invitation || invitation.seasonId !== seasonId) return;
-      if (button.dataset.invitationAction === "copy") {
-        navigator.clipboard.writeText(new URL(invitation.acceptPath, window.location.origin).toString())
-          .then(() => {
-            if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = "Invite link copied.";
-          })
-          .catch(() => {
-            if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = "Could not copy the invite link.";
-          });
-        return;
+    copyLeagueInviteButton.addEventListener("click", async () => {
+      if (!leagueInviteLinkInput.value) return;
+      try {
+        await navigator.clipboard.writeText(leagueInviteLinkInput.value);
+        invitationCreateStatus.textContent = "League link copied.";
+      } catch {
+        leagueInviteLinkInput.focus();
+        leagueInviteLinkInput.select();
+        invitationCreateStatus.textContent = "Copy the selected link.";
       }
-      button.disabled = true;
-      const actionPath = button.dataset.invitationAction === "revoke"
-        ? invitation.revokePath
-        : invitation.reissuePath;
-      fetch(actionPath, { method: "POST", credentials: "same-origin" }).then(readJson)
-        .then(body => {
-          if (!isCurrentSetupRequest(seasonId, requestGeneration)) return;
-          const updatedInvitation = body.invitation || body;
-          renderInvitationRows(state.invitations.map(candidate => candidate.id === invitation.id ? updatedInvitation : candidate));
-          setupStatus.textContent = button.dataset.invitationAction === "revoke"
-            ? "Invitation revoked."
-            : "Invitation reissued.";
-        })
-        .catch(error => {
-          if (isCurrentSetupRequest(seasonId, requestGeneration)) setupStatus.textContent = error.message;
-        })
-        .finally(() => {
-          if (isCurrentSetupRequest(seasonId, requestGeneration) && button.isConnected) button.disabled = false;
-        });
     });
 
-    byId("accept-invitation-button").addEventListener("click", () => {
+    inviteTeamList.addEventListener("click", async event => {
+      const button = event.target.closest("button[data-invite-team-id]");
+      if (!button) return;
       const token = new URLSearchParams(window.location.search).get("token");
       if (!token) {
-        byId("invite-status").textContent = "This invitation link is missing its token.";
+        inviteStatus.textContent = "This invitation link is missing its token.";
         return;
       }
-      byId("invite-status").textContent = "Joining league...";
-      fetch("/invitations/accept", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ token: token }),
-      }).then(readJson)
-        .then(body => window.location.assign("/app?seasonId=" + encodeURIComponent(body.membership.seasonId || body.invitation.seasonId)))
-         .catch(error => { byId("invite-status").textContent = error.message; });
+      inviteTeamList.querySelectorAll("button").forEach(candidate => { candidate.disabled = true; });
+      inviteStatus.textContent = "Joining league...";
+      try {
+        const body = await readJson(await fetch("/invitations/claim", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ token: token, teamId: button.dataset.inviteTeamId }),
+        }));
+        const seasonId = body.invitation?.seasonId || state.leagueInvitation?.invitation?.seasonId;
+        window.location.assign(pathWithSeason("/league", seasonId));
+      } catch (error) {
+        await loadLeagueInvitation();
+        inviteStatus.textContent = error.message;
+      }
     });
 
     leagueCreateSeason.value = String(new Date().getFullYear());

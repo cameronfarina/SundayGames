@@ -12,6 +12,7 @@ import {
   LeagueSetupWriteConflictError,
   leagueSeasonSetupRevision,
 } from "../src/platform/leagueSetup.js";
+import { PlatformInvitationError } from "../src/platform/platformInvitations.js";
 import { PostgresLeagueSetupRepository } from "../src/platform/postgresLeagueSetup.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type {
@@ -137,6 +138,7 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
   readonly referencedTeamIds = new Set<string>();
   readonly queries: Array<{ text: string; values: readonly unknown[]; inTransaction: boolean }> = [];
   failNextTeamClaimWithUniqueViolation = false;
+  invitationAvailable = true;
   transactionCount = 0;
 
   #inTransaction = false;
@@ -178,6 +180,10 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
   ): Promise<PostgresQueryResult<TRow>> {
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("SELECT id FROM league_invitations")) {
+      return { rows: this.invitationAvailable ? [{ id: "invite_league" } as TRow] : [] };
+    }
 
     if (normalizedSql.startsWith("INSERT INTO leagues")) {
       const [id, name, provider, providerLeagueId, createdByUserId, updatedAt] =
@@ -331,17 +337,21 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
     if (normalizedSql.startsWith("INSERT INTO league_memberships")) {
       const [id, leagueId, userId, role, updatedAt] =
         values as readonly [string, string, string, string, Date];
-      this.memberships.set(id, {
-        id,
+      const existing = [...this.memberships.values()].find(membership =>
+        membership.league_id === leagueId && membership.user_id === userId
+      );
+      const stored = {
+        id: existing?.id ?? id,
         league_id: leagueId,
         user_id: userId,
-        role,
+        role: existing?.role ?? role,
         status: "active",
-        created_at: updatedAt,
+        created_at: existing?.created_at ?? updatedAt,
         updated_at: updatedAt,
-      });
+      };
+      this.memberships.set(stored.id, stored);
 
-      return { rows: [], rowCount: 1 };
+      return { rows: [cloneMembership(stored) as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("SELECT id FROM league_seasons WHERE league_id = $1")) {
@@ -386,6 +396,15 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
     }
 
     if (normalizedSql.startsWith("SELECT id FROM fantasy_teams WHERE league_season_id = $1")) {
+      if (normalizedSql.includes("owner_user_id = $2") && normalizedSql.includes("id <> $3")) {
+        const [seasonId, userId, targetTeamId] = values as readonly [string, string, string];
+        const row = [...this.teams.values()].find(team =>
+          team.league_season_id === seasonId &&
+          team.owner_user_id === userId &&
+          team.id !== targetTeamId
+        );
+        return { rows: row === undefined ? [] : [{ id: row.id } as TRow] };
+      }
       const [seasonId, teamId, ownerId] = values as readonly [string, string, string];
       const row = this.teams.get(teamId);
       const matches = row?.league_season_id === seasonId && row.team_key === ownerId;
@@ -910,5 +929,105 @@ describe("Postgres league setup repository", () => {
     })).resolves.toBeNull();
     expect(client.teams.get(camTeam.id)?.owner_user_id).toBe("acct_cam");
     expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
+  });
+
+  it("joins a league and claims its team in one transaction", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    await repository.registerLeagueSeason({
+      season,
+      memberships: membershipsFor(season, ["Cam"]),
+      createdByUserId: "acct_cam",
+      now,
+    });
+
+    await expect(repository.joinLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_seth",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      role: "member",
+      invitationTokenHash: "shared_token_hash",
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toEqual({
+      userId: "acct_seth",
+      leagueId: season.leagueId,
+      role: "member",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+    });
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
+    expect([...client.memberships.values()]).toContainEqual(expect.objectContaining({
+      league_id: season.leagueId,
+      user_id: "acct_seth",
+    }));
+    expect(client.queries.slice(-4).every(query => query.inTransaction)).toBe(true);
+    expect(client.queries.at(-4)?.text).toContain("FOR UPDATE");
+  });
+
+  it("does not create membership when a shared-link team claim loses a race", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    await repository.registerLeagueSeason({
+      season,
+      memberships: membershipsFor(season, ["Cam"]),
+      createdByUserId: "acct_cam",
+      now,
+    });
+    client.teams.set(sethTeam.id, {
+      ...client.teams.get(sethTeam.id)!,
+      owner_user_id: "acct_winner",
+    });
+
+    await expect(repository.joinLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_loser",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      role: "member",
+      invitationTokenHash: "shared_token_hash",
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toBeNull();
+    expect([...client.memberships.values()].some(membership => membership.user_id === "acct_loser"))
+      .toBe(false);
+  });
+
+  it("rejects a shared-link claim when its invitation is revoked before the transaction lock", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    await repository.registerLeagueSeason({
+      season,
+      memberships: membershipsFor(season, ["Cam"]),
+      createdByUserId: "acct_cam",
+      now,
+    });
+    client.invitationAvailable = false;
+
+    await expect(repository.joinLeagueSeasonTeam({
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      userId: "acct_seth",
+      ownerId: sethTeam.ownerId,
+      teamId: sethTeam.id,
+      role: "member",
+      invitationTokenHash: "revoked_token_hash",
+      now: new Date(now.getTime() + 1_000),
+    })).rejects.toMatchObject({
+      code: "invitation_unavailable",
+    } satisfies Partial<PlatformInvitationError>);
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBeNull();
+    expect([...client.memberships.values()].some(membership => membership.user_id === "acct_seth"))
+      .toBe(false);
   });
 });

@@ -25,6 +25,7 @@ export interface PlatformRuntimeConfig {
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
   provisioningToken: string | undefined;
+  invitationTokenSecret: string | undefined;
   authEmail: {
     mode: "auto-verify" | "resend";
     resendApiKey: string | undefined;
@@ -130,6 +131,12 @@ const assertProductionAuthEmailConfig = (config: PlatformRuntimeConfig["authEmai
   }
   if (url.protocol !== "https:" || url.pathname !== "/" || url.search !== "" || url.hash !== "") {
     throw new Error("MOCKD_PUBLIC_BASE_URL must be a valid HTTPS origin.");
+  }
+};
+
+const assertInvitationTokenSecret = (secret: string | undefined): void => {
+  if (secret === undefined || secret.length < 32) {
+    throw new Error("MOCKD_INVITATION_TOKEN_SECRET must be at least 32 characters in production.");
   }
 };
 
@@ -329,6 +336,7 @@ export const readPlatformRuntimeConfig = (
     trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
     liveDraftDataMode: parsedLiveDraftDataMode,
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
+    invitationTokenSecret: optionalEnvString(env, "MOCKD_INVITATION_TOKEN_SECRET"),
     authEmail: parsedAuthEmail,
     simulationDataMode: parsedSimulationDataMode,
     screenshotImport: parsedScreenshotImport,
@@ -367,6 +375,7 @@ export const readPlatformWebRuntimeConfig = (
   }
   if (optionalEnvString(env, "NODE_ENV") === "production") {
     assertProductionAuthEmailConfig(config.authEmail);
+    assertInvitationTokenSecret(config.invitationTokenSecret);
   }
 
   return config;
@@ -462,6 +471,21 @@ export const assessPlatformProductionReadiness = (
     checks.push({
       status: "fail",
       label: "Account email delivery",
+      detail: errorMessage(error),
+    });
+  }
+
+  try {
+    assertInvitationTokenSecret(optionalEnvString(env, "MOCKD_INVITATION_TOKEN_SECRET"));
+    checks.push({
+      status: "pass",
+      label: "League invitation signing",
+      detail: "A durable league invitation signing secret is configured.",
+    });
+  } catch (error) {
+    checks.push({
+      status: "fail",
+      label: "League invitation signing",
       detail: errorMessage(error),
     });
   }

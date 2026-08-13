@@ -28,7 +28,10 @@ import {
   assessLeagueSeasonReadiness,
   type LeagueSeason,
 } from "./leagueSeason.js";
-import { LeagueSetupWriteConflictError } from "./leagueSetup.js";
+import {
+  LeagueSetupWriteConflictError,
+  type LeagueSetupRepository,
+} from "./leagueSetup.js";
 import {
   LiveDraftRoomError,
   type LiveDraftRoom,
@@ -107,7 +110,9 @@ import {
 } from "./platformCookies.js";
 import {
   acceptPlatformInvitation,
+  issuePlatformLeagueInvitation,
   issuePlatformInvitation,
+  joinPlatformLeagueInvitation,
   listPlatformInvitations,
   hashPlatformInvitationToken,
   PlatformInvitationError,
@@ -193,7 +198,9 @@ export interface PlatformHttpServices {
     input: EspnLeagueSettingsImportInput,
   ) => Promise<EspnLeagueSettingsImportOutcome>) | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;
+  leagueSetupRepository?: LeagueSetupRepository | undefined;
   applyAcceptedMembership?: ((result: AcceptedPlatformInvitation) => void | Promise<void>) | undefined;
+  invitationTokenSecret?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   liveDraftRoomSetupProvider?: ((season: LeagueSeason) => Promise<{
     playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
@@ -500,7 +507,7 @@ const accountCreationDenied = async (
     invitation === null ||
     invitation.status !== "pending" ||
     invitation.expiresAt < now ||
-    invitation.email !== email
+    (invitation.kind === "team" && invitation.email !== email)
   ) {
     return knownError(403, "invitation_required", "Use the account link from your league invitation.");
   }
@@ -2970,8 +2977,156 @@ const routeInvitations = async (
   if (repository === undefined) {
     return knownError(503, "invitations_unavailable", "League invitations are not configured.");
   }
+  const invitationTokenSecret = services.invitationTokenSecret
+    ?? "mockd-local-development-invitation-secret";
 
   const [, invitationId, action] = request.segments;
+
+  if (invitationId === "details" && request.segments.length === 2) {
+    if (request.method !== "GET") return methodNotAllowed();
+    const token = stringValue(request.query.token);
+    const invitation = await repository.findByTokenHash(hashPlatformInvitationToken(token));
+    const now = request.now ?? new Date();
+    if (
+      invitation === null ||
+      invitation.status !== "pending" ||
+      invitation.expiresAt < now
+    ) {
+      const isExpired = invitation !== null && invitation.expiresAt < now;
+      throw new PlatformInvitationError(
+        isExpired ? "invitation_expired" : "invitation_unavailable",
+        isExpired
+          ? "This invitation has expired. Ask the commissioner for a new link."
+          : "This invitation is no longer available.",
+      );
+    }
+    const leagueSetup = services.leagueSetupRepository;
+    if (leagueSetup === undefined) {
+      return knownError(503, "invitations_unavailable", "League invitations are not configured.");
+    }
+    const season = await leagueSetup.findLeagueSeason(invitation.seasonId);
+    if (season === null) {
+      throw new PlatformInvitationError(
+        "invitation_unavailable",
+        "This league season is no longer available.",
+      );
+    }
+    const memberships = await leagueSetup.membershipsForLeague(season.leagueId);
+    const claimedTeamIds = new Set(memberships.flatMap(membership =>
+      membership.teamId === undefined ? [] : [membership.teamId]
+    ));
+    return {
+      status: 200,
+      body: {
+        invitation: {
+          id: invitation.id,
+          seasonId: invitation.seasonId,
+          kind: invitation.kind,
+          ...(invitation.kind === "team" ? { teamId: invitation.teamId } : {}),
+        },
+        league: {
+          id: season.leagueId,
+          name: season.league.name,
+          seasonYear: season.seasonYear,
+        },
+        teams: [...season.teams]
+          .filter(team => invitation.kind === "league" || team.id === invitation.teamId)
+          .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
+          .map(team => ({
+            id: team.id,
+            ownerId: team.ownerId,
+            name: team.displayName,
+            managerNames: team.managerDisplayNames,
+            status: claimedTeamIds.has(team.id) ? "claimed" : "available",
+          })),
+      },
+    };
+  }
+
+  if (invitationId === "claim" && request.segments.length === 2) {
+    if (request.method !== "POST") return methodNotAllowed();
+    const account = await requireRequestAccount(app, request);
+    const token = stringValue(request.body.token);
+    const teamId = stringValue(request.body.teamId);
+    const invitation = await repository.findByTokenHash(hashPlatformInvitationToken(token));
+    if (invitation === null) {
+      throw new PlatformInvitationError(
+        "invitation_not_found",
+        "This invitation link is invalid. Ask the commissioner for a new link.",
+      );
+    }
+    const now = request.now ?? new Date();
+    if (invitation.status !== "pending") {
+      throw new PlatformInvitationError(
+        "invitation_unavailable",
+        "This invitation is no longer available.",
+      );
+    }
+    if (invitation.expiresAt < now) {
+      throw new PlatformInvitationError(
+        "invitation_expired",
+        "This invitation has expired. Ask the commissioner for a new link.",
+      );
+    }
+    const leagueSetup = services.leagueSetupRepository;
+    if (leagueSetup === undefined) {
+      return knownError(503, "invitations_unavailable", "League invitations are not configured.");
+    }
+    const season = await leagueSetup.findLeagueSeason(invitation.seasonId);
+    const team = season?.teams.find(candidate => candidate.id === teamId);
+    if (season === null || team === undefined) {
+      throw new PlatformAppError("team_not_found", "Choose a team from this league season.");
+    }
+    const currentMembership = await leagueSetup.findMembership(account.id, season.leagueId);
+    if (currentMembership?.teamId !== undefined) {
+      if (currentMembership.teamId !== team.id) {
+        return knownError(
+          409,
+          "team_already_selected",
+          "Your account already has a team in this league.",
+        );
+      }
+      return { status: 200, body: { membership: currentMembership } };
+    }
+
+    if (invitation.kind === "team") {
+      if (invitation.teamId !== team.id) {
+        throw new PlatformAppError("team_not_found", "Choose the team assigned by this invitation.");
+      }
+      const memberships = await app.listLeagueMemberships(invitation.leagueId);
+      if (memberships.some(membership => membership.teamId === invitation.teamId)) {
+        return knownError(
+          409,
+          "invitation_team_claimed",
+          "The invited team is already claimed by a league member.",
+        );
+      }
+      const accepted = await acceptPlatformInvitation(repository, {
+        token,
+        account,
+        now,
+      });
+      await services.applyAcceptedMembership?.(accepted);
+      return { status: 200, body: accepted };
+    }
+
+    const joined = await joinPlatformLeagueInvitation(repository, {
+      token,
+      account,
+      now,
+    });
+    const membership = await app.joinInvitedLeagueSeasonTeam({
+      actorSessionToken: request.sessionToken,
+      seasonId: season.id,
+      ownerId: team.ownerId,
+      teamId: team.id,
+      role: joined.membership.role,
+      invitationTokenHash: hashPlatformInvitationToken(token),
+      now: request.now,
+    });
+    return { status: 200, body: { invitation: joined.invitation, membership } };
+  }
+
   if (request.segments.length === 1) {
     const seasonId = stringValue(request.query.seasonId);
     if (request.method === "GET") {
@@ -2986,7 +3141,9 @@ const routeInvitations = async (
       return {
         status: 200,
         body: {
-          invitations: await listPlatformInvitations(repository, seasonId),
+          invitations: await listPlatformInvitations(repository, seasonId, {
+            leagueTokenSecret: invitationTokenSecret,
+          }),
           claimedTeamIds,
         },
       };
@@ -2999,6 +3156,38 @@ const routeInvitations = async (
         seasonId: submittedSeasonId,
         now: request.now,
       });
+      const invitationNow = request.now ?? new Date();
+      const expiresAt = new Date(invitationNow.getTime() + 30 * 24 * 60 * 60 * 1_000);
+      const hasTargetedInvitationFields =
+        optionalString(request.body.teamId) !== undefined ||
+        optionalString(request.body.email) !== undefined;
+      if (!hasTargetedInvitationFields) {
+        const pendingLeagueInvitation = (await repository.listForSeason(season.id)).find(candidate =>
+          candidate.kind === "league" && candidate.status === "pending"
+        );
+        const invitation = pendingLeagueInvitation === undefined
+          ? await issuePlatformLeagueInvitation(repository, {
+              leagueId: season.leagueId,
+              seasonId: season.id,
+              invitedByUserId: account.id,
+              now: invitationNow,
+              expiresAt,
+            }, {
+              leagueTokenSecret: invitationTokenSecret,
+            })
+          : await reissuePlatformInvitation(repository, {
+              invitationId: pendingLeagueInvitation.id,
+              invitedByUserId: account.id,
+              now: invitationNow,
+              expiresAt,
+            }, {
+              leagueTokenSecret: invitationTokenSecret,
+            });
+        return {
+          status: pendingLeagueInvitation === undefined ? 201 : 200,
+          body: { invitation },
+        };
+      }
       const teamId = stringValue(request.body.teamId);
       const team = season.teams.find(candidate => candidate.id === teamId);
       if (team === undefined) {
@@ -3026,9 +3215,13 @@ const routeInvitations = async (
       }
       const existingInvitations = await repository.listForSeason(season.id);
       const pendingForEmail = existingInvitations.find(candidate =>
-        candidate.status === "pending" && candidate.email === email
+        candidate.kind === "team" && candidate.status === "pending" && candidate.email === email
       );
-      if (pendingForEmail !== undefined && pendingForEmail.teamId !== team.id) {
+      if (
+        pendingForEmail !== undefined &&
+        pendingForEmail.kind === "team" &&
+        pendingForEmail.teamId !== team.id
+      ) {
         return knownError(
           409,
           "invitation_email_conflict",
@@ -3036,17 +3229,20 @@ const routeInvitations = async (
         );
       }
       const pendingForTeam = existingInvitations.find(candidate =>
-        candidate.status === "pending" && candidate.teamId === team.id
+        candidate.kind === "team" && candidate.status === "pending" && candidate.teamId === team.id
       );
-      if (pendingForTeam !== undefined && pendingForTeam.email !== email) {
+      if (
+        pendingForTeam !== undefined &&
+        pendingForTeam.kind === "team" &&
+        pendingForTeam.email !== email
+      ) {
         return knownError(
           409,
           "invitation_team_conflict",
           "That team already has a pending invitation for another email.",
         );
       }
-      const invitationNow = request.now ?? new Date();
-      const expiresAt = new Date(invitationNow.getTime() + 7 * 24 * 60 * 60 * 1_000);
+      const targetedExpiresAt = new Date(invitationNow.getTime() + 7 * 24 * 60 * 60 * 1_000);
       const invitation = pendingForEmail === undefined
         ? await issuePlatformInvitation(repository, {
             leagueId: season.leagueId,
@@ -3059,13 +3255,13 @@ const routeInvitations = async (
             teamDisplayName: team.displayName,
             invitedByUserId: account.id,
             now: invitationNow,
-            expiresAt,
+            expiresAt: targetedExpiresAt,
           })
         : await reissuePlatformInvitation(repository, {
             invitationId: pendingForEmail.id,
             invitedByUserId: account.id,
             now: invitationNow,
-            expiresAt,
+            expiresAt: targetedExpiresAt,
           });
 
       return { status: pendingForEmail === undefined ? 201 : 200, body: { invitation } };
@@ -3079,7 +3275,7 @@ const routeInvitations = async (
     const account = await requireRequestAccount(app, request);
     const token = stringValue(request.body.token);
     const pendingInvitation = await repository.findByTokenHash(hashPlatformInvitationToken(token));
-    if (pendingInvitation !== null) {
+    if (pendingInvitation?.kind === "team") {
       const memberships = await app.listLeagueMemberships(pendingInvitation.leagueId);
       if (memberships.some(membership => membership.userId === account.id)) {
         return knownError(
@@ -3130,6 +3326,8 @@ const routeInvitations = async (
         invitedByUserId: account.id,
         now: issuedAt,
         expiresAt: new Date(issuedAt.getTime() + 7 * 24 * 60 * 60 * 1_000),
+      }, {
+        leagueTokenSecret: invitationTokenSecret,
       }),
     },
   };

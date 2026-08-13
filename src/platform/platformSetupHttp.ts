@@ -401,7 +401,8 @@ export const applyLeagueSetupImport = async (
     const existingInvitations = await invitationRepository.listForSeason(registeredSeason.id);
     const invitationResults = await Promise.allSettled(pendingInvites.map(invite => {
       const existing = existingInvitations.find(candidate =>
-        candidate.status === "pending"
+        candidate.kind === "team"
+          && candidate.status === "pending"
           && candidate.teamId === invite.teamId
           && candidate.email === normalizeEmailKey(invite.email)
       );

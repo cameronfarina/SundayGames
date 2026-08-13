@@ -22,6 +22,7 @@ describe("platform runtime config", () => {
       MOCKD_TRUST_PROXY: "true",
       MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
       MOCKD_PROVISIONING_TOKEN: "production-provisioning-token",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
       MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
       OPENAI_API_KEY: "test-openai-key",
@@ -49,6 +50,7 @@ describe("platform runtime config", () => {
       trustProxy: true,
       liveDraftDataMode: "postgres",
       provisioningToken: "production-provisioning-token",
+      invitationTokenSecret: "test-invitation-secret-at-least-32-characters",
       authEmail: {
         mode: "auto-verify",
         resendApiKey: undefined,
@@ -206,6 +208,7 @@ describe("platform runtime config", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
     };
     expect(() => readPlatformWebRuntimeConfig(base)).toThrow(
       "MOCKD_AUTH_EMAIL_MODE=resend is required in production.",
@@ -223,6 +226,7 @@ describe("platform runtime config", () => {
       RESEND_API_KEY: "secret",
       MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
     }).authEmail.mode).toBe("resend");
   });
 
@@ -239,6 +243,7 @@ describe("platform runtime config", () => {
       RESEND_API_KEY: "production-resend-key",
       MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
     });
 
     expect(report).toMatchObject({
@@ -270,6 +275,11 @@ describe("platform runtime config", () => {
         status: "pass",
         label: "Account email delivery",
         detail: "Resend delivery, sender identity, and the public HTTPS origin are configured.",
+      },
+      {
+        status: "pass",
+        label: "League invitation signing",
+        detail: "A durable league invitation signing secret is configured.",
       },
       {
         status: "pass",

@@ -54,9 +54,15 @@ export interface ClaimLeagueSeasonTeamRepositoryInput {
   now?: Date | undefined;
 }
 
+export interface JoinLeagueSeasonTeamRepositoryInput extends ClaimLeagueSeasonTeamRepositoryInput {
+  role: PlatformLeagueMembership["role"];
+  invitationTokenHash?: string;
+}
+
 export interface LeagueSetupRepository {
   registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): MaybePromise<LeagueSeason>;
   claimLeagueSeasonTeam(input: ClaimLeagueSeasonTeamRepositoryInput): MaybePromise<PlatformLeagueMembership | null>;
+  joinLeagueSeasonTeam(input: JoinLeagueSeasonTeamRepositoryInput): MaybePromise<PlatformLeagueMembership | null>;
   findLeagueSeason(seasonId: string): MaybePromise<LeagueSeason | null>;
   hasLeagueSeasonForLeague(leagueId: string): MaybePromise<boolean>;
   findLeagueSeasonForLeagueYear(leagueId: string, seasonYear: number): MaybePromise<LeagueSeason | null>;
