@@ -165,6 +165,7 @@ describe("platform Postgres migrations", () => {
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -188,6 +189,7 @@ describe("platform Postgres migrations", () => {
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -211,6 +213,7 @@ describe("platform Postgres migrations", () => {
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
@@ -242,6 +245,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-formats-v7",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     const result = await applyPlatformPostgresMigrations(client);
@@ -270,6 +274,7 @@ describe("platform Postgres migrations", () => {
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -282,7 +287,26 @@ describe("platform Postgres migrations", () => {
       "platform-auth-ownership-v8",
       "platform-historical-pricing-ownership-v9",
       "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
     ]);
+  });
+
+  it("adds durable league archive metadata and an active-league index", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-league-archive-v11")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_by_user_id text REFERENCES accounts(id) ON DELETE RESTRICT;",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining("leagues_active_created_by_user_id_idx"));
   });
 
   it("upgrades team invitations to support one reusable league link", async () => {

@@ -407,6 +407,33 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
     });
   }
 
+  async archiveLeague(input: {
+    leagueId: string;
+    archivedByUserId: string;
+    now?: Date | undefined;
+  }): Promise<boolean> {
+    const archivedAt = input.now ?? new Date();
+    const result = await this.#client.query<{ id: string }>(`
+UPDATE leagues
+SET archived_at = COALESCE(archived_at, $3),
+    archived_by_user_id = COALESCE(archived_by_user_id, $2),
+    updated_at = $3
+WHERE id = $1
+RETURNING id;
+`.trim(), [input.leagueId, input.archivedByUserId, archivedAt]);
+
+    return firstRow(result) !== undefined;
+  }
+
+  async isLeagueArchived(leagueId: string): Promise<boolean> {
+    const result = await this.#client.query<{ archived: boolean }>(
+      "SELECT archived_at IS NOT NULL AS archived FROM leagues WHERE id = $1 LIMIT 1",
+      [leagueId],
+    );
+
+    return firstRow(result)?.archived ?? false;
+  }
+
   async #assertLeagueCreationAllowed(
     client: PostgresQueryClient,
     createdByUserId: string,
@@ -416,7 +443,7 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
     const result = await client.query<LeagueCreationCountRow>(
       `
 SELECT
-  COUNT(*)::integer AS active_league_count,
+  COUNT(*) FILTER (WHERE archived_at IS NULL)::integer AS active_league_count,
   COUNT(*) FILTER (WHERE created_at >= $2)::integer AS recent_league_count,
   MIN(created_at) FILTER (WHERE created_at >= $2) AS oldest_recent_created_at
 FROM leagues

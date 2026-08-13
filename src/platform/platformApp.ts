@@ -175,6 +175,12 @@ export interface RegisterLeagueSeasonInput {
   now?: Date | undefined;
 }
 
+export interface ArchivePlatformLeagueInput {
+  actorSessionToken: string;
+  leagueId: string;
+  now?: Date | undefined;
+}
+
 export interface ClaimLeagueSeasonTeamInput {
   actorSessionToken: string;
   seasonId: string;
@@ -601,7 +607,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     const storedSeason = cloneForRead(input.season);
 
     this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
-    if (createsLeague && input.enforceCreationLimits !== false) {
+    if (createsLeague) {
       this.#leagueCreationRecordsByLeagueId.set(storedSeason.leagueId, {
         leagueId: storedSeason.leagueId,
         createdByUserId: input.createdByUserId,
@@ -625,6 +631,28 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     this.#syncHistoricalImportSeasons();
 
     return cloneForRead(storedSeason);
+  }
+
+  archiveLeague(input: {
+    leagueId: string;
+    archivedByUserId: string;
+    now?: Date | undefined;
+  }): boolean {
+    if (!this.hasLeagueSeasonForLeague(input.leagueId)) return false;
+    const record = this.#leagueCreationRecordsByLeagueId.get(input.leagueId);
+    if (record === undefined) return false;
+    if (record.archivedAt !== undefined) return true;
+
+    this.#leagueCreationRecordsByLeagueId.set(input.leagueId, {
+      ...record,
+      archivedAt: input.now ?? new Date(),
+      archivedByUserId: input.archivedByUserId,
+    });
+    return true;
+  }
+
+  isLeagueArchived(leagueId: string): boolean {
+    return this.#leagueCreationRecordsByLeagueId.get(leagueId)?.archivedAt !== undefined;
   }
 
   claimLeagueSeasonTeam(input: {
@@ -1247,6 +1275,29 @@ export const createPlatformApp = ({
       }
 
       return cloneForRead(registeredSeason);
+    },
+
+    archiveLeague: async (input: ArchivePlatformLeagueInput): Promise<boolean> => {
+      const account = await requireAccount(input.actorSessionToken, input.now);
+      if (!await leagueSetup.hasLeagueSeasonForLeague(input.leagueId)) {
+        throw new PlatformAppError("league_not_found", "League was not found.");
+      }
+      await requireSharedMutation(account, input.leagueId);
+      const archived = await leagueSetup.archiveLeague({
+        leagueId: input.leagueId,
+        archivedByUserId: account.id,
+        now: input.now,
+      });
+      if (!archived) throw new PlatformAppError("league_not_found", "League was not found.");
+      if (usesExternalLeagueSetup) {
+        store.archiveLeague({
+          leagueId: input.leagueId,
+          archivedByUserId: account.id,
+          now: input.now,
+        });
+      }
+
+      return true;
     },
 
     claimLeagueSeasonTeam: async (input: ClaimLeagueSeasonTeamInput): Promise<PlatformLeagueMembership> => {

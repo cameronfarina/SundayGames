@@ -26,6 +26,7 @@ const leagueFormatsMigrationId = "platform-league-formats-v7";
 const authOwnershipMigrationId = "platform-auth-ownership-v8";
 const historicalPricingOwnershipMigrationId = "platform-historical-pricing-ownership-v9";
 const sharedLeagueInvitationsMigrationId = "platform-shared-league-invitations-v10";
+const leagueArchiveMigrationId = "platform-league-archive-v11";
 const platformMigrationAdvisoryLockKeys = [1_297_040_203, 1_146_113_113] as const;
 
 const migrationStatementStartingWith = (prefix: string): string => {
@@ -168,6 +169,14 @@ const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
       "DROP INDEX IF EXISTS league_invitations_pending_team_key;",
       "CREATE UNIQUE INDEX league_invitations_pending_team_key ON league_invitations (season_id, team_id) WHERE status = 'pending' AND invitation_kind = 'team';",
       "CREATE UNIQUE INDEX IF NOT EXISTS league_invitations_pending_league_key ON league_invitations (season_id) WHERE status = 'pending' AND invitation_kind = 'league';",
+    ],
+  },
+  {
+    id: leagueArchiveMigrationId,
+    statements: [
+      "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_at timestamptz;",
+      "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS archived_by_user_id text REFERENCES accounts(id) ON DELETE RESTRICT;",
+      "CREATE INDEX IF NOT EXISTS leagues_active_created_by_user_id_idx ON leagues (created_by_user_id) WHERE archived_at IS NULL;",
     ],
   },
 ];

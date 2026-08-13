@@ -29,6 +29,8 @@ interface LeagueRow {
   provider: string | null;
   provider_league_id: string | null;
   created_by_user_id: string;
+  archived_at: Date | null;
+  archived_by_user_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -95,6 +97,7 @@ const jsonValue = (value: unknown): unknown => typeof value === "string"
 
 const cloneLeague = (row: LeagueRow): LeagueRow => ({
   ...row,
+  archived_at: row.archived_at === null ? null : cloneDate(row.archived_at),
   created_at: cloneDate(row.created_at),
   updated_at: cloneDate(row.updated_at),
 });
@@ -191,14 +194,14 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       return { rows: this.leagues.has(leagueId) ? [{ id: leagueId } as TRow] : [] };
     }
 
-    if (normalizedSql.startsWith("SELECT COUNT(*)::integer AS active_league_count")) {
+    if (normalizedSql.startsWith("SELECT COUNT(*) FILTER (WHERE archived_at IS NULL)::integer AS active_league_count")) {
       const [createdByUserId, windowStartedAt] = values as readonly [string, Date];
       const leagues = [...this.leagues.values()].filter(
         league => league.created_by_user_id === createdByUserId,
       );
       return {
         rows: [{
-          active_league_count: leagues.length,
+          active_league_count: leagues.filter(league => league.archived_at === null).length,
           recent_league_count: leagues.filter(league => league.created_at >= windowStartedAt).length,
           oldest_recent_created_at: leagues
             .filter(league => league.created_at >= windowStartedAt)
@@ -206,6 +209,22 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
             ?.created_at ?? null,
         } as TRow],
       };
+    }
+
+    if (normalizedSql.startsWith("UPDATE leagues SET archived_at")) {
+      const [leagueId, archivedByUserId, archivedAt] = values as readonly [string, string, Date];
+      const league = this.leagues.get(leagueId);
+      if (league === undefined) return { rows: [], rowCount: 0 };
+      league.archived_at ??= archivedAt;
+      league.archived_by_user_id ??= archivedByUserId;
+      league.updated_at = archivedAt;
+      return { rows: [{ id: leagueId } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql === "SELECT archived_at IS NOT NULL AS archived FROM leagues WHERE id = $1 LIMIT 1") {
+      const [leagueId] = values as readonly [string];
+      const league = this.leagues.get(leagueId);
+      return { rows: league === undefined ? [] : [{ archived: league.archived_at !== null } as TRow] };
     }
 
     if (normalizedSql.startsWith("SELECT id FROM league_invitations")) {
@@ -222,6 +241,8 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
         provider,
         provider_league_id: providerLeagueId,
         created_by_user_id: existing?.created_by_user_id ?? createdByUserId,
+        archived_at: existing?.archived_at ?? null,
+        archived_by_user_id: existing?.archived_by_user_id ?? null,
         created_at: existing?.created_at ?? updatedAt,
         updated_at: updatedAt,
       });
@@ -651,6 +672,49 @@ describe("Postgres league setup repository", () => {
       normalizeSql(query.text).startsWith("SELECT pg_advisory_xact_lock")
     )).toHaveLength(2);
     expect(client.leagues.has(secondLeagueId)).toBe(false);
+  });
+
+  it("archives a league durably and excludes it from the active-league quota", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client, {
+      maxActiveLeaguesPerAccount: 1,
+      maxCreatedLeaguesPerWindow: 10,
+      creationWindowMs: 60 * 60 * 1_000,
+    });
+    const firstSeason = buildSeason();
+    await repository.registerLeagueSeason({
+      season: firstSeason,
+      memberships: membershipsFor(firstSeason, ["Cam"]),
+      createdByUserId: "acct_cam",
+      now,
+    });
+
+    await expect(repository.archiveLeague({
+      leagueId: firstSeason.leagueId,
+      archivedByUserId: "acct_cam",
+      now: new Date(now.getTime() + 1),
+    })).resolves.toBe(true);
+    await expect(repository.isLeagueArchived(firstSeason.leagueId)).resolves.toBe(true);
+    await expect(repository.findLeagueSeason(firstSeason.id)).resolves.toEqual(firstSeason);
+
+    const secondLeagueId = `${firstSeason.leagueId}-replacement`;
+    const secondSeason = {
+      ...firstSeason,
+      id: `${firstSeason.id}-replacement`,
+      leagueId: secondLeagueId,
+      league: { ...firstSeason.league, id: secondLeagueId },
+      teams: firstSeason.teams.map(team => ({
+        ...team,
+        id: `${team.id}-replacement`,
+        leagueSeasonId: `${firstSeason.id}-replacement`,
+      })),
+    };
+    await expect(repository.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: "acct_cam", leagueId: secondLeagueId, role: "owner" }],
+      createdByUserId: "acct_cam",
+      now: new Date(now.getTime() + 2),
+    })).resolves.toEqual(secondSeason);
   });
 
   it("round-trips seasons, teams, settings, and membership claims through normalized rows", async () => {

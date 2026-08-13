@@ -399,6 +399,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('method: "DELETE"');
     expect(platformShellHtml).toContain("Cancel this unstarted draft room?");
     expect(platformShellHtml).toContain("id=\"publish-season-button\"");
+    expect(platformShellHtml).toContain("id=\"archive-league-button\"");
+    expect(platformShellHtml).toContain("Archive this league?");
+    expect(platformShellHtml).toContain('method: "POST"');
+    expect(platformShellHtml).toContain('encodeURIComponent(selectedLeague.leagueId) + "/archive"');
     expect(platformShellHtml).toContain("id=\"setup-final-review\"");
     expect(platformShellHtml).toContain("I reviewed the teams, draft settings, roster rules, history, and keepers.");
     expect(platformShellHtml).toContain("JSON.stringify({ confirmed: setupFinalReview.checked })");

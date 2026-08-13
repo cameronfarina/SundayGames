@@ -138,6 +138,14 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
     return this.inner.registerLeagueSeason(input);
   }
 
+  async archiveLeague(input: Parameters<LeagueSetupRepository["archiveLeague"]>[0]) {
+    return this.inner.archiveLeague(input);
+  }
+
+  async isLeagueArchived(leagueId: string) {
+    return this.inner.isLeagueArchived(leagueId);
+  }
+
   async claimLeagueSeasonTeam(input: Parameters<LeagueSetupRepository["claimLeagueSeasonTeam"]>[0]) {
     return this.inner.claimLeagueSeasonTeam(input);
   }
@@ -307,6 +315,42 @@ describe("platform app service", () => {
       "This account has reached its league limit.",
       0,
     ));
+  });
+
+  it("persists league archives and releases only the active-league quota", () => {
+    const limits: LeagueCreationLimits = {
+      maxActiveLeaguesPerAccount: 1,
+      maxCreatedLeaguesPerWindow: 10,
+      creationWindowMs: 60 * 60 * 1_000,
+    };
+    const store = new InMemoryPlatformStore(undefined, { leagueCreationLimits: limits });
+    const createdByUserId = "account-cam";
+    const firstSeason = seasonForLeague("archived-first");
+    store.registerLeagueSeason({
+      season: firstSeason,
+      memberships: [{ userId: createdByUserId, leagueId: firstSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now,
+    });
+
+    expect(store.archiveLeague({
+      leagueId: firstSeason.leagueId,
+      archivedByUserId: createdByUserId,
+      now: new Date(now.getTime() + 1),
+    })).toBe(true);
+    expect(store.isLeagueArchived(firstSeason.leagueId)).toBe(true);
+
+    const restored = new InMemoryPlatformStore(store.snapshot(), { leagueCreationLimits: limits });
+    expect(restored.isLeagueArchived(firstSeason.leagueId)).toBe(true);
+    expect(restored.findLeagueSeason(firstSeason.id)).toEqual(firstSeason);
+
+    const secondSeason = seasonForLeague("active-after-archive");
+    expect(restored.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: createdByUserId, leagueId: secondSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now: new Date(now.getTime() + 2),
+    })).toEqual(secondSeason);
   });
 
   it("enforces the durable per-account league creation window", () => {

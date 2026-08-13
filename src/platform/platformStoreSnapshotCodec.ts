@@ -12,6 +12,7 @@ export interface SerializedPlatformStoreSnapshot extends InMemoryPlatformStoreSn
 
 const dateKeys = new Set([
   "abandonedAt",
+  "archivedAt",
   "completedAt",
   "committedAt",
   "cancellationRequestedAt",

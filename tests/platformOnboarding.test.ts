@@ -97,6 +97,46 @@ describe("platform onboarding", () => {
     }]);
   });
 
+  it("excludes archived leagues from the local active-league picker", async () => {
+    const repository = new InMemoryPlatformOnboardingRepository(() => ({
+      leagueSeasons: [{
+        id: "season_archived",
+        leagueId: "league_archived",
+        league: {
+          id: "league_archived",
+          externalLeagueId: "archived",
+          name: "Archived League",
+          provider: "mockd",
+        },
+        seasonYear: 2025,
+        setupStatus: "published",
+        teams: [],
+        settings: {
+          expectedTeamCount: 1,
+          auction: { budgetDollars: 200, minimumBidDollars: 1 },
+          roster: {
+            rosterSize: 1,
+            lineup: { QB: 1 },
+            lineupSlotCount: 1,
+            rosterMaximums: { QB: 1, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
+          },
+          keeperPolicy: { mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil" },
+        },
+      }],
+      leagueCreationRecords: [{
+        leagueId: "league_archived",
+        createdByUserId: "acct_cam",
+        createdAt: new Date("2025-08-01T12:00:00.000Z"),
+        archivedAt: new Date("2026-08-12T12:00:00.000Z"),
+        archivedByUserId: "acct_cam",
+      }],
+      memberships: [{ userId: "acct_cam", leagueId: "league_archived", role: "owner" }],
+      liveDraftRooms: [],
+    }));
+
+    await expect(repository.listForUser("acct_cam")).resolves.toEqual([]);
+  });
+
   it("loads durable membership, claimed team, readiness, and live room identity", async () => {
     const client = new OnboardingClient([{
       league_id: "league_1",
@@ -147,6 +187,7 @@ describe("platform onboarding", () => {
     expect(client.queries[0]?.params).toEqual(["acct_cam"]);
     expect(client.queries[0]?.sql).toContain("lm.user_id = $1");
     expect(client.queries[0]?.sql).toContain("ft.owner_user_id = lm.user_id");
+    expect(client.queries[0]?.sql).toContain("l.archived_at IS NULL");
   });
 
   it("keeps members out of commissioner setup and reports missing readiness", async () => {

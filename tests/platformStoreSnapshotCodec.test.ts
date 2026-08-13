@@ -14,6 +14,28 @@ import { InMemoryMockDraftSessionRepository } from "../src/platform/mockSessions
 import { createSeasonMockConfigurationSnapshot } from "../src/platform/seasonMockSnapshot.js";
 
 describe("platform store snapshot codec", () => {
+  it("round trips archived league metadata for file-backed local storage", () => {
+    const archivedAt = new Date("2026-08-12T18:00:00.000Z");
+    const decoded = deserializePlatformStoreSnapshot(serializePlatformStoreSnapshot({
+      ...emptyPlatformStoreSnapshot(),
+      leagueCreationRecords: [{
+        leagueId: "league_archived",
+        createdByUserId: "account_cam",
+        createdAt: new Date("2025-08-12T18:00:00.000Z"),
+        archivedAt,
+        archivedByUserId: "account_cam",
+      }],
+    }));
+
+    expect(decoded.leagueCreationRecords).toEqual([{
+      leagueId: "league_archived",
+      createdByUserId: "account_cam",
+      createdAt: new Date("2025-08-12T18:00:00.000Z"),
+      archivedAt,
+      archivedByUserId: "account_cam",
+    }]);
+  });
+
   it("round trips saved keeper setups for file-backed server restarts", async () => {
     const store = new InMemoryPlatformStore();
     await store.liveDraftRoomSetups.save({

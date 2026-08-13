@@ -36,6 +36,14 @@ export interface LeagueCreationRecord {
   leagueId: string;
   createdByUserId: string;
   createdAt: Date;
+  archivedAt?: Date;
+  archivedByUserId?: string;
+}
+
+export interface ArchiveLeagueRepositoryInput {
+  leagueId: string;
+  archivedByUserId: string;
+  now?: Date | undefined;
 }
 
 export type LeagueCreationLimitErrorCode =
@@ -87,7 +95,8 @@ export const assertLeagueCreationAllowed = ({
   limits: LeagueCreationLimits;
 }): void => {
   const accountRecords = records.filter(record => record.createdByUserId === createdByUserId);
-  if (accountRecords.length >= limits.maxActiveLeaguesPerAccount) {
+  const activeAccountRecords = accountRecords.filter(record => record.archivedAt === undefined);
+  if (activeAccountRecords.length >= limits.maxActiveLeaguesPerAccount) {
     throw new LeagueCreationLimitError(
       "active_league_quota_reached",
       "This account has reached its league limit.",
@@ -156,6 +165,8 @@ export interface JoinLeagueSeasonTeamRepositoryInput extends ClaimLeagueSeasonTe
 
 export interface LeagueSetupRepository {
   registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): MaybePromise<LeagueSeason>;
+  archiveLeague(input: ArchiveLeagueRepositoryInput): MaybePromise<boolean>;
+  isLeagueArchived(leagueId: string): MaybePromise<boolean>;
   claimLeagueSeasonTeam(input: ClaimLeagueSeasonTeamRepositoryInput): MaybePromise<PlatformLeagueMembership | null>;
   joinLeagueSeasonTeam(input: JoinLeagueSeasonTeamRepositoryInput): MaybePromise<PlatformLeagueMembership | null>;
   findLeagueSeason(seasonId: string): MaybePromise<LeagueSeason | null>;

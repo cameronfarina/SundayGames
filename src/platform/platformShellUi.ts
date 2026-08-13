@@ -280,6 +280,15 @@ export const platformShellHtml = `<!doctype html>
       background: var(--accent-strong);
       border-color: var(--accent-strong);
     }
+    button.danger {
+      background: transparent;
+      border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+      color: var(--danger);
+    }
+    button.danger:not(:disabled):hover {
+      background: color-mix(in srgb, var(--danger) 12%, var(--surface-raised));
+      border-color: var(--danger);
+    }
 
     button:disabled, .button[aria-disabled="true"] {
       cursor: not-allowed;
@@ -1810,6 +1819,14 @@ export const platformShellHtml = `<!doctype html>
               <p id="live-room-setup-status" class="status" role="status" aria-live="polite"></p>
             </div>
           </section>
+          <section class="workspace-section" aria-labelledby="archive-league-title">
+            <h2 id="archive-league-title">Archive league</h2>
+            <p class="lede">Remove this league from every member's active league picker while keeping its seasons, teams, and draft history stored.</p>
+            <div class="actions" style="margin-top: 16px">
+              <button id="archive-league-button" class="danger" type="button">Archive league</button>
+            </div>
+            <p id="archive-league-status" class="status" role="status" aria-live="polite"></p>
+          </section>
         </div>
       </section>
 
@@ -1965,6 +1982,8 @@ export const platformShellHtml = `<!doctype html>
     const openSetupLiveRoom = byId("open-setup-live-room");
     const cancelLiveRoomButton = byId("cancel-live-room-button");
     const liveRoomSetupStatus = byId("live-room-setup-status");
+    const archiveLeagueButton = byId("archive-league-button");
+    const archiveLeagueStatus = byId("archive-league-status");
     const passwordDialog = byId("password-dialog");
     const passwordChangeForm = byId("password-change-form");
     const currentPasswordInput = byId("current-password-input");
@@ -5312,6 +5331,26 @@ export const platformShellHtml = `<!doctype html>
     });
     setupFinalReview.addEventListener("change", () => {
       publishSeasonButton.disabled = !setupFinalReview.checked || state.setupLocked;
+    });
+
+    archiveLeagueButton.addEventListener("click", async () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) return;
+      if (!window.confirm(
+        "Archive this league? It will disappear from every member's active league picker, but its data will remain stored.",
+      )) return;
+      archiveLeagueButton.disabled = true;
+      archiveLeagueStatus.textContent = "Archiving league...";
+      try {
+        await readJson(await fetch(
+          "/leagues/" + encodeURIComponent(selectedLeague.leagueId) + "/archive",
+          { method: "POST", credentials: "same-origin" },
+        ));
+        window.location.assign("/league");
+      } catch (error) {
+        archiveLeagueStatus.textContent = error.message;
+        archiveLeagueButton.disabled = false;
+      }
     });
 
     createLeagueInviteButton.addEventListener("click", async () => {

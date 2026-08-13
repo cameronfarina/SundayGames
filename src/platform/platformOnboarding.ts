@@ -1,6 +1,6 @@
 import type { PostgresQueryClient } from "./postgresPlatformStore.js";
 import type { LeagueSeason } from "./leagueSeason.js";
-import type { PlatformLeagueMembership } from "./leagueSetup.js";
+import type { LeagueCreationRecord, PlatformLeagueMembership } from "./leagueSetup.js";
 import type { LiveDraftRoomStatus } from "./liveDraftRooms.js";
 import type { WorkspaceRole } from "./workspacePrivacy.js";
 
@@ -63,6 +63,7 @@ export interface PlatformOnboardingRepository {
 
 export interface InMemoryPlatformOnboardingSource {
   leagueSeasons: readonly LeagueSeason[];
+  leagueCreationRecords?: readonly LeagueCreationRecord[];
   memberships: readonly PlatformLeagueMembership[];
   liveDraftRooms: readonly {
     roomId: string;
@@ -111,6 +112,7 @@ LEFT JOIN LATERAL (
 ) dr ON true
 WHERE lm.user_id = $1
   AND lm.status = 'active'
+  AND l.archived_at IS NULL
 ORDER BY l.name, ls.season_year DESC;
 `.trim();
 
@@ -157,9 +159,16 @@ export class InMemoryPlatformOnboardingRepository implements PlatformOnboardingR
 
   async listForUser(userId: string): Promise<readonly PlatformOnboardingLeague[]> {
     const source = this.source();
+    const archivedLeagueIds = new Set(
+      (source.leagueCreationRecords ?? [])
+        .filter(record => record.archivedAt !== undefined)
+        .map(record => record.leagueId),
+    );
 
     return source.memberships
-      .filter(membership => membership.userId === userId)
+      .filter(membership =>
+        membership.userId === userId && !archivedLeagueIds.has(membership.leagueId)
+      )
       .flatMap(membership => {
         const season = source.leagueSeasons
           .filter(candidate => candidate.leagueId === membership.leagueId)

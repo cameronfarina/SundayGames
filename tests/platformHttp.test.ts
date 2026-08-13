@@ -839,6 +839,44 @@ describe("platform HTTP contract", () => {
       status: 200,
       body: { season: { id: createdSeason.id, setupStatus: "published" } },
     });
+
+    const member = await createLoggedInAccount(handle, "league-member@example.com");
+    const registeredSeason = expectBodyRecord(response.body).season as LeagueSeason;
+    await app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season: registeredSeason,
+      memberships: [
+        { userId: login.account.id, leagueId: registeredSeason.leagueId, role: "owner" },
+        { userId: member.account.id, leagueId: registeredSeason.leagueId, role: "member" },
+      ],
+      now,
+    });
+    await expect(handle({
+      method: "POST",
+      path: `/leagues/${registeredSeason.leagueId}/archive`,
+      sessionToken: member.sessionToken,
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "shared_mutation_denied" } },
+    });
+    await expect(handle({
+      method: "POST",
+      path: `/leagues/${registeredSeason.leagueId}/archive`,
+    })).resolves.toMatchObject({ status: 401 });
+    await expect(handle({
+      method: "POST",
+      path: `/leagues/${registeredSeason.leagueId}/archive`,
+      sessionToken: login.sessionToken,
+      now: new Date(now.getTime() + 1),
+    })).resolves.toEqual({
+      status: 200,
+      body: { archived: true, leagueId: registeredSeason.leagueId },
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/seasons/${registeredSeason.id}`,
+      sessionToken: login.sessionToken,
+    })).resolves.toMatchObject({ status: 200, body: { season: { id: registeredSeason.id } } });
   });
 
   it("returns a retryable response when the account league-creation window is full", async () => {

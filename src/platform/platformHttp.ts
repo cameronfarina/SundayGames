@@ -3798,6 +3798,21 @@ export const createPlatformHttpHandler = (
           },
         };
       }
+      if (
+        root === "leagues" &&
+        parsedRequest.segments.length === 3 &&
+        parsedRequest.segments[2] === "archive"
+      ) {
+        if (parsedRequest.method !== "POST") return methodNotAllowed();
+        const leagueId = parsedRequest.segments[1] ?? "";
+        await app.archiveLeague({
+          actorSessionToken: parsedRequest.sessionToken,
+          leagueId,
+          now: parsedRequest.now,
+        });
+
+        return { status: 200, body: { archived: true, leagueId } };
+      }
       if (root === "leagues" && parsedRequest.segments.length === 1) {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
         const account = await requireRequestAccount(app, parsedRequest);
