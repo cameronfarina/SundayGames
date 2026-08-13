@@ -1985,7 +1985,6 @@ describe("platform HTTP contract", () => {
       body: { mockSession: { status: "setup" } },
     });
   });
-  });
 
   it("uses the same durable mock contract for auction leagues", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
