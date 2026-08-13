@@ -91,6 +91,7 @@ import {
   type MockDraftSession,
   type MockDraftModeMetadata,
   type MockDraftResultReference,
+  type MockDraftSessionResourcePolicy,
   type StoredMockDraftCommandRetry,
 } from "./mockSessions.js";
 import type { SeasonMockConfigurationSnapshotV2 } from "./seasonMockSnapshot.js";
@@ -381,6 +382,8 @@ export interface CreatePlatformMockDraftSessionInput extends PrivateTeamContextI
   status?: "setup" | "active" | undefined;
 }
 
+export interface AssertPlatformMockDraftSessionCreationAllowedInput extends PrivateTeamContextInput {}
+
 export interface ListPlatformMockDraftSessionsInput {
   actorSessionToken: string;
   leagueId: string;
@@ -522,6 +525,7 @@ export interface InMemoryPlatformStoreSnapshot {
 
 export interface InMemoryPlatformStoreOptions {
   leagueCreationLimits?: LeagueCreationLimits | undefined;
+  mockDraftSessionResourcePolicy?: Partial<MockDraftSessionResourcePolicy> | undefined;
 }
 
 const draftExportSlotKeys = new Set<string>(draftExportSlotOrder);
@@ -553,7 +557,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   readonly exportArtifacts = new InMemoryExportArtifactRepository();
   readonly historicalImports = new InMemoryHistoricalImportRepository();
   readonly jobs = new InMemoryJobQueue();
-  readonly mockDraftSessions = new InMemoryMockDraftSessionRepository();
+  readonly mockDraftSessions: InMemoryMockDraftSessionRepository;
   readonly pricingSnapshots: PricingSnapshotRepository = createInMemoryPricingSnapshotRepository();
   readonly simulations = new InMemorySimulationRepository();
   readonly practiceShortlists = new InMemoryPracticeShortlistRepository();
@@ -570,6 +574,10 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   ) {
     this.#leagueCreationLimits = normalizeLeagueCreationLimits(
       options.leagueCreationLimits ?? defaultLeagueCreationLimits,
+    );
+    this.mockDraftSessions = new InMemoryMockDraftSessionRepository(
+      [],
+      options.mockDraftSessionResourcePolicy,
     );
     this.liveDraftRooms = new InMemoryLiveDraftRoomRepository(({ actor, action, room }) => {
       const membership = this.findMembership(actor.userId, room.leagueId);
@@ -1821,8 +1829,22 @@ export const createPlatformApp = ({
       return cloneForRead(snapshot);
     },
 
+    assertMockDraftSessionCreationAllowed: async (
+      input: AssertPlatformMockDraftSessionCreationAllowedInput,
+    ): Promise<void> => {
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      await requirePrivateTeamContext(account, input);
+      store.mockDraftSessions.assertCreationAllowed({
+        userId: account.id,
+        seasonId: input.seasonId,
+        now,
+      });
+    },
+
     createMockDraftSession: async (input: CreatePlatformMockDraftSessionInput): Promise<MockDraftSession> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
       await requirePrivateTeamContext(account, input);
 
       return cloneForRead(store.mockDraftSessions.createSession({
@@ -1834,14 +1856,15 @@ export const createPlatformApp = ({
         draftMode: input.draftMode,
         configurationSnapshot: input.configurationSnapshot,
         status: input.status,
-        now: input.now,
+        now,
       }));
     },
 
     listMockDraftSessions: async (
       input: ListPlatformMockDraftSessionsInput,
     ): Promise<readonly MockDraftSession[]> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
       const season = await requireSeason(input.seasonId);
       const membership = await requireSharedRead(account, input.leagueId);
 
@@ -1863,12 +1886,14 @@ export const createPlatformApp = ({
         seasonId: input.seasonId,
         ownerId: input.ownerId,
         teamId: input.teamId,
+        now,
       }).map(session => cloneForRead(session));
     },
 
     appendMockDraftCommand: async (input: AppendPlatformMockDraftCommandInput): Promise<MockDraftSession> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
-      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId, now });
       await requirePrivateTeamContext(account, session);
       const latestResultRef = await requireReadableMockDraftResultReference(account, input.latestResultRef);
 
@@ -1881,15 +1906,16 @@ export const createPlatformApp = ({
         command: input.command,
         idempotencyKey: input.idempotencyKey,
         latestResultRef,
-        now: input.now,
+        now,
       }));
     },
 
     findStoredMockDraftCommandForRetry: async (
       input: FindStoredPlatformMockDraftCommandForRetryInput,
     ): Promise<StoredMockDraftCommandRetry | undefined> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
-      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId, now });
       await requirePrivateTeamContext(account, session);
       const retry = store.mockDraftSessions.findStoredCommandForRetry({
         userId: account.id,
@@ -1897,29 +1923,32 @@ export const createPlatformApp = ({
         commandId: input.commandId,
         command: input.command,
         idempotencyKey: input.idempotencyKey,
+        now,
       });
 
       return retry === undefined ? undefined : cloneForRead(retry);
     },
 
     resetMockDraftSession: async (input: ResetPlatformMockDraftSessionInput): Promise<MockDraftSession> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
-      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId, now });
       await requirePrivateTeamContext(account, session);
 
       return cloneForRead(store.mockDraftSessions.resetSession({
         userId: account.id,
         sessionId: input.sessionId,
         expectedRevision: input.expectedRevision,
-        now: input.now,
+        now,
       }));
     },
 
     completeMockDraftSession: async (
       input: CompletePlatformMockDraftSessionInput,
     ): Promise<MockDraftSession> => {
-      const account = await requireAccount(input.actorSessionToken, input.now);
-      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId });
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId, now });
       await requirePrivateTeamContext(account, session);
       const latestResultRef = await requireReadableMockDraftResultReference(account, input.latestResultRef);
 
@@ -1928,7 +1957,7 @@ export const createPlatformApp = ({
         sessionId: input.sessionId,
         expectedRevision: input.expectedRevision,
         latestResultRef,
-        now: input.now,
+        now,
       }));
     },
 

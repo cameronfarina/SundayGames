@@ -1310,6 +1310,7 @@ describe("platform app service", () => {
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
+      now: new Date(now.getTime() + 1_000),
     })).toEqual([appended]);
 
     const reset = await app.resetMockDraftSession({
@@ -1402,6 +1403,7 @@ describe("platform app service", () => {
       seasonId: season.id,
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
+      now: new Date(now.getTime() + 1_000),
     });
     expect(storedSession).toMatchObject({
       id: camSession.id,

@@ -10,6 +10,9 @@ export type MockDraftSessionStatus = "setup" | "active" | "completed" | "abandon
 export type MockDraftFormat = "auction" | "snake";
 
 export type MockDraftSessionErrorCode =
+  | "season_active_session_limit"
+  | "session_creation_rate_limited"
+  | "user_active_session_limit"
   | "access_denied"
   | "command_idempotency_conflict"
   | "command_key_required"
@@ -25,13 +28,39 @@ export type MockDraftSessionErrorCode =
 
 export class MockDraftSessionError extends Error {
   readonly code: MockDraftSessionErrorCode;
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(code: MockDraftSessionErrorCode, message: string) {
+  constructor(code: MockDraftSessionErrorCode, message: string, retryAfterSeconds?: number) {
     super(message);
     this.name = "MockDraftSessionError";
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
+
+export interface MockDraftSessionResourcePolicy {
+  maxActiveSessionsPerUser: number;
+  maxActiveSessionsPerUserSeason: number;
+  maxCreationsPerWindow: number;
+  creationWindowMs: number;
+  inactiveSessionTtlMs: number;
+  abandonedRetentionMs: number;
+  completedRetentionMs: number;
+}
+
+const minuteMs = 60_000;
+const hourMs = 60 * minuteMs;
+const dayMs = 24 * hourMs;
+
+export const defaultMockDraftSessionResourcePolicy: MockDraftSessionResourcePolicy = {
+  maxActiveSessionsPerUser: 8,
+  maxActiveSessionsPerUserSeason: 3,
+  maxCreationsPerWindow: 5,
+  creationWindowMs: hourMs,
+  inactiveSessionTtlMs: 6 * hourMs,
+  abandonedRetentionMs: hourMs,
+  completedRetentionMs: dayMs,
+};
 
 export type MockDraftMetadataValue =
   | null
@@ -94,9 +123,16 @@ export interface CreateMockDraftSessionInput {
   now?: Date | undefined;
 }
 
+export interface AssertMockDraftSessionCreationAllowedInput {
+  userId: string;
+  seasonId: string;
+  now?: Date | undefined;
+}
+
 export interface GetMockDraftSessionInput {
   userId: string;
   sessionId: string;
+  now?: Date | undefined;
 }
 
 export interface ListMockDraftSessionsForOwnerInput {
@@ -105,6 +141,7 @@ export interface ListMockDraftSessionsForOwnerInput {
   seasonId: string;
   ownerId: string;
   teamId?: string | undefined;
+  now?: Date | undefined;
 }
 
 export interface AppendMockDraftCommandInput {
@@ -125,6 +162,7 @@ export interface FindStoredMockDraftCommandForRetryInput {
   commandId: string;
   command: string;
   idempotencyKey?: string | undefined;
+  now?: Date | undefined;
 }
 
 export interface StoredMockDraftCommandRetry {
@@ -242,13 +280,22 @@ const assertExpectedCommandCount = (session: MockDraftSession, expectedCommandCo
 
 export class InMemoryMockDraftSessionRepository {
   readonly #sessionsById = new Map<string, MockDraftSession>();
+  readonly #resourcePolicy: MockDraftSessionResourcePolicy;
 
-  constructor(sessions: readonly MockDraftSession[] = []) {
+  constructor(
+    sessions: readonly MockDraftSession[] = [],
+    resourcePolicy: Partial<MockDraftSessionResourcePolicy> = {},
+  ) {
+    this.#resourcePolicy = {
+      ...defaultMockDraftSessionResourcePolicy,
+      ...resourcePolicy,
+    };
     this.replaceSessions(sessions);
   }
 
   createSession(input: CreateMockDraftSessionInput): MockDraftSession {
     const now = input.now ?? new Date();
+    this.assertCreationAllowed({ userId: input.userId, seasonId: input.seasonId, now });
     const status = input.status ?? "active";
     const session: MockDraftSession = {
       id: createSessionId(),
@@ -283,11 +330,53 @@ export class InMemoryMockDraftSessionRepository {
     return session;
   }
 
+  assertCreationAllowed(input: AssertMockDraftSessionCreationAllowedInput): void {
+    const now = input.now ?? new Date();
+    this.#pruneExpiredSessions(now);
+    const creationWindowStartedAt = now.getTime() - this.#resourcePolicy.creationWindowMs;
+    const recentCreations = [...this.#sessionsById.values()]
+      .filter(session =>
+        session.userId === input.userId
+        && session.createdAt.getTime() > creationWindowStartedAt
+        && session.createdAt <= now
+      )
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+    if (recentCreations.length >= this.#resourcePolicy.maxCreationsPerWindow) {
+      const earliestCreation = recentCreations[0];
+      const retryAfterMs = earliestCreation === undefined
+        ? this.#resourcePolicy.creationWindowMs
+        : earliestCreation.createdAt.getTime() + this.#resourcePolicy.creationWindowMs - now.getTime();
+      throw new MockDraftSessionError(
+        "session_creation_rate_limited",
+        "Too many mock drafts were started recently. Try again later.",
+        Math.max(1, Math.ceil(retryAfterMs / 1_000)),
+      );
+    }
+    const activeSessions = [...this.#sessionsById.values()].filter(session =>
+      session.userId === input.userId && (session.status === "setup" || session.status === "active")
+    );
+    const activeSeasonSessions = activeSessions.filter(session => session.seasonId === input.seasonId);
+    if (activeSeasonSessions.length >= this.#resourcePolicy.maxActiveSessionsPerUserSeason) {
+      throw new MockDraftSessionError(
+        "season_active_session_limit",
+        "Finish or abandon an active mock draft for this season before starting another.",
+      );
+    }
+    if (activeSessions.length >= this.#resourcePolicy.maxActiveSessionsPerUser) {
+      throw new MockDraftSessionError(
+        "user_active_session_limit",
+        "Finish or abandon an active mock draft before starting another.",
+      );
+    }
+  }
+
   getSession(input: GetMockDraftSessionInput): MockDraftSession {
+    this.#pruneExpiredSessions(input.now ?? new Date());
     return this.#findAuthorizedSession(input.userId, input.sessionId);
   }
 
   listSessionsForOwner(input: ListMockDraftSessionsForOwnerInput): readonly MockDraftSession[] {
+    this.#pruneExpiredSessions(input.now ?? new Date());
     return [...this.#sessionsById.values()]
       .filter(session =>
         session.userId === input.userId
@@ -305,6 +394,7 @@ export class InMemoryMockDraftSessionRepository {
 
   appendCommand(input: AppendMockDraftCommandInput): MockDraftSession {
     const now = input.now ?? new Date();
+    this.#pruneExpiredSessions(now);
     const commandId = requireNonEmpty(input.commandId, "command_key_required", "Command id is required.");
     const command = requireNonEmpty(input.command, "command_required", "Command cannot be empty.");
     const idempotencyKey = input.idempotencyKey?.trim() || commandId;
@@ -314,6 +404,7 @@ export class InMemoryMockDraftSessionRepository {
       commandId,
       command,
       idempotencyKey,
+      now,
     });
     if (storedRetry !== undefined) return storedRetry.session;
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
@@ -349,6 +440,7 @@ export class InMemoryMockDraftSessionRepository {
   findStoredCommandForRetry(
     input: FindStoredMockDraftCommandForRetryInput,
   ): StoredMockDraftCommandRetry | undefined {
+    this.#pruneExpiredSessions(input.now ?? new Date());
     const commandId = requireNonEmpty(input.commandId, "command_key_required", "Command id is required.");
     const command = requireNonEmpty(input.command, "command_required", "Command cannot be empty.");
     const idempotencyKey = input.idempotencyKey?.trim() || commandId;
@@ -368,6 +460,7 @@ export class InMemoryMockDraftSessionRepository {
 
   markCompleted(input: MarkMockDraftSessionCompletedInput): MockDraftSession {
     const now = input.now ?? new Date();
+    this.#pruneExpiredSessions(now);
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
 
     assertExpectedRevision(session, input.expectedRevision);
@@ -392,6 +485,7 @@ export class InMemoryMockDraftSessionRepository {
 
   resetSession(input: ResetMockDraftSessionInput): MockDraftSession {
     const now = input.now ?? new Date();
+    this.#pruneExpiredSessions(now);
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
 
     assertExpectedRevision(session, input.expectedRevision);
@@ -419,6 +513,7 @@ export class InMemoryMockDraftSessionRepository {
 
   abandonSession(input: AbandonMockDraftSessionInput): MockDraftSession {
     const now = input.now ?? new Date();
+    this.#pruneExpiredSessions(now);
     const session = this.#findAuthorizedSession(input.userId, input.sessionId);
 
     assertExpectedRevision(session, input.expectedRevision);
@@ -439,7 +534,8 @@ export class InMemoryMockDraftSessionRepository {
     return updatedSession;
   }
 
-  sessions(): readonly MockDraftSession[] {
+  sessions(now?: Date): readonly MockDraftSession[] {
+    if (now !== undefined) this.#pruneExpiredSessions(now);
     return [...this.#sessionsById.values()].map(session => structuredClone(session));
   }
 
@@ -449,6 +545,45 @@ export class InMemoryMockDraftSessionRepository {
     for (const session of sessions) {
       const normalizedSession = normalizePersistedMockDraftSession(structuredClone(session));
       this.#sessionsById.set(normalizedSession.id, normalizedSession);
+    }
+  }
+
+  #pruneExpiredSessions(now: Date): void {
+    for (const [sessionId, storedSession] of this.#sessionsById) {
+      let session = storedSession;
+      if (
+        (session.status === "setup" || session.status === "active")
+        && session.updatedAt.getTime() + this.#resourcePolicy.inactiveSessionTtlMs <= now.getTime()
+      ) {
+        const abandonedAt = new Date(
+          session.updatedAt.getTime() + this.#resourcePolicy.inactiveSessionTtlMs,
+        );
+        session = {
+          ...session,
+          status: "abandoned",
+          abandonedAt,
+          updatedAt: abandonedAt,
+        };
+        this.#sessionsById.set(sessionId, session);
+      }
+
+      const retentionAnchor = session.status === "abandoned"
+        ? session.abandonedAt ?? session.updatedAt
+        : session.status === "completed"
+          ? session.completedAt ?? session.updatedAt
+          : undefined;
+      const retentionMs = session.status === "abandoned"
+        ? this.#resourcePolicy.abandonedRetentionMs
+        : session.status === "completed"
+          ? this.#resourcePolicy.completedRetentionMs
+          : undefined;
+      if (
+        retentionAnchor !== undefined
+        && retentionMs !== undefined
+        && retentionAnchor.getTime() + retentionMs <= now.getTime()
+      ) {
+        this.#sessionsById.delete(sessionId);
+      }
     }
   }
 

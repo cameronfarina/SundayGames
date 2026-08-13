@@ -588,11 +588,15 @@ const mockSessionErrorStatus = (code: MockDraftSessionError["code"]): number => 
       return 403;
     case "session_not_found":
       return 404;
+    case "session_creation_rate_limited":
+      return 429;
     case "command_idempotency_conflict":
+    case "season_active_session_limit":
     case "session_not_reusable":
     case "session_not_writable":
     case "stale_command_count":
     case "stale_revision":
+    case "user_active_session_limit":
       return 409;
     case "command_key_required":
     case "command_required":
@@ -769,7 +773,13 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
   }
 
   if (error instanceof MockDraftSessionError) {
-    return knownError(mockSessionErrorStatus(error.code), error.code, error.message);
+    const response = knownError(mockSessionErrorStatus(error.code), error.code, error.message);
+    return error.retryAfterSeconds === undefined
+      ? response
+      : {
+          ...response,
+          headers: { "Retry-After": String(error.retryAfterSeconds) },
+        };
   }
 
   if (error instanceof SeasonMockConfigurationSnapshotError) {
@@ -2097,6 +2107,8 @@ interface SeasonMockDraftContext {
   setup: LiveDraftRoomSetup;
 }
 
+type SeasonMockDraftIdentityContext = Omit<SeasonMockDraftContext, "setup">;
+
 const withCurrentProjectionFields = async (
   setup: LiveDraftRoomSetup,
   currentPlayerCatalogProvider: PlatformHttpServices["currentPlayerCatalogProvider"],
@@ -2228,12 +2240,11 @@ const seasonMockDraftSetupFor = async (
   };
 };
 
-const seasonMockDraftContextFor = async (
+const seasonMockDraftIdentityContextFor = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-  services: PlatformHttpServices,
   seasonId: string,
-): Promise<SeasonMockDraftContext | PlatformHttpResponse> => {
+): Promise<SeasonMockDraftIdentityContext> => {
   const account = await requireRequestAccount(app, request);
   const season = await app.getLeagueSeason({
     actorSessionToken: request.sessionToken,
@@ -2245,12 +2256,26 @@ const seasonMockDraftContextFor = async (
   if (membership?.ownerId === undefined || membership.teamId === undefined) {
     throw new PlatformAppError("team_claim_required", "Claim your team before starting a mock draft.");
   }
-  const setup = await seasonMockDraftSetupFor(season, request, services);
-  if (isPlatformHttpResponse(setup)) return setup;
 
   return {
     membership: { ...membership, ownerId: membership.ownerId, teamId: membership.teamId },
     season,
+  };
+};
+
+const seasonMockDraftContextFor = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+  seasonId: string,
+): Promise<SeasonMockDraftContext | PlatformHttpResponse> => {
+  const identityContext = await seasonMockDraftIdentityContextFor(app, request, seasonId);
+  const { season } = identityContext;
+  const setup = await seasonMockDraftSetupFor(season, request, services);
+  if (isPlatformHttpResponse(setup)) return setup;
+
+  return {
+    ...identityContext,
     setup,
   };
 };
@@ -2379,11 +2404,21 @@ const routeSeasonMockDrafts = async (
     : request.method === "GET"
       ? stringValue(request.query.seasonId)
       : stringValue(request.body.seasonId);
-  const context = await seasonMockDraftContextFor(app, request, services, seasonId);
-  if (!isSeasonMockDraftContext(context)) return context;
 
   if (request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
+    const identityContext = await seasonMockDraftIdentityContextFor(app, request, seasonId);
+    await app.assertMockDraftSessionCreationAllowed({
+      actorSessionToken: request.sessionToken,
+      leagueId: identityContext.season.leagueId,
+      seasonId: identityContext.season.id,
+      ownerId: identityContext.membership.ownerId,
+      teamId: identityContext.membership.teamId,
+      now: request.now,
+    });
+    const setup = await seasonMockDraftSetupFor(identityContext.season, request, services);
+    if (isPlatformHttpResponse(setup)) return setup;
+    const context: SeasonMockDraftContext = { ...identityContext, setup };
     const strategyKey = parseLiveDraftStrategyKey(optionalString(request.body.strategy) ?? "balanced");
     const strategy = liveDraftStrategies[strategyKey];
     const mockSession = await app.createMockDraftSession({
@@ -2405,6 +2440,9 @@ const routeSeasonMockDrafts = async (
     const state = await stateForSeasonMock(context, mockSession);
     return { status: 201, body: seasonMockResponseBody(mockSession, state) };
   }
+
+  const context = await seasonMockDraftContextFor(app, request, services, seasonId);
+  if (!isSeasonMockDraftContext(context)) return context;
 
   const mockSession = await findSeasonMockDraftSession(app, request, context, sessionId ?? "");
   if (request.segments.length === 2) {
