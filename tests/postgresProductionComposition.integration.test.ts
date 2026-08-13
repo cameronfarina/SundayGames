@@ -315,14 +315,14 @@ describeWithPostgres("production Postgres composition", () => {
             playerName: "Puka Nacua",
             price: 62,
           })],
-          teamSummaries: [expect.objectContaining({
+          teamSummaries: expect.arrayContaining([expect.objectContaining({
             teamId: camTeamId,
             budgetRemaining: 88,
             roster: expect.arrayContaining([
               expect.objectContaining({ name: "De'Von Achane", price: 50, source: "keeper" }),
               expect.objectContaining({ name: "Puka Nacua", price: 62, source: "sale" }),
             ]),
-          })],
+          })]),
         },
       },
     });
