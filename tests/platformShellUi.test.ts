@@ -234,6 +234,21 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("const openPasswordDialog = () =>");
   });
 
+  it("reveals ESPN import outcomes inside the scrollable league setup wizard", () => {
+    expect(platformShellHtml).toContain(
+      'id="league-create-import-summary" class="league-import-summary hidden" role="status" tabindex="-1" aria-labelledby="league-create-import-summary-title" aria-describedby="league-create-import-summary-copy"',
+    );
+    expect(platformShellHtml).toContain("scroll-padding-block: 24px;");
+    expect(platformShellHtml).toContain("scroll-margin-block: 16px;");
+    expect(platformShellHtml).toContain("const revealLeagueCreationImportSummary = () =>");
+    expect(platformShellHtml).toContain('leagueCreateImportSummary.scrollIntoView({ block: "nearest" });');
+    expect(platformShellHtml).toContain('leagueCreateImportSummary.focus({ preventScroll: true });');
+    expect(platformShellHtml).toContain("revealLeagueCreationImportSummary();");
+    expect(platformShellHtml).toContain(
+      "No form values changed. You can continue by entering the league manually.",
+    );
+  });
+
   it("runs claimed teams through one league-aware mock draft workspace", () => {
     expect(platformShellHtml).toContain('id="mock-draft-workspace"');
     expect(platformShellHtml).toContain('id="mock-draft-player-rows"');

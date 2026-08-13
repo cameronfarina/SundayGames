@@ -530,6 +530,7 @@ export const platformShellHtml = `<!doctype html>
       min-height: 0;
       overflow-y: auto;
       padding: 24px;
+      scroll-padding-block: 24px;
     }
     .league-wizard-step {
       display: grid;
@@ -587,6 +588,7 @@ export const platformShellHtml = `<!doctype html>
       display: grid;
       gap: 12px;
       padding: 14px;
+      scroll-margin-block: 16px;
     }
     .league-import-summary[data-kind="success"] { border-left: 3px solid var(--accent); }
     .league-import-summary[data-kind="failure"] { border-left: 3px solid var(--warning); }
@@ -1396,7 +1398,7 @@ export const platformShellHtml = `<!doctype html>
                       <button id="league-create-review-espn" type="button">Try ESPN import</button>
                     </div>
                     <p id="league-create-import-status" class="status" role="status" aria-live="polite"></p>
-                    <div id="league-create-import-summary" class="league-import-summary hidden" role="status">
+                    <div id="league-create-import-summary" class="league-import-summary hidden" role="status" tabindex="-1" aria-labelledby="league-create-import-summary-title" aria-describedby="league-create-import-summary-copy">
                       <h4 id="league-create-import-summary-title"></h4>
                       <p id="league-create-import-summary-copy" class="lede"></p>
                       <div id="league-create-import-facts" class="league-import-facts"></div>
@@ -3058,6 +3060,13 @@ export const platformShellHtml = `<!doctype html>
       }
     };
 
+    const revealLeagueCreationImportSummary = () => {
+      requestAnimationFrame(() => {
+        leagueCreateImportSummary.scrollIntoView({ block: "nearest" });
+        leagueCreateImportSummary.focus({ preventScroll: true });
+      });
+    };
+
     const renderLeagueCreationImportSummary = (kind, title, copy, review, warnings) => {
       leagueCreateImportSummary.dataset.kind = kind;
       leagueCreateImportSummaryTitle.textContent = title;
@@ -3093,6 +3102,7 @@ export const platformShellHtml = `<!doctype html>
       setHidden(leagueCreateWarnings, leagueCreateWarnings.childElementCount === 0);
       setHidden(leagueCreateImportFacts, !review);
       setHidden(leagueCreateImportSummary, false);
+      revealLeagueCreationImportSummary();
     };
 
     const showLeagueCreationStep = step => {
@@ -5350,7 +5360,7 @@ export const platformShellHtml = `<!doctype html>
           renderLeagueCreationImportSummary(
             "failure",
             "ESPN settings unavailable",
-            outcome.message + " No settings were imported. Continue with manual entry.",
+            outcome.message + " No settings were imported. No form values changed. You can continue by entering the league manually.",
             null,
             outcome.warnings || [],
           );
@@ -5371,7 +5381,7 @@ export const platformShellHtml = `<!doctype html>
         renderLeagueCreationImportSummary(
           "failure",
           "ESPN import failed",
-          error.message + " No settings were imported. Continue with manual entry.",
+          error.message + " No settings were imported. No form values changed. You can continue by entering the league manually.",
           null,
           [],
         );
