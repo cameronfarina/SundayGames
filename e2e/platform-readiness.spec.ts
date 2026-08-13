@@ -536,6 +536,89 @@ const exerciseDurableMockWorkspace = async (
   await expect(page.locator("#mock-draft-state")).toHaveText("Active");
 };
 
+const exerciseCompletedAuctionMockResults = async (
+  page: Page,
+  season: LeagueSeason,
+  claimedTeamId: string,
+): Promise<void> => {
+  await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
+  await page.locator("#standalone-board-open-mock").click();
+  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
+  await expect(page.locator("#mock-draft-title")).toHaveText("Auction mock draft");
+  await page.locator("#mock-draft-start").click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
+
+  const finishButton = page.locator("#mock-draft-complete");
+  for (let decision = 0; decision < season.settings.roster.rosterSize * 4; decision += 1) {
+    if (await finishButton.isEnabled()) break;
+
+    const buyButton = page.locator("#mock-draft-buy");
+    if (await buyButton.isEnabled()) {
+      await buyButton.click();
+    } else {
+      const openSlot = page.locator("#mock-draft-roster li").filter({ hasText: "Open" }).first();
+      const openPosition = (await openSlot.locator(".position-label").textContent())?.replace(/\d+$/u, "");
+      const positionFilter = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"].includes(openPosition ?? "")
+        ? openPosition
+        : "ALL";
+      await page.locator(`[data-mock-position="${positionFilter}"]`).click();
+      const nominationButton = page.locator("#mock-draft-player-rows .mock-player-action:enabled").last();
+      await expect(nominationButton).toBeVisible();
+      await nominationButton.click();
+    }
+    await expect(page.locator("#mock-draft-status")).not.toHaveText(
+      "Updating the mock draft...",
+      { timeout: 15_000 },
+    );
+  }
+
+  await expect(finishButton).toBeEnabled();
+  await finishButton.click();
+  await expect(page.locator("#mock-draft-state")).toHaveText("Completed");
+  await expect(page.locator("#mock-draft-status")).toHaveText(
+    "Mock complete. Review your roster or start another mock from Practice.",
+  );
+  await expect(page.locator("#mock-draft-results")).toBeVisible();
+
+  const teamPanels = page.locator("#mock-draft-results-grid .simulation-team");
+  await expect(teamPanels).toHaveCount(season.teams.length);
+  await expect(page.locator("#mock-draft-results-coverage")).toHaveText(
+    `Week 1 estimates available for all ${season.teams.length * season.settings.roster.rosterSize} rostered players.`,
+  );
+
+  for (const team of season.teams) {
+    const panel = page.locator(
+      `#mock-draft-results-grid .simulation-team[data-team-id="${team.id}"]`,
+    );
+    await expect(panel).toHaveCount(1);
+    await expect(panel.locator("h3")).toContainText(team.displayName);
+    await expect(panel.locator(".simulation-team-summary")).toHaveText(
+      /^#\d+ projected · \$\d+ spent · \$\d+ left$/u,
+    );
+    await expect(panel.locator(".simulation-team-score")).toContainText("Week 1");
+
+    const rosterRows = panel.locator(".simulation-team-roster tbody tr");
+    await expect(rosterRows).toHaveCount(season.settings.roster.rosterSize);
+    for (let rowIndex = 0; rowIndex < season.settings.roster.rosterSize; rowIndex += 1) {
+      const numericCells = rosterRows.nth(rowIndex).locator("td.numeric");
+      await expect(numericCells.nth(0)).toHaveText(/^\$\d+$/u);
+      await expect(numericCells.nth(1)).toHaveText(/^\d+\.\d$/u);
+    }
+  }
+
+  const claimedTeam = season.teams.find(team => team.id === claimedTeamId);
+  expect(claimedTeam).toBeDefined();
+  const claimedPanel = page.locator(
+    `#mock-draft-results-grid .simulation-team[data-team-id="${claimedTeamId}"][data-user-team="true"]`,
+  );
+  await expect(claimedPanel).toHaveCount(1);
+  await expect(claimedPanel.locator("h3")).toContainText(claimedTeam?.displayName ?? "");
+  await expect(claimedPanel.locator(".team-badge")).toHaveText("Your team");
+};
+
 const exerciseBoardSimulations = async (
   page: Page,
   season: LeagueSeason,
@@ -1000,6 +1083,57 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
 test("local platform supports fixture signup, setup, invitation, realtime draft, and final-export gating", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
+});
+
+test("completed auction mock shows every team's priced Week 1 roster", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "completed.mock.e2e@example.com");
+  const owners = ["Alpha", "Bravo", "Charlie", "Delta"];
+  const baseSeason = buildCurrentMockdLeagueSeason(owners, {
+    ...leagueConfig,
+    teams: owners.length,
+    rosterSize: 4,
+    lineup: { QB: 1, RB: 1, WR: 1, BENCH: 1 },
+    rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 1, K: 0, DST: 0 },
+  }, {
+    leagueName: "Completed mock E2E",
+    setupStatus: "published",
+  });
+  const leagueId = `${baseSeason.leagueId}-completed-mock`;
+  const seasonId = `${leagueId}-season-${baseSeason.seasonYear}`;
+  const season: LeagueSeason = {
+    ...baseSeason,
+    id: seasonId,
+    leagueId,
+    league: {
+      ...baseSeason.league,
+      id: leagueId,
+      externalLeagueId: `${baseSeason.league.externalLeagueId}-completed-mock`,
+    },
+    teams: baseSeason.teams.map((team, index) => ({
+      ...team,
+      id: `${seasonId}-team-${index + 1}`,
+      leagueSeasonId: seasonId,
+      ownerId: `${team.ownerId}-completed-mock`,
+    })),
+  };
+  const claimedTeam = teamByOwner(season, "Alpha");
+  const createdSeason = expectOk(await api<SeasonBody>(page, "/seasons", {
+    method: "POST",
+    headers: { "x-mockd-provisioning-token": provisioningToken },
+    body: {
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+    },
+  })).season;
+
+  await exerciseCompletedAuctionMockResults(page, createdSeason, claimedTeam.id);
 });
 
 test("commissioner history and keepers persist into an unopened live room", async ({ browser }) => {
