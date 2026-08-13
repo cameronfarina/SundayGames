@@ -3,6 +3,8 @@ import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import {
   liveDraftStrategies,
   parseLiveDraftStrategyKey,
+  projectionAdjustedAuctionValue,
+  projectionScoringMatches,
   strategyAdjustedAuctionValue,
   type LiveDraftStrategyKey,
 } from "../modeling/liveDraftStrategies.js";
@@ -2157,6 +2159,8 @@ const withCurrentProjectionFields = async (
         ...(current.seasonProjection === undefined
           ? {}
           : { seasonProjection: current.seasonProjection }),
+        seasonProjectionAdjustmentFactor: current.seasonProjectionAdjustmentFactor,
+        seasonProjectionScoring: current.seasonProjectionScoring,
       };
     }),
   };
@@ -2215,8 +2219,15 @@ const seasonMockConfigurationSnapshotFor = async (
   const playerHumanValues = Object.fromEntries(context.setup.playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
     const marketValue = marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice;
-    return [playerKey, isAuction ? strategyAdjustedAuctionValue({
+    const projectionBaseline = projectionAdjustedAuctionValue({
       marketValue,
+      projectionAdjustmentFactor: projectionScoringMatches(
+        player.seasonProjectionScoring,
+        context.season.settings.scoring,
+      ) ? player.seasonProjectionAdjustmentFactor : undefined,
+    });
+    return [playerKey, isAuction ? strategyAdjustedAuctionValue({
+      marketValue: projectionBaseline,
       position: player.position,
       strategyKey,
       positionCount: positionCounts[player.position] ?? 0,
@@ -3775,7 +3786,6 @@ export const createPlatformHttpHandler = (
             - keeperSpend
             - Math.max(0, openRosterSlots - 1) * season.settings.auction.minimumBidDollars,
         );
-
         return {
           status: 200,
           body: {
@@ -3788,8 +3798,15 @@ export const createPlatformHttpHandler = (
               const pricing = pricingByPlayer.get(canonicalPlayerIdentityKey(player.name));
               const marketPrice = pricing?.marketPrice ?? player.expectedPrice;
               const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
-              const myValue = strategyAdjustedAuctionValue({
+              const projectionBaseline = projectionAdjustedAuctionValue({
                 marketValue: marketPrice,
+                projectionAdjustmentFactor: projectionScoringMatches(
+                  player.seasonProjectionScoring,
+                  season.settings.scoring,
+                ) ? player.seasonProjectionAdjustmentFactor : undefined,
+              });
+              const myValue = strategyAdjustedAuctionValue({
+                marketValue: projectionBaseline,
                 position: player.position,
                 strategyKey,
                 positionCount: keeperPositionCounts[player.position] ?? 0,

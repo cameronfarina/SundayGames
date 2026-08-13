@@ -24,6 +24,7 @@ export interface SeasonLongProjectionInput {
   provider: string;
   sourceDate: string;
   sourceUrl: string;
+  sourceUrls?: readonly string[] | undefined;
   sourceDescription: string;
   stats: RushingReceivingSeasonStatLine;
 }
@@ -42,10 +43,12 @@ export interface SeasonLongProjectionCalibration {
   provider: string;
   sourceDate: string;
   sourceUrl: string;
+  sourceUrls: readonly string[];
   sourceDescription: string;
   baselineSeasonProjection: number;
   calibratedSeasonProjection: number;
   weeklyScaleFactor: number;
+  scoring: SeasonProjectionScoring;
   statLine: RushingReceivingSeasonStatLine;
   scoringBreakdown: SeasonProjectionScoringBreakdown;
 }
@@ -75,6 +78,14 @@ const assertNonEmptyString = (value: unknown, path: string): string => {
   return value.trim();
 };
 
+const assertNonEmptyStringArray = (value: unknown, path: string): readonly string[] => {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${path} must be a non-empty array.`);
+  }
+
+  return value.map((item, index) => assertNonEmptyString(item, `${path}[${index}]`));
+};
+
 export const fantasyPointsForSeasonStatLine = (
   stats: RushingReceivingSeasonStatLine,
   scoring: SeasonProjectionScoring,
@@ -96,16 +107,19 @@ export const fantasyPointsForSeasonStatLine = (
 const calibrationFor = (
   baselineSeasonProjection: number,
   input: SeasonLongProjectionInput,
+  scoring: SeasonProjectionScoring,
   scoringBreakdown: SeasonProjectionScoringBreakdown,
 ): SeasonLongProjectionCalibration => ({
   basis: "season-long stat line",
   provider: input.provider,
   sourceDate: input.sourceDate,
   sourceUrl: input.sourceUrl,
+  sourceUrls: input.sourceUrls ?? [input.sourceUrl],
   sourceDescription: input.sourceDescription,
   baselineSeasonProjection,
   calibratedSeasonProjection: scoringBreakdown.total,
   weeklyScaleFactor: scoringBreakdown.total / baselineSeasonProjection,
+  scoring: { ...scoring },
   statLine: input.stats,
   scoringBreakdown,
 });
@@ -135,6 +149,7 @@ export const applySeasonLongProjectionCalibrations = (
     const projectionCalibration = calibrationFor(
       projection.seasonProjection,
       input,
+      scoring,
       scoringBreakdown,
     );
     const weeks = Object.fromEntries(
@@ -178,6 +193,9 @@ export const loadSeasonLongProjectionInputs = async (
       provider: assertNonEmptyString(input.provider, `${pathPrefix}.provider`),
       sourceDate: assertNonEmptyString(input.sourceDate, `${pathPrefix}.sourceDate`),
       sourceUrl: assertNonEmptyString(input.sourceUrl, `${pathPrefix}.sourceUrl`),
+      sourceUrls: input.sourceUrls === undefined
+        ? undefined
+        : assertNonEmptyStringArray(input.sourceUrls, `${pathPrefix}.sourceUrls`),
       sourceDescription: assertNonEmptyString(
         input.sourceDescription,
         `${pathPrefix}.sourceDescription`,

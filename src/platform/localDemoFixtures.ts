@@ -120,6 +120,12 @@ export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoom
         week1Projection: projection.weeks[1] ?? 0,
         weeks1To4Projection: projection.weeks1To4,
         ...(projection.seasonProjection === undefined ? {} : { seasonProjection: projection.seasonProjection }),
+        ...(projection.projectionCalibration === undefined
+          ? {}
+          : {
+              seasonProjectionAdjustmentFactor: projection.projectionCalibration.weeklyScaleFactor,
+              seasonProjectionScoring: projection.projectionCalibration.scoring,
+            }),
       };
   const catalog: LiveDraftRoomPlayerCatalogEntry[] = localDemoPlayerCatalog.map(player => ({
     ...player,

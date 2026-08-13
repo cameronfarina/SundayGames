@@ -2565,11 +2565,11 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const warnings = state.playerCatalogMeta?.pricingWarnings || [];
       const historyUnavailable = warnings.some(warning => warning.toLowerCase().includes("history unavailable"));
       standalonePricingSource.textContent = personalized && !historyUnavailable
-        ? "Market blends the current baseline with up to three years of your league's open-auction sales; keeper rows are excluded. My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+        ? "Market blends the current baseline with up to three years of your league's open-auction sales; keeper rows are excluded. My value starts with current season projections, then applies your " + state.playerCatalogMeta.strategyLabel + " strategy and roster context."
         : personalized
-          ? "Market uses the current baseline. Import draft history to calibrate it to your league; My value applies your " + state.playerCatalogMeta.strategyLabel + " strategy."
+          ? "Market uses the current baseline. Import draft history to calibrate it to your league. My value starts with current season projections, then applies your " + state.playerCatalogMeta.strategyLabel + " strategy and roster context."
         : state.playerCatalogMeta?.draftFormat
-          ? "Market uses the current baseline. Import draft history to calibrate it to your league; My value applies your strategy."
+          ? "Market uses the current baseline. Import draft history to calibrate it to your league. My value starts with current season projections, then applies your strategy and roster context."
           : "Pricing source: current market board. Create a league to add history and keeper context.";
       standalonePricingWarnings.replaceChildren();
       warnings.slice(0, 6).forEach(warning => {

@@ -145,6 +145,48 @@ export const parseLiveDraftStrategyKey = (value: unknown): LiveDraftStrategyKey 
   return defaultLiveDraftStrategyKey;
 };
 
+export interface ProjectionAdjustedAuctionValueInput {
+  marketValue: number;
+  projectionAdjustmentFactor?: number | undefined;
+}
+
+export const projectionAdjustedAuctionValue = ({
+  marketValue,
+  projectionAdjustmentFactor,
+}: ProjectionAdjustedAuctionValueInput): number => {
+  if (
+    projectionAdjustmentFactor === undefined
+    || !Number.isFinite(projectionAdjustmentFactor)
+    || projectionAdjustmentFactor <= 0
+  ) {
+    return marketValue;
+  }
+
+  return Math.max(1, Math.round(marketValue * projectionAdjustmentFactor));
+};
+
+export interface RushingReceivingProjectionScoring {
+  rushingYards: number;
+  rushingTouchdown: number;
+  receivingYards: number;
+  receivingTouchdown: number;
+  reception: number;
+}
+
+const rushingReceivingScoringKeys = [
+  "rushingYards",
+  "rushingTouchdown",
+  "receivingYards",
+  "receivingTouchdown",
+  "reception",
+] as const satisfies readonly (keyof RushingReceivingProjectionScoring)[];
+
+export const projectionScoringMatches = (
+  calibrationScoring: RushingReceivingProjectionScoring | undefined,
+  leagueScoring: RushingReceivingProjectionScoring,
+): boolean => calibrationScoring !== undefined
+  && rushingReceivingScoringKeys.every(key => calibrationScoring[key] === leagueScoring[key]);
+
 export interface StrategyAdjustedAuctionValueInput {
   marketValue: number;
   position: Position;

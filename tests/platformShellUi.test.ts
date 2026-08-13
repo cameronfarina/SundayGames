@@ -224,6 +224,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="standalone-position-filter"');
     expect(platformShellHtml).toContain('id="standalone-board-sort"');
     expect(platformShellHtml).toContain('<option value="mine">My value</option>');
+    expect(platformShellHtml).toContain("My value starts with current season projections");
     expect(platformShellHtml).toContain('id="practice-strategy"');
     expect(platformShellHtml).toContain('id="standalone-pricing-source"');
     expect(platformShellHtml).toContain('id="standalone-pricing-warnings"');

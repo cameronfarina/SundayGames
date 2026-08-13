@@ -15,28 +15,32 @@ const seasonLongProjectionPath = "data/raw/season-long-projections-2026.json";
 const achaneSeasonLine = {
   player: "De'Von Achane",
   position: "RB" as const,
-  provider: "First Down Studio",
-  sourceDate: "2026-08-12",
-  sourceUrl: "https://www.firstdown.studio/season-rankings/flex",
-  sourceDescription: "Vegas prop-driven season projection",
+  provider: "Oddschecker and FantasyPros",
+  sourceDate: "2026-08-13",
+  sourceUrl: "https://www.oddschecker.com/us/football/nfl-specials/devon-achane",
+  sourceUrls: [
+    "https://www.oddschecker.com/us/football/nfl-specials/devon-achane/total-rushing-yards-regular-season",
+    "https://www.fantasypros.com/nfl/projections/devon-achane.php",
+  ],
+  sourceDescription: "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
   stats: {
-    rushingYards: 979,
-    rushingTouchdowns: 5.3,
-    receptions: 58,
-    receivingYards: 375,
-    receivingTouchdowns: 2,
+    rushingYards: 974.5,
+    rushingTouchdowns: 5.5,
+    receptions: 53.3,
+    receivingYards: 400.5,
+    receivingTouchdowns: 3.3,
   },
 };
 
 describe("season-long projection calibration", () => {
   it("converts Achane's season stat line with the configured half-PPR scoring", () => {
     expect(fantasyPointsForSeasonStatLine(achaneSeasonLine.stats, leagueConfig.scoring)).toEqual({
-      rushingYards: 97.9,
-      rushingTouchdowns: 31.8,
-      receptions: 29,
-      receivingYards: 37.5,
-      receivingTouchdowns: 12,
-      total: 208.2,
+      rushingYards: 97.45,
+      rushingTouchdowns: 33,
+      receptions: 26.65,
+      receivingYards: 40.05,
+      receivingTouchdowns: 19.8,
+      total: 216.95,
     });
   });
 
@@ -50,18 +54,23 @@ describe("season-long projection calibration", () => {
       [achaneSeasonLine],
       leagueConfig.scoring,
     );
-    const scaleFactor = 208.2 / 260.39769621;
+    const scaleFactor = 216.95 / 260.39769621;
 
     expect(calibratedAchane).toMatchObject({
       name: "De'Von Achane",
-      seasonProjection: 208.2,
+      seasonProjection: 216.95,
       projectionCalibration: {
-        provider: "First Down Studio",
-        sourceDate: "2026-08-12",
-        sourceUrl: "https://www.firstdown.studio/season-rankings/flex",
+        provider: "Oddschecker and FantasyPros",
+        sourceDate: "2026-08-13",
+        sourceUrl: "https://www.oddschecker.com/us/football/nfl-specials/devon-achane",
+        sourceUrls: [
+          "https://www.oddschecker.com/us/football/nfl-specials/devon-achane/total-rushing-yards-regular-season",
+          "https://www.fantasypros.com/nfl/projections/devon-achane.php",
+        ],
         baselineSeasonProjection: 260.39769621,
-        calibratedSeasonProjection: 208.2,
+        calibratedSeasonProjection: 216.95,
         weeklyScaleFactor: expect.closeTo(scaleFactor, 8),
+        scoring: leagueConfig.scoring,
       },
     });
     expect(calibratedAchane?.weeks[1]).toBeCloseTo(16.03261953 * scaleFactor, 8);
@@ -76,9 +85,12 @@ describe("season-long projection calibration", () => {
     const achane = projections.find(player => player.name === "De'Von Achane");
     const gibbs = projections.find(player => player.name === "Jahmyr Gibbs");
 
-    expect(achane?.seasonProjection).toBe(208.2);
+    expect(achane?.seasonProjection).toBe(216.95);
     expect(achane?.projectionCalibration?.sourceDescription)
-      .toBe("Vegas prop-driven season projection");
-    expect(gibbs?.projectionCalibration).toBeUndefined();
+      .toContain("Oddschecker conservative 974.5 rushing-yard line");
+    expect(gibbs?.projectionCalibration).toMatchObject({
+      provider: "Oddschecker and FantasyPros",
+      calibratedSeasonProjection: 292.55,
+    });
   });
 });

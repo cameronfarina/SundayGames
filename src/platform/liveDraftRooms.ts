@@ -1,4 +1,5 @@
 import type { Position } from "../../config/league.js";
+import type { SeasonProjectionScoring } from "../modeling/seasonLongProjection.js";
 import {
   canonicalPlayerIdentityKey,
   cleanPlayerName,
@@ -65,6 +66,8 @@ export interface LiveDraftRoomPlayerCatalogEntry {
   week1Projection?: number | undefined;
   weeks1To4Projection?: number | undefined;
   seasonProjection?: number | undefined;
+  seasonProjectionAdjustmentFactor?: number | undefined;
+  seasonProjectionScoring?: SeasonProjectionScoring | undefined;
 }
 
 export interface LiveDraftRoomInitialRosterPlayer {

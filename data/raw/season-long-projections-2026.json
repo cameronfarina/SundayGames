@@ -3,19 +3,134 @@
   "season": 2026,
   "projections": [
     {
+      "player": "Jahmyr Gibbs",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/jahmyr-gibbs",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/jahmyr-gibbs", "https://www.fantasypros.com/nfl/projections/jahmyr-gibbs.php"],
+      "sourceDescription": "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 1199.5, "rushingTouchdowns": 12.5, "receptions": 58.1, "receivingYards": 475.5, "receivingTouchdowns": 3.5 }
+    },
+    {
+      "player": "Bijan Robinson",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/bijan-robinson",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/bijan-robinson", "https://www.fantasypros.com/nfl/projections/bijan-robinson.php"],
+      "sourceDescription": "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 1174.5, "rushingTouchdowns": 8.5, "receptions": 62.2, "receivingYards": 575.5, "receivingTouchdowns": 3.5 }
+    },
+    {
+      "player": "Christian McCaffrey",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/christian-mccaffrey",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/christian-mccaffrey", "https://www.fantasypros.com/nfl/projections/christian-mccaffrey.php"],
+      "sourceDescription": "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 950.5, "rushingTouchdowns": 8.5, "receptions": 65.1, "receivingYards": 574.5, "receivingTouchdowns": 4.5 }
+    },
+    {
+      "player": "Jonathan Taylor",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/jonathan-taylor",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/jonathan-taylor", "https://www.fantasypros.com/nfl/projections/jonathan-taylor.php"],
+      "sourceDescription": "Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 1250.5, "rushingTouchdowns": 11.5, "receptions": 45.1, "receivingYards": 338.2, "receivingTouchdowns": 1.5 }
+    },
+    {
+      "player": "James Cook",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/james-cook",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/james-cook", "https://www.fantasypros.com/nfl/projections/james-cook.php"],
+      "sourceDescription": "Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 1250.5, "rushingTouchdowns": 10.5, "receptions": 33.3, "receivingYards": 281.7, "receivingTouchdowns": 1.9 }
+    },
+    {
+      "player": "Derrick Henry",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/derrick-henry",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/derrick-henry", "https://www.fantasypros.com/nfl/projections/derrick-henry.php"],
+      "sourceDescription": "Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 1249.5, "rushingTouchdowns": 12.5, "receptions": 17.8, "receivingYards": 172.1, "receivingTouchdowns": 0.7 }
+    },
+    {
+      "player": "Ashton Jeanty",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/ashton-jeanty",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/ashton-jeanty", "https://www.fantasypros.com/nfl/projections/ashton-jeanty.php"],
+      "sourceDescription": "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 975.5, "rushingTouchdowns": 7.5, "receptions": 49.6, "receivingYards": 350.5, "receivingTouchdowns": 2.8 }
+    },
+    {
+      "player": "Chase Brown",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/chase-brown",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/chase-brown", "https://www.fantasypros.com/nfl/projections/chase-brown.php"],
+      "sourceDescription": "Conservative Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 824.5, "rushingTouchdowns": 5.5, "receptions": 64.4, "receivingYards": 430.1, "receivingTouchdowns": 3.9 }
+    },
+    {
+      "player": "Kyren Williams",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/kyren-williams",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/kyren-williams", "https://www.fantasypros.com/nfl/projections/kyren-williams.php"],
+      "sourceDescription": "Oddschecker rushing-yard season market with FantasyPros touchdown and receiving components",
+      "stats": { "rushingYards": 975.5, "rushingTouchdowns": 10.1, "receptions": 33.5, "receivingYards": 239.6, "receivingTouchdowns": 2.2 }
+    },
+    {
       "player": "De'Von Achane",
       "position": "RB",
-      "provider": "First Down Studio",
-      "sourceDate": "2026-08-12",
-      "sourceUrl": "https://www.firstdown.studio/season-rankings/flex",
-      "sourceDescription": "Vegas prop-driven season projection",
-      "stats": {
-        "rushingYards": 979,
-        "rushingTouchdowns": 5.3,
-        "receptions": 58,
-        "receivingYards": 375,
-        "receivingTouchdowns": 2
-      }
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/devon-achane",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/devon-achane/total-rushing-yards-regular-season", "https://www.fantasypros.com/nfl/projections/devon-achane.php"],
+      "sourceDescription": "Oddschecker conservative 974.5 rushing-yard line, 5.5 rushing-touchdown line, and 400.5 receiving-yard line blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 974.5, "rushingTouchdowns": 5.5, "receptions": 53.3, "receivingYards": 400.5, "receivingTouchdowns": 3.3 }
+    },
+    {
+      "player": "Omarion Hampton",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/omarion-hampton",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/omarion-hampton", "https://www.fantasypros.com/nfl/projections/omarion-hampton.php"],
+      "sourceDescription": "Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 925.5, "rushingTouchdowns": 7.5, "receptions": 51.6, "receivingYards": 352.6, "receivingTouchdowns": 2 }
+    },
+    {
+      "player": "Saquon Barkley",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/saquon-barkley",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/saquon-barkley", "https://www.fantasypros.com/nfl/projections/saquon-barkley.php"],
+      "sourceDescription": "Oddschecker season markets blended with FantasyPros receiving-volume ratios",
+      "stats": { "rushingYards": 1099.5, "rushingTouchdowns": 7.5, "receptions": 31.6, "receivingYards": 250.5, "receivingTouchdowns": 1.6 }
+    },
+    {
+      "player": "Quinshon Judkins",
+      "position": "RB",
+      "provider": "Oddschecker and FantasyPros",
+      "sourceDate": "2026-08-13",
+      "sourceUrl": "https://www.oddschecker.com/us/football/nfl-specials/quinshon-judkins",
+      "sourceUrls": ["https://www.oddschecker.com/us/football/nfl-specials/quinshon-judkins", "https://www.fantasypros.com/nfl/projections/quinshon-judkins.php"],
+      "sourceDescription": "Oddschecker rushing season markets with FantasyPros receiving components",
+      "stats": { "rushingYards": 900.5, "rushingTouchdowns": 6.5, "receptions": 31.3, "receivingYards": 218.3, "receivingTouchdowns": 0.6 }
     }
   ]
 }
