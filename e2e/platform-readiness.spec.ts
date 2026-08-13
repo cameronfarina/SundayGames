@@ -1085,6 +1085,93 @@ test("local platform supports fixture signup, setup, invitation, realtime draft,
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
 });
 
+test("primary navigation stays in the current document and the account menu dismisses accessibly", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const email = "soft.navigation.e2e@example.com";
+  await page.goto("/login");
+  const account = expectOk(await api<AccountBody>(page, "/accounts", {
+    method: "POST",
+    body: { email, password },
+  })).account;
+  expectOk(await api<AccountBody>(page, "/sessions", {
+    method: "POST",
+    body: { email, password },
+  }));
+  const season = await seedSeasonFromBrowser(page, account);
+  const requestCounts = {
+    document: 0,
+    onboarding: 0,
+    session: 0,
+  };
+
+  page.on("request", request => {
+    const requestUrl = new URL(request.url());
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+      requestCounts.document += 1;
+    }
+    if (requestUrl.pathname === "/onboarding") requestCounts.onboarding += 1;
+    if (requestUrl.pathname === "/session") requestCounts.session += 1;
+  });
+
+  await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: 1 });
+
+  const documentId = "soft-navigation-document";
+  await page.evaluate(id => {
+    document.documentElement.dataset.softNavigationDocument = id;
+  }, documentId);
+  const expectCurrentDocument = async (): Promise<void> => {
+    await expect.poll(async () => await page.evaluate(() =>
+      document.documentElement.dataset.softNavigationDocument
+    )).toBe(documentId);
+    expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: 1 });
+  };
+
+  await page.getByRole("link", { name: "League", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#league-workspace")).toBeVisible();
+  await expectCurrentDocument();
+
+  await page.getByRole("link", { name: "My team", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#my-team-workspace")).toBeVisible();
+  await expectCurrentDocument();
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#league-workspace")).toBeVisible();
+  await expectCurrentDocument();
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/practice\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#standalone-board")).toBeVisible();
+  await expectCurrentDocument();
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#league-workspace")).toBeVisible();
+  await expectCurrentDocument();
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expect(page.locator("#my-team-workspace")).toBeVisible();
+  await expectCurrentDocument();
+
+  const accountMenu = page.locator("#account-menu");
+  const accountMenuButton = page.locator("#account-menu-button");
+  await accountMenuButton.click();
+  await expect(accountMenu).toHaveAttribute("open", "");
+  await page.locator("#my-team-workspace h1").click();
+  await expect(accountMenu).not.toHaveAttribute("open", "");
+
+  await accountMenuButton.click();
+  await expect(accountMenu).toHaveAttribute("open", "");
+  await page.keyboard.press("Escape");
+  await expect(accountMenu).not.toHaveAttribute("open", "");
+  await expect(accountMenuButton).toBeFocused();
+});
+
 test("completed auction mock shows every team's priced Week 1 roster", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const { page, account } = await pageForLocalFixtureUser(browser, "completed.mock.e2e@example.com");
