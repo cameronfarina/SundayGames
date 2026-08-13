@@ -1,8 +1,8 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Dialog, type Page } from "@playwright/test";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { AccountRecord } from "../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
-import type { LiveDraftRoom } from "../src/platform/liveDraftRooms.js";
+import type { LiveDraftRoomReadModel } from "../src/platform/liveDraftRoomStream.js";
 import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
 import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
 import type { PlatformOnboardingLeague } from "../src/platform/platformOnboarding.js";
@@ -56,7 +56,6 @@ const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password"
 const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
 const baseLeagueName = "E2E League 214674";
 const leagueName = smokeRunId === undefined ? baseLeagueName : `${baseLeagueName} ${smokeRunId}`;
-const exportedAt = "2026-08-09T15:30:00.000Z";
 const provisioningToken = process.env.MOCKD_E2E_PROVISIONING_TOKEN?.trim() || "local-e2e-provisioning-token";
 
 interface JsonResponse<TBody> {
@@ -73,7 +72,7 @@ interface SeasonBody {
 }
 
 interface LiveDraftRoomBody {
-  room: LiveDraftRoom;
+  room: LiveDraftRoomReadModel;
 }
 
 interface PricingSnapshotsBody {
@@ -91,17 +90,6 @@ interface EventsBody {
   };
 }
 
-interface ExportArtifactBody {
-  artifact: {
-    id: string;
-    format: string;
-    sourceRevision: number;
-    byteLength: number;
-    contentType: string;
-  };
-  content: string;
-}
-
 interface OnboardingBody {
   leagues: readonly PlatformOnboardingLeague[];
 }
@@ -110,14 +98,13 @@ interface ReadySmokeWorkspace {
   commissionerPage: Page;
   memberPage: Page;
   season: LeagueSeason;
-  room: LiveDraftRoom;
+  room: LiveDraftRoomReadModel;
   commissionerOwnerName: string;
   memberOwnerName: string;
   commissionerTeamName: string;
   memberTeamName: string;
   salePlayerName: string;
   salePrice: number;
-  expectedExportedInitialPlayer?: string | undefined;
 }
 
 interface BrowserSseEvent {
@@ -537,7 +524,7 @@ const exerciseBoardSimulations = async (page: Page): Promise<void> => {
 const createLiveRoomFromSetup = async (
   page: Page,
   season: LeagueSeason,
-): Promise<LiveDraftRoom> => {
+): Promise<LiveDraftRoomReadModel> => {
   await Promise.all([
     page.waitForURL(/\/draft-room\?seasonId=.*&roomId=/),
     page.getByRole("button", { name: "Create draft room" }).click(),
@@ -550,7 +537,7 @@ const createLiveRoomFromSetup = async (
     seasonId: season.id,
     status: "setup",
   });
-  expect(room.playerCatalog.length).toBeGreaterThan(0);
+  expect(room.board.length).toBeGreaterThan(0);
 
   return room;
 };
@@ -600,8 +587,12 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   const seedSeason = await seedSeasonFromBrowser(camPage, camAccount);
   const invitationUrl = await applyCommissionerSetup(camPage, seedSeason, camEmail);
   const createdRoom = await createLiveRoomFromSetup(camPage, seedSeason);
-  expect(createdRoom.playerCatalog).toHaveLength(500);
-  expect(createdRoom.initialRosters).toHaveLength(7);
+  const initialRosterCount = createdRoom.teamSummaries.reduce(
+    (count, team) => count + team.roster.length,
+    0,
+  );
+  expect(createdRoom.board).toHaveLength(493);
+  expect(initialRosterCount).toBe(7);
   const { page: sethPage } = await pageForLocalFixtureUser(browser, sethEmail);
   await sethPage.goto(invitationUrl);
   await expect(sethPage.locator("#invite-workspace")).toBeVisible();
@@ -681,7 +672,6 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
     memberTeamName: "Seth",
     salePlayerName: "Puka Nacua",
     salePrice: 62,
-    expectedExportedInitialPlayer: "De'Von Achane",
   };
 };
 
@@ -787,7 +777,6 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
     memberTeamName,
     salePlayerName,
     salePrice,
-    expectedExportedInitialPlayer,
   } = workspace;
   const roomId = createdRoom.roomId;
 
@@ -799,7 +788,11 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await expect(sethPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
   await expect(sethPage.locator("#my-team-name")).toHaveText(memberTeamName);
 
-  await openUnifiedBoard(camPage, appliedSeason.id, createdRoom.playerCatalog.length);
+  const fullPlayerCount = createdRoom.board.length + createdRoom.teamSummaries.reduce(
+    (count, team) => count + team.roster.length,
+    0,
+  );
+  await openUnifiedBoard(camPage, appliedSeason.id, fullPlayerCount);
   await expect(camPage.locator("#standalone-board-open-live")).toHaveCount(0);
   await camPage.getByRole("link", { name: "League", exact: true }).click();
   await expect(camPage).toHaveURL(/\/league\?seasonId=/);
@@ -811,7 +804,7 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await expect(camPage.locator("#empty-leagues")).toBeVisible();
   await expect(camPage.locator("#league-context")).toBeHidden();
 
-  await openUnifiedBoard(sethPage, appliedSeason.id, createdRoom.playerCatalog.length);
+  await openUnifiedBoard(sethPage, appliedSeason.id, fullPlayerCount);
   await exerciseDurableMockWorkspace(sethPage, appliedSeason);
 
   await Promise.all([
@@ -857,15 +850,13 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   expect(soldRoom).toMatchObject({
     status: "live",
     revision: startedRoom.revision + 1,
-    projection: {
-      sales: [
-        expect.objectContaining({
-          ownerDisplayName: commissionerOwnerName,
-          playerName: salePlayerName,
-          price: salePrice,
-        }),
-      ],
-    },
+    salesLog: [
+      expect.objectContaining({
+        ownerDisplayName: commissionerOwnerName,
+        playerName: salePlayerName,
+        price: salePrice,
+      }),
+    ],
   });
   expect(saleEvent).toMatchObject({
     type: "room.sale",
@@ -902,39 +893,45 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await camPage.locator("#draft-log-sale").click();
   await expect(camPage.locator("#draft-sales")).toContainText(salePlayerName);
 
-  camPage.once("dialog", dialog => dialog.accept());
+  let endConfirmationCount = 0;
+  const acceptEndConfirmation = (dialog: Dialog): void => {
+    endConfirmationCount += 1;
+    void dialog.accept();
+  };
+  camPage.on("dialog", acceptEndConfirmation);
   await camPage.locator("#draft-end").click();
   await expect(camPage.locator("#draft-room-status")).toHaveText("Complete");
+  camPage.off("dialog", acceptEndConfirmation);
+  expect(endConfirmationCount).toBe(2);
   await expect(sethPage.locator("#draft-room-status")).toHaveText("Complete");
   const endedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
   expect(endedRoom).toMatchObject({
     status: "ended",
+    exportReadiness: {
+      status: "blocked",
+      blockers: expect.arrayContaining([expect.stringContaining("open roster slots")]),
+    },
   });
-
-  const downloadPromise = camPage.waitForEvent("download");
-  await camPage.locator("#draft-export").click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/\.csv$/);
-
-  const exportArtifact = expectOk(await api<ExportArtifactBody>(camPage, `/live-rooms/${roomId}/export-artifacts`, {
-    method: "POST",
-    body: { exportedAt },
-  }));
-
-  expect(exportArtifact.artifact).toMatchObject({
-    format: "csv",
-    sourceRevision: endedRoom.revision,
-    contentType: "text/csv; charset=utf-8",
+  await expect(camPage.locator("#draft-export")).toBeDisabled();
+  const blockedExport = await api<{ error: { code: string; message: string } }>(
+    camPage,
+    `/live-rooms/${roomId}/export-artifacts`, {
+      method: "POST",
+      body: {},
+    },
+  );
+  expect(blockedExport).toMatchObject({
+    status: 409,
+    body: {
+      error: {
+        code: "draft_room_not_final",
+        message: "Final export requires every team to fill every roster slot.",
+      },
+    },
   });
-  expect(exportArtifact.artifact.byteLength).toBe(Buffer.byteLength(exportArtifact.content, "utf8"));
-  expect(exportArtifact.content).toContain("Status,ended,Revision");
-  expect(exportArtifact.content).toContain(`${salePlayerName},${salePrice}`);
-  if (expectedExportedInitialPlayer !== undefined) {
-    expect(exportArtifact.content).toContain(expectedExportedInitialPlayer);
-  }
 };
 
-test("local platform supports fixture signup, setup, invitation, realtime draft, and export", async ({ browser }) => {
+test("local platform supports fixture signup, setup, invitation, realtime draft, and final-export gating", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
 });
@@ -982,9 +979,9 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   }));
 
   const wideDraft = (camPrice: number, samPrice: number): string => [
-    "Team,Cam,,,Sam,,",
-    `1,$${camPrice},RB,De'Von Achane,$${samPrice},WR,CeeDee Lamb`,
-    "2,$61,WR,Ja'Marr Chase,$9,QB,Trevor Lawrence",
+    "Team,Cam,,,Sam,,,Seth,,,Alex,,",
+    `1,$${camPrice},RB,De'Von Achane,$${samPrice},WR,CeeDee Lamb,$32,WR,Puka Nacua,$72,RB,Jahmyr Gibbs`,
+    "2,$61,WR,Ja'Marr Chase,$9,QB,Trevor Lawrence,$68,RB,Bijan Robinson,$67,WR,Amon-Ra St. Brown",
   ].join("\n");
 
   await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
@@ -1016,8 +1013,8 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(page.locator("#historical-import-status")).toHaveText(
     "Imported 2 draft files. Draft history is saved. Market now blends baseline projections with up to three years of open-auction sales; keeper rows are excluded. Files with same-season public/AAV values also improve player-level estimates.",
   );
-  await expect(historyRows.nth(0)).toContainText("4 draft rows imported for 2023");
-  await expect(historyRows.nth(1)).toContainText("4 draft rows imported for 2024");
+  await expect(historyRows.nth(0)).toContainText("8 draft rows imported for 2023");
+  await expect(historyRows.nth(1)).toContainText("8 draft rows imported for 2024");
 
   const keeperCommand = page.locator("#keeper-command-input");
   await keeperCommand.fill("Alex Lamb 50");
@@ -1079,7 +1076,7 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   )).pricingSnapshots.at(-1);
   const expectedPukaPrice = latestPricing?.rows.find(row => row.playerName === "Puka Nacua")?.personalValue;
   expect(expectedPukaPrice).toBeDefined();
-  expect(updatedRoom.playerCatalog.find(player => player.name === "Puka Nacua")?.expectedPrice)
+  expect(updatedRoom.board.find(player => player.name === "Puka Nacua")?.expectedPrice)
     .toBe(Math.round(expectedPukaPrice ?? Number.NaN));
   const pukaRow = page.locator('#draft-board-rows tr[data-player-name="Puka Nacua"]');
   await expect(pukaRow.locator("td").last()).toHaveText(`$${Math.round(expectedPukaPrice ?? Number.NaN)}`);
