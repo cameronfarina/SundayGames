@@ -458,13 +458,44 @@ const clientAddressFor = (request: IncomingMessage, trustProxy: boolean): string
     ? forwardedClientAddress(request.headers) ?? request.socket.remoteAddress
     : request.socket.remoteAddress;
 
-const writeJsonResponse = (
+const isAsyncTextStream = (body: unknown): body is AsyncIterable<string> =>
+  body !== null
+  && typeof body === "object"
+  && Symbol.asyncIterator in body;
+
+const writeJsonResponse = async (
   response: ServerResponse,
   platformResponse: PlatformHttpResponse,
-): void => {
+): Promise<void> => {
   const explicitContentType = Object.entries(platformResponse.headers ?? {})
     .find(([name]) => name.toLowerCase() === "content-type")?.[1];
   const contentType = firstHeaderValue(explicitContentType);
+  if (isAsyncTextStream(platformResponse.body)) {
+    response.statusCode = platformResponse.status;
+    for (const [name, value] of Object.entries(platformResponse.headers ?? {})) {
+      if (name.toLowerCase() !== "x-request-id" && value !== undefined) {
+        response.setHeader(name, value);
+      }
+    }
+    setDefaultSecurityHeaders(response);
+    response.flushHeaders();
+    for await (const chunk of platformResponse.body) {
+      if (response.destroyed) return;
+      if (!response.write(chunk)) {
+        await new Promise<void>(resolve => {
+          const resume = (): void => {
+            response.removeListener("drain", resume);
+            response.removeListener("close", resume);
+            resolve();
+          };
+          response.once("drain", resume);
+          response.once("close", resume);
+        });
+      }
+    }
+    if (!response.destroyed) response.end();
+    return;
+  }
   const rawTextBody = typeof platformResponse.body === "string" ? platformResponse.body : undefined;
   if (rawTextBody !== undefined && contentType?.toLowerCase().startsWith("text/event-stream") === true) {
     response.statusCode = platformResponse.status;
@@ -650,7 +681,7 @@ export const createPlatformNodeHttpAdapter = (
         if (preflightResponse !== null) {
           response.shouldKeepAlive = false;
           response.setHeader("Connection", "close");
-          writeJsonResponse(response, preflightResponse);
+          await writeJsonResponse(response, preflightResponse);
           return;
         }
       }
@@ -663,7 +694,7 @@ export const createPlatformNodeHttpAdapter = (
         if (isPlatformHttpResponse(admission)) {
           response.shouldKeepAlive = false;
           response.setHeader("Connection", "close");
-          writeJsonResponse(response, admission);
+          await writeJsonResponse(response, admission);
           return;
         }
         historicalImportPermit = admission;
@@ -685,24 +716,28 @@ export const createPlatformNodeHttpAdapter = (
         );
         const platformResponse = await handle(platformRequest);
 
-        if (!response.destroyed) writeJsonResponse(response, platformResponse);
+        if (!response.destroyed) await writeJsonResponse(response, platformResponse);
       } finally {
         historicalImportPermit?.release();
         request.removeListener("aborted", abortForIncompleteRequest);
         response.removeListener("close", abortForClosedResponse);
       }
     } catch (error) {
+      if (response.headersSent) {
+        if (!response.destroyed && !response.writableEnded) response.end();
+        return;
+      }
       if (error instanceof RequestBodyTooLargeError) {
-        writeJsonResponse(response, requestBodyTooLargeResponse);
+        await writeJsonResponse(response, requestBodyTooLargeResponse);
         return;
       }
 
       if (error instanceof InvalidJsonBodyError) {
-        writeJsonResponse(response, invalidJsonResponse);
+        await writeJsonResponse(response, invalidJsonResponse);
         return;
       }
 
-      writeJsonResponse(response, {
+      await writeJsonResponse(response, {
         status: 500,
         body: {
           error: {

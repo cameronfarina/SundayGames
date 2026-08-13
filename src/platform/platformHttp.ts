@@ -160,6 +160,7 @@ import {
   maximumSeasonSimulationRunCount,
   runSeasonSimulations,
   SeasonSimulationError,
+  type SeasonSimulationProgress,
   type SeasonSimulationTargetConstraint,
 } from "./seasonSimulationEngine.js";
 import type { SeasonSimulationRunner } from "./seasonSimulationWorkerRunner.js";
@@ -231,6 +232,44 @@ export interface PlatformHttpServices {
   liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
 }
+
+const eventStreamChunk = (event: string, data: unknown): string =>
+  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+const asyncTextStream = (
+  execute: (emit: (chunk: string) => void) => void | Promise<void>,
+): AsyncIterable<string> => {
+  const chunks: string[] = [];
+  let wake: (() => void) | undefined;
+  let finished = false;
+  const emit = (chunk: string): void => {
+    chunks.push(chunk);
+    wake?.();
+    wake = undefined;
+  };
+  void Promise.resolve()
+    .then(() => execute(emit))
+    .finally(() => {
+      finished = true;
+      wake?.();
+      wake = undefined;
+    });
+
+  return {
+    async *[Symbol.asyncIterator]() {
+      while (!finished || chunks.length > 0) {
+        if (chunks.length === 0) {
+          await new Promise<void>(resolve => {
+            wake = resolve;
+          });
+          continue;
+        }
+        const chunk = chunks.shift();
+        if (chunk !== undefined) yield chunk;
+      }
+    },
+  };
+};
 
 interface ParsedPlatformHttpRequest {
   method: string;
@@ -2641,46 +2680,79 @@ const routeSeasonSimulations = async (
       ? { playerExpectedPrices, playerHumanValues }
       : {}),
   };
-  const simulation = services.seasonSimulationRunner === undefined
-    ? runSeasonSimulations(simulationInput)
-    : await services.seasonSimulationRunner(simulationInput, { signal: request.signal });
+  const executeAndStoreSimulation = async (
+    onProgress?: (progress: SeasonSimulationProgress) => void,
+  ) => {
+    const simulation = services.seasonSimulationRunner === undefined
+      ? runSeasonSimulations(simulationInput, { onProgress })
+      : await services.seasonSimulationRunner(simulationInput, {
+          signal: request.signal,
+          onProgress,
+        });
 
-  const createdAt = request.now ?? new Date();
-  const storedRun = await app.createSimulationRun({
-    actorSessionToken: request.sessionToken,
-    leagueId: context.season.leagueId,
-    seasonId: context.season.id,
-    ownerId: context.membership.ownerId,
-    teamId: context.membership.teamId,
-    count: runCount,
-    seedPrefix,
-    idempotencyKey: `season-simulation:${randomUUID()}`,
-    strategy: {},
-    now: createdAt,
-  });
-  const completedRun = await app.completeSeasonSimulationRun({
-    actorSessionToken: request.sessionToken,
-    runId: storedRun.id,
-    result: {
-      runId: storedRun.id,
-      requestId: storedRun.request.id,
-      completedAt: createdAt,
-      runCount,
+    const createdAt = request.now ?? new Date();
+    const storedRun = await app.createSimulationRun({
+      actorSessionToken: request.sessionToken,
+      leagueId: context.season.leagueId,
+      seasonId: context.season.id,
+      ownerId: context.membership.ownerId,
+      teamId: context.membership.teamId,
+      count: runCount,
       seedPrefix,
-      hardLockCount: 0,
-      softTargetCount: 0,
-      forcedSales: [],
-      summary: { runCount, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
-      seasonSimulation: simulation,
-      strategyText: strategyInput,
-      ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
-        ? { note: request.body.note.trim().slice(0, 1_000) }
-        : {}),
-    },
-    now: createdAt,
-  });
+      idempotencyKey: `season-simulation:${randomUUID()}`,
+      strategy: {},
+      now: createdAt,
+    });
+    const completedRun = await app.completeSeasonSimulationRun({
+      actorSessionToken: request.sessionToken,
+      runId: storedRun.id,
+      result: {
+        runId: storedRun.id,
+        requestId: storedRun.request.id,
+        completedAt: createdAt,
+        runCount,
+        seedPrefix,
+        hardLockCount: 0,
+        softTargetCount: 0,
+        forcedSales: [],
+        summary: { runCount, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
+        seasonSimulation: simulation,
+        strategyText: strategyInput,
+        ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
+          ? { note: request.body.note.trim().slice(0, 1_000) }
+          : {}),
+      },
+      now: createdAt,
+    });
 
-  return { status: 200, body: { simulation, historyId: completedRun.id } };
+    return { simulation, historyId: completedRun.id };
+  };
+  const acceptsEventStream = (headerValue(request.headers, "accept") ?? "")
+    .toLowerCase()
+    .includes("text/event-stream");
+  if (acceptsEventStream) {
+    return {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      },
+      body: asyncTextStream(async emit => {
+        try {
+          const result = await executeAndStoreSimulation(progress => {
+            emit(eventStreamChunk("progress", progress));
+          });
+          emit(eventStreamChunk("result", result));
+        } catch (error) {
+          emit(eventStreamChunk("error", errorResponseFor(error).body));
+        }
+      }),
+    };
+  }
+
+  const result = await executeAndStoreSimulation();
+  return { status: 200, body: result };
 };
 
 const routePracticeShortlist = async (

@@ -372,6 +372,26 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("const openPasswordDialog = () =>");
   });
 
+  it("shows truthful pending states for simulation and keeper work", () => {
+    expect(platformShellHtml).toContain('<label for="simulation-note">Saved note (optional)</label>');
+    expect(platformShellHtml).toContain("For your records only. This note does not change the simulation strategy.");
+    expect(platformShellHtml).toContain('class="primary task-progress-button"');
+    expect(platformShellHtml).toContain("min-width: 160px;");
+    expect(platformShellHtml).toContain("const setTaskButtonBusy = (");
+    expect(platformShellHtml).toContain("const updateTaskButtonProgress = (");
+    expect(platformShellHtml).toContain("simulationAbortController: null");
+    expect(platformShellHtml).toContain("state.simulationAbortController?.abort()");
+    expect(platformShellHtml).toContain("signal: abortController.signal");
+    expect(platformShellHtml).toContain("state.simulationAbortController !== abortController");
+    expect(platformShellHtml).toContain('"Running simulations: " + percent + "% complete"');
+    expect(platformShellHtml).toContain('accept: "text/event-stream"');
+    expect(platformShellHtml).toContain("updateTaskButtonProgress(simulationRun, progress.completed, progress.total)");
+    expect(platformShellHtml).toContain('setTaskButtonBusy(keeperAddButton, "Adding keeper...")');
+    expect(platformShellHtml).toContain("--task-progress-track: #15332b;");
+    expect(platformShellHtml).toContain("--task-progress-fill: #1f6b53;");
+    expect(platformShellHtml).toContain('color: var(--text);');
+  });
+
   it("explains no-league practice access and preserves private invitation onboarding", () => {
     expect(platformShellHtml).toContain('id="no-league-practice-onboarding"');
     expect(platformShellHtml).toContain('id="no-league-create-league"');

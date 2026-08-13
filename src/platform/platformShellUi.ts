@@ -92,6 +92,8 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       --muted: #a5acb8;
       --accent: #67d8b0;
       --accent-strong: #88edc8;
+      --task-progress-track: #15332b;
+      --task-progress-fill: #1f6b53;
       --danger: #ff8c9b;
       --warning: #f4c86b;
       --focus: #71b7ff;
@@ -284,6 +286,13 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
       margin: 8px 0 0;
     }
 
+    .field-hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      margin: 7px 0 0;
+    }
+
     .stack { display: grid; gap: 16px; }
     .compact-stack { display: grid; gap: 10px; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -465,6 +474,51 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
     button:disabled, .button[aria-disabled="true"] {
       cursor: not-allowed;
       opacity: .5;
+    }
+
+    .task-progress-button {
+      font-variant-numeric: tabular-nums;
+      isolation: isolate;
+      min-width: 160px;
+      overflow: hidden;
+      position: relative;
+    }
+    .task-progress-button::before {
+      background: var(--task-progress-fill);
+      content: "";
+      inset: 0 auto 0 0;
+      opacity: 0;
+      position: absolute;
+      transition: width 180ms ease;
+      width: var(--task-progress, 0%);
+      z-index: -1;
+    }
+    .task-progress-button[aria-busy="true"] {
+      background: var(--task-progress-track);
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+      color: var(--text);
+      opacity: 1;
+    }
+    .task-progress-button[aria-busy="true"]::before { opacity: 1; }
+    .task-progress-button[data-progress-mode="indeterminate"]::before {
+      animation: task-progress-indeterminate 1.1s ease-in-out infinite;
+      transform: translateX(-120%);
+      width: 42%;
+    }
+    .task-progress-button [data-button-label] {
+      position: relative;
+      z-index: 1;
+    }
+
+    @keyframes task-progress-indeterminate {
+      to { transform: translateX(340%); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .task-progress-button[data-progress-mode="indeterminate"]::before {
+        animation: none;
+        transform: none;
+      }
     }
 
     .text-button {
@@ -1570,11 +1624,12 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
                 <input id="simulation-count" type="number" min="1" max="100" step="1" value="25">
               </div>
               <div>
-                <label for="simulation-note">Run note</label>
-                <input id="simulation-note" maxlength="1000" autocomplete="off" placeholder="What are you testing in this run?">
+                <label for="simulation-note">Saved note (optional)</label>
+                <input id="simulation-note" maxlength="1000" autocomplete="off" aria-describedby="simulation-note-help" placeholder="Label this run for later">
+                <p id="simulation-note-help" class="field-hint">For your records only. This note does not change the simulation strategy.</p>
               </div>
             </div>
-            <div class="actions"><button id="simulation-run" class="primary" type="button">Run simulations</button></div>
+            <div class="actions"><button id="simulation-run" class="primary task-progress-button" type="button"><span data-button-label>Run simulations</span></button></div>
             <section id="simulation-history" class="compact-stack hidden" aria-labelledby="simulation-history-title">
               <h2 id="simulation-history-title">Previous runs</h2>
               <div class="actions">
@@ -1992,7 +2047,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
                 <label for="keeper-command-input">Keeper command</label>
                 <input id="keeper-command-input" placeholder="Hoody keeping Tuten 5" autocomplete="off">
               </div>
-              <button id="keeper-add-button" class="primary" type="submit">Add keeper</button>
+              <button id="keeper-add-button" class="primary task-progress-button" type="submit"><span data-button-label>Add keeper</span></button>
             </form>
             <p id="keeper-status" class="status" role="status" aria-live="polite"></p>
             <div id="keeper-list" class="keeper-list"></div>
@@ -2094,6 +2149,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       simulation: null,
       simulationHistory: [],
       selectedSimulationRunIndex: 0,
+      simulationAbortController: null,
       leagueCreation: null,
       leagueCreationStep: "basics",
       leagueCreationScreenshotFile: null,
@@ -2306,6 +2362,44 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
 
     const setHidden = (element, hidden) => element.classList.toggle("hidden", hidden);
 
+    const taskButtonLabel = button => button.querySelector("[data-button-label]");
+
+    const updateTaskButtonProgress = (button, completed, total) => {
+      const safeTotal = Math.max(1, Number(total) || 1);
+      const safeCompleted = Math.min(safeTotal, Math.max(0, Number(completed) || 0));
+      const percent = Math.round((safeCompleted / safeTotal) * 100);
+      button.dataset.progressMode = "determinate";
+      button.style.setProperty("--task-progress", percent + "%");
+      const label = taskButtonLabel(button);
+      if (label) label.textContent = safeCompleted + " of " + safeTotal + " drafts";
+      button.setAttribute("aria-label", "Running simulations: " + percent + "% complete");
+    };
+
+    const setTaskButtonBusy = (button, labelText, progress) => {
+      const label = taskButtonLabel(button);
+      if (!button.dataset.idleLabel) button.dataset.idleLabel = label?.textContent || button.textContent.trim();
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      if (progress) {
+        updateTaskButtonProgress(button, progress.completed, progress.total);
+        return;
+      }
+      button.dataset.progressMode = "indeterminate";
+      button.style.removeProperty("--task-progress");
+      button.removeAttribute("aria-label");
+      if (label) label.textContent = labelText;
+    };
+
+    const clearTaskButtonBusy = (button, disabled = false) => {
+      const label = taskButtonLabel(button);
+      if (label && button.dataset.idleLabel) label.textContent = button.dataset.idleLabel;
+      button.disabled = disabled;
+      button.removeAttribute("aria-busy");
+      button.removeAttribute("aria-label");
+      button.removeAttribute("data-progress-mode");
+      button.style.removeProperty("--task-progress");
+    };
+
     const errorMessageFor = body => body && body.error && body.error.message
       ? body.error.message
       : "Mockd could not complete that request.";
@@ -2319,6 +2413,33 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         throw error;
       }
       return body;
+    };
+
+    const readEventStream = async (response, onEvent) => {
+      if (!response.ok) return readJson(response);
+      if (!response.body) throw new Error("Mockd could not read simulation progress.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const dispatch = block => {
+        if (!block.trim()) return;
+        let eventName = "message";
+        const data = [];
+        block.split(/\\r?\\n/).forEach(line => {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+        });
+        if (data.length > 0) onEvent(eventName, JSON.parse(data.join("\\n")));
+      };
+      while (true) {
+        const chunk = await reader.read();
+        buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+        const blocks = buffer.split(/\\r?\\n\\r?\\n/);
+        buffer = blocks.pop() || "";
+        blocks.forEach(dispatch);
+        if (chunk.done) break;
+      }
+      dispatch(buffer);
     };
 
     const returnPath = () => routePath + window.location.search;
@@ -3062,16 +3183,20 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       if (!selectedLeague?.membership?.teamId) return;
       const seasonId = selectedLeague.seasonId;
       const requestGeneration = state.workspaceRequestGeneration;
+      state.simulationAbortController?.abort();
+      const abortController = new AbortController();
+      state.simulationAbortController = abortController;
       const note = simulationNote.value.trim();
       const count = Number(simulationCount.value);
-      simulationRun.disabled = true;
+      setTaskButtonBusy(simulationRun, "Running simulations...", { completed: 0, total: count });
       setHidden(simulationResults, true);
-      simulationStatus.textContent = "Running " + count + " league drafts...";
+      simulationStatus.textContent = "Completed 0 of " + count + " league drafts...";
       try {
-        const body = await readJson(await fetch("/season-simulations", {
+        const response = await fetch("/season-simulations", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", accept: "text/event-stream" },
           credentials: "same-origin",
+          signal: abortController.signal,
           body: JSON.stringify({
             seasonId,
             count: count,
@@ -3079,17 +3204,49 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
             strategy: simulationStrategy.value.trim(),
             note,
           }),
-        }));
+        });
+        let body = null;
+        if ((response.headers.get("content-type") || "").includes("text/event-stream")) {
+          await readEventStream(response, (eventName, payload) => {
+            if (
+              !isCurrentWorkspaceRequest(seasonId, requestGeneration)
+              || state.simulationAbortController !== abortController
+            ) return;
+            if (eventName === "progress") {
+              const progress = payload;
+              updateTaskButtonProgress(simulationRun, progress.completed, progress.total);
+              simulationStatus.textContent = "Completed " + progress.completed + " of "
+                + progress.total + " league drafts...";
+            } else if (eventName === "result") {
+              body = payload;
+            } else if (eventName === "error") {
+              const error = new Error(errorMessageFor(payload));
+              error.body = payload;
+              throw error;
+            }
+          });
+        } else {
+          body = await readJson(response);
+        }
+        if (!body) throw new Error("Mockd finished without returning simulation results.");
         if (!isCurrentWorkspaceRequest(seasonId, requestGeneration)) return;
         renderSimulationResult(body.simulation, note);
         await loadSimulationHistory(selectedLeague, requestGeneration);
       } catch (error) {
-        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
+        if (
+          error.name !== "AbortError"
+          && state.simulationAbortController === abortController
+          && isCurrentWorkspaceRequest(seasonId, requestGeneration)
+        ) {
           simulationStatus.textContent = error.message;
         }
       } finally {
-        if (isCurrentWorkspaceRequest(seasonId, requestGeneration)) {
-          simulationRun.disabled = false;
+        if (
+          state.simulationAbortController === abortController
+          && isCurrentWorkspaceRequest(seasonId, requestGeneration)
+        ) {
+          state.simulationAbortController = null;
+          clearTaskButtonBusy(simulationRun);
         }
       }
     };
@@ -4557,6 +4714,9 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
 
     const renderSelectedLeague = selectedLeague => {
       if (state.selectedLeague?.seasonId !== selectedLeague?.seasonId) {
+        state.simulationAbortController?.abort();
+        state.simulationAbortController = null;
+        clearTaskButtonBusy(simulationRun, true);
         state.workspaceRequestGeneration += 1;
         state.boardRequestGeneration += 1;
         state.currentSeason = null;
@@ -5499,7 +5659,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       }
       const previousSaveState = keeperSaveState.textContent;
       keeperCommandInput.disabled = true;
-      keeperAddButton.disabled = true;
+      setTaskButtonBusy(keeperAddButton, "Adding keeper...");
       keeperStatus.textContent = "Adding keeper and updating league values...";
       keeperSaveState.textContent = "Saving...";
       try {
@@ -5529,7 +5689,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         keeperSaveState.textContent = previousSaveState;
       } finally {
         keeperCommandInput.disabled = state.draftHasStarted;
-        keeperAddButton.disabled = state.draftHasStarted;
+        clearTaskButtonBusy(keeperAddButton, state.draftHasStarted);
         if (!state.draftHasStarted) keeperCommandInput.focus();
       }
     });

@@ -102,6 +102,15 @@ export interface RunSeasonSimulationsInput {
   week1Projections?: Readonly<Record<string, number>> | undefined;
 }
 
+export interface SeasonSimulationProgress {
+  completed: number;
+  total: number;
+}
+
+export interface RunSeasonSimulationsOptions {
+  onProgress?: ((progress: SeasonSimulationProgress) => void) | undefined;
+}
+
 export interface SeasonSimulationPlayerExposure {
   playerId: string;
   playerName: string;
@@ -1264,6 +1273,7 @@ const withConfiguredTargets = (
 
 const runSeasonSimulationsUnchecked = (
   input: RunSeasonSimulationsInput,
+  options: RunSeasonSimulationsOptions,
 ): SeasonSimulationResult => {
   if (
     !Number.isInteger(input.runCount)
@@ -1400,6 +1410,7 @@ const runSeasonSimulationsUnchecked = (
           }),
         }, team.slots)),
       });
+      options.onProgress?.({ completed: runNumber, total: input.runCount });
     }
 
     return aggregateRuns({
@@ -1458,6 +1469,7 @@ const runSeasonSimulationsUnchecked = (
         })),
       }, team.slots)),
     });
+    options.onProgress?.({ completed: runNumber, total: input.runCount });
   }
 
   return aggregateRuns({
@@ -1475,9 +1487,10 @@ const runSeasonSimulationsUnchecked = (
 
 export const runSeasonSimulations = (
   input: RunSeasonSimulationsInput,
+  options: RunSeasonSimulationsOptions = {},
 ): SeasonSimulationResult => {
   try {
-    return runSeasonSimulationsUnchecked(input);
+    return runSeasonSimulationsUnchecked(input, options);
   } catch (error) {
     if (error instanceof SeasonSimulationError) throw error;
     if (

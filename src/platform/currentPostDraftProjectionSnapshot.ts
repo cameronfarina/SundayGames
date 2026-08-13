@@ -7,6 +7,7 @@ import {
   type ScoringSettings,
 } from "./leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "./liveDraftRooms.js";
+import { createAsyncValueCache } from "./asyncValueCache.js";
 import { postDraftScoringSettingsIdForSeason } from "./postDraftLiveRoomAdapter.js";
 import type { PostDraftProjectionSnapshot } from "./postDraftTeamAnalysis.js";
 
@@ -157,10 +158,10 @@ const fantasyWeekOneStartsAtBySeason: Readonly<Record<number, string | undefined
 };
 const weekLengthMs = 7 * 24 * 60 * 60 * 1_000;
 
-const loadProjectionDataset = async (): Promise<EspnProjectionDataset> =>
+const loadProjectionDataset = createAsyncValueCache(async (): Promise<EspnProjectionDataset> =>
   fs.readFile(projectionPath, "utf8")
     .then((contents): unknown => JSON.parse(contents))
-    .then(parseDataset);
+    .then(parseDataset));
 
 export const loadLeagueScoredWeekOneProjections = async (
   season: LeagueSeason,

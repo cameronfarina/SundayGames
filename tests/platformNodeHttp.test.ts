@@ -330,6 +330,39 @@ describe("platform Node HTTP adapter", () => {
     expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
   });
 
+  it("streams asynchronous event responses as each update becomes available", async () => {
+    let releaseFinal!: () => void;
+    const finalReady = new Promise<void>(resolve => {
+      releaseFinal = resolve;
+    });
+    const baseUrl = await listen(async () => ({
+      status: 200,
+      headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+      body: (async function* () {
+        yield "event: progress\ndata: {\"completed\":1,\"total\":2}\n\n";
+        await finalReady;
+        yield "event: progress\ndata: {\"completed\":2,\"total\":2}\n\n";
+      })(),
+    }));
+
+    const response = await fetch(`${baseUrl}/season-simulations`, { method: "POST" });
+    const reader = response.body?.getReader();
+    if (reader === undefined) throw new Error("Expected a streamed response body.");
+    const decoder = new TextDecoder();
+
+    const first = await reader.read();
+    expect(decoder.decode(first.value)).toBe(
+      "event: progress\ndata: {\"completed\":1,\"total\":2}\n\n",
+    );
+
+    releaseFinal();
+    const second = await reader.read();
+    expect(decoder.decode(second.value)).toBe(
+      "event: progress\ndata: {\"completed\":2,\"total\":2}\n\n",
+    );
+    await expect(reader.read()).resolves.toMatchObject({ done: true });
+  });
+
   it("aborts a platform request when its client disconnects", async () => {
     let requestStarted!: () => void;
     const started = new Promise<void>(resolve => {
@@ -359,6 +392,34 @@ describe("platform Node HTTP adapter", () => {
     await expect(Promise.race([
       aborted.then(() => undefined),
       new Promise((_, reject) => setTimeout(() => reject(new Error("Request was not aborted.")), 100)),
+    ])).resolves.toBeUndefined();
+  });
+
+  it("aborts a streamed platform request when its client disconnects after progress", async () => {
+    let requestAborted!: () => void;
+    const aborted = new Promise<void>(resolve => {
+      requestAborted = resolve;
+    });
+    const baseUrl = await listen(async request => ({
+      status: 200,
+      headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+      body: (async function* () {
+        yield "event: progress\ndata: {\"completed\":1,\"total\":25}\n\n";
+        if (request.signal?.aborted === true) requestAborted();
+        else request.signal?.addEventListener("abort", requestAborted, { once: true });
+        await aborted;
+      })(),
+    }));
+    const clientRequest = httpRequest(`${baseUrl}/season-simulations`, { method: "POST" });
+    clientRequest.on("error", () => undefined);
+    clientRequest.on("response", clientResponse => {
+      clientResponse.once("data", () => clientResponse.destroy());
+    });
+    clientRequest.end();
+
+    await expect(Promise.race([
+      aborted.then(() => undefined),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Stream was not aborted.")), 100)),
     ])).resolves.toBeUndefined();
   });
 

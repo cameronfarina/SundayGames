@@ -5,6 +5,7 @@ import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import { projectionRankAdjustmentFactor } from "../modeling/liveDraftStrategies.js";
 import { buildProjectionRankings } from "../modeling/projectionRankings.js";
 import { loadCurrentProjections } from "../projections.js";
+import { createAsyncValueCache } from "./asyncValueCache.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
@@ -112,7 +113,7 @@ export const localDemoPlayerCatalog = localDemoRankedPlayers.map((player, index)
   expectedPrice: expectedPriceForRank(index + 1),
 })) satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
-export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
+const buildCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoomPlayerCatalogEntry[]> => {
   const projections = await loadCurrentProjections({ projectionPath: localDemoProjectionPath });
   const projectionsByIdentity = new Map(
     projections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
@@ -176,8 +177,15 @@ export const loadCurrentPlayerCatalog = async (): Promise<readonly LiveDraftRoom
     includedPlayerIdentities.add(playerIdentity);
   }
 
-  return catalog;
+  return Object.freeze(catalog.map(player => Object.freeze({
+    ...player,
+    ...(player.seasonProjectionScoring === undefined
+      ? {}
+      : { seasonProjectionScoring: Object.freeze({ ...player.seasonProjectionScoring }) }),
+  })));
 };
+
+export const loadCurrentPlayerCatalog = createAsyncValueCache(buildCurrentPlayerCatalog);
 
 export const loadLocalDemoPlayerCatalog = loadCurrentPlayerCatalog;
 

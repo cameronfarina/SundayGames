@@ -4,11 +4,13 @@ import {
   SeasonSimulationError,
   type RunSeasonSimulationsInput,
   type SeasonSimulationErrorCode,
+  type SeasonSimulationProgress,
   type SeasonSimulationResult,
 } from "./seasonSimulationEngine.js";
 
 export interface SeasonSimulationRunOptions {
   signal?: AbortSignal | undefined;
+  onProgress?: ((progress: SeasonSimulationProgress) => void) | undefined;
 }
 
 export type SeasonSimulationRunner = (
@@ -38,9 +40,17 @@ interface WorkerFailure {
 
 type WorkerMessage = WorkerSuccess | WorkerFailure;
 
+interface WorkerProgress {
+  type: "progress";
+  progress: SeasonSimulationProgress;
+}
+
+type SeasonSimulationWorkerMessage = WorkerMessage | WorkerProgress;
+
 interface PendingSimulation {
   input: RunSeasonSimulationsInput;
   signal?: AbortSignal | undefined;
+  onProgress?: ((progress: SeasonSimulationProgress) => void) | undefined;
   abortWhilePending?: (() => void) | undefined;
   resolve: (result: SeasonSimulationResult) => void;
   reject: (error: Error) => void;
@@ -104,7 +114,12 @@ const runInWorker = async (
   };
   options.signal?.addEventListener("abort", abort, { once: true });
 
-  worker.once("message", (message: WorkerMessage) => {
+  worker.on("message", (message: SeasonSimulationWorkerMessage) => {
+    if (settled) return;
+    if ("type" in message) {
+      options.onProgress?.(message.progress);
+      return;
+    }
     finish(() => {
       if (message.ok) resolve(message.result);
       else reject(errorForWorkerFailure(message.error));
@@ -173,7 +188,10 @@ export const createBoundedSeasonSimulationRunner = (
           : null;
       };
 
-      void execute(next.input, { signal: executionAbort.signal }).then(result => {
+      void execute(next.input, {
+        signal: executionAbort.signal,
+        onProgress: next.onProgress,
+      }).then(result => {
         const interruption = interruptionError();
         if (interruption === null) next.resolve(result);
         else next.reject(interruption);
@@ -206,6 +224,7 @@ export const createBoundedSeasonSimulationRunner = (
     const next: PendingSimulation = {
       input: structuredClone(input),
       signal: options.signal,
+      onProgress: options.onProgress,
       resolve,
       reject,
     };

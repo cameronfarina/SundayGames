@@ -3486,6 +3486,93 @@ describe("platform server composition", () => {
     await expect(simulation).resolves.toMatchObject({ status: 200 });
   });
 
+  it("cancels a streamed season simulation on disconnect without saving a run", async () => {
+    const simulationEntered = deferred();
+    const simulationCanceled = deferred();
+    const playerCatalog = await loadCurrentPlayerCatalog();
+    const { platformServer, baseUrl } = await createListeningServer({
+      liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
+      liveDraftRoomSetupProvider: async season => ({
+        seasonId: season.id,
+        sourceVersion: "stream-cancel-test",
+        playerCatalog,
+        initialRosters: currentLeagueInitialRostersFor(season),
+        contentHash: "stream-cancel-test-hash",
+        updatedAt: now,
+      }),
+      seasonSimulationRunner: async (input, options) => {
+        options?.onProgress?.({ completed: 1, total: input.runCount });
+        simulationEntered.resolve();
+        return await new Promise((_, reject) => {
+          const cancel = (): void => {
+            simulationCanceled.resolve();
+            reject(new Error("Canceled by client disconnect."));
+          };
+          if (options?.signal?.aborted === true) cancel();
+          else options?.signal?.addEventListener("abort", cancel, { once: true });
+        });
+      },
+    });
+    const account = await platformServer.app.createAccount({
+      email: "stream-cancel@example.com",
+      password: "secure password",
+      now,
+    });
+    const login = await platformServer.app.login({
+      email: account.email,
+      password: "secure password",
+      now,
+    });
+    if (login === null) throw new Error("Expected stream cancellation fixture login.");
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "Stream cancellation league",
+      setupStatus: "published",
+    });
+    const claimedTeam = season.teams[0];
+    if (claimedTeam === undefined) throw new Error("Expected a stream cancellation fixture team.");
+    await platformServer.app.registerLeagueSeason({
+      actorSessionToken: login.sessionToken,
+      season,
+      memberships: [{
+        userId: account.id,
+        leagueId: season.leagueId,
+        role: "owner",
+        ownerId: claimedTeam.ownerId,
+        teamId: claimedTeam.id,
+      }],
+      now,
+    });
+
+    const clientRequest = httpRequest(`${baseUrl}/season-simulations`, {
+      method: "POST",
+      headers: {
+        accept: "text/event-stream",
+        "content-type": "application/json",
+        "x-session-token": login.sessionToken,
+      },
+    });
+    clientRequest.on("error", () => undefined);
+    clientRequest.on("response", response => {
+      response.once("data", () => response.destroy());
+    });
+    clientRequest.end(JSON.stringify({
+      seasonId: season.id,
+      count: 25,
+      strategy: "Target Puka Nacua",
+    }));
+
+    await simulationEntered.promise;
+    await expect(Promise.race([
+      simulationCanceled.promise.then(() => undefined),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Simulation was not canceled.")), 250)),
+    ])).resolves.toBeUndefined();
+    await expect(platformServer.app.listSimulationRuns({
+      actorSessionToken: login.sessionToken,
+      seasonId: season.id,
+      now,
+    })).resolves.toEqual([]);
+  });
+
   it("persists completed season simulation history in the file-backed store", async () => {
     const dataFilePath = await storePath();
     const playerCatalog = await loadCurrentPlayerCatalog();

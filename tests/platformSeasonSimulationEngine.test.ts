@@ -287,6 +287,27 @@ describe("season simulation strategy parser", () => {
 });
 
 describe("season simulation runner", () => {
+  it("reports each completed league draft while a simulation batch runs", () => {
+    const progress: Array<{ completed: number; total: number }> = [];
+
+    runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 3,
+      strategyInput: "",
+      seedPrefix: "progress-events",
+    }, {
+      onProgress: update => progress.push(update),
+    });
+
+    expect(progress).toEqual([
+      { completed: 1, total: 3 },
+      { completed: 2, total: 3 },
+      { completed: 3, total: 3 },
+    ]);
+  });
+
   it("scores the best legal Week 1 lineup instead of the draft-time slot assignment", () => {
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,

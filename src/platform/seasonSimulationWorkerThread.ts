@@ -13,14 +13,17 @@ interface SeasonSimulationWorkerData {
 if (parentPort === null) {
   throw new Error("The season simulation worker requires a parent thread.");
 }
+const workerParentPort = parentPort;
 
 try {
-  parentPort.postMessage({
+  workerParentPort.postMessage({
     ok: true,
-    result: runSeasonSimulations((workerData as SeasonSimulationWorkerData).input),
+    result: runSeasonSimulations((workerData as SeasonSimulationWorkerData).input, {
+      onProgress: progress => workerParentPort.postMessage({ type: "progress", progress }),
+    }),
   });
 } catch (error) {
-  parentPort.postMessage({
+  workerParentPort.postMessage({
     ok: false,
     error: {
       name: error instanceof Error ? error.name : "Error",

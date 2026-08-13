@@ -5,12 +5,16 @@ import { nflTeamByEspnProTeamId } from "../../config/nflTeams.js";
 import type { CreateLiveDraftServerOptions } from "../liveDraftServer.js";
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
 import { loadCurrentProjections, type ProjectionRecord } from "../projections.js";
+import { createAsyncValueCache } from "./asyncValueCache.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import { buildCurrentMockdLeagueSeason } from "./leagueSeason.js";
 import type { LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const expectedSeasonSettings = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig).settings;
+const loadSourceProjections = createAsyncValueCache(
+  () => loadCurrentProjections({ projectionPath }),
+);
 
 const ownerFor = (value: string): Owner | undefined =>
   ownerOrder.find(owner => owner === value);
@@ -71,7 +75,7 @@ export const buildSeasonDraftToolsOptions = async (
   }
   assertSupportedSeason(season);
 
-  const sourceProjections = await loadCurrentProjections({ projectionPath });
+  const sourceProjections = await loadSourceProjections();
   const sourceByIdentity = new Map(
     sourceProjections.map(projection => [canonicalPlayerIdentityKey(projection.name), projection]),
   );

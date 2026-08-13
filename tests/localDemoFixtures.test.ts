@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 
 describe("current player catalog valuation inputs", () => {
+  it("exposes an immutable process-cached catalog", async () => {
+    const catalog = await loadCurrentPlayerCatalog();
+
+    expect(Object.isFrozen(catalog)).toBe(true);
+    expect(Object.isFrozen(catalog[0])).toBe(true);
+    expect(Object.isFrozen(catalog[0]?.seasonProjectionScoring)).toBe(true);
+  });
+
   it("gives every loaded player a scoring-aware projection adjustment", async () => {
     const catalog = await loadCurrentPlayerCatalog();
 

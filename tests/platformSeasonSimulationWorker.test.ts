@@ -64,6 +64,21 @@ describe("season simulation worker runner", () => {
     });
   });
 
+  it("forwards completed-draft progress from the worker", async () => {
+    const runner = createNodeSeasonSimulationRunner({ maxConcurrent: 1 });
+    const progress: Array<{ completed: number; total: number }> = [];
+
+    await runner({ ...await simulationInput(), runCount: 3 }, {
+      onProgress: update => progress.push(update),
+    });
+
+    expect(progress).toEqual([
+      { completed: 1, total: 3 },
+      { completed: 2, total: 3 },
+      { completed: 3, total: 3 },
+    ]);
+  });
+
   it("preserves domain errors returned by a worker", async () => {
     const runner = createNodeSeasonSimulationRunner({ maxConcurrent: 1 });
 

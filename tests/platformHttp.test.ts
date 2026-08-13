@@ -2271,7 +2271,7 @@ describe("platform HTTP contract", () => {
         week1Projection: index + 1,
       })),
       simulationRateLimiter: createClientAddressRateLimiter({
-        maxAttempts: 2,
+        maxAttempts: 3,
         windowMs: 60_000,
         maxTrackedEmails: 10,
       }),
@@ -2397,16 +2397,44 @@ describe("platform HTTP contract", () => {
         simulation: { runCount: 2, runs: expect.any(Array) },
       },
     });
-    await expect(handle({
+    const streamedSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: cam.sessionToken,
       now: new Date(now.getTime() + 2_000),
+      headers: { accept: "text/event-stream" },
+      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
+    });
+    expect(streamedSimulationResponse).toMatchObject({
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+      },
+    });
+    const stream = streamedSimulationResponse.body;
+    if (
+      stream === null
+      || typeof stream !== "object"
+      || !(Symbol.asyncIterator in stream)
+    ) {
+      throw new Error("Expected a season simulation event stream.");
+    }
+    let streamedEvents = "";
+    for await (const chunk of stream as AsyncIterable<string>) streamedEvents += chunk;
+    expect(streamedEvents).toContain('event: progress\ndata: {"completed":1,"total":2}');
+    expect(streamedEvents).toContain('event: progress\ndata: {"completed":2,"total":2}');
+    expect(streamedEvents).toContain('event: result\ndata: {"simulation":');
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      now: new Date(now.getTime() + 3_000),
       body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({
       status: 429,
       body: { error: { code: "rate_limited" } },
-      headers: { "Retry-After": "58" },
+      headers: { "Retry-After": "57" },
     });
   });
 
