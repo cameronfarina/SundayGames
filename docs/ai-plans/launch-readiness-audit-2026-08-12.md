@@ -126,6 +126,34 @@ Acceptance:
 - Starting the draft does not visually change those initial economics.
 - Regression coverage uses a claimed team with a paid keeper.
 
+### 14. [Fix generated hosted draft room script parse failure](https://github.com/cameronfarina/Mockd/issues/14)
+
+The generated live-room module contained an incorrectly escaped newline, leaving commissioners and members stuck on the loading state.
+
+### 15. [Add archive lifecycle so league quota counts active leagues only](https://github.com/cameronfarina/Mockd/issues/15)
+
+The active-league quota counted every historical league because no archive lifecycle existed.
+
+### 16. [Keep background mock jobs alive across retained app eviction](https://github.com/cameronfarina/Mockd/issues/16)
+
+Background mock jobs could disappear when enough account and season scopes evicted their retained application instance.
+
+### 17. [Broadcast live draft reopen revisions immediately](https://github.com/cameronfarina/Mockd/issues/17)
+
+Reopening an incomplete draft did not notify connected members until the event-stream timeout.
+
+### 18. [Restore local E2E coverage after API and import hardening](https://github.com/cameronfarina/Mockd/issues/18)
+
+The browser release suite still expected a private live-room field and used an invalid partial-team historical fixture after the production contracts were hardened.
+
+### 19. [Reject cross-origin authentication return paths](https://github.com/cameronfarina/Mockd/issues/19)
+
+A crafted authentication return path containing a backslash could normalize into a cross-origin redirect.
+
+### 20. [Add anti-framing response policy](https://github.com/cameronfarina/Mockd/issues/20)
+
+HTML responses had no framing restriction and could be embedded for UI-redress attacks.
+
 ## Verified Strengths
 
 - Signup logs the user in locally; password hashing, reset-token storage, enumeration resistance, and session revocation passed review.
@@ -137,3 +165,4 @@ Acceptance:
 - Mock completion/results, shortlist persistence, responsive member views, and pre-draft My Team state work.
 - Import file type and expansion limits, invitation token handling, logs, secret validation, and container privileges passed review.
 - `npm audit` reports zero known vulnerabilities; 1,082 unit/integration tests passed before remediation.
+- The assembled browser release gate covers commissioner and member onboarding, imports, simulations, mock auction, hosted auction, realtime updates, mobile layouts, keeper persistence, and incomplete-draft recovery.
