@@ -1621,6 +1621,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
             <button id="mock-draft-start" class="primary" type="button">Start draft</button>
             <button id="mock-draft-undo" type="button">Undo pick</button>
             <button id="mock-draft-complete" type="button">Finish mock</button>
+            <button id="mock-draft-abandon" class="danger hidden" type="button">Abandon mock</button>
           </div>
         </div>
         <div class="facts mock-facts">
@@ -1632,6 +1633,14 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
           <div class="fact"><span>Max bid</span><strong id="mock-draft-max-bid">-</strong></div>
         </div>
         <p id="mock-draft-status" class="status" role="status" aria-live="polite"></p>
+        <section id="mock-draft-abandoned" class="empty-state hidden" tabindex="-1" aria-labelledby="mock-draft-abandoned-title">
+          <h2 id="mock-draft-abandoned-title">Mock abandoned</h2>
+          <p>Your active mock slot is available again.</p>
+          <div class="actions">
+            <a id="mock-draft-back-to-practice" class="button" href="/practice">Back to Practice</a>
+            <button id="mock-draft-start-another" class="primary" type="button">Start another mock</button>
+          </div>
+        </section>
         <section id="mock-auction-stage" class="mock-auction-stage hidden" aria-labelledby="mock-auction-player">
           <div class="mock-auction-main">
             <div class="mock-auction-copy">
@@ -2046,6 +2055,10 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const mockDraftPass = byId("mock-draft-pass");
     const mockDraftUndo = byId("mock-draft-undo");
     const mockDraftComplete = byId("mock-draft-complete");
+    const mockDraftAbandon = byId("mock-draft-abandon");
+    const mockDraftAbandoned = byId("mock-draft-abandoned");
+    const mockDraftStartAnother = byId("mock-draft-start-another");
+    const mockDraftBackToPractice = byId("mock-draft-back-to-practice");
     const mockAuctionStage = byId("mock-auction-stage");
     const mockAuctionPlayer = byId("mock-auction-player");
     const mockAuctionMeta = byId("mock-auction-meta");
@@ -3851,7 +3864,29 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const renderMockDraft = () => {
       const draft = state.mockDraft;
       const session = state.mockSession;
-      if (!draft || !session) return;
+      if (!session) return;
+      const abandoned = session.status === "abandoned";
+      setHidden(mockDraftAbandoned, !abandoned);
+      if (abandoned) {
+        byId("mock-draft-title").textContent = session.draftMode?.format === "auction"
+          ? "Auction mock draft"
+          : "Snake mock draft";
+        byId("mock-draft-state").textContent = "Abandoned";
+        byId("mock-draft-progress").textContent = "-";
+        byId("mock-draft-budget-left").textContent = "-";
+        byId("mock-draft-spent").textContent = "-";
+        byId("mock-draft-open-slots").textContent = "-";
+        byId("mock-draft-max-bid").textContent = "-";
+        [mockDraftStart, mockDraftUndo, mockDraftComplete, mockDraftAbandon]
+          .forEach(control => setHidden(control, true));
+        setHidden(mockDraftActive, true);
+        setHidden(mockDraftResults, true);
+        setHidden(mockAuctionStage, true);
+        mockDraftBackToPractice.href = pathWithSeason("/practice", session.seasonId);
+        mockDraftStatus.textContent = "Mock abandoned. This mock no longer counts toward your active mock limit.";
+        return;
+      }
+      if (!draft) return;
       const sessionState = draft.session || {};
       const auction = session.draftMode?.format === "auction";
       const completed = sessionState.status === "completed";
@@ -3893,6 +3928,9 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       mockDraftComplete.disabled = sessionState.canComplete !== true;
       setHidden(mockDraftUndo, completed);
       setHidden(mockDraftComplete, completed);
+      setHidden(mockDraftAbandon, completed);
+      mockDraftAbandon.disabled = completed;
+      setHidden(mockDraftAbandoned, true);
       setHidden(mockDraftActive, completed);
       setHidden(mockDraftResults, sessionState.status !== "completed");
       setHidden(mockAuctionStage, !auction || completed);
@@ -3990,6 +4028,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         mockDraftPass,
         mockDraftUndo,
         mockDraftComplete,
+        mockDraftAbandon,
         ...mockDraftPlayerRows.querySelectorAll("button"),
       ];
       controls.forEach(control => { control.disabled = true; });
@@ -4056,6 +4095,44 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         window.history.replaceState(null, "", routePath + "?" + query.toString());
       }
       renderMockDraft();
+    };
+
+    const clearMockSessionIdFromLocation = () => {
+      const query = new URLSearchParams(window.location.search);
+      query.delete("mockSessionId");
+      window.history.replaceState(null, "", routePath + "?" + query.toString());
+    };
+
+    const abandonMockDraft = async () => {
+      const selectedLeague = state.selectedLeague;
+      const session = state.mockSession;
+      if (!selectedLeague || !session || !["setup", "active"].includes(session.status)) return;
+      if (!window.confirm("Abandon this mock draft? Your current mock picks will be discarded.")) return;
+      mockDraftAbandon.disabled = true;
+      mockDraftStatus.textContent = "Abandoning mock...";
+      try {
+        const body = await readJson(await fetch(
+          "/season-mock-drafts/" + encodeURIComponent(session.id) + "/abandon",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              seasonId: selectedLeague.seasonId,
+              expectedRevision: session.revision,
+            }),
+          },
+        ));
+        state.mockSession = body.mockSession;
+        state.mockDraft = null;
+        state.mockResults = null;
+        clearMockSessionIdFromLocation();
+        renderMockDraft();
+        mockDraftAbandoned.focus();
+      } catch (error) {
+        mockDraftStatus.textContent = error.message;
+        renderMockDraft();
+      }
     };
 
     const selectedLeagueFor = onboarding => {
@@ -5695,6 +5772,17 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     mockDraftComplete.addEventListener("click", () => {
       if (!state.mockDraft) return;
       sendMockDraftCommand({ type: "complete", expectedRevision: state.mockDraft.session.revision });
+    });
+    mockDraftAbandon.addEventListener("click", abandonMockDraft);
+    mockDraftStartAnother.addEventListener("click", () => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) return;
+      setHidden(mockDraftAbandoned, true);
+      clearMockSessionIdFromLocation();
+      loadMockDraft(selectedLeague).catch(error => {
+        mockDraftStatus.textContent = error.message;
+        setHidden(mockDraftAbandoned, false);
+      });
     });
     mockDraftPlayerRows.addEventListener("click", event => {
       const button = event.target.closest("[data-mock-player-id]");

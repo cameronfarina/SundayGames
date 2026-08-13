@@ -2290,7 +2290,7 @@ const isSeasonMockDraftContext = (
 const findSeasonMockDraftSession = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-  context: SeasonMockDraftContext,
+  context: SeasonMockDraftIdentityContext,
   sessionId: string,
 ): Promise<MockDraftSession> => {
   const sessions = await app.listMockDraftSessions({
@@ -2444,10 +2444,23 @@ const routeSeasonMockDrafts = async (
     return { status: 201, body: seasonMockResponseBody(mockSession, state) };
   }
 
-  const context = await seasonMockDraftContextFor(app, request, services, seasonId);
-  if (!isSeasonMockDraftContext(context)) return context;
+  const identityContext = await seasonMockDraftIdentityContextFor(app, request, seasonId);
+  if (request.segments.length === 3 && action === "abandon") {
+    if (request.method !== "POST") return methodNotAllowed();
+    const mockSession = await findSeasonMockDraftSession(app, request, identityContext, sessionId ?? "");
+    const abandonedMockSession = await app.abandonMockDraftSession({
+      actorSessionToken: request.sessionToken,
+      sessionId: mockSession.id,
+      expectedRevision: optionalNumber(request.body.expectedRevision) ?? Number.NaN,
+      now: request.now,
+    });
 
-  const mockSession = await findSeasonMockDraftSession(app, request, context, sessionId ?? "");
+    return { status: 200, body: { mockSession: abandonedMockSession } };
+  }
+  const setup = await seasonMockDraftSetupFor(identityContext.season, request, services);
+  if (isPlatformHttpResponse(setup)) return setup;
+  const context: SeasonMockDraftContext = { ...identityContext, setup };
+  const mockSession = await findSeasonMockDraftSession(app, request, identityContext, sessionId ?? "");
   if (request.segments.length === 2) {
     if (request.method !== "GET") return methodNotAllowed();
 

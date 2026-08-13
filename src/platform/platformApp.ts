@@ -413,6 +413,13 @@ export interface ResetPlatformMockDraftSessionInput {
   now?: Date | undefined;
 }
 
+export interface AbandonPlatformMockDraftSessionInput {
+  actorSessionToken: string;
+  sessionId: string;
+  expectedRevision: number;
+  now?: Date | undefined;
+}
+
 export interface CompletePlatformMockDraftSessionInput {
   actorSessionToken: string;
   sessionId: string;
@@ -1936,6 +1943,20 @@ export const createPlatformApp = ({
       await requirePrivateTeamContext(account, session);
 
       return cloneForRead(store.mockDraftSessions.resetSession({
+        userId: account.id,
+        sessionId: input.sessionId,
+        expectedRevision: input.expectedRevision,
+        now,
+      }));
+    },
+
+    abandonMockDraftSession: async (input: AbandonPlatformMockDraftSessionInput): Promise<MockDraftSession> => {
+      const now = input.now ?? new Date();
+      const account = await requireAccount(input.actorSessionToken, now);
+      const session = store.mockDraftSessions.getSession({ userId: account.id, sessionId: input.sessionId, now });
+      await requirePrivateTeamContext(account, session);
+
+      return cloneForRead(store.mockDraftSessions.abandonSession({
         userId: account.id,
         sessionId: input.sessionId,
         expectedRevision: input.expectedRevision,

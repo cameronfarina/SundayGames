@@ -568,6 +568,15 @@ describe("platform mock draft sessions", () => {
 
     expect(abandonedSession.status).toBe("abandoned");
     expect(abandonedSession.abandonedAt).toBe(abandonedAt);
+    expect(() => repository.abandonSession({
+      userId: "user_cam",
+      sessionId: session.id,
+      expectedRevision: 1,
+      now: new Date(now.getTime() + 1_500),
+    })).toThrow(new MockDraftSessionError(
+      "session_not_writable",
+      "Only setup or active mock draft sessions can be abandoned.",
+    ));
     expect(() =>
       repository.appendCommand({
         userId: "user_cam",

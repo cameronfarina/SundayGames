@@ -137,6 +137,7 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="header-league-picker"');
     expect(platformShellHtml).toContain('search.get("seasonId") || search.get("contextSeasonId")');
     expect(platformShellHtml).toContain('query.delete("mockSessionId")');
+    expect(platformShellHtml).toContain("clearMockSessionIdFromLocation();");
     expect(platformShellHtml).toContain('id="account-menu-button"');
     expect(platformShellHtml).toContain('id="account-avatar-initials"');
     expect(platformShellHtml).toContain('id="account-menu-leagues"');
@@ -360,6 +361,10 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('class="workspace-section mock-roster-panel"');
     expect(platformShellHtml).toContain('id="mock-draft-buy"');
     expect(platformShellHtml).toContain('id="mock-draft-pass"');
+    expect(platformShellHtml).toContain('id="mock-draft-abandon" class="danger hidden"');
+    expect(platformShellHtml).toContain('id="mock-draft-abandoned"');
+    expect(platformShellHtml).toContain('id="mock-draft-start-another"');
+    expect(platformShellHtml).toContain('id="mock-draft-back-to-practice"');
     expect(platformShellHtml).toContain('id="mock-draft-budget-left"');
     expect(platformShellHtml).toContain('id="mock-draft-open-slots"');
     expect(platformShellHtml).toContain('id="mock-draft-max-bid"');
@@ -392,6 +397,12 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("strategy: requestedStrategy");
     expect(platformShellHtml).toContain("strategy: practiceStrategy.value");
     expect(platformShellHtml).toContain('"/season-mock-drafts/" + encodeURIComponent');
+    expect(platformShellHtml).toContain('+ "/abandon"');
+    expect(platformShellHtml).toContain("Abandon this mock draft? Your current mock picks will be discarded.");
+    expect(platformShellHtml).toContain("expectedRevision: session.revision");
+    expect(platformShellHtml).toContain('query.delete("mockSessionId")');
+    expect(platformShellHtml).toContain("Your active mock slot is available again.");
+    expect(platformShellHtml).toContain("mockDraftAbandoned.focus()");
     expect(platformShellHtml).toContain('type: "start"');
     expect(platformShellHtml).toContain('type: "pick"');
     expect(platformShellHtml).toContain('type: "nominate"');

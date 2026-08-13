@@ -597,8 +597,11 @@ export class InMemoryMockDraftSessionRepository {
 
     assertExpectedRevision(session, input.expectedRevision);
 
-    if (session.status === "completed") {
-      throw new MockDraftSessionError("session_not_writable", "Completed mock draft sessions cannot be abandoned.");
+    if (session.status === "completed" || session.status === "abandoned") {
+      throw new MockDraftSessionError(
+        "session_not_writable",
+        "Only setup or active mock draft sessions can be abandoned.",
+      );
     }
 
     const updatedSession: MockDraftSession = {
