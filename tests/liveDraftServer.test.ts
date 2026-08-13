@@ -1566,6 +1566,7 @@ describe("live draft server", () => {
         runs: 1,
       });
       await waitForMockBatchJob(baseUrl, second.data.jobId, "Cam", "scratch:second");
+      expect(app.canDispose?.()).toBe(false);
 
       const firstAfterCountEviction = await fetch(
         `${baseUrl}/api/mock-batch/${encodeURIComponent(first.data.jobId)}?owner=Cam&draftSession=scratch%3Afirst`,
@@ -1573,6 +1574,7 @@ describe("live draft server", () => {
       expect(firstAfterCountEviction.status).toBe(404);
 
       currentTime = new Date("2026-08-12T12:02:00.000Z");
+      expect(app.canDispose?.()).toBe(true);
       const secondAfterTtl = await fetch(
         `${baseUrl}/api/mock-batch/${encodeURIComponent(second.data.jobId)}?owner=Cam&draftSession=scratch%3Asecond`,
       );

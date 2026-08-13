@@ -277,13 +277,22 @@ export const createPlatformDraftToolsAdapter = (
     const idleEntries = [...appsByScope.values()]
       .filter(entry => entry.activeRequests === 0)
       .sort((left, right) => left.lastUsedAt - right.lastUsedAt);
-    const expiredEntries = idleEntries.filter(
+    const disposableEntries: RetainedDraftToolsApp[] = [];
+    for (const entry of idleEntries) {
+      try {
+        const app = await entry.appPromise;
+        if (app.canDispose?.() !== false) disposableEntries.push(entry);
+      } catch {
+        disposableEntries.push(entry);
+      }
+    }
+    const expiredEntries = disposableEntries.filter(
       entry => currentTime - entry.lastUsedAt >= idleTimeoutMs,
     );
 
     for (const entry of expiredEntries) await disposeEntry(entry);
 
-    for (const entry of idleEntries) {
+    for (const entry of disposableEntries) {
       if (appsByScope.size <= targetSize) break;
       if (appsByScope.has(entry.key)) await disposeEntry(entry);
     }

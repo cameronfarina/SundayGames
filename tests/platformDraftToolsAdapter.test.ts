@@ -658,4 +658,38 @@ describe("platform draft tools adapter", () => {
     await fetch(`${baseUrl}/api/state?seasonId=season-a`);
     expect(createClassicServer).toHaveBeenCalledTimes(4);
   });
+
+  it("keeps apps with retained background work while evicting disposable apps", async () => {
+    const baseSessionDirectory = await temporaryDirectory();
+    const classicApps: LiveDraftServerApp[] = [];
+    const createClassicServer = vi.fn(async () => {
+      const retainsBackgroundWork = classicApps.length === 0;
+      const app = {
+        ...recordingClassicServer([]),
+        canDispose: () => !retainsBackgroundWork,
+      };
+      classicApps.push(app);
+      return app;
+    });
+    const adapter = createPlatformDraftToolsAdapter({
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory,
+      createLiveDraftServer: createClassicServer,
+      maxRetainedApps: 2,
+      resolveAccount: async () => ({ id: "account-cam" }),
+    });
+    const baseUrl = await listen(adapter);
+
+    expect((await fetch(`${baseUrl}/api/state?seasonId=season-a`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/api/state?seasonId=season-b`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/api/state?seasonId=season-c`)).status).toBe(200);
+
+    expect(createClassicServer).toHaveBeenCalledTimes(3);
+    expect(classicApps[0]?.server.listenerCount("request")).toBe(1);
+    expect(classicApps[1]?.server.listenerCount("request")).toBe(0);
+    expect(classicApps[2]?.server.listenerCount("request")).toBe(1);
+
+    expect((await fetch(`${baseUrl}/api/state?seasonId=season-a`)).status).toBe(200);
+    expect(createClassicServer).toHaveBeenCalledTimes(3);
+  });
 });

@@ -778,6 +778,7 @@ export interface CreateLiveDraftServerOptions {
 }
 
 export interface LiveDraftServerApp {
+  canDispose?: () => boolean;
   server: http.Server;
 }
 
@@ -3063,7 +3064,13 @@ export const createLiveDraftServer = async (
     }
   });
 
-  return { server };
+  return {
+    canDispose: () => {
+      pruneMockBatchJobs();
+      return mockBatchJobs.size === 0;
+    },
+    server,
+  };
 };
 
 const main = async (): Promise<void> => {
