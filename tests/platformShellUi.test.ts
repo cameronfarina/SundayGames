@@ -340,9 +340,16 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain('id="standalone-board-open-simulations"');
     expect(platformShellHtml).toContain('id="standalone-shortlist-only"');
     expect(platformShellHtml).toContain('id="standalone-shortlist-count"');
+    expect(platformShellHtml).toContain('id="simulation-target-list"');
+    expect(platformShellHtml).toContain('id="simulation-target-empty"');
+    expect(platformShellHtml).toContain('id="simulation-target-status"');
     expect(platformShellHtml).toContain('fetch("/practice-shortlist"');
     expect(platformShellHtml).toContain('"/practice-shortlist?seasonId="');
     expect(platformShellHtml).toContain('className = "shortlist-toggle"');
+    expect(platformShellHtml).toContain("const renderPracticeSimulationTargets = () =>");
+    expect(platformShellHtml).toContain('input.placeholder = "No cap"');
+    expect(platformShellHtml).toContain('event.relatedTarget?.classList.contains("simulation-target-remove")');
+    expect(platformShellHtml).toContain("maxBid: maxBid");
     expect(platformShellHtml).toContain("simulationPanel.open = true");
     expect(platformShellHtml).toContain('id="simulation-count"');
     expect(platformShellHtml).toContain('id="simulation-strategy"');

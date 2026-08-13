@@ -890,6 +890,41 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
     }
     .shortlisted-player-row { background: rgb(244 200 107 / .035); }
 
+    .simulation-target-plan {
+      border-bottom: 1px solid var(--line);
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      padding: 16px 0;
+    }
+    .simulation-target-plan-header {
+      align-items: baseline;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+    }
+    .simulation-target-plan-header h2 { font-size: 16px; margin: 0; }
+    .simulation-target-count { color: var(--muted); font-size: 13px; }
+    .simulation-target-list { display: grid; }
+    .simulation-target-row {
+      align-items: end;
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr) minmax(100px, 140px) 42px;
+      padding: 10px 0;
+    }
+    .simulation-target-row.no-cap-control { grid-template-columns: minmax(0, 1fr) 42px; }
+    .simulation-target-row:first-child { border-top: 0; }
+    .simulation-target-player { align-self: center; display: grid; gap: 3px; min-width: 0; }
+    .simulation-target-player strong { overflow-wrap: anywhere; }
+    .simulation-target-player span { color: var(--muted); font-size: 12px; font-weight: 750; }
+    .simulation-target-cap label { margin-bottom: 4px; }
+    .simulation-target-cap input { min-height: 40px; }
+    .simulation-target-remove { font-size: 19px; min-height: 40px; padding: 0; width: 42px; }
+    .simulation-target-empty { color: var(--muted); margin: 0; }
+    .simulation-target-status { margin: 0; }
+
     .board-pricing-context {
       background: var(--surface);
       border-left: 3px solid var(--accent);
@@ -1505,7 +1540,7 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
           </div>
           <label class="shortlist-filter" for="standalone-shortlist-only">
             <input id="standalone-shortlist-only" type="checkbox">
-            <span>Shortlist only (<strong id="standalone-shortlist-count">0</strong>)</span>
+            <span>Draft targets only (<strong id="standalone-shortlist-count">0</strong>)</span>
           </label>
         </div>
         <p id="standalone-board-status" class="status" role="status" aria-live="polite"></p>
@@ -1516,10 +1551,19 @@ export const createPlatformShellHtml = (capabilities: PlatformShellCapabilities)
         <details id="simulation-panel" class="workspace-section hidden">
           <summary>Run simulations</summary>
           <div class="compact-stack" style="margin-top: 16px">
+            <section class="simulation-target-plan" aria-labelledby="simulation-target-title">
+              <div class="simulation-target-plan-header">
+                <h2 id="simulation-target-title">Draft targets</h2>
+                <span id="simulation-target-count" class="simulation-target-count">0 selected</span>
+              </div>
+              <div id="simulation-target-list" class="simulation-target-list"></div>
+              <p id="simulation-target-empty" class="simulation-target-empty">Star players on the board to add them to this plan.</p>
+              <p id="simulation-target-status" class="status simulation-target-status" role="status" aria-live="polite"></p>
+            </section>
             <div class="setup-fields">
               <div>
-                <label for="simulation-strategy">Draft strategy</label>
-                <input id="simulation-strategy" autocomplete="off" placeholder="Draft Jadarian Price for no more than $20 and target an elite RB">
+                <label for="simulation-strategy">Additional strategy</label>
+                <input id="simulation-strategy" autocomplete="off" placeholder="Prioritize an elite RB and cap other WRs at $25">
               </div>
               <div>
                 <label for="simulation-count">Runs</label>
@@ -2174,6 +2218,10 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const standalonePricingSource = byId("standalone-pricing-source");
     const standalonePricingWarnings = byId("standalone-pricing-warnings");
     const simulationPanel = byId("simulation-panel");
+    const simulationTargetCount = byId("simulation-target-count");
+    const simulationTargetList = byId("simulation-target-list");
+    const simulationTargetEmpty = byId("simulation-target-empty");
+    const simulationTargetStatus = byId("simulation-target-status");
     const simulationStrategy = byId("simulation-strategy");
     const simulationCount = byId("simulation-count");
     const simulationNote = byId("simulation-note");
@@ -2471,6 +2519,119 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       practicePlayerKey(item.playerName) === practicePlayerKey(playerName)
     );
 
+    const savePracticeTarget = async (target, maxBid) => {
+      const selectedLeague = state.selectedLeague;
+      if (!selectedLeague) throw new Error("Choose a league before changing draft targets.");
+      await readJson(await fetch("/practice-shortlist", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          seasonId: selectedLeague.seasonId,
+          playerName: target.playerName,
+          position: target.position,
+          maxBid: maxBid,
+        }),
+      }));
+      await loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration);
+    };
+
+    const renderPracticeSimulationTargets = () => {
+      const fragment = document.createDocumentFragment();
+      const draftFormat = state.playerCatalogMeta?.draftFormat
+        || state.currentSeason?.settings?.draftFormat;
+      state.practiceShortlist.forEach(target => {
+        const row = document.createElement("div");
+        row.className = "simulation-target-row";
+
+        const player = document.createElement("div");
+        player.className = "simulation-target-player";
+        const name = document.createElement("strong");
+        name.textContent = target.playerName;
+        const position = document.createElement("span");
+        position.textContent = target.position;
+        player.append(name, position);
+        row.append(player);
+
+        const cap = document.createElement("div");
+        cap.className = "simulation-target-cap";
+        if (draftFormat === "auction") {
+          const inputId = "simulation-target-cap-" + target.id;
+          const label = document.createElement("label");
+          label.htmlFor = inputId;
+          label.textContent = "Max bid";
+          const input = document.createElement("input");
+          input.id = inputId;
+          input.type = "number";
+          input.min = "1";
+          input.step = "1";
+          input.inputMode = "numeric";
+          input.placeholder = "No cap";
+          input.value = target.maxBid === undefined ? "" : String(target.maxBid);
+          input.addEventListener("blur", async event => {
+            if (event.relatedTarget?.classList.contains("simulation-target-remove")) return;
+            const rawValue = input.value.trim();
+            const maxBid = rawValue === "" ? undefined : Number(rawValue);
+            if (maxBid !== undefined && (!Number.isInteger(maxBid) || maxBid < 1)) {
+              simulationTargetStatus.textContent = "Enter a whole-dollar max bid, or leave it blank for no cap.";
+              input.focus();
+              return;
+            }
+            input.disabled = true;
+            simulationTargetStatus.textContent = "Saving " + target.playerName + "...";
+            try {
+              await savePracticeTarget(target, maxBid);
+              simulationTargetStatus.textContent = target.playerName + " saved to the simulation plan.";
+            } catch (error) {
+              simulationTargetStatus.textContent = error.message;
+              input.disabled = false;
+            }
+          });
+          input.addEventListener("keydown", event => {
+            if (event.key === "Enter") input.blur();
+          });
+          cap.append(label, input);
+          row.append(cap);
+        } else {
+          row.classList.add("no-cap-control");
+        }
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "simulation-target-remove";
+        remove.textContent = "\u2605";
+        remove.title = "Remove draft target";
+        remove.setAttribute("aria-label", "Remove " + target.playerName + " from the simulation plan");
+        remove.addEventListener("click", async () => {
+          const selectedLeague = state.selectedLeague;
+          if (!selectedLeague) return;
+          remove.disabled = true;
+          simulationTargetStatus.textContent = "Removing " + target.playerName + "...";
+          try {
+            await readJson(await fetch("/practice-shortlist", {
+              method: "DELETE",
+              headers: { "content-type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                seasonId: selectedLeague.seasonId,
+                playerName: target.playerName,
+              }),
+            }));
+            await loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration);
+            simulationTargetStatus.textContent = target.playerName + " removed from the simulation plan.";
+          } catch (error) {
+            simulationTargetStatus.textContent = error.message;
+            remove.disabled = false;
+          }
+        });
+        row.append(remove);
+        fragment.append(row);
+      });
+      simulationTargetList.replaceChildren(fragment);
+      simulationTargetCount.textContent = state.practiceShortlist.length + " selected";
+      setHidden(simulationTargetEmpty, state.practiceShortlist.length > 0);
+    };
+
     const renderStandaloneBoard = () => {
       const playerCatalog = state.playerCatalog || [];
       const search = standalonePlayerSearch.value.trim().toLowerCase();
@@ -2522,9 +2683,9 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
         shortlistButton.setAttribute("aria-pressed", String(isShortlisted));
         shortlistButton.setAttribute(
           "aria-label",
-          (isShortlisted ? "Remove " : "Add ") + player.name + (isShortlisted ? " from" : " to") + " shortlist",
+          (isShortlisted ? "Remove " : "Add ") + player.name + (isShortlisted ? " from" : " to") + " simulation plan",
         );
-        shortlistButton.title = isShortlisted ? "Remove from shortlist" : "Add to shortlist";
+        shortlistButton.title = isShortlisted ? "Remove draft target" : "Add draft target";
         shortlistButton.disabled = !state.selectedLeague;
         shortlistButton.addEventListener("click", () => togglePracticeShortlist(player, shortlistButton));
         shortlistCell.append(shortlistButton);
@@ -2561,6 +2722,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       });
       standalonePlayerRows.replaceChildren(fragment);
       standaloneShortlistCount.textContent = String(state.practiceShortlist.length);
+      renderPracticeSimulationTargets();
       const personalized = state.playerCatalogMeta?.personalized === true;
       const warnings = state.playerCatalogMeta?.pricingWarnings || [];
       const historyUnavailable = warnings.some(warning => warning.toLowerCase().includes("history unavailable"));
@@ -2591,7 +2753,7 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
           ? " · baseline values until history is imported"
           : "";
       standaloneBoardStatus.textContent = visiblePlayers.length + " shown / " + playerCatalog.length + " loaded"
-        + " · " + state.practiceShortlist.length + " shortlisted" + valueStatus;
+        + " · " + state.practiceShortlist.length + " draft targets" + valueStatus;
     };
 
     const loadStandaloneBoard = async () => {
@@ -2668,17 +2830,22 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
       const existing = isPracticePlayerShortlisted(player.name);
       button.disabled = true;
       try {
-        await readJson(await fetch("/practice-shortlist", {
-          method: existing ? "DELETE" : "PUT",
-          headers: { "content-type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            seasonId: selectedLeague.seasonId,
-            playerName: player.name,
-            position: player.position,
-          }),
-        }));
-        await loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration);
+        if (existing) {
+          await readJson(await fetch("/practice-shortlist", {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              seasonId: selectedLeague.seasonId,
+              playerName: player.name,
+            }),
+          }));
+          await loadPracticeShortlist(selectedLeague, state.workspaceRequestGeneration);
+        } else {
+          await savePracticeTarget({ playerName: player.name, position: player.position }, undefined);
+        }
+        simulationTargetStatus.textContent = player.name
+          + (existing ? " removed from" : " added to") + " the simulation plan.";
       } catch (error) {
         standaloneBoardStatus.textContent = error.message;
         button.disabled = false;
@@ -2688,6 +2855,8 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     const configureSimulationPanel = selectedLeague => {
       setHidden(simulationPanel, false);
       setHidden(simulationResults, true);
+      simulationTargetStatus.textContent = "";
+      renderPracticeSimulationTargets();
       state.simulation = null;
       state.simulationHistory = [];
       state.selectedSimulationRunIndex = 0;
@@ -5897,7 +6066,9 @@ ${capabilities.leagueCreationScreenshotAnalysis ? leagueCreationScreenshotPanelM
     byId("standalone-board-open-simulations").addEventListener("click", () => {
       simulationPanel.open = true;
       simulationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-      simulationStrategy.focus();
+      const firstTargetCap = simulationTargetList.querySelector("input");
+      if (firstTargetCap) firstTargetCap.focus();
+      else simulationStrategy.focus();
     });
     mockDraftSearch.addEventListener("input", renderMockDraft);
     mockDraftPositionFilters.addEventListener("click", event => {

@@ -95,6 +95,7 @@ export interface RunSeasonSimulationsInput {
   humanTeamId: string;
   runCount: number;
   strategyInput?: string | undefined;
+  targetConstraints?: readonly SeasonSimulationTargetConstraint[] | undefined;
   seedPrefix?: string | undefined;
   playerExpectedPrices?: Readonly<Record<string, number>> | undefined;
   playerHumanValues?: Readonly<Record<string, number>> | undefined;
@@ -567,10 +568,12 @@ const selectAuctionNomination = (
     return index < 0 ? 0 : targetPriorityBase + (targetIds.length - index) * targetOrderStep;
   };
   const selected = state.board.players
-    .filter(player =>
-      canAuctionTeamAcquire(state, humanTeam, player)
-      && isAutomatedAuctionAcquisitionEligible(state, humanTeam, player)
-    )
+    .filter(player => {
+      const target = targetsByPlayerId.get(player.id);
+      const isUncappedTarget = target !== undefined && target.maxAuctionPrice === undefined;
+      return canAuctionTeamAcquire(state, humanTeam, player)
+        && (isUncappedTarget || isAutomatedAuctionAcquisitionEligible(state, humanTeam, player));
+    })
     .map(player => ({
       player,
       score: targetPriorityFor(player.id)
@@ -611,10 +614,15 @@ const auctionWillingnessFor = (
   strategy: ParsedSeasonSimulationStrategy,
   preferences: readonly ResolvedSeasonSimulationPreference[],
 ): number => {
-  if (!isAutomatedAuctionAcquisitionEligible(state, team, player)) return 0;
-
   const target = targetsByPlayerId.get(player.id);
   const isTarget = target !== undefined;
+  const isUncappedTarget = isTarget && target.maxAuctionPrice === undefined;
+  if (
+    isUncappedTarget
+      ? !canAuctionTeamAcquire(state, team, player)
+      : !isAutomatedAuctionAcquisitionEligible(state, team, player)
+  ) return 0;
+
   const isPair = player.id === pairPlayerId;
   const preference = activePositionPreferenceFor(
     preferences,
@@ -644,9 +652,16 @@ const auctionWillingnessFor = (
     player.id,
     targetsByPlayerId,
   );
+  if (
+    !isTarget
+    && availableTargetPlayers.some(targetPlayer => targetPlayer.position === player.position)
+  ) return 0;
   const reservedTargetBudget = availableTargetPlayers.reduce((total, targetPlayer) => {
     const targetConstraint = targetsByPlayerId.get(targetPlayer.id);
-    const targetBudget = targetConstraint?.maxAuctionPrice ?? Math.round(targetPlayer.expectedPrice);
+    const targetBudget = targetConstraint?.maxAuctionPrice ?? Math.round(Math.max(
+      targetPlayer.expectedPrice,
+      targetPlayer.humanValue ?? 0,
+    )) + humanClearingPriceCushionDollars;
     return total + Math.max(0, targetBudget - state.configuration.minimumBidDollars);
   }, 0);
   const preservesTargetSlots = preservesSlotsForTargets(
@@ -664,7 +679,7 @@ const auctionWillingnessFor = (
     positionCap === undefined || (positionCap.excludeNamedTargets && isTarget)
       ? team.maxBid
       : positionCap.maxAuctionPrice,
-    positionPreference?.preference.maxAuctionPrice ?? team.maxBid,
+    isTarget ? team.maxBid : positionPreference?.preference.maxAuctionPrice ?? team.maxBid,
   );
 
   const minimumBid = state.configuration.minimumBidDollars;
@@ -678,9 +693,10 @@ const auctionWillingnessFor = (
       + Math.ceil(discretionaryBudget / team.rosterSlotsRemaining)
       + humanClearingPriceCushionDollars,
   );
-  const enforcedValueLimit = preference === undefined
-    ? Math.max(valueLimit, closingPaceLimit)
-    : team.maxBid;
+  let enforcedValueLimit = team.maxBid;
+  if ((!isTarget || target.maxAuctionPrice !== undefined) && preference === undefined) {
+    enforcedValueLimit = Math.max(valueLimit, closingPaceLimit);
+  }
 
   return Math.min(team.maxBid, strategyLimit, enforcedValueLimit);
 };
@@ -1140,10 +1156,18 @@ const resolvedStrategy = (
     if (name === undefined) return { id: undefined, ambiguous: false };
     const query = canonicalPlayerIdentityKey(name);
     if (catalogIds.has(query)) return { id: query, ambiguous: false };
+    const queryTokens = query.split(" ");
     const matches = [...catalogIds].filter(id =>
       id.startsWith(`${query} `)
       || id.endsWith(` ${query}`)
       || id.includes(` ${query} `)
+      || (
+        id.split(" ").length === queryTokens.length
+        && id.split(" ").every((token, index) =>
+          token.startsWith(queryTokens[index] ?? "")
+          || (queryTokens[index] ?? "").startsWith(token)
+        )
+      )
     );
     return matches.length === 1
       ? { id: matches[0], ambiguous: false }
@@ -1161,7 +1185,9 @@ const resolvedStrategy = (
       resolution,
       playerId: resolution.id ?? canonicalPlayerIdentityKey(target.playerName),
     };
-  });
+  }).filter((target, index, targets) =>
+    targets.findIndex(candidate => candidate.playerId === target.playerId) === index
+  );
   const pairResolution = resolveCatalogId(strategy.pairWithPlayerName);
   const pairPlayerId = pairResolution.id;
   const warnings = [...strategy.warnings];
@@ -1184,10 +1210,53 @@ const resolvedStrategy = (
     warnings.push(`Pair-with player ${strategy.pairWithPlayerName ?? pairPlayerId} is not a keeper; the simulation will also prioritize acquiring that player.`);
   }
 
+  const targets = resolvedTargets.map(({ target }) => target);
+  const target = targets[0];
   return {
-    strategy: { ...strategy, warnings },
+    strategy: {
+      ...strategy,
+      ...(strategy.targets === undefined && strategy.target === undefined ? {} : {
+        targets,
+        ...(target === undefined ? {} : { target }),
+        summary: summaryFor(
+          targets,
+          strategy.preferredPositions,
+          strategy.positionCaps ?? [],
+          strategy.pairWithPlayerName,
+        ),
+      }),
+      warnings,
+    },
     resolvedTargets: resolvedTargets.map(({ target, playerId }) => ({ target, playerId })),
     pairPlayerId,
+  };
+};
+
+const withConfiguredTargets = (
+  strategy: ParsedSeasonSimulationStrategy,
+  configuredTargets: readonly SeasonSimulationTargetConstraint[],
+): ParsedSeasonSimulationStrategy => {
+  if (configuredTargets.length === 0) return strategy;
+
+  const normalizedConfiguredTargets = configuredTargets
+    .map(target => ({ ...target, playerName: target.playerName.trim() }))
+    .filter(target => target.playerName.length > 0);
+  const targets = [
+    ...normalizedConfiguredTargets,
+    ...targetsFor(strategy),
+  ];
+  const target = targets[0];
+
+  return {
+    ...strategy,
+    targets,
+    ...(target === undefined ? {} : { target }),
+    summary: summaryFor(
+      targets,
+      strategy.preferredPositions,
+      strategy.positionCaps ?? [],
+      strategy.pairWithPlayerName,
+    ),
   };
 };
 
@@ -1218,7 +1287,10 @@ const runSeasonSimulationsUnchecked = (
     );
   }
 
-  const parsedStrategy = parseSeasonSimulationStrategy(input.strategyInput ?? "");
+  const parsedStrategy = withConfiguredTargets(
+    parseSeasonSimulationStrategy(input.strategyInput ?? ""),
+    input.targetConstraints ?? [],
+  );
   const week1ProjectionsByPlayer = new Map(input.setup.playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
     return [playerKey, input.week1Projections?.[playerKey] ?? player.week1Projection ?? 0];

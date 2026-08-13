@@ -160,6 +160,7 @@ import {
   maximumSeasonSimulationRunCount,
   runSeasonSimulations,
   SeasonSimulationError,
+  type SeasonSimulationTargetConstraint,
 } from "./seasonSimulationEngine.js";
 import type { SeasonSimulationRunner } from "./seasonSimulationWorkerRunner.js";
 
@@ -2611,6 +2612,17 @@ const routeSeasonSimulations = async (
     presetStrategyInput[strategyPreset],
     optionalString(request.body.strategy) ?? "",
   ].filter(Boolean).join(" and ");
+  const practiceTargets = await app.listPracticeShortlist({
+    actorSessionToken: request.sessionToken,
+    seasonId: context.season.id,
+    now: request.now,
+  });
+  const targetConstraints: SeasonSimulationTargetConstraint[] = practiceTargets.map(target => ({
+    playerName: target.playerName,
+    ...(context.season.settings.draftFormat === "auction" && target.maxBid !== undefined
+      ? { maxAuctionPrice: target.maxBid }
+      : {}),
+  }));
   const week1Projections = await loadLeagueScoredWeekOneProjections(
     context.season,
     context.setup.playerCatalog,
@@ -2622,6 +2634,7 @@ const routeSeasonSimulations = async (
     humanTeamId: context.membership.teamId,
     runCount,
     strategyInput,
+    targetConstraints,
     seedPrefix,
     week1Projections,
     ...(context.season.settings.draftFormat === "auction"
@@ -2698,7 +2711,7 @@ const routePracticeShortlist = async (
 
   const playerName = optionalString(request.body.playerName) ?? "";
   if (playerName.length === 0) {
-    return knownError(400, "player_required", "Choose a player before changing your shortlist.");
+    return knownError(400, "player_required", "Choose a player before changing draft targets.");
   }
   if (request.method === "DELETE") {
     const removed = await app.removePracticeShortlistItem({
@@ -2720,8 +2733,8 @@ const routePracticeShortlist = async (
     return knownError(404, "player_not_found", "That player is not in this season's catalog.");
   }
   const maxBid = optionalNumber(request.body.maxBid);
-  if (maxBid !== undefined && (!Number.isInteger(maxBid) || maxBid < 0)) {
-    return knownError(400, "invalid_max_bid", "Maximum bid must be a non-negative whole dollar amount.");
+  if (maxBid !== undefined && (!Number.isInteger(maxBid) || maxBid < 1)) {
+    return knownError(400, "invalid_max_bid", "Maximum bid must be a positive whole dollar amount.");
   }
   const item = await app.savePracticeShortlistItem({
     actorSessionToken: request.sessionToken,

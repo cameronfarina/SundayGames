@@ -36,6 +36,7 @@ import {
   type PlatformHttpResponse,
 } from "../src/platform/platformHttp.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+import type { SeasonSimulationTargetConstraint } from "../src/platform/seasonSimulationEngine.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -596,6 +597,7 @@ describe("platform HTTP contract", () => {
     ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
     let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
     let simulationHumanValues: Readonly<Record<string, number>> | undefined;
+    let simulationTargetConstraints: readonly SeasonSimulationTargetConstraint[] | undefined;
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => currentCatalog,
@@ -603,6 +605,7 @@ describe("platform HTTP contract", () => {
       seasonSimulationRunner: async input => {
         simulationExpectedPrices = input.playerExpectedPrices;
         simulationHumanValues = input.playerHumanValues;
+        simulationTargetConstraints = input.targetConstraints;
         return {
           draftFormat: "auction",
           runCount: input.runCount,
@@ -718,6 +721,16 @@ describe("platform HTTP contract", () => {
     expect(mockHumanValues[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
 
     await expect(handle({
+      method: "PUT",
+      path: "/practice-shortlist",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, playerName: "Puka Nacua", maxBid: 57 },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: { item: { playerName: "Puka Nacua", maxBid: 57 } },
+    });
+
+    await expect(handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: cam.sessionToken,
@@ -726,6 +739,10 @@ describe("platform HTTP contract", () => {
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
+    expect(simulationTargetConstraints).toEqual([{
+      playerName: "Puka Nacua",
+      maxAuctionPrice: 57,
+    }]);
 
     const fullPprSeason: LeagueSeason = {
       ...season,
@@ -2429,6 +2446,12 @@ describe("platform HTTP contract", () => {
       sessionToken: outsider.sessionToken,
       body: { seasonId: season.id, playerName: "Puka Nacua", position: "WR" },
     })).resolves.toMatchObject({ status: 403, body: { error: { code: "membership_required" } } });
+    await expect(handle({
+      method: "PUT",
+      path: "/practice-shortlist",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, playerName: "Puka Nacua", maxBid: 0 },
+    })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_max_bid" } } });
     await expect(handle({
       method: "PUT",
       path: "/practice-shortlist",
