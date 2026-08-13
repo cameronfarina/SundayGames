@@ -9,6 +9,7 @@ import type {
   PlatformLeagueMembership,
 } from "../src/platform/leagueSetup.js";
 import {
+  LeagueCreationLimitError,
   LeagueSetupWriteConflictError,
   leagueSeasonSetupRevision,
 } from "../src/platform/leagueSetup.js";
@@ -180,6 +181,32 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
   ): Promise<PostgresQueryResult<TRow>> {
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
+      return { rows: [] };
+    }
+
+    if (normalizedSql === "SELECT id FROM leagues WHERE id = $1 LIMIT 1") {
+      const [leagueId] = values as readonly [string];
+      return { rows: this.leagues.has(leagueId) ? [{ id: leagueId } as TRow] : [] };
+    }
+
+    if (normalizedSql.startsWith("SELECT COUNT(*)::integer AS active_league_count")) {
+      const [createdByUserId, windowStartedAt] = values as readonly [string, Date];
+      const leagues = [...this.leagues.values()].filter(
+        league => league.created_by_user_id === createdByUserId,
+      );
+      return {
+        rows: [{
+          active_league_count: leagues.length,
+          recent_league_count: leagues.filter(league => league.created_at >= windowStartedAt).length,
+          oldest_recent_created_at: leagues
+            .filter(league => league.created_at >= windowStartedAt)
+            .sort((left, right) => left.created_at.getTime() - right.created_at.getTime())[0]
+            ?.created_at ?? null,
+        } as TRow],
+      };
+    }
 
     if (normalizedSql.startsWith("SELECT id FROM league_invitations")) {
       return { rows: this.invitationAvailable ? [{ id: "invite_league" } as TRow] : [] };
@@ -583,6 +610,49 @@ const membershipsFor = (
   });
 
 describe("Postgres league setup repository", () => {
+  it("locks and enforces per-account league creation limits inside the registration transaction", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client, {
+      maxActiveLeaguesPerAccount: 1,
+      maxCreatedLeaguesPerWindow: 10,
+      creationWindowMs: 60 * 60 * 1_000,
+    });
+    const firstSeason = buildSeason();
+    await repository.registerLeagueSeason({
+      season: firstSeason,
+      memberships: membershipsFor(firstSeason, ["Cam"]),
+      createdByUserId: "acct_cam",
+      now,
+    });
+    const secondLeagueId = `${firstSeason.leagueId}-second`;
+    const secondSeason = {
+      ...firstSeason,
+      id: `${firstSeason.id}-second`,
+      leagueId: secondLeagueId,
+      league: { ...firstSeason.league, id: secondLeagueId },
+      teams: firstSeason.teams.map(team => ({
+        ...team,
+        id: `${team.id}-second`,
+        leagueSeasonId: `${firstSeason.id}-second`,
+      })),
+    };
+
+    await expect(repository.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: "acct_cam", leagueId: secondLeagueId, role: "owner" }],
+      createdByUserId: "acct_cam",
+      now: new Date(now.getTime() + 1),
+    })).rejects.toThrow(new LeagueCreationLimitError(
+      "active_league_quota_reached",
+      "This account has reached its league limit.",
+      0,
+    ));
+    expect(client.queries.filter(query =>
+      normalizeSql(query.text).startsWith("SELECT pg_advisory_xact_lock")
+    )).toHaveLength(2);
+    expect(client.leagues.has(secondLeagueId)).toBe(false);
+  });
+
   it("round-trips seasons, teams, settings, and membership claims through normalized rows", async () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);

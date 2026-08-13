@@ -14,9 +14,11 @@ import {
   PlatformAppError,
   createPlatformApp,
 } from "../src/platform/platformApp.js";
-import type {
-  LeagueSetupRepository,
-  RegisterLeagueSeasonRepositoryInput,
+import {
+  LeagueCreationLimitError,
+  type LeagueCreationLimits,
+  type LeagueSetupRepository,
+  type RegisterLeagueSeasonRepositoryInput,
 } from "../src/platform/leagueSetup.js";
 import {
   InMemoryLiveDraftRoomRepository,
@@ -98,6 +100,33 @@ const asSnakeSeason = (season: LeagueSeason): LeagueSeason => ({
     keeperPolicy: season.settings.keeperPolicy,
   },
 });
+
+const seasonForLeague = (key: string): LeagueSeason => {
+  const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+    leagueName: `League ${key}`,
+    setupStatus: "draft",
+  });
+  const leagueId = `league-${key}`;
+  const seasonId = `season-${key}`;
+
+  return {
+    ...season,
+    id: seasonId,
+    leagueId,
+    league: { ...season.league, id: leagueId, externalLeagueId: key },
+    teams: season.teams.map(team => ({
+      ...team,
+      id: `${team.id}-${key}`,
+      leagueSeasonId: seasonId,
+    })),
+  };
+};
+
+const strictLeagueCreationLimits: LeagueCreationLimits = {
+  maxActiveLeaguesPerAccount: 1,
+  maxCreatedLeaguesPerWindow: 1,
+  creationWindowMs: 60 * 60 * 1_000,
+};
 
 class AsyncLeagueSetupRepository implements LeagueSetupRepository {
   readonly inner = new InMemoryPlatformStore();
@@ -244,6 +273,100 @@ class RecordingExportArtifactRepository implements ExportArtifactRepository {
 }
 
 describe("platform app service", () => {
+  it("persists active-league quotas and still permits updates to an existing league", () => {
+    const store = new InMemoryPlatformStore(undefined, {
+      leagueCreationLimits: strictLeagueCreationLimits,
+    });
+    const firstSeason = seasonForLeague("first");
+    const createdByUserId = "account-cam";
+    const firstInput = {
+      season: firstSeason,
+      memberships: [{ userId: createdByUserId, leagueId: firstSeason.leagueId, role: "owner" as const }],
+      createdByUserId,
+      now,
+    };
+
+    expect(store.registerLeagueSeason(firstInput)).toEqual(firstSeason);
+    expect(store.registerLeagueSeason({
+      ...firstInput,
+      season: { ...firstSeason, setupStatus: "published" },
+      now: new Date(now.getTime() + 1),
+    }).setupStatus).toBe("published");
+
+    const restored = new InMemoryPlatformStore(store.snapshot(), {
+      leagueCreationLimits: strictLeagueCreationLimits,
+    });
+    const secondSeason = seasonForLeague("second");
+    expect(() => restored.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: createdByUserId, leagueId: secondSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now: new Date(now.getTime() + 2),
+    })).toThrow(new LeagueCreationLimitError(
+      "active_league_quota_reached",
+      "This account has reached its league limit.",
+      0,
+    ));
+  });
+
+  it("enforces the durable per-account league creation window", () => {
+    const store = new InMemoryPlatformStore(undefined, {
+      leagueCreationLimits: {
+        ...strictLeagueCreationLimits,
+        maxActiveLeaguesPerAccount: 10,
+      },
+    });
+    const createdByUserId = "account-cam";
+    const firstSeason = seasonForLeague("window-first");
+    store.registerLeagueSeason({
+      season: firstSeason,
+      memberships: [{ userId: createdByUserId, leagueId: firstSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now,
+    });
+    const secondSeason = seasonForLeague("window-second");
+
+    expect(() => store.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: createdByUserId, leagueId: secondSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now: new Date(now.getTime() + 30_000),
+    })).toThrow(new LeagueCreationLimitError(
+      "league_creation_rate_limited",
+      "Too many leagues were created recently. Try again later.",
+      3_570,
+    ));
+  });
+
+  it("restores active-league ownership from snapshots created before quota metadata", () => {
+    const original = new InMemoryPlatformStore();
+    const createdByUserId = "account-cam";
+    const firstSeason = seasonForLeague("legacy-snapshot");
+    original.registerLeagueSeason({
+      season: firstSeason,
+      memberships: [{ userId: createdByUserId, leagueId: firstSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now,
+    });
+    const { leagueCreationRecords: _omittedCreationRecords, ...legacySnapshot } = original.snapshot();
+    void _omittedCreationRecords;
+    const restored = new InMemoryPlatformStore(legacySnapshot, {
+      leagueCreationLimits: strictLeagueCreationLimits,
+    });
+    const secondSeason = seasonForLeague("after-legacy-snapshot");
+
+    expect(() => restored.registerLeagueSeason({
+      season: secondSeason,
+      memberships: [{ userId: createdByUserId, leagueId: secondSeason.leagueId, role: "owner" }],
+      createdByUserId,
+      now: new Date(now.getTime() + 1),
+    })).toThrow(new LeagueCreationLimitError(
+      "active_league_quota_reached",
+      "This account has reached its league limit.",
+      0,
+    ));
+  });
+
   it("changes the signed-in account password and invalidates all active sessions", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const firstLogin = await signUpAndLogin(app, "password@example.com", "current secure password", now);

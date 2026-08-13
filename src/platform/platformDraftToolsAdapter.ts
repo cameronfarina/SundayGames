@@ -8,6 +8,10 @@ import {
   type CreateLiveDraftServerOptions,
   type LiveDraftServerApp,
 } from "../liveDraftServer.js";
+import {
+  MockBatchResourceManager,
+  type MockBatchResourceLimits,
+} from "../mockBatchResourceManager.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -42,6 +46,7 @@ export interface CreatePlatformDraftToolsAdapterOptions {
   importMaxBodyBytes?: number | undefined;
   maxBodyBytes?: number | undefined;
   maxRetainedApps?: number | undefined;
+  mockBatchResourceLimits?: MockBatchResourceLimits | undefined;
   now?: (() => number) | undefined;
   resolveSeasonOptions?: PlatformDraftToolsSeasonOptionsResolver | undefined;
 }
@@ -255,6 +260,7 @@ export const createPlatformDraftToolsAdapter = (
     "importMaxBodyBytes",
   );
   const now = options.now ?? Date.now;
+  const mockBatchResourceManager = new MockBatchResourceManager(options.mockBatchResourceLimits);
   const appsByScope = new Map<string, RetainedDraftToolsApp>();
   let closed = false;
 
@@ -304,6 +310,8 @@ export const createPlatformDraftToolsAdapter = (
         ...seasonOptions,
         importMaxBodyBytes,
         maxBodyBytes,
+        mockBatchResourceManager,
+        mockBatchResourceScope: { accountId, seasonId },
         sessionDirectory: scopedSessionDirectory(baseSessionDirectory, accountId, seasonId),
       });
       if (app.server.listening) {

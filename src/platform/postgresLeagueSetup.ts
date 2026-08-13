@@ -21,10 +21,14 @@ import {
 } from "./leagueSeason.js";
 import {
   type ClaimLeagueSeasonTeamRepositoryInput,
+  defaultLeagueCreationLimits,
   type JoinLeagueSeasonTeamRepositoryInput,
+  LeagueCreationLimitError,
   LeagueSetupWriteConflictError,
   type LeagueSetupRepository,
   leagueSeasonSetupRevision,
+  normalizeLeagueCreationLimits,
+  type LeagueCreationLimits,
   type PlatformLeagueMembership,
   type RegisterLeagueSeasonRepositoryInput,
 } from "./leagueSetup.js";
@@ -81,6 +85,12 @@ interface TeamClaimRow {
 
 interface MaxDisplayOrderRow {
   max_display_order: number | null;
+}
+
+interface LeagueCreationCountRow {
+  active_league_count: number;
+  recent_league_count: number;
+  oldest_recent_created_at: Date | null;
 }
 
 const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
@@ -334,9 +344,14 @@ LEFT JOIN roster_rule_sets r ON r.league_season_id = s.id
 
 export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
   readonly #client: PostgresTransactionalQueryClient;
+  readonly #leagueCreationLimits: LeagueCreationLimits;
 
-  constructor(client: PostgresTransactionalQueryClient) {
+  constructor(
+    client: PostgresTransactionalQueryClient,
+    leagueCreationLimits: LeagueCreationLimits = defaultLeagueCreationLimits,
+  ) {
     this.#client = client;
+    this.#leagueCreationLimits = normalizeLeagueCreationLimits(leagueCreationLimits);
   }
 
   async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): Promise<LeagueSeason> {
@@ -345,6 +360,17 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
     season.settings = normalizeLeagueSeasonSettings(season.settings);
 
     return await this.#client.transaction(async transactionClient => {
+      await transactionClient.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [`mockd:league-create:${input.createdByUserId}`],
+      );
+      const existingLeague = await transactionClient.query<{ id: string }>(
+        "SELECT id FROM leagues WHERE id = $1 LIMIT 1",
+        [season.leagueId],
+      );
+      if (firstRow(existingLeague) === undefined && input.enforceCreationLimits !== false) {
+        await this.#assertLeagueCreationAllowed(transactionClient, input.createdByUserId, now);
+      }
       if (input.expectedSetupRevision !== undefined) {
         await transactionClient.query(
           "SELECT id FROM league_seasons WHERE id = $1 FOR UPDATE",
@@ -379,6 +405,52 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
 
       return registeredSeason;
     });
+  }
+
+  async #assertLeagueCreationAllowed(
+    client: PostgresQueryClient,
+    createdByUserId: string,
+    now: Date,
+  ): Promise<void> {
+    const windowStartedAt = new Date(now.getTime() - this.#leagueCreationLimits.creationWindowMs);
+    const result = await client.query<LeagueCreationCountRow>(
+      `
+SELECT
+  COUNT(*)::integer AS active_league_count,
+  COUNT(*) FILTER (WHERE created_at >= $2)::integer AS recent_league_count,
+  MIN(created_at) FILTER (WHERE created_at >= $2) AS oldest_recent_created_at
+FROM leagues
+WHERE created_by_user_id = $1;
+`.trim(),
+      [createdByUserId, windowStartedAt],
+    );
+    const counts = firstRow(result) ?? {
+      active_league_count: 0,
+      recent_league_count: 0,
+      oldest_recent_created_at: null,
+    };
+    if (Number(counts.active_league_count) >= this.#leagueCreationLimits.maxActiveLeaguesPerAccount) {
+      throw new LeagueCreationLimitError(
+        "active_league_quota_reached",
+        "This account has reached its league limit.",
+        0,
+      );
+    }
+    if (Number(counts.recent_league_count) < this.#leagueCreationLimits.maxCreatedLeaguesPerWindow) return;
+
+    const oldestCreatedAt = counts.oldest_recent_created_at instanceof Date
+      ? counts.oldest_recent_created_at
+      : new Date(String(counts.oldest_recent_created_at));
+    const retryAfterSeconds = Number.isNaN(oldestCreatedAt.getTime())
+      ? Math.ceil(this.#leagueCreationLimits.creationWindowMs / 1_000)
+      : Math.max(1, Math.ceil(
+        (oldestCreatedAt.getTime() + this.#leagueCreationLimits.creationWindowMs - now.getTime()) / 1_000,
+      ));
+    throw new LeagueCreationLimitError(
+      "league_creation_rate_limited",
+      "Too many leagues were created recently. Try again later.",
+      retryAfterSeconds,
+    );
   }
 
   async claimLeagueSeasonTeam(input: ClaimLeagueSeasonTeamRepositoryInput): Promise<PlatformLeagueMembership | null> {

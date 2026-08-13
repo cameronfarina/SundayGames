@@ -29,6 +29,7 @@ import {
   type LeagueSeason,
 } from "./leagueSeason.js";
 import {
+  LeagueCreationLimitError,
   LeagueSetupWriteConflictError,
   type LeagueSetupRepository,
 } from "./leagueSetup.js";
@@ -884,6 +885,17 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
 
   if (error instanceof LeagueSetupWriteConflictError) {
     return knownError(409, "league_setup_write_conflict", error.message);
+  }
+
+  if (error instanceof LeagueCreationLimitError) {
+    const response = knownError(
+      error.code === "league_creation_rate_limited" ? 429 : 409,
+      error.code,
+      error.message,
+    );
+    return error.retryAfterSeconds > 0
+      ? { ...response, headers: { "Retry-After": String(error.retryAfterSeconds) } }
+      : response;
   }
 
   if (error instanceof LiveDraftRoomSetupWriteConflictError) {

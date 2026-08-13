@@ -841,6 +841,59 @@ describe("platform HTTP contract", () => {
     });
   });
 
+  it("returns a retryable response when the account league-creation window is full", async () => {
+    const store = new InMemoryPlatformStore(undefined, {
+      leagueCreationLimits: {
+        maxActiveLeaguesPerAccount: 10,
+        maxCreatedLeaguesPerWindow: 1,
+        creationWindowMs: 60 * 60 * 1_000,
+      },
+    });
+    const app = createPlatformApp({ store, simulationRunner: mockRunner });
+    const handle = createPlatformHttpHandler(app);
+    const login = await createLoggedInAccount(handle, "limited-league-creator@example.com");
+    const setup = {
+      provider: "espn",
+      externalLeagueId: "214674",
+      leagueName: "The Sunday Games",
+      seasonYear: 2026,
+      expectedTeamCount: 4,
+      teams: [
+        { externalTeamId: "1", displayName: "Short King", managerNames: ["Cam"] },
+        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Beaton"] },
+        { externalTeamId: "3", displayName: "Old Dogs", managerNames: ["Jacob"] },
+        { externalTeamId: "4", displayName: "Peace Bridge", managerNames: ["Nick"] },
+      ],
+      draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+      scoring: { ...defaultScoringSettings },
+      rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7 },
+    };
+
+    await expect(handle({
+      method: "POST",
+      path: "/leagues",
+      sessionToken: login.sessionToken,
+      now,
+      body: { setup },
+    })).resolves.toMatchObject({ status: 201 });
+    await expect(handle({
+      method: "POST",
+      path: "/leagues",
+      sessionToken: login.sessionToken,
+      now: new Date(now.getTime() + 30_000),
+      body: { setup: { ...setup, externalLeagueId: "214675" } },
+    })).resolves.toEqual({
+      status: 429,
+      headers: { "Retry-After": "3570" },
+      body: {
+        error: {
+          code: "league_creation_rate_limited",
+          message: "Too many leagues were created recently. Try again later.",
+        },
+      },
+    });
+  });
+
   it("previews, persists, lists, and removes commissioner keeper commands", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();

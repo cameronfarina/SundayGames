@@ -36,6 +36,7 @@ export const emptyPlatformStoreSnapshot = (): InMemoryPlatformStoreSnapshot => (
     sessions: [],
   },
   leagueSeasons: [],
+  leagueCreationRecords: [],
   memberships: [],
   mockDraftSessions: [],
   simulationRuns: [],
@@ -128,6 +129,7 @@ export const deserializePlatformStoreSnapshot = (
   return {
     auth: file.auth ?? empty.auth,
     leagueSeasons: (file.leagueSeasons ?? empty.leagueSeasons).map(normalizeLeagueSeason),
+    leagueCreationRecords: file.leagueCreationRecords ?? empty.leagueCreationRecords ?? [],
     memberships: file.memberships ?? empty.memberships,
     mockDraftSessions: (file.mockDraftSessions ?? empty.mockDraftSessions).map(normalizePersistedMockDraftSession),
     simulationRuns: file.simulationRuns ?? empty.simulationRuns,

@@ -19,6 +19,7 @@ import {
   createPlatformDraftToolsAdapter,
   type PlatformDraftToolsAdapter,
 } from "../src/platform/platformDraftToolsAdapter.js";
+import { MockBatchResourceManager } from "../src/mockBatchResourceManager.js";
 
 interface DelegatedRequest {
   body: string;
@@ -306,11 +307,19 @@ describe("platform draft tools adapter", () => {
         ...seasonOptions.get(requestSeasonId),
         importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
         maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
+        mockBatchResourceManager: expect.any(MockBatchResourceManager),
+        mockBatchResourceScope: {
+          accountId: index === 1 ? "account-b" : "account-a",
+          seasonId: requestSeasonId,
+        },
         sessionDirectory: expect.stringMatching(
           new RegExp(`/season-${createHash("sha256").update(requestSeasonId).digest("hex")}$`),
         ),
       });
     }
+    expect(new Set(createClassicServer.mock.calls.map(
+      ([appOptions]) => appOptions.mockBatchResourceManager,
+    ))).toHaveLength(1);
   });
 
   it("passes platform body limits to every delegated draft tools app", async () => {
@@ -394,6 +403,11 @@ describe("platform draft tools adapter", () => {
     expect(createClassicServer).toHaveBeenCalledWith({
       importMaxBodyBytes: defaultLiveDraftImportBodyLimitBytes,
       maxBodyBytes: defaultLiveDraftJsonBodyLimitBytes,
+      mockBatchResourceManager: expect.any(MockBatchResourceManager),
+      mockBatchResourceScope: {
+        accountId: "../../same-account",
+        seasonId,
+      },
       sessionDirectory: join(
         baseSessionDirectory,
         `account-${createHash("sha256").update("../../same-account").digest("hex")}`,

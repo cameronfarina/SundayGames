@@ -49,7 +49,12 @@ import {
 } from "./jobs.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
+  assertLeagueCreationAllowed,
+  defaultLeagueCreationLimits,
   membershipKeyFor,
+  normalizeLeagueCreationLimits,
+  type LeagueCreationLimits,
+  type LeagueCreationRecord,
   type LeagueSetupRepository,
   type PlatformLeagueMembership,
   type RegisterLeagueSeasonRepositoryInput,
@@ -494,6 +499,7 @@ export interface InMemoryPlatformStoreSnapshot {
     sessions: readonly SessionRecord[];
   };
   leagueSeasons: readonly LeagueSeason[];
+  leagueCreationRecords?: readonly LeagueCreationRecord[];
   memberships: readonly PlatformLeagueMembership[];
   mockDraftSessions: readonly MockDraftSession[];
   simulationRuns: readonly SimulationRun[];
@@ -506,6 +512,10 @@ export interface InMemoryPlatformStoreSnapshot {
   jobs: readonly JobRecord[];
   exportArtifacts: readonly ExportArtifact[];
   exportArtifactContents: readonly ExportArtifactContent[];
+}
+
+export interface InMemoryPlatformStoreOptions {
+  leagueCreationLimits?: LeagueCreationLimits | undefined;
 }
 
 const draftExportSlotKeys = new Set<string>(draftExportSlotOrder);
@@ -545,8 +555,16 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
   readonly #leagueSeasonsById = new Map<string, LeagueSeason>();
   readonly #membershipsByUserAndLeague = new Map<string, PlatformLeagueMembership>();
+  readonly #leagueCreationRecordsByLeagueId = new Map<string, LeagueCreationRecord>();
+  readonly #leagueCreationLimits: LeagueCreationLimits;
 
-  constructor(snapshot?: InMemoryPlatformStoreSnapshot | undefined) {
+  constructor(
+    snapshot?: InMemoryPlatformStoreSnapshot | undefined,
+    options: InMemoryPlatformStoreOptions = {},
+  ) {
+    this.#leagueCreationLimits = normalizeLeagueCreationLimits(
+      options.leagueCreationLimits ?? defaultLeagueCreationLimits,
+    );
     this.liveDraftRooms = new InMemoryLiveDraftRoomRepository(({ actor, action, room }) => {
       const membership = this.findMembership(actor.userId, room.leagueId);
 
@@ -569,9 +587,27 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
     ) {
       throw new LeagueSetupWriteConflictError();
     }
+    const createsLeague = ![...this.#leagueSeasonsById.values()].some(
+      season => season.leagueId === input.season.leagueId,
+    );
+    if (createsLeague && input.enforceCreationLimits !== false) {
+      assertLeagueCreationAllowed({
+        records: [...this.#leagueCreationRecordsByLeagueId.values()],
+        createdByUserId: input.createdByUserId,
+        now: input.now ?? new Date(),
+        limits: this.#leagueCreationLimits,
+      });
+    }
     const storedSeason = cloneForRead(input.season);
 
     this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
+    if (createsLeague && input.enforceCreationLimits !== false) {
+      this.#leagueCreationRecordsByLeagueId.set(storedSeason.leagueId, {
+        leagueId: storedSeason.leagueId,
+        createdByUserId: input.createdByUserId,
+        createdAt: input.now ?? new Date(),
+      });
+    }
 
     if (input.membershipWriteMode !== "preserve") {
       for (const [membershipKey, membership] of this.#membershipsByUserAndLeague) {
@@ -738,6 +774,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
         sessions: this.authRepository.sessions().map(session => cloneForRead(session)),
       },
       leagueSeasons: [...this.#leagueSeasonsById.values()].map(season => cloneForRead(season)),
+      leagueCreationRecords: [...this.#leagueCreationRecordsByLeagueId.values()].map(record => cloneForRead(record)),
       memberships: [...this.#membershipsByUserAndLeague.values()].map(membership => cloneForRead(membership)),
       mockDraftSessions: this.mockDraftSessions.sessions(),
       simulationRuns: this.simulations.runs(),
@@ -756,6 +793,7 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
   #loadSnapshot(snapshot: InMemoryPlatformStoreSnapshot): void {
     this.#leagueSeasonsById.clear();
     this.#membershipsByUserAndLeague.clear();
+    this.#leagueCreationRecordsByLeagueId.clear();
 
     for (const credential of snapshot.auth.accountCredentials) {
       const account = this.authRepository.createAccount({
@@ -787,11 +825,30 @@ export class InMemoryPlatformStore implements LeagueSetupRepository {
       this.#leagueSeasonsById.set(storedSeason.id, storedSeason);
     }
 
+    for (const record of snapshot.leagueCreationRecords ?? []) {
+      this.#leagueCreationRecordsByLeagueId.set(record.leagueId, cloneForRead(record));
+    }
+
     for (const membership of snapshot.memberships) {
       this.#membershipsByUserAndLeague.set(
         membershipKeyFor(membership.userId, membership.leagueId),
         cloneForRead(membership),
       );
+    }
+
+    const knownLeagueIds = new Set([...this.#leagueSeasonsById.values()].map(season => season.leagueId));
+    for (const leagueId of knownLeagueIds) {
+      if (this.#leagueCreationRecordsByLeagueId.has(leagueId)) continue;
+      const owner = snapshot.memberships.find(
+        membership => membership.leagueId === leagueId && membership.role === "owner",
+      );
+      if (owner !== undefined) {
+        this.#leagueCreationRecordsByLeagueId.set(leagueId, {
+          leagueId,
+          createdByUserId: owner.userId,
+          createdAt: new Date(0),
+        });
+      }
     }
 
     this.#syncHistoricalImportSeasons();
@@ -882,6 +939,7 @@ export const createPlatformApp = ({
         season,
         memberships: await leagueSetup.membershipsForLeague(season.leagueId),
         createdByUserId: "external",
+        enforceCreationLimits: false,
       });
     }
 
@@ -1180,6 +1238,7 @@ export const createPlatformApp = ({
           season: registeredSeason,
           memberships: input.memberships,
           createdByUserId: account.id,
+          enforceCreationLimits: false,
           ...(input.membershipWriteMode === undefined
             ? {}
             : { membershipWriteMode: input.membershipWriteMode }),

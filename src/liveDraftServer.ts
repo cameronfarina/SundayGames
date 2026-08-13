@@ -85,6 +85,11 @@ import {
 } from "./modeling/playerNews.js";
 import { loadEspnWeeksOneToFour, type ProjectionRecord } from "./projections.js";
 import type { PricingConfig } from "./modeling/basePricing.js";
+import {
+  MockBatchCapacityError,
+  MockBatchResourceManager,
+  type MockBatchResourceScope,
+} from "./mockBatchResourceManager.js";
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const playerNewsEvidencePath = "data/raw/player-evidence-2026-initial.csv";
@@ -176,6 +181,8 @@ const sessionDirectoryFromOptions = (): string | undefined =>
 
 export const defaultLiveDraftJsonBodyLimitBytes = 1_048_576;
 export const defaultLiveDraftImportBodyLimitBytes = 7_100_000;
+export const defaultCompletedMockBatchJobTtlMs = 24 * 60 * 60 * 1_000;
+export const defaultMaxCompletedMockBatchJobs = 50;
 
 class RequestBodyTooLargeError extends Error {}
 
@@ -244,10 +251,16 @@ const readRequestBody = async (
     request.once("aborted", onAborted);
   });
 
-const sendJson = (response: ServerResponse, statusCode: number, body: unknown): void => {
+const sendJson = (
+  response: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): void => {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    ...headers,
   });
   response.end(JSON.stringify(body));
 };
@@ -757,6 +770,11 @@ export interface CreateLiveDraftServerOptions {
   sleeperSyncPreviewProvider?: SleeperSyncPreviewProvider;
   maxBodyBytes?: number;
   importMaxBodyBytes?: number;
+  completedMockBatchJobTtlMs?: number;
+  maxCompletedMockBatchJobs?: number;
+  mockBatchNow?: () => Date;
+  mockBatchResourceManager?: MockBatchResourceManager;
+  mockBatchResourceScope?: MockBatchResourceScope;
 }
 
 export interface LiveDraftServerApp {
@@ -1377,6 +1395,18 @@ export const createLiveDraftServer = async (
     defaultLiveDraftImportBodyLimitBytes,
     "importMaxBodyBytes",
   );
+  const completedMockBatchJobTtlMs = positiveIntegerOption(
+    options.completedMockBatchJobTtlMs,
+    defaultCompletedMockBatchJobTtlMs,
+    "completedMockBatchJobTtlMs",
+  );
+  const maxCompletedMockBatchJobs = positiveIntegerOption(
+    options.maxCompletedMockBatchJobs,
+    defaultMaxCompletedMockBatchJobs,
+    "maxCompletedMockBatchJobs",
+  );
+  const mockBatchNow = options.mockBatchNow ?? (() => new Date());
+  const mockBatchResourceManager = options.mockBatchResourceManager ?? new MockBatchResourceManager();
   const bodyLimitForPath = (pathname: string): number =>
     pathname === "/api/import" ? importMaxBodyBytes : maxBodyBytes;
   const sessionStorePairs = new Map<string, Promise<{
@@ -1443,6 +1473,30 @@ export const createLiveDraftServer = async (
 
   const mockResultScopeKey = (draftSessionKey: string, watchOwner: Owner): string =>
     `${draftSessionKey}\u0000${watchOwner}`;
+
+  const forgetMockBatchJob = (job: MockBatchJob): void => {
+    mockBatchJobs.delete(job.jobId);
+    const scopeKey = mockResultScopeKey(job.draftSessionKey, job.watchOwner);
+    if (latestMockBatchJobIds.get(scopeKey) === job.jobId) latestMockBatchJobIds.delete(scopeKey);
+  };
+
+  const pruneMockBatchJobs = (): void => {
+    const cutoff = mockBatchNow().getTime() - completedMockBatchJobTtlMs;
+    const terminalJobs = [...mockBatchJobs.values()]
+      .filter(job => job.status === "complete" || job.status === "failed")
+      .sort((left, right) => Date.parse(left.updatedAt) - Date.parse(right.updatedAt));
+
+    for (const job of terminalJobs) {
+      if (Date.parse(job.updatedAt) < cutoff) forgetMockBatchJob(job);
+    }
+
+    const retainedTerminalJobs = terminalJobs.filter(job => mockBatchJobs.has(job.jobId));
+    const excessCount = retainedTerminalJobs.length - maxCompletedMockBatchJobs;
+    for (let index = 0; index < excessCount; index += 1) {
+      const job = retainedTerminalJobs[index];
+      if (job !== undefined) forgetMockBatchJob(job);
+    }
+  };
 
   const rememberLatestMockBatchJob = (job: MockBatchJob): void => {
     latestMockBatchJobIds.set(mockResultScopeKey(job.draftSessionKey, job.watchOwner), job.jobId);
@@ -1786,7 +1840,8 @@ export const createLiveDraftServer = async (
   }): MockBatchJob => {
     if (!batch.runs[0]) throw new Error("Mock draft completion did not produce a run.");
 
-    const now = new Date().toISOString();
+    pruneMockBatchJobs();
+    const now = mockBatchNow().toISOString();
     const completedJob: MockBatchJob = {
       jobId: `mock-complete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       status: "complete",
@@ -1807,6 +1862,7 @@ export const createLiveDraftServer = async (
     };
     mockBatchJobs.set(completedJob.jobId, completedJob);
     rememberLatestMockBatchJob(completedJob);
+    pruneMockBatchJobs();
     return completedJob;
   };
   const interactiveMockBatchForCommands = async ({
@@ -2187,7 +2243,7 @@ export const createLiveDraftServer = async (
   ): void => {
     job.completedRuns = completedRuns;
     job.percent = job.totalRuns <= 0 ? 100 : Math.round((completedRuns / job.totalRuns) * 100);
-    job.updatedAt = new Date().toISOString();
+    job.updatedAt = mockBatchNow().toISOString();
   };
 
   const yieldToEventLoop = async (): Promise<void> =>
@@ -2205,7 +2261,7 @@ export const createLiveDraftServer = async (
     seedPrefix: string;
   }): Promise<void> => {
     job.status = "running";
-    job.updatedAt = new Date().toISOString();
+    job.updatedAt = mockBatchNow().toISOString();
 
     try {
       const scriptOverrides = targetMaxBidOverridesFor(job.script);
@@ -2315,11 +2371,13 @@ export const createLiveDraftServer = async (
         runLabels,
         job.watchOwner,
       );
-      job.updatedAt = new Date().toISOString();
+      job.updatedAt = mockBatchNow().toISOString();
     } catch (error) {
       job.status = "failed";
       job.error = error instanceof Error ? error.message : "Unknown mock batch error.";
-      job.updatedAt = new Date().toISOString();
+      job.updatedAt = mockBatchNow().toISOString();
+    } finally {
+      pruneMockBatchJobs();
     }
   };
 
@@ -2338,7 +2396,8 @@ export const createLiveDraftServer = async (
     seedPrefix: string;
     script?: MockDraftScript;
   }): MockBatchJob => {
-    const now = new Date().toISOString();
+    pruneMockBatchJobs();
+    const now = mockBatchNow().toISOString();
     const totalRuns = runsPerScenario * buildAroundPriceCountFor(script);
     const job: MockBatchJob = {
       jobId: `mock-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -2358,7 +2417,18 @@ export const createLiveDraftServer = async (
 
     mockBatchJobs.set(job.jobId, job);
     rememberLatestMockBatchJob(job);
-    void runMockBatchJob({ job, runsPerScenario, seedPrefix });
+    try {
+      mockBatchResourceManager.submit(
+        options.mockBatchResourceScope ?? {
+          accountId: "standalone",
+          seasonId: draftSessionKey,
+        },
+        () => runMockBatchJob({ job, runsPerScenario, seedPrefix }),
+      );
+    } catch (error) {
+      forgetMockBatchJob(job);
+      throw error;
+    }
     return job;
   };
 
@@ -2782,19 +2852,29 @@ export const createLiveDraftServer = async (
           ? requestedRunsPerScenario
           : batchRunsPerScenarioFromValue(script.runsPerScenario);
         const seedPrefix = seedPrefixFromValue(body.seedPrefix);
-        const job = startMockBatchJob({
-          draftSessionKey,
-          watchOwner,
-          strategyKey,
-          runsPerScenario,
-          seedPrefix,
-          ...(script === undefined ? {} : { script }),
-        });
+        let job: MockBatchJob;
+        try {
+          job = startMockBatchJob({
+            draftSessionKey,
+            watchOwner,
+            strategyKey,
+            runsPerScenario,
+            seedPrefix,
+            ...(script === undefined ? {} : { script }),
+          });
+        } catch (error) {
+          if (!(error instanceof MockBatchCapacityError)) throw error;
+          sendJson(response, error.status, { error: error.message, code: error.code }, {
+            "Retry-After": String(error.retryAfterSeconds),
+          });
+          return;
+        }
         sendJson(response, 202, mockBatchJobResponseFor(job));
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/api/mock-batch/latest") {
+        pruneMockBatchJobs();
         const draftSessionKey = draftSessionKeyFromQuery(url);
         const watchOwner = watchOwnerFromQuery(url);
         const latestJobId = latestMockBatchJobIds.get(mockResultScopeKey(draftSessionKey, watchOwner));
@@ -2809,6 +2889,7 @@ export const createLiveDraftServer = async (
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/api/mock-batch/")) {
+        pruneMockBatchJobs();
         const jobId = decodeURIComponent(url.pathname.slice("/api/mock-batch/".length));
         const job = mockBatchJobs.get(jobId);
         const draftSessionKey = draftSessionKeyFromQuery(url);
