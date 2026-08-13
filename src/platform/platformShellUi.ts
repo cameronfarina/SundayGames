@@ -358,6 +358,23 @@ export const platformShellHtml = `<!doctype html>
       margin: 0 0 14px;
     }
 
+    .no-league-practice-onboarding {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+    .no-league-practice-onboarding h2,
+    .no-league-practice-onboarding p { margin: 0; }
+    .no-league-practice-onboarding h2 { font-size: 18px; }
+    .no-league-practice-onboarding .lede { max-width: 760px; }
+    .no-league-invitation-instructions {
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 760px;
+    }
+
     .facts {
       display: grid;
       gap: 1px;
@@ -1226,13 +1243,25 @@ export const platformShellHtml = `<!doctype html>
           <div>
             <p class="eyebrow">Practice</p>
             <h1>Draft lab</h1>
-            <p class="lede">Build a strategy, run full-league simulations, and practice against your active league.</p>
+            <p id="standalone-board-description" class="lede">Explore current player rankings and compare baseline values.</p>
           </div>
           <div class="actions">
             <a id="standalone-board-open-mock" class="button primary hidden">Start mock draft</a>
             <button id="standalone-board-open-simulations" class="button hidden" type="button">Run simulations</button>
           </div>
         </div>
+        <section id="no-league-practice-onboarding" class="no-league-practice-onboarding hidden" aria-labelledby="no-league-practice-title">
+          <div>
+            <p class="eyebrow">Board-only access</p>
+            <h2 id="no-league-practice-title">Use the player board now</h2>
+            <p class="lede">Without a league, this board uses baseline market values. Simulations, mock drafts, keepers, and league-specific pricing unlock after you create or join a league.</p>
+          </div>
+          <div class="actions">
+            <a id="no-league-create-league" class="button primary" href="/league?create=1">Create league</a>
+            <button id="no-league-invitation-help" type="button" aria-expanded="false" aria-controls="no-league-invitation-instructions">Join from invitation</button>
+          </div>
+          <p id="no-league-invitation-instructions" class="no-league-invitation-instructions hidden" tabindex="-1">Open the private league link your commissioner shared in email or your group chat. After you sign in or create an account, Mockd will let you choose your team.</p>
+        </section>
         <div class="board-controls">
           <div>
             <label for="standalone-player-search">Search players</label>
@@ -1916,6 +1945,10 @@ export const platformShellHtml = `<!doctype html>
     const practiceStrategy = byId("practice-strategy");
     const standaloneBoardSort = byId("standalone-board-sort");
     const standaloneBoardStatus = byId("standalone-board-status");
+    const standaloneBoardDescription = byId("standalone-board-description");
+    const noLeaguePracticeOnboarding = byId("no-league-practice-onboarding");
+    const noLeagueInvitationHelp = byId("no-league-invitation-help");
+    const noLeagueInvitationInstructions = byId("no-league-invitation-instructions");
     const standaloneShortlistOnly = byId("standalone-shortlist-only");
     const standaloneShortlistCount = byId("standalone-shortlist-count");
     const standalonePlayerRows = byId("standalone-player-rows");
@@ -2026,10 +2059,19 @@ export const platformShellHtml = `<!doctype html>
         : "/practice";
     };
 
+    const invitationReturnPath = () => {
+      const candidatePath = routePath === "/invite" ? returnPath() : authenticationReturnPath();
+      const invitationUrl = new URL(candidatePath, window.location.origin);
+      return invitationUrl.pathname === "/invite" && invitationUrl.searchParams.get("token")
+        ? invitationUrl.pathname + invitationUrl.search
+        : null;
+    };
+
     const authenticationInvitationToken = () => {
-      if (routePath === "/invite") return new URLSearchParams(window.location.search).get("token");
-      const invitationUrl = new URL(authenticationReturnPath(), window.location.origin);
-      return invitationUrl.pathname === "/invite" ? invitationUrl.searchParams.get("token") : null;
+      const invitationPath = invitationReturnPath();
+      return invitationPath
+        ? new URL(invitationPath, window.location.origin).searchParams.get("token")
+        : null;
     };
 
     const loadAuthenticationInvitation = async token => {
@@ -4071,6 +4113,10 @@ export const platformShellHtml = `<!doctype html>
       }
       state.selectedLeague = selectedLeague;
       hideWorkspaces();
+      setHidden(noLeaguePracticeOnboarding, Boolean(selectedLeague));
+      standaloneBoardDescription.textContent = selectedLeague
+        ? "Build a strategy, run full-league simulations, and practice against your active league."
+        : "Explore current player rankings and compare baseline values.";
       if (routePath === "/invite") {
         setHidden(commissionerNavItem, true);
         setHidden(byId("invite-workspace"), false);
@@ -4291,7 +4337,7 @@ export const platformShellHtml = `<!doctype html>
       state.selectedLeague = selectedLeagueFor(onboarding);
       renderLeaguePicker(onboarding);
       renderSelectedLeague(state.selectedLeague);
-      appStatus.textContent = onboarding.leagues.length ? "" : "No league memberships found.";
+      appStatus.textContent = "";
     };
 
     const showSignedInApp = async account => {
@@ -4325,12 +4371,7 @@ export const platformShellHtml = `<!doctype html>
       return body.account;
     };
 
-    const signupInvitationToken = () => {
-      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      if (!returnTo) return null;
-      const invitationUrl = new URL(returnTo, window.location.origin);
-      return invitationUrl.pathname === "/invite" ? invitationUrl.searchParams.get("token") : null;
-    };
+    const signupInvitationToken = () => authenticationInvitationToken();
 
     const finishAuthentication = account => {
       if (routePath === "/login" || routePath === "/signup") {
@@ -5271,6 +5312,13 @@ export const platformShellHtml = `<!doctype html>
         leagueInviteLinkInput.select();
         invitationCreateStatus.textContent = "Copy the selected link.";
       }
+    });
+
+    noLeagueInvitationHelp.addEventListener("click", () => {
+      const expanded = noLeagueInvitationHelp.getAttribute("aria-expanded") === "true";
+      noLeagueInvitationHelp.setAttribute("aria-expanded", String(!expanded));
+      setHidden(noLeagueInvitationInstructions, expanded);
+      if (!expanded) noLeagueInvitationInstructions.focus();
     });
 
     inviteTeamList.addEventListener("click", async event => {

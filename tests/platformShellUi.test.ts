@@ -234,6 +234,29 @@ describe("platform shell UI", () => {
     expect(platformShellHtml).toContain("const openPasswordDialog = () =>");
   });
 
+  it("explains no-league practice access and preserves private invitation onboarding", () => {
+    expect(platformShellHtml).toContain('id="no-league-practice-onboarding"');
+    expect(platformShellHtml).toContain('id="no-league-create-league"');
+    expect(platformShellHtml).toContain('href="/league?create=1"');
+    expect(platformShellHtml).toContain('id="no-league-invitation-help"');
+    expect(platformShellHtml).toContain('aria-controls="no-league-invitation-instructions"');
+    expect(platformShellHtml).toContain('id="no-league-invitation-instructions"');
+    expect(platformShellHtml).toContain("Open the private league link your commissioner shared");
+    expect(platformShellHtml).toContain("Without a league, this board uses baseline market values.");
+    expect(platformShellHtml).toContain("Simulations, mock drafts, keepers, and league-specific pricing unlock after you create or join a league.");
+    expect(platformShellHtml).toContain("setHidden(noLeaguePracticeOnboarding, Boolean(selectedLeague))");
+    expect(platformShellHtml).toContain('noLeagueInvitationHelp.setAttribute("aria-expanded"');
+
+    expect(platformShellHtml).toContain("const invitationReturnPath = () =>");
+    expect(platformShellHtml).toContain("const signupInvitationToken = () => authenticationInvitationToken();");
+    expect(platformShellHtml).toContain("invitationToken: signupInvitationToken()");
+    expect(platformShellHtml).toContain("window.location.assign(authenticationReturnPath())");
+    expect(platformShellHtml).toContain('window.location.assign(pathWithSeason("/league", seasonId))');
+    expect(platformShellHtml).toContain('appStatus.textContent = "";');
+    expect(platformShellHtml).not.toContain('onboarding.leagues.length ? "" : "No league memberships found."');
+    expect(platformShellHtml).not.toContain("build a shortlist");
+  });
+
   it("reveals ESPN import outcomes inside the scrollable league setup wizard", () => {
     expect(platformShellHtml).toContain(
       'id="league-create-import-summary" class="league-import-summary hidden" role="status" tabindex="-1" aria-labelledby="league-create-import-summary-title" aria-describedby="league-create-import-summary-copy"',
