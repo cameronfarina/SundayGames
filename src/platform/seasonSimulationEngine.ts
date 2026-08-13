@@ -25,19 +25,27 @@ import {
   type SnakeDraftState,
   type SnakeDraftTeamReadModel,
 } from "./snakeDraftEngine.js";
+import {
+  activePositionPreferenceFor,
+  preferenceRosterCountFor,
+  resolveSeasonSimulationPreferences,
+  type ResolvedSeasonSimulationPreference,
+  type SeasonSimulationPreferenceOutcome,
+  type SeasonSimulationPreferenceRule,
+  type SeasonSimulationPreferredPosition,
+} from "./seasonSimulationPreferences.js";
+
+export type {
+  SeasonSimulationPreferenceOutcome,
+  SeasonSimulationPreferenceRule,
+  SeasonSimulationPreferredPosition,
+} from "./seasonSimulationPreferences.js";
 
 export interface SeasonSimulationTargetConstraint {
   playerName: string;
   maxAuctionPrice?: number | undefined;
   maxSnakeRound?: number | undefined;
   maxSnakeOverallPick?: number | undefined;
-}
-
-export interface SeasonSimulationPreferredPosition {
-  position: "QB" | "RB" | "WR" | "TE";
-  tier: "elite";
-  targetCount?: number | undefined;
-  maxAuctionPrice?: number | undefined;
 }
 
 export interface SeasonSimulationPositionCap {
@@ -150,6 +158,7 @@ export interface SeasonSimulationResult {
   strategy: ParsedSeasonSimulationStrategy;
   targetOutcomes?: readonly SeasonSimulationTargetOutcome[] | undefined;
   targetOutcome?: SeasonSimulationTargetOutcome | undefined;
+  preferenceOutcomes?: readonly SeasonSimulationPreferenceOutcome[] | undefined;
   playerExposure: readonly SeasonSimulationPlayerExposure[];
   positionCounts: Readonly<Record<string, SeasonSimulationPositionCount>>;
   runs: readonly SeasonSimulationRunResult[];
@@ -404,6 +413,8 @@ export const parseSeasonSimulationStrategy = (
 
 const defaultSeedPrefix = "season-simulation";
 const maximumDecisionsPerRun = 10_000;
+// AI pacing includes a $2 clearing cushion; the human needs one more dollar to win the next bid.
+const humanClearingPriceCushionDollars = 3;
 
 const deterministicFraction = (value: string): number => {
   let hash = 2_166_136_261;
@@ -421,16 +432,6 @@ const auctionRosterNeedFor = (
 ): number => team.slots
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(position))
   .reduce((total, slot) => total + (1 / slot.eligiblePositions.length), 0);
-
-const activePositionPreferenceFor = (
-  strategy: ParsedSeasonSimulationStrategy,
-  positionCounts: Readonly<Record<string, number>>,
-  position: string,
-): SeasonSimulationPreferredPosition | undefined => strategy.preferredPositions.find(preference =>
-  preference.position === position
-  && (preference.targetCount === undefined
-    || (positionCounts[position] ?? 0) < preference.targetCount)
-);
 
 const targetsFor = (
   strategy: ParsedSeasonSimulationStrategy,
@@ -533,7 +534,7 @@ const selectAuctionNomination = (
   state: GenericAuctionMockState,
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
   pairPlayerId: string | undefined,
-  strategy: ParsedSeasonSimulationStrategy,
+  preferences: readonly ResolvedSeasonSimulationPreference[],
   seed: string,
 ): GenericAuctionMockBoardPlayer => {
   const humanTeam = state.teams.find(team => team.id === state.configuration.humanTeamId);
@@ -553,7 +554,12 @@ const selectAuctionNomination = (
       player,
       score: targetPriorityFor(player.id)
         + (player.id === pairPlayerId ? 100_000 : 0)
-        + (activePositionPreferenceFor(strategy, humanTeam.positionCounts, player.position) ? 10_000 : 0)
+        + (activePositionPreferenceFor(
+          preferences,
+          humanTeam.roster,
+          player,
+          pairPlayerId,
+        ) ? 10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
         + player.expectedPrice
         + deterministicFraction(`${seed}:nominate:${state.session.revision}:${player.id}`) * 0.001,
@@ -578,11 +584,21 @@ const auctionWillingnessFor = (
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
   pairPlayerId: string | undefined,
   strategy: ParsedSeasonSimulationStrategy,
+  preferences: readonly ResolvedSeasonSimulationPreference[],
 ): number => {
   const target = targetsByPlayerId.get(player.id);
   const isTarget = target !== undefined;
   const isPair = player.id === pairPlayerId;
-  const preference = activePositionPreferenceFor(strategy, team.positionCounts, player.position);
+  const preference = activePositionPreferenceFor(
+    preferences,
+    team.roster,
+    player,
+    pairPlayerId,
+  );
+  const positionPreference = preferences.find(candidate =>
+    candidate.preference.position === player.position
+    && preferenceRosterCountFor(team.roster, candidate, pairPlayerId) < candidate.targetCount
+  );
   const positionCap = [...(strategy.positionCaps ?? [])]
     .reverse()
     .find(cap => cap.position === player.position);
@@ -619,15 +635,31 @@ const auctionWillingnessFor = (
     positionCap === undefined || (positionCap.excludeNamedTargets && isTarget)
       ? team.maxBid
       : positionCap.maxAuctionPrice,
-    preference?.maxAuctionPrice ?? team.maxBid,
+    positionPreference?.preference.maxAuctionPrice ?? team.maxBid,
   );
 
-  return Math.min(team.maxBid, strategyLimit, valueLimit);
+  const minimumBid = state.configuration.minimumBidDollars;
+  const discretionaryBudget = Math.max(
+    0,
+    team.budgetRemaining - team.rosterSlotsRemaining * minimumBid,
+  );
+  const closingPaceLimit = Math.min(
+    team.maxBid,
+    minimumBid
+      + Math.ceil(discretionaryBudget / team.rosterSlotsRemaining)
+      + humanClearingPriceCushionDollars,
+  );
+  const enforcedValueLimit = preference === undefined
+    ? Math.max(valueLimit, closingPaceLimit)
+    : team.maxBid;
+
+  return Math.min(team.maxBid, strategyLimit, enforcedValueLimit);
 };
 
 const runAuctionSimulation = (input: {
   config: ReturnType<typeof buildSeasonAuctionMockConfig>;
   strategy: ParsedSeasonSimulationStrategy;
+  preferences: readonly ResolvedSeasonSimulationPreference[];
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>;
   pairPlayerId: string | undefined;
   seed: string;
@@ -658,13 +690,30 @@ const runAuctionSimulation = (input: {
         state,
         input.targetsByPlayerId,
         input.pairPlayerId,
-        input.strategy,
+        input.preferences,
         input.seed,
       );
+      const humanTeam = state.teams.find(team => team.id === state.configuration.humanTeamId);
+      if (humanTeam === undefined) {
+        throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
+      }
+      const willingness = auctionWillingnessFor(
+        state,
+        humanTeam,
+        player,
+        input.targetsByPlayerId,
+        input.pairPlayerId,
+        input.strategy,
+        input.preferences,
+      );
+      const openingBid = humanTeam.rosterSlotsRemaining === 1
+        ? Math.max(state.configuration.minimumBidDollars, willingness)
+        : state.configuration.minimumBidDollars;
       state = applyGenericAuctionMockCommand(state, {
         type: "nominate",
         expectedRevision: state.session.revision,
         playerId: player.id,
+        openingBid,
       });
       continue;
     }
@@ -686,9 +735,13 @@ const runAuctionSimulation = (input: {
       input.targetsByPlayerId,
       input.pairPlayerId,
       input.strategy,
+      input.preferences,
     );
+    const bidPrice = humanTeam.rosterSlotsRemaining === 1
+      ? willingness
+      : nomination.nextBid;
     state = applyGenericAuctionMockCommand(state, nomination.nextBid <= willingness
-      ? { type: "buy", expectedRevision: state.session.revision, price: nomination.nextBid }
+      ? { type: "buy", expectedRevision: state.session.revision, price: bidPrice }
       : { type: "pass", expectedRevision: state.session.revision });
   }
 
@@ -709,7 +762,7 @@ const selectSnakePlayer = (
   state: SnakeDraftState,
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
   pairPlayerId: string | undefined,
-  strategy: ParsedSeasonSimulationStrategy,
+  preferences: readonly ResolvedSeasonSimulationPreference[],
   seed: string,
 ): SnakeDraftBoardPlayer => {
   const humanTeam = state.teams.find(team => team.id === state.configuration.humanTeamId);
@@ -720,12 +773,6 @@ const selectSnakePlayer = (
   if (currentPick === undefined) {
     throw new SeasonSimulationError("simulation_failed", "The snake engine did not expose a human pick.");
   }
-  const positionsByPlayer = new Map(state.board.players.map(player => [player.id, player.position]));
-  const positionCounts = humanTeam.roster.reduce<Record<string, number>>((counts, player) => {
-    const position = positionsByPlayer.get(player.playerId);
-    if (position !== undefined) counts[position] = (counts[position] ?? 0) + 1;
-    return counts;
-  }, {});
   const selected = state.board.players
     .filter(player => player.available && humanTeam.slots.some(slot =>
       slot.playerId === undefined && slot.eligiblePositions.includes(player.position)
@@ -739,7 +786,12 @@ const selectSnakePlayer = (
         player,
         score: (targetDeadlineAllowsPick ? 1_000_000 : 0)
           + (player.id === pairPlayerId ? 100_000 : 0)
-          + (activePositionPreferenceFor(strategy, positionCounts, player.position) ? 10_000 : 0)
+          + (activePositionPreferenceFor(
+            preferences,
+            humanTeam.roster,
+            player,
+            pairPlayerId,
+          ) ? 10_000 : 0)
           + snakeRosterNeedFor(humanTeam, player.position) * 100
           - (player.personalRank ?? player.leagueExpectedPick ?? player.rank)
           + deterministicFraction(`${seed}:pick:${currentPick.overall}:${player.id}`) * 0.001,
@@ -760,7 +812,7 @@ const selectSnakePlayer = (
 
 const runSnakeSimulation = (input: {
   config: ReturnType<typeof buildSeasonSnakeMockConfig>;
-  strategy: ParsedSeasonSimulationStrategy;
+  preferences: readonly ResolvedSeasonSimulationPreference[];
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>;
   pairPlayerId: string | undefined;
   seed: string;
@@ -781,7 +833,7 @@ const runSnakeSimulation = (input: {
       state,
       input.targetsByPlayerId,
       input.pairPlayerId,
-      input.strategy,
+      input.preferences,
       input.seed,
     );
     state = applySnakeDraftCommand(state, {
@@ -918,6 +970,8 @@ const aggregateRuns = (input: {
     playerId: string;
     target: SeasonSimulationTargetConstraint;
   }[];
+  preferences: readonly ResolvedSeasonSimulationPreference[];
+  pairPlayerId: string | undefined;
   humanTeamId: string;
 }): SeasonSimulationResult => {
   const exposure = new Map<string, {
@@ -982,6 +1036,34 @@ const aggregateRuns = (input: {
     };
   });
   const targetOutcome = targetOutcomes[0];
+  const preferenceOutcomes = input.preferences.map(preference => {
+    const hitCount = input.runs.filter(run => {
+      const roster = run.teams.find(team => team.teamId === input.humanTeamId)?.roster ?? [];
+      return preferenceRosterCountFor(roster, preference, input.pairPlayerId)
+        >= preference.targetCount;
+    }).length;
+    const status: SeasonSimulationPreferenceOutcome["status"] = hitCount === input.runCount
+      ? "hit"
+      : preference.feasible ? "miss" : "infeasible";
+    const label = `${preference.preference.tier.charAt(0).toUpperCase()}${preference.preference.tier.slice(1)} ${preference.preference.position}`;
+    const message = status === "hit"
+      ? `${label} preference hit in ${hitCount}/${input.runCount} runs.`
+      : status === "miss"
+        ? `${label} preference missed in ${input.runCount - hitCount}/${input.runCount} runs.`
+        : `${label} preference is infeasible under the recorded tier rule and constraints.`;
+
+    return {
+      position: preference.preference.position,
+      tier: preference.preference.tier,
+      targetCount: preference.targetCount,
+      status,
+      feasible: preference.feasible,
+      hitCount,
+      hitRate: hitCount / input.runCount,
+      rule: preference.rule,
+      message,
+    };
+  });
 
   return {
     draftFormat: input.draftFormat,
@@ -991,6 +1073,7 @@ const aggregateRuns = (input: {
     strategy: input.strategy,
     ...(targetOutcomes.length === 0 ? {} : { targetOutcomes }),
     ...(targetOutcome === undefined ? {} : { targetOutcome }),
+    ...(preferenceOutcomes.length === 0 ? {} : { preferenceOutcomes }),
     playerExposure,
     positionCounts: Object.fromEntries([...positionTotals.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
@@ -1131,7 +1214,25 @@ const runSeasonSimulationsUnchecked = (
     );
   }
   const parsed = { ...parsedStrategy, warnings: formatWarnings };
-  const strategyResolution = resolvedStrategy(parsed, input.setup, input.humanTeamId);
+  const baseStrategyResolution = resolvedStrategy(parsed, input.setup, input.humanTeamId);
+  const preferenceResolution = resolveSeasonSimulationPreferences({
+    preferences: baseStrategyResolution.strategy.preferredPositions,
+    season: input.season,
+    setup: input.setup,
+    humanTeamId: input.humanTeamId,
+    pairPlayerId: baseStrategyResolution.pairPlayerId,
+    playerExpectedPrices: input.playerExpectedPrices,
+  });
+  const strategyResolution = {
+    ...baseStrategyResolution,
+    strategy: {
+      ...baseStrategyResolution.strategy,
+      warnings: [
+        ...baseStrategyResolution.strategy.warnings,
+        ...preferenceResolution.warnings,
+      ],
+    },
+  };
   const targetsByPlayerId = new Map(strategyResolution.resolvedTargets.map(({ playerId, target }) =>
     [playerId, target]
   ));
@@ -1155,7 +1256,7 @@ const runSeasonSimulationsUnchecked = (
       });
       const state = runSnakeSimulation({
         config,
-        strategy: strategyResolution.strategy,
+        preferences: preferenceResolution.preferences,
         targetsByPlayerId,
         pairPlayerId: strategyResolution.pairPlayerId,
         seed,
@@ -1205,6 +1306,8 @@ const runSeasonSimulationsUnchecked = (
       seedPrefix,
       strategy: strategyResolution.strategy,
       resolvedTargets: strategyResolution.resolvedTargets,
+      preferences: preferenceResolution.preferences,
+      pairPlayerId: strategyResolution.pairPlayerId,
       humanTeamId: input.humanTeamId,
     });
   }
@@ -1222,6 +1325,7 @@ const runSeasonSimulationsUnchecked = (
     const state = runAuctionSimulation({
       config,
       strategy: strategyResolution.strategy,
+      preferences: preferenceResolution.preferences,
       targetsByPlayerId,
       pairPlayerId: strategyResolution.pairPlayerId,
       seed,
@@ -1259,6 +1363,8 @@ const runSeasonSimulationsUnchecked = (
     seedPrefix,
     strategy: strategyResolution.strategy,
     resolvedTargets: strategyResolution.resolvedTargets,
+    preferences: preferenceResolution.preferences,
+    pairPlayerId: strategyResolution.pairPlayerId,
     humanTeamId: input.humanTeamId,
   });
 };

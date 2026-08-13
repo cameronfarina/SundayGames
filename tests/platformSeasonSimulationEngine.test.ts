@@ -582,6 +582,147 @@ describe("season simulation runner", () => {
     }
   });
 
+  it("enforces and reports the league-relative auction elite tier", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+      },
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 2,
+      strategyInput: "Target an elite RB to pair with Achane",
+      seedPrefix: "auction-elite-tier",
+    });
+
+    expect(result.preferenceOutcomes).toEqual([expect.objectContaining({
+      position: "RB",
+      tier: "elite",
+      targetCount: 1,
+      status: "hit",
+      feasible: true,
+      hitCount: 2,
+      hitRate: 1,
+      rule: {
+        basis: "auction_expected_value",
+        positionRankMaximum: 1,
+        qualifyingPlayerIds: ["elite runner"],
+        minimumExpectedValue: 45,
+      },
+    })]);
+    for (const run of result.runs) {
+      const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+      expect(roster).toEqual(expect.arrayContaining([
+        expect.objectContaining({ playerName: "Elite Runner", source: "human" }),
+      ]));
+    }
+  });
+
+  it("reports an infeasible elite auction preference instead of treating any RB as elite", () => {
+    const result = runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Draft 2 elite RBs for no more than $10 each",
+      seedPrefix: "infeasible-auction-elite-tier",
+    });
+
+    expect(result.preferenceOutcomes).toEqual([expect.objectContaining({
+      position: "RB",
+      tier: "elite",
+      targetCount: 2,
+      status: "infeasible",
+      feasible: false,
+      hitCount: 0,
+      hitRate: 0,
+    })]);
+    expect(result.strategy.warnings).toContain(
+      "Elite RB preference is infeasible: the league-relative tier and $10 cap cannot supply 2 players.",
+    );
+  });
+
+  it("reports a feasible elite preference miss when the market clears above its cap", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+      },
+    };
+    const result = runSeasonSimulations({
+      season,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Target 1 elite RB for no more than $45 to pair with Achane",
+      seedPrefix: "missed-auction-elite-tier",
+    });
+
+    expect(result.preferenceOutcomes).toEqual([expect.objectContaining({
+      position: "RB",
+      status: "miss",
+      feasible: true,
+      hitCount: 0,
+      hitRate: 0,
+    })]);
+  });
+
+  it("closes feasible low-value auction budgets while preserving explicit caps", () => {
+    const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+        roster: {
+          rosterSize: 2,
+          lineup: { RB: 2 },
+          lineupSlotCount: 2,
+          rosterMaximums: { QB: 0, RB: 2, WR: 0, TE: 0, K: 0, DST: 0 },
+        },
+      },
+    };
+    const setup: LiveDraftRoomSetup = {
+      ...auctionSetup,
+      initialRosters: [],
+      playerCatalog: Array.from({ length: 8 }, (_, index) => ({
+        name: `Low Value Runner ${index + 1}`,
+        position: "RB" as const,
+        expectedPrice: 1,
+      })),
+    };
+    for (const humanTeamId of teams.map(team => team.id)) {
+      const result = runSeasonSimulations({
+        season,
+        setup,
+        humanTeamId,
+        runCount: 1,
+        seedPrefix: `human-closing-budget-${humanTeamId}`,
+      });
+      for (const team of result.runs[0]?.teams ?? []) {
+        expect(
+          team.budgetRemaining,
+          `${team.teamName} retained budget after a feasible low-value run: ${JSON.stringify(team.roster)}`,
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+
+    const capped = runSeasonSimulations({
+      season,
+      setup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Do not spend over $10 on another RB",
+      seedPrefix: "human-closing-budget-capped",
+    });
+    const humanRoster = capped.runs[0]?.teams.find(team => team.teamId === "team-1")?.roster ?? [];
+    expect(humanRoster.every(player => (player.price ?? 0) <= 10)).toBe(true);
+  });
+
   it("completes deterministic snake runs with a round deadline and pick exposure", () => {
     const result = runSeasonSimulations({
       season: snakeSeason,
@@ -613,6 +754,36 @@ describe("season simulation runner", () => {
     expect(result.runs[0]?.teams.find(team => team.teamId === "team-1")?.roster).toEqual([
       expect.objectContaining({ playerName: "De'Von Achane", source: "keeper", round: 2 }),
       expect.objectContaining({ playerName: "Target Receiver", source: "human", overallPick: 1 }),
+    ]);
+  });
+
+  it("enforces and reports the league-relative snake elite tier", () => {
+    const result = runSeasonSimulations({
+      season: snakeSeason,
+      setup: snakeSetup,
+      humanTeamId: "team-1",
+      runCount: 2,
+      strategyInput: "Target an elite WR",
+      seedPrefix: "snake-elite-tier",
+    });
+
+    expect(result.preferenceOutcomes).toEqual([expect.objectContaining({
+      position: "WR",
+      tier: "elite",
+      targetCount: 1,
+      status: "hit",
+      feasible: true,
+      hitCount: 2,
+      hitRate: 1,
+      rule: {
+        basis: "snake_catalog_rank",
+        positionRankMaximum: 1,
+        qualifyingPlayerIds: ["target receiver"],
+      },
+    })]);
+    expect(result.runs[0]?.teams.find(team => team.teamId === "team-1")?.roster).toEqual([
+      expect.objectContaining({ playerName: "De'Von Achane", source: "keeper" }),
+      expect.objectContaining({ playerName: "Target Receiver", source: "human" }),
     ]);
   });
 
