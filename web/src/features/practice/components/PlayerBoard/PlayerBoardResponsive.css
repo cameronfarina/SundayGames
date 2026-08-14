@@ -1,0 +1,10 @@
+@media (max-width: 700px) {
+  .player-board__controls {
+    align-items: stretch;
+  }
+
+  .practice-select__trigger,
+  .player-board__target-filter {
+    flex: 1 1 auto;
+  }
+}

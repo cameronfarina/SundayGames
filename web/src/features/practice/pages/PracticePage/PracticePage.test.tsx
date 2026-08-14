@@ -1,0 +1,77 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { PropsWithChildren } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { PracticePage } from "./PracticePage";
+import { createPracticeFetch } from "./test/createPracticeFetch";
+
+afterEach(() => { vi.unstubAllGlobals(); });
+beforeAll(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
+
+const providers = () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return function TestProviders({ children }: PropsWithChildren) {
+    return <QueryClientProvider client={client}><MemoryRouter initialEntries={["/practice?seasonId=season-1"]}>
+      {children}<LocationOutput />
+    </MemoryRouter></QueryClientProvider>;
+  };
+};
+
+function LocationOutput() {
+  const location = useLocation();
+  return <output data-testid="practice-location">{location.search}</output>;
+}
+
+describe("PracticePage", () => {
+  it("loads personalized board data and persists draft-target changes", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPracticeFetch());
+    const view = render(<PracticePage />, { wrapper: providers() });
+
+    expect(await screen.findByRole("heading", { name: "Draft lab" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" })).toBeInTheDocument();
+    expect(screen.getByText("Sunday Games · 2026")).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "My value strategy" }));
+    await user.click(screen.getByRole("option", { name: "WR heavy" }));
+    expect(screen.getByRole("combobox", { name: "My value strategy" })).toHaveTextContent("WR heavy");
+    await user.click(screen.getByRole("combobox", { name: "Active league" }));
+    await user.click(screen.getByRole("option", { name: "Baseline board" }));
+    expect(await screen.findByText("Baseline values")).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Active league" }));
+    await user.click(screen.getByRole("option", { name: "Sunday Games · 2026" }));
+    await user.click(screen.getByRole("button", { name: "Remove Puka Nacua from draft targets" }));
+    expect(await screen.findByText("Star players on the board to build this plan.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add Puka Nacua to draft targets" }));
+    const maxBid = await screen.findByRole("spinbutton", { name: "Maximum bid for Puka Nacua" });
+    await user.click(screen.getByRole("button", { name: "Save Puka Nacua maximum bid" }));
+    await user.type(maxBid, "70");
+    await user.click(screen.getByRole("button", { name: "Save Puka Nacua maximum bid" }));
+    await user.click(screen.getByRole("button", { name: "Remove Puka Nacua" }));
+    expect(await screen.findByText("Star players on the board to build this plan.")).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("runs simulations and opens saved results", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPracticeFetch());
+    const view = render(<PracticePage />, { wrapper: providers() });
+    await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" });
+
+    await user.click(screen.getByRole("button", { name: "Run simulations" }));
+    expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Short King" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Open 1-run simulation/u }));
+    expect(await screen.findByText("Saved run", { selector: ".simulation-results__note p" })).toBeInTheDocument();
+    expect(screen.getByTestId("practice-location")).toHaveTextContent("runId=history-1");
+    view.unmount();
+  });
+});

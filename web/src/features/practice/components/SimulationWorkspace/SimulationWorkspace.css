@@ -1,0 +1,129 @@
+.simulation-workspace {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1.5rem;
+}
+
+.simulation-workspace h2,
+.simulation-workspace h3,
+.simulation-workspace p {
+  margin-top: 0;
+}
+
+.simulation-workspace__notice {
+  border-left: 3px solid #f2c861;
+  color: #f7d98f;
+  padding-left: 0.75rem;
+}
+
+.simulation-workspace form,
+.simulation-workspace label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.simulation-workspace label > span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.simulation-workspace input,
+.simulation-workspace textarea {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-text);
+  font: inherit;
+  padding: 0.7rem 0.8rem;
+}
+
+.simulation-workspace textarea {
+  resize: vertical;
+}
+
+.simulation-workspace input:focus-visible,
+.simulation-workspace textarea:focus-visible {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.simulation-workspace__fields {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(8rem, 0.3fr) minmax(15rem, 1fr);
+}
+
+.simulation-workspace form > button {
+  background: var(--color-accent);
+  border: 0;
+  border-radius: 6px;
+  color: #07130f;
+  font: inherit;
+  font-weight: 800;
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+}
+
+.simulation-workspace button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.simulation-workspace__progress {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 40rem;
+}
+
+.simulation-workspace__progress progress {
+  accent-color: var(--color-accent);
+  width: 100%;
+}
+
+.simulation-workspace__progress span,
+.simulation-history li span {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.simulation-history {
+  margin-top: 1.5rem;
+}
+
+.simulation-history ol {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.simulation-history li {
+  align-items: center;
+  border: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem;
+}
+
+.simulation-history li div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.simulation-history button {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  color: var(--color-text);
+  font: inherit;
+  padding: 0.45rem 0.7rem;
+}
+
+@media (max-width: 640px) {
+  .simulation-workspace__fields {
+    grid-template-columns: 1fr;
+  }
+}

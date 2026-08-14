@@ -1,0 +1,27 @@
+.position-filter--gold,
+.position-label--gold,
+.player-row--gold { --position-color: #f2c861; }
+
+.position-filter--blue,
+.position-label--blue,
+.player-row--blue { --position-color: #62a9ff; }
+
+.position-filter--purple,
+.position-label--purple,
+.player-row--purple { --position-color: #c879ec; }
+
+.position-filter--pink,
+.position-label--pink,
+.player-row--pink { --position-color: #f7819f; }
+
+.position-filter--green,
+.position-label--green,
+.player-row--green { --position-color: #67d8af; }
+
+.position-filter--aqua,
+.position-label--aqua,
+.player-row--aqua { --position-color: #6edbd4; }
+
+.position-filter--neutral,
+.position-label--neutral,
+.player-row--neutral { --position-color: #aab3c2; }

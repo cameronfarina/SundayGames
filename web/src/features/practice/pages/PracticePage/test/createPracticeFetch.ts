@@ -1,0 +1,107 @@
+import { z } from "zod";
+import type { PlatformFetch } from "../../../../../shared/api/http/requestPlatformJson";
+import { league, player, simulationFixture, target } from "./practiceFixtures";
+
+export { simulationFixture } from "./practiceFixtures";
+
+interface PracticeFetchOptions {
+  readonly catalogEmpty?: boolean;
+  readonly catalogError?: boolean;
+  readonly contextError?: boolean;
+  readonly detailError?: boolean;
+  readonly hasLeague?: boolean;
+  readonly historyError?: boolean;
+  readonly targetError?: boolean;
+  readonly teamClaimed?: boolean;
+}
+
+const bodySchema = z.object({
+  maxBid: z.number().optional(),
+  playerName: z.string(),
+  position: z.string().optional(),
+});
+
+const response = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
+  headers: { "content-type": "application/json" },
+  status,
+});
+
+export const createPracticeFetch = (options: PracticeFetchOptions = {}): PlatformFetch => {
+  let shortlist = options.hasLeague === false ? [] : [target];
+  let catalogFailures = options.catalogError === true ? 1 : 0;
+  let contextFailures = options.contextError === true ? 1 : 0;
+  let historyFailures = options.historyError === true ? 1 : 0;
+  return async (input, init) => {
+    const requestUrl = input instanceof Request
+      ? input.url
+      : input instanceof URL ? input.href : input;
+    const url = new URL(requestUrl, "http://mockd.test");
+    const method = init?.method ?? "GET";
+    if (url.pathname === "/onboarding") {
+      if (contextFailures > 0) {
+        contextFailures -= 1;
+        return response({ error: { code: "unavailable", message: "Try again." } }, 503);
+      }
+      return response({
+        account: { email: "cam@example.com", id: "user-1" },
+        leagues: options.hasLeague === false ? [] : [league(options.teamClaimed !== false)],
+      });
+    }
+    if (url.pathname === "/player-catalog") {
+      if (catalogFailures > 0) {
+        catalogFailures -= 1;
+        return response({ error: { code: "catalog_unavailable", message: "Catalog unavailable." } }, 503);
+      }
+      return response({
+        draftFormat: "auction",
+        personalized: url.searchParams.has("seasonId"),
+        players: options.catalogEmpty === true ? [] : [player],
+        strategyLabel: url.searchParams.get("strategy") ?? "balanced",
+      });
+    }
+    if (url.pathname === "/practice-shortlist" && method === "GET") return response({ items: shortlist });
+    if (url.pathname === "/practice-shortlist") {
+      if (options.targetError === true && method === "PUT") {
+        return response({ error: { code: "target_failed", message: "Target could not be saved." } }, 422);
+      }
+      const request = new Request(url, init);
+      const submitted: unknown = await request.json();
+      const parsed = bodySchema.parse(submitted);
+      if (method === "DELETE") {
+        shortlist = shortlist.filter(item => item.playerName !== parsed.playerName);
+        return response({ removed: true });
+      }
+      const item = {
+        ...target,
+        ...(parsed.maxBid === undefined ? {} : { maxBid: parsed.maxBid }),
+        playerName: parsed.playerName,
+        position: parsed.position ?? "WR",
+      };
+      shortlist = [...shortlist.filter(candidate => candidate.playerName !== item.playerName), item];
+      return response({ item });
+    }
+    if (url.pathname === "/season-simulations" && method === "GET") {
+      if (historyFailures > 0) {
+        historyFailures -= 1;
+        return response({ error: { code: "history_unavailable", message: "History unavailable." } }, 503);
+      }
+      return response({ history: [{ completedAt: target.createdAt, id: "history-1", note: "Saved run", simulation: {
+        completedCount: 1,
+        draftFormat: "auction",
+        runCount: 1,
+        strategy: simulationFixture.strategy,
+      } }] });
+    }
+    if (url.pathname === "/season-simulations" && method === "POST") {
+      return response({ historyId: "history-new", note: "New run", simulation: simulationFixture });
+    }
+    if (url.pathname === "/season-simulations/history-1" || url.pathname === "/season-simulations/history-new") {
+      if (options.detailError === true) {
+        return response({ error: { code: "history_failed", message: "Saved run unavailable." } }, 503);
+      }
+      const saved = url.pathname.endsWith("history-1");
+      return response({ historyId: saved ? "history-1" : "history-new", note: saved ? "Saved run" : "New run", simulation: simulationFixture });
+    }
+    return response({ error: { code: "not_found", message: "Not found." } }, 404);
+  };
+};
