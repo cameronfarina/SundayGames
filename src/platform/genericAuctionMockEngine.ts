@@ -1456,9 +1456,13 @@ const progressCurrentNomination = (
       player,
       nominatedByTeam: teamFor(state, nextNomination.nominatedByTeamId),
       highestBidderTeam: pacedLeader.team,
-      currentPrice: Math.max(
-        competitivePrice,
-        aiSpendPacingBidFor(state, pacedLeader.team, player, true),
+      currentPrice: Math.min(
+        pacedLeader.maximum,
+        pacedLeader.team.maxBid,
+        Math.max(
+          competitivePrice,
+          aiSpendPacingBidFor(state, pacedLeader.team, player, true),
+        ),
       ),
       humanPassed: nextNomination.humanPassed,
     });
