@@ -1,60 +1,15 @@
-import type { Owner } from "../../../config/league.js";
 import type { Player } from "../../types.js";
-import { AuctionBudgetTrajectoryEvent, AuctionBudgetTrajectoryRow, AuctionOwnerState, AuctionPick, AuctionResult, AuctionRosters, AuctionSale, SimulateAuctionOptions } from "./auctionContracts.js";
-import { AuctionEngineConfig } from "./configContracts.js";
+import type { AuctionPick, AuctionResult, AuctionRosters, SimulateAuctionOptions } from "./auctionContracts.js";
 import { defaultAuctionEngineConfig } from "./defaultConfig.js";
 import { selectNominatedPlayer } from "./nominationSelection.js";
 import { compareAuctionPlayers, initialNominationCursorFor, nextNominationTurn } from "./nominationTypes.js";
-import { countPositions, createAuctionOwnerStates, ownerStateFromRoster } from "./ownerStates.js";
+import { createAuctionOwnerStates } from "./ownerStates.js";
 import { resolveAuctionSale } from "./resolveSale.js";
-import { budgetPerRosterSlotFor } from "./saleDiagnostics.js";
+import { budgetTrajectoryRowsFor } from "./simulationBudgetTrajectory.js";
+import { allRostersFull, applySaleToState } from "./simulationOwnerState.js";
 
-export const applySaleToState = (
-  state: AuctionOwnerState,
-  soldPlayer: Player,
-  config: AuctionEngineConfig,
-): AuctionOwnerState =>
-  ownerStateFromRoster(state.owner, [...state.roster, soldPlayer], config);
-
-export const allRostersFull = (states: readonly AuctionOwnerState[]): boolean =>
-  states.every(state => state.rosterSlotsRemaining === 0);
-
-export const budgetTrajectoryRowsFor = (
-  ownerStates: readonly AuctionOwnerState[],
-  pick: number,
-  event: AuctionBudgetTrajectoryEvent,
-  initialSpendByOwner: ReadonlyMap<Owner, number>,
-  saleContext?: {
-    nominator: Owner;
-    sale: AuctionSale;
-  },
-): AuctionBudgetTrajectoryRow[] =>
-  ownerStates.map(state => {
-    const initialSpend = initialSpendByOwner.get(state.owner) ?? 0;
-
-    return {
-      pick,
-      event,
-      owner: state.owner,
-      ...(saleContext ? {
-        nominator: saleContext.nominator,
-        winningOwner: saleContext.sale.winner,
-        player: saleContext.sale.player.name,
-        position: saleContext.sale.player.position,
-        marketPrice: saleContext.sale.marketPrice,
-        salePrice: saleContext.sale.price,
-      } : {}),
-      spent: state.spent,
-      initialSpend,
-      auctionSpend: state.spent - initialSpend,
-      budgetRemaining: state.budgetRemaining,
-      rosterSlotsRemaining: state.rosterSlotsRemaining,
-      maxBid: state.maxBid,
-      rosterSize: state.roster.length,
-      budgetPerRosterSlot: budgetPerRosterSlotFor(state),
-      positionCounts: countPositions(state.roster),
-    };
-  });
+export { budgetTrajectoryRowsFor } from "./simulationBudgetTrajectory.js";
+export { allRostersFull, applySaleToState } from "./simulationOwnerState.js";
 
 export const simulateAuction = ({
   players,
