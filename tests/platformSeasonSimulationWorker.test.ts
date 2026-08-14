@@ -124,6 +124,40 @@ describe("season simulation worker runner", () => {
     await expect(first).resolves.toMatchObject({ completedCount: 1 });
   });
 
+  it("reserves queue capacity for a second account", async () => {
+    const release = deferred();
+    let executionCount = 0;
+    const runner = createBoundedSeasonSimulationRunner(async input => {
+      executionCount += 1;
+      await release.promise;
+      return runSeasonSimulations({ ...input, runCount: 1 });
+    }, {
+      maxConcurrent: 2,
+      maxOutstandingPerAccount: 4,
+      maxPending: 8,
+      timeoutMs: 5_000,
+    });
+    const input = await simulationInput();
+    const accountARequests = Array.from(
+      { length: 4 },
+      () => runner(input, { accountId: "account-a" }),
+    );
+
+    await vi.waitFor(() => expect(executionCount).toBe(2));
+    await expect(runner(input, { accountId: "account-a" })).rejects.toMatchObject({
+      code: "simulation_account_queue_full",
+    });
+    const accountBRequest = runner(input, { accountId: "account-b" });
+
+    release.resolve();
+    await expect(Promise.all([...accountARequests, accountBRequest])).resolves.toHaveLength(5);
+    expect(executionCount).toBe(5);
+    await expect(runner(input, { accountId: "account-a" })).resolves.toMatchObject({
+      completedCount: 1,
+    });
+    expect(executionCount).toBe(6);
+  });
+
   it("times out active work and releases its worker slot", async () => {
     const runner = createBoundedSeasonSimulationRunner(async (_input, options) =>
       await new Promise((_, reject) => {

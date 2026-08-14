@@ -890,15 +890,17 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
       ? 403
       : error.code === "invalid_configuration"
         ? 409
-        : error.code === "simulation_busy" || error.code === "simulation_timeout"
-          ? 503
-          : error.code === "simulation_canceled"
-            ? 408
-        : error.code === "simulation_failed"
-          ? 500
-          : 400;
+        : error.code === "simulation_account_queue_full"
+          ? 429
+          : error.code === "simulation_busy" || error.code === "simulation_timeout"
+            ? 503
+            : error.code === "simulation_canceled"
+              ? 408
+              : error.code === "simulation_failed"
+                ? 500
+                : 400;
     const response = knownError(status, error.code, error.message);
-    return error.code === "simulation_busy"
+    return error.code === "simulation_busy" || error.code === "simulation_account_queue_full"
       ? { ...response, headers: { "Retry-After": "5" } }
       : response;
   }
@@ -2735,6 +2737,7 @@ const routeSeasonSimulations = async (
     const simulation = services.seasonSimulationRunner === undefined
       ? runSeasonSimulations(simulationInput, { onProgress })
       : await services.seasonSimulationRunner(simulationInput, {
+          accountId: context.membership.userId,
           signal: request.signal,
           onProgress,
         });

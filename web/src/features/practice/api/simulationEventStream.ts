@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import { platformErrorSchema } from "../../../shared/api/http/platformErrorSchema";
 import {
@@ -9,6 +9,35 @@ import {
 
 interface StreamCallbacks {
   readonly onProgress: (progress: SimulationProgress) => void;
+}
+
+const simulationQueueErrorSchema = z.object({
+  error: z.object({
+    code: z.enum(["simulation_account_queue_full", "simulation_busy"]),
+    message: z.string(),
+  }),
+});
+
+type SimulationQueueErrorCode = z.infer<
+  typeof simulationQueueErrorSchema
+>["error"]["code"];
+
+interface SimulationQueueApiErrorInput {
+  readonly code: SimulationQueueErrorCode;
+  readonly message: string;
+  readonly retryAfterSeconds: number;
+}
+
+export class SimulationQueueApiError extends PlatformApiError {
+  readonly queueCode: SimulationQueueErrorCode;
+  readonly retryAfterSeconds: number;
+
+  constructor(input: SimulationQueueApiErrorInput) {
+    super({ code: input.code, message: input.message, status: 429 });
+    this.name = "SimulationQueueApiError";
+    this.queueCode = input.code;
+    this.retryAfterSeconds = input.retryAfterSeconds;
+  }
 }
 
 const invalidResponse = (): PlatformApiError => new PlatformApiError({
@@ -32,7 +61,14 @@ const parseWith = <Schema extends ZodType>(schema: Schema, value: string) => {
 };
 
 const errorFor = (value: string): PlatformApiError => {
-  const parsed = platformErrorSchema.safeParse(parsePayload(value));
+  const payload = parsePayload(value);
+  const queueError = simulationQueueErrorSchema.safeParse(payload);
+  if (queueError.success) return new SimulationQueueApiError({
+    code: queueError.data.error.code,
+    message: queueError.data.error.message,
+    retryAfterSeconds: 5,
+  });
+  const parsed = platformErrorSchema.safeParse(payload);
   if (!parsed.success) return invalidResponse();
   return new PlatformApiError({
     code: parsed.data.error.code,

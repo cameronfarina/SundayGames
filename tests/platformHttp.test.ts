@@ -41,7 +41,10 @@ import {
   type PlatformHttpResponse,
 } from "../src/platform/platformHttp.js";
 import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
-import type { SeasonSimulationTargetConstraint } from "../src/platform/seasonSimulationEngine.js";
+import {
+  SeasonSimulationError,
+  type SeasonSimulationTargetConstraint,
+} from "../src/platform/seasonSimulationEngine.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -733,14 +736,23 @@ describe("platform HTTP contract", () => {
     let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
     let simulationHumanValues: Readonly<Record<string, number>> | undefined;
     let simulationTargetConstraints: readonly SeasonSimulationTargetConstraint[] | undefined;
+    let simulationAccountId: string | undefined;
+    let rejectForAccountCapacity = false;
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => currentCatalog,
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentCatalog, initialRosters: [] }),
-      seasonSimulationRunner: async input => {
+      seasonSimulationRunner: async (input, options) => {
         simulationExpectedPrices = input.playerExpectedPrices;
         simulationHumanValues = input.playerHumanValues;
         simulationTargetConstraints = input.targetConstraints;
+        simulationAccountId = options?.accountId;
+        if (rejectForAccountCapacity) {
+          throw new SeasonSimulationError(
+            "simulation_account_queue_full",
+            "Too many simulations are already running for this account. Try again shortly.",
+          );
+        }
         return {
           draftFormat: "auction",
           runCount: input.runCount,
@@ -871,6 +883,7 @@ describe("platform HTTP contract", () => {
       sessionToken: cam.sessionToken,
       body: { seasonId: season.id, count: 1 },
     })).resolves.toMatchObject({ status: 200 });
+    expect(simulationAccountId).toBe(cam.account.id);
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
@@ -878,6 +891,23 @@ describe("platform HTTP contract", () => {
       playerName: "Puka Nacua",
       maxAuctionPrice: 57,
     }]);
+    rejectForAccountCapacity = true;
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: cam.sessionToken,
+      body: { seasonId: season.id, count: 1 },
+    })).resolves.toEqual({
+      status: 429,
+      headers: { "Retry-After": "5" },
+      body: {
+        error: {
+          code: "simulation_account_queue_full",
+          message: "Too many simulations are already running for this account. Try again shortly.",
+        },
+      },
+    });
+    rejectForAccountCapacity = false;
 
     const fullPprSeason: LeagueSeason = {
       ...season,

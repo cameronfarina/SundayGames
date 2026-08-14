@@ -79,6 +79,7 @@ export type SeasonSimulationErrorCode =
   | "invalid_configuration"
   | "invalid_run_count"
   | "invalid_seed_prefix"
+  | "simulation_account_queue_full"
   | "simulation_busy"
   | "simulation_canceled"
   | "simulation_failed"

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
-import { consumeSimulationStream } from "./simulationEventStream";
+import {
+  consumeSimulationStream,
+  SimulationQueueApiError,
+} from "./simulationEventStream";
 
 const summary = {
   completedCount: 1,
@@ -44,6 +47,19 @@ describe("simulation event stream", () => {
       .rejects.toEqual(expect.objectContaining<Partial<PlatformApiError>>({
         code: "simulation_timeout",
         message: "Stopped.",
+      }));
+  });
+
+  it("surfaces per-account queue denials as retryable typed errors", async () => {
+    const response = chunkedResponse(
+      'event: error\ndata: {"error":{"code":"simulation_account_queue_full","message":"Try shortly."}}\n\n',
+    );
+
+    await expect(consumeSimulationStream(response, { onProgress: vi.fn() }))
+      .rejects.toEqual(new SimulationQueueApiError({
+        code: "simulation_account_queue_full",
+        message: "Try shortly.",
+        retryAfterSeconds: 5,
       }));
   });
 
