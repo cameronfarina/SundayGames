@@ -2,7 +2,6 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { keepers, type KeeperDeclaration } from "../config/keepers.js";
 import { leagueConfig, ownerOrder, type Owner, type Position } from "../config/league.js";
 import { nflTeamByEspnProTeamId } from "../config/nflTeams.js";
@@ -29,7 +28,6 @@ import {
   type LiveDraftCommandImportFormat,
   type LiveDraftSessionStatus,
 } from "./liveDraftSessionStore.js";
-import { liveDraftHtml } from "./liveDraftUi.js";
 import {
   buildLiveDraftState,
   type LiveDraftRosterPlayer,
@@ -93,13 +91,21 @@ import {
 
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const playerNewsEvidencePath = "data/raw/player-evidence-2026-initial.csv";
-const defaultPort = 4317;
+const defaultDraftApiPort = 4317;
 const liveTargetLimit = 500;
 const defaultLiveDraftSessionMode = "real";
 const defaultLiveDraftSessionKey = "live";
 const defaultLiveDraftSessionDirectory = "data/live-draft";
 const interactiveMockSessionDirectoryName = "interactive-mock";
 const maximumBatchRunsPerScenario = 250;
+const obsoleteFrontendPaths = new Set([
+  "/",
+  "/draft-room",
+  "/mock-results",
+  "/mock-simulations",
+  "/my-expert",
+  "/player-news",
+]);
 
 export type LiveDraftSessionMode = "real" | "interactive-mock";
 
@@ -161,23 +167,6 @@ const presetDraftSessions: readonly LiveDraftSessionDescriptor[] = [
     description: "Practice room for receiver-heavy builds.",
   },
 ];
-
-const optionValue = (name: string): string | undefined => {
-  const option = process.argv.find(arg => arg.startsWith(`${name}=`));
-  return option?.slice(name.length + 1);
-};
-
-const portFromOptions = (): number => {
-  const value = optionValue("--port") ?? process.env.PORT;
-  if (!value) return defaultPort;
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error("--port must be a positive integer.");
-  return parsed;
-};
-
-const sessionDirectoryFromOptions = (): string | undefined =>
-  optionValue("--session-dir") ?? process.env.MOCKD_LIVE_DRAFT_DIR;
 
 export const defaultLiveDraftJsonBodyLimitBytes = 1_048_576;
 export const defaultLiveDraftImportBodyLimitBytes = 7_100_000;
@@ -287,14 +276,6 @@ const sendText = (
   response.end(body);
 };
 
-const sendHtml = (response: ServerResponse, html: string): void => {
-  response.writeHead(200, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-  });
-  response.end(html);
-};
-
 interface YahooOAuthState {
   provider: "yahoo";
   createdAt: string;
@@ -308,7 +289,7 @@ const requestOriginFor = (request: IncomingMessage): string => {
     ? request.headers["x-forwarded-proto"][0]
     : request.headers["x-forwarded-proto"];
   const protocol = forwardedProto || "http";
-  return `${protocol}://${request.headers.host ?? `127.0.0.1:${defaultPort}`}`;
+  return `${protocol}://${request.headers.host ?? `127.0.0.1:${defaultDraftApiPort}`}`;
 };
 
 const yahooRedirectUriFor = (request: IncomingMessage): string =>
@@ -766,7 +747,6 @@ interface MockBatchJob {
 }
 
 export interface CreateLiveDraftServerOptions {
-  workspaceHtml?: string;
   sessionDirectory?: string;
   projections?: readonly ProjectionRecord[];
   keepers?: readonly KeeperDeclaration[];
@@ -1390,7 +1370,6 @@ const mockDraftRoundForPick = (pickNumber: number): number =>
 export const createLiveDraftServer = async (
   options: CreateLiveDraftServerOptions = {},
 ): Promise<LiveDraftServerApp> => {
-  const workspaceHtml = options.workspaceHtml ?? liveDraftHtml;
   const projections = options.projections ?? (await loadCurrentProjections({ projectionPath }));
   const historicalRecords = options.historicalRecords ?? (await loadHistoricalAuctionRecords());
   const draftRoomRankings = options.draftRoomRankings ?? (await loadDraftRoomRankings(defaultDraftRoomRankingPath));
@@ -2472,28 +2451,13 @@ export const createLiveDraftServer = async (
     try {
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
-      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/draft-room")) {
-        sendHtml(response, workspaceHtml);
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/mock-results") {
-        sendHtml(response, workspaceHtml);
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/mock-simulations") {
-        sendHtml(response, workspaceHtml);
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/my-expert") {
-        sendHtml(response, workspaceHtml);
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/player-news") {
-        sendHtml(response, workspaceHtml);
+      if (request.method === "GET" && obsoleteFrontendPaths.has(url.pathname)) {
+        sendJson(response, 410, {
+          error: {
+            code: "frontend_removed",
+            message: "This server provides draft APIs only. Use the Mockd React application.",
+          },
+        });
         return;
       }
 
@@ -3124,23 +3088,3 @@ export const createLiveDraftServer = async (
     server,
   };
 };
-
-const main = async (): Promise<void> => {
-  const port = portFromOptions();
-  const sessionDirectory = sessionDirectoryFromOptions();
-  const { server } = await createLiveDraftServer({
-    scratchSessionsEnabled: process.env.NODE_ENV !== "production",
-    ...(sessionDirectory === undefined ? {} : { sessionDirectory }),
-  });
-
-  server.listen(port, () => {
-    console.log(`Mockd live draft UI: http://localhost:${port}`);
-  });
-};
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(error => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
-}

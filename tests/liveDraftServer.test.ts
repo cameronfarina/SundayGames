@@ -535,7 +535,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("serves the mature draft workspace at the draft-room browser route", async () => {
+  it("rejects obsolete browser routes while keeping draft APIs available", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -546,33 +546,18 @@ describe("live draft server", () => {
       servers.push(app.server);
       const baseUrl = await listen(app.server);
 
-      const response = await fetch(`${baseUrl}/draft-room`);
+      for (const path of ["/", "/draft-room", "/mock-results", "/mock-simulations", "/my-expert", "/player-news"]) {
+        const response = await fetch(`${baseUrl}${path}`);
+        expect(response.status).toBe(410);
+        expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+        expect(await response.json()).toEqual({
+          error: {
+            code: "frontend_removed",
+            message: "This server provides draft APIs only. Use the Mockd React application.",
+          },
+        });
+      }
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(await response.text()).toContain("id=\"draft-room-view\"");
-    } finally {
-      await rm(directory, { force: true, recursive: true });
-    }
-  });
-
-  it("serves an injected workspace document without changing draft APIs", async () => {
-    const directory = await tempSessionDirectory();
-    try {
-      const workspaceHtml = '<!doctype html><main id="unified-draft-workspace"></main>';
-      const app = await createLiveDraftServer({
-        sessionDirectory: directory,
-        interactiveMockDraft,
-        mockBatchRunner,
-        workspaceHtml,
-      });
-      servers.push(app.server);
-      const baseUrl = await listen(app.server);
-
-      const response = await fetch(`${baseUrl}/draft-room`);
-
-      expect(response.status).toBe(200);
-      expect(await response.text()).toBe(workspaceHtml);
       expect((await fetch(`${baseUrl}/api/state`)).status).toBe(200);
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -1735,7 +1720,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("serves mock results and returns complete optimized 14-team run payloads", async () => {
+  it("returns complete optimized 14-team mock result payloads", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -1745,13 +1730,6 @@ describe("live draft server", () => {
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
-
-      const resultsPage = await fetch(`${baseUrl}/mock-results`);
-      expect(resultsPage.status).toBe(200);
-      expect(await resultsPage.text()).toContain("id=\"mock-results-view\"");
-      const simulationsPage = await fetch(`${baseUrl}/mock-simulations`);
-      expect(simulationsPage.status).toBe(200);
-      expect(await simulationsPage.text()).toContain("id=\"mock-simulations-view\"");
 
       const started = await post(baseUrl, "/api/mock-batch", {
         strategyKey: "three-rb",
@@ -1961,7 +1939,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("serves the player news page and local evidence-backed player news API", async () => {
+  it("serves the local evidence-backed player news API", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -1982,10 +1960,6 @@ describe("live draft server", () => {
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
-
-      const page = await fetch(`${baseUrl}/player-news`);
-      expect(page.status).toBe(200);
-      expect(await page.text()).toContain("id=\"player-news-view\"");
 
       const response = await fetch(`${baseUrl}/api/player-news?strategy=three-rb&category=Injury`);
       expect(response.status).toBe(200);
@@ -2020,7 +1994,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("serves read-only My Expert advice from the active Mockd roster", async () => {
+  it("serves read-only My Expert advice from the active Mockd roster API", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -2030,10 +2004,6 @@ describe("live draft server", () => {
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
-
-      const page = await fetch(`${baseUrl}/my-expert`);
-      expect(page.status).toBe(200);
-      expect(await page.text()).toContain("id=\"my-expert-view\"");
 
       const camLineupCommands = [
         "Cam drafted Josh Allen for 1",

@@ -126,7 +126,6 @@ Local and smoke-only variables:
 - `MOCKD_E2E_DEPLOYED_MEMBER_EMAIL` and `MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD`: credentials for a pre-provisioned member smoke account.
 - `MOCKD_E2E_DEPLOYED_SEASON_ID`: a dedicated published smoke season with both accounts assigned to teams, stored catalog and keeper data, and no existing real draft room.
 - `MOCKD_E2E_RUN_ID`, `MOCKD_E2E_PASSWORD`, `MOCKD_E2E_EMAIL_DOMAIN`, and `MOCKD_E2E_PROVISIONING_TOKEN`: local fixture bootstrap controls. The deployed runner rejects them.
-- `MOCKD_LIVE_DRAFT_DIR`: local `npm run draft:ui` session directory, not hosted platform storage.
 
 Optional read-only provider variables:
 

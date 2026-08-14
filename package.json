@@ -45,7 +45,6 @@
     "strategy:lab": "tsx src/cli.ts strategy-lab",
     "teams": "tsx src/cli.ts teams",
     "draft:ready": "tsx src/cli.ts draft-ready",
-    "draft:ui": "tsx src/liveDraftServer.ts",
     "platform:ready": "node dist/src/platform/checkPlatformProductionReadiness.js",
     "platform:ready:dev": "tsx src/platform/checkPlatformProductionReadiness.ts",
     "platform:migrate": "node dist/src/platform/runPlatformMigrations.js",
