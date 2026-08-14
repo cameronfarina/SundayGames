@@ -7,6 +7,7 @@ import {
   loadLeagueScoredWeekOneProjections,
 } from "../src/platform/currentPostDraftProjectionSnapshot.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import { postDraftScoringSettingsIdForSeason } from "../src/platform/postDraftLiveRoomAdapter.js";
 import { analyzePostDraftTeam } from "../src/platform/postDraftTeamAnalysis.js";
@@ -16,7 +17,9 @@ describe("current post-draft projection snapshots", () => {
     const halfPprSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
     const fullPprSeason = structuredClone(halfPprSeason);
     fullPprSeason.settings.scoring.reception = 1;
-    const catalog = [{ name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 }];
+    const catalog: LiveDraftRoomPlayerCatalogEntry[] = [
+      { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+    ];
 
     const halfPpr = await loadLeagueScoredWeekOneProjections(halfPprSeason, catalog);
     const fullPpr = await loadLeagueScoredWeekOneProjections(fullPprSeason, catalog);
@@ -50,9 +53,9 @@ describe("current post-draft projection snapshots", () => {
       receivingTouchdown: 7,
       reception: 1,
     };
-    const catalog = [
-      { name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 },
-      { name: "A Made Up Player", position: "RB" as const, expectedPrice: 12 },
+    const catalog: LiveDraftRoomPlayerCatalogEntry[] = [
+      { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+      { name: "A Made Up Player", position: "RB", expectedPrice: 12 },
     ];
     const snapshot = await loadCurrentPostDraftProjectionSnapshot(
       season,
@@ -99,9 +102,9 @@ describe("current post-draft projection snapshots", () => {
 
   it("exposes recalculated weekly points only while the current week is covered", async () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
-    const catalog = [
-      { name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 },
-      { name: "De'Von Achane", position: "RB" as const, expectedPrice: 50 },
+    const catalog: LiveDraftRoomPlayerCatalogEntry[] = [
+      { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+      { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
     ];
     const snapshot = await loadCurrentPostDraftProjectionSnapshot(
       season,
@@ -165,9 +168,9 @@ describe("current post-draft projection snapshots", () => {
 
   it("makes completed-draft ranking available while current recommendations stay unavailable", async () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
-    const catalog = [
-      { name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 },
-      { name: "Jahmyr Gibbs", position: "RB" as const, expectedPrice: 72 },
+    const catalog: LiveDraftRoomPlayerCatalogEntry[] = [
+      { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+      { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
     ];
     const snapshot = await loadCurrentPostDraftProjectionSnapshot(
       season,
