@@ -6,6 +6,15 @@ interface PostDraftTeamProps {
   readonly team: PostDraftTeam;
 }
 
+type Readiness = PostDraftTeam["analysis"]["recommendationReadiness"]["startSit"];
+type ReadinessSource = "pickup-drop" | "start-sit";
+
+const readinessReasonItems = (source: ReadinessSource, readiness: Readiness) =>
+  readiness.reasons.map(reason => ({
+    id: `${source}:${reason.code}:${reason.input ?? "input"}`,
+    reason,
+  }));
+
 const coachStatus = (team: PostDraftTeam): string => {
   const readiness = team.analysis.recommendationReadiness;
   if (readiness.startSit.status === "ready" && readiness.pickupDrop.status === "ready") return "Ready";
@@ -25,8 +34,8 @@ export const PostDraftTeamView = ({ team }: PostDraftTeamProps) => {
     ...team.analysis.risks.map(finding => ({ ...finding, label: "Risk" })),
   ];
   const readinessReasons = [
-    ...team.analysis.recommendationReadiness.startSit.reasons,
-    ...team.analysis.recommendationReadiness.pickupDrop.reasons,
+    ...readinessReasonItems("start-sit", team.analysis.recommendationReadiness.startSit),
+    ...readinessReasonItems("pickup-drop", team.analysis.recommendationReadiness.pickupDrop),
   ];
   const recommendations = [
     ...team.analysis.recommendations.startSit.records,
@@ -80,7 +89,7 @@ export const PostDraftTeamView = ({ team }: PostDraftTeamProps) => {
         {recommendations.map(recommendation => (
           <p key={recommendation.recommendationId}>{recommendation.explanation}</p>
         ))}
-        {readinessReasons.map(reason => <p key={`${reason.code}-${reason.input ?? "input"}`}>{reason.message}</p>)}
+        {readinessReasons.map(item => <p key={item.id}>{item.reason.message}</p>)}
         {recommendations.length === 0 && readinessReasons.length === 0 && <p>No coach actions are available yet.</p>}
       </section>
     </>
