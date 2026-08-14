@@ -1,51 +1,49 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { z } from "zod";
 
-type BlueprintEnvVar = {
-  key: string;
-  value?: string;
-  sync?: boolean;
-  fromDatabase?: {
-    name: string;
-    property: string;
-  };
-};
+const envVarSchema = z.object({
+  key: z.string(),
+  value: z.string().optional(),
+  sync: z.boolean().optional(),
+  fromDatabase: z.object({ name: z.string(), property: z.string() }).optional(),
+});
 
-type BlueprintService = {
-  type: string;
-  name: string;
-  runtime: string;
-  plan: string;
-  region: string;
-  autoDeployTrigger?: string;
-  preDeployCommand?: string;
-  dockerCommand?: string;
-  healthCheckPath?: string;
-  numInstances?: number;
-  disk?: {
-    name: string;
-    mountPath: string;
-    sizeGB: number;
-  };
-  envVars?: BlueprintEnvVar[];
-};
+const serviceSchema = z.object({
+  type: z.string(),
+  name: z.string(),
+  runtime: z.string(),
+  plan: z.string(),
+  region: z.string(),
+  autoDeployTrigger: z.string().optional(),
+  preDeployCommand: z.string().optional(),
+  dockerCommand: z.string().optional(),
+  healthCheckPath: z.string().optional(),
+  numInstances: z.number().optional(),
+  disk: z.object({ name: z.string(), mountPath: z.string(), sizeGB: z.number() }).optional(),
+  envVars: z.array(envVarSchema).optional(),
+});
 
-type RenderBlueprint = {
-  databases: Array<{
-    name: string;
-    plan: string;
-    region: string;
-    postgresMajorVersion: string;
-    diskSizeGB: number;
-    storageAutoscalingEnabled: boolean;
-    ipAllowList: unknown[];
-  }>;
-  services: BlueprintService[];
-};
+const blueprintSchema = z.object({
+  databases: z.array(z.object({
+    name: z.string(),
+    plan: z.string(),
+    region: z.string(),
+    postgresMajorVersion: z.string(),
+    diskSizeGB: z.number(),
+    storageAutoscalingEnabled: z.boolean(),
+    ipAllowList: z.array(z.unknown()),
+  })),
+  services: z.array(serviceSchema),
+});
+
+type BlueprintEnvVar = z.infer<typeof envVarSchema>;
+type BlueprintService = z.infer<typeof serviceSchema>;
+type RenderBlueprint = z.infer<typeof blueprintSchema>;
 
 const loadBlueprint = async (): Promise<RenderBlueprint> =>
-  parse(await readFile("render.yaml", "utf8")) as RenderBlueprint;
+  blueprintSchema.parse(parse(await readFile("render.yaml", "utf8")));
 
 const envFor = (service: BlueprintService, key: string): BlueprintEnvVar | undefined =>
   service.envVars?.find(envVar => envVar.key === key);
@@ -70,6 +68,7 @@ describe("Render production blueprint", () => {
   it("deploys one health-checked web process with durable draft-session storage", async () => {
     const blueprint = await loadBlueprint();
     const web = blueprint.services.find(service => service.name === "mockd-web");
+    if (web === undefined) throw new Error("Expected the Mockd web service.");
 
     expect(web).toEqual(expect.objectContaining({
       type: "web",
@@ -87,24 +86,24 @@ describe("Render production blueprint", () => {
         sizeGB: 1,
       },
     }));
-    expect(envFor(web!, "DATABASE_URL")?.fromDatabase).toEqual({
+    expect(envFor(web, "DATABASE_URL")?.fromDatabase).toEqual({
       name: "mockd-postgres",
       property: "connectionString",
     });
-    expect(envFor(web!, "NODE_ENV")?.value).toBe("production");
-    expect(envFor(web!, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY")?.value)
+    expect(envFor(web, "NODE_ENV")?.value).toBe("production");
+    expect(envFor(web, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY")?.value)
       .toBe("/var/lib/mockd/draft-tools");
-    expect(envFor(web!, "MOCKD_LIVE_DRAFT_DATA_MODE")?.value).toBe("postgres");
-    expect(envFor(web!, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("true");
-    expect(envFor(web!, "MOCKD_AUTH_EMAIL_MODE")?.value).toBe("resend");
-    expect(envFor(web!, "RESEND_API_KEY")).toEqual({ key: "RESEND_API_KEY", sync: false });
-    expect(envFor(web!, "MOCKD_EMAIL_FROM")).toEqual({ key: "MOCKD_EMAIL_FROM", sync: false });
-    expect(envFor(web!, "MOCKD_PUBLIC_BASE_URL")).toEqual({ key: "MOCKD_PUBLIC_BASE_URL", sync: false });
-    expect(envFor(web!, "MOCKD_TRUST_PROXY")?.value).toBe("true");
-    expect(envFor(web!, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
-    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");
-    expect(envFor(web!, "MOCKD_SCREENSHOT_IMPORT_MODEL")).toBeUndefined();
-    expect(envFor(web!, "OPENAI_API_KEY")).toBeUndefined();
+    expect(envFor(web, "MOCKD_LIVE_DRAFT_DATA_MODE")?.value).toBe("postgres");
+    expect(envFor(web, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("true");
+    expect(envFor(web, "MOCKD_AUTH_EMAIL_MODE")?.value).toBe("resend");
+    expect(envFor(web, "RESEND_API_KEY")).toEqual({ key: "RESEND_API_KEY", sync: false });
+    expect(envFor(web, "MOCKD_EMAIL_FROM")).toEqual({ key: "MOCKD_EMAIL_FROM", sync: false });
+    expect(envFor(web, "MOCKD_PUBLIC_BASE_URL")).toEqual({ key: "MOCKD_PUBLIC_BASE_URL", sync: false });
+    expect(envFor(web, "MOCKD_TRUST_PROXY")?.value).toBe("true");
+    expect(envFor(web, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
+    expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");
+    expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODEL")).toBeUndefined();
+    expect(envFor(web, "OPENAI_API_KEY")).toBeUndefined();
   });
 
   it("does not deploy the legacy fixture-backed simulation worker", async () => {
