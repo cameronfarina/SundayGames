@@ -123,7 +123,6 @@ export function PracticePage() {
         }); }}
         pending={runMutation.isPending}
         progress={mutations.run.progress}
-        shortlist={targets}
         teamClaimed={activeLeague.readiness.teamClaim === "ready"}
       />}
     </div>}

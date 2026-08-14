@@ -10,7 +10,7 @@ export const exerciseBoardSimulations = async (
   const workspace = page.getByRole("region", { name: "Run full-league drafts" });
   await expect(workspace).toBeVisible();
   await workspace.getByLabel("Number of simulations").fill("2");
-  await workspace.getByLabel("Additional draft instructions").fill("Target an elite RB");
+  await workspace.getByLabel("Optional roster rules").fill("Target an elite RB");
   await workspace.getByLabel("Run label").fill(runNote);
   await workspace.getByRole("button", { name: "Run simulations" }).click();
   await expect(workspace.getByRole("button", { name: "Running simulations" })).toBeDisabled();

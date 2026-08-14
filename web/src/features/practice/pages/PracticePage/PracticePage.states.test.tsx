@@ -31,7 +31,7 @@ describe("PracticePage states", () => {
 
     expect(await screen.findByText("Baseline values")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create league" })).toHaveAttribute("href", "/league?create=1");
-    expect(await screen.findByRole("button", { name: "Add Puka Nacua to draft targets" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Add Puka Nacua to simulation plan" })).toBeDisabled();
     expect(screen.queryByRole("heading", { name: "Run full-league drafts" })).not.toBeInTheDocument();
     view.unmount();
   });
@@ -64,7 +64,7 @@ describe("PracticePage states", () => {
 
     expect(await screen.findByText("Catalog unavailable.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry board" }));
-    expect(await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Remove Puka Nacua from simulation plan" })).toBeInTheDocument();
     view.unmount();
   });
 

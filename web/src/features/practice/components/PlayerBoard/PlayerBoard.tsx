@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo, useReducer } from "react";
-import { Star } from "lucide-react";
+import { Check, Star } from "lucide-react";
+import { IconButton } from "../../../../shared/ui";
 import type { PlayerCatalog, PracticePlayer } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import {
@@ -17,14 +18,12 @@ import "./PlayerBoard.css";
 import "./PlayerBoardTable.css";
 import "./PlayerBoardResponsive.css";
 import "./positionColors.css";
-
 interface PlayerBoardProps {
   readonly catalog: PlayerCatalog;
   readonly onToggleTarget: (player: PracticePlayer) => void;
   readonly shortlist: readonly PracticeShortlistItem[];
   readonly targetChangesDisabled: boolean;
 }
-
 interface FilterState {
   readonly position: string;
   readonly search: string;
@@ -116,21 +115,22 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
           checked={filters.shortlistOnly}
           onChange={() => { dispatch({ type: "shortlist" }); }}
           type="checkbox"
-        />Draft targets only ({shortlist.length})</label>
+        /><span aria-hidden="true" className="player-board__target-checkbox"><Check size={13} strokeWidth={3} /></span>
+        <span>Draft targets only ({shortlist.length})</span></label>
       </div>
       <div className="player-board__table-wrap">
         <table><thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>My value</th></tr></thead>
           <tbody>{visiblePlayers.map(({ player, rank }) => {
             const isTarget = shortlisted.has(playerKey(player.name));
+            const targetLabel = `${isTarget ? "Remove" : "Add"} ${player.name} ${isTarget ? "from" : "to"} simulation plan`;
             return <tr className={`player-row player-row--${positionTone(player.position)}`} key={player.name}>
-              <td><button
-                aria-label={`${isTarget ? "Remove" : "Add"} ${player.name} ${isTarget ? "from" : "to"} draft targets`}
+              <td><IconButton
                 aria-pressed={isTarget}
                 className="target-button"
                 disabled={targetChangesDisabled}
+                label={targetLabel}
                 onClick={() => { onToggleTarget(player); }}
-                type="button"
-              ><Star aria-hidden="true" fill={isTarget ? "currentColor" : "none"} size={19} /></button></td>
+              ><Star aria-hidden="true" fill={isTarget ? "currentColor" : "none"} size={19} /></IconButton></td>
               <td>{rank}</td><td className="player-row__name">{player.name}{player.isKeeper === true && <span className="keeper-badge">Keeper{player.keeperPrice === undefined ? "" : ` · $${String(player.keeperPrice)}`}</span>}</td>
               <td><span className={`position-label position-label--${positionTone(player.position)}`}>{player.position}</span></td>
               <td>{player.teamAbbreviation ?? "FA"}</td><td>{player.byeWeek ?? "-"}</td>

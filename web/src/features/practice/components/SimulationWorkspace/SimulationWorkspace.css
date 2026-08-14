@@ -15,6 +15,12 @@
   padding-left: 0.75rem;
 }
 
+.simulation-workspace__helper {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
 .simulation-workspace form,
 .simulation-workspace label {
   display: grid;

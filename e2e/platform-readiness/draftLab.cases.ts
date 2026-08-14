@@ -15,7 +15,7 @@ test("Draft Lab supports baseline browsing and league-aware planning", async ({ 
   await expectPracticeBoard(page, 500);
   await expect(page.getByText("Baseline values", { exact: true })).toBeVisible();
   await expect(practicePlayerRows(page).first().getByRole("button", {
-    name: /Add .+ to draft targets/u,
+    name: /Add .+ to simulation plan/u,
   })).toBeDisabled();
 
   const season = await seedSeasonFromBrowser(page, account, "draft-lab-controls");

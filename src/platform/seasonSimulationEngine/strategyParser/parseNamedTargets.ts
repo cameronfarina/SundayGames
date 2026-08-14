@@ -1,7 +1,7 @@
 import { cleanPlayerName, extract } from "../strategySupport.js";
 import type { TargetCandidate } from "./contracts.js";
 
-const namedTargetPattern = /\b(?:draft|target)\s+([a-z][a-z.'-]*(?:\s+(?!(?:and|to)\b|(?:and\s+)?(?:draft|target)\b)[a-z0-9][a-z0-9.'-]*){0,4}?)(?=\s*(?:(?:[.;,]\s*)(?:(?:draft|target)\b|$)|and\s+(?:draft|target)\b|(?:and|to)\b|$))/i;
+const namedTargetPattern = /\b(?:draft|target|prioriti[sz]e)\s+([a-z][a-z.'-]*(?:\s+(?!(?:and|to)\b|(?:and\s+)?(?:draft|target|prioriti[sz]e)\b)[a-z0-9][a-z0-9.'-]*){0,4}?)(?=\s*(?:(?:[.;,]\s*)(?:(?:draft|target|prioriti[sz]e)\b|$)|and\s+(?:draft|target|prioriti[sz]e)\b|(?:and|to)\b|$))/i;
 
 export const parseNamedTargets = (
   initialRemainder: string,

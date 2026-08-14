@@ -18,6 +18,21 @@ describe("season simulation strategy parser", () => {
     expect(strategy.warnings).toEqual([]);
   });
 
+  it("accepts natural prioritize phrases as named targets", () => {
+    const strategy = parseSeasonSimulationStrategy(
+      "prioritize jadarian price, prioritize jeanty, prioritize tate, prioritize goff, prioritize ladd",
+    );
+
+    expect(strategy.targets).toEqual([
+      { playerName: "jadarian price" },
+      { playerName: "jeanty" },
+      { playerName: "tate" },
+      { playerName: "goff" },
+      { playerName: "ladd" },
+    ]);
+    expect(strategy.warnings).toEqual([]);
+  });
+
   it("parses independent target prices and excludes them from a position cap", () => {
     const strategy = parseSeasonSimulationStrategy(
       "draft jadarian price for under $20, draft gibbs for no more than $78. Draft kyler murray for no more than $2. draft ladd for no more than $25 draft. do not spend over $25 on another WR.",

@@ -61,7 +61,7 @@ describe("PracticePage", () => {
     const view = render(<PracticePage />, { wrapper: providers() });
 
     expect(await screen.findByRole("heading", { name: "Draft lab" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Remove Puka Nacua from simulation plan" })).toBeInTheDocument();
     expect(screen.getByText("Sunday Games · 2026")).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "My value strategy" }));
     await user.click(screen.getByRole("option", { name: "WR heavy" }));
@@ -71,9 +71,9 @@ describe("PracticePage", () => {
     expect(await screen.findByText("Baseline values")).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "Active league" }));
     await user.click(screen.getByRole("option", { name: "Sunday Games · 2026" }));
-    await user.click(screen.getByRole("button", { name: "Remove Puka Nacua from draft targets" }));
+    await user.click(screen.getByRole("button", { name: "Remove Puka Nacua from simulation plan" }));
     expect(await screen.findByText("Star players on the board to build this plan.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Add Puka Nacua to draft targets" }));
+    await user.click(screen.getByRole("button", { name: "Add Puka Nacua to simulation plan" }));
     const maxBid = await screen.findByRole("spinbutton", { name: "Maximum bid for Puka Nacua" });
     await user.click(screen.getByRole("button", { name: "Save Puka Nacua maximum bid" }));
     await user.type(maxBid, "70");
@@ -89,7 +89,7 @@ describe("PracticePage", () => {
     fetcher.mockImplementation(createPracticeFetch({ runCount: 2 }));
     vi.stubGlobal("fetch", fetcher);
     const view = render(<PracticePage />, { wrapper: providers() });
-    await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" });
+    await screen.findByRole("button", { name: "Remove Puka Nacua from simulation plan" });
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/1")).toBe(0);
 
     await user.click(screen.getByRole("button", { name: "Run simulations" }));

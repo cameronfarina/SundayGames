@@ -12,7 +12,7 @@ export const registerStrategyPrecedenceAndValueTests = (): void => {
       humanTeamId: "team-2",
       runCount: 1,
       targetConstraints: [{ playerName: "Jadarian Price", maxAuctionPrice: 12 }],
-      strategyInput: "draft jadarian for no more than $20",
+      strategyInput: "prioritize jadarian price",
       seedPrefix: "saved-target-precedence",
     });
 
@@ -23,6 +23,7 @@ export const registerStrategyPrecedenceAndValueTests = (): void => {
     expect(result.targetOutcomes).toEqual([
       expect.objectContaining({ playerName: "Jadarian Price" }),
     ]);
+    expect(result.strategy.warnings).toEqual([]);
   });
 
   it("uses personal values when choosing players for the claimed team", () => {

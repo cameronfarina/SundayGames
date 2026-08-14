@@ -81,7 +81,7 @@ describe("PlayerBoard performance", () => {
     const playerRow = screen.getByRole("row", { name: /Player 500/u });
     expect(within(playerRow).getByText("500", { selector: "td" })).toBeInTheDocument();
     expect(screen.getByText("1 shown / 1 matching / 500 loaded")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Remove Player 500 from draft targets" }));
+    await user.click(screen.getByRole("button", { name: "Remove Player 500 from simulation plan" }));
     expect(onToggleTarget).toHaveBeenCalledWith(catalog.players[499]);
   });
 });

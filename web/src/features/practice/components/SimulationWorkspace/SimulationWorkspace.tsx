@@ -1,7 +1,6 @@
 import type { SyntheticEvent } from "react";
-import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import type { SimulationHistoryItem, SimulationProgress } from "../../api/simulationSchema";
-import { formText, simulationStrategyText } from "../../model/simulationPlan";
+import { formText } from "../../model/simulationPlan";
 import "./SimulationWorkspace.css";
 
 interface RunRequest {
@@ -16,7 +15,6 @@ interface SimulationWorkspaceProps {
   readonly onRun: (request: RunRequest) => void;
   readonly pending: boolean;
   readonly progress: SimulationProgress | undefined;
-  readonly shortlist: readonly PracticeShortlistItem[];
   readonly teamClaimed: boolean;
 }
 
@@ -31,7 +29,7 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
     props.onRun({
       count,
       note: formText(data, "note"),
-      strategy: simulationStrategyText(props.shortlist, formText(data, "instructions")),
+      strategy: formText(data, "instructions"),
     });
   };
 
@@ -40,11 +38,12 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
       <div><p className="practice-eyebrow">Simulations</p><h2 id="simulation-workspace-title">Run full-league drafts</h2></div>
       {!props.teamClaimed && <p className="simulation-workspace__notice">Claim a team before running private league simulations.</p>}
       <form onSubmit={submit}>
-        <label><span>Additional draft instructions</span><textarea
+        <label><span>Optional roster rules</span><textarea
           name="instructions"
-          placeholder="Prioritize Week 1 scoring. Do not spend over $25 on another WR."
+          placeholder="Example: do not spend over $25 on another WR."
           rows={3}
         /></label>
+        <p className="simulation-workspace__helper">Your saved draft targets stay in the plan. Add only roster-wide rules here; these rules never replace your targets.</p>
         <div className="simulation-workspace__fields">
           <label><span>Number of simulations</span><input defaultValue="25" max="100" min="1" name="count" required type="number" /></label>
           <label><span>Run label</span><input name="note" placeholder="What are you comparing?" type="text" /></label>

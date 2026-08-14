@@ -4,7 +4,6 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { PlayerCatalog } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import { PlayerBoard } from "./PlayerBoard";
-
 beforeAll(() => {
   Object.defineProperties(HTMLElement.prototype, {
     hasPointerCapture: { configurable: true, value: () => false },
@@ -13,7 +12,6 @@ beforeAll(() => {
     setPointerCapture: { configurable: true, value: () => undefined },
   });
 });
-
 const catalog: PlayerCatalog = {
   draftFormat: "auction",
   personalized: true,
@@ -45,7 +43,6 @@ const catalog: PlayerCatalog = {
     },
   ],
 };
-
 const shortlist: readonly PracticeShortlistItem[] = [{
   createdAt: "2026-08-13T12:00:00.000Z",
   id: "target-1",
@@ -79,7 +76,10 @@ describe("PlayerBoard", () => {
     expect(screen.getByText("$70")).toBeInTheDocument();
     expect(screen.getByText("$75")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Remove Puka Nacua from draft targets" }));
+    const targetButton = screen.getByRole("button", { name: "Remove Puka Nacua from simulation plan" });
+    expect(targetButton).toHaveAttribute("title", "Remove Puka Nacua from simulation plan");
+    expect(screen.getByText("Remove Puka Nacua from simulation plan")).toHaveAttribute("aria-hidden", "true");
+    await user.click(targetButton);
     expect(onToggleTarget).toHaveBeenCalledWith(catalog.players[0]);
     view.unmount();
   });
@@ -103,7 +103,10 @@ describe("PlayerBoard", () => {
     await user.click(screen.getByRole("button", { name: "WR" }));
     expect(screen.getByText("Puka Nacua")).toBeInTheDocument();
     expect(screen.queryByText("Jared Goff")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: /Draft targets only/u }));
+    const targetFilter = screen.getByRole("checkbox", { name: /Draft targets only/u });
+    expect(targetFilter).not.toBeChecked();
+    await user.click(targetFilter);
+    expect(targetFilter).toBeChecked();
     expect(screen.getByText("Puka Nacua")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "RB" }));
     expect(screen.getByText("No players match these filters.")).toBeInTheDocument();
@@ -141,7 +144,7 @@ describe("PlayerBoard", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Add Puka Nacua to draft targets" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add Puka Nacua to simulation plan" })).toBeDisabled();
     view.unmount();
   });
 });

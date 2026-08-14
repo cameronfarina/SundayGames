@@ -5,7 +5,7 @@ export const practiceBoard = (page: Page): Locator =>
 
 export const practicePlayerRows = (page: Page): Locator =>
   practiceBoard(page).getByRole("table").getByRole("row").filter({
-    has: page.getByRole("button", { name: /draft targets/u }),
+    has: page.getByRole("button", { name: /simulation plan/u }),
   });
 
 export const choosePracticeOption = async (
@@ -65,11 +65,11 @@ export const exercisePracticeBoardControls = async (page: Page): Promise<void> =
   await expect(practicePlayerRows(page).first()).toBeVisible();
 
   const addTarget = practicePlayerRows(page).first().getByRole("button", {
-    name: /Add .+ to draft targets/u,
+    name: /Add .+ to simulation plan/u,
   });
   await addTarget.click();
   await expect(practicePlayerRows(page).first().getByRole("button", {
-    name: /Remove .+ from draft targets/u,
+    name: /Remove .+ from simulation plan/u,
   })).toBeVisible();
   await board.getByRole("checkbox", { name: /Draft targets only \(1\)/u }).check();
   await expect(practicePlayerRows(page)).toHaveCount(1);
