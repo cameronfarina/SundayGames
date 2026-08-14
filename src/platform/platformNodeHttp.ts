@@ -27,6 +27,10 @@ export {
   type MockdSessionCookieOptions,
 } from "./platformCookies.js";
 import { mockdSessionCookieName } from "./platformCookies.js";
+import {
+  assertPlatformJsonMediaType,
+  UnsupportedMediaTypeError,
+} from "./platformJsonMediaType.js";
 import type { PlatformBrowserAsset } from "./platformStaticWebAssets.js";
 
 export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
@@ -302,6 +306,16 @@ const requestBodyTooLargeResponse: PlatformHttpResponse<PlatformHttpErrorBody> =
     error: {
       code: "request_body_too_large",
       message: "Request body exceeds the configured size limit.",
+    },
+  },
+};
+
+const unsupportedMediaTypeResponse: PlatformHttpResponse<PlatformHttpErrorBody> = {
+  status: 415,
+  body: {
+    error: {
+      code: "unsupported_media_type",
+      message: "Request body must use application/json.",
     },
   },
 };
@@ -946,6 +960,8 @@ export const createPlatformNodeHttpAdapter = (
         return;
       }
 
+      assertPlatformJsonMediaType(request.method, request.headers);
+
       if (isScreenshotImportAnalysisRequest(request)) {
         const preflightResponse = screenshotImportPreflight === undefined
           ? screenshotImportPreflightUnavailableResponse
@@ -1006,6 +1022,12 @@ export const createPlatformNodeHttpAdapter = (
 
       if (error instanceof InvalidJsonBodyError) {
         await writeJsonResponse(request, response, invalidJsonResponse);
+        return;
+      }
+
+      if (error instanceof UnsupportedMediaTypeError) {
+        request.resume();
+        await writeJsonResponse(request, response, unsupportedMediaTypeResponse);
         return;
       }
 
