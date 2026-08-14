@@ -559,15 +559,14 @@ describe("platform Node HTTP adapter", () => {
     expect(seenRequests[0]?.isSecure).toBe(true);
   });
 
-  it("serves the app shell and dedicated draft room from distinct browser routes", async () => {
+  it("serves one React app document from every product route", async () => {
     let callCount = 0;
-    const authShellHtml = "<!doctype html><main id=\"auth-panel\"></main>";
-    const draftRoomHtml = "<!doctype html><main id=\"draft-room-view\"></main>";
+    const appHtml = "<!doctype html><div id=\"root\"></div>";
     const baseUrl = await listen(async () => {
       callCount += 1;
 
       return { status: 404, body: { error: { code: "nope", message: "Nope." } } };
-    }, { appHtml: authShellHtml, draftRoomHtml });
+    }, { appHtml });
 
     for (const path of [
       "/login",
@@ -582,6 +581,7 @@ describe("platform Node HTTP adapter", () => {
       "/practice",
       "/my-team",
       "/mock-drafts",
+      "/draft-room",
     ]) {
       const response = await fetch(`${baseUrl}${path}`);
 
@@ -589,15 +589,8 @@ describe("platform Node HTTP adapter", () => {
       expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
       expect(response.headers.get("x-frame-options")).toBe("DENY");
-      expect(await response.text()).toBe(authShellHtml);
+      expect(await response.text()).toBe(appHtml);
     }
-
-    const draftRoomResponse = await fetch(`${baseUrl}/draft-room`);
-    expect(draftRoomResponse.status).toBe(200);
-    expect(draftRoomResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(draftRoomResponse.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
-    expect(draftRoomResponse.headers.get("x-frame-options")).toBe("DENY");
-    expect(await draftRoomResponse.text()).toBe(draftRoomHtml);
 
     expect(callCount).toBe(0);
   });
@@ -614,6 +607,10 @@ describe("platform Node HTTP adapter", () => {
       ["/strategy?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
       ["/mock-results?seasonId=season-1", "/mock-drafts?seasonId=season-1"],
       ["/my-expert?seasonId=season-1", "/my-team?seasonId=season-1"],
+      [
+        "/setup?seasonId=season-1&section=keepers",
+        "/commissioner?seasonId=season-1&section=keepers",
+      ],
     ] as const;
 
     for (const [source, target] of cases) {

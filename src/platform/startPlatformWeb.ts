@@ -166,9 +166,6 @@ export const startPlatformWebFromEnv = async (
       invitationTokenSecret: config.invitationTokenSecret,
       screenshotImportBodyLimitBytes:
         Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
-      shellCapabilities: {
-        leagueCreationScreenshotAnalysis: screenshotAnalyzer !== undefined,
-      },
       currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
       postDraftProjectionProvider: loadCurrentPostDraftProjectionSnapshot,
       espnLeagueSettingsImporter: importEspnLeagueSettingsForRuntime,

@@ -1592,64 +1592,25 @@ describe("platform server composition", () => {
     expect(seenClientAddresses).toEqual(["203.0.113.45"]);
   });
 
-  it("serves the platform app shell from auth browser routes", async () => {
+  it("serves an honest fallback when React assets are unavailable", async () => {
     const { baseUrl } = await createListeningServer();
 
-    const response = await textFetch(baseUrl, "/login");
-
-    expect(response.status).toBe(200);
-    expect(response.contentType).toBe("text/html; charset=utf-8");
-    expect(response.body).toContain("id=\"auth-panel\"");
-    expect(response.body).toContain("League home");
-    expect(response.body).toContain("Open live draft");
-
-    for (const path of ["/verify-email", "/forgot-password", "/reset-password"]) {
-      const recovery = await textFetch(baseUrl, path);
-      expect(recovery.status).toBe(200);
-      expect(recovery.body).toContain("id=\"auth-panel\"");
+    for (const path of ["/login", "/league", "/draft-room"]) {
+      const response = await textFetch(baseUrl, path);
+      expect(response.status).toBe(200);
+      expect(response.contentType).toBe("text/html; charset=utf-8");
+      expect(response.body).toContain("Mockd frontend is unavailable");
+      expect(response.body).not.toContain("id=\"auth-panel\"");
+      expect(response.body).not.toContain("id=\"draft-room-view\"");
     }
-  });
-
-  it("renders screenshot controls only when the shell capability is enabled", async () => {
-    const manual = await createListeningServer({
-      shellCapabilities: { leagueCreationScreenshotAnalysis: false },
-    });
-    const openAi = await createListeningServer({
-      shellCapabilities: { leagueCreationScreenshotAnalysis: true },
-    });
-
-    const manualResponse = await textFetch(manual.baseUrl, "/league?create=1");
-    const openAiResponse = await textFetch(openAi.baseUrl, "/league?create=1");
-
-    expect(manualResponse.status).toBe(200);
-    expect(manualResponse.body).toContain('data-league-step="teams"');
-    expect(manualResponse.body).not.toContain('id="league-create-screenshot-panel"');
-    expect(openAiResponse.status).toBe(200);
-    expect(openAiResponse.body).toContain('id="league-create-screenshot-panel"');
-  });
-
-  it("serves the dedicated draft room from the production draft route", async () => {
-    const { baseUrl } = await createListeningServer();
-
-    const signup = await textFetch(baseUrl, "/signup");
-    const draftRoom = await textFetch(baseUrl, "/draft-room");
-
-    expect(signup.status).toBe(200);
-    expect(signup.contentType).toBe("text/html; charset=utf-8");
-    expect(signup.body).toContain("id=\"auth-panel\"");
-    expect(signup.body).not.toContain("id=\"draft-room-view\"");
-
-    expect(draftRoom.status).toBe(200);
-    expect(draftRoom.contentType).toBe("text/html; charset=utf-8");
-    expect(draftRoom.body).toContain("id=\"draft-room-view\"");
-    expect(draftRoom.body).toContain("data-platform-live-room");
-    expect(draftRoom.body).not.toContain("id=\"draft-room-link\"");
   });
 
   it("serves Practice before league selection and keeps private prep scoped to members", async () => {
     directory = await mkdtemp(join(tmpdir(), "mockd-platform-draft-tools-"));
     const draftSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
+    const appHtml = "<!doctype html><div id=\"root\"></div>";
     const { platformServer, baseUrl } = await createListeningServer({
+      appHtml,
       draftToolsSessionDirectory: directory,
       liveDraftRoomSetupRepository: draftSetupRepository,
     });
@@ -1665,7 +1626,7 @@ describe("platform server composition", () => {
       },
     );
     expect(anonymousBoard.status).toBe(200);
-    expect(await anonymousBoard.text()).toContain("id=\"auth-panel\"");
+    expect(await anonymousBoard.text()).toBe(appHtml);
 
     const prepAccount = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
@@ -1717,20 +1678,20 @@ describe("platform server composition", () => {
       headers: { "x-session-token": sessionToken },
     });
     expect(missingSeason.status).toBe(200);
-    expect(await missingSeason.text()).toContain("id=\"standalone-board\"");
+    expect(await missingSeason.text()).toBe(appHtml);
 
     const outsiderBoard = await fetch(`${baseUrl}/practice?seasonId=${season.id}`, {
       headers: { "x-session-token": outsiderSessionToken },
     });
     expect(outsiderBoard.status).toBe(200);
-    expect(await outsiderBoard.text()).toContain("id=\"standalone-board\"");
+    expect(await outsiderBoard.text()).toBe(appHtml);
 
     const board = await fetch(`${baseUrl}/practice?seasonId=${season.id}`, {
       headers: { "x-session-token": sessionToken },
     });
     expect(board.status).toBe(200);
     expect(board.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(await board.text()).toContain("id=\"standalone-board\"");
+    expect(await board.text()).toBe(appHtml);
 
     const mockState = await jsonFetch(
       baseUrl,

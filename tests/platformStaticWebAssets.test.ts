@@ -30,7 +30,6 @@ const listen = async (assetsDirectory: string): Promise<string> => {
   }), {
     appHtml: assets.indexHtml,
     browserAssets: assets.files,
-    draftRoomHtml: "<!doctype html><main>Live draft</main>",
   }));
   await new Promise<void>((resolve, reject) => {
     server?.once("error", reject);
@@ -61,7 +60,7 @@ describe("platform static web assets", () => {
     expect(await asset.text()).toBe("window.mockd = true;");
   });
 
-  it("keeps the dedicated live draft route and supports asset HEAD requests", async () => {
+  it("serves the React app for live drafts and supports asset HEAD requests", async () => {
     temporaryDirectory = await mkdtemp(join(tmpdir(), "mockd-react-assets-"));
     await mkdir(join(temporaryDirectory, "assets"));
     await writeFile(join(temporaryDirectory, "index.html"), "<!doctype html><div id=\"root\"></div>");
@@ -71,7 +70,7 @@ describe("platform static web assets", () => {
     const liveDraft = await fetch(`${baseUrl}/draft-room`);
     const asset = await fetch(`${baseUrl}/assets/app-a1b2c3.css`, { method: "HEAD" });
 
-    expect(await liveDraft.text()).toContain("Live draft");
+    expect(await liveDraft.text()).toContain("id=\"root\"");
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-length")).toBe(String(Buffer.byteLength("body { color: white; }")));
     expect(await asset.text()).toBe("");

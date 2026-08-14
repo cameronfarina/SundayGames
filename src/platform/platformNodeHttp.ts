@@ -28,7 +28,6 @@ export const defaultPlatformScreenshotImportBodyLimitBytes = 7_100_000;
 export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
   browserAssets?: ReadonlyMap<string, PlatformBrowserAsset> | undefined;
-  draftRoomHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
   screenshotImportMaxBodyBytes?: number | undefined;
   screenshotImportPreflight?: PlatformNodeHttpPreflight | undefined;
@@ -80,6 +79,7 @@ const appShellPaths = new Set([
   "/setup",
   "/league",
   "/commissioner",
+  "/draft-room",
   "/practice",
   "/my-team",
   "/mock-drafts",
@@ -96,11 +96,10 @@ const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
   ["/strategy", "/mock-drafts"],
   ["/my-expert", "/my-team"],
   ["/player-news", "/practice"],
+  ["/setup", "/commissioner"],
 ]);
-const draftWorkspacePaths = new Set(["/draft-room"]);
 const observableRouteRoots = new Set([
   ...[...appShellPaths].map(path => path.slice(1)),
-  ...[...draftWorkspacePaths].map(path => path.slice(1)),
   "accounts",
   "email-verifications",
   "healthz",
@@ -568,13 +567,11 @@ const browserAssetForRequest = (
 const htmlForBrowserRequest = (
   request: IncomingMessage,
   appHtml: string | undefined,
-  draftRoomHtml: string | undefined,
 ): string | undefined => {
   if (request.method !== "GET") return undefined;
 
   try {
     const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
-    if (draftWorkspacePaths.has(pathname)) return draftRoomHtml ?? appHtml;
     if (appShellPaths.has(pathname)) return appHtml;
 
     return undefined;
@@ -680,7 +677,6 @@ export const createPlatformNodeHttpAdapter = (
 ): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
   const appHtml = options.appHtml;
   const browserAssets = options.browserAssets;
-  const draftRoomHtml = options.draftRoomHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
   const screenshotImportMaxBodyBytes = options.screenshotImportMaxBodyBytes
     ?? defaultPlatformScreenshotImportBodyLimitBytes;
@@ -704,7 +700,7 @@ export const createPlatformNodeHttpAdapter = (
         writeBrowserAssetResponse(request, response, browserAsset);
         return;
       }
-      const browserHtml = htmlForBrowserRequest(request, appHtml, draftRoomHtml);
+      const browserHtml = htmlForBrowserRequest(request, appHtml);
       if (browserHtml !== undefined) {
         writeHtmlResponse(response, browserHtml);
         return;
