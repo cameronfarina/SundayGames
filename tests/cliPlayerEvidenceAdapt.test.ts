@@ -4,9 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { parsePlayerContextEvidenceCsv } from "../src/data/playerContextEvidenceImports.js";
 
 const execFileAsync = promisify(execFile);
+const evidenceResultSchema = z.object({
+  evidence: z.array(z.object({
+    player: z.string(),
+    provider: z.string().optional(),
+    sourceDate: z.string().optional(),
+    sourceQuality: z.string().optional(),
+  })),
+});
 
 describe("CLI player evidence adapter", () => {
   it("prints canonical CSV from a completed local evidence export", async () => {
@@ -71,14 +80,7 @@ describe("CLI player evidence adapter", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      evidence: {
-        player: string;
-        provider?: string;
-        sourceDate?: string;
-        sourceQuality?: string;
-      }[];
-    };
+    const result = evidenceResultSchema.parse(JSON.parse(stdout));
 
     expect(result.evidence).toEqual([
       expect.objectContaining({

@@ -1,8 +1,37 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const sensitivitySchema = z.object({
+  summary: z.object({
+    playerCount: z.number(),
+    reportedPlayerCount: z.number(),
+    truncated: z.boolean(),
+    keeperRemovedCount: z.number(),
+    scenarioKeys: z.array(z.string()),
+    availabilityChangeCount: z.number(),
+    unpricedKeeperCount: z.number(),
+    keeperRemovalChangeCount: z.number(),
+  }),
+  rows: z.array(z.object({
+    player: z.string(),
+    pricedPool: z.boolean(),
+    keeperRemoved: z.boolean(),
+    keeperRemovalChanged: z.boolean(),
+    availabilityChanged: z.boolean(),
+    keeperRemovalScenarios: z.array(z.string()),
+    priceSpread: z.number().nullable(),
+    scenarios: z.object({
+      confirmedOnly: z.object({ available: z.boolean() }),
+      expected: z.object({
+        available: z.boolean(),
+        unavailableReason: z.string().optional(),
+      }),
+    }),
+  })),
+});
 
 describe("CLI keeper scenario sensitivity", () => {
   it("prints JSON scenario sensitivity rows", async () => {
@@ -20,38 +49,7 @@ describe("CLI keeper scenario sensitivity", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const report = JSON.parse(stdout) as {
-      summary: {
-        playerCount: number;
-        reportedPlayerCount: number;
-        truncated: boolean;
-        keeperRemovedCount: number;
-        scenarioKeys: string[];
-        availabilityChangeCount: number;
-        unpricedKeeperCount: number;
-        keeperRemovalChangeCount: number;
-      };
-      rows: {
-        player: string;
-        pricedPool: boolean;
-        keeperRemoved: boolean;
-        keeperRemovalChanged: boolean;
-        availabilityChanged: boolean;
-        keeperRemovalScenarios: string[];
-        priceSpread: number | null;
-        scenarios: {
-          confirmedOnly: {
-            available: boolean;
-            unavailableReason?: string;
-          };
-          expected: {
-            available: boolean;
-            scenarioPrice: number | null;
-            unavailableReason?: string;
-          };
-        };
-      }[];
-    };
+    const report = sensitivitySchema.parse(JSON.parse(stdout));
 
     expect(report.summary.scenarioKeys).toEqual(["confirmedOnly", "expected", "highRetention"]);
     expect(report.summary.playerCount).toBeGreaterThan(report.summary.reportedPlayerCount);

@@ -1,8 +1,35 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const draftPlanSchema = z.object({
+  owner: z.string(),
+  strategy: z.object({ key: z.string() }),
+  engineMode: z.string(),
+  runCount: z.number(),
+  matchedRunCount: z.number(),
+  candidateLimit: z.number(),
+  recommendations: z.object({
+    strategyCoach: z.object({
+      headline: z.string(),
+      blueprint: z.array(z.object({
+        slot: z.string(),
+        priceBand: z.string(),
+        targetNames: z.array(z.string()),
+      })),
+      contingencyPlans: z.array(z.object({ label: z.string(), action: z.string() })),
+    }),
+    maxPriceBands: z.array(z.object({ slot: z.string(), maximumPrice: z.number() })),
+    pivotRules: z.array(z.object({ label: z.string(), action: z.string() })),
+  }),
+  candidates: z.array(z.object({
+    owner: z.string(),
+    rbCore: z.array(z.object({ name: z.string(), price: z.number() })),
+    players: z.array(z.object({ position: z.string(), price: z.number() })),
+  })),
+});
 
 describe("CLI draft plan report", () => {
   it("prints owner-specific draft plans from real mock batches", async () => {
@@ -26,52 +53,7 @@ describe("CLI draft plan report", () => {
         maxBuffer: 30 * 1024 * 1024,
       },
     );
-    const report = JSON.parse(stdout) as {
-      owner: string;
-      strategy: {
-        key: string;
-      };
-      engineMode: string;
-      runCount: number;
-      matchedRunCount: number;
-      candidateLimit: number;
-      recommendations: {
-        strategyCoach: {
-          headline: string;
-          blueprint: {
-            slot: string;
-            priceBand: string;
-            targetNames: string[];
-          }[];
-          contingencyPlans: {
-            label: string;
-            action: string;
-          }[];
-        };
-        maxPriceBands: {
-          slot: string;
-          maximumPrice: number;
-        }[];
-        pivotRules: {
-          label: string;
-          action: string;
-        }[];
-      };
-      candidates: {
-        owner: string;
-        rbCore: {
-          name: string;
-          price: number;
-          market?: {
-            averageSalePrice: number;
-          };
-        }[];
-        players: {
-          position: string;
-          price: number;
-        }[];
-      }[];
-    };
+    const report = draftPlanSchema.parse(JSON.parse(stdout));
 
     expect(report.owner).toBe("Owner11");
     expect(report.strategy.key).toBe("three-rb");

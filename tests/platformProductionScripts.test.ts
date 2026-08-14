@@ -1,13 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-interface PackageManifest {
-  scripts?: Record<string, string>;
-}
+const packageManifestSchema = z.object({
+  scripts: z.record(z.string(), z.string()).optional(),
+});
 
 describe("platform production scripts", () => {
   it("runs every hosted process from compiled JavaScript without tsx", async () => {
-    const manifest = JSON.parse(await readFile("package.json", "utf8")) as PackageManifest;
+    const manifest = packageManifestSchema.parse(JSON.parse(
+      await readFile("package.json", "utf8"),
+    ));
 
     expect(manifest.scripts).toMatchObject({
       start: "node dist/src/platform/startPlatformWeb.js",
