@@ -550,7 +550,7 @@ describe("platform app service", () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
-    const sam = await signUpAndLogin(app, "sam@example.com", "sam password", now);
+    const sam = await signUpAndLogin(app, "sam@example.com", "sam secure password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",
