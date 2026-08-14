@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomSetup } from "../src/platform/liveDraftRoomSetups.js";
 import {
   createSeasonMockConfigurationSnapshot,
   normalizeSeasonMockConfigurationSnapshot,
@@ -13,7 +14,7 @@ import {
 const capturedAt = new Date("2026-08-11T15:00:00.000Z");
 const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
 const humanTeamId = season.teams[0]?.id ?? "missing-team";
-const setup = {
+const setup: LiveDraftRoomSetup = {
   seasonId: season.id,
   sourceVersion: "rankings-2026.1",
   playerCatalog: [
@@ -39,7 +40,9 @@ const setup = {
   ],
   contentHash: "setup-hash",
   updatedAt: new Date("2026-08-11T14:30:00.000Z"),
-} as const;
+};
+
+const jsonRoundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
 describe("season mock configuration snapshots", () => {
   it("captures an immutable versioned copy of season, setup, and personalized prices", () => {
@@ -81,9 +84,7 @@ describe("season mock configuration snapshots", () => {
     expect(Object.isFrozen(snapshot)).toBe(true);
     expect(Object.isFrozen(snapshot.payload.setup.playerCatalog)).toBe(true);
 
-    const decoded = normalizeSeasonMockConfigurationSnapshot(
-      JSON.parse(JSON.stringify(snapshot)) as unknown,
-    );
+    const decoded = normalizeSeasonMockConfigurationSnapshot(jsonRoundTrip(snapshot));
 
     expect(decoded).toEqual(snapshot);
     expect(requireSeasonMockConfigurationSnapshot(decoded)).toBe(decoded);
@@ -124,6 +125,72 @@ describe("season mock configuration snapshots", () => {
       "snapshot_migration_required",
       "This mock draft predates immutable configuration snapshots and must be restarted.",
     ));
+    expect(() => requireSeasonMockConfigurationSnapshot({
+      status: "migration-required",
+      schema: "mockd-season-mock",
+      reason: "unsupported-version",
+      sourceVersion: 7,
+    })).toThrow(new SeasonMockConfigurationSnapshotError(
+      "snapshot_migration_required",
+      "This mock draft uses unsupported configuration snapshot version 7 and must be migrated.",
+    ));
+  });
+
+  it("isolates private replay inputs and defaults human values without retaining references", () => {
+    const expectedPrices = { "puka-nacua": 69 };
+    const snapshot = createSeasonMockConfigurationSnapshot({
+      season,
+      setup,
+      humanTeamId,
+      playerExpectedPrices: expectedPrices,
+      capturedAt,
+    });
+
+    expectedPrices["puka-nacua"] = 1;
+    expect(snapshot.payload.playerExpectedPrices).toEqual({ "puka-nacua": 69 });
+    expect(snapshot.payload.playerHumanValues).toEqual({ "puka-nacua": 69 });
+    expect(snapshot.payload.setup.playerCatalog[0]?.name).toBe("Puka Nacua");
+    expect(Object.isFrozen(snapshot.payload.playerExpectedPrices)).toBe(true);
+    expect(Object.isFrozen(snapshot.payload.playerHumanValues)).toBe(true);
+  });
+
+  it("rejects cross-season and unknown-team relationships", () => {
+    const malformedError = new SeasonMockConfigurationSnapshotError(
+      "snapshot_malformed",
+      "Mock draft configuration snapshot is malformed.",
+    );
+    expect(() => createSeasonMockConfigurationSnapshot({
+      season,
+      setup,
+      humanTeamId: "missing-team",
+      playerExpectedPrices: {},
+      capturedAt,
+    })).toThrow(malformedError);
+    expect(() => createSeasonMockConfigurationSnapshot({
+      season,
+      setup: { ...setup, seasonId: "other-season" },
+      humanTeamId,
+      playerExpectedPrices: {},
+      capturedAt,
+    })).toThrow(malformedError);
+    expect(() => createSeasonMockConfigurationSnapshot({
+      season,
+      setup: {
+        ...setup,
+        initialRosters: [{
+          teamId: "missing-team",
+          playerId: "puka-nacua",
+          playerName: "Puka Nacua",
+          position: "WR",
+          price: 50,
+          expectedPrice: 69,
+          source: "keeper",
+        }],
+      },
+      humanTeamId,
+      playerExpectedPrices: {},
+      capturedAt,
+    })).toThrow(malformedError);
   });
 
   it("rejects malformed and oversized snapshots before they reach persistence", () => {
