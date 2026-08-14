@@ -7,6 +7,12 @@ import type { PlatformLeagueMembership } from "../src/platform/platformApp.js";
 import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
 import type { PlatformOnboardingLeague } from "../src/platform/platformOnboarding.js";
 import type { PricingSnapshot } from "../src/platform/pricingSnapshots.js";
+import {
+  accountMenuButton,
+  expectAuthenticatedAccount,
+  expectSignedOut,
+  signOutThroughAccountMenu,
+} from "./support/auth.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 
@@ -61,10 +67,6 @@ const provisioningToken = process.env.MOCKD_E2E_PROVISIONING_TOKEN?.trim() || "l
 interface JsonResponse<TBody> {
   status: number;
   body: TBody;
-}
-
-interface AccountBody {
-  account: AccountRecord;
 }
 
 interface SeasonBody {
@@ -206,31 +208,30 @@ const signUpAndLogIn = async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email).catch(async error => {
-    const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
+  await expectAuthenticatedAccount(page, email).catch(async error => {
+    const authError = (await page.getByRole("alert").textContent())?.trim() ?? "";
     if (!authError.includes("already exists")) throw error;
 
     await page.goto("/login");
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#account-menu-email"), [
+    await expectAuthenticatedAccount(page, email, [
       `Smoke account ${email} already existed but could not sign in with the configured password.`,
       "Use a fresh MOCKD_E2E_RUN_ID or set MOCKD_E2E_PASSWORD to the password used for that run.",
       authError,
-    ].join(" ")).toHaveText(email);
+    ].join(" "));
   });
 
-  await page.locator("#account-menu-button").click();
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.locator("#auth-panel")).toBeVisible();
+  await signOutThroughAccountMenu(page);
+  await expectSignedOut(page);
 
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  const account = await expectAuthenticatedAccount(page, email);
 
-  return expectOk(await api<AccountBody>(page, "/session")).account;
+  return account;
 };
 
 const pageForLocalFixtureUser = async (
@@ -259,15 +260,12 @@ const pageForExistingUser = async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-menu-email"), [
+  const account = await expectAuthenticatedAccount(page, email, [
     `Could not sign in to the pre-provisioned smoke account ${email}.`,
     "Verify the deployed smoke credential secrets and run production provisioning verification.",
-  ].join(" ")).toHaveText(email);
+  ].join(" "));
 
-  return {
-    page,
-    account: expectOk(await api<AccountBody>(page, "/session")).account,
-  };
+  return { page, account };
 };
 
 const teamByOwner = (
@@ -350,7 +348,7 @@ const applyCommissionerSetup = async (
   camEmail: string,
 ): Promise<string> => {
   await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#account-menu-email")).toHaveText(camEmail);
+  await expectAuthenticatedAccount(page, camEmail);
   await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
   await page.getByText("Advanced: paste a team list", { exact: true }).click();
   await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail));
@@ -970,7 +968,7 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   await camPage.getByRole("link", { name: "League", exact: true }).click();
   await expect(camPage).toHaveURL(/\/league\?seasonId=/);
   await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
-  await camPage.locator("#account-menu-button").click();
+  await accountMenuButton(camPage).click();
   await expect(camPage.locator("#account-create-league")).toBeVisible();
   await camPage.locator("#account-create-league").click();
   await expect(camPage).toHaveURL(/\/league\?create=1$/);
@@ -1183,18 +1181,18 @@ test("primary navigation stays in the current document and the account menu dism
   await expect(page).toHaveTitle("My team | Mockd");
   await expectCurrentDocument();
 
-  const accountMenu = page.locator("#account-menu");
-  const accountMenuButton = page.locator("#account-menu-button");
-  await accountMenuButton.click();
-  await expect(accountMenu).toHaveAttribute("open", "");
+  const menuButton = accountMenuButton(page);
+  const accountMenu = page.getByRole("menu");
+  await menuButton.click();
+  await expect(accountMenu).toBeVisible();
   await page.locator("#my-team-workspace h1").click();
-  await expect(accountMenu).not.toHaveAttribute("open", "");
+  await expect(accountMenu).toBeHidden();
 
-  await accountMenuButton.click();
-  await expect(accountMenu).toHaveAttribute("open", "");
+  await menuButton.click();
+  await expect(accountMenu).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(accountMenu).not.toHaveAttribute("open", "");
-  await expect(accountMenuButton).toBeFocused();
+  await expect(accountMenu).toBeHidden();
+  await expect(menuButton).toBeFocused();
 
   let rejectSignOut = true;
   await page.route("**/session", async route => {
@@ -1208,20 +1206,16 @@ test("primary navigation stays in the current document and the account menu dism
     }
     await route.continue();
   });
-  await accountMenuButton.click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOutThroughAccountMenu(page);
   await expect(page.locator("#app-error")).toBeVisible();
   await expect(page.locator("#app-error-message")).toHaveText("Could not sign out. Try again.");
-  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  await expectAuthenticatedAccount(page, email);
   await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
   await expectCurrentDocument(2);
 
   rejectSignOut = false;
-  await accountMenuButton.click();
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/login$/u);
-  await expect(page.locator("#auth-panel")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await signOutThroughAccountMenu(page);
+  await expectSignedOut(page);
   await expectCurrentDocument(3);
 });
 

@@ -3,6 +3,12 @@ import { leagueConfig, ownerOrder } from "../config/league.js";
 import type { AccountRecord } from "../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import {
+  accountMenuButton,
+  expectAuthenticatedAccount,
+  expectSignedOut,
+  signOutThroughAccountMenu,
+} from "./support/auth.js";
 
 const mobileViewport = { width: 390, height: 844 } as const;
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
@@ -20,10 +26,6 @@ const roomId = `room_mobile_release_${namespace.replace(/-/g, "_")}`;
 interface JsonResponse<TBody> {
   status: number;
   body: TBody;
-}
-
-interface AccountBody {
-  account: AccountRecord;
 }
 
 interface SeasonBody {
@@ -83,26 +85,25 @@ const signUpAndLogIn = async (page: Page, email: string): Promise<AccountRecord>
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email).catch(async error => {
-    const authError = (await page.locator("#auth-error").textContent())?.trim() ?? "";
+  await expectAuthenticatedAccount(page, email).catch(async error => {
+    const authError = (await page.getByRole("alert").textContent())?.trim() ?? "";
     if (!authError.includes("already exists")) throw error;
 
     await page.goto("/login");
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#account-menu-email")).toHaveText(email);
+    await expectAuthenticatedAccount(page, email);
   });
 
-  await page.locator("#account-menu-button").click();
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/login/);
+  await signOutThroughAccountMenu(page);
+  await expectSignedOut(page);
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  const account = await expectAuthenticatedAccount(page, email);
 
-  return expectOk(await api<AccountBody>(page, "/session")).account;
+  return account;
 };
 
 const signInExisting = async (page: Page, email: string, accountPassword: string): Promise<void> => {
@@ -110,10 +111,10 @@ const signInExisting = async (page: Page, email: string, accountPassword: string
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(accountPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.locator("#account-menu-email"), [
+  await expectAuthenticatedAccount(page, email, [
     `Could not sign in to the pre-provisioned mobile smoke account ${email}.`,
     "Verify the deployed smoke credential secrets and provisioning receipt.",
-  ].join(" ")).toHaveText(email);
+  ].join(" "));
 };
 
 const requiredDeployedValue = (key: string): string => {
@@ -254,9 +255,8 @@ test("shared league invitation stays usable from mobile signup through team sele
     body: { seasonId },
   }));
 
-  await page.locator("#account-menu-button").click();
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/login/);
+  await signOutThroughAccountMenu(page);
+  await expectSignedOut(page);
   await page.goto(issued.invitation.acceptPath);
   await expect(page.locator("#auth-title")).toHaveText("Join your league");
   await expect(page.locator("#auth-invite-league-name")).toHaveText(`${leagueName} Invite`);
@@ -349,7 +349,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expect(page.locator("#open-live-draft-button")).toHaveText("Open live draft");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#account-menu-button"),
+    accountMenuButton(page),
     page.locator("#header-league-picker"),
     page.locator("#open-live-draft-button"),
   ]);
@@ -457,7 +457,7 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   await expect(page.locator("#my-team-name")).not.toHaveText("Needs attention");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#account-menu-button"),
+    accountMenuButton(page),
     page.locator("#header-league-picker"),
   ]);
 

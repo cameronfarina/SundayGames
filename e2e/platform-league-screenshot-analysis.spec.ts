@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectAuthenticatedAccount } from "./support/auth.js";
 
 const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
 
@@ -7,7 +8,7 @@ const signUp = async (page: import("@playwright/test").Page, email: string): Pro
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  await expectAuthenticatedAccount(page, email);
 };
 
 test("available team screenshot analysis supports drag and drop before manual entry", async ({ page }) => {
@@ -255,4 +256,3 @@ test("duplicate screenshot team numbers are rejected before prefilling teams", a
   await expect(setupDialog.locator("#league-create-screenshot-status")).toContainText("unique team number");
   await expect(setupDialog.getByLabel("Team name").first()).toHaveValue("");
 });
-

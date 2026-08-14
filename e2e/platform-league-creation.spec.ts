@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectAuthenticatedAccount } from "./support/auth.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
@@ -8,7 +9,7 @@ const signUp = async (page: import("@playwright/test").Page, email: string): Pro
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.locator("#account-menu-email")).toHaveText(email);
+  await expectAuthenticatedAccount(page, email);
 };
 
 test("league setup follows the complete manual workflow", async ({ page }) => {
