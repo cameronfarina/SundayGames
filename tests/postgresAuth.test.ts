@@ -207,7 +207,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
     }
 
     if (normalizedSql.startsWith("WITH consumed_token AS") && normalizedSql.includes("email_verification")) {
-      const [tokenHash, verifiedAt] = values as readonly [string, Date];
+      const [tokenHash, passwordHash, verifiedAt] = values as readonly [string, string, Date];
       const token = this.authTokens.get(tokenHash);
       if (token === undefined || token.consumed_at !== null || token.expires_at <= verifiedAt) {
         return { rows: [], rowCount: 0 };
@@ -219,7 +219,9 @@ class FakePostgresAuthClient implements PostgresQueryClient {
         account.auth_version !== token.auth_version
       ) return { rows: [], rowCount: 0 };
       token.consumed_at = verifiedAt;
+      account.password_hash = passwordHash;
       account.email_verified_at = verifiedAt;
+      account.auth_version += 1;
       account.updated_at = verifiedAt;
       return { rows: [cloneAccountRow(account) as TRow], rowCount: 1 };
     }
@@ -397,9 +399,19 @@ describe("Postgres auth repository", () => {
     });
     const secondMessage = mailSender.messages[1];
     const secondToken = new URL(secondMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
-    await expect(auth.verifyEmail({ token: firstToken, now: new Date(now.getTime() + 2_000) }))
+    await expect(auth.verifyEmail({
+      token: firstToken,
+      newPassword: "mailbox proven password",
+      newPasswordConfirmation: "mailbox proven password",
+      now: new Date(now.getTime() + 2_000),
+    }))
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
-    await expect(auth.verifyEmail({ token: secondToken, now: new Date(now.getTime() + 2_000) }))
+    await expect(auth.verifyEmail({
+      token: secondToken,
+      newPassword: "mailbox proven password",
+      newPasswordConfirmation: "mailbox proven password",
+      now: new Date(now.getTime() + 2_000),
+    }))
       .resolves.toMatchObject({ emailVerifiedAt: new Date(now.getTime() + 2_000) });
     await expect(auth.login({
       email: "owner@example.com",
@@ -409,6 +421,11 @@ describe("Postgres auth repository", () => {
     await expect(auth.login({
       email: "owner@example.com",
       password: "replacement secure password",
+      now: new Date(now.getTime() + 2_001),
+    })).resolves.toBeNull();
+    await expect(auth.login({
+      email: "owner@example.com",
+      password: "mailbox proven password",
       now: new Date(now.getTime() + 2_001),
     })).resolves.not.toBeNull();
 
@@ -479,16 +496,18 @@ describe("Postgres auth repository", () => {
       expiresAt: new Date(now.getTime() + 62_000),
       expectedCredentialVersion: credentialVersionOf(current),
     })).resolves.not.toBeNull();
-    await expect(repository.verifyEmailByToken({
+    await expect(repository.verifyEmailAndSetPasswordByToken({
       tokenHash: "initial token hash",
+      passwordHash: "mailbox proven hash",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
-    await expect(repository.verifyEmailByToken({
+    await expect(repository.verifyEmailAndSetPasswordByToken({
       tokenHash: "current token hash",
+      passwordHash: "mailbox proven hash",
       now: new Date(now.getTime() + 3_000),
     })).resolves.not.toBeNull();
     await expect(repository.findAccountCredentialByEmail("owner@example.com"))
-      .resolves.toMatchObject({ passwordHash: "victim hash" });
+      .resolves.toMatchObject({ passwordHash: "mailbox proven hash" });
   });
 
   it("creates normalized unique accounts and keeps raw passwords out of storage", async () => {

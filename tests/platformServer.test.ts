@@ -1522,12 +1522,16 @@ describe("platform server composition", () => {
     await expect(jsonFetch(baseUrl, "/email-verifications/consume", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: verificationToken }),
+      body: JSON.stringify({
+        token: verificationToken,
+        newPassword: "mailbox proven password",
+        newPasswordConfirmation: "mailbox proven password",
+      }),
     })).resolves.toMatchObject({ status: 200, body: { verified: true } });
     await expect(jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner@example.com", password: "mailbox proven password" }),
     })).resolves.toMatchObject({ status: 200 });
 
     await jsonFetch(baseUrl, "/password-resets", {

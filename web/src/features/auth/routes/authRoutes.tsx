@@ -1,6 +1,4 @@
 import type { LoaderFunctionArgs, RouteObject } from "react-router-dom";
-import { verifyEmail } from "../api/authApi";
-import { authErrorMessage } from "../model/authErrorMessage";
 import { ForgotPasswordPage } from "../pages/ForgotPasswordPage/ForgotPasswordPage";
 import { LoginPage } from "../pages/LoginPage/LoginPage";
 import { ResetPasswordPage } from "../pages/ResetPasswordPage/ResetPasswordPage";
@@ -8,15 +6,10 @@ import { SignupPage } from "../pages/SignupPage/SignupPage";
 import type { VerificationResult } from "../pages/VerifyEmailPage/VerifyEmailPage";
 import { VerifyEmailRoute } from "./VerifyEmailRoute";
 
-export const verifyEmailLoader = async ({ request }: LoaderFunctionArgs): Promise<VerificationResult> => {
+export const verifyEmailLoader = ({ request }: LoaderFunctionArgs): VerificationResult => {
   const token = new URL(request.url).searchParams.get("token");
   if (token === null) return { status: "request" };
-  try {
-    await verifyEmail({ token });
-    return { status: "verified" };
-  } catch (error: unknown) {
-    return { message: authErrorMessage(error), status: "error" };
-  }
+  return { status: "setup", token };
 };
 
 export const authRoutes: RouteObject[] = [

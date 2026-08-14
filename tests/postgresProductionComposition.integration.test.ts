@@ -151,11 +151,13 @@ describeWithPostgres("production Postgres composition", () => {
     expect(verificationToken).not.toBe("");
     await expect(postJson(baseUrl, "/email-verifications/consume", {
       token: verificationToken,
+      newPassword: "mailbox proven password",
+      newPasswordConfirmation: "mailbox proven password",
     })).resolves.toMatchObject({ status: 200, body: { verified: true } });
 
     const login = await postJson(baseUrl, "/sessions", {
       email: "commissioner@example.com",
-      password: "secure password",
+      password: "mailbox proven password",
     });
     expect(login.status).toBe(200);
     const cookie = sessionCookieFor(login.setCookie);

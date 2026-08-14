@@ -3694,7 +3694,12 @@ export const createPlatformHttpHandler = (
 
       if (root === "email-verifications" && parsedRequest.segments[1] === "consume") {
         if (parsedRequest.method !== "POST") return methodNotAllowed();
-        await app.verifyEmail({ token: stringValue(parsedRequest.body.token), now: parsedRequest.now });
+        await app.verifyEmail({
+          token: stringValue(parsedRequest.body.token),
+          newPassword: stringValue(parsedRequest.body.newPassword),
+          newPasswordConfirmation: stringValue(parsedRequest.body.newPasswordConfirmation),
+          now: parsedRequest.now,
+        });
         return { status: 200, body: { verified: true } };
       }
 

@@ -77,24 +77,6 @@ describe("authentication recovery", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
   });
 
-  it("consumes a verification token in the route loader", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ verified: true })));
-    mountRoute("/verify-email?token=verify-token&returnTo=%2Fleague");
-    expect(await screen.findByRole("status")).toHaveTextContent("Email verified");
-    expect(screen.queryByRole("textbox", { name: "Email" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign in" }))
-      .toHaveAttribute("href", "/login?returnTo=%2Fleague");
-  });
-
-  it("keeps verification recovery available for an expired token", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({
-      error: { code: "invalid_or_expired_token", message: "This link is invalid or has expired." },
-    }, 400)));
-    mountRoute("/verify-email?token=expired&email=cam%40example.com");
-    expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
-    expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
-  });
-
   it("requests a fresh verification link with its safe return path", async () => {
     const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse({
       accepted: true,

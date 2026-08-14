@@ -110,7 +110,12 @@ describe("auth API", () => {
       .mockResolvedValueOnce(jsonResponse({ reset: true }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
 
-    await expect(verifyEmail({ fetcher, token: "verify" })).resolves.toBe(true);
+    await expect(verifyEmail({
+      fetcher,
+      token: "verify",
+      newPassword: "mailbox proven password",
+      newPasswordConfirmation: "mailbox proven password",
+    })).resolves.toBe(true);
     await expect(requestPasswordReset({ email: "cam@example.com", fetcher }))
       .resolves.toBe("Reset sent.");
     await expect(resetPassword({

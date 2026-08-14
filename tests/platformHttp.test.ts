@@ -331,8 +331,18 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/email-verifications/consume",
-      now: new Date(now.getTime() + 1_000),
+      now: new Date(now.getTime() + 500),
       body: { token: verificationToken },
+    })).resolves.toMatchObject({ status: 400 });
+    await expect(handle({
+      method: "POST",
+      path: "/email-verifications/consume",
+      now: new Date(now.getTime() + 1_000),
+      body: {
+        token: verificationToken,
+        newPassword: "mailbox proven password",
+        newPasswordConfirmation: "mailbox proven password",
+      },
     })).resolves.toEqual({ status: 200, body: { verified: true } });
     const mailCountAfterVerification = mailSender.messages.length;
     await expect(handle({
@@ -347,6 +357,12 @@ describe("platform HTTP contract", () => {
       path: "/sessions",
       now: new Date(now.getTime() + 2_000),
       body: { email: "owner@example.com", password: "secure password" },
+    })).resolves.toMatchObject({ status: 401 });
+    await expect(handle({
+      method: "POST",
+      path: "/sessions",
+      now: new Date(now.getTime() + 2_000),
+      body: { email: "owner@example.com", password: "mailbox proven password" },
     })).resolves.toMatchObject({ status: 200 });
 
     const missingReset = await handle({

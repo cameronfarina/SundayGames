@@ -15,6 +15,10 @@ interface FetchInput { readonly fetcher?: PlatformFetch }
 interface EmailInput extends FetchInput { readonly email: string }
 interface PasswordInput extends EmailInput { readonly password: string }
 interface TokenInput extends FetchInput { readonly token: string }
+interface PasswordTokenInput extends TokenInput {
+  readonly newPassword: string;
+  readonly newPasswordConfirmation: string;
+}
 
 const jsonRequest = (method: string, body?: object, signal?: AbortSignal): RequestInit => ({
   ...(body === undefined ? {} : {
@@ -73,10 +77,14 @@ export const requestEmailVerification = async (
   return response.message;
 };
 
-export const verifyEmail = async (input: TokenInput): Promise<boolean> => {
+export const verifyEmail = async (input: PasswordTokenInput): Promise<boolean> => {
   const response = await requestPlatformJson({
     ...fetchOption(input.fetcher),
-    init: jsonRequest("POST", { token: input.token }),
+    init: jsonRequest("POST", {
+      token: input.token,
+      newPassword: input.newPassword,
+      newPasswordConfirmation: input.newPasswordConfirmation,
+    }),
     path: "/email-verifications/consume",
     responseSchema: verifiedSchema,
   });
@@ -93,12 +101,7 @@ export const requestPasswordReset = async (input: EmailInput): Promise<string> =
   return response.message;
 };
 
-interface ResetPasswordInput extends TokenInput {
-  readonly newPassword: string;
-  readonly newPasswordConfirmation: string;
-}
-
-export const resetPassword = async (input: ResetPasswordInput): Promise<boolean> => {
+export const resetPassword = async (input: PasswordTokenInput): Promise<boolean> => {
   const response = await requestPlatformJson({
     ...fetchOption(input.fetcher),
     init: jsonRequest("POST", {

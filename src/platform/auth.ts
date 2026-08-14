@@ -94,6 +94,10 @@ export interface ConsumeAuthTokenInput {
   now: Date;
 }
 
+export interface VerifyEmailByTokenInput extends ConsumeAuthTokenInput {
+  passwordHash: string;
+}
+
 export interface FindUsableAuthTokenInput extends ConsumeAuthTokenInput {
   purpose: AuthTokenPurpose;
 }
@@ -139,7 +143,7 @@ export interface AuthRepository {
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): MaybePromise<PasswordReplacementResult | null>;
   replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord | null>;
   hasUsableAuthToken(input: FindUsableAuthTokenInput): MaybePromise<boolean>;
-  verifyEmailByToken(input: ConsumeAuthTokenInput): MaybePromise<AccountRecord | null>;
+  verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): MaybePromise<AccountRecord | null>;
   resetPasswordByToken(input: ResetPasswordByTokenInput): MaybePromise<PasswordReplacementResult | null>;
 }
 
@@ -213,6 +217,8 @@ export interface ResetPasswordInput {
 
 export interface VerifyEmailInput {
   token: string;
+  newPassword: string;
+  newPasswordConfirmation: string;
   now?: Date | undefined;
 }
 
@@ -504,14 +510,18 @@ export class InMemoryAuthRepository implements AuthRepository {
     return this.#validToken(input.tokenHash, input.purpose, input.now) !== null;
   }
 
-  verifyEmailByToken(input: ConsumeAuthTokenInput): AccountRecord | null {
+  verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): AccountRecord | null {
     const token = this.#validToken(input.tokenHash, "email_verification", input.now);
     if (token === null) return null;
     const credential = this.#accountsById.get(token.accountId);
     if (credential === undefined || credential.account.emailVerifiedAt !== undefined) return null;
     const account = { ...credential.account, emailVerifiedAt: input.now, updatedAt: input.now };
-    this.#accountsById.set(account.id, { ...credential, account });
+    this.#accountsById.set(account.id, { account, passwordHash: input.passwordHash });
     this.#authTokensByHash.set(input.tokenHash, { ...token, consumedAt: input.now });
+    this.#authVersionsByAccountId.set(
+      account.id,
+      (this.#authVersionsByAccountId.get(account.id) ?? 1) + 1,
+    );
     return account;
   }
 
@@ -748,8 +758,21 @@ export const createAuthService = ({
     return { accepted: true };
   },
 
-  verifyEmail: async ({ token, now = new Date() }) => {
-    const account = await repository.verifyEmailByToken({ tokenHash: hashAuthToken(token), now });
+  verifyEmail: async ({ token, newPassword, newPasswordConfirmation, now = new Date() }) => {
+    if (newPassword !== newPasswordConfirmation) {
+      throw new AuthError("password_confirmation_mismatch", "New passwords do not match.");
+    }
+    validatePassword(newPassword);
+    const tokenHash = hashAuthToken(token);
+    if (!await repository.hasUsableAuthToken({
+      tokenHash,
+      purpose: "email_verification",
+      now,
+    })) {
+      throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
+    }
+    const passwordHash = await hashServicePassword(newPassword);
+    const account = await repository.verifyEmailAndSetPasswordByToken({ tokenHash, passwordHash, now });
     if (account === null) {
       throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
     }
@@ -839,9 +862,9 @@ const sendAuthAction = async (input: SendAuthActionInput): Promise<void> => {
   const verification = input.purpose === "email_verification";
   await input.mailSender.send({
     to: input.account.email,
-    subject: verification ? "Verify your Mockd email" : "Reset your Mockd password",
+    subject: verification ? "Finish your Mockd account" : "Reset your Mockd password",
     text: verification
-      ? `Verify your Mockd email: ${actionUrl.toString()}`
+      ? `Verify your email and choose your Mockd password: ${actionUrl.toString()}`
       : `Reset your Mockd password: ${actionUrl.toString()}`,
     actionUrl: actionUrl.toString(),
   });
