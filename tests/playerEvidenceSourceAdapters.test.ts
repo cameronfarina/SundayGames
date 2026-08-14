@@ -133,7 +133,7 @@ describe("player evidence source adapters", () => {
   });
 
   it("rejects partially filled local template rows", async () => {
-    const cases = [
+    const cases: readonly (readonly [string, readonly string[]])[] = [
       ["score only", ["Drake London", "opportunity", "1", "", "", "", "", "", "", "high", "11"]],
       ["source only", ["Drake London", "opportunity", "", "", "https://example.com/targets", "", "", "", "", "high", "11"]],
       ["note only", ["Drake London", "opportunity", "", "", "", "Target share remained elite", "", "", "", "high", "11"]],
@@ -143,7 +143,7 @@ describe("player evidence source adapters", () => {
       ["source quality only", ["Drake London", "opportunity", "", "", "", "", "", "", "primary", "high", "11"]],
       ["missing source", ["Drake London", "opportunity", "1", "", " ", "Target share remained elite", "", "", "", "high", "11"]],
       ["missing note", ["Drake London", "opportunity", "1", "", "https://example.com/targets", "", "", "", "", "high", "11"]],
-    ] as const;
+    ];
 
     for (const [name, cells] of cases) {
       const directory = await mkdtemp(join(tmpdir(), `mockd-source-adapter-partial-${name}-`));
