@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
@@ -47,9 +48,21 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
       <textarea id="commissioner-team-rows" rows={Math.min(10, season.teams.length + 1)} value={content}
         onChange={event => { setContent(event.target.value); preview.reset(); apply.reset(); }} />
       <div className="commissioner-actions">
-        <button type="button" onClick={() => { preview.mutate(); }} disabled={preview.isPending}>Preview changes</button>
-        <button className="commissioner-primary" type="button" onClick={() => { apply.mutate(); }}
-          disabled={!previewReady || apply.isPending}>Apply changes</button>
+        <Button
+          aria-busy={preview.isPending}
+          disabled={preview.isPending}
+          onClick={() => { preview.mutate(); }}
+          variant="secondary"
+        >
+          {preview.isPending ? "Previewing..." : "Preview changes"}
+        </Button>
+        <Button
+          aria-busy={apply.isPending}
+          disabled={!previewReady || apply.isPending}
+          onClick={() => { apply.mutate(); }}
+        >
+          {apply.isPending ? "Applying..." : "Apply changes"}
+        </Button>
       </div>
       {preview.data?.import.blockers.map(blocker => <p role="alert" key={`${blocker.code}-${String(blocker.rowNumber ?? 0)}`}>{blocker.message}</p>)}
       {preview.data?.import.status === "ready" && !apply.isSuccess

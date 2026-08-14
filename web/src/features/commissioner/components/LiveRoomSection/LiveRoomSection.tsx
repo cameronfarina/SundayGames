@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import type { CommissionerLeague } from "../../api/workspaceSchemas";
@@ -44,16 +45,22 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
       <header><div><span>05</span><h2>Live auction room</h2></div><strong>{activeRoom?.status ?? "Not created"}</strong></header>
       {!auction ? <p>Hosted live rooms currently support auction drafts only.</p> : <>
         <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
-        {!published ? <button type="button" onClick={() => { publish.mutate(); }} disabled={publish.isPending}>Publish reviewed league</button> : null}
+        {!published ? <Button aria-busy={publish.isPending} onClick={() => { publish.mutate(); }} disabled={publish.isPending}>
+          {publish.isPending ? "Publishing league..." : "Publish reviewed league"}
+        </Button> : null}
         {activeRoom === null ? <div className="commissioner-inline-form">
           <label htmlFor="draft-starts-at">Draft date and time</label>
-          <input id="draft-starts-at" type="datetime-local" value={startsAt} onChange={event => { setStartsAt(event.target.value); }} />
-          <button className="commissioner-primary" type="button" onClick={() => { create.mutate(); }} disabled={!published || create.isPending}>Create room</button>
+          <input className="commissioner-date-input" id="draft-starts-at" type="datetime-local" value={startsAt} onChange={event => { setStartsAt(event.target.value); }} />
+          <Button aria-busy={create.isPending} onClick={() => { create.mutate(); }} disabled={!published || create.isPending}>
+            {create.isPending ? "Creating room..." : "Create room"}
+          </Button>
         </div> : <div className="commissioner-actions">
           <a className="commissioner-button commissioner-primary" href={roomPath(season.id, activeRoom.roomId)}>Enter draft room</a>
-          {!confirmArchive ? <button type="button" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</button> : <>
-            <button type="button" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>Confirm archive</button>
-            <button type="button" onClick={() => { setConfirmArchive(false); }}>Keep room</button>
+          {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
+            <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
+              {archive.isPending ? "Archiving room..." : "Confirm archive"}
+            </Button>
+            <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep room</Button>
           </>}
         </div>}
         {publish.isPending ? <p role="status">Publishing league...</p> : null}

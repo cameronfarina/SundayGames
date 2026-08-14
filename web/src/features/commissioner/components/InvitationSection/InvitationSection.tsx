@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerInvitation } from "../../api/workspaceSchemas";
 import { errorMessage } from "../../model/errorMessage";
@@ -44,12 +45,17 @@ export function InvitationSection({ invitations, seasonId }: InvitationSectionPr
       <p className="commissioner-help">Share one link with the group. Each manager signs in and claims an available team.</p>
       {url ? <div className="commissioner-copy-row">
         <label htmlFor="league-invite-url">Shareable league link</label>
-        <input id="league-invite-url" ref={input} readOnly value={url} />
-        <button type="button" onClick={() => { copy().catch(selectLink); }}>Copy link</button>
+        <input className="commissioner-copy-input" id="league-invite-url" ref={input} readOnly value={url} />
+        <Button variant="secondary" onClick={() => { copy().catch(selectLink); }}>Copy link</Button>
       </div> : null}
-      <button className={url ? "" : "commissioner-primary"} type="button" onClick={() => { create.mutate(); }} disabled={create.isPending}>
-        {url ? "Generate new link" : "Create league link"}
-      </button>
+      <Button
+        aria-busy={create.isPending}
+        disabled={create.isPending}
+        onClick={() => { create.mutate(); }}
+        variant={url ? "secondary" : "primary"}
+      >
+        {create.isPending ? "Creating link..." : url ? "Generate new link" : "Create league link"}
+      </Button>
       {create.isPending ? <p role="status">Creating league link...</p> : null}
       {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
       {copyMessage ? <p role="status">{copyMessage}</p> : null}

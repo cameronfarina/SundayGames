@@ -1,10 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { auctionSeason, jsonResponse, requestPath, snakeSeason } from "../../test/commissionerFixtures";
 import { HistoricalImportSection } from "./HistoricalImportSection";
+
+beforeAll(() => {
+  Object.defineProperties(Element.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
 
 const preview = (status: "blocked" | "previewed", ownerLabel?: string) => ({
   source: {},
@@ -71,7 +80,9 @@ describe("HistoricalImportSection", () => {
     await user.click(screen.getByRole("button", { name: "Import 1 file" }));
     expect(await screen.findByText("Match historical teams below, then import again.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Import 1 file" })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText("Historical team: Old Cam"), "team-1");
+    await user.click(screen.getByRole("combobox", { name: "Historical team: Old Cam" }));
+    expect(screen.getByRole("listbox")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Short King" }));
     await user.click(screen.getByRole("button", { name: "Import 1 file" }));
     expect(await screen.findByText("Map owner.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Import 1 file" }));
@@ -109,5 +120,29 @@ describe("HistoricalImportSection", () => {
       <HistoricalImportSection season={snakeSeason} />
     </QueryClientProvider>);
     expect(screen.getByText("Historical snake draft imports are not available yet.")).toBeVisible();
+  });
+
+  it("reports completed files as a truthful percentage of the current batch", async () => {
+    const never = new Promise<Response>(() => undefined);
+    const respond: PlatformFetch = (input, init) => {
+      const path = requestPath(input);
+      const body = typeof init?.body === "string" ? init.body : "";
+      if (path.includes("commit")) return Promise.resolve(jsonResponse({
+        batch: { id: "batch-1", status: "committed" }, committedRecords: [],
+      }));
+      if (body.includes("draft-2023.csv")) return never;
+      return Promise.resolve(jsonResponse(preview("previewed")));
+    };
+    renderSection(vi.fn(respond));
+    const user = userEvent.setup();
+    await user.upload(screen.getByLabelText("Choose historical draft files"), [
+      new File(["first"], "draft-2024.csv"),
+      new File(["second"], "draft-2023.csv"),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Import 2 files" }));
+
+    expect(await screen.findByRole("progressbar", { name: "50% complete" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Importing 1 of 2 files" })).toBeDisabled();
   });
 });

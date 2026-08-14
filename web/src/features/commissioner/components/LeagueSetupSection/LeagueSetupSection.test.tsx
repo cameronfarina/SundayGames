@@ -97,4 +97,25 @@ describe("LeagueSetupSection", () => {
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not preview.");
   });
+
+  it("labels preview and apply actions while each request is pending", async () => {
+    const never = new Promise<Response>(() => undefined);
+    const user = userEvent.setup();
+    const view = renderSection(vi.fn(() => never));
+
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+    expect(screen.getByRole("button", { name: "Previewing..." })).toBeDisabled();
+    view.unmount();
+
+    let requests = 0;
+    renderSection(vi.fn(() => {
+      requests += 1;
+      return requests === 1
+        ? Promise.resolve(jsonResponse({ import: readyImport }))
+        : never;
+    }));
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+    await user.click(await screen.findByRole("button", { name: "Apply changes" }));
+    expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
+  });
 });

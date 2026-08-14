@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type SyntheticEvent } from "react";
+import { Button, TextField } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import type { CommissionerKeeper } from "../../api/workspaceSchemas";
@@ -38,10 +39,22 @@ export function KeeperSection({ keepers, season }: KeeperSectionProps) {
       <header><div><span>02</span><h2>Keepers</h2></div><strong>{keepers.length} saved</strong></header>
       <p className="commissioner-help">Type a manager or team, player, and cost. Press Enter to save. Keepers stay editable after publishing until the draft starts.</p>
       <form aria-label="Add keeper" className="commissioner-inline-form" onSubmit={submit}>
-        <label htmlFor="keeper-command">Keeper command</label>
-        <input id="keeper-command" value={command} onChange={event => { setCommand(event.target.value); }}
-          placeholder="Hoody keeping Tuten 5" autoComplete="off" disabled={add.isPending} />
-        <button className="commissioner-primary" disabled={command.trim().length === 0 || add.isPending}>Add keeper</button>
+        <TextField
+          autoComplete="off"
+          disabled={add.isPending}
+          id="keeper-command"
+          label="Keeper command"
+          onChange={event => { setCommand(event.target.value); }}
+          placeholder="Hoody keeping Tuten 5"
+          value={command}
+        />
+        <Button
+          aria-busy={add.isPending}
+          disabled={command.trim().length === 0 || add.isPending}
+          type="submit"
+        >
+          {add.isPending ? "Adding keeper..." : "Add keeper"}
+        </Button>
       </form>
       {add.isPending ? <p role="status">Saving keeper and updating league values...</p> : null}
       {add.isSuccess ? <p role="status">Keeper saved.</p> : null}
@@ -53,10 +66,10 @@ export function KeeperSection({ keepers, season }: KeeperSectionProps) {
             <span><strong>{keeper.playerName}</strong><small>{teamNames.get(keeper.teamId) ?? "Team"} · {keeper.position}</small></span>
             <strong>{keeper.keeperRound === undefined ? `$${String(keeper.price)}` : `Round ${String(keeper.keeperRound)}`}</strong>
             {playerId === undefined
-              ? <button type="button" disabled>Remove</button>
-              : <button type="button" onClick={() => {
+              ? <Button disabled variant="secondary">Remove</Button>
+              : <Button aria-busy={remove.isPending} onClick={() => {
                 remove.mutate({ teamId: keeper.teamId, playerId });
-              }} disabled={remove.isPending}>Remove</button>}
+              }} disabled={remove.isPending} variant="secondary">Remove</Button>}
           </div>;
         })}
       </div>
