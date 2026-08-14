@@ -4,10 +4,12 @@ import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
 import {
   applyLeagueMembersScreenshotImportToSeason,
   suggestLeagueMembersScreenshotTeamMappings,
+  type LeagueMembersScreenshotImportInput,
+  type LeagueMembersScreenshotTeamInput,
   validateLeagueMembersScreenshotImport,
 } from "../src/platform/leagueMembersScreenshotImport.js";
 
-const validImport = {
+const validImport: LeagueMembersScreenshotImportInput = {
   leagueName: "The Sunday Games",
   externalLeagueId: "100001",
   teams: [
@@ -16,7 +18,7 @@ const validImport = {
       abbreviation: "OWN04",
       teamDisplayName: "Washington Sentinels",
       managerDisplayNames: ["Owner04 Fortier"],
-      confidence: "high" as const,
+      confidence: "high",
       issues: [],
       confirmed: false,
     },
@@ -25,11 +27,20 @@ const validImport = {
       abbreviation: "PB",
       teamDisplayName: "Peace Bridge",
       managerDisplayNames: ["Nick Coutinho", "Tyler Borosavage"],
-      confidence: "high" as const,
+      confidence: "high",
       issues: [],
       confirmed: false,
     },
   ],
+};
+
+const teamAt = (
+  teams: readonly LeagueMembersScreenshotTeamInput[],
+  index: number,
+): LeagueMembersScreenshotTeamInput => {
+  const team = teams[index];
+  if (team === undefined) throw new Error(`Expected screenshot team ${index + 1}.`);
+  return team;
 };
 
 describe("league members screenshot imports", () => {
@@ -123,8 +134,8 @@ describe("league members screenshot imports", () => {
     const suggested = suggestLeagueMembersScreenshotTeamMappings({
       ...validImport,
       teams: [
-        validImport.teams[0]!,
-        { ...validImport.teams[1]!, managerDisplayNames: ["Example Manager"] },
+        teamAt(validImport.teams, 0),
+        { ...teamAt(validImport.teams, 1), managerDisplayNames: ["Example Manager"] },
       ],
     }, season);
 
@@ -147,7 +158,7 @@ describe("league members screenshot imports", () => {
     const result = validateLeagueMembersScreenshotImport({
       ...validImport,
       teams: validImport.teams.map((team, index) => index === 0
-        ? { ...team, confidence: "medium" as const, issues: ["Verify this row."], confirmed: true }
+        ? { ...team, confidence: "medium", issues: ["Verify this row."], confirmed: true }
         : team),
     }, { expectedTeamCount: 2 });
 
@@ -195,11 +206,16 @@ describe("league members screenshot imports", () => {
       ...leagueConfig,
       teams: 2,
     });
+    const firstSeasonTeam = season.teams[0];
+    const secondSeasonTeam = season.teams[1];
+    if (firstSeasonTeam === undefined || secondSeasonTeam === undefined) {
+      throw new Error("Expected two season teams.");
+    }
     const validated = validateLeagueMembersScreenshotImport({
       ...validImport,
       teams: [
-        { ...validImport.teams[0]!, targetTeamId: season.teams[1]!.id },
-        { ...validImport.teams[1]!, targetTeamId: season.teams[0]!.id },
+        { ...teamAt(validImport.teams, 0), targetTeamId: secondSeasonTeam.id },
+        { ...teamAt(validImport.teams, 1), targetTeamId: firstSeasonTeam.id },
       ],
     }, {
       expectedTeamCount: 2,
@@ -215,13 +231,13 @@ describe("league members screenshot imports", () => {
       manager: team.ownerDisplayName,
     }))).toEqual([
       {
-        id: season.teams[1]!.id,
-        ownerId: season.teams[1]!.ownerId,
+        id: secondSeasonTeam.id,
+        ownerId: secondSeasonTeam.ownerId,
         manager: "Owner04 Fortier",
       },
       {
-        id: season.teams[0]!.id,
-        ownerId: season.teams[0]!.ownerId,
+        id: firstSeasonTeam.id,
+        ownerId: firstSeasonTeam.ownerId,
         manager: "Nick Coutinho",
       },
     ]);
