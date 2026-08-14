@@ -1,4 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import { onboardingQueryOptions } from "../onboarding/onboardingQuery";
 import { seasonQueryKeys } from "./seasonQueryKeys";
 
 const invalidateExact = async (client: QueryClient, queryKeys: readonly QueryKey[]) => {
@@ -51,4 +52,13 @@ export const invalidatePublishedSeasonConsumers = async (client: QueryClient, se
     seasonQueryKeys.leagueSeason(seasonId),
     seasonQueryKeys.seasonTeam(seasonId),
   ]);
+};
+
+export const refreshInvitationClaimOnboarding = async (client: QueryClient) => {
+  await client.invalidateQueries({
+    exact: true,
+    queryKey: seasonQueryKeys.onboarding(),
+    refetchType: "none",
+  });
+  await client.fetchQuery(onboardingQueryOptions());
 };

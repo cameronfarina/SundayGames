@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
+import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { InvitationPage } from "./InvitationPage";
 
@@ -50,8 +51,16 @@ export const useInvitationApi = (signedIn: boolean) => {
   );
 };
 
-export const renderInvitationPage = (entry = "/invite?token=secret") => {
-  const queryClient = new QueryClient({
+interface RenderInvitationPageOptions {
+  readonly destination?: ReactNode;
+  readonly queryClient?: QueryClient;
+}
+
+export const renderInvitationPage = (
+  entry = "/invite?token=secret",
+  options: RenderInvitationPageOptions = {},
+) => {
+  const queryClient = options.queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const result = render(
@@ -59,7 +68,7 @@ export const renderInvitationPage = (entry = "/invite?token=secret") => {
       <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/invite" element={<InvitationPage />} />
-          <Route path="/league" element={<h1>League destination</h1>} />
+          <Route path="/league" element={options.destination ?? <h1>League destination</h1>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

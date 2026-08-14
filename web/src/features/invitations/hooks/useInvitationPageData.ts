@@ -1,4 +1,5 @@
-import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInvitationClaimOnboarding } from "../../../shared/api/queries/seasonQueryInvalidation";
 import {
   claimInvitationTeam,
   loadInvitationDetails,
@@ -33,6 +34,12 @@ export const useInvitationPageData = (token: string | null) => {
   return { invitation, session, onboarding };
 };
 
-export const useClaimInvitationTeam = () => useMutation({
-  mutationFn: (input: ClaimInvitationTeamInput) => claimInvitationTeam(input),
-});
+export const useClaimInvitationTeam = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ClaimInvitationTeamInput) => claimInvitationTeam(input),
+    onSuccess: async () => {
+      await refreshInvitationClaimOnboarding(queryClient);
+    },
+  });
+};
