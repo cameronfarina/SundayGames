@@ -139,38 +139,42 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await page.getByRole("link", { name: "League", exact: true }).click();
   await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
   await page.getByRole("link", { name: "Enter draft" }).click();
-  await expect(page.locator("#draft-room-view")).toBeVisible();
-  await expect(page.locator("#draft-board-cards")).toBeVisible();
-  await expect(page.locator("#draft-board-cards [data-player-name]")).toHaveCount(playerCatalog.length - 1);
-  await expect(page.locator('#draft-board-cards [data-player-name="Puka Nacua"]')).toBeVisible();
-  await expect(page.locator("#draft-current-team")).toHaveText("Your team: Cam");
-  await expect(page.locator("#draft-team-budget")).toHaveText("$150");
-  await expect(page.locator("#draft-team-roster")).toContainText("De'Von Achane");
+  await expect(page.getByRole("heading", { name: "Live auction draft" })).toBeVisible();
+  const livePlayerBoard = page.getByRole("region", { name: "Available players" });
+  const liveRoster = page.getByRole("complementary", { name: / roster$/u });
+  const draftStatus = page.getByRole("region", { name: "Draft status" });
+  const salesLedger = page.getByRole("region", { name: "All sales" });
+  await expect(livePlayerBoard).toBeVisible();
+  await expect(livePlayerBoard.getByRole("rowheader")).toHaveCount(playerCatalog.length - 1);
+  await expect(livePlayerBoard.getByRole("rowheader", { name: "Puka Nacua" })).toBeVisible();
+  await expect(liveRoster.getByText("Budget left")).toContainText("$150");
+  await expect(liveRoster).toContainText("De'Von Achane");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#draft-sale-command"),
-    page.locator("#draft-log-sale"),
-    page.locator("#draft-start"),
-    page.locator("#draft-pause"),
-    page.locator("#draft-undo"),
-    page.locator("#draft-end"),
+    page.getByRole("textbox", { name: "Sale command", exact: true }),
+    page.getByRole("button", { name: "Log sale" }),
+    page.getByRole("button", { name: "Start draft" }),
+    page.getByRole("button", { name: "Pause draft" }),
+    page.getByRole("button", { name: "Undo latest sale" }),
+    page.getByRole("button", { name: "End draft" }),
   ]);
 
-  await page.locator("#draft-start").click();
-  await expect(page.locator("#draft-room-status")).toHaveText("Live");
-  await page.locator("#draft-sale-command").fill("cam puka 62");
-  await page.locator("#draft-log-sale").click();
-  await expect(page.locator("#draft-sales")).toContainText("Puka Nacua");
-  await expect(page.locator("#draft-team-budget")).toHaveText("$88");
-  await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
+  await page.getByRole("button", { name: "Start draft" }).click();
+  await expect(draftStatus.getByText("Live", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Sale command", exact: true })
+    .fill(`${camTeam.ownerDisplayName} drafted Puka Nacua for 62`);
+  await page.getByRole("button", { name: "Log sale" }).click();
+  await expect(salesLedger).toContainText("Puka Nacua");
+  await expect(liveRoster.getByText("Budget left")).toContainText("$88");
+  await expect(liveRoster).toContainText("Puka Nacua");
 
   await page.reload();
-  await expect(page.locator("#draft-room-status")).toHaveText("Live");
-  await expect(page.locator("#draft-connection-label")).toHaveText("Connected");
-  await expect(page.locator("#draft-sales")).toContainText("Puka Nacua");
-  await expect(page.locator("#draft-team-budget")).toHaveText("$88");
-  await expect(page.locator("#draft-team-roster")).toContainText("Puka Nacua");
-  await expect(page.locator('#draft-board-cards [data-player-name="Puka Nacua"]')).toHaveCount(0);
+  await expect(draftStatus.getByText("Live", { exact: true })).toBeVisible();
+  await expect(draftStatus.getByText("Connected", { exact: true })).toBeVisible();
+  await expect(salesLedger).toContainText("Puka Nacua");
+  await expect(liveRoster.getByText("Budget left")).toContainText("$88");
+  await expect(liveRoster).toContainText("Puka Nacua");
+  await expect(livePlayerBoard.getByRole("rowheader", { name: "Puka Nacua" })).toHaveCount(0);
   await expectNoHorizontalPageOverflow(page);
 });
 

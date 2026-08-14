@@ -1,6 +1,7 @@
 .mock-draft-page {
   display: grid;
   gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
   max-width: 118rem;
   padding: 1.5rem clamp(1rem, 3vw, 3rem) 3rem;
@@ -54,10 +55,14 @@
   .mock-draft-page__header,
   .mock-draft-page__workspace {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .mock-draft-actions {
     justify-content: start;
+  }
+
+  .mock-draft-page__workspace > .roster-inspector {
+    grid-row: 1;
   }
 }

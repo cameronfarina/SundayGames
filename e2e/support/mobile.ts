@@ -155,13 +155,15 @@ export const seasonForMobileRelease = (): LeagueSeason => {
 
 export const expectNoHorizontalPageOverflow = async (page: Page): Promise<void> => {
   const dimensions = await page.evaluate(() => ({
-    viewportWidth: window.innerWidth,
-    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+    documentWidth: document.documentElement.getBoundingClientRect().width,
     bodyWidth: document.body.scrollWidth,
+    rootWidth: document.getElementById("root")?.scrollWidth ?? 0,
   }));
   expect(dimensions.viewportWidth).toBe(mobileViewport.width);
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
   expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+  expect(dimensions.rootWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 };
 
 export const expectNoControlOverlap = async (controls: readonly Locator[]): Promise<void> => {
