@@ -4,8 +4,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const cliPriceResultSchema = z.object({
+  config: z.object({
+    playerContext: z.object({
+      enabled: z.boolean(),
+      evidencePath: z.string().optional(),
+    }),
+  }),
+  prices: z.array(z.object({
+    name: z.string(),
+    contextSignals: z.record(z.string(), z.number()).optional(),
+    contextNotes: z.record(z.string(), z.string()).optional(),
+    contextEvidence: z.array(z.unknown()).optional(),
+  })),
+});
 
 describe("CLI player evidence imports", () => {
   it("loads the checked-in 2026 evidence file by default", async () => {
@@ -17,19 +32,7 @@ describe("CLI player evidence imports", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      config: {
-        playerContext: {
-          enabled: boolean;
-          evidencePath?: string;
-        };
-      };
-      prices: {
-        name: string;
-        contextSignals: Record<string, number>;
-        contextEvidence?: unknown[];
-      }[];
-    };
+    const result = cliPriceResultSchema.parse(JSON.parse(stdout));
     const london = result.prices.find(price => price.name === "Drake London");
 
     expect(result.config.playerContext.enabled).toBe(true);
@@ -53,18 +56,7 @@ describe("CLI player evidence imports", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      config: {
-        playerContext: {
-          enabled: boolean;
-          evidencePath?: string;
-        };
-      };
-      prices: {
-        name: string;
-        contextEvidence?: unknown[];
-      }[];
-    };
+    const result = cliPriceResultSchema.parse(JSON.parse(stdout));
     const london = result.prices.find(price => price.name === "Drake London");
 
     expect(result.config.playerContext.enabled).toBe(false);
@@ -90,20 +82,7 @@ describe("CLI player evidence imports", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      config: {
-        playerContext: {
-          enabled: boolean;
-          evidencePath?: string;
-        };
-      };
-      prices: {
-        name: string;
-        contextSignals: Record<string, number>;
-        contextNotes?: Record<string, string>;
-        contextEvidence?: unknown[];
-      }[];
-    };
+    const result = cliPriceResultSchema.parse(JSON.parse(stdout));
     const london = result.prices.find(price => price.name === "Drake London");
 
     expect(result.config.playerContext.enabled).toBe(true);
