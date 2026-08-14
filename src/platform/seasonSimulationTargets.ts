@@ -11,6 +11,8 @@ export type SeasonSimulationTargetOutcomeStatus = "hit" | "miss" | "infeasible";
 
 export type SeasonSimulationTargetOutcomeReason =
   | "ambiguous_player_name"
+  | "insufficient_auction_budget"
+  | "insufficient_roster_slots"
   | "player_not_found"
   | "retained_by_other_team"
   | "retained_by_your_team_above_max_price";

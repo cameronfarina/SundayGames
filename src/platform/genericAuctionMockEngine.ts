@@ -50,6 +50,12 @@ export interface GenericAuctionMockKeeper {
   price: number;
 }
 
+export interface GenericAuctionMockPlannedAcquisition {
+  teamId: string;
+  playerId: string;
+  price: number;
+}
+
 export interface GenericAuctionMockAiConfig {
   defaultBidMultiplier?: number | undefined;
   rosterNeedDollars?: number | undefined;
@@ -69,6 +75,7 @@ export interface GenericAuctionMockConfig {
   positionMaximums: Readonly<Record<string, number>>;
   players: readonly GenericAuctionMockPlayer[];
   keepers?: readonly GenericAuctionMockKeeper[] | undefined;
+  plannedAcquisitions?: readonly GenericAuctionMockPlannedAcquisition[] | undefined;
   ai?: GenericAuctionMockAiConfig | undefined;
 }
 
@@ -437,6 +444,23 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
     throw new GenericAuctionMockError(
       "invalid_config",
       "AI spend-pacing exclusions must reference unique players in the auction catalog.",
+    );
+  }
+
+  const plannedAcquisitions = config.plannedAcquisitions ?? [];
+  const plannedPlayerIds = plannedAcquisitions.map(acquisition => acquisition.playerId);
+  if (
+    new Set(plannedPlayerIds).size !== plannedPlayerIds.length
+    || plannedAcquisitions.some(acquisition =>
+      acquisition.teamId !== config.humanTeamId
+      || !playerIds.includes(acquisition.playerId)
+      || !Number.isInteger(acquisition.price)
+      || acquisition.price < config.minimumBidDollars
+    )
+  ) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "Planned acquisitions require unique catalog players, the human team, and valid prices.",
     );
   }
 
@@ -1290,6 +1314,28 @@ const applyKeepers = (state: GenericAuctionMockState): GenericAuctionMockState =
   return nextState;
 };
 
+const applyPlannedAcquisitions = (
+  state: GenericAuctionMockState,
+): GenericAuctionMockState => {
+  let nextState = state;
+
+  for (const acquisition of state.configuration.plannedAcquisitions ?? []) {
+    const team = teamFor(nextState, acquisition.teamId);
+    const player = playerFor(nextState, acquisition.playerId);
+    nextState = addAcquisition({
+      state: nextState,
+      player,
+      team,
+      price: acquisition.price,
+      source: "human",
+      nominatedByTeam: team,
+      nominationNumber: 0,
+    });
+  }
+
+  return nextState;
+};
+
 interface AiMaximum {
   team: GenericAuctionMockTeamReadModel;
   maximum: number;
@@ -1665,7 +1711,7 @@ export const createGenericAuctionMockState = (
 ): GenericAuctionMockState => {
   assertConfiguration(config);
   const rosterCapacity = rosterCapacityFor(config);
-  const preparedState = applyKeepers({
+  const preparedState = applyPlannedAcquisitions(applyKeepers({
     configuration: config,
     nextNominatorIndex: 0,
     decisionHistory: [],
@@ -1705,7 +1751,7 @@ export const createGenericAuctionMockState = (
     })),
     sales: [],
     auctionEvents: [],
-  });
+  }));
 
   if (!auctionCatalogCanFillOpenRosters({
     players: preparedState.board.players,

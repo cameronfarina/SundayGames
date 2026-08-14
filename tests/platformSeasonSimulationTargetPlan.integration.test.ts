@@ -1,0 +1,106 @@
+import { describe, expect, it } from "vitest";
+
+import { runTargetPlanFixture } from "./support/seasonTargetPlanFixture.js";
+
+describe("season simulation target-plan feasibility", () => {
+  it.each([
+    "target-plan-adversarial-alpha",
+    "target-plan-adversarial-beta",
+    "target-plan-adversarial-gamma",
+  ])("acquires every jointly affordable uncapped target for seed %s", seedPrefix => {
+    const result = runTargetPlanFixture({
+      targets: [
+        { playerName: "Premium Runner" },
+        { playerName: "Value Runner" },
+      ],
+      runCount: 100,
+      seedPrefix,
+    });
+
+    expect(result.targetOutcomes).toEqual([
+      expect.objectContaining({ status: "hit", feasible: true, hitCount: 100, hitRate: 1 }),
+      expect.objectContaining({ status: "hit", feasible: true, hitCount: 100, hitRate: 1 }),
+    ]);
+    expect(result.runs.every(run => run.seed.startsWith(seedPrefix))).toBe(true);
+    expect(result.runs.flatMap(run => run.teams)
+      .filter(team => team.isUserTeam)
+      .every(team => team.roster
+        .filter(player => player.source === "human")
+        .map(player => player.price)
+        .join(",") === "57,38"))
+      .toBe(true);
+  });
+
+  it("does not report a random miss for the original target-budget regression", () => {
+    const result = runTargetPlanFixture({
+      targets: [
+        { playerName: "Premium Runner" },
+        { playerName: "Value Runner" },
+      ],
+    });
+
+    expect(result.targetOutcomes?.[1]).toMatchObject({
+      playerName: "Value Runner",
+      status: "hit",
+      feasible: true,
+      hitCount: 1,
+      hitRate: 1,
+    });
+  });
+
+  it("marks a lower-priority target infeasible when no roster slot remains", () => {
+    const result = runTargetPlanFixture({
+      targets: [
+        { playerName: "Premium Runner" },
+        { playerName: "Value Runner" },
+        { playerName: "Depth Runner 1" },
+      ],
+      budgetDollars: 110,
+    });
+
+    expect(result.targetOutcomes?.map(outcome => ({
+      playerName: outcome.playerName,
+      status: outcome.status,
+      reason: outcome.reason,
+    }))).toEqual([
+      { playerName: "Premium Runner", status: "hit", reason: undefined },
+      { playerName: "Value Runner", status: "hit", reason: undefined },
+      {
+        playerName: "Depth Runner 1",
+        status: "infeasible",
+        reason: "insufficient_roster_slots",
+      },
+    ]);
+  });
+
+  it("marks a lower-priority target infeasible when its modeled cost breaks reserves", () => {
+    const result = runTargetPlanFixture({
+      targets: [
+        { playerName: "Premium Runner" },
+        { playerName: "Value Runner" },
+      ],
+      budgetDollars: 90,
+    });
+
+    expect(result.targetOutcomes?.[1]).toMatchObject({
+      playerName: "Value Runner",
+      status: "infeasible",
+      feasible: false,
+      reason: "insufficient_auction_budget",
+      hitCount: 0,
+      hitRate: 0,
+    });
+  });
+
+  it("keeps an ordinary capped target feasible when the cap may cause a miss", () => {
+    const result = runTargetPlanFixture({
+      targets: [{ playerName: "Premium Runner", maxAuctionPrice: 55 }],
+    });
+
+    expect(result.targetOutcome).toMatchObject({
+      playerName: "Premium Runner",
+      status: "miss",
+      feasible: true,
+    });
+  });
+});

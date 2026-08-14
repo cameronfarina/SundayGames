@@ -44,6 +44,7 @@ import {
   type SeasonSimulationTargetConstraint,
   type SeasonSimulationTargetOutcome,
 } from "./seasonSimulationTargets.js";
+import { resolveAuctionTargetPlan } from "./seasonSimulationTargetPlan.js";
 
 export type {
   SeasonSimulationPreferenceOutcome,
@@ -1422,6 +1423,26 @@ const runSeasonSimulationsUnchecked = (
     input.season.teams,
     input.season.settings.draftFormat,
   );
+  const targetPlan = input.season.settings.draftFormat === "auction"
+    ? resolveAuctionTargetPlan({
+      state: replaySeasonAuctionMockCommands(buildSeasonAuctionMockConfig({
+        season: input.season,
+        setup: input.setup,
+        humanTeamId: input.humanTeamId,
+        sessionId: `${seedPrefix}-target-plan`,
+        seed: `${seedPrefix}:target-plan`,
+        playerExpectedPrices: input.playerExpectedPrices,
+        playerHumanValues: input.playerHumanValues,
+      }), []),
+      humanTeamId: input.humanTeamId,
+      targets: baseStrategyResolution.resolvedTargets,
+    })
+    : { targets: baseStrategyResolution.resolvedTargets, plannedAcquisitions: [] };
+  const targetPlanWarnings = targetPlan.targets
+    .map(target => target.infeasibility?.message)
+    .filter((message): message is string =>
+      message !== undefined && !baseStrategyResolution.strategy.warnings.includes(message)
+    );
   const preferenceResolution = resolveSeasonSimulationPreferences({
     preferences: baseStrategyResolution.strategy.preferredPositions,
     season: input.season,
@@ -1432,17 +1453,19 @@ const runSeasonSimulationsUnchecked = (
   });
   const strategyResolution = {
     ...baseStrategyResolution,
+    resolvedTargets: targetPlan.targets,
     strategy: {
       ...baseStrategyResolution.strategy,
       warnings: [
         ...baseStrategyResolution.strategy.warnings,
+        ...targetPlanWarnings,
         ...preferenceResolution.warnings,
       ],
     },
   };
-  const targetsByPlayerId = new Map(strategyResolution.resolvedTargets.map(({ playerId, target }) =>
-    [playerId, target]
-  ));
+  const targetsByPlayerId = new Map(strategyResolution.resolvedTargets
+    .filter(target => target.infeasibility === undefined)
+    .map(({ playerId, target }) => [playerId, target]));
   if (input.season.settings.draftFormat !== "auction" && input.season.settings.draftFormat !== "snake") {
     throw new SeasonSimulationError(
       "invalid_configuration",
@@ -1532,7 +1555,7 @@ const runSeasonSimulationsUnchecked = (
       playerHumanValues: input.playerHumanValues,
     });
     const state = runAuctionSimulation({
-      config,
+      config: { ...config, plannedAcquisitions: targetPlan.plannedAcquisitions },
       strategy: strategyResolution.strategy,
       preferences: preferenceResolution.preferences,
       targetsByPlayerId,
