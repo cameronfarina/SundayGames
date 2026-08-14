@@ -6,9 +6,15 @@ import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftR
 import {
   accountMenuButton,
   expectAuthenticatedAccount,
+  expectAuthenticatedSession,
   expectSignedOut,
   signOutThroughAccountMenu,
 } from "./support/auth.js";
+import {
+  expectInvitationPage,
+  expectTeamCanBeClaimed,
+  invitationTeam,
+} from "./support/invitations.js";
 import {
   availablePlayersTable,
   createAuctionMock,
@@ -41,6 +47,13 @@ interface JsonResponse<TBody> {
 
 interface SeasonBody {
   season: LeagueSeason;
+}
+
+interface ClaimOnboardingBody {
+  leagues: Array<{
+    seasonId: string;
+    membership: { teamId?: string };
+  }>;
 }
 
 const playerCatalog = [
@@ -218,10 +231,11 @@ test.use({
   isMobile: true,
 });
 
-test("shared league invitation stays usable from mobile signup through team selection", async ({ page }) => {
+test("shared league invitation requires deliberate mobile team claims for existing and new accounts", async ({ page }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const commissionerEmail = `mobile.invite.commissioner.${namespace}@${emailDomain}`;
-  const memberEmail = `mobile.invite.member.${namespace}@${emailDomain}`;
+  const existingMemberEmail = `mobile.invite.existing.${namespace}@${emailDomain}`;
+  const newMemberEmail = `mobile.invite.new.${namespace}@${emailDomain}`;
   const commissioner = await signUpAndLogIn(page, commissionerEmail);
   const baseSeason = seasonForMobileRelease();
   const leagueId = `${baseSeason.leagueId}-invite`;
@@ -243,9 +257,10 @@ test("shared league invitation stays usable from mobile signup through team sele
     })),
   };
   const commissionerTeam = season.teams[0];
-  const memberTeam = season.teams[1];
-  if (commissionerTeam === undefined || memberTeam === undefined) {
-    throw new Error("Expected two mobile invite fixture teams.");
+  const existingMemberTeam = season.teams[1];
+  const newMemberTeam = season.teams[2];
+  if (commissionerTeam === undefined || existingMemberTeam === undefined || newMemberTeam === undefined) {
+    throw new Error("Expected three mobile invite fixture teams.");
   }
   expectOk(await api<SeasonBody>(page, "/seasons", {
     method: "POST",
@@ -268,29 +283,51 @@ test("shared league invitation stays usable from mobile signup through team sele
 
   await signOutThroughAccountMenu(page);
   await expectSignedOut(page);
+  await signUpAndLogIn(page, existingMemberEmail);
   await page.goto(issued.invitation.acceptPath);
-  await expect(page.locator("#auth-title")).toHaveText("Join your league");
-  await expect(page.locator("#auth-invite-league-name")).toHaveText(`${leagueName} Invite`);
-  await expect(page.locator("#auth-invite-team-list li")).toHaveCount(ownerOrder.length);
+  await expectInvitationPage(page, `${leagueName} Invite`, ownerOrder.length);
+  const beforeExistingClaim = expectOk(await api<ClaimOnboardingBody>(page, "/onboarding"));
+  expect(beforeExistingClaim.leagues.some(league => league.seasonId === seasonId)).toBe(false);
+  const existingMemberRow = await expectTeamCanBeClaimed(page, existingMemberTeam.displayName);
+  await Promise.all([
+    page.waitForURL(/\/league\?seasonId=/),
+    existingMemberRow.getByRole("button", { name: `Join as ${existingMemberTeam.displayName}` }).click(),
+  ]);
+  await expect(page.getByRole("heading", { name: `${leagueName} Invite` })).toBeVisible();
+  const afterExistingClaim = expectOk(await api<ClaimOnboardingBody>(page, "/onboarding"));
+  expect(afterExistingClaim.leagues.find(league => league.seasonId === seasonId)?.membership.teamId)
+    .toBe(existingMemberTeam.id);
+  await signOutThroughAccountMenu(page);
+  await expectSignedOut(page);
+
+  await page.goto(issued.invitation.acceptPath);
+  await expectInvitationPage(page, `${leagueName} Invite`, ownerOrder.length);
+  await expect(invitationTeam(page, existingMemberTeam.displayName)).toContainText("Claimed");
+  await expect(page.getByRole("button", { name: /^Join as /u })).toHaveCount(0);
   await expectNoHorizontalPageOverflow(page);
 
   await page.getByRole("link", { name: "Create account" }).click();
-  await page.getByLabel("Email", { exact: true }).fill(memberEmail);
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).fill(newMemberEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await Promise.all([
     page.waitForURL(/\/invite\?token=/),
     page.getByRole("button", { name: "Create account" }).click(),
   ]);
-  const memberRow = page.locator("#invite-team-list .invite-team-row").filter({
-    hasText: memberTeam.displayName,
-  });
-  await expect(memberRow).toBeVisible();
+  await expectAuthenticatedSession(page, newMemberEmail);
+  await expectInvitationPage(page, `${leagueName} Invite`, ownerOrder.length);
+  const beforeClaim = expectOk(await api<ClaimOnboardingBody>(page, "/onboarding"));
+  expect(beforeClaim.leagues.some(league => league.seasonId === seasonId)).toBe(false);
+  const memberRow = await expectTeamCanBeClaimed(page, newMemberTeam.displayName);
   await expectNoHorizontalPageOverflow(page);
   await Promise.all([
     page.waitForURL(/\/league\?seasonId=/),
-    memberRow.getByRole("button", { name: `Join as ${memberTeam.displayName}` }).click(),
+    memberRow.getByRole("button", { name: `Join as ${newMemberTeam.displayName}` }).click(),
   ]);
-  await expect(page.locator("#my-team-name")).toHaveText(memberTeam.displayName);
+  await expect(page.getByRole("heading", { name: `${leagueName} Invite` })).toBeVisible();
+  const afterClaim = expectOk(await api<ClaimOnboardingBody>(page, "/onboarding"));
+  expect(afterClaim.leagues.find(league => league.seasonId === seasonId)?.membership.teamId)
+    .toBe(newMemberTeam.id);
 });
 
 test("mobile shell and live draft preserve a commissioner sale through reconnect", async ({ page }) => {

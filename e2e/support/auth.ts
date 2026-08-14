@@ -15,12 +15,11 @@ const sessionSchema = z.object({ account: accountSchema });
 export const accountMenuButton = (page: Page): Locator =>
   page.getByRole("button", { name: "Account menu" });
 
-export const expectAuthenticatedAccount = async (
+export const expectAuthenticatedSession = async (
   page: Page,
   email: string,
   failureMessage?: string,
 ): Promise<AccountRecord> => {
-  await expect(accountMenuButton(page), failureMessage).toBeVisible();
   const response = await page.evaluate(async () => {
     const session = await fetch("/session", { credentials: "same-origin" });
     return { body: await session.json(), status: session.status };
@@ -33,6 +32,15 @@ export const expectAuthenticatedAccount = async (
   expect(parsed.data.account.email, failureMessage).toBe(email);
 
   return parsed.data.account;
+};
+
+export const expectAuthenticatedAccount = async (
+  page: Page,
+  email: string,
+  failureMessage?: string,
+): Promise<AccountRecord> => {
+  await expect(accountMenuButton(page), failureMessage).toBeVisible();
+  return await expectAuthenticatedSession(page, email, failureMessage);
 };
 
 export const signOutThroughAccountMenu = async (page: Page): Promise<void> => {

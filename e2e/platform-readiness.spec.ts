@@ -10,9 +10,16 @@ import type { PricingSnapshot } from "../src/platform/pricingSnapshots.js";
 import {
   accountMenuButton,
   expectAuthenticatedAccount,
+  expectAuthenticatedSession,
   expectSignedOut,
   signOutThroughAccountMenu,
 } from "./support/auth.js";
+import {
+  expectInvitationPage,
+  expectTeamCanBeClaimed,
+  invitationTeam,
+  invitationTeams,
+} from "./support/invitations.js";
 import {
   abandonAuctionMock,
   availablePlayersTable,
@@ -627,9 +634,10 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   expect(initialRosterCount).toBe(7);
   const { page: sethPage } = await pageForLocalFixtureUser(browser, sethEmail);
   await sethPage.goto(invitationUrl);
-  await expect(sethPage.locator("#invite-workspace")).toBeVisible();
-  const sethTeamRow = sethPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Seth" });
-  await expect(sethTeamRow).toContainText("Seth");
+  await expectInvitationPage(sethPage, leagueName, ownerOrder.length);
+  const beforeSethClaim = expectOk(await api<OnboardingBody>(sethPage, "/onboarding"));
+  expect(beforeSethClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);
+  const sethTeamRow = await expectTeamCanBeClaimed(sethPage, "Seth");
   await Promise.all([
     sethPage.waitForURL(/\/league\?seasonId=/),
     sethTeamRow.getByRole("button", { name: "Join as Seth" }).click(),
@@ -638,43 +646,40 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
     sethPage,
     "/onboarding",
   ));
-  await expect(sethPage.locator("#league-name")).toHaveText(leagueName);
-  await expect(sethPage.locator("#my-team-name")).toHaveText("Seth");
+  await expect(sethPage.getByRole("heading", { name: leagueName })).toBeVisible();
   await sethPage.goto(invitationUrl);
-  await expect(sethPage.locator("#invite-open-league")).toBeVisible();
-  await expect(sethPage.locator("#invite-team-list")).toContainText("Your team");
-  await expect(sethPage.locator("#invite-team-list button")).toHaveCount(0);
+  await expect(sethPage.getByRole("link", { name: "Open league" })).toBeVisible();
+  await expect(invitationTeam(sethPage, "Seth")).toContainText("Your team");
+  await expect(invitationTeams(sethPage).getByRole("button")).toHaveCount(0);
 
   const hoodyContext = await browser.newContext({
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const hoodyPage = await hoodyContext.newPage();
   await hoodyPage.goto(invitationUrl);
-  await expect(hoodyPage.locator("#auth-panel")).toBeVisible();
-  await expect(hoodyPage.locator("#auth-title")).toHaveText("Join your league");
-  await expect(hoodyPage.locator("#auth-invite-league-name")).toHaveText(leagueName);
-  await expect(hoodyPage.locator("#auth-invite-team-list li")).toHaveCount(ownerOrder.length);
-  await expect(
-    hoodyPage.locator("#auth-invite-team-list li").filter({ hasText: "Seth" }),
-  ).toContainText("Claimed");
+  await expectInvitationPage(hoodyPage, leagueName, ownerOrder.length);
+  await expect(invitationTeam(hoodyPage, "Seth")).toContainText("Claimed");
+  await expect(hoodyPage.getByRole("button", { name: /^Join as /u })).toHaveCount(0);
   await hoodyPage.getByRole("link", { name: "Create account" }).click();
   await expect(hoodyPage).toHaveURL(/\/signup\?returnTo=/);
-  await expect(hoodyPage.locator("#auth-invite-league-name")).toHaveText(leagueName);
+  await expect(hoodyPage.getByRole("heading", { name: "Create your account" })).toBeVisible();
   await hoodyPage.getByLabel("Email", { exact: true }).fill(hoodyEmail);
   await hoodyPage.getByLabel("Password", { exact: true }).fill(password);
   await Promise.all([
     hoodyPage.waitForURL(/\/invite\?token=/),
     hoodyPage.getByRole("button", { name: "Create account" }).click(),
   ]);
-  await expect(hoodyPage.locator("#invite-workspace")).toBeVisible();
-  const claimedSethRow = hoodyPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Seth" });
-  await expect(claimedSethRow).toContainText("Claimed");
-  const hoodyTeamRow = hoodyPage.locator("#invite-team-list .invite-team-row").filter({ hasText: "Hoody" });
+  await expectAuthenticatedSession(hoodyPage, hoodyEmail);
+  await expectInvitationPage(hoodyPage, leagueName, ownerOrder.length);
+  const beforeHoodyClaim = expectOk(await api<OnboardingBody>(hoodyPage, "/onboarding"));
+  expect(beforeHoodyClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);
+  await expect(invitationTeam(hoodyPage, "Seth")).toContainText("Claimed");
+  const hoodyTeamRow = await expectTeamCanBeClaimed(hoodyPage, "Hoody");
   await Promise.all([
     hoodyPage.waitForURL(/\/league\?seasonId=/),
     hoodyTeamRow.getByRole("button", { name: "Join as Hoody" }).click(),
   ]);
-  await expect(hoodyPage.locator("#my-team-name")).toHaveText("Hoody");
+  await expect(hoodyPage.getByRole("heading", { name: leagueName })).toBeVisible();
 
   const appliedSeason = expectOk(await api<SeasonBody>(camPage, `/seasons/${seedSeason.id}`)).season;
   const appliedSethTeam = teamByOwner(appliedSeason, "Seth");
