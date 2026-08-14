@@ -33,6 +33,12 @@ export const validatePassword = (password: string): void => {
   }
 };
 
+export const validateLoginPassword = (password: string): void => {
+  if (passwordValidationIssue(password) === "too_long") {
+    throw new AuthError("invalid_password", "Password must be no more than 1024 UTF-8 bytes.");
+  }
+};
+
 export const hashPassword = (password: string): string => {
   validatePassword(password);
   return createPasswordHashSync(password);

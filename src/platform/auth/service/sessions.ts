@@ -5,6 +5,7 @@ import {
   createSessionToken,
   hashSessionToken,
   normalizeEmail,
+  validateLoginPassword,
   verifyServicePassword,
 } from "../primitives.js";
 import { passwordHashNeedsRehash } from "../../passwordCrypto.js";
@@ -14,6 +15,7 @@ import type { AuthServiceContext } from "./context.js";
 export const login = async (context: AuthServiceContext, input: LoginInput): Promise<LoginResult | null> => {
   const now = input.now ?? new Date();
   const normalizedEmail = normalizeEmail(input.email);
+  validateLoginPassword(input.password);
   let credential = await context.repository.findAccountCredentialByEmail(normalizedEmail);
   if (credential === null) {
     await consumeUnknownPassword(input.password);
