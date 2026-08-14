@@ -1,291 +1,63 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  applyStrategyOverlay,
-  createInMemoryPricingSnapshotRepository,
-  createPricingSnapshot,
-  generatePricingModelRunId,
-  hashPricingSnapshotInputs,
-  type PricingSourcePrice,
-} from "../src/platform/pricingSnapshots.js";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
+import { describe, expect, it } from "vitest";
 
-const sourcePrices = [
-  {
-    name: "Bijan Robinson",
-    normalizedName: "bijan robinson",
-    position: "RB",
-    price: 69,
-    scenarioPrice: 74,
-    livePrice: 77,
-    personalValue: 82,
-    recommendedMaxBid: 79,
-    confidence: 0.91,
-    tier: "elite",
-    warnings: ["keeper inflation"],
-  },
-  {
-    name: "Puka Nacua",
-    normalizedName: "puka nacua",
-    position: "WR",
-    price: 68,
-    scenarioPrice: 70,
-    livePrice: 72,
-    personalValue: 76,
-    recommendedMaxBid: 73,
-    confidence: 0.87,
-    tier: "elite",
-  },
-] satisfies readonly PricingSourcePrice[];
+const expectedBehaviors = [
+  "hashes normalized inputs stably regardless of object key insertion order",
+  "generates the same model run id for the same league season model version and input hash",
+  "creates a snapshot that preserves distinct market scenario live personal and max prices",
+  "refuses to overwrite an existing model run id with a different payload",
+  "stores multiple scenario snapshots for the same model run",
+  "returns only the latest matching snapshot without cloning older large snapshots",
+  "creates strategy overlays with derived personal values without mutating market prices",
+];
 
-describe("pricing snapshot contracts", () => {
-  it("hashes normalized inputs stably regardless of object key insertion order", () => {
-    const firstHash = hashPricingSnapshotInputs({
-      modelVersion: "auction-v1",
-      league: {
-        season: 2026,
-        settings: {
-          teams: 14,
-          budget: 200,
-        },
-      },
-      scenario: {
-        id: "expected",
-        positionFactors: {
-          RB: 1.07,
-          WR: 1.04,
-        },
-      },
-    });
-    const secondHash = hashPricingSnapshotInputs({
-      scenario: {
-        positionFactors: {
-          WR: 1.04,
-          RB: 1.07,
-        },
-        id: "expected",
-      },
-      league: {
-        settings: {
-          budget: 200,
-          teams: 14,
-        },
-        season: 2026,
-      },
-      modelVersion: "auction-v1",
-    });
+const directory = path.resolve("tests/platformPricingSnapshots");
+const files = readdirSync(directory)
+  .filter(file => file.endsWith(".ts"))
+  .map(file => path.join(directory, file));
+const behaviorFiles = files.filter(file => file.endsWith(".test.ts"));
 
-    expect(secondHash).toBe(firstHash);
+const metadataFor = (file: string) => {
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const unsafe: string[] = [];
+  let assertions = 0;
+  const forbidden: ReadonlySet<ts.SyntaxKind> = new Set([
+    ts.SyntaxKind.AnyKeyword,
+    ts.SyntaxKind.AsExpression,
+    ts.SyntaxKind.NonNullExpression,
+    ts.SyntaxKind.TypeAssertionExpression,
+  ]);
+  const visit = (node: ts.Node): void => {
+    if (forbidden.has(node.kind)) unsafe.push(ts.SyntaxKind[node.kind] ?? "unknown");
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "expect") assertions += 1;
+      const title = node.arguments[0];
+      if (node.expression.text === "it" && title !== undefined && ts.isStringLiteralLike(title)) {
+        names.push(title.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return { names, assertions, unsafe };
+};
+
+describe("pricing snapshot test architecture", () => {
+  it("preserves pricing snapshot behaviors and assertions", () => {
+    const metadata = behaviorFiles.map(metadataFor);
+    expect(metadata.flatMap(item => item.names).sort()).toEqual([...expectedBehaviors].sort());
+    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(14);
   });
 
-  it("generates the same model run id for the same league season model version and input hash", () => {
-    const inputHash = hashPricingSnapshotInputs({ season: 2026, settings: { teams: 14 } });
-
-    const firstId = generatePricingModelRunId({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      inputHash,
+  it("keeps pricing snapshot tests focused and free of unsafe type escapes", () => {
+    const violations = files.flatMap(file => {
+      const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
+      const unsafe = metadataFor(file).unsafe.map(finding => `${path.basename(file)}: ${finding}`);
+      return lines > 150 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
     });
-    const secondId = generatePricingModelRunId({
-      inputHash,
-      modelVersion: "auction-v1",
-      seasonYear: 2026,
-      leagueId: "league-100001",
-    });
-
-    expect(secondId).toBe(firstId);
-  });
-
-  it("creates a snapshot that preserves distinct market scenario live personal and max prices", () => {
-    const snapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshot: {
-        id: "input-snapshot-2026-expected",
-        hash: hashPricingSnapshotInputs({ scenarioId: "expected" }),
-      },
-      prices: sourcePrices,
-    });
-
-    expect(snapshot.rows[0]).toMatchObject({
-      playerName: "Bijan Robinson",
-      normalizedName: "bijan robinson",
-      position: "RB",
-      marketPrice: 69,
-      scenarioPrice: 74,
-      livePrice: 77,
-      personalValue: 82,
-      recommendedMaxBid: 79,
-      confidence: 0.91,
-      tier: "elite",
-      warnings: ["keeper inflation"],
-    });
-    expect(snapshot.rows[0]?.explanationRef).toEqual({
-      modelRunId: snapshot.modelRunId,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshotId: "input-snapshot-2026-expected",
-      playerKey: "bijan-robinson",
-    });
-  });
-
-  it("refuses to overwrite an existing model run id with a different payload", () => {
-    const repository = createInMemoryPricingSnapshotRepository();
-    const snapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshot: {
-        id: "input-snapshot-2026-expected",
-        hash: hashPricingSnapshotInputs({ scenarioId: "expected" }),
-      },
-      prices: sourcePrices,
-    });
-    const changedPayload = {
-      ...snapshot,
-      rows: snapshot.rows.map(row =>
-        row.playerKey === "bijan-robinson"
-          ? { ...row, livePrice: row.livePrice + 1 }
-          : row,
-      ),
-    };
-
-    repository.save(snapshot);
-    repository.save(snapshot);
-
-    expect(() => repository.save(changedPayload)).toThrow(
-      "Cannot overwrite pricing snapshot",
-    );
-  });
-
-  it("stores multiple scenario snapshots for the same model run", () => {
-    const repository = createInMemoryPricingSnapshotRepository();
-    const inputSnapshot = {
-      id: "input-snapshot-2026",
-      hash: hashPricingSnapshotInputs({ season: 2026 }),
-    };
-    const expectedSnapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshot,
-      prices: sourcePrices,
-    });
-    const highRetentionSnapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "highRetention",
-      inputSnapshot,
-      prices: sourcePrices.map(price => ({
-        ...price,
-        scenarioPrice: price.scenarioPrice === undefined ? price.price + 2 : price.scenarioPrice + 2,
-      })),
-    });
-
-    expect(highRetentionSnapshot.modelRunId).toBe(expectedSnapshot.modelRunId);
-
-    repository.save(expectedSnapshot);
-    repository.save(highRetentionSnapshot);
-
-    expect(repository.get(expectedSnapshot.modelRunId, "expected")?.scenarioId).toBe("expected");
-    expect(repository.get(expectedSnapshot.modelRunId, "highRetention")?.scenarioId).toBe("highRetention");
-    expect(repository.list().map(snapshot => snapshot.scenarioId)).toEqual(["expected", "highRetention"]);
-  });
-
-  it("returns only the latest matching snapshot without cloning older large snapshots", () => {
-    const repository = createInMemoryPricingSnapshotRepository();
-    const olderSnapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshot: {
-        id: "input-snapshot-older",
-        hash: hashPricingSnapshotInputs({ version: "older" }),
-      },
-      prices: Array.from({ length: 5_000 }, (_, index) => ({
-        name: `Older Player ${index}`,
-        normalizedName: `older player ${index}`,
-        position: "WR" as const,
-        price: 1,
-      })),
-      createdAt: "2026-08-01T12:00:00.000Z",
-    });
-    const latestSnapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v2",
-      scenarioId: "expected",
-      inputSnapshot: {
-        id: "input-snapshot-latest",
-        hash: hashPricingSnapshotInputs({ version: "latest" }),
-      },
-      prices: sourcePrices,
-      createdAt: "2026-08-02T12:00:00.000Z",
-    });
-    repository.save(olderSnapshot);
-    repository.save(latestSnapshot);
-    const structuredCloneSpy = vi.spyOn(globalThis, "structuredClone");
-
-    const result = repository.findLatest({
-      leagueId: "league-100001",
-      seasonYear: "2026",
-      scenarioId: "expected",
-    });
-
-    expect(result).toEqual(latestSnapshot);
-    expect(structuredCloneSpy).toHaveBeenCalledTimes(1);
-    structuredCloneSpy.mockRestore();
-  });
-
-  it("creates strategy overlays with derived personal values without mutating market prices", () => {
-    const snapshot = createPricingSnapshot({
-      leagueId: "league-100001",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      scenarioId: "expected",
-      inputSnapshot: {
-        id: "input-snapshot-2026-expected",
-        hash: hashPricingSnapshotInputs({ scenarioId: "expected" }),
-      },
-      prices: sourcePrices,
-    });
-
-    const overlay = applyStrategyOverlay(snapshot, {
-      strategyId: "three-rb",
-      personalValueDeltas: {
-        "bijan-robinson": 6,
-        "puka-nacua": -4,
-      },
-      recommendedMaxBidDeltas: {
-        "bijan-robinson": 3,
-      },
-    });
-
-    expect(overlay.rows[0]).toMatchObject({
-      marketPrice: 69,
-      scenarioPrice: 74,
-      livePrice: 77,
-      personalValue: 88,
-      recommendedMaxBid: 82,
-      strategyOverlayId: "three-rb",
-    });
-    expect(overlay.rows[1]).toMatchObject({
-      marketPrice: 68,
-      scenarioPrice: 70,
-      livePrice: 72,
-      personalValue: 72,
-      recommendedMaxBid: 73,
-      strategyOverlayId: "three-rb",
-    });
-    expect(snapshot.rows[0]).toMatchObject({
-      marketPrice: 69,
-      personalValue: 82,
-      recommendedMaxBid: 79,
-    });
+    expect(violations).toEqual([]);
   });
 });
