@@ -21,7 +21,6 @@ export const sessionSchema = z.object({ account: accountSchema });
 export const loginSchema = z.object({
   account: accountSchema,
   session: publicSessionSchema,
-  sessionToken: z.string().min(1),
 });
 
 export const signupSchema = z.union([

@@ -4,10 +4,11 @@ import { createAppRouter } from "./createAppRouter";
 describe("createAppRouter", () => {
   it("creates an independently disposable browser router", () => {
     window.history.replaceState(null, "", "/practice");
-    const router = createAppRouter();
+    const router = createAppRouter(new QueryClient());
 
     expect(router.state.location.pathname).toBe("/practice");
 
     router.dispose();
   });
 });
+import { QueryClient } from "@tanstack/react-query";

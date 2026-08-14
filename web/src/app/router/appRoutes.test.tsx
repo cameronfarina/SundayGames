@@ -1,9 +1,11 @@
 import { matchRoutes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { appRoutes } from "./appRoutes";
+import { createAppRoutes } from "./appRoutes";
+
+const appRoutes = createAppRoutes(new QueryClient());
 
 describe("application routes", () => {
-  it.each(["/practice", "/league", "/my-team", "/invite"])(
+  it.each(["/login", "/signup", "/practice", "/league", "/my-team", "/invite"])(
     "owns the %s browser route",
     path => {
       expect(matchRoutes(appRoutes, path)).not.toBeNull();
@@ -14,3 +16,4 @@ describe("application routes", () => {
     expect(matchRoutes(appRoutes, "/not-a-real-page")).toBeNull();
   });
 });
+import { QueryClient } from "@tanstack/react-query";

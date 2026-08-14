@@ -17,6 +17,26 @@ const jsonResponse = (body: unknown, status = 200): Response => new Response(
 );
 
 describe("auth API", () => {
+  it("accepts a login response whose token is held only in the HttpOnly cookie", async () => {
+    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse({
+      account: {
+        createdAt: "2026-08-13T12:00:00.000Z",
+        email: "cam@example.com",
+        id: "account-cam",
+        updatedAt: "2026-08-13T12:00:00.000Z",
+      },
+      session: {
+        accountId: "account-cam",
+        createdAt: "2026-08-13T12:00:00.000Z",
+        expiresAt: "2026-08-14T12:00:00.000Z",
+        id: "session-1",
+      },
+    }));
+
+    await expect(login({ email: "cam@example.com", fetcher, password: "secure password" }))
+      .resolves.toMatchObject({ session: { id: "session-1" } });
+  });
+
   it("loads and validates the current session", async () => {
     const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse({
       account: {

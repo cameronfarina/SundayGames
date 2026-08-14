@@ -7,7 +7,7 @@ import { createAppQueryClient } from "./app/query/createAppQueryClient";
 import "./styles/global.css";
 
 const queryClient = createAppQueryClient();
-const router = createAppRouter();
+const router = createAppRouter(queryClient);
 const rootElement = document.getElementById("root");
 
 if (rootElement === null) {
