@@ -4,6 +4,7 @@ import {
   playerMarketValue,
   playerMyValue,
   positionTone,
+  rankPlayers,
 } from "./playerBoard";
 import type { PracticePlayer } from "../api/playerCatalogSchema";
 
@@ -33,8 +34,17 @@ const jaredGoff: PracticePlayer = {
     teamAbbreviation: "DET",
   };
 const players: readonly PracticePlayer[] = [chaseBrown, jamarrChase, jaredGoff];
+const rankedPlayers = rankPlayers(players);
 
 describe("Practice player board model", () => {
+  it("computes explicit and catalog-order fallback ranks once", () => {
+    expect(rankPlayers(players).map(({ player, rank }) => [player.name, rank])).toEqual([
+      ["Chase Brown", 1],
+      ["Ja'Marr Chase", 1],
+      ["Jared Goff", 12],
+    ]);
+  });
+
   it("uses personalized prices before baseline prices", () => {
     expect(playerMarketValue(chaseBrown)).toBe(46);
     expect(playerMyValue(chaseBrown)).toBe(51);
@@ -44,52 +54,52 @@ describe("Practice player board model", () => {
   });
 
   it("filters across identity fields and shortlist membership", () => {
-    expect(filterAndSortPlayers(players, {
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "WR",
       search: "cin",
       shortlistOnly: false,
       sort: "market",
-    }, new Set()).map(player => player.name)).toEqual(["Ja'Marr Chase"]);
-    expect(filterAndSortPlayers(players, {
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Ja'Marr Chase"]);
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL",
       search: "",
       shortlistOnly: true,
       sort: "market",
-    }, new Set(["jared goff"])).map(player => player.name)).toEqual(["Jared Goff"]);
-    expect(filterAndSortPlayers(players, {
+    }, new Set(["jared goff"])).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL", search: "qb", shortlistOnly: false, sort: "market",
-    }, new Set()).map(player => player.name)).toEqual(["Jared Goff"]);
-    expect(filterAndSortPlayers(players, {
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL", search: "det", shortlistOnly: false, sort: "market",
-    }, new Set()).map(player => player.name)).toEqual(["Jared Goff"]);
-    expect(filterAndSortPlayers(players, {
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL", search: "missing", shortlistOnly: false, sort: "market",
     }, new Set())).toEqual([]);
   });
 
   it("sorts value modes descending and rank mode ascending", () => {
-    expect(filterAndSortPlayers(players, {
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL",
       search: "",
       shortlistOnly: false,
       sort: "mine",
-    }, new Set()).map(player => player.name)).toEqual([
+    }, new Set()).map(({ player }) => player.name)).toEqual([
       "Ja'Marr Chase",
       "Chase Brown",
       "Jared Goff",
     ]);
-    expect(filterAndSortPlayers([
+    expect(filterAndSortPlayers(rankPlayers([
       { expectedPrice: 1, name: "Zulu", position: "K" },
       { expectedPrice: 1, name: "Alpha", position: "K" },
-    ], {
+    ]), {
       position: "ALL", search: "", shortlistOnly: false, sort: "market",
-    }, new Set()).map(player => player.name)).toEqual(["Alpha", "Zulu"]);
-    expect(filterAndSortPlayers(players, {
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
+    expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL",
       search: "",
       shortlistOnly: false,
       sort: "rank",
-    }, new Set()).map(player => player.name)).toEqual([
+    }, new Set()).map(({ player }) => player.name)).toEqual([
       "Ja'Marr Chase",
       "Jared Goff",
       "Chase Brown",

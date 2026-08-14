@@ -9,6 +9,11 @@ export interface PlayerBoardFilters {
   readonly sort: PlayerSort;
 }
 
+export interface RankedPracticePlayer {
+  readonly player: PracticePlayer;
+  readonly rank: number;
+}
+
 const normalized = (value: string): string => value.trim().toLocaleLowerCase();
 
 export const playerKey = (playerName: string): string => normalized(playerName).replace(/\s+/gu, " ");
@@ -19,7 +24,13 @@ export const playerMarketValue = (player: PracticePlayer): number =>
 export const playerMyValue = (player: PracticePlayer): number =>
   player.myValue ?? player.leagueValue ?? player.expectedPrice;
 
-const playerRank = (player: PracticePlayer): number =>
+export const rankPlayers = (players: readonly PracticePlayer[]): readonly RankedPracticePlayer[] =>
+  players.map((player, index) => ({
+    player,
+    rank: player.marketRank ?? player.leagueRank ?? index + 1,
+  }));
+
+const sortablePlayerRank = ({ player }: RankedPracticePlayer): number =>
   player.marketRank ?? player.leagueRank ?? Number.POSITIVE_INFINITY;
 
 const matchesSearch = (player: PracticePlayer, search: string): boolean => {
@@ -30,18 +41,23 @@ const matchesSearch = (player: PracticePlayer, search: string): boolean => {
 };
 
 export const filterAndSortPlayers = (
-  players: readonly PracticePlayer[],
+  players: readonly RankedPracticePlayer[],
   filters: PlayerBoardFilters,
   shortlistedPlayerKeys: ReadonlySet<string>,
-): readonly PracticePlayer[] => [...players]
-  .filter(player => filters.position === "ALL" || player.position === filters.position)
-  .filter(player => !filters.shortlistOnly || shortlistedPlayerKeys.has(playerKey(player.name)))
-  .filter(player => matchesSearch(player, filters.search))
+): readonly RankedPracticePlayer[] => [...players]
+  .filter(({ player }) => filters.position === "ALL" || player.position === filters.position)
+  .filter(({ player }) => !filters.shortlistOnly || shortlistedPlayerKeys.has(playerKey(player.name)))
+  .filter(({ player }) => matchesSearch(player, filters.search))
   .sort((left, right) => {
-    if (filters.sort === "rank") return playerRank(left) - playerRank(right) || left.name.localeCompare(right.name);
-    const leftValue = filters.sort === "mine" ? playerMyValue(left) : playerMarketValue(left);
-    const rightValue = filters.sort === "mine" ? playerMyValue(right) : playerMarketValue(right);
-    return rightValue - leftValue || playerRank(left) - playerRank(right) || left.name.localeCompare(right.name);
+    if (filters.sort === "rank") {
+      return sortablePlayerRank(left) - sortablePlayerRank(right)
+        || left.player.name.localeCompare(right.player.name);
+    }
+    const leftValue = filters.sort === "mine" ? playerMyValue(left.player) : playerMarketValue(left.player);
+    const rightValue = filters.sort === "mine" ? playerMyValue(right.player) : playerMarketValue(right.player);
+    return rightValue - leftValue
+      || sortablePlayerRank(left) - sortablePlayerRank(right)
+      || left.player.name.localeCompare(right.player.name);
   });
 
 export type PositionTone = "aqua" | "blue" | "gold" | "green" | "neutral" | "pink" | "purple";

@@ -8,10 +8,13 @@ import {
   playerMarketValue,
   playerMyValue,
   positionTone,
+  rankPlayers,
   type PlayerSort,
 } from "../../model/playerBoard";
 import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
+import { useIncrementalRows } from "./hooks/useIncrementalRows";
 import "./PlayerBoard.css";
+import "./PlayerBoardTable.css";
 import "./PlayerBoardResponsive.css";
 import "./positionColors.css";
 
@@ -60,17 +63,30 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
   const [filters, dispatch] = useReducer(filterReducer, initialFilters);
   const deferredSearch = useDeferredValue(filters.search);
   const shortlisted = useMemo(() => new Set(shortlist.map(item => playerKey(item.playerName))), [shortlist]);
+  const rankedPlayers = useMemo(() => rankPlayers(catalog.players), [catalog.players]);
   const players = useMemo(() => filterAndSortPlayers(
-    catalog.players,
-    { ...filters, search: deferredSearch },
+    rankedPlayers,
+    {
+      position: filters.position, search: deferredSearch,
+      shortlistOnly: filters.shortlistOnly,
+      sort: filters.sort,
+    },
     shortlisted,
-  ), [catalog.players, deferredSearch, filters, shortlisted]);
+  ), [deferredSearch, filters.position, filters.shortlistOnly, filters.sort, rankedPlayers, shortlisted]);
+  const { revealMore, revealRowCount, visibleRowCount } = useIncrementalRows(players.length, [
+    catalog.players,
+    filters.position,
+    deferredSearch,
+    filters.shortlistOnly ? shortlisted : undefined,
+    filters.sort,
+  ]);
+  const visiblePlayers = players.slice(0, visibleRowCount);
 
   return (
     <section aria-labelledby="player-board-title" className="player-board">
       <div className="player-board__heading">
         <div><p className="practice-eyebrow">Player board</p><h2 id="player-board-title">Available players</h2></div>
-        <p aria-live="polite">{players.length} shown / {catalog.players.length} loaded</p>
+        <p aria-live="polite">{visiblePlayers.length} shown / {players.length} matching / {catalog.players.length} loaded</p>
       </div>
       <div aria-label="Filter by position" className="player-board__positions" role="group">
         {positions.map(position => (
@@ -104,7 +120,7 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
       </div>
       <div className="player-board__table-wrap">
         <table><thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>My value</th></tr></thead>
-          <tbody>{players.map(player => {
+          <tbody>{visiblePlayers.map(({ player, rank }) => {
             const isTarget = shortlisted.has(playerKey(player.name));
             return <tr className={`player-row player-row--${positionTone(player.position)}`} key={player.name}>
               <td><button
@@ -115,7 +131,7 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
                 onClick={() => { onToggleTarget(player); }}
                 type="button"
               ><Star aria-hidden="true" fill={isTarget ? "currentColor" : "none"} size={19} /></button></td>
-              <td>{player.marketRank ?? player.leagueRank ?? catalog.players.indexOf(player) + 1}</td><td className="player-row__name">{player.name}{player.isKeeper === true && <span className="keeper-badge">Keeper{player.keeperPrice === undefined ? "" : ` · $${String(player.keeperPrice)}`}</span>}</td>
+              <td>{rank}</td><td className="player-row__name">{player.name}{player.isKeeper === true && <span className="keeper-badge">Keeper{player.keeperPrice === undefined ? "" : ` · $${String(player.keeperPrice)}`}</span>}</td>
               <td><span className={`position-label position-label--${positionTone(player.position)}`}>{player.position}</span></td>
               <td>{player.teamAbbreviation ?? "FA"}</td><td>{player.byeWeek ?? "-"}</td>
               <td>${Math.round(playerMarketValue(player))}</td><td>${Math.round(playerMyValue(player))}</td>
@@ -123,6 +139,11 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
           })}</tbody>
         </table>
       </div>
+      {revealRowCount > 0 && <div className="player-board__reveal"><button
+        className="position-filter"
+        onClick={revealMore}
+        type="button"
+      >Show {revealRowCount} more players</button></div>}
       {players.length === 0 && <p className="practice-empty">No players match these filters.</p>}
     </section>
   );
