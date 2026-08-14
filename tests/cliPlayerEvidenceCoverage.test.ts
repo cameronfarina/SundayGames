@@ -1,8 +1,23 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const evidenceCoverageSchema = z.object({
+  summary: z.object({
+    status: z.string(),
+    playerCount: z.number(),
+    highPriorityMissingCount: z.number(),
+    evidenceRowCount: z.number(),
+    provenanceCompleteEvidenceRate: z.number(),
+  }),
+  gates: z.object({
+    summary: z.object({ status: z.string(), gateCount: z.number() }),
+    items: z.array(z.object({ key: z.string(), status: z.string() })),
+  }),
+  missingPlayers: z.array(z.object({ player: z.string() })),
+});
 
 describe("CLI player evidence coverage", () => {
   it("prints coverage gates for the prioritized evidence queue", async () => {
@@ -23,27 +38,7 @@ describe("CLI player evidence coverage", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const audit = JSON.parse(stdout) as {
-      summary: {
-        status: string;
-        playerCount: number;
-        highPriorityMissingCount: number;
-        provenanceCompleteEvidenceRate: number;
-      };
-      gates: {
-        summary: {
-          status: string;
-          gateCount: number;
-        };
-        items: {
-          key: string;
-          status: string;
-        }[];
-      };
-      missingPlayers: {
-        player: string;
-      }[];
-    };
+    const audit = evidenceCoverageSchema.parse(JSON.parse(stdout));
 
     expect(audit.summary.playerCount).toBeGreaterThan(0);
     expect(audit.summary.status).toBe("fail");
@@ -84,16 +79,7 @@ describe("CLI player evidence coverage", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const audit = JSON.parse(stdout) as {
-      summary: {
-        status: string;
-        highPriorityMissingCount: number;
-        evidenceRowCount: number;
-      };
-      missingPlayers: {
-        player: string;
-      }[];
-    };
+    const audit = evidenceCoverageSchema.parse(JSON.parse(stdout));
 
     expect(audit.summary.status).toBe("fail");
     expect(audit.summary.highPriorityMissingCount).toBeGreaterThan(0);
