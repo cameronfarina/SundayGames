@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import {
@@ -14,6 +14,7 @@ import {
   liveDraftRoomEventsAfterRevision,
   type LiveDraftRoomStreamActor,
 } from "../src/platform/liveDraftRoomStream.js";
+import { createLiveDraftRoomEventStream } from "../src/platform/liveDraftRoomEventStream.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 const commissioner = { userId: "user_commish", leagueId: "league-214674", role: "admin" } as const;
@@ -95,6 +96,53 @@ const actorWithTeam = (
 });
 
 describe("live draft room stream contract", () => {
+  it("keeps one stream open for snapshots, heartbeats, ordered updates, and abort cleanup", async () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    let room = createRoom(repository);
+    const controller = new AbortController();
+    const waitForRevision = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const close = vi.fn();
+    const stream = createLiveDraftRoomEventStream({
+      initialRoom: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      loadUpdate: async afterRevision => ({
+        events: liveDraftRoomEventsAfterRevision({ room, actor: commissioner, afterRevision }),
+        room: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      }),
+      subscription: { close, waitForRevision },
+      signal: controller.signal,
+      heartbeatMilliseconds: 10,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: expect.stringContaining("event: room.snapshot\n"),
+    });
+    await expect(iterator.next()).resolves.toEqual({ done: false, value: ": keep-alive\n\n" });
+
+    room = repository.startRoom({
+      roomId: room.roomId,
+      actor: commissioner,
+      expectedRevision: room.revision,
+      idempotencyKey: "start:persistent-stream",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const update = await iterator.next();
+    expect(update).toMatchObject({
+      done: false,
+      value: expect.stringContaining("event: room.started\n"),
+    });
+    expect(update.value).toContain('"revision":2');
+    expect(update.value).toContain('"board"');
+
+    controller.abort();
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined });
+    expect(waitForRevision).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("builds role-aware snapshots with selected/viewed teams, shared room state, and export readiness", () => {
     const room = buildLiveRoom();
     const camTeam = room.projection.teams.find(team => team.ownerDisplayName === "Cam");

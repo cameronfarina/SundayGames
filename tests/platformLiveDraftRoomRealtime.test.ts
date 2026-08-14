@@ -5,6 +5,33 @@ import {
 } from "../src/platform/liveDraftRoomRealtime.js";
 
 describe("live draft room revision notifier", () => {
+  it("holds connection capacity for a subscription lifetime and releases its active waiter on close", async () => {
+    const notifier = new LiveDraftRoomRevisionNotifier({
+      maxConcurrentWaitersPerAccount: 1,
+      maxConcurrentWaiters: 1,
+      retryAfterSeconds: 3,
+    });
+    const subscription = notifier.subscribe({
+      accountId: "account_cam",
+      roomId: "room_sunday",
+    });
+    const wait = subscription.waitForRevision({ afterRevision: 1, timeoutMs: 1_000 });
+
+    expect(() => notifier.subscribe({
+      accountId: "account_cam",
+      roomId: "room_sunday",
+    })).toThrowError(new LiveDraftRoomWaitLimitError("account", 3));
+
+    subscription.close();
+    await expect(wait).resolves.toBe(false);
+
+    const replacement = notifier.subscribe({
+      accountId: "account_cam",
+      roomId: "room_sunday",
+    });
+    replacement.close();
+  });
+
   it("does not miss a revision published before a reconnect waiter is registered", async () => {
     const notifier = new LiveDraftRoomRevisionNotifier();
 

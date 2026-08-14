@@ -20,6 +20,7 @@ export type LiveDraftRoomSseEventName =
   | "room.resumed"
   | "room.ended"
   | "room.error";
+export type LiveDraftRoomCacheSseEventName = Exclude<LiveDraftRoomSseEventName, "room.error">;
 
 export interface LiveDraftRoomStreamActor extends LiveDraftRoomActor {
   teamId?: string | undefined;
@@ -166,6 +167,14 @@ export interface LiveDraftRoomEventsAfterRevisionResult {
   isStale: boolean;
   requiresSnapshot: boolean;
   events: readonly LiveDraftRoomSsePayload[];
+}
+
+export interface LiveDraftRoomCacheSsePayload {
+  id: string;
+  event: LiveDraftRoomCacheSseEventName;
+  revision: number;
+  retry?: number | undefined;
+  data: LiveDraftRoomReadModel;
 }
 
 const sseRetryMilliseconds = 5_000;
@@ -460,8 +469,28 @@ export const buildLiveDraftRoomErrorEvent = (
   },
 });
 
+export const buildLiveDraftRoomCacheSseEvent = (
+  room: LiveDraftRoomReadModel,
+  event: LiveDraftRoomCacheSseEventName,
+): LiveDraftRoomCacheSsePayload => ({
+  id: event === "room.snapshot"
+    ? `${eventStreamIdFor(room.roomId, room.revision)}:snapshot`
+    : eventStreamIdFor(room.roomId, room.revision),
+  event,
+  revision: room.revision,
+  ...(event === "room.snapshot" ? { retry: sseRetryMilliseconds } : {}),
+  data: room,
+});
+
+interface FormattableLiveDraftRoomSsePayload {
+  id: string;
+  event: LiveDraftRoomSseEventName;
+  retry?: number | undefined;
+  data: unknown;
+}
+
 export const formatLiveDraftRoomSsePayloads = (
-  events: readonly LiveDraftRoomSsePayload[],
+  events: readonly FormattableLiveDraftRoomSsePayload[],
 ): string => {
   if (events.length === 0) return ": keep-alive\n\n";
 

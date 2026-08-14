@@ -43,7 +43,11 @@ import {
   type LiveDraftRoomPlayerCatalogEntry,
   type LiveDraftRoomSaleCommandInput,
 } from "./liveDraftRooms.js";
-import { formatLiveDraftRoomSsePayloads } from "./liveDraftRoomStream.js";
+import {
+  createLiveDraftRoomEventStream,
+  type LiveDraftRoomEventStreamSubscription,
+} from "./liveDraftRoomEventStream.js";
+import { LiveDraftRoomWaitLimitError } from "./liveDraftRoomRealtime.js";
 import type {
   LiveDraftRoomSetup,
   LiveDraftRoomSetupRepository,
@@ -238,6 +242,10 @@ export interface PlatformHttpServices {
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRateLimiter?: ClientAddressRateLimiter | undefined;
   liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
+  openLiveDraftRoomRevisionSubscription?: ((input: {
+    accountId: string;
+    roomId: string;
+  }) => LiveDraftRoomEventStreamSubscription) | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
 }
 
@@ -3011,23 +3019,62 @@ const routeLiveRooms = async (
   if (action === "event-stream" || action === "events-stream") {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const events = await app.getLiveDraftRoomEvents({
-      actorSessionToken: request.sessionToken,
-      roomId: roomId ?? "",
-      afterRevision: optionalNumber(request.query.afterRevision) ?? 0,
-      now: request.now,
-    });
+    const openSubscription = services.openLiveDraftRoomRevisionSubscription;
+    if (openSubscription === undefined) {
+      return knownError(503, "live_draft_stream_unavailable", "Live draft updates are unavailable.");
+    }
+    const account = await requireRequestAccount(app, request);
+    let subscription: LiveDraftRoomEventStreamSubscription;
+    try {
+      subscription = openSubscription({ accountId: account.id, roomId: roomId ?? "" });
+    } catch (error) {
+      if (!(error instanceof LiveDraftRoomWaitLimitError)) throw error;
 
-    return {
-      status: 200,
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",
-      },
-      body: formatLiveDraftRoomSsePayloads(events.events),
-    };
+      return {
+        status: 429,
+        headers: { "Retry-After": String(error.retryAfterSeconds) },
+        body: {
+          error: {
+            code: "live_draft_event_stream_limit",
+            message: "Too many live draft connections. Try again shortly.",
+          },
+        },
+      };
+    }
+
+    try {
+      const initialRoom = await liveDraftRoomReadModelForRequest(app, request, roomId ?? "");
+      const body = createLiveDraftRoomEventStream({
+        initialRoom,
+        subscription,
+        signal: request.signal,
+        loadUpdate: async afterRevision => {
+          const events = await app.getLiveDraftRoomEvents({
+            actorSessionToken: request.sessionToken,
+            roomId: roomId ?? "",
+            afterRevision,
+            now: request.now,
+          });
+          const room = await liveDraftRoomReadModelForRequest(app, request, roomId ?? "");
+
+          return { events, room };
+        },
+      });
+
+      return {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-store, no-transform",
+          "Connection": "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+        body,
+      };
+    } catch (error) {
+      subscription.close();
+      throw error;
+    }
   }
 
   if (request.method !== "POST") return methodNotAllowed();

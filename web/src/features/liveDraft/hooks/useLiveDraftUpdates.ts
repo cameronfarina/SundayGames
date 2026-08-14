@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getLiveDraftEvents } from "../api/liveDraftApi";
+import { liveDraftRoomSchema, type LiveDraftRoom } from "../api/liveDraftSchemas";
+import {
+  liveDraftRoomEventNames,
+  type LiveDraftRoomEventName,
+} from "../api/liveDraftRoomCache";
+
+export type { LiveDraftRoomEventName } from "../api/liveDraftRoomCache";
 
 export type LiveDraftConnection =
   | "connecting"
@@ -10,6 +17,7 @@ export type LiveDraftConnection =
   | "unavailable";
 
 interface LiveDraftUpdateOptions {
+  readonly applyRoomUpdate: (event: LiveDraftRoomEventName, room: LiveDraftRoom) => boolean;
   readonly pollEvents?: typeof getLiveDraftEvents;
   readonly refresh: () => Promise<unknown>;
   readonly revision?: number;
@@ -24,17 +32,20 @@ const initialConnection = (
   return typeof EventSource === "function" ? "connecting" : "polling";
 };
 
-const roomEventNames = [
-  "room.snapshot",
-  "room.sale",
-  "room.started",
-  "room.paused",
-  "room.resumed",
-  "room.ended",
-  "room.error",
-];
+const roomFromEvent = (event: Event): LiveDraftRoom | undefined => {
+  if (!("data" in event) || typeof event.data !== "string") return undefined;
+
+  try {
+    const data: unknown = JSON.parse(event.data);
+    const result = liveDraftRoomSchema.safeParse(data);
+    return result.success ? result.data : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export const useLiveDraftUpdates = ({
+  applyRoomUpdate,
   pollEvents = getLiveDraftEvents,
   refresh,
   revision,
@@ -42,22 +53,35 @@ export const useLiveDraftUpdates = ({
 }: LiveDraftUpdateOptions): LiveDraftConnection => {
   const [connection, setConnection] = useState<LiveDraftConnection>(() =>
     initialConnection(roomId, revision));
+  const revisionRef = useRef(revision);
+  const subscriptionReady = roomId !== undefined && revision !== undefined;
 
   useEffect(() => {
-    if (roomId === undefined || revision === undefined) return;
+    revisionRef.current = revision;
+  }, [revision]);
+
+  useEffect(() => {
+    if (roomId === undefined || !subscriptionReady) return;
+    const initialRevision = revisionRef.current;
+    if (initialRevision === undefined) return;
     const refreshRoom = () => { void refresh(); };
     const offline = () => { setConnection("offline"); };
     const online = () => {
       setConnection("reconnecting");
-      refreshRoom();
     };
     window.addEventListener("offline", offline);
     window.addEventListener("online", online);
 
     if (typeof EventSource !== "function") {
       const timer = window.setInterval(() => {
-        void pollEvents(roomId, revision, {}).then(events => {
-          if (events.requiresSnapshot || events.currentRevision > revision || events.events.length > 0) {
+        const afterRevision = revisionRef.current;
+        if (afterRevision === undefined) return;
+        void pollEvents(roomId, afterRevision, {}).then(events => {
+          if (
+            events.requiresSnapshot ||
+            events.currentRevision > afterRevision ||
+            events.events.length > 0
+          ) {
             refreshRoom();
           }
         }).catch(() => { setConnection(navigator.onLine ? "reconnecting" : "offline"); });
@@ -69,17 +93,22 @@ export const useLiveDraftUpdates = ({
       };
     }
 
-    const url = `/live-rooms/${encodeURIComponent(roomId)}/event-stream?afterRevision=${String(revision)}`;
+    const url = `/live-rooms/${encodeURIComponent(roomId)}/event-stream?afterRevision=${String(initialRevision)}`;
     const source = new EventSource(url);
     source.onopen = () => { setConnection("connected"); };
     source.onerror = () => { setConnection(navigator.onLine ? "reconnecting" : "offline"); };
-    for (const eventName of roomEventNames) source.addEventListener(eventName, refreshRoom);
+    for (const eventName of liveDraftRoomEventNames) {
+      source.addEventListener(eventName, event => {
+        const room = roomFromEvent(event);
+        if (room === undefined || !applyRoomUpdate(eventName, room)) refreshRoom();
+      });
+    }
     return () => {
       source.close();
       window.removeEventListener("offline", offline);
       window.removeEventListener("online", online);
     };
-  }, [pollEvents, refresh, revision, roomId]);
+  }, [applyRoomUpdate, pollEvents, refresh, roomId, subscriptionReady]);
 
   return connection;
 };

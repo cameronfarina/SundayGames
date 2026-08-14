@@ -12,6 +12,20 @@ export interface WaitForLiveDraftRoomRevisionInput {
   signal?: AbortSignal | undefined;
 }
 
+export interface SubscribeToLiveDraftRoomRevisionsInput {
+  accountId: string;
+  roomId: string;
+}
+
+export interface LiveDraftRoomRevisionSubscription {
+  waitForRevision(input: {
+    afterRevision: number;
+    timeoutMs?: number | undefined;
+    signal?: AbortSignal | undefined;
+  }): Promise<boolean>;
+  close(): void;
+}
+
 export interface LiveDraftRoomRevisionNotifierOptions {
   maxConcurrentWaitersPerAccount?: number | undefined;
   maxConcurrentWaiters?: number | undefined;
@@ -57,11 +71,11 @@ const maybeUnref = (timer: ReturnType<typeof setTimeout>): void => {
 export class LiveDraftRoomRevisionNotifier {
   readonly #latestRevisionByRoomId = new Map<string, number>();
   readonly #waitersByRoomId = new Map<string, Set<LiveDraftRoomRevisionWaiter>>();
-  readonly #waiterCountByAccountId = new Map<string, number>();
+  readonly #subscriptionCountByAccountId = new Map<string, number>();
   readonly #maxConcurrentWaitersPerAccount: number;
   readonly #maxConcurrentWaiters: number;
   readonly #retryAfterSeconds: number;
-  #waiterCount = 0;
+  #subscriptionCount = 0;
 
   constructor(options: LiveDraftRoomRevisionNotifierOptions = {}) {
     this.#maxConcurrentWaitersPerAccount = requirePositiveSafeInteger(
@@ -78,7 +92,64 @@ export class LiveDraftRoomRevisionNotifier {
     );
   }
 
-  waitForRevision(input: WaitForLiveDraftRoomRevisionInput): Promise<boolean> {
+  subscribe(input: SubscribeToLiveDraftRoomRevisionsInput): LiveDraftRoomRevisionSubscription {
+    const accountSubscriptionCount = this.#subscriptionCountByAccountId.get(input.accountId) ?? 0;
+    if (accountSubscriptionCount >= this.#maxConcurrentWaitersPerAccount) {
+      throw new LiveDraftRoomWaitLimitError("account", this.#retryAfterSeconds);
+    }
+    if (this.#subscriptionCount >= this.#maxConcurrentWaiters) {
+      throw new LiveDraftRoomWaitLimitError("global", this.#retryAfterSeconds);
+    }
+
+    this.#subscriptionCountByAccountId.set(input.accountId, accountSubscriptionCount + 1);
+    this.#subscriptionCount += 1;
+    const lifetimeAbort = new AbortController();
+    let closed = false;
+
+    return {
+      waitForRevision: waitInput => this.#waitForRevision({
+        roomId: input.roomId,
+        afterRevision: waitInput.afterRevision,
+        timeoutMs: waitInput.timeoutMs,
+        signal: waitInput.signal === undefined
+          ? lifetimeAbort.signal
+          : AbortSignal.any([waitInput.signal, lifetimeAbort.signal]),
+      }),
+      close: () => {
+        if (closed) return;
+        closed = true;
+        lifetimeAbort.abort();
+        const nextAccountSubscriptionCount =
+          (this.#subscriptionCountByAccountId.get(input.accountId) ?? 1) - 1;
+        if (nextAccountSubscriptionCount === 0) {
+          this.#subscriptionCountByAccountId.delete(input.accountId);
+        } else {
+          this.#subscriptionCountByAccountId.set(input.accountId, nextAccountSubscriptionCount);
+        }
+        this.#subscriptionCount -= 1;
+      },
+    };
+  }
+
+  async waitForRevision(input: WaitForLiveDraftRoomRevisionInput): Promise<boolean> {
+    const subscription = this.subscribe({ accountId: input.accountId, roomId: input.roomId });
+    try {
+      return await subscription.waitForRevision({
+        afterRevision: input.afterRevision,
+        timeoutMs: input.timeoutMs,
+        signal: input.signal,
+      });
+    } finally {
+      subscription.close();
+    }
+  }
+
+  #waitForRevision(input: {
+    roomId: string;
+    afterRevision: number;
+    timeoutMs?: number | undefined;
+    signal?: AbortSignal | undefined;
+  }): Promise<boolean> {
     const latestRevision = this.#latestRevisionByRoomId.get(input.roomId);
     if (latestRevision !== undefined && latestRevision > input.afterRevision) {
       return Promise.resolve(true);
@@ -86,14 +157,6 @@ export class LiveDraftRoomRevisionNotifier {
 
     const timeoutMs = input.timeoutMs ?? defaultRevisionWaitTimeoutMs;
     if (timeoutMs <= 0 || input.signal?.aborted === true) return Promise.resolve(false);
-
-    const accountWaiterCount = this.#waiterCountByAccountId.get(input.accountId) ?? 0;
-    if (accountWaiterCount >= this.#maxConcurrentWaitersPerAccount) {
-      return Promise.reject(new LiveDraftRoomWaitLimitError("account", this.#retryAfterSeconds));
-    }
-    if (this.#waiterCount >= this.#maxConcurrentWaiters) {
-      return Promise.reject(new LiveDraftRoomWaitLimitError("global", this.#retryAfterSeconds));
-    }
 
     return new Promise(resolve => {
       let waiter: LiveDraftRoomRevisionWaiter | undefined;
@@ -107,12 +170,6 @@ export class LiveDraftRoomRevisionNotifier {
           const roomWaiters = this.#waitersByRoomId.get(input.roomId);
           roomWaiters?.delete(waiter);
           if (roomWaiters?.size === 0) this.#waitersByRoomId.delete(input.roomId);
-
-          const nextAccountWaiterCount =
-            (this.#waiterCountByAccountId.get(input.accountId) ?? 1) - 1;
-          if (nextAccountWaiterCount === 0) this.#waiterCountByAccountId.delete(input.accountId);
-          else this.#waiterCountByAccountId.set(input.accountId, nextAccountWaiterCount);
-          this.#waiterCount -= 1;
         }
         input.signal?.removeEventListener("abort", abort);
         resolve(notified);
@@ -129,8 +186,6 @@ export class LiveDraftRoomRevisionNotifier {
       const waiters = this.#waitersByRoomId.get(input.roomId) ?? new Set<LiveDraftRoomRevisionWaiter>();
       waiters.add(waiter);
       this.#waitersByRoomId.set(input.roomId, waiters);
-      this.#waiterCountByAccountId.set(input.accountId, accountWaiterCount + 1);
-      this.#waiterCount += 1;
       input.signal?.addEventListener("abort", abort, { once: true });
       if (input.signal?.aborted === true) complete(false);
     });

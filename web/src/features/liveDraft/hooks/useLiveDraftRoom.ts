@@ -5,6 +5,11 @@ import {
   getLiveDraftRoom,
   mutateLiveDraftRoom,
 } from "../api/liveDraftApi";
+import {
+  liveDraftRoomCacheUpdate,
+  type LiveDraftRoomEventName,
+} from "../api/liveDraftRoomCache";
+import type { LiveDraftRoom } from "../api/liveDraftSchemas";
 import type { LiveDraftAction } from "../lib/liveDraftMutation";
 import { buildLiveDraftMutation } from "../lib/liveDraftMutation";
 import { useLiveDraftUpdates } from "./useLiveDraftUpdates";
@@ -30,10 +35,23 @@ export const useLiveDraftRoom = (roomId: string) => {
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: liveDraftRoomQueryKey(roomId) });
   }, [queryClient, roomId]);
+  const applyRoomUpdate = useCallback((event: LiveDraftRoomEventName, incoming: LiveDraftRoom) => {
+    let shouldRefetch = false;
+    queryClient.setQueryData<LiveDraftRoom>(liveDraftRoomQueryKey(roomId), current => {
+      const update = liveDraftRoomCacheUpdate(current, event, incoming);
+      if (update.type === "refetch") {
+        shouldRefetch = true;
+        return current;
+      }
+      return update.type === "applied" ? update.room : current;
+    });
+
+    return !shouldRefetch;
+  }, [queryClient, roomId]);
   const revision = roomQuery.data?.revision;
   const connection = useLiveDraftUpdates(revision === undefined
-    ? { refresh, roomId }
-    : { refresh, revision, roomId });
+    ? { applyRoomUpdate, refresh, roomId }
+    : { applyRoomUpdate, refresh, revision, roomId });
   const runAction = useCallback(async (action: LiveDraftAction) => {
     if (revision === undefined) throw new Error("The draft room has not loaded yet.");
     return await mutateRoom(buildLiveDraftMutation(action, {

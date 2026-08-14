@@ -1232,6 +1232,61 @@ const jsonFetch = async (
   };
 };
 
+interface ParsedEventStreamEvent {
+  event: string;
+  data: unknown;
+}
+
+const openEventStream = async (
+  baseUrl: string,
+  path: string,
+  sessionToken: string,
+): Promise<{
+  response: Response;
+  nextEvent: () => Promise<ParsedEventStreamEvent>;
+  close: () => Promise<void>;
+}> => {
+  const controller = new AbortController();
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { "x-session-token": sessionToken },
+    signal: controller.signal,
+  });
+  const reader = response.body?.getReader();
+  if (reader === undefined) throw new Error("Expected event stream response body.");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const nextEvent = async (): Promise<ParsedEventStreamEvent> => {
+    while (true) {
+      const boundary = buffer.indexOf("\n\n");
+      if (boundary >= 0) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const lines = block.split("\n");
+        const event = lines.find(line => line.startsWith("event: "))?.slice("event: ".length);
+        const data = lines.find(line => line.startsWith("data: "))?.slice("data: ".length);
+        if (event !== undefined && data !== undefined) {
+          const parsedData: unknown = JSON.parse(data);
+          return { event, data: parsedData };
+        }
+        continue;
+      }
+
+      const chunk = await reader.read();
+      if (chunk.done) throw new Error("Event stream closed before the next event.");
+      buffer += decoder.decode(chunk.value, { stream: true });
+    }
+  };
+
+  return {
+    response,
+    nextEvent,
+    close: async () => {
+      await reader.cancel();
+    },
+  };
+};
+
 const requestBeforeSendingBody = async (
   baseUrl: string,
   path: string,
@@ -1706,11 +1761,15 @@ describe("platform server composition", () => {
     });
   });
 
-  it("bounds event streams and releases capacity after completion or disconnect", async () => {
-    const { baseUrl } = await createListeningServer({
+  it("keeps two live-room clients connected through ordered updates and releases capacity on abort", async () => {
+    const { platformServer, baseUrl } = await createListeningServer({
       liveDraftRoomEventStreamMaxConnectionsPerAccount: 1,
-      liveDraftRoomEventStreamMaxConnections: 1,
+      liveDraftRoomEventStreamMaxConnections: 2,
       liveDraftRoomEventStreamRetryAfterSeconds: 3,
+    });
+    let eventStreamRequestCount = 0;
+    platformServer.server.on("request", request => {
+      if (request.url?.includes("/event-stream") === true) eventStreamRequestCount += 1;
     });
     const camCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
@@ -1776,136 +1835,98 @@ describe("platform server composition", () => {
         ],
       }),
     });
+
+    const streamPath = "/live-rooms/room_stream_wait/event-stream?afterRevision=1";
+    const [camStream, sethStream] = await Promise.all([
+      openEventStream(baseUrl, streamPath, camSessionToken),
+      openEventStream(baseUrl, streamPath, sethSessionToken),
+    ]);
+    expect(eventStreamRequestCount).toBe(2);
+    for (const stream of [camStream, sethStream]) {
+      expect(stream.response.status).toBe(200);
+      expect(stream.response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+      expect(stream.response.headers.get("cache-control")).toBe("no-store, no-transform");
+      expect(stream.response.headers.get("connection")).toBe("keep-alive");
+      expect(stream.response.headers.get("content-length")).toBeNull();
+      expect(stream.response.headers.get("content-encoding")).toBeNull();
+      expect(stream.response.headers.get("x-content-type-options")).toBe("nosniff");
+    }
+
+    const initialSnapshots = await Promise.all([camStream.nextEvent(), sethStream.nextEvent()]);
+    expect(initialSnapshots).toEqual([
+      { event: "room.snapshot", data: expect.objectContaining({ revision: 1, status: "setup" }) },
+      { event: "room.snapshot", data: expect.objectContaining({ revision: 1, status: "setup" }) },
+    ]);
+
+    const assertSharedUpdate = async (
+      expectedEvent: string,
+      expectedRevision: number,
+      expectedRoom: Record<string, unknown>,
+    ): Promise<void> => {
+      const updates = await Promise.all([camStream.nextEvent(), sethStream.nextEvent()]);
+      expect(updates).toEqual([
+        {
+          event: expectedEvent,
+          data: expect.objectContaining({ revision: expectedRevision, ...expectedRoom }),
+        },
+        {
+          event: expectedEvent,
+          data: expect.objectContaining({ revision: expectedRevision, ...expectedRoom }),
+        },
+      ]);
+    };
+
     await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/start", {
       method: "POST",
       headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({ expectedRevision: 1, idempotencyKey: "start:room_stream_wait" }),
+    });
+    await assertSharedUpdate("room.started", 2, { status: "live" });
+
+    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/sales", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
       body: JSON.stringify({
-        expectedRevision: 1,
-        idempotencyKey: "start:room_stream_wait",
+        expectedRevision: 2,
+        idempotencyKey: "sale:puka:62",
+        command: "cam puka 62",
       }),
     });
-
-    const streamTextPromise = fetch(`${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`, {
-      headers: { "x-session-token": sethSessionToken },
-    }).then(async response => {
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
-
-      return await response.text();
-    });
-    await new Promise(resolve => setTimeout(resolve, 20));
-
-    const limitedStream = await fetch(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`,
-      {
-        headers: { "x-session-token": sethSessionToken },
-        signal: AbortSignal.timeout(1_000),
-      },
-    );
-    expect(limitedStream.status).toBe(429);
-    expect(limitedStream.headers.get("retry-after")).toBe("3");
-    await expect(limitedStream.json()).resolves.toEqual({
-      error: {
-        code: "live_draft_event_stream_limit",
-        message: "Too many live draft connections. Try again shortly.",
-      },
+    await assertSharedUpdate("room.sale", 3, {
+      salesLog: [expect.objectContaining({ playerName: "Puka Nacua", price: 62 })],
     });
 
-    const globallyLimitedStream = await fetch(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=2`,
-      {
-        headers: { "x-session-token": camSessionToken },
-        signal: AbortSignal.timeout(1_000),
-      },
-    );
-    expect(globallyLimitedStream.status).toBe(429);
-    expect(globallyLimitedStream.headers.get("retry-after")).toBe("3");
-
-    const sale = await Promise.race([
-      jsonFetch(baseUrl, "/live-rooms/room_stream_wait/sales", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-session-token": camSessionToken },
-        body: JSON.stringify({
-          expectedRevision: 2,
-          idempotencyKey: "sale:puka:62",
-          command: "cam puka 62",
-        }),
-      }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out posting sale.")), 1_000)),
-    ]);
-    const streamText = await Promise.race([
-      streamTextPromise,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for event stream.")), 1_000)),
-    ]);
-
-    expect(sale.status).toBe(200);
-    expect(streamText).toContain("event: room.sale\n");
-    expect(streamText).toContain("\"playerName\":\"Puka Nacua\"");
-
-    const recoveredStreamPromise = fetch(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=3`,
-      { headers: { "x-session-token": sethSessionToken } },
-    ).then(async response => {
-      expect(response.status).toBe(200);
-
-      return await response.text();
+    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/undo", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
+      body: JSON.stringify({ expectedRevision: 3, idempotencyKey: "undo:puka:62" }),
     });
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await assertSharedUpdate("room.snapshot", 4, { salesLog: [] });
+
     await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/pause", {
       method: "POST",
       headers: { "content-type": "application/json", "x-session-token": camSessionToken },
-      body: JSON.stringify({
-        expectedRevision: 3,
-        idempotencyKey: "pause:room_stream_wait",
-      }),
+      body: JSON.stringify({ expectedRevision: 4, idempotencyKey: "pause:room_stream_wait" }),
+    });
+    await assertSharedUpdate("room.paused", 5, { status: "paused" });
+    expect(eventStreamRequestCount).toBe(2);
+
+    const limitedStream = await fetch(`${baseUrl}${streamPath}`, {
+      headers: { "x-session-token": sethSessionToken },
+      signal: AbortSignal.timeout(1_000),
+    });
+    expect(limitedStream.status).toBe(429);
+    expect(limitedStream.headers.get("retry-after")).toBe("3");
+
+    await sethStream.close();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const replacementStream = await openEventStream(baseUrl, streamPath, sethSessionToken);
+    expect(await replacementStream.nextEvent()).toEqual({
+      event: "room.snapshot",
+      data: expect.objectContaining({ revision: 5, status: "paused" }),
     });
 
-    await expect(Promise.race([
-      recoveredStreamPromise,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for recovered event stream.")), 1_000)),
-    ])).resolves.toContain("event: room.paused\n");
-
-    const disconnectedStream = httpRequest(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
-      { headers: { "x-session-token": sethSessionToken } },
-    );
-    disconnectedStream.on("error", () => undefined);
-    disconnectedStream.end();
-    await new Promise(resolve => setTimeout(resolve, 20));
-
-    const disconnectProbe = await fetch(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
-      {
-        headers: { "x-session-token": sethSessionToken },
-        signal: AbortSignal.timeout(1_000),
-      },
-    );
-    expect(disconnectProbe.status).toBe(429);
-
-    disconnectedStream.destroy();
-    await new Promise(resolve => setTimeout(resolve, 20));
-    const afterDisconnectStreamPromise = fetch(
-      `${baseUrl}/live-rooms/room_stream_wait/event-stream?afterRevision=4`,
-      { headers: { "x-session-token": sethSessionToken } },
-    ).then(async response => {
-      expect(response.status).toBe(200);
-
-      return await response.text();
-    });
-    await new Promise(resolve => setTimeout(resolve, 20));
-    await jsonFetch(baseUrl, "/live-rooms/room_stream_wait/resume", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-session-token": camSessionToken },
-      body: JSON.stringify({
-        expectedRevision: 4,
-        idempotencyKey: "resume:room_stream_wait",
-      }),
-    });
-
-    await expect(Promise.race([
-      afterDisconnectStreamPromise,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting after disconnect cleanup.")), 1_000)),
-    ])).resolves.toContain("event: room.resumed\n");
+    await Promise.all([camStream.close(), replacementStream.close()]);
   });
 
   it("keeps createPlatformServer unbound and starts listening only through the start helper", async () => {

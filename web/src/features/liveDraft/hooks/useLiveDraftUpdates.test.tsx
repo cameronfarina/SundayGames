@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveDraftEventsResponseSchema } from "../api/liveDraftSchemas";
+import { FakeEventSource } from "../test/fakeEventSource";
+import { liveRoom } from "../test/liveDraftFixtures";
 import { useLiveDraftUpdates } from "./useLiveDraftUpdates";
 
 const eventResult = (
@@ -16,56 +18,38 @@ const eventResult = (
   },
 }).events;
 
-class FakeEventSource {
-  static latest: FakeEventSource | undefined;
-  readonly url: string;
-  readonly listeners = new Map<string, EventListenerOrEventListenerObject[]>();
-  onerror: ((event: Event) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-  readonly close = vi.fn();
-
-  constructor(url: string | URL) {
-    this.url = String(url);
-    FakeEventSource.latest = this;
-  }
-
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
-    const listeners = this.listeners.get(type) ?? [];
-    this.listeners.set(type, [...listeners, listener]);
-  }
-
-  emit(type: string) {
-    for (const listener of this.listeners.get(type) ?? []) {
-      if (typeof listener === "function") listener(new Event(type));
-      else listener.handleEvent(new Event(type));
-    }
-  }
-}
-
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
-  FakeEventSource.latest = undefined;
+  FakeEventSource.reset();
 });
 
 describe("useLiveDraftUpdates", () => {
-  it("subscribes after the current revision and refreshes on room events", () => {
+  it("applies typed room events without recreating the subscription as revisions advance", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
     const refresh = vi.fn(() => Promise.resolve());
-    const { result, unmount } = renderHook(() => useLiveDraftUpdates({
+    const applyRoomUpdate = vi.fn(() => true);
+    const { result, rerender, unmount } = renderHook(({ revision }) => useLiveDraftUpdates({
+      applyRoomUpdate,
       refresh,
-      revision: 4,
+      revision,
       roomId: "room/1",
-    }));
+    }), { initialProps: { revision: 4 } });
     const source = FakeEventSource.latest;
     if (source === undefined) throw new Error("Expected a live draft subscription.");
 
     expect(source.url).toBe("/live-rooms/room%2F1/event-stream?afterRevision=4");
     act(() => { source.onopen?.(new Event("open")); });
     expect(result.current).toBe("connected");
-    act(() => { source.emit("room.sale"); });
-    expect(refresh).toHaveBeenCalledOnce();
+    const updatedRoom = { ...liveRoom, roomId: "room/1", revision: 5 };
+    act(() => { source.emit("room.sale", updatedRoom); });
+    expect(applyRoomUpdate).toHaveBeenCalledExactlyOnceWith("room.sale", updatedRoom);
+    expect(refresh).not.toHaveBeenCalled();
+
+    rerender({ revision: 5 });
+    expect(FakeEventSource.created).toBe(1);
+    expect(source.close).not.toHaveBeenCalled();
     act(() => { source.onerror?.(new Event("error")); });
     expect(result.current).toBe("reconnecting");
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
@@ -74,9 +58,31 @@ describe("useLiveDraftUpdates", () => {
     act(() => { window.dispatchEvent(new Event("offline")); });
     expect(result.current).toBe("offline");
     act(() => { window.dispatchEvent(new Event("online")); });
-    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh).not.toHaveBeenCalled();
     unmount();
     expect(source.close).toHaveBeenCalledOnce();
+  });
+
+  it("refetches for invalid payloads and revision gaps", () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const refresh = vi.fn(() => Promise.resolve());
+    const applyRoomUpdate = vi.fn(() => false);
+    renderHook(() => useLiveDraftUpdates({
+      applyRoomUpdate,
+      refresh,
+      revision: 4,
+      roomId: "room-1",
+    }));
+    const source = FakeEventSource.latest;
+    if (source === undefined) throw new Error("Expected a live draft subscription.");
+
+    act(() => { source.emitRaw("room.sale", "{"); });
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(applyRoomUpdate).not.toHaveBeenCalled();
+
+    act(() => { source.emit("room.sale", { ...liveRoom, revision: 6 }); });
+    expect(applyRoomUpdate).toHaveBeenCalledOnce();
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it("polls when EventSource is unavailable", async () => {
@@ -89,6 +95,7 @@ describe("useLiveDraftUpdates", () => {
       .mockResolvedValueOnce(eventResult(4, false, true))
       .mockResolvedValueOnce(eventResult(4, false, false));
     const { result, unmount } = renderHook(() => useLiveDraftUpdates({
+      applyRoomUpdate: vi.fn(() => true),
       pollEvents,
       refresh,
       revision: 4,
@@ -113,6 +120,7 @@ describe("useLiveDraftUpdates", () => {
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const pollEvents = vi.fn(() => Promise.reject(new Error("offline")));
     const { result } = renderHook(() => useLiveDraftUpdates({
+      applyRoomUpdate: vi.fn(() => true),
       pollEvents,
       refresh: vi.fn(() => Promise.resolve()),
       revision: 4,
@@ -128,10 +136,11 @@ describe("useLiveDraftUpdates", () => {
 
   it("stays unavailable before a room has loaded", () => {
     const refresh = vi.fn(() => Promise.resolve());
-    const { result } = renderHook(() => useLiveDraftUpdates({ refresh }));
+    const applyRoomUpdate = vi.fn(() => true);
+    const { result } = renderHook(() => useLiveDraftUpdates({ applyRoomUpdate, refresh }));
     expect(result.current).toBe("unavailable");
     const { result: roomOnlyResult } = renderHook(() =>
-      useLiveDraftUpdates({ refresh, roomId: "room-1" }));
+      useLiveDraftUpdates({ applyRoomUpdate, refresh, roomId: "room-1" }));
     expect(roomOnlyResult.current).toBe("unavailable");
   });
 });

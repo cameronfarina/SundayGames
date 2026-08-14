@@ -140,6 +140,20 @@ const expectString = (value: unknown): string => {
   return value;
 };
 
+const isAsyncTextStream = (value: unknown): value is AsyncIterable<string> =>
+  value !== null &&
+  typeof value === "object" &&
+  Symbol.asyncIterator in value &&
+  typeof value[Symbol.asyncIterator] === "function";
+
+const expectAsyncTextStream = (value: unknown): AsyncIterable<string> => {
+  if (!isAsyncTextStream(value)) {
+    throw new Error("Expected asynchronous text stream response body.");
+  }
+
+  return value;
+};
+
 const expectAccount = (value: unknown): AccountRecord => {
   if (
     !isRecord(value) ||
@@ -4002,6 +4016,10 @@ describe("platform HTTP contract", () => {
       allowPublicSignup: true,
       provisioningToken: "test-provisioning-token",
       currentPlayerCatalogProvider: async () => playerCatalog,
+      openLiveDraftRoomRevisionSubscription: () => ({
+        close: () => undefined,
+        waitForRevision: async () => false,
+      }),
       postDraftProjectionProvider: async (projectionSeason, catalog, evaluatedAt) => ({
         metadata: {
           snapshotId: "test-projections",
@@ -4821,17 +4839,22 @@ describe("platform HTTP contract", () => {
     expect(saleEventStream.status).toBe(200);
     expect(saleEventStream.headers).toMatchObject({
       "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "no-store, no-transform",
+      "Connection": "keep-alive",
     });
-    expect(saleEventStream.body).toContain("id: room_214674_2026:5\n");
-    expect(saleEventStream.body).toContain("event: room.sale\n");
-    expect(saleEventStream.body).toContain("\"playerName\":\"Puka Nacua\"");
-    for (const payload of expectString(saleEventStream.body)
+    const saleEventIterator = expectAsyncTextStream(saleEventStream.body)[Symbol.asyncIterator]();
+    const firstSaleEvent = await saleEventIterator.next();
+    if (firstSaleEvent.done) throw new Error("Expected initial live-room snapshot event.");
+    expect(firstSaleEvent.value).toContain("id: room_214674_2026:5:snapshot\n");
+    expect(firstSaleEvent.value).toContain("event: room.snapshot\n");
+    expect(firstSaleEvent.value).toContain("\"playerName\":\"Puka Nacua\"");
+    for (const payload of firstSaleEvent.value
       .split("\n")
       .filter(line => line.startsWith("data: "))
       .map(line => JSON.parse(line.slice("data: ".length)))) {
       expectPublicBrowserPayload(payload);
     }
+    await saleEventIterator.return?.();
 
     const undoneRoom = await handle({
       method: "POST",

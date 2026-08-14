@@ -20,7 +20,6 @@ import {
 import type { ExportArtifactRepository } from "./exportArtifacts.js";
 import {
   LiveDraftRoomRevisionNotifier,
-  LiveDraftRoomWaitLimitError,
 } from "./liveDraftRoomRealtime.js";
 import type {
   LiveDraftRoomPlayerCatalogEntry,
@@ -218,7 +217,6 @@ export interface StartedPlatformServer extends PlatformServer {
 }
 
 const mutatingHttpMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
-const eventStreamKeepAliveBody = ": keep-alive\n\n";
 const liveRoomMutationActions = new Set([
   "start",
   "pause",
@@ -231,11 +229,6 @@ const liveRoomMutationActions = new Set([
   "undo",
   "end",
 ]);
-
-interface LiveDraftRoomEventStreamRequest {
-  roomId: string;
-  afterRevision: number;
-}
 
 const withTrustedNow = (
   request: PlatformHttpRequest,
@@ -267,58 +260,6 @@ const pathSegmentsFor = (request: PlatformHttpRequest): readonly string[] | null
   } catch {
     return null;
   }
-};
-
-const queryNumberFor = (
-  request: PlatformHttpRequest,
-  key: string,
-): number | undefined => {
-  try {
-    const value = new URL(request.path, "http://mockd.local").searchParams.get(key);
-    if (value === null || value.trim().length === 0) return undefined;
-
-    return Number(value);
-  } catch {
-    return undefined;
-  }
-};
-
-const liveDraftRoomEventStreamRequestFor = (
-  request: PlatformHttpRequest,
-): LiveDraftRoomEventStreamRequest | null => {
-  if (request.method.toUpperCase() !== "GET") return null;
-
-  const segments = pathSegmentsFor(request);
-  if (
-    segments === null ||
-    segments.length !== 3 ||
-    segments[0] !== "live-rooms" ||
-    (segments[2] !== "event-stream" && segments[2] !== "events-stream")
-  ) {
-    return null;
-  }
-
-  const queryAfterRevision = queryNumberFor(request, "afterRevision");
-  const explicitAfterRevision = typeof request.query?.afterRevision === "number"
-    ? request.query.afterRevision
-    : undefined;
-
-  return {
-    roomId: segments[1] ?? "",
-    afterRevision: explicitAfterRevision ?? queryAfterRevision ?? 0,
-  };
-};
-
-const isKeepAliveEventStreamResponse = (
-  response: Awaited<ReturnType<PlatformHttpHandler>>,
-): boolean => {
-  const contentType = Object.entries(response.headers ?? {})
-    .find(([name]) => name.toLowerCase() === "content-type")?.[1];
-  const firstContentType = Array.isArray(contentType) ? contentType[0] : contentType;
-
-  return response.status === 200 &&
-    firstContentType?.toLowerCase().startsWith("text/event-stream") === true &&
-    response.body === eventStreamKeepAliveBody;
 };
 
 export const liveDraftRoomRevisionNotificationFor = (
@@ -795,6 +736,12 @@ export const createPlatformServer = async (
   }
 
   let runtime: Runtime;
+  const liveDraftRoomNotifier = new LiveDraftRoomRevisionNotifier({
+    maxConcurrentWaitersPerAccount:
+      options.liveDraftRoomEventStreamMaxConnectionsPerAccount,
+    maxConcurrentWaiters: options.liveDraftRoomEventStreamMaxConnections,
+    retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
+  });
   const accountRateLimiter = options.accountRateLimiter ?? createNormalizedEmailRateLimiter({
     maxAttempts: 5,
     windowMs: 15 * 60 * 1_000,
@@ -1096,6 +1043,7 @@ export const createPlatformServer = async (
         leagueImportRateLimiter,
         simulationRateLimiter,
         liveDraftMutationRateLimiter,
+        openLiveDraftRoomRevisionSubscription: input => liveDraftRoomNotifier.subscribe(input),
         seasonSimulationRunner: httpSeasonSimulationRunner,
         ...(options.leagueMembersScreenshotAnalyzer === undefined
           ? {}
@@ -1139,12 +1087,6 @@ export const createPlatformServer = async (
   };
 
   runtime = createRuntime(await loadStore(options));
-  const liveDraftRoomNotifier = new LiveDraftRoomRevisionNotifier({
-    maxConcurrentWaitersPerAccount:
-      options.liveDraftRoomEventStreamMaxConnectionsPerAccount,
-    maxConcurrentWaiters: options.liveDraftRoomEventStreamMaxConnections,
-    retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
-  });
 
   const runRequest = async (
     requestWithNow: PlatformHttpRequest,
@@ -1254,53 +1196,6 @@ export const createPlatformServer = async (
       }
       return response;
     }
-    const eventStreamRequest = liveDraftRoomEventStreamRequestFor(requestWithNow);
-    if (eventStreamRequest !== null) {
-      const initialResponse = await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
-      if (!isKeepAliveEventStreamResponse(initialResponse)) return initialResponse;
-
-      const account = await runtime.app.findAccountBySessionToken(
-        requestWithNow.sessionToken ?? "",
-        requestWithNow.now,
-      );
-      if (account === null) {
-        return {
-          status: 401,
-          body: {
-            error: {
-              code: "auth_required",
-              message: "Sign in before using this workspace.",
-            },
-          },
-        };
-      }
-
-      try {
-        await liveDraftRoomNotifier.waitForRevision({
-          ...eventStreamRequest,
-          accountId: account.id,
-          signal: requestWithNow.signal,
-        });
-      } catch (error) {
-        if (!(error instanceof LiveDraftRoomWaitLimitError)) throw error;
-
-        return {
-          status: 429,
-          headers: { "Retry-After": String(error.retryAfterSeconds) },
-          body: {
-            error: {
-              code: "live_draft_event_stream_limit",
-              message: "Too many live draft connections. Try again shortly.",
-            },
-          },
-        };
-      }
-
-      if (requestWithNow.signal?.aborted === true) return initialResponse;
-
-      return await runInSnapshotCriticalSection(() => runRequest(requestWithNow));
-    }
-
     const runSerializedRequest = () => runInSnapshotCriticalSection(() => runRequest(requestWithNow));
     const draftMutationSeasonId = await draftMutationSeasonIdFor(
       requestWithNow,
