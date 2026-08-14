@@ -1,0 +1,30 @@
+.my-team-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin: var(--space-8) 0 0;
+  border-block: 1px solid var(--color-border);
+}
+
+.my-team-facts div {
+  padding: var(--space-6);
+  border-right: 1px solid var(--color-border);
+}
+
+.my-team-facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.my-team-facts dd {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xl);
+}
+
+@media (max-width: 48rem) {
+  .my-team-facts div {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+}

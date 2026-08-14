@@ -1,0 +1,41 @@
+.my-team-table-scroll {
+  overflow-x: auto;
+}
+
+.my-team-table-scroll table {
+  width: 100%;
+  margin-top: var(--space-4);
+  border-collapse: collapse;
+}
+
+.my-team-table-scroll caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.my-team-table-scroll th,
+.my-team-table-scroll td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.my-team-table-scroll th {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+}
+
+.position {
+  font-weight: 800;
+}
+
+.position-qb { color: #f4c460; }
+.position-rb { color: #62a9ff; }
+.position-wr { color: #d678ef; }
+.position-te { color: #ff829d; }
+.position-k { color: #b7bec9; }
+.position-dst { color: #75ddd5; }
