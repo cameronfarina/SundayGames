@@ -1,17 +1,10 @@
 import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import type { PlatformHttpRequest } from "../src/platform/platformHttp.js";
+import type { PlatformHttpHandler } from "../src/platform/platformHttp.js";
 import { createPlatformNodeHttpAdapter } from "../src/platform/platformNodeHttp.js";
 
 let server: ReturnType<typeof createServer> | undefined;
-
-const listen = async (
-  handle: (request: PlatformHttpRequest) => Promise<{
-    status: number;
-    body: unknown;
-    headers?: Record<string, string>;
-  }>,
-): Promise<string> => {
+const listen = async (handle: PlatformHttpHandler): Promise<string> => {
   server = createServer(createPlatformNodeHttpAdapter(handle, {
     historicalImportPreflight: async () => ({ release: () => undefined }),
     screenshotImportPreflight: async () => null,
@@ -26,7 +19,6 @@ const listen = async (
   }
   return `http://127.0.0.1:${address.port}`;
 };
-
 afterEach(async () => {
   await new Promise<void>((resolve, reject) => {
     if (server === undefined) return resolve();
@@ -49,7 +41,6 @@ describe("platform Node HTTP JSON media types", () => {
         body: { authenticated: true },
       };
     });
-
     const response = await fetch(`${origin}/sessions`, {
       method: "POST",
       headers: {
@@ -59,7 +50,6 @@ describe("platform Node HTTP JSON media types", () => {
       },
       body: JSON.stringify({ email: "attacker@example.com", password: "known" }),
     });
-
     expect(response.status).toBe(415);
     expect(response.headers.get("set-cookie")).toBeNull();
     await expect(response.json()).resolves.toEqual({
@@ -84,7 +74,6 @@ describe("platform Node HTTP JSON media types", () => {
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: "value=1",
       });
-
       expect(response.status).toBe(415);
       expect(handlerCalls).toBe(0);
     },
@@ -105,7 +94,6 @@ describe("platform Node HTTP JSON media types", () => {
       headers: { "content-type": contentType },
       body: JSON.stringify({ email: "cam@example.com" }),
     });
-
     expect(response.status).toBe(200);
     expect(seenBodies).toEqual([{ email: "cam@example.com" }]);
   });
@@ -121,7 +109,6 @@ describe("platform Node HTTP JSON media types", () => {
       headers: { "content-type": "application/json; charset=UTF-8" },
       body: JSON.stringify({ fileName: "draft.csv", base64: "ZmlsZQ==" }),
     };
-
     const screenshot = await fetch(
       `${origin}/seasons/season-1/setup-import/screenshot-analyze`,
       init,
@@ -130,7 +117,6 @@ describe("platform Node HTTP JSON media types", () => {
       `${origin}/seasons/season-1/historical-imports/upload-preview`,
       init,
     );
-
     expect([screenshot.status, spreadsheet.status]).toEqual([200, 200]);
     expect(seenPaths).toEqual([
       "/seasons/season-1/setup-import/screenshot-analyze",
@@ -144,13 +130,11 @@ describe("platform Node HTTP JSON media types", () => {
       seen.push(`${request.method} ${request.path}`);
       return { status: 200, body: { ok: true } };
     });
-
     const responses = await Promise.all([
       fetch(`${origin}/sessions/logout`, { method: "POST" }),
       fetch(`${origin}/healthz`),
       fetch(`${origin}/sessions`, { method: "OPTIONS" }),
     ]);
-
     expect(responses.map(response => response.status)).toEqual([200, 200, 200]);
     expect(seen).toEqual([
       "POST /sessions/logout",
