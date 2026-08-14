@@ -556,7 +556,7 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "coach@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     });
 
@@ -568,7 +568,7 @@ describe("Postgres auth repository", () => {
 
     const login = await auth.login({
       email: " COACH@MOCKD.APP ",
-      password: "valid password",
+      password: "valid password phrase",
       now,
       sessionTtlMs: 1_000,
     });
@@ -610,12 +610,12 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "disabled@example.com",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     });
     const login = await auth.login({
       email: "disabled@example.com",
-      password: "valid password",
+      password: "valid password phrase",
       now,
       sessionTtlMs: 10_000,
     });
@@ -627,7 +627,7 @@ describe("Postgres auth repository", () => {
 
     await expect(auth.login({
       email: "disabled@example.com",
-      password: "valid password",
+      password: "valid password phrase",
       now: new Date(now.getTime() + 1),
     })).resolves.toBeNull();
     await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 2))).resolves.toBeNull();
