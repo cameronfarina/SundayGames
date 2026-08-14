@@ -130,7 +130,12 @@ export interface PasswordReplacementResult {
   revokedSessionCount: number;
 }
 
-export interface AuthRepository {
+export interface AuthTokenFinalizer {
+  verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): MaybePromise<AccountRecord | null>;
+  resetPasswordByToken(input: ResetPasswordByTokenInput): MaybePromise<PasswordReplacementResult | null>;
+}
+
+export interface AuthRepository extends AuthTokenFinalizer {
   createAccount(input: CreateAccountRecordInput): MaybePromise<AccountRecord>;
   createOrReplacePendingAccount(input: CreateOrReplacePendingAccountInput): MaybePromise<PendingAccountRegistrationResult>;
   findAccountCredentialByEmail(normalizedEmail: string): MaybePromise<AccountCredentialRecord | null>;
@@ -142,9 +147,10 @@ export interface AuthRepository {
   revokeSession(sessionId: string, revokedAt: Date): MaybePromise<SessionRecord | null>;
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): MaybePromise<PasswordReplacementResult | null>;
   replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord | null>;
-  hasUsableAuthToken(input: FindUsableAuthTokenInput): MaybePromise<boolean>;
-  verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): MaybePromise<AccountRecord | null>;
-  resetPasswordByToken(input: ResetPasswordByTokenInput): MaybePromise<PasswordReplacementResult | null>;
+  withAuthTokenAdmission<TResult>(
+    input: FindUsableAuthTokenInput,
+    operation: (finalizer: AuthTokenFinalizer) => Promise<TResult>,
+  ): MaybePromise<TResult | null>;
 }
 
 export interface AuthMailMessage {
@@ -174,6 +180,7 @@ export interface CreateAuthServiceOptions {
   publicBaseUrl?: string | undefined;
   verificationTokenTtlMs?: number | undefined;
   passwordResetTokenTtlMs?: number | undefined;
+  passwordHasher?: ((password: string) => Promise<string>) | undefined;
 }
 
 export interface CreateUserInput {
@@ -316,6 +323,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   readonly #authVersionsBySessionId = new Map<string, number>();
   readonly #authTokensByHash = new Map<string, AuthTokenRecord>();
   readonly #authVersionsByTokenHash = new Map<string, number>();
+  readonly #claimedAuthTokenHashes = new Set<string>();
 
   createAccount(input: CreateAccountRecordInput): AccountRecord {
     if (this.#accountIdsByEmail.has(input.email)) {
@@ -506,8 +514,22 @@ export class InMemoryAuthRepository implements AuthRepository {
     return token;
   }
 
-  hasUsableAuthToken(input: FindUsableAuthTokenInput): boolean {
-    return this.#validToken(input.tokenHash, input.purpose, input.now) !== null;
+  async withAuthTokenAdmission<TResult>(
+    input: FindUsableAuthTokenInput,
+    operation: (finalizer: AuthTokenFinalizer) => Promise<TResult>,
+  ): Promise<TResult | null> {
+    if (
+      this.#validToken(input.tokenHash, input.purpose, input.now) === null ||
+      this.#claimedAuthTokenHashes.has(input.tokenHash)
+    ) {
+      return null;
+    }
+    this.#claimedAuthTokenHashes.add(input.tokenHash);
+    try {
+      return await operation(this);
+    } finally {
+      this.#claimedAuthTokenHashes.delete(input.tokenHash);
+    }
   }
 
   verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): AccountRecord | null {
@@ -568,6 +590,7 @@ export class InMemoryAuthRepository implements AuthRepository {
     this.#authVersionsBySessionId.clear();
     this.#authTokensByHash.clear();
     this.#authVersionsByTokenHash.clear();
+    this.#claimedAuthTokenHashes.clear();
   }
 }
 
@@ -579,6 +602,7 @@ export const createAuthService = ({
   publicBaseUrl,
   verificationTokenTtlMs = defaultVerificationTokenTtlMs,
   passwordResetTokenTtlMs = defaultPasswordResetTokenTtlMs,
+  passwordHasher = hashServicePassword,
 }: CreateAuthServiceOptions): AuthService => ({
   createUser: async ({ email, password, verificationReturnTo, now = new Date() }) => {
     const normalizedEmail = normalizeEmail(email);
@@ -586,7 +610,7 @@ export const createAuthService = ({
       if (password === undefined) {
         throw new AuthError("invalid_password", "Password is required.");
       }
-      const passwordHash = await hashServicePassword(password);
+      const passwordHash = await passwordHasher(password);
       return await repository.createAccount({
         id: createId("acct"),
         email: normalizedEmail,
@@ -595,7 +619,7 @@ export const createAuthService = ({
         now,
       });
     }
-    const passwordHash = await createPendingPasswordHash();
+    const passwordHash = await createPendingPasswordHash(passwordHasher);
     const registration = await repository.createOrReplacePendingAccount({
       id: createId("acct"),
       email: normalizedEmail,
@@ -714,7 +738,7 @@ export const createAuthService = ({
       throw new AuthError("password_unchanged", "Choose a password you have not already used.");
     }
 
-    const passwordHash = await hashServicePassword(newPassword);
+    const passwordHash = await passwordHasher(newPassword);
     const result = await repository.replacePasswordAndRevokeSessions({
       accountId: authenticated.account.id,
       expectedPasswordHash: credential.passwordHash,
@@ -735,7 +759,7 @@ export const createAuthService = ({
     const normalizedEmail = normalizeEmail(email);
     const credential = await repository.findAccountCredentialByEmail(normalizedEmail);
     if (credential === null) return null;
-    const passwordHash = await hashServicePassword(newPassword);
+    const passwordHash = await passwordHasher(newPassword);
 
     return await repository.replacePasswordAndRevokeSessions({
       accountId: credential.account.id,
@@ -768,15 +792,14 @@ export const createAuthService = ({
     }
     validatePassword(newPassword);
     const tokenHash = hashAuthToken(token);
-    if (!await repository.hasUsableAuthToken({
+    const account = await repository.withAuthTokenAdmission({
       tokenHash,
       purpose: "email_verification",
       now,
-    })) {
-      throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
-    }
-    const passwordHash = await hashServicePassword(newPassword);
-    const account = await repository.verifyEmailAndSetPasswordByToken({ tokenHash, passwordHash, now });
+    }, async finalizer => {
+      const passwordHash = await passwordHasher(newPassword);
+      return await finalizer.verifyEmailAndSetPasswordByToken({ tokenHash, passwordHash, now });
+    });
     if (account === null) {
       throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
     }
@@ -811,18 +834,13 @@ export const createAuthService = ({
     }
     validatePassword(newPassword);
     const tokenHash = hashAuthToken(token);
-    if (!await repository.hasUsableAuthToken({
+    const result = await repository.withAuthTokenAdmission({
       tokenHash,
       purpose: "password_reset",
       now,
-    })) {
-      throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
-    }
-    const passwordHash = await hashServicePassword(newPassword);
-    const result = await repository.resetPasswordByToken({
-      tokenHash,
-      passwordHash,
-      now,
+    }, async finalizer => {
+      const passwordHash = await passwordHasher(newPassword);
+      return await finalizer.resetPasswordByToken({ tokenHash, passwordHash, now });
     });
     if (result === null) {
       throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
@@ -895,8 +913,9 @@ const hashServicePassword = async (password: string): Promise<string> => {
   return formatPasswordHash(salt, derivedKey);
 };
 
-const createPendingPasswordHash = async (): Promise<string> =>
-  await hashServicePassword(randomBytes(32).toString("base64url"));
+const createPendingPasswordHash = async (
+  passwordHasher: (password: string) => Promise<string>,
+): Promise<string> => await passwordHasher(randomBytes(32).toString("base64url"));
 
 const verifyServicePassword = async (password: string, storedPasswordHash: string): Promise<boolean> => {
   const parsedHash = parsePasswordHash(storedPasswordHash);

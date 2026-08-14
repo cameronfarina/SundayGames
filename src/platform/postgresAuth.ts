@@ -4,6 +4,7 @@ import {
   type AccountRecord,
   type AuthTokenRecord,
   type AuthRepository,
+  type AuthTokenFinalizer,
   type ConsumeAuthTokenInput,
   type CreateAccountRecordInput,
   type CreateOrReplacePendingAccountInput,
@@ -133,6 +134,17 @@ SELECT sessions.id, sessions.account_id, sessions.token_hash,
        sessions.created_at, sessions.expires_at, sessions.revoked_at
 FROM sessions
 `.trim();
+
+interface TransactionalPostgresAuthClient extends PostgresQueryClient {
+  transaction<TResult>(
+    operation: (client: PostgresQueryClient) => Promise<TResult>,
+  ): Promise<TResult>;
+}
+
+const supportsTransactions = (
+  client: PostgresQueryClient,
+): client is TransactionalPostgresAuthClient =>
+  "transaction" in client && typeof client.transaction === "function";
 
 export class PostgresAuthRepository implements AuthRepository {
   readonly #client: PostgresQueryClient;
@@ -399,9 +411,16 @@ RETURNING id, account_id, purpose, token_hash, auth_version, created_at, expires
     return row === undefined ? null : authTokenFromRow(row);
   }
 
-  async hasUsableAuthToken(input: FindUsableAuthTokenInput): Promise<boolean> {
-    const result = await this.#client.query<{ usable: boolean }>(
-      `
+  async withAuthTokenAdmission<TResult>(
+    input: FindUsableAuthTokenInput,
+    operation: (finalizer: AuthTokenFinalizer) => Promise<TResult>,
+  ): Promise<TResult | null> {
+    if (!supportsTransactions(this.#client)) {
+      throw new Error("Postgres authentication token admission requires transactions.");
+    }
+    return await this.#client.transaction(async transactionClient => {
+      const result = await transactionClient.query<{ usable: boolean }>(
+        `
 SELECT TRUE AS usable
 FROM account_auth_tokens
 JOIN accounts ON accounts.id = account_auth_tokens.account_id
@@ -410,12 +429,17 @@ WHERE account_auth_tokens.token_hash = $1
   AND account_auth_tokens.purpose = $2
   AND account_auth_tokens.consumed_at IS NULL
   AND account_auth_tokens.expires_at > $3
-LIMIT 1;
+  AND accounts.status = 'active'
+  AND (($2 = 'email_verification' AND accounts.email_verified_at IS NULL)
+    OR ($2 = 'password_reset' AND accounts.email_verified_at IS NOT NULL))
+LIMIT 1
+FOR UPDATE OF account_auth_tokens SKIP LOCKED;
 `.trim(),
-      [input.tokenHash, input.purpose, input.now],
-    );
-
-    return firstRow(result)?.usable === true;
+        [input.tokenHash, input.purpose, input.now],
+      );
+      if (firstRow(result)?.usable !== true) return null;
+      return await operation(new PostgresAuthRepository(transactionClient));
+    });
   }
 
   async verifyEmailAndSetPasswordByToken(input: VerifyEmailByTokenInput): Promise<AccountRecord | null> {

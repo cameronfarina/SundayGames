@@ -92,6 +92,12 @@ class FakePostgresAuthClient implements PostgresQueryClient {
   readonly sessions = new Map<string, StoredSessionRow>();
   readonly authTokens = new Map<string, StoredAuthTokenRow>();
 
+  async transaction<TResult>(
+    operation: (client: PostgresQueryClient) => Promise<TResult>,
+  ): Promise<TResult> {
+    return await operation(this);
+  }
+
   async query<TRow = Record<string, unknown>>(
     text: string,
     values: readonly unknown[] = [],
