@@ -7,6 +7,13 @@ import type {
   ServerResponse,
 } from "node:http";
 import { isIP } from "node:net";
+import {
+  brotliCompress,
+  brotliCompressSync,
+  constants as zlibConstants,
+  gzip,
+  gzipSync,
+} from "node:zlib";
 import type {
   PlatformHttpErrorBody,
   PlatformHttpHandler,
@@ -67,6 +74,17 @@ class RequestBodyTooLargeError extends Error {}
 
 const jsonContentType = "application/json; charset=utf-8";
 const htmlContentType = "text/html; charset=utf-8";
+const minimumCompressionBodyBytes = 1_024;
+const dynamicBrotliQuality = 4;
+const dynamicGzipLevel = 6;
+const staticBrotliQuality = 8;
+type ContentEncoding = "br" | "gzip";
+
+interface PreparedBrowserAsset {
+  readonly brotliBody?: Buffer | undefined;
+  readonly gzipBody?: Buffer | undefined;
+  readonly source: PlatformBrowserAsset;
+}
 const appShellPaths = new Set([
   "/",
   "/app",
@@ -310,6 +328,112 @@ const headerValue = (
   headerName: string,
 ): string | undefined => firstHeaderValue(headers[headerName]);
 
+const encodingQuality = (value: string): number => {
+  const qualityParameter = value
+    .split(";")
+    .slice(1)
+    .map(parameter => parameter.trim())
+    .find(parameter => parameter.toLowerCase().startsWith("q="));
+  if (qualityParameter === undefined) return 1;
+  const quality = Number(qualityParameter.slice(2));
+
+  return Number.isFinite(quality) && quality >= 0 && quality <= 1 ? quality : 0;
+};
+
+const preferredContentEncoding = (headers: IncomingHttpHeaders): ContentEncoding | undefined => {
+  const acceptEncoding = headerValue(headers, "accept-encoding");
+  if (acceptEncoding === undefined) return undefined;
+
+  const qualities = new Map<string, number>();
+  for (const value of acceptEncoding.split(",")) {
+    const name = value.trim().split(";", 1)[0]?.toLowerCase();
+    if (name !== undefined && name !== "") qualities.set(name, encodingQuality(value));
+  }
+  const wildcardQuality = qualities.get("*") ?? 0;
+  const brotliQuality = qualities.get("br") ?? wildcardQuality;
+  const gzipQuality = qualities.get("gzip") ?? wildcardQuality;
+  const identityQuality = qualities.get("identity");
+  if (brotliQuality <= 0 && gzipQuality <= 0) return undefined;
+  if (identityQuality !== undefined && identityQuality > Math.max(brotliQuality, gzipQuality)) {
+    return undefined;
+  }
+
+  return brotliQuality >= gzipQuality ? "br" : "gzip";
+};
+
+const brotliBody = async (body: Buffer): Promise<Buffer> => await new Promise(
+  (resolve, reject) => {
+    brotliCompress(body, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: dynamicBrotliQuality },
+    }, (error, compressedBody) => {
+      if (error === null) resolve(compressedBody);
+      else reject(error);
+    });
+  },
+);
+
+const gzipBody = async (body: Buffer): Promise<Buffer> => await new Promise(
+  (resolve, reject) => {
+    gzip(body, { level: dynamicGzipLevel }, (error, compressedBody) => {
+      if (error === null) resolve(compressedBody);
+      else reject(error);
+    });
+  },
+);
+
+const setVaryAcceptEncoding = (response: ServerResponse): void => {
+  const existingVary = response.getHeader("Vary");
+  const values = Array.isArray(existingVary)
+    ? existingVary
+    : typeof existingVary === "string"
+      ? existingVary.split(",")
+      : [];
+  if (!values.some(value => value.trim().toLowerCase() === "accept-encoding")) {
+    response.setHeader("Vary", [...values, "Accept-Encoding"]);
+  }
+};
+
+const isCompressibleContentType = (contentType: string): boolean => {
+  const mimeType = contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+
+  return mimeType.startsWith("text/")
+    || mimeType === "application/javascript"
+    || mimeType === "application/json"
+    || mimeType === "application/manifest+json"
+    || mimeType === "application/xml"
+    || mimeType.endsWith("+json")
+    || mimeType.endsWith("+xml")
+    || mimeType === "image/svg+xml";
+};
+
+const prepareBrowserAssets = (
+  browserAssets: ReadonlyMap<string, PlatformBrowserAsset> | undefined,
+): ReadonlyMap<string, PreparedBrowserAsset> | undefined => {
+  if (browserAssets === undefined) return undefined;
+
+  const preparedAssets = new Map<string, PreparedBrowserAsset>();
+  for (const [path, asset] of browserAssets) {
+    if (
+      asset.body.byteLength < minimumCompressionBodyBytes
+      || !isCompressibleContentType(asset.contentType)
+    ) {
+      preparedAssets.set(path, { source: asset });
+      continue;
+    }
+    const brotli = brotliCompressSync(asset.body, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: staticBrotliQuality },
+    });
+    const gzipped = gzipSync(asset.body, { level: dynamicGzipLevel });
+    preparedAssets.set(path, {
+      source: asset,
+      ...(brotli.byteLength < asset.body.byteLength ? { brotliBody: brotli } : {}),
+      ...(gzipped.byteLength < asset.body.byteLength ? { gzipBody: gzipped } : {}),
+    });
+  }
+
+  return preparedAssets;
+};
+
 const decodeCookieValue = (value: string): string => {
   try {
     return decodeURIComponent(value);
@@ -552,6 +676,7 @@ const isAsyncTextStream = (body: unknown): body is AsyncIterable<string> =>
   && Symbol.asyncIterator in body;
 
 const writeJsonResponse = async (
+  request: IncomingMessage,
   response: ServerResponse,
   platformResponse: PlatformHttpResponse,
 ): Promise<void> => {
@@ -598,7 +723,17 @@ const writeJsonResponse = async (
     return;
   }
 
-  const body = JSON.stringify(platformResponse.body ?? null);
+  const serializedBody = JSON.stringify(platformResponse.body ?? null);
+  const rawBody = Buffer.from(serializedBody);
+  const shouldCompress = rawBody.byteLength >= minimumCompressionBodyBytes;
+  const contentEncoding = shouldCompress
+    ? preferredContentEncoding(request.headers)
+    : undefined;
+  const body = contentEncoding === "br"
+    ? await brotliBody(rawBody)
+    : contentEncoding === "gzip"
+      ? await gzipBody(rawBody)
+      : rawBody;
 
   response.statusCode = platformResponse.status;
   response.setHeader("Content-Type", jsonContentType);
@@ -609,7 +744,9 @@ const writeJsonResponse = async (
   }
   setDefaultSecurityHeaders(response);
   setPrivateNoStoreCacheControl(response);
-  response.setHeader("Content-Length", Buffer.byteLength(body));
+  if (shouldCompress) setVaryAcceptEncoding(response);
+  if (contentEncoding !== undefined) response.setHeader("Content-Encoding", contentEncoding);
+  response.setHeader("Content-Length", body.byteLength);
   response.end(body);
 };
 
@@ -627,20 +764,35 @@ const writeHtmlResponse = (
 const writeBrowserAssetResponse = (
   request: IncomingMessage,
   response: ServerResponse,
-  asset: PlatformBrowserAsset,
+  asset: PreparedBrowserAsset,
 ): void => {
+  const contentEncoding = preferredContentEncoding(request.headers);
+  const body = contentEncoding === "br" && asset.brotliBody !== undefined
+    ? asset.brotliBody
+    : contentEncoding === "gzip" && asset.gzipBody !== undefined
+      ? asset.gzipBody
+      : asset.source.body;
+  const selectedEncoding = body === asset.brotliBody
+    ? "br"
+    : body === asset.gzipBody
+      ? "gzip"
+      : undefined;
   response.statusCode = 200;
-  response.setHeader("Cache-Control", asset.cacheControl);
-  response.setHeader("Content-Type", asset.contentType);
+  response.setHeader("Cache-Control", asset.source.cacheControl);
+  response.setHeader("Content-Type", asset.source.contentType);
   setDefaultSecurityHeaders(response);
-  response.setHeader("Content-Length", asset.body.byteLength);
-  response.end(request.method === "HEAD" ? undefined : asset.body);
+  if (asset.brotliBody !== undefined || asset.gzipBody !== undefined) {
+    setVaryAcceptEncoding(response);
+  }
+  if (selectedEncoding !== undefined) response.setHeader("Content-Encoding", selectedEncoding);
+  response.setHeader("Content-Length", body.byteLength);
+  response.end(request.method === "HEAD" ? undefined : body);
 };
 
 const browserAssetForRequest = (
   request: IncomingMessage,
-  browserAssets: ReadonlyMap<string, PlatformBrowserAsset> | undefined,
-): PlatformBrowserAsset | undefined => {
+  browserAssets: ReadonlyMap<string, PreparedBrowserAsset> | undefined,
+): PreparedBrowserAsset | undefined => {
   if (request.method !== "GET" && request.method !== "HEAD") return undefined;
 
   try {
@@ -763,7 +915,7 @@ export const createPlatformNodeHttpAdapter = (
   options: PlatformNodeHttpAdapterOptions = {},
 ): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
   const appHtml = options.appHtml;
-  const browserAssets = options.browserAssets;
+  const browserAssets = prepareBrowserAssets(options.browserAssets);
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
   const screenshotImportMaxBodyBytes = options.screenshotImportMaxBodyBytes
     ?? defaultPlatformScreenshotImportBodyLimitBytes;
@@ -801,7 +953,7 @@ export const createPlatformNodeHttpAdapter = (
         if (preflightResponse !== null) {
           response.shouldKeepAlive = false;
           response.setHeader("Connection", "close");
-          await writeJsonResponse(response, preflightResponse);
+          await writeJsonResponse(request, response, preflightResponse);
           return;
         }
       }
@@ -814,7 +966,7 @@ export const createPlatformNodeHttpAdapter = (
         if (isPlatformHttpResponse(admission)) {
           response.shouldKeepAlive = false;
           response.setHeader("Connection", "close");
-          await writeJsonResponse(response, admission);
+          await writeJsonResponse(request, response, admission);
           return;
         }
         historicalImportPermit = admission;
@@ -836,7 +988,7 @@ export const createPlatformNodeHttpAdapter = (
         );
         const platformResponse = await handle(platformRequest);
 
-        if (!response.destroyed) await writeJsonResponse(response, platformResponse);
+        if (!response.destroyed) await writeJsonResponse(request, response, platformResponse);
       } finally {
         historicalImportPermit?.release();
         request.removeListener("aborted", abortForIncompleteRequest);
@@ -848,16 +1000,16 @@ export const createPlatformNodeHttpAdapter = (
         return;
       }
       if (error instanceof RequestBodyTooLargeError) {
-        await writeJsonResponse(response, requestBodyTooLargeResponse);
+        await writeJsonResponse(request, response, requestBodyTooLargeResponse);
         return;
       }
 
       if (error instanceof InvalidJsonBodyError) {
-        await writeJsonResponse(response, invalidJsonResponse);
+        await writeJsonResponse(request, response, invalidJsonResponse);
         return;
       }
 
-      await writeJsonResponse(response, {
+      await writeJsonResponse(request, response, {
         status: 500,
         body: {
           error: {
