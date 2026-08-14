@@ -25,7 +25,7 @@ export interface SeasonPlayerValues {
   playerHumanValues: Readonly<Record<string, number>>;
 }
 
-const flexPositions = ["RB", "WR", "TE"] as const;
+const flexPositions: readonly ("RB" | "WR" | "TE")[] = ["RB", "WR", "TE"];
 
 export const buildSeasonPlayerValues = ({
   season,

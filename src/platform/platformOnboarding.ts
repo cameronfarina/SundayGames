@@ -6,6 +6,9 @@ import type { WorkspaceRole } from "./workspacePrivacy.js";
 
 type PlatformReadinessState = "ready" | "needs_attention";
 
+const readinessState = (ready: boolean): PlatformReadinessState =>
+  ready ? "ready" : "needs_attention";
+
 export interface PlatformOnboardingRow {
   league_id: string;
   league_name: string;
@@ -197,11 +200,11 @@ export class InMemoryPlatformOnboardingRepository implements PlatformOnboardingR
           },
           canManageLeague: membership.role === "owner" || membership.role === "admin",
           readiness: {
-            leagueSetup: season.setupStatus === "published" || season.setupStatus === "locked"
-              ? "ready" as const
-              : "needs_attention" as const,
-            teamClaim: team === undefined ? "needs_attention" as const : "ready" as const,
-            liveDraft: room === undefined ? "needs_attention" as const : "ready" as const,
+            leagueSetup: readinessState(
+              season.setupStatus === "published" || season.setupStatus === "locked",
+            ),
+            teamClaim: readinessState(team !== undefined),
+            liveDraft: readinessState(room !== undefined),
           },
           ...(nextDraftAt === undefined ? {} : { nextDraftAt }),
           liveDraft: room === undefined

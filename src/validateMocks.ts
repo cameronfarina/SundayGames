@@ -10,6 +10,8 @@ export interface ValidationResult {
   weeks1To4Score?: number;
 }
 
+const rosterPositions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+
 export const validateRoster = (roster: MockRoster): ValidationResult => {
   const errors: string[] = [];
   const names = roster.players.map(player => player.name);
@@ -24,7 +26,8 @@ export const validateRoster = (roster: MockRoster): ValidationResult => {
     { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 },
   );
 
-  for (const [position, maximum] of Object.entries(leagueConfig.rosterMaximums) as [Position, number][]) {
+  for (const position of rosterPositions) {
+    const maximum = leagueConfig.rosterMaximums[position];
     if (counts[position] > maximum) errors.push(`${position} exceeds maximum of ${maximum}.`);
   }
 

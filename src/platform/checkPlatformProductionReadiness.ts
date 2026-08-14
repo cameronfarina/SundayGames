@@ -7,6 +7,7 @@ import {
   formatPlatformProductionReadinessReport,
   platformProductionReadinessExitCode,
   readPlatformRuntimeConfig,
+  type PlatformProductionReadinessCheck,
   type PlatformProductionReadinessReport,
 } from "./platformRuntimeConfig.js";
 import { findMissingPlatformPostgresMigrations } from "./platformMigrations.js";
@@ -89,8 +90,8 @@ const databaseChecksFor = (
     }];
   }
 
-  const connectivityCheck = {
-    status: "pass" as const,
+  const connectivityCheck: PlatformProductionReadinessCheck = {
+    status: "pass",
     label: "Postgres connectivity",
     detail: "Connected to the configured Postgres database.",
   };
@@ -135,20 +136,21 @@ export const checkPlatformProductionReadinessFromEnv = async (
       () => false,
     ),
   ]);
+  const draftStorageCheck: PlatformProductionReadinessCheck = draftStorageWritable
+    ? {
+        status: "pass",
+        label: "Private draft storage write access",
+        detail: "The configured private draft storage directory passed a write and delete probe.",
+      }
+    : {
+        status: "fail",
+        label: "Private draft storage write access",
+        detail: "Could not write to and clean up the configured private draft storage directory.",
+      };
   const checks = [
     ...report.checks,
     ...databaseChecksFor(databaseReadiness),
-    draftStorageWritable
-      ? {
-          status: "pass" as const,
-          label: "Private draft storage write access",
-          detail: "The configured private draft storage directory passed a write and delete probe.",
-        }
-      : {
-          status: "fail" as const,
-          label: "Private draft storage write access",
-          detail: "Could not write to and clean up the configured private draft storage directory.",
-        },
+    draftStorageCheck,
   ];
 
   return {
