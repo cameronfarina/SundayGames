@@ -1,5 +1,6 @@
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
-import type { LeagueSeason } from "./leagueSeason.js";
+import type { Position } from "../../config/league.js";
+import type { ExplicitLeagueSeason, SnakeSettings } from "./leagueSeason.js";
 import type { LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
 import {
   createSnakeDraftState,
@@ -28,39 +29,42 @@ export class SeasonSnakeMockError extends Error {
 }
 
 export interface BuildSeasonSnakeMockConfigInput {
-  season: LeagueSeason;
+  season: ExplicitLeagueSeason;
   setup: LiveDraftRoomSetup;
   humanTeamId: string;
   sessionId: string;
   seed: string;
 }
 
-const skillPositions = ["QB", "RB", "WR", "TE"] as const;
-const allPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
+const skillPositions: readonly Position[] = ["QB", "RB", "WR", "TE"];
+const allPositions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 const eligiblePositionsForSlot = (slot: string): readonly string[] => {
   if (slot === "FLEX" || slot === "RB_WR_TE") return ["RB", "WR", "TE"];
   if (slot === "RB_WR") return ["RB", "WR"];
   if (slot === "WR_TE") return ["WR", "TE"];
   if (slot === "OP" || slot === "SUPERFLEX") return skillPositions;
   if (slot === "BENCH" || slot === "IR") return allPositions;
-  if (allPositions.includes(slot as (typeof allPositions)[number])) return [slot];
+  if (allPositions.some(position => position === slot)) return [slot];
 
   return allPositions;
 };
 
-const rosterSlotsFor = (season: LeagueSeason): readonly SnakeDraftRosterSlotConfig[] => {
+const rosterSlotsFor = (
+  season: ExplicitLeagueSeason,
+  snake: SnakeSettings,
+): readonly SnakeDraftRosterSlotConfig[] => {
   const configured = Object.entries(season.settings.roster.lineup)
     .flatMap(([slot, count]) => typeof count === "number" && Number.isInteger(count) && count > 0
       ? [{ slot, count, eligiblePositions: eligiblePositionsForSlot(slot) }]
       : []);
   const capacity = configured.reduce((total, slot) => total + slot.count, 0);
-  if (capacity >= season.settings.snake.rounds) return configured;
+  if (capacity >= snake.rounds) return configured;
 
   return [
     ...configured,
     {
       slot: "BENCH",
-      count: season.settings.snake.rounds - capacity,
+      count: snake.rounds - capacity,
       eligiblePositions: allPositions,
     },
   ];
@@ -69,14 +73,14 @@ const rosterSlotsFor = (season: LeagueSeason): readonly SnakeDraftRosterSlotConf
 const commandFromJson = (value: string): SnakeDraftCommand => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(value) as unknown;
+    parsed = JSON.parse(value);
   } catch {
     throw new SeasonSnakeMockError("invalid_command_log", "Snake mock command log is invalid.");
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new SeasonSnakeMockError("invalid_command_log", "Snake mock command log is invalid.");
   }
-  const record = parsed as Record<string, unknown>;
+  const record = Object.fromEntries(Object.entries(parsed));
   if (!Number.isInteger(record.expectedRevision)) {
     throw new SeasonSnakeMockError("invalid_command_log", "Snake mock command log is invalid.");
   }
@@ -107,15 +111,16 @@ export const buildSeasonSnakeMockConfig = ({
     throw new SeasonSnakeMockError("human_team_missing", "Claim a team before starting a snake mock draft.");
   }
 
+  const snake = season.settings.snake;
   const baseConfig: SnakeDraftConfig = {
     sessionId,
     seed,
-    rounds: season.settings.snake.rounds,
-    orderType: season.settings.snake.reversal === "third-round" ? "third_round_reversal" : "standard",
-    teamOrder: season.settings.snake.order,
+    rounds: snake.rounds,
+    orderType: snake.reversal === "third-round" ? "third_round_reversal" : "standard",
+    teamOrder: snake.order,
     humanTeamId,
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),
-    rosterSlots: rosterSlotsFor(season),
+    rosterSlots: rosterSlotsFor(season, snake),
     players: setup.playerCatalog.map((player, index) => ({
       id: canonicalPlayerIdentityKey(player.name),
       name: player.name,

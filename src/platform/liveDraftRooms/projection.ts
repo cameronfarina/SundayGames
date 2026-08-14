@@ -1,5 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { FantasyTeam, LeagueSeason } from "../leagueSeason.js";
+import type { AuctionLeagueSeason, FantasyTeam } from "../leagueSeason.js";
 import { activeSalesFor } from "./activeSales.js";
 import type {
   LiveDraftRoomProjection,
@@ -19,7 +19,7 @@ import {
 import { rosterSlotsFor } from "./rosterSlots.js";
 
 const teamStateFor = (
-  season: LeagueSeason,
+  season: AuctionLeagueSeason,
   team: FantasyTeam,
   roster: readonly LiveDraftRoomRosterPlayer[],
 ): LiveDraftRoomTeamState => {

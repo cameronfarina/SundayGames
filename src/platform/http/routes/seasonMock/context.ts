@@ -1,5 +1,9 @@
 import { canonicalPlayerIdentityKey } from "../../../../data/normalizePlayerName.js";
-import type { LeagueSeason } from "../../../leagueSeason.js";
+import {
+  normalizeLeagueSeason,
+  type AnyLeagueSeason,
+  type ExplicitLeagueSeason,
+} from "../../../leagueSeason.js";
 import type { LiveDraftRoomSetup } from "../../../liveDraftRoomSetups.js";
 import { liveDraftRoomSetupContentHash } from "../../../liveDraftRoomSetups.js";
 import { MockDraftSessionError } from "../../../mockSessions.js";
@@ -13,7 +17,7 @@ import { isPlatformHttpResponse, knownError } from "../../responses.js";
 
 export interface SeasonMockDraftContext {
   membership: PlatformLeagueMembership & { ownerId: string; teamId: string };
-  season: LeagueSeason;
+  season: ExplicitLeagueSeason;
   setup: LiveDraftRoomSetup;
 }
 
@@ -46,7 +50,7 @@ const withCurrentProjectionFields = async (
 };
 
 export const seasonMockDraftSetupFor = async (
-  season: LeagueSeason,
+  season: ExplicitLeagueSeason,
   request: ParsedPlatformHttpRequest,
   services: PlatformHttpServices,
 ): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
@@ -72,7 +76,12 @@ export const seasonMockDraftIdentityContextFor = async (
   seasonId: string,
 ): Promise<SeasonMockDraftIdentityContext> => {
   const account = await requireRequestAccount(app, request);
-  const season = await app.getLeagueSeason({ actorSessionToken: request.sessionToken, seasonId, now: request.now });
+  const storedSeason: AnyLeagueSeason = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  });
+  const season = normalizeLeagueSeason(storedSeason);
   const membership = (await app.listLeagueMemberships(season.leagueId))
     .find(candidate => candidate.userId === account.id);
   if (membership?.ownerId === undefined || membership.teamId === undefined) {

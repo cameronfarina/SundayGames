@@ -1,4 +1,5 @@
 import { requireRequestAccount } from "../../auth/access.js";
+import { normalizeLeagueSeason } from "../../../leagueSeason.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
@@ -34,11 +35,11 @@ export const routePlayerCatalog = async (
       },
     };
   }
-  const season = await app.getLeagueSeason({
+  const season = normalizeLeagueSeason(await app.getLeagueSeason({
     actorSessionToken: request.sessionToken,
     seasonId,
     now: request.now,
-  });
+  }));
   const setup = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
   const keepers = setup?.initialRosters.filter(player => player.source === "keeper") ?? [];
   const keeperByPlayer = keeperByPlayerFor(keepers);

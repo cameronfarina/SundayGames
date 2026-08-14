@@ -1,4 +1,4 @@
-import type { LeagueSeason, LeagueSeasonSettings } from "../leagueSeason.js";
+import type { ExplicitLeagueSeason } from "../leagueSeason.js";
 import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
 import type {
   SeasonSimulationPreferenceOutcome,
@@ -50,7 +50,7 @@ export class SeasonSimulationError extends Error {
 }
 
 export interface RunSeasonSimulationsInput {
-  season: LeagueSeason<LeagueSeasonSettings>;
+  season: ExplicitLeagueSeason;
   setup: LiveDraftRoomSetup;
   humanTeamId: string;
   runCount: number;

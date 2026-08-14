@@ -3,7 +3,7 @@ import {
   liveDraftStrategies,
   parseLiveDraftStrategyKey,
 } from "../../../../modeling/liveDraftStrategies.js";
-import type { LeagueSeason } from "../../../leagueSeason.js";
+import type { ExplicitLeagueSeason } from "../../../leagueSeason.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "../../../liveDraftRooms.js";
 import { buildSeasonPlayerValues } from "../../../seasonPlayerValues.js";
 import type { PlatformApp, PlatformHttpResponse } from "../../contracts.js";
@@ -14,7 +14,7 @@ import type { BaselineMetadata, BaselinePlayer } from "./baseline.js";
 export const auctionCatalogResponse = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
-  season: LeagueSeason,
+  season: ExplicitLeagueSeason,
   accountId: string,
   players: readonly BaselinePlayer[],
   keepers: readonly LiveDraftRoomInitialRosterPlayer[],

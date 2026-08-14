@@ -242,9 +242,12 @@ describe("assessLeagueSeasonReadiness", () => {
 
   it("requires unique non-blank team identities", () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const firstTeam = season.teams[0];
+    const secondTeam = season.teams[1];
+    if (firstTeam === undefined || secondTeam === undefined) throw new Error("Expected test teams.");
     season.teams[1] = {
-      ...season.teams[1]!,
-      id: season.teams[0]!.id,
+      ...secondTeam,
+      id: firstTeam.id,
     };
 
     expect(assessLeagueSeasonReadiness(season).blockers).toContain(

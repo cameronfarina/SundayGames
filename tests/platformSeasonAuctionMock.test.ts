@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LeagueSeason } from "../src/platform/leagueSeason.js";
+import type { Position } from "../config/league.js";
+import type { ExplicitLeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomSetup } from "../src/platform/liveDraftRoomSetups.js";
 import {
   buildSeasonAuctionMockConfig,
@@ -7,7 +8,7 @@ import {
   SeasonAuctionMockError,
 } from "../src/platform/seasonAuctionMock.js";
 
-const season: LeagueSeason = {
+const season: ExplicitLeagueSeason = {
   id: "auction-season-2026",
   leagueId: "league-1",
   league: { id: "league-1", externalLeagueId: "1", name: "Sunday", provider: "espn" },
@@ -44,7 +45,7 @@ const season: LeagueSeason = {
   },
 };
 
-const positions = ["RB", "WR", "TE", "QB", "RB", "WR", "TE", "QB"] as const;
+const positions: readonly Position[] = ["RB", "WR", "TE", "QB", "RB", "WR", "TE", "QB"];
 
 const setup: LiveDraftRoomSetup = {
   seasonId: season.id,
@@ -96,7 +97,7 @@ describe("season auction mock adapter", () => {
   });
 
   it("uses canonical hybrid eligibility and excludes IR from mock capacity", () => {
-    const hybridSeason: LeagueSeason = {
+    const hybridSeason: ExplicitLeagueSeason = {
       ...season,
       settings: {
         ...season.settings,
@@ -129,10 +130,10 @@ describe("season auction mock adapter", () => {
   });
 
   it("caps specialist eligibility at 32 viable roles without promoting near-zero depth", () => {
-    const specialistPositions = ["QB", "TE", "K", "DST"] as const;
+    const specialistPositions: readonly Position[] = ["QB", "TE", "K", "DST"];
     const projectedRoleCount = 33;
     const viableRoleDepth = 32;
-    const specialistSeason: LeagueSeason = {
+    const specialistSeason: ExplicitLeagueSeason = {
       ...season,
       settings: {
         ...season.settings,
@@ -209,7 +210,7 @@ describe("season auction mock adapter", () => {
   });
 
   it("rejects unknown legacy roster slots", () => {
-    const unsupportedSeason: LeagueSeason = {
+    const unsupportedSeason: ExplicitLeagueSeason = {
       ...season,
       settings: {
         ...season.settings,
@@ -250,11 +251,13 @@ describe("season auction mock adapter", () => {
   });
 
   it("rejects snake seasons and unclaimed teams", () => {
-    const snakeSettings: LeagueSeason["settings"] = {
-      ...season.settings,
+    const snakeSettings: ExplicitLeagueSeason["settings"] = {
+      expectedTeamCount: season.settings.expectedTeamCount,
       draftFormat: "snake",
-      auction: undefined,
+      scoring: season.settings.scoring,
       snake: { rounds: 2, order: season.teams.map(team => team.id), reversal: "standard" },
+      roster: season.settings.roster,
+      keeperPolicy: season.settings.keeperPolicy,
     };
     expect(() => buildSeasonAuctionMockConfig({
       season: { ...season, settings: snakeSettings },

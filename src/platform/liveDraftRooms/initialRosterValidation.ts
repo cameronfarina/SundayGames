@@ -1,5 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { FantasyTeam, LeagueSeason } from "../leagueSeason.js";
+import type { AuctionLeagueSeason, FantasyTeam } from "../leagueSeason.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "./contracts/core.js";
 import type { LiveDraftRoomRosterPlayer } from "./contracts/players.js";
 import { assertPositiveWholeDollar, pluralPosition } from "./common.js";
@@ -19,7 +19,7 @@ interface InitialRosterState {
 }
 
 export const validateInitialRosters = (
-  season: LeagueSeason,
+  season: AuctionLeagueSeason,
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[],
 ): void => {
   const rosterStateByTeamId = new Map<string, InitialRosterState>(

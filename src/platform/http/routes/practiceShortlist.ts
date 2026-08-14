@@ -1,4 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../../data/normalizePlayerName.js";
+import { normalizeLeagueSeason } from "../../leagueSeason.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../request/parsedRequest.js";
 import { optionalNumber, optionalString, stringValue } from "../request/values.js";
@@ -12,7 +13,11 @@ export const routePracticeShortlist = async (
 ): Promise<PlatformHttpResponse> => {
   if (request.segments.length !== 1) return notFound();
   const seasonId = request.method === "GET" ? stringValue(request.query.seasonId) : optionalString(request.body.seasonId) ?? "";
-  const season = await app.getLeagueSeason({ actorSessionToken: request.sessionToken, seasonId, now: request.now });
+  const season = normalizeLeagueSeason(await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId,
+    now: request.now,
+  }));
   if (request.method === "GET") {
     return {
       status: 200,

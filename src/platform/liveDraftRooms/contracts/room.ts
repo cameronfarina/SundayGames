@@ -1,4 +1,4 @@
-import type { LeagueSeason } from "../../leagueSeason.js";
+import type { AuctionLeagueSeason } from "../../leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomStatus,
@@ -18,7 +18,7 @@ export interface LiveDraftRoom {
   createdAt: Date;
   updatedAt: Date;
   endedAt?: Date | undefined;
-  season: LeagueSeason;
+  season: AuctionLeagueSeason;
   playerCatalog: readonly LiveDraftRoomBoardPlayer[];
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
   events: readonly LiveDraftRoomEvent[];

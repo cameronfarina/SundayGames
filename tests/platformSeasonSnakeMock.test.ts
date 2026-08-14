@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LeagueSeason } from "../src/platform/leagueSeason.js";
+import type { Position } from "../config/league.js";
+import type { ExplicitLeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomSetup } from "../src/platform/liveDraftRoomSetups.js";
 import {
   buildSeasonSnakeMockConfig,
@@ -8,7 +9,7 @@ import {
 } from "../src/platform/seasonSnakeMock.js";
 import { applySnakeDraftCommand, createSnakeDraftState } from "../src/platform/snakeDraftEngine.js";
 
-const season: LeagueSeason = {
+const season: ExplicitLeagueSeason = {
   id: "season-2026",
   leagueId: "league-1",
   league: { id: "league-1", externalLeagueId: "1", name: "Sunday", provider: "espn" },
@@ -45,7 +46,7 @@ const season: LeagueSeason = {
   },
 };
 
-const positions = ["RB", "WR", "TE", "QB", "RB", "WR", "TE", "QB"] as const;
+const positions: readonly Position[] = ["RB", "WR", "TE", "QB", "RB", "WR", "TE", "QB"];
 const setup: LiveDraftRoomSetup = {
   seasonId: season.id,
   sourceVersion: "test",
@@ -106,7 +107,17 @@ describe("season snake mock adapter", () => {
 
   it("rejects auction seasons and unclaimed teams", () => {
     expect(() => buildSeasonSnakeMockConfig({
-      season: { ...season, settings: { ...season.settings, draftFormat: "auction", snake: undefined, auction: { budgetDollars: 200, minimumBidDollars: 1 } } },
+      season: {
+        ...season,
+        settings: {
+          expectedTeamCount: season.settings.expectedTeamCount,
+          draftFormat: "auction",
+          scoring: season.settings.scoring,
+          auction: { budgetDollars: 200, minimumBidDollars: 1 },
+          roster: season.settings.roster,
+          keeperPolicy: season.settings.keeperPolicy,
+        },
+      },
       setup,
       humanTeamId: "team-1",
       sessionId: "mock-1",

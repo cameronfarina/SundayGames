@@ -5,14 +5,14 @@ import {
   strategyAdjustedAuctionValue,
   type LiveDraftStrategyKey,
 } from "../modeling/liveDraftStrategies.js";
-import type { LeagueSeason } from "./leagueSeason.js";
+import type { ExplicitLeagueSeason } from "./leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "./liveDraftRooms.js";
 
 export interface BuildSeasonPlayerValuesInput {
-  season: LeagueSeason;
+  season: ExplicitLeagueSeason;
   playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[];
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
   humanTeamId?: string | undefined;
@@ -50,9 +50,9 @@ export const buildSeasonPlayerValues = ({
     (total, position) => total + (positionCounts[position] ?? 0),
     0,
   );
-  const isAuction = season.settings.draftFormat === "auction";
-  const budget = isAuction ? season.settings.auction.budgetDollars : 1;
-  const minimumBid = isAuction ? season.settings.auction.minimumBidDollars : 1;
+  const auction = season.settings.draftFormat === "auction" ? season.settings.auction : undefined;
+  const budget = auction?.budgetDollars ?? 1;
+  const minimumBid = auction?.minimumBidDollars ?? 1;
   const budgetRemaining = budget - humanKeepers.reduce((total, keeper) => total + keeper.price, 0);
   const openRosterSlots = Math.max(0, season.settings.roster.rosterSize - humanKeepers.length);
   const maximumBid = Math.max(
@@ -67,7 +67,7 @@ export const buildSeasonPlayerValues = ({
   const playerHumanValues = Object.fromEntries(playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
     const marketValue = playerExpectedPrices[playerKey] ?? player.expectedPrice;
-    if (!isAuction) return [playerKey, marketValue];
+    if (auction === undefined) return [playerKey, marketValue];
 
     const projectionBaseline = projectionAdjustedAuctionValue({
       marketValue,

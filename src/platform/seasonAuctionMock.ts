@@ -1,4 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../data/normalizePlayerName.js";
+import type { Position } from "../../config/league.js";
 import {
   replayGenericAuctionMock,
   type GenericAuctionMockCommand,
@@ -7,7 +8,7 @@ import {
   type GenericAuctionMockState,
 } from "./genericAuctionMockEngine.js";
 import { analyzeRosterSlots } from "./leagueCreation.js";
-import type { LeagueSeason } from "./leagueSeason.js";
+import type { ExplicitLeagueSeason } from "./leagueSeason.js";
 import type { LiveDraftRoomSetup } from "./liveDraftRoomSetups.js";
 import {
   isProtectedStarterPosition,
@@ -31,7 +32,7 @@ export class SeasonAuctionMockError extends Error {
 }
 
 export interface BuildSeasonAuctionMockConfigInput {
-  season: LeagueSeason;
+  season: ExplicitLeagueSeason;
   setup: LiveDraftRoomSetup;
   humanTeamId: string;
   sessionId: string;
@@ -40,9 +41,9 @@ export interface BuildSeasonAuctionMockConfigInput {
   playerHumanValues?: Readonly<Record<string, number>> | undefined;
 }
 
-const allPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
+const allPositions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
-const rosterSlotsFor = (season: LeagueSeason): readonly GenericAuctionMockRosterSlotConfig[] => {
+const rosterSlotsFor = (season: ExplicitLeagueSeason): readonly GenericAuctionMockRosterSlotConfig[] => {
   const analysis = analyzeRosterSlots(season.settings.roster.lineup);
   const unsupportedSlot = analysis.unsupportedSlots[0];
   if (unsupportedSlot !== undefined) {
@@ -56,7 +57,7 @@ const rosterSlotsFor = (season: LeagueSeason): readonly GenericAuctionMockRoster
 };
 
 const positionMaximumsFor = (
-  season: LeagueSeason,
+  season: ExplicitLeagueSeason,
   setup: LiveDraftRoomSetup,
 ): Readonly<Record<string, number>> => {
   const derived = analyzeRosterSlots(season.settings.roster.lineup).rosterMaximums;
@@ -82,15 +83,20 @@ const invalidCommand = (): never => {
   throw new SeasonAuctionMockError("invalid_command_log", "Auction mock command log is invalid.");
 };
 
+const objectRecord = (value: unknown): Record<string, unknown> | null => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  return Object.fromEntries(Object.entries(value));
+};
+
 const commandFromJson = (value: string): GenericAuctionMockCommand => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(value) as unknown;
+    parsed = JSON.parse(value);
   } catch {
     return invalidCommand();
   }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return invalidCommand();
-  const record = parsed as Record<string, unknown>;
+  const record = objectRecord(parsed);
+  if (record === null) return invalidCommand();
   if (!Number.isInteger(record.expectedRevision)) return invalidCommand();
   const expectedRevision = Number(record.expectedRevision);
   if (record.type === "start" || record.type === "pass" || record.type === "undo" || record.type === "complete") {
