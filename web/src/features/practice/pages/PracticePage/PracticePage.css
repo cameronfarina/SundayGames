@@ -1,0 +1,23 @@
+.practice-page {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.practice-page h1 {
+  font-size: var(--font-size-3xl);
+  margin: 0;
+}
+
+.practice-page__eyebrow {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.practice-page__lede {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  margin: 0;
+}

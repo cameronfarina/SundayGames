@@ -20,12 +20,14 @@ export {
   type MockdSessionCookieOptions,
 } from "./platformCookies.js";
 import { mockdSessionCookieName } from "./platformCookies.js";
+import type { PlatformBrowserAsset } from "./platformStaticWebAssets.js";
 
 export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
 export const defaultPlatformScreenshotImportBodyLimitBytes = 7_100_000;
 
 export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
+  browserAssets?: ReadonlyMap<string, PlatformBrowserAsset> | undefined;
   draftRoomHtml?: string | undefined;
   maxBodyBytes?: number | undefined;
   screenshotImportMaxBodyBytes?: number | undefined;
@@ -535,6 +537,33 @@ const writeHtmlResponse = (
   response.end(html);
 };
 
+const writeBrowserAssetResponse = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  asset: PlatformBrowserAsset,
+): void => {
+  response.statusCode = 200;
+  response.setHeader("Cache-Control", asset.cacheControl);
+  response.setHeader("Content-Type", asset.contentType);
+  setDefaultSecurityHeaders(response);
+  response.setHeader("Content-Length", asset.body.byteLength);
+  response.end(request.method === "HEAD" ? undefined : asset.body);
+};
+
+const browserAssetForRequest = (
+  request: IncomingMessage,
+  browserAssets: ReadonlyMap<string, PlatformBrowserAsset> | undefined,
+): PlatformBrowserAsset | undefined => {
+  if (request.method !== "GET" && request.method !== "HEAD") return undefined;
+
+  try {
+    const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
+    return browserAssets?.get(pathname);
+  } catch {
+    return undefined;
+  }
+};
+
 const htmlForBrowserRequest = (
   request: IncomingMessage,
   appHtml: string | undefined,
@@ -649,6 +678,7 @@ export const createPlatformNodeHttpAdapter = (
   options: PlatformNodeHttpAdapterOptions = {},
 ): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
   const appHtml = options.appHtml;
+  const browserAssets = options.browserAssets;
   const draftRoomHtml = options.draftRoomHtml;
   const maxBodyBytes = options.maxBodyBytes ?? defaultPlatformJsonBodyLimitBytes;
   const screenshotImportMaxBodyBytes = options.screenshotImportMaxBodyBytes
@@ -666,6 +696,11 @@ export const createPlatformNodeHttpAdapter = (
         setDefaultSecurityHeaders(response);
         response.writeHead(302, { "Content-Length": "0", Location: browserRedirect });
         response.end();
+        return;
+      }
+      const browserAsset = browserAssetForRequest(request, browserAssets);
+      if (browserAsset !== undefined) {
+        writeBrowserAssetResponse(request, response, browserAsset);
         return;
       }
       const browserHtml = htmlForBrowserRequest(request, appHtml, draftRoomHtml);

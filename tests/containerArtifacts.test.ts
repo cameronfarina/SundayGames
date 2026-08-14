@@ -7,9 +7,9 @@ describe("production container artifacts", () => {
   it("separates compilation, production dependencies, and the runtime image", async () => {
     const dockerfile = await readArtifact("Dockerfile");
 
-    expect(dockerfile).toMatch(/^FROM node:24-bookworm-slim AS build$/m);
-    expect(dockerfile).toMatch(/^FROM node:24-bookworm-slim AS production-dependencies$/m);
-    expect(dockerfile).toMatch(/^FROM node:24-bookworm-slim AS runtime$/m);
+    expect(dockerfile).toMatch(/^FROM node:24\.19\.0-bookworm-slim AS build$/m);
+    expect(dockerfile).toMatch(/^FROM node:24\.19\.0-bookworm-slim AS production-dependencies$/m);
+    expect(dockerfile).toMatch(/^FROM node:24\.19\.0-bookworm-slim AS runtime$/m);
     expect(dockerfile).toMatch(/^RUN npm ci --omit=dev$/m);
     expect(dockerfile).toContain(
       "COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules",
@@ -22,6 +22,10 @@ describe("production container artifacts", () => {
     );
     expect(runtimeStage).toContain(
       "COPY --from=build --chown=node:node /app/dist/config ./dist/config",
+    );
+    expect(dockerfile).toContain("COPY web ./web");
+    expect(runtimeStage).toContain(
+      "COPY --from=build --chown=node:node /app/dist/web ./dist/web",
     );
     expect(runtimeStage).toContain("COPY --chown=node:node data/raw ./data/raw");
   });

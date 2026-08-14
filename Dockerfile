@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-bookworm-slim AS build
+FROM node:24.19.0-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -10,10 +10,11 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY config ./config
 COPY src ./src
+COPY web ./web
 RUN npm run build
 
 
-FROM node:24-bookworm-slim AS production-dependencies
+FROM node:24.19.0-bookworm-slim AS production-dependencies
 
 WORKDIR /app
 
@@ -21,7 +22,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24.19.0-bookworm-slim AS runtime
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -33,6 +34,7 @@ WORKDIR /app
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist/src ./dist/src
 COPY --from=build --chown=node:node /app/dist/config ./dist/config
+COPY --from=build --chown=node:node /app/dist/web ./dist/web
 COPY --chown=node:node package.json package-lock.json ./
 COPY --chown=node:node data/raw ./data/raw
 

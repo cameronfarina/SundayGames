@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 import {
   inspectPlatformPostgresReadiness,
   probeWritableDraftToolsDirectory,
@@ -27,6 +28,10 @@ import {
 import { loadCurrentPostDraftProjectionSnapshot } from "./currentPostDraftProjectionSnapshot.js";
 import { createResendAuthMailSender } from "./resendAuthMailSender.js";
 import type { AuthMailSender } from "./auth.js";
+import {
+  loadPlatformStaticWebAssets,
+  type PlatformStaticWebAssets,
+} from "./platformStaticWebAssets.js";
 
 export interface StartedPlatformWebProcess {
   server: StartedPlatformServer;
@@ -36,7 +41,18 @@ export interface StartedPlatformWebProcess {
 
 export interface StartPlatformWebDependencies {
   authMailSender?: AuthMailSender | undefined;
+  staticWebAssets?: PlatformStaticWebAssets | undefined;
 }
+
+const staticWebAssetsFor = async (
+  env: NodeJS.ProcessEnv,
+  dependencies: StartPlatformWebDependencies,
+): Promise<PlatformStaticWebAssets | undefined> => {
+  if (dependencies.staticWebAssets !== undefined) return dependencies.staticWebAssets;
+  if (env.NODE_ENV === "test") return undefined;
+
+  return await loadPlatformStaticWebAssets(resolve(env.MOCKD_WEB_ASSETS_DIRECTORY ?? "dist/web"));
+};
 
 export const createPlatformWebReadinessProbe = (
   config: Pick<PlatformRuntimeConfig, "draftToolsSessionDirectory" | "liveDraftDataMode">,
@@ -96,6 +112,7 @@ export const startPlatformWebFromEnv = async (
   dependencies: StartPlatformWebDependencies = {},
 ): Promise<StartedPlatformWebProcess> => {
   const config = readPlatformWebRuntimeConfig(env);
+  const staticWebAssets = await staticWebAssetsFor(env, dependencies);
   const simulationRunner = await createSimulationRunnerForRuntime(config);
   const postgresClient = config.databaseUrl === undefined
     ? undefined
@@ -122,6 +139,9 @@ export const startPlatformWebFromEnv = async (
   let server: StartedPlatformServer;
   try {
     server = await startPlatformServer({
+      ...(staticWebAssets === undefined
+        ? {}
+        : { appHtml: staticWebAssets.indexHtml, browserAssets: staticWebAssets.files }),
       host: config.host,
       port: config.port,
       dataFilePath: config.dataFilePath,

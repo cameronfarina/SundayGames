@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 
 const platformPort = "4319";
 
-export const localPreviewPlatformCommand = ["run", "platform:web:dev"] as const;
+export const localPreviewPlatformCommand: readonly string[] = ["run", "platform:web:dev"];
+export const localPreviewWebBuildCommand: readonly string[] = ["run", "build:web"];
 
 interface LocalPreviewPathOptions {
   readonly cwd: string;
@@ -89,6 +90,15 @@ export const startLocalPreview = async (
   };
 
   await mkdir(dirname(dataFile), { recursive: true });
+
+  const webBuild = spawn(npmCommand(), localPreviewWebBuildCommand, {
+    env: platformEnv,
+    stdio: "inherit",
+  });
+  const webBuildExitCode = await waitForExit(webBuild);
+  if (webBuildExitCode !== 0) {
+    throw new Error(`Local web build exited with code ${webBuildExitCode}.`);
+  }
 
   const seed = spawn(npmCommand(), ["run", "platform:seed:e2e"], {
     env: platformEnv,

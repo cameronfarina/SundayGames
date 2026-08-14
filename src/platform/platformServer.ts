@@ -61,6 +61,7 @@ import {
   createPlatformNodeHttpAdapter,
   platformSessionTokenForHeaders,
 } from "./platformNodeHttp.js";
+import type { PlatformBrowserAsset } from "./platformStaticWebAssets.js";
 import {
   createPlatformDraftToolsAdapter,
   type PlatformDraftToolsAdapter,
@@ -106,6 +107,8 @@ import {
 export type PlatformClock = () => Date;
 
 export interface CreatePlatformServerOptions {
+  appHtml?: string | undefined;
+  browserAssets?: ReadonlyMap<string, PlatformBrowserAsset> | undefined;
   dataFilePath?: string | undefined;
   postgresClient?: PostgresQueryClient | undefined;
   postgresAuthClient?: PostgresQueryClient | undefined;
@@ -1378,9 +1381,10 @@ export const createPlatformServer = async (
     },
   });
   const platformNodeHandler = createPlatformNodeHttpAdapter(handler, {
-    appHtml: createPlatformShellHtml(options.shellCapabilities ?? {
+    appHtml: options.appHtml ?? createPlatformShellHtml(options.shellCapabilities ?? {
       leagueCreationScreenshotAnalysis: false,
     }),
+    browserAssets: options.browserAssets,
     draftRoomHtml: platformHostedDraftRoomHtml,
     maxBodyBytes: options.bodyLimitBytes,
     screenshotImportMaxBodyBytes: options.screenshotImportBodyLimitBytes,
