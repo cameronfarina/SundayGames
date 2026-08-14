@@ -1,0 +1,27 @@
+import { platformPostgresMigrationStatements } from "../postgresSchema.js";
+
+export const migrationStatementStartingWith = (prefix: string): string => {
+  const statement = platformPostgresMigrationStatements.find(candidate =>
+    candidate.startsWith(prefix)
+  );
+  if (statement === undefined) {
+    throw new Error(`Missing platform schema statement for ${prefix}.`);
+  }
+  return statement;
+};
+
+export const liveRoomSetupMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE league_season_draft_setups")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE UNIQUE INDEX draft_rooms_real_season_key")
+    .replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"),
+];
+
+export const authTokenTableMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE account_auth_tokens")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX account_auth_tokens_account_purpose_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX account_auth_tokens_expires_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];
