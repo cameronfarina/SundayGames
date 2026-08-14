@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildQaReport } from "../src/modeling/qaReport.js";
+import {
+  buildQaReport,
+  type QaGateSummaryInput,
+} from "../src/modeling/qaReport.js";
 
-const passingGateSummary = {
+const passingGateSummary: QaGateSummaryInput = {
   status: "pass",
   credible: true,
   gateCount: 4,
   passCount: 4,
   warnCount: 0,
   failCount: 0,
-} as const;
+};
 
 describe("QA report", () => {
   it("keeps evidence coverage advisory while hard gates pass", () => {
