@@ -1,295 +1,63 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { InMemoryJobQueue } from "../src/platform/jobs.js";
-import {
-  enqueueDraftRoomExportJob,
-  enqueueSimulationRunExecutionJob,
-  platformJobTypes,
-  type DraftRoomExportJobResult,
-  type SimulationRunExecutionJobResult,
-} from "../src/platform/platformJobOrchestrator.js";
-import {
-  runPlatformWorkerLoop,
-  runPlatformWorkerOnce,
-} from "../src/platform/platformWorker.js";
 
-const now = new Date("2026-08-09T12:00:00.000Z");
+const expectedBehaviors = [
+  "dispatches one queued platform job through the shared repository",
+  "polls, sleeps on idle iterations, and reports loop stats",
+  "claims only configured job kinds",
+  "keeps the lease alive while a long job handler is running",
+  "cancels a running job at the handler boundary instead of completing it",
+  "does not retry a canceled job when the handler throws",
+  "surfaces unexpected poll errors through onError and keeps looping",
+];
 
-describe("platform worker", () => {
-  it("dispatches one queued platform job through the shared repository", async () => {
-    const repository = new InMemoryJobQueue();
-    const job = enqueueDraftRoomExportJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      draftRoomId: "room_final",
-      format: "csv",
-      sourceRevision: 9,
-      now,
-    });
+const directory = path.resolve("tests/platformWorker");
+const files = readdirSync(directory)
+  .filter(file => file.endsWith(".ts"))
+  .map(file => path.join(directory, file));
+const behaviorFiles = files.filter(file => file.endsWith(".test.ts"));
 
-    const completedJob = await runPlatformWorkerOnce({
-      repository,
-      workerId: "worker_exports",
-      now: new Date(now.getTime() + 1_000),
-      handlers: {
-        [platformJobTypes.draftRoomExport]: (payload): DraftRoomExportJobResult => ({
-          type: platformJobTypes.draftRoomExport,
-          draftRoomId: payload.draftRoomId,
-          format: payload.format,
-          artifactId: "export_room_final_rev9",
-          storageKey: "exports/room_final/rev9.csv",
-          rowCount: 24,
-        }),
-      },
-    });
+const metadataFor = (file: string) => {
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const unsafe: string[] = [];
+  let assertions = 0;
+  const forbidden: ReadonlySet<ts.SyntaxKind> = new Set([
+    ts.SyntaxKind.AnyKeyword,
+    ts.SyntaxKind.AsExpression,
+    ts.SyntaxKind.NonNullExpression,
+    ts.SyntaxKind.TypeAssertionExpression,
+  ]);
+  const visit = (node: ts.Node): void => {
+    if (forbidden.has(node.kind)) unsafe.push(ts.SyntaxKind[node.kind] ?? "unknown");
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "expect") assertions += 1;
+      const title = node.arguments[0];
+      if (node.expression.text === "it" && title !== undefined && ts.isStringLiteralLike(title)) {
+        names.push(title.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return { names, assertions, unsafe };
+};
 
-    expect(completedJob).toMatchObject({
-      id: job.id,
-      status: "completed",
-      resultSummary: {
-        type: platformJobTypes.draftRoomExport,
-        storageKey: "exports/room_final/rev9.csv",
-      },
-    });
+describe("platform worker test architecture", () => {
+  it("preserves platform worker behaviors and assertions", () => {
+    const metadata = behaviorFiles.map(metadataFor);
+    expect(metadata.flatMap(item => item.names).sort()).toEqual([...expectedBehaviors].sort());
+    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(14);
   });
 
-  it("polls, sleeps on idle iterations, and reports loop stats", async () => {
-    const sleepCalls: number[] = [];
-
-    const stats = await runPlatformWorkerLoop({
-      repository: new InMemoryJobQueue(),
-      workerId: "worker_idle",
-      pollIntervalMs: 250,
-      maxIterations: 3,
-      handlers: {},
-      sleep: async milliseconds => {
-        sleepCalls.push(milliseconds);
-      },
+  it("keeps platform worker tests focused and free of unsafe type escapes", () => {
+    const violations = files.flatMap(file => {
+      const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
+      const unsafe = metadataFor(file).unsafe.map(finding => `${path.basename(file)}: ${finding}`);
+      return lines > 150 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
     });
-
-    expect(stats).toEqual({
-      iterations: 3,
-      dispatchedJobs: 0,
-      idlePolls: 3,
-      errors: 0,
-    });
-    expect(sleepCalls).toEqual([250, 250, 250]);
-  });
-
-  it("claims only configured job kinds", async () => {
-    const repository = new InMemoryJobQueue();
-    const exportJob = enqueueDraftRoomExportJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      draftRoomId: "room_final",
-      format: "csv",
-      sourceRevision: 9,
-      now,
-    });
-    const simulationJob = enqueueSimulationRunExecutionJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      simulationRunId: "sim_123",
-      runCount: 25,
-      now: new Date(now.getTime() + 1_000),
-    });
-
-    const completedJob = await runPlatformWorkerOnce({
-      repository,
-      workerId: "worker_simulations",
-      jobKinds: ["simulation"],
-      now: new Date(now.getTime() + 2_000),
-      handlers: {
-        [platformJobTypes.simulationRunExecution]: (payload): SimulationRunExecutionJobResult => ({
-          type: platformJobTypes.simulationRunExecution,
-          simulationRunId: payload.simulationRunId,
-          runCount: payload.runCount,
-          completedRunCount: payload.runCount,
-        }),
-      },
-    });
-
-    expect(completedJob?.id).toBe(simulationJob.id);
-    expect(repository.fetchForUser(exportJob.id, "user_cam")).toMatchObject({
-      id: exportJob.id,
-      status: "queued",
-    });
-  });
-
-  it("keeps the lease alive while a long job handler is running", async () => {
-    const repository = new InMemoryJobQueue();
-    const job = enqueueDraftRoomExportJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      draftRoomId: "room_final",
-      format: "csv",
-      sourceRevision: 9,
-      now,
-    });
-    let heartbeatCalls = 0;
-    let heartbeatStopped = false;
-
-    const completedJob = await runPlatformWorkerOnce({
-      repository,
-      workerId: "worker_exports",
-      now: new Date(now.getTime() + 1_000),
-      heartbeatIntervalMs: 30_000,
-      heartbeatScheduler: (heartbeat) => {
-        heartbeatCalls += 1;
-        void heartbeat();
-
-        return () => {
-          heartbeatStopped = true;
-        };
-      },
-      handlers: {
-        [platformJobTypes.draftRoomExport]: async (payload): Promise<DraftRoomExportJobResult> => {
-          await Promise.resolve();
-
-          return {
-            type: platformJobTypes.draftRoomExport,
-            draftRoomId: payload.draftRoomId,
-            format: payload.format,
-            artifactId: "export_room_final_rev9",
-            storageKey: "exports/room_final/rev9.csv",
-            rowCount: 24,
-          };
-        },
-      },
-    });
-
-    expect(heartbeatCalls).toBe(1);
-    expect(heartbeatStopped).toBe(true);
-    expect(completedJob).toMatchObject({
-      id: job.id,
-      status: "completed",
-    });
-  });
-
-  it("cancels a running job at the handler boundary instead of completing it", async () => {
-    const repository = new InMemoryJobQueue();
-    const job = enqueueDraftRoomExportJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      draftRoomId: "room_final",
-      format: "csv",
-      sourceRevision: 9,
-      now,
-    });
-
-    const canceledJob = await runPlatformWorkerOnce({
-      repository,
-      workerId: "worker_exports",
-      now: new Date(now.getTime() + 1_000),
-      handlers: {
-        [platformJobTypes.draftRoomExport]: async (payload, context): Promise<DraftRoomExportJobResult> => {
-          await repository.cancelJob({
-            jobId: context.job.id,
-            userId: context.job.userId,
-            now: new Date(now.getTime() + 2_000),
-          });
-
-          return {
-            type: platformJobTypes.draftRoomExport,
-            draftRoomId: payload.draftRoomId,
-            format: payload.format,
-            artifactId: "export_room_final_rev9",
-            storageKey: "exports/room_final/rev9.csv",
-            rowCount: 24,
-          };
-        },
-      },
-    });
-
-    expect(canceledJob).toMatchObject({
-      id: job.id,
-      status: "canceled",
-      resultSummary: undefined,
-      workerId: undefined,
-    });
-  });
-
-  it("does not retry a canceled job when the handler throws", async () => {
-    const repository = new InMemoryJobQueue();
-    const job = enqueueDraftRoomExportJob({
-      repository,
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      draftRoomId: "room_final",
-      format: "csv",
-      sourceRevision: 9,
-      now,
-      maxAttempts: 2,
-    });
-
-    const canceledJob = await runPlatformWorkerOnce({
-      repository,
-      workerId: "worker_exports",
-      now: new Date(now.getTime() + 1_000),
-      handlers: {
-        [platformJobTypes.draftRoomExport]: async (_payload, context): Promise<DraftRoomExportJobResult> => {
-          await repository.cancelJob({
-            jobId: context.job.id,
-            userId: context.job.userId,
-            now: new Date(now.getTime() + 2_000),
-          });
-          throw new Error("export failed after cancellation");
-        },
-      },
-    });
-
-    expect(canceledJob).toMatchObject({
-      id: job.id,
-      status: "canceled",
-      attempts: 0,
-      workerId: undefined,
-    });
-    expect(repository.claimNextJob({
-      workerId: "worker_retry",
-      now: new Date(now.getTime() + 3_000),
-    })).toBeNull();
-  });
-
-  it("surfaces unexpected poll errors through onError and keeps looping", async () => {
-    const repository = new InMemoryJobQueue();
-    const errors: unknown[] = [];
-    let firstClaim = true;
-    const originalClaimNextJob = repository.claimNextJob.bind(repository);
-    const failingRepository: InMemoryJobQueue = Object.assign(repository, {
-      claimNextJob: (input: Parameters<InMemoryJobQueue["claimNextJob"]>[0]) => {
-        if (firstClaim) {
-          firstClaim = false;
-          throw new Error("database unavailable");
-        }
-
-        return originalClaimNextJob(input);
-      },
-    });
-
-    const stats = await runPlatformWorkerLoop({
-      repository: failingRepository,
-      workerId: "worker_resilient",
-      pollIntervalMs: 10,
-      maxIterations: 2,
-      handlers: {},
-      onError: error => {
-        errors.push(error);
-      },
-      sleep: async () => undefined,
-    });
-
-    expect(stats).toMatchObject({ iterations: 2, errors: 1 });
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toBeInstanceOf(Error);
+    expect(violations).toEqual([]);
   });
 });
