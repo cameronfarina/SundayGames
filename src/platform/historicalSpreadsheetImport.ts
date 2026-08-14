@@ -1,39 +1,25 @@
 import { Buffer } from "node:buffer";
-import { Unzip } from "fflate";
 import { readSheet } from "read-excel-file/node";
 import {
   assertHistoricalImportTableDimensions,
   HistoricalImportDocumentLimitError,
-  type HistoricalImportDocumentLimits,
 } from "./historicalImportLimits.js";
+import { assertSafeXlsxArchive } from "./historicalSpreadsheetImport/archive.js";
+import {
+  HistoricalSpreadsheetUploadError,
+  type HistoricalSpreadsheetUploadInput,
+  type HistoricalSpreadsheetUploadOptions,
+  type HistoricalWorkbookReader,
+} from "./historicalSpreadsheetImport/contracts.js";
 
-export interface HistoricalSpreadsheetUploadInput {
-  fileName: string;
-  mimeType: string;
-  base64: string;
-}
-
-export type HistoricalWorkbookReader = (
-  bytes: Uint8Array,
-) => Promise<readonly (readonly unknown[])[]>;
-
-export interface HistoricalSpreadsheetUploadOptions extends HistoricalImportDocumentLimits {
-  maxBytes?: number;
-  maxUncompressedBytes?: number;
-  maxArchiveEntries?: number;
-  readWorkbook?: HistoricalWorkbookReader;
-}
-
-export class HistoricalSpreadsheetUploadError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "HistoricalSpreadsheetUploadError";
-  }
-}
+export { HistoricalSpreadsheetUploadError };
+export type {
+  HistoricalSpreadsheetUploadInput,
+  HistoricalSpreadsheetUploadOptions,
+  HistoricalWorkbookReader,
+};
 
 const defaultMaxBytes = 5 * 1024 * 1024;
-const defaultMaxUncompressedBytes = 25 * 1024 * 1024;
-const defaultMaxArchiveEntries = 256;
 const supportedDelimitedExtensions = new Set(["csv", "tsv"]);
 
 const extensionFor = (fileName: string): string =>
@@ -69,47 +55,6 @@ const rowsToCsv = (rows: readonly (readonly unknown[])[]): string =>
 const defaultWorkbookReader: HistoricalWorkbookReader = async bytes =>
   await readSheet(Buffer.from(bytes));
 
-const assertSafeXlsxArchive = (
-  bytes: Uint8Array,
-  maxUncompressedBytes: number,
-  maxArchiveEntries: number,
-): void => {
-  let entryCount = 0;
-  let uncompressedBytes = 0;
-  let archiveError: HistoricalSpreadsheetUploadError | null = null;
-  const archive = new Unzip(file => {
-    entryCount += 1;
-    if (entryCount > maxArchiveEntries) {
-      archiveError = new HistoricalSpreadsheetUploadError(
-        `XLSX workbooks may contain at most ${maxArchiveEntries} files.`,
-      );
-      return;
-    }
-    if (file.originalSize === undefined || !Number.isSafeInteger(file.originalSize)) {
-      archiveError = new HistoricalSpreadsheetUploadError(
-        "The XLSX workbook does not declare safe expanded file sizes.",
-      );
-      return;
-    }
-    uncompressedBytes += file.originalSize;
-    if (uncompressedBytes > maxUncompressedBytes) {
-      archiveError = new HistoricalSpreadsheetUploadError(
-        `XLSX workbooks must expand to ${maxUncompressedBytes} bytes or fewer.`,
-      );
-    }
-  });
-
-  try {
-    archive.push(bytes, true);
-  } catch {
-    throw new HistoricalSpreadsheetUploadError("The uploaded file is not a valid XLSX workbook.");
-  }
-  if (archiveError !== null) throw archiveError;
-  if (entryCount === 0) {
-    throw new HistoricalSpreadsheetUploadError("The uploaded file is not a valid XLSX workbook.");
-  }
-};
-
 export const historicalSpreadsheetUploadToSourceText = async (
   input: HistoricalSpreadsheetUploadInput,
   options: HistoricalSpreadsheetUploadOptions = {},
@@ -123,11 +68,7 @@ export const historicalSpreadsheetUploadToSourceText = async (
     if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
       throw new HistoricalSpreadsheetUploadError("The uploaded file is not a valid XLSX workbook.");
     }
-    assertSafeXlsxArchive(
-      bytes,
-      options.maxUncompressedBytes ?? defaultMaxUncompressedBytes,
-      options.maxArchiveEntries ?? defaultMaxArchiveEntries,
-    );
+    assertSafeXlsxArchive(bytes, options);
     try {
       const rows = await (options.readWorkbook ?? defaultWorkbookReader)(bytes);
       if (rows.length === 0) throw new Error("empty workbook");
