@@ -385,7 +385,7 @@ describe("Postgres auth repository", () => {
       publicBaseUrl: "https://mockd.example.com",
     });
 
-    await auth.createUser({ email: "owner@example.com", password: "first secure password", now });
+    await auth.createUser({ email: "owner@example.com", now });
     const firstMessage = mailSender.messages[0];
     expect(firstMessage).toBeDefined();
     const firstToken = new URL(firstMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
@@ -394,7 +394,6 @@ describe("Postgres auth repository", () => {
 
     await auth.createUser({
       email: "OWNER@example.com",
-      password: "replacement secure password",
       now: new Date(now.getTime() + 1_000),
     });
     const secondMessage = mailSender.messages[1];
@@ -415,12 +414,12 @@ describe("Postgres auth repository", () => {
       .resolves.toMatchObject({ emailVerifiedAt: new Date(now.getTime() + 2_000) });
     await expect(auth.login({
       email: "owner@example.com",
-      password: "first secure password",
+      password: "attacker first password",
       now: new Date(now.getTime() + 2_001),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "replacement secure password",
+      password: "attacker last password",
       now: new Date(now.getTime() + 2_001),
     })).resolves.toBeNull();
     await expect(auth.login({

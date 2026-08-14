@@ -1511,7 +1511,7 @@ describe("platform server composition", () => {
     const signup = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner@example.com" }),
     });
     expect(signup).toMatchObject({ status: 202, body: { accepted: true } });
     const verificationMessage = authMailSender.messages[0];

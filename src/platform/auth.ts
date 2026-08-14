@@ -178,7 +178,7 @@ export interface CreateAuthServiceOptions {
 
 export interface CreateUserInput {
   email: string;
-  password: string;
+  password?: string | undefined;
   verificationReturnTo?: string | undefined;
   now?: Date | undefined;
 }
@@ -582,8 +582,11 @@ export const createAuthService = ({
 }: CreateAuthServiceOptions): AuthService => ({
   createUser: async ({ email, password, verificationReturnTo, now = new Date() }) => {
     const normalizedEmail = normalizeEmail(email);
-    const passwordHash = await hashServicePassword(password);
     if (!emailVerificationRequired) {
+      if (password === undefined) {
+        throw new AuthError("invalid_password", "Password is required.");
+      }
+      const passwordHash = await hashServicePassword(password);
       return await repository.createAccount({
         id: createId("acct"),
         email: normalizedEmail,
@@ -592,6 +595,7 @@ export const createAuthService = ({
         now,
       });
     }
+    const passwordHash = await createPendingPasswordHash();
     const registration = await repository.createOrReplacePendingAccount({
       id: createId("acct"),
       email: normalizedEmail,
@@ -890,6 +894,9 @@ const hashServicePassword = async (password: string): Promise<string> => {
 
   return formatPasswordHash(salt, derivedKey);
 };
+
+const createPendingPasswordHash = async (): Promise<string> =>
+  await hashServicePassword(randomBytes(32).toString("base64url"));
 
 const verifyServicePassword = async (password: string, storedPasswordHash: string): Promise<boolean> => {
   const parsedHash = parsePasswordHash(storedPasswordHash);

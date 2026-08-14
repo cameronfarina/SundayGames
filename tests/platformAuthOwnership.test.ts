@@ -27,7 +27,6 @@ describe("email ownership and password recovery", () => {
 
     const account = await auth.createUser({
       email: " Owner@Example.com ",
-      password: "first secure password",
       verificationReturnTo: "/invite?token=league-invite",
       now,
     });
@@ -42,12 +41,9 @@ describe("email ownership and password recovery", () => {
     );
     await expect(auth.login({
       email: "owner@example.com",
-      password: "first secure password",
+      password: "attacker supplied password",
       now,
-    })).rejects.toThrow(new AuthError(
-      "email_unverified",
-      "Verify your email before signing in. We can send you a new verification link.",
-    ));
+    })).resolves.toBeNull();
 
     const token = verificationTokenFrom(mailSender.messages[0]!.actionUrl);
     await expect(auth.verifyEmail({
@@ -66,7 +62,7 @@ describe("email ownership and password recovery", () => {
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
     await expect(auth.login({
       email: "owner@example.com",
-      password: "first secure password",
+      password: "attacker supplied password",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
@@ -94,7 +90,6 @@ describe("email ownership and password recovery", () => {
 
     await auth.createUser({
       email: "owner@example.com",
-      password: "first secure password",
       verificationReturnTo,
       now,
     });
@@ -112,11 +107,10 @@ describe("email ownership and password recovery", () => {
       publicBaseUrl: "https://mockd.example.com",
     });
 
-    await auth.createUser({ email: "owner@example.com", password: "first secure password", now });
+    await auth.createUser({ email: "owner@example.com", now });
     const firstToken = verificationTokenFrom(mailSender.messages[0]!.actionUrl);
     await auth.createUser({
       email: " OWNER@example.com ",
-      password: "replacement secure password",
       now: new Date(now.getTime() + 1_000),
     });
     const secondToken = verificationTokenFrom(mailSender.messages[1]!.actionUrl);
@@ -137,12 +131,12 @@ describe("email ownership and password recovery", () => {
     });
     await expect(auth.login({
       email: "owner@example.com",
-      password: "first secure password",
+      password: "attacker first password",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "replacement secure password",
+      password: "attacker last password",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
@@ -153,7 +147,6 @@ describe("email ownership and password recovery", () => {
 
     await auth.createUser({
       email: "owner@example.com",
-      password: "attacker controlled password",
       now: new Date(now.getTime() + 4_000),
     });
     expect(mailSender.messages).toHaveLength(2);

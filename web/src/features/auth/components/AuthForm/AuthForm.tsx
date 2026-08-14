@@ -3,21 +3,25 @@ import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
-import { createAccount, login } from "../../api/authApi";
+import { login } from "../../api/authApi";
+import { createAccount } from "../../api/signupApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
 import "./AuthForm.css";
 
-export type AuthFormMode = "login" | "signup";
-
-interface AuthFormProps { readonly mode: AuthFormMode }
+type AuthFormProps = { readonly mode: "login" } | {
+  readonly mode: "signup";
+  readonly passwordRequired: boolean;
+};
 type AuthOutcome = { readonly kind: "authenticated" } | {
   readonly kind: "notice";
   readonly message: string;
 };
 
-export const AuthForm = ({ mode }: AuthFormProps) => {
+export const AuthForm = (props: AuthFormProps) => {
+  const { mode } = props;
+  const passwordRequired = mode === "login" || props.passwordRequired;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState<string>();
@@ -40,7 +44,7 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
       const signup = await createAccount({
         email,
         ...(invitationToken === undefined ? {} : { invitationToken }),
-        password,
+        ...(passwordRequired ? { password } : {}),
         returnTo,
       });
       if ("account" in signup) {
@@ -80,20 +84,22 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
           value={email}
         />
       </div>
-      <div className="auth-form__field">
-        <label htmlFor="auth-password">Password</label>
-        <input
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          disabled={authentication.isPending}
-          id="auth-password"
-          minLength={8}
-          name="password"
-          onChange={event => { setPassword(event.currentTarget.value); }}
-          required
-          type="password"
-          value={password}
-        />
-      </div>
+      {passwordRequired && (
+        <div className="auth-form__field">
+          <label htmlFor="auth-password">Password</label>
+          <input
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            disabled={authentication.isPending}
+            id="auth-password"
+            minLength={8}
+            name="password"
+            onChange={event => { setPassword(event.currentTarget.value); }}
+            required
+            type="password"
+            value={password}
+          />
+        </div>
+      )}
       {notice !== undefined && <p className="auth-form__message" role="status">{notice}</p>}
       {error !== null && (
         <p className="auth-form__message auth-form__error" role="alert">

@@ -41,14 +41,10 @@ const mountRoute = (path: string) => {
   return { queryClient, router };
 };
 const enterCredentials = async () => {
-  await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "cam@example.com");
+  await userEvent.type(await screen.findByRole("textbox", { name: "Email" }), "cam@example.com");
   await userEvent.type(screen.getByLabelText("Password"), "secure password");
 };
-
-afterEach(() => {
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-});
+afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
 describe("AuthForm", () => {
   it("submits login on Enter and redirects only to a safe return path", async () => {
@@ -100,15 +96,15 @@ describe("AuthForm", () => {
 
   it("caches the auto-login session before protected signup navigation", async () => {
     const fetcher = vi.fn<PlatformFetch>()
+      .mockResolvedValueOnce(jsonResponse({ passwordRequired: true }))
       .mockImplementationOnce(async () => {
         await new Promise(resolve => setTimeout(resolve, 25));
         return jsonResponse({ account }, 201);
       })
       .mockImplementation(() => Promise.resolve(jsonResponse(loginBody)));
     vi.stubGlobal("fetch", fetcher);
-    const { queryClient, router: navigation } = mountRoute(
-      "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1",
-    );
+    const signupPath = "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1";
+    const { queryClient, router: navigation } = mountRoute(signupPath);
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(screen.getByRole("button", { name: "Creating account..." })).toBeDisabled();
@@ -117,30 +113,34 @@ describe("AuthForm", () => {
     });
     expect(screen.getByText("cam@example.com")).toBeVisible();
     expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ account });
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",
       password: "secure password",
       returnTo: "/league?seasonId=season-1",
     }));
-    expect(fetcher).toHaveBeenNthCalledWith(2, "/sessions", expect.objectContaining({ method: "POST" }));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      3, "/sessions", expect.objectContaining({ method: "POST" }),
+    );
   });
 
-  it("shows the privacy-preserving verification notice without logging in", async () => {
-    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse({
-      accepted: true,
-      message: "If this email can be registered, a verification link is on its way.",
-    }, 202));
+  it("collects only email for verification signup and preserves invitation return", async () => {
+    const fetcher = vi.fn<PlatformFetch>()
+      .mockResolvedValueOnce(jsonResponse({ passwordRequired: false }))
+      .mockResolvedValueOnce(jsonResponse({
+        accepted: true,
+        message: "If this email can be registered, a verification link is on its way.",
+      }, 202));
     vi.stubGlobal("fetch", fetcher);
     const { queryClient } = mountRoute("/signup?returnTo=%2Finvite%3Ftoken%3Dleague-token");
-    await enterCredentials();
+    await userEvent.type(await screen.findByRole("textbox", { name: "Email" }), "cam@example.com");
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByRole("status")).toHaveTextContent("verification link");
-    expect(fetcher).toHaveBeenCalledOnce();
-    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",
       invitationToken: "league-token",
-      password: "secure password",
       returnTo: "/invite?token=league-token",
     }));
     expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();

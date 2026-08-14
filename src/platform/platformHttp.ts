@@ -3652,6 +3652,12 @@ export const createPlatformHttpHandler = (
       }
 
       if (root === "accounts" && parsedRequest.segments.length === 1) {
+        if (parsedRequest.method === "GET") {
+          return {
+            status: 200,
+            body: { passwordRequired: services.emailVerificationRequired !== true },
+          };
+        }
         if (parsedRequest.method !== "POST") return methodNotAllowed();
         const denied = await accountCreationDenied(parsedRequest, services);
         if (denied !== null) return denied;
@@ -3665,7 +3671,9 @@ export const createPlatformHttpHandler = (
 
         const account = await app.createAccount({
           email: stringValue(parsedRequest.body.email),
-          password: stringValue(parsedRequest.body.password),
+          ...(optionalString(parsedRequest.body.password) === undefined
+            ? {}
+            : { password: stringValue(parsedRequest.body.password) }),
           verificationReturnTo: optionalString(parsedRequest.body.returnTo),
           now: parsedRequest.now,
         });

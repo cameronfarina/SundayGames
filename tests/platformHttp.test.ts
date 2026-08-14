@@ -308,7 +308,6 @@ describe("platform HTTP contract", () => {
       now,
       body: {
         email: "owner@example.com",
-        password: "secure password",
         returnTo: "/invite?token=league-invite",
       },
     })).resolves.toEqual({
@@ -322,10 +321,10 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/sessions",
       now,
-      body: { email: "owner@example.com", password: "secure password" },
+      body: { email: "owner@example.com", password: "attacker supplied password" },
     })).resolves.toMatchObject({
-      status: 403,
-      body: { error: { code: "email_unverified" } },
+      status: 401,
+      body: { error: { code: "invalid_credentials" } },
     });
 
     const verificationToken = new URL(mailSender.messages[0]!.actionUrl).searchParams.get("token")!;
@@ -352,14 +351,14 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/accounts",
       now: new Date(now.getTime() + 1_500),
-      body: { email: "OWNER@example.com", password: "attacker replacement password" },
+      body: { email: "OWNER@example.com" },
     })).resolves.toMatchObject({ status: 202, body: { accepted: true } });
     expect(mailSender.messages).toHaveLength(mailCountAfterVerification);
     await expect(handle({
       method: "POST",
       path: "/sessions",
       now: new Date(now.getTime() + 2_000),
-      body: { email: "owner@example.com", password: "secure password" },
+      body: { email: "owner@example.com", password: "attacker supplied password" },
     })).resolves.toMatchObject({ status: 401 });
     await expect(handle({
       method: "POST",

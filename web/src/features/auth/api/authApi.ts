@@ -6,10 +6,9 @@ import {
   okSchema,
   resetSchema,
   sessionSchema,
-  signupSchema,
   verifiedSchema,
 } from "./authSchemas";
-import type { AuthSession, LoginResponse, SignupResponse } from "./authSchemas";
+import type { AuthSession, LoginResponse } from "./authSchemas";
 
 interface FetchInput { readonly fetcher?: PlatformFetch }
 interface EmailInput extends FetchInput { readonly email: string }
@@ -46,23 +45,6 @@ export const login = async (input: PasswordInput): Promise<LoginResponse> => req
   init: jsonRequest("POST", { email: input.email, password: input.password }),
   path: "/sessions",
   responseSchema: loginSchema,
-});
-
-interface SignupInput extends PasswordInput {
-  readonly invitationToken?: string;
-  readonly returnTo: string;
-}
-
-export const createAccount = async (input: SignupInput): Promise<SignupResponse> => requestPlatformJson({
-  ...fetchOption(input.fetcher),
-  init: jsonRequest("POST", {
-    email: input.email,
-    ...(input.invitationToken === undefined ? {} : { invitationToken: input.invitationToken }),
-    password: input.password,
-    returnTo: input.returnTo,
-  }),
-  path: "/accounts",
-  responseSchema: signupSchema,
 });
 
 export const requestEmailVerification = async (

@@ -28,6 +28,8 @@ export const signupSchema = z.union([
   z.object({ accepted: z.literal(true), message: z.string().min(1) }),
 ]);
 
+export const signupConfigurationSchema = z.object({ passwordRequired: z.boolean() });
+
 export const acceptedSchema = z.object({
   accepted: z.literal(true),
   message: z.string().min(1),
@@ -41,3 +43,4 @@ export type AuthAccount = z.infer<typeof accountSchema>;
 export type AuthSession = z.infer<typeof sessionSchema>;
 export type LoginResponse = z.infer<typeof loginSchema>;
 export type SignupResponse = z.infer<typeof signupSchema>;
+export type SignupConfiguration = z.infer<typeof signupConfigurationSchema>;
