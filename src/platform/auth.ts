@@ -1,5 +1,16 @@
-import { createHash, randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { sameOriginAuthenticationReturnPath } from "./authenticationReturnPath.js";
+import {
+  consumeUnknownPasswordVerification,
+  createPasswordHash,
+  createPasswordHashSync,
+  passwordHashNeedsRehash,
+  passwordValidationIssue,
+  verifyPasswordHash,
+  verifyPasswordHashSync,
+} from "./passwordCrypto.js";
+
+export { passwordHashNeedsRehash } from "./passwordCrypto.js";
 
 export type AuthErrorCode =
   | "auth_required"
@@ -125,6 +136,13 @@ export interface ReplacePasswordInput {
   now: Date;
 }
 
+export interface UpgradePasswordHashInput {
+  accountId: string;
+  expectedPasswordHash: string;
+  passwordHash: string;
+  now: Date;
+}
+
 export interface PasswordReplacementResult {
   account: AccountRecord;
   revokedSessionCount: number;
@@ -145,6 +163,7 @@ export interface AuthRepository extends AuthTokenFinalizer {
   findSessionByTokenHash(tokenHash: string): MaybePromise<SessionRecord | null>;
   findSessionById(sessionId: string): MaybePromise<SessionRecord | null>;
   revokeSession(sessionId: string, revokedAt: Date): MaybePromise<SessionRecord | null>;
+  upgradePasswordHash(input: UpgradePasswordHashInput): MaybePromise<AccountCredentialRecord | null>;
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): MaybePromise<PasswordReplacementResult | null>;
   replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord | null>;
   withAuthTokenAdmission<TResult>(
@@ -266,13 +285,6 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const defaultSessionTtlMs = 1000 * 60 * 60 * 24 * 30;
 const defaultVerificationTokenTtlMs = 1000 * 60 * 60 * 24;
 const defaultPasswordResetTokenTtlMs = 1000 * 60 * 30;
-const passwordSaltBytes = 16;
-const minimumPasswordLength = 8;
-const unknownAccountPasswordSalt = Buffer.alloc(passwordSaltBytes).toString("base64url");
-const passwordKeyBytes = 64;
-const scryptCost = 16_384;
-const scryptBlockSize = 8;
-const scryptParallelization = 1;
 const sessionTokenBytes = 32;
 const authTokenBytes = 32;
 const idBytes = 16;
@@ -289,22 +301,11 @@ export const normalizeEmail = (email: string): string => {
 
 export const hashPassword = (password: string): string => {
   validatePassword(password);
-
-  const salt = randomBytes(passwordSaltBytes).toString("base64url");
-  const derivedKey = derivePasswordKeySync(password, salt);
-
-  return formatPasswordHash(salt, derivedKey);
+  return createPasswordHashSync(password);
 };
 
 export const verifyPassword = (password: string, storedPasswordHash: string): boolean => {
-  const parsedHash = parsePasswordHash(storedPasswordHash);
-
-  if (parsedHash === null) {
-    return false;
-  }
-
-  const derivedKey = derivePasswordKeySync(password, parsedHash.salt);
-  return passwordKeysMatch(derivedKey, parsedHash.derivedKey);
+  return verifyPasswordHashSync(password, storedPasswordHash);
 };
 
 export const createSessionToken = (): string => randomBytes(sessionTokenBytes).toString("base64url");
@@ -452,6 +453,15 @@ export class InMemoryAuthRepository implements AuthRepository {
 
     this.#sessionsById.set(sessionId, revokedSession);
     return revokedSession;
+  }
+
+  async upgradePasswordHash(input: UpgradePasswordHashInput): Promise<AccountCredentialRecord | null> {
+    const credential = this.#accountsById.get(input.accountId);
+    if (credential === undefined || credential.passwordHash !== input.expectedPasswordHash) return null;
+    const account = { ...credential.account, updatedAt: input.now };
+    const upgraded = { account, passwordHash: input.passwordHash };
+    this.#accountsById.set(input.accountId, upgraded);
+    return upgraded;
   }
 
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): PasswordReplacementResult | null {
@@ -610,6 +620,7 @@ export const createAuthService = ({
       if (password === undefined) {
         throw new AuthError("invalid_password", "Password is required.");
       }
+      validatePassword(password);
       const passwordHash = await passwordHasher(password);
       return await repository.createAccount({
         id: createId("acct"),
@@ -643,11 +654,12 @@ export const createAuthService = ({
   },
 
   login: async ({ email, password, now = new Date(), sessionTtlMs: loginSessionTtlMs }) => {
+    validatePassword(password);
     const normalizedEmail = normalizeEmail(email);
-    const credential = await repository.findAccountCredentialByEmail(normalizedEmail);
+    let credential = await repository.findAccountCredentialByEmail(normalizedEmail);
 
     if (credential === null) {
-      await derivePasswordKeyAsync(password, unknownAccountPasswordSalt);
+      await consumeUnknownPasswordVerification(password);
       return null;
     }
 
@@ -659,6 +671,27 @@ export const createAuthService = ({
         "email_unverified",
         "Verify your email before signing in. We can send you a new verification link.",
       );
+    }
+    if (passwordHashNeedsRehash(credential.passwordHash)) {
+      const passwordHash = await passwordHasher(password);
+      const upgraded = await repository.upgradePasswordHash({
+        accountId: credential.account.id,
+        expectedPasswordHash: credential.passwordHash,
+        passwordHash,
+        now,
+      });
+      if (upgraded === null) {
+        const refreshedCredential = await repository.findAccountCredentialByEmail(normalizedEmail);
+        if (
+          refreshedCredential === null
+          || !(await verifyServicePassword(password, refreshedCredential.passwordHash))
+        ) {
+          return null;
+        }
+        credential = refreshedCredential;
+      } else {
+        credential = upgraded;
+      }
     }
 
     const sessionToken = createSessionToken();
@@ -727,6 +760,7 @@ export const createAuthService = ({
     if (credential === null) {
       throw new AuthError("auth_required", "Sign in before changing your password.");
     }
+    validatePassword(currentPassword);
     if (!(await verifyServicePassword(currentPassword, credential.passwordHash))) {
       throw new AuthError("invalid_current_password", "Current password is incorrect.");
     }
@@ -756,6 +790,7 @@ export const createAuthService = ({
   },
 
   resetPassword: async ({ email, newPassword, now = new Date() }) => {
+    validatePassword(newPassword);
     const normalizedEmail = normalizeEmail(email);
     const credential = await repository.findAccountCredentialByEmail(normalizedEmail);
     if (credential === null) return null;
@@ -906,11 +941,7 @@ const findAuthenticatedSession = async (
 
 const hashServicePassword = async (password: string): Promise<string> => {
   validatePassword(password);
-
-  const salt = randomBytes(passwordSaltBytes).toString("base64url");
-  const derivedKey = await derivePasswordKeyAsync(password, salt);
-
-  return formatPasswordHash(salt, derivedKey);
+  return await createPasswordHash(password);
 };
 
 const createPendingPasswordHash = async (
@@ -918,85 +949,17 @@ const createPendingPasswordHash = async (
 ): Promise<string> => await passwordHasher(randomBytes(32).toString("base64url"));
 
 const verifyServicePassword = async (password: string, storedPasswordHash: string): Promise<boolean> => {
-  const parsedHash = parsePasswordHash(storedPasswordHash);
-
-  if (parsedHash === null) {
-    return false;
-  }
-
-  const derivedKey = await derivePasswordKeyAsync(password, parsedHash.salt);
-  return passwordKeysMatch(derivedKey, parsedHash.derivedKey);
+  return await verifyPasswordHash(password, storedPasswordHash);
 };
 
 const validatePassword = (password: string): void => {
-  if (password.length < minimumPasswordLength) {
+  const issue = passwordValidationIssue(password);
+  if (issue === "too_short") {
     throw new AuthError("invalid_password", "Password must be at least 8 characters.");
   }
-};
-
-const formatPasswordHash = (salt: string, derivedKey: string): string => [
-  "scrypt",
-  String(scryptCost),
-  String(scryptBlockSize),
-  String(scryptParallelization),
-  salt,
-  derivedKey,
-].join("$");
-
-const passwordKeysMatch = (candidateKey: string, storedKey: string): boolean => {
-  const candidateKeyBuffer = Buffer.from(candidateKey, "base64url");
-  const storedKeyBuffer = Buffer.from(storedKey, "base64url");
-
-  return candidateKeyBuffer.length === storedKeyBuffer.length
-    && timingSafeEqual(candidateKeyBuffer, storedKeyBuffer);
-};
-
-const derivePasswordKeyAsync = (password: string, salt: string): Promise<string> =>
-  new Promise((resolve, reject) => {
-    scrypt(password, salt, passwordKeyBytes, {
-      N: scryptCost,
-      r: scryptBlockSize,
-      p: scryptParallelization,
-    }, (error, derivedKey) => {
-      if (error !== null) {
-        reject(error);
-        return;
-      }
-
-      resolve(derivedKey.toString("base64url"));
-    });
-  });
-
-const derivePasswordKeySync = (password: string, salt: string): string =>
-  scryptSync(password, salt, passwordKeyBytes, {
-    N: scryptCost,
-    r: scryptBlockSize,
-    p: scryptParallelization,
-  }).toString("base64url");
-
-interface ParsedPasswordHash {
-  salt: string;
-  derivedKey: string;
-}
-
-const parsePasswordHash = (storedPasswordHash: string): ParsedPasswordHash | null => {
-  const [algorithm, cost, blockSize, parallelization, salt, derivedKey] = storedPasswordHash.split("$");
-
-  if (
-    algorithm !== "scrypt" ||
-    cost !== String(scryptCost) ||
-    blockSize !== String(scryptBlockSize) ||
-    parallelization !== String(scryptParallelization) ||
-    salt === undefined ||
-    derivedKey === undefined
-  ) {
-    return null;
+  if (issue === "too_long") {
+    throw new AuthError("invalid_password", "Password must be no more than 1024 UTF-8 bytes.");
   }
-
-  return {
-    salt,
-    derivedKey,
-  };
 };
 
 const createId = (prefix: "acct" | "auth" | "sess"): string =>

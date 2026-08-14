@@ -15,8 +15,8 @@ const runCli = async (
 ): Promise<CliResult> => {
   let stdout = "";
   let stderr = "";
-  const stdin = Readable.from([input]) as Readable & { isTTY?: boolean };
-  stdin.isTTY = options.isTTY ?? false;
+  const stdin = Readable.from([input]);
+  Object.defineProperty(stdin, "isTTY", { value: options.isTTY ?? false });
 
   const exitCode = await runPasswordHashCli({
     arguments: options.arguments ?? [],
@@ -38,7 +38,7 @@ describe("production password hash CLI", () => {
     const hash = result.stdout.trimEnd();
 
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout).toMatch(/^scrypt\$16384\$8\$1\$[^\n]+\n$/);
+    expect(result.stdout).toMatch(/^scrypt\$32768\$8\$3\$[^\n]+\n$/);
     expect(verifyPassword("correct horse battery staple", hash)).toBe(true);
     expect(result.stdout).not.toContain("correct horse battery staple");
   });
@@ -90,7 +90,7 @@ describe("production password hash CLI", () => {
   });
 
   it("rejects oversized input before hashing it", async () => {
-    const result = await runCli("x".repeat(4_097));
+    const result = await runCli("x".repeat(1_025));
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");

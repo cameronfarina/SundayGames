@@ -17,6 +17,7 @@ import {
   type ReplacePasswordInput,
   type ResetPasswordByTokenInput,
   type SessionRecord,
+  type UpgradePasswordHashInput,
   type VerifyEmailByTokenInput,
 } from "./auth.js";
 import type {
@@ -330,6 +331,22 @@ RETURNING id, account_id, token_hash, created_at, expires_at, revoked_at;
     const row = firstRow(result);
 
     return row === undefined ? null : sessionFromRow(row);
+  }
+
+  async upgradePasswordHash(input: UpgradePasswordHashInput): Promise<AccountCredentialRecord | null> {
+    const result = await this.#client.query<AccountRow>(
+      `
+UPDATE accounts
+SET password_hash = $3, updated_at = $4
+WHERE id = $1
+  AND status = 'active'
+  AND password_hash = $2
+RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
+`.trim(),
+      [input.accountId, input.expectedPasswordHash, input.passwordHash, input.now],
+    );
+    const row = firstRow(result);
+    return row === undefined ? null : accountCredentialFromRow(row);
   }
 
   async replacePasswordAndRevokeSessions(
