@@ -21,8 +21,9 @@ const runCli = async (input: string, options: {
   let stderr = "";
   const repository = options.repository ?? new InMemoryAuthRepository();
   const close = vi.fn(async () => {});
-  const stdin = Readable.from([input]) as Readable & { isTTY?: boolean };
-  stdin.isTTY = options.isTTY ?? false;
+  const stdin = Object.assign(Readable.from([input]), {
+    isTTY: options.isTTY ?? false,
+  });
   const exitCode = await runProductionPasswordResetCli({
     arguments: options.arguments ?? [],
     env: {
@@ -94,8 +95,9 @@ describe("production password reset CLI", () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
     await auth.createUser({ email: "owner@example.com", password: "current secure password", now });
-    const stdin = Readable.from(["replacement secure password\n"]) as Readable & { isTTY?: boolean };
-    stdin.isTTY = false;
+    const stdin = Object.assign(Readable.from(["replacement secure password\n"]), {
+      isTTY: false,
+    });
 
     const exitCode = await runProductionPasswordResetCli({
       arguments: [],
