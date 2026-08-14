@@ -1,0 +1,63 @@
+import { seasonSchema } from "../api/seasonSchemas";
+import { onboardingSchema } from "../api/workspaceSchemas";
+
+export const auctionSeason = seasonSchema.parse({
+  id: "season-1",
+  league: { id: "league-1", externalLeagueId: "214674", name: "Sunday Games", provider: "mockd" },
+  leagueId: "league-1",
+  seasonYear: 2026,
+  teams: [{
+    id: "team-1", leagueSeasonId: "season-1", ownerId: "owner-cam",
+    ownerDisplayName: "Cam", managerDisplayNames: ["Cameron"], abbreviation: "CAM",
+    displayName: "Short King", draftOrderPosition: 1,
+  }],
+  settings: {
+    expectedTeamCount: 1,
+    draftFormat: "auction",
+    scoring: {
+      passingYards: 0.04, passingTouchdown: 4, rushingYards: 0.1,
+      rushingTouchdown: 6, receivingYards: 0.1, receivingTouchdown: 6, reception: 0.5,
+    },
+    auction: { budgetDollars: 200, minimumBidDollars: 1 },
+    roster: {
+      rosterSize: 16,
+      lineup: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DST: 1, K: 1, BENCH: 7 },
+      lineupSlotCount: 9,
+      rosterMaximums: { QB: 3, RB: 6, WR: 6, TE: 2, K: 2, DST: 2 },
+    },
+    keeperPolicy: { mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil" },
+  },
+  setupStatus: "draft",
+});
+
+export const snakeSeason = seasonSchema.parse({
+  ...auctionSeason,
+  settings: {
+    ...auctionSeason.settings,
+    draftFormat: "snake",
+    auction: undefined,
+    snake: { rounds: 16, order: ["team-1"], reversal: "standard" },
+  },
+});
+
+const onboarding = onboardingSchema.parse({
+  account: { id: "account-cam", email: "cam@example.com" },
+  leagues: [{
+    leagueId: "league-1", leagueName: "Sunday Games", seasonId: "season-1", seasonYear: 2026,
+    membership: { role: "owner" }, canManageLeague: true,
+    readiness: { leagueSetup: "needs_attention", teamClaim: "ready", liveDraft: "needs_attention" },
+    liveDraft: null,
+  }],
+});
+
+const firstLeague = onboarding.leagues[0];
+if (firstLeague === undefined) throw new Error("Expected commissioner league fixture.");
+export const ownerLeague = firstLeague;
+
+export const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, status });
+
+export const requestPath = (input: RequestInfo | URL): string => {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? input.toString() : input.url;
+};
