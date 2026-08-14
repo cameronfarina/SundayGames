@@ -1,19 +1,38 @@
+import { QueryClient } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { sessionQueryKey } from "../../features/auth/api/sessionQuery";
+import { createPracticeFetch } from "../../features/practice/pages/PracticePage/test/createPracticeFetch";
+import { AppProviders } from "../providers/AppProviders/AppProviders";
 import { AppRouter } from "./AppRouter";
 import { createAppRoutes } from "./appRoutes";
 
 describe("AppRouter", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders the Practice workspace through the supplied router", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(["session"], { account: { id: "account-1" } });
+    queryClient.setQueryData(sessionQueryKey(), {
+      account: {
+        createdAt: "2026-08-13T12:00:00.000Z",
+        email: "cam@example.com",
+        id: "account-1",
+        updatedAt: "2026-08-13T12:00:00.000Z",
+      },
+    });
+    vi.stubGlobal("fetch", createPracticeFetch());
     const router = createMemoryRouter(createAppRoutes(queryClient), { initialEntries: ["/practice"] });
 
-    render(<AppRouter router={router} />);
+    render(
+      <AppProviders queryClient={queryClient}>
+        <AppRouter router={router} />
+      </AppProviders>,
+    );
 
     expect(await screen.findByRole("heading", { name: "Draft lab" })).toBeVisible();
     expect(screen.getByRole("main")).toBeVisible();
   });
 });
-import { QueryClient } from "@tanstack/react-query";
