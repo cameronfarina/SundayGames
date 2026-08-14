@@ -59,4 +59,16 @@ describe("EmailVerificationForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
     expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
   });
+
+  it("locks password inputs while verification is being completed", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    mountForm();
+
+    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");
+
+    expect(await screen.findByRole("button", { name: "Finishing account..." })).toBeDisabled();
+    expect(screen.getByLabelText("Choose password")).toBeDisabled();
+    expect(screen.getByLabelText("Confirm password")).toBeDisabled();
+  });
 });

@@ -5,11 +5,11 @@ import { getSession } from "../api/authApi";
 import type { AuthSession } from "../api/authSchemas";
 import { sessionQueryKey } from "../api/sessionQuery";
 
-type SessionLoader = (signal?: AbortSignal) => Promise<AuthSession>;
+type SessionLoader = (signal: AbortSignal) => Promise<AuthSession>;
 
 export const createProtectedLoader = (
   queryClient: QueryClient,
-  loadSession: SessionLoader = signal => getSession(signal === undefined ? {} : { signal }),
+  loadSession: SessionLoader = signal => getSession({ signal }),
 ): LoaderFunction => async ({ request }) => {
   try {
     await queryClient.ensureQueryData({

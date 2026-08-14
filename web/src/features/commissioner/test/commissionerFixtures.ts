@@ -1,5 +1,5 @@
 import { seasonSchema } from "../api/seasonSchemas";
-import { onboardingSchema } from "../../../shared/api/onboarding/onboardingSchema";
+import { onboardingLeagueSchema } from "../../../shared/api/onboarding/onboardingSchema";
 
 export const auctionSeason = seasonSchema.parse({
   id: "season-1",
@@ -40,19 +40,12 @@ export const snakeSeason = seasonSchema.parse({
   },
 });
 
-const onboarding = onboardingSchema.parse({
-  account: { id: "account-cam", email: "cam@example.com" },
-  leagues: [{
-    leagueId: "league-1", leagueName: "Sunday Games", seasonId: "season-1", seasonYear: 2026,
-    membership: { role: "owner" }, canManageLeague: true,
-    readiness: { leagueSetup: "needs_attention", teamClaim: "ready", liveDraft: "needs_attention" },
-    liveDraft: null,
-  }],
+export const ownerLeague = onboardingLeagueSchema.parse({
+  leagueId: "league-1", leagueName: "Sunday Games", seasonId: "season-1", seasonYear: 2026,
+  membership: { role: "owner" }, canManageLeague: true,
+  readiness: { leagueSetup: "needs_attention", teamClaim: "ready", liveDraft: "needs_attention" },
+  liveDraft: null,
 });
-
-const firstLeague = onboarding.leagues[0];
-if (firstLeague === undefined) throw new Error("Expected commissioner league fixture.");
-export const ownerLeague = firstLeague;
 
 export const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, status });

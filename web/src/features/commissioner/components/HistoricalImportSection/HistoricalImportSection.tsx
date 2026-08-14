@@ -16,13 +16,12 @@ import { HistoricalFileRow } from "./HistoricalFileRow.js";
 
 interface HistoricalImportSectionProps { readonly season: CommissionerSeason }
 interface ImportOutcome {
-  readonly id: string;
-  readonly message: string;
+  readonly id: string; readonly message: string;
   readonly ownerNeeds?: readonly string[];
   readonly status: HistoricalFileItem["status"];
 }
 interface ImportProgress { readonly completed: number; readonly total: number }
-
+interface ImportableFile { readonly item: HistoricalFileItem; readonly seasonYear: number }
 const ownerNeedsFor = (item: HistoricalFileItem, rows: readonly {
   readonly blockers: readonly { readonly code: string }[];
   readonly identityAudit?: { readonly sourceOwnerOrTeamLabel: string } | undefined;
@@ -41,10 +40,12 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>({ completed: 0, total: 0 });
   const fileInput = useRef<HTMLInputElement>(null);
-  const importOne = async (item: HistoricalFileItem): Promise<ImportOutcome> => {
+  const pending = items.filter(item => item.status !== "imported");
+  const importable = pending.flatMap(item => {
     const seasonYear = historicalYear(item.seasonYear);
-    if (seasonYear === undefined)
-      return { id: item.id, message: "Enter a valid draft year.", status: "error" };
+    return seasonYear === undefined ? [] : [{ item, seasonYear }];
+  });
+  const importOne = async ({ item, seasonYear }: ImportableFile): Promise<ImportOutcome> => {
     try {
       const preview = await commissionerApi.previewHistory({
         base64: await fileBase64(item.file),
@@ -85,8 +86,8 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
     }
   };
   const importFiles = useMutation({
-    mutationFn: async (pending: readonly HistoricalFileItem[]): Promise<readonly ImportOutcome[]> =>
-      await Promise.all(pending.map(importOne)),
+    mutationFn: async (files: readonly ImportableFile[]): Promise<readonly ImportOutcome[]> =>
+      await Promise.all(files.map(importOne)),
     onSuccess: outcomes => { outcomes.forEach(outcome => { dispatch({ type: "result", ...outcome }); }); },
   });
   const addFiles = (files: FileList | null) => {
@@ -98,7 +99,6 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   const changeFiles = (event: ChangeEvent<HTMLInputElement>) => {
     addFiles(event.target.files); event.target.value = "";
   };
-  const pending = items.filter(item => item.status !== "imported");
   const duplicateYears = duplicateHistoricalYears(items);
   const invalidYears = hasInvalidHistoricalYears(items);
   const mappingIncomplete = pending.some(item => item.ownerNeeds.some(label => !item.ownerMappings[label]));
@@ -110,7 +110,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
     : `Import ${String(pending.length)} ${fileLabel}`;
   const startImport = () => {
     setProgress({ completed: 0, total: pending.length });
-    importFiles.mutate(pending);
+    importFiles.mutate(importable);
   };
 
   return (

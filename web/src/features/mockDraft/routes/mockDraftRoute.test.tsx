@@ -9,9 +9,12 @@ import { MockDraftRoutePage } from "./mockDraftRoute";
 vi.mock("../pages/MockDraftPage/MockDraftPage", () => ({
   MockDraftPage: ({ initialSessionId, onSessionChange, seasonId }: MockDraftPageProps) => {
     const [sessionId] = useState(initialSessionId);
-    return <button onClick={() => { onSessionChange?.("mock-2"); }} type="button">
-      {seasonId}:{sessionId ?? "new"}
-    </button>;
+    return <>
+      <button onClick={() => { onSessionChange?.("mock-2"); }} type="button">
+        {seasonId}:{sessionId ?? "new"}
+      </button>
+      <button onClick={() => { onSessionChange?.(undefined); }} type="button">Clear session</button>
+    </>;
   },
 }));
 
@@ -46,6 +49,8 @@ describe("MockDraftRoutePage", () => {
     await user.click(screen.getByRole("button", { name: "season-1:mock-1" }));
 
     expect(screen.getByText("?seasonId=season-1&sessionId=mock-2")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear session" }));
+    expect(screen.getByText("?seasonId=season-1")).toBeVisible();
   });
 
   it("does not carry the previous league session into a new season", async () => {
