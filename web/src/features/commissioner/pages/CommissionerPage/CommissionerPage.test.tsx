@@ -97,8 +97,8 @@ const renderPage = (canManageLeague = true, failPath = "") => {
   vi.stubGlobal("fetch", fetcher);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createMemoryRouter(
-    [{ path: "/setup", element: <CommissionerPage /> }],
-    { initialEntries: ["/setup?seasonId=season-1"] },
+    [{ path: "/commissioner", element: <CommissionerPage /> }],
+    { initialEntries: ["/commissioner?seasonId=season-1"] },
   );
 
   return render(

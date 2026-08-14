@@ -10,7 +10,7 @@ const roomPath = (league: OnboardingLeague): string | undefined => {
 
 export function LeagueHeader({ league }: { readonly league: OnboardingLeague }) {
   const draftPath = roomPath(league);
-  const setupPath = `/setup?${new URLSearchParams({ seasonId: league.seasonId }).toString()}`;
+  const setupPath = `/commissioner?${new URLSearchParams({ seasonId: league.seasonId }).toString()}`;
   const needsSetup = league.readiness.leagueSetup === "needs_attention";
 
   return (

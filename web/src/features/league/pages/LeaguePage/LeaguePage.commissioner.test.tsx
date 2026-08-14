@@ -26,7 +26,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Finish setup" })).toHaveAttribute(
       "href",
-      "/setup?seasonId=season-1",
+      "/commissioner?seasonId=season-1",
     );
     expect(screen.queryByRole("link", { name: "Enter draft" })).not.toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Create draft room" })).toHaveAttribute(
       "href",
-      "/setup?seasonId=season-1#live-room-setup-title",
+      "/commissioner?seasonId=season-1#live-room-setup-title",
     );
   });
 });
