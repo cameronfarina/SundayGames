@@ -1,272 +1,71 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { keepers } from "../config/keepers.js";
-import { loadHistoricalAuctionRecords } from "../src/data/parseHistoricalBoards.js";
-import {
-  buildInteractiveMockDraftState,
-  resolveInteractiveMockDraftAction,
-  type InteractiveMockDraftState,
-} from "../src/modeling/interactiveMockDraft.js";
-import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
-const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
-const commandsBeforeAffordableRb3Decision = [
-  "Owner01 drafted Jahmyr Gibbs for 74",
-  "Owner14 drafted Puka Nacua for 74",
-  "Owner01 drafted Bijan Robinson for 74",
-  "Owner14 drafted Ja'Marr Chase for 74",
-  "Owner13 drafted Christian McCaffrey for 69",
-  "Owner13 drafted Jonathan Taylor for 69",
-  "Owner03 drafted Amon-Ra St. Brown for 69",
-  "Owner03 drafted CeeDee Lamb for 69",
-  "Owner10 drafted Saquon Barkley for 69",
-  "Owner11 drafted Derrick Henry for 62",
-  "Owner02 drafted Justin Jefferson for 66",
-  "Owner02 drafted Rashee Rice for 58",
-  "Owner08 drafted Ashton Jeanty for 59",
-  "Owner08 drafted Jeremiyah Love for 55",
-  "Owner04 drafted Nico Collins for 55",
-  "Owner07 drafted Garrett Wilson for 58",
-  "Owner11 drafted Omarion Hampton for 54",
-  "Owner04 drafted Drake London for 56",
-  "Owner07 drafted James Cook III for 51",
-  "Owner09 drafted A.J. Brown for 49",
-  "Owner12 drafted Josh Jacobs for 46",
-  "Owner12 drafted Josh Allen for 37",
-  "Owner12 drafted Brock Bowers for 39",
-  "Owner05 drafted Trey McBride for 39",
+const expectedBehaviors = [
+  "uses real auction nominations and pauses when Owner11 can enter the bidding",
+  "keeps AI sale previews open until the advance action logs the sale",
+  "stops for Owner11 when his strategy max beats the AI price",
+  "exposes the current auction bid and lets AI continue after Owner11 raises",
+  "lets Owner11 explicitly nominate a selected player on his snake turn",
+  "uses the selected owner in user-facing auction errors",
 ];
 
-describe("interactive mock draft", () => {
-  it("uses real auction nominations and pauses when Owner11 can enter the bidding", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const state = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: [],
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "interactive-test",
-    });
+const testDirectory = path.resolve("tests/interactiveMockDraft");
+const files = readdirSync(testDirectory)
+  .filter(file => file.endsWith(".ts"))
+  .map(file => path.join(testDirectory, file));
+const behaviorFiles = files.filter(file => file.endsWith(".test.ts"));
 
-    expect(state.phase).toBe("human-decision");
-    expect(state.nominator).toBe("Owner01");
-    expect(state.nomination?.player).toBe("Jahmyr Gibbs");
-    expect(state.aiSaleCommand).toMatch(/^\w+ drafted Jahmyr Gibbs for \d+$/);
-    expect(state.camDecision?.recommendedBid).toBe(state.auction?.nextCamBid);
-    expect(state.auction?.feed.map(event => event.text)).toContain("Owner01 nominated Jahmyr Gibbs for $70");
-    expect(state.aiBids[0]).toMatchObject({
-      player: "Jahmyr Gibbs",
-      owner: expect.not.stringMatching(/^Owner11$/),
-    });
-    expect(state.topTargets[0]).toMatchObject({
-      name: "Jahmyr Gibbs",
-      position: "RB",
-    });
+const sourceFileFor = (file: string): ts.SourceFile =>
+  ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+
+const metadataFor = (sourceFile: ts.SourceFile): {
+  readonly behaviorNames: readonly string[];
+  readonly assertionCount: number;
+  readonly unsafeSyntax: readonly string[];
+} => {
+  const behaviorNames: string[] = [];
+  const unsafeSyntax: string[] = [];
+  let assertionCount = 0;
+  const forbidden: ReadonlySet<ts.SyntaxKind> = new Set([
+    ts.SyntaxKind.AnyKeyword,
+    ts.SyntaxKind.AsExpression,
+    ts.SyntaxKind.NonNullExpression,
+    ts.SyntaxKind.TypeAssertionExpression,
+  ]);
+  const visit = (node: ts.Node): void => {
+    if (forbidden.has(node.kind)) unsafeSyntax.push(ts.SyntaxKind[node.kind] ?? "unknown");
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "expect") assertionCount += 1;
+      const name = node.arguments[0];
+      if (node.expression.text === "it" && name !== undefined && ts.isStringLiteralLike(name)) {
+        behaviorNames.push(name.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return { behaviorNames, assertionCount, unsafeSyntax };
+};
+
+describe("interactive mock draft test architecture", () => {
+  it("preserves interactive mock behavior names and assertions", () => {
+    const metadata = behaviorFiles.map(sourceFileFor).map(metadataFor);
+    const behaviorNames = metadata.flatMap(item => item.behaviorNames).sort();
+    const assertions = metadata.reduce((total, item) => total + item.assertionCount, 0);
+    expect(behaviorNames).toEqual([...expectedBehaviors].sort());
+    expect(assertions).toBe(45);
   });
 
-  it("keeps AI sale previews open until the advance action logs the sale", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const state = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: ["Owner11 drafted Jahmyr Gibbs for 80"],
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "y",
+  it("keeps interactive mock tests focused and free of unsafe type escapes", () => {
+    const violations = files.flatMap(file => {
+      const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
+      const unsafe = metadataFor(sourceFileFor(file)).unsafeSyntax
+        .map(finding => `${path.basename(file)}: ${finding}`);
+      return lines > 150 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
     });
-
-    expect(state.phase).toBe("ai-sale");
-    expect(state.auction?.status).toBe("ai-sale");
-    expect(state.auction?.resolution?.command).toBe(state.aiSaleCommand);
-    expect(state.auction?.feed.map(event => event.type)).toEqual([
-      "nomination",
-      "bid",
-      "bid",
-      "bid",
-      "bid",
-    ]);
-
-    const resolved = resolveInteractiveMockDraftAction(state, "advance");
-    expect(resolved.command).toBe(state.aiSaleCommand);
-  });
-
-  it("stops for Owner11 when his strategy max beats the AI price", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
-    const state = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: commandsBeforeCamNomination,
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "interactive-test",
-      nominatedPlayer: "Breece Hall",
-    });
-
-    expect(state.phase).toBe("human-decision");
-    expect(state.nomination?.player).toBe("Breece Hall");
-    expect(state.camDecision).toMatchObject({
-      maxBid: 44,
-      recommendedBid: 40,
-    });
-    expect(state.camDecision?.topAiBid).toBeGreaterThanOrEqual(state.auction?.currentBid ?? 0);
-    expect(state.camDecision?.topAiBidOwner).toEqual(expect.any(String));
-    expect(state.auction).toMatchObject({
-      currentBid: 39,
-      nextCamBid: 40,
-    });
-    expect(state.auction?.currentBidOwner).toEqual(expect.any(String));
-    expect(state.camDecision?.maxBid).toBeGreaterThanOrEqual(state.auction?.nextCamBid ?? 0);
-
-    const camBid = resolveInteractiveMockDraftAction(state, "cam-bid");
-    const pass = resolveInteractiveMockDraftAction(state, "pass");
-    expect(camBid.command).toBeUndefined();
-    expect(camBid.mockDraft?.auction?.currentBid).toBe(41);
-    expect(camBid.mockDraft?.auction?.nextCamBid).toBe(42);
-    expect(pass.command).toBe(state.aiSaleCommand);
-  });
-
-  it("exposes the current auction bid and lets AI continue after Owner11 raises", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
-    const state = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: commandsBeforeCamNomination,
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "interactive-auction-test",
-      nominatedPlayer: "Breece Hall",
-    });
-
-    expect(state.phase).toBe("human-decision");
-    expect(state.auction).toMatchObject({
-      status: "cam-decision",
-      player: "Breece Hall",
-      currentBid: state.camDecision?.aiSalePrice,
-      nextCamBid: (state.camDecision?.aiSalePrice ?? 0) + 1,
-    });
-    expect(state.camDecision?.recommendedBid).toBe(state.auction?.nextCamBid);
-    expect(state.auction?.feed[0]?.text).toBe(
-      `${state.nominator} nominated Breece Hall for $${state.auction?.openingBid}`,
-    );
-
-    const contestedState = {
-      ...state,
-      aiBids: [
-        { owner: "Owner10", player: "Breece Hall", amount: 45, maxBid: 45, marketPrice: 37 },
-        { owner: "Owner07", player: "Breece Hall", amount: 43, maxBid: 43, marketPrice: 37 },
-      ],
-      camDecision: {
-        maxBid: 46,
-        recommendedBid: 42,
-        topAiBid: 45,
-        topAiBidOwner: "Owner10",
-        aiSalePrice: 41,
-        valueGap: 8,
-      },
-      auction: {
-        ...state.auction!,
-        status: "cam-decision",
-        currentBid: 41,
-        currentBidOwner: "Owner10",
-        nextCamBid: 42,
-        feed: [
-          { type: "nomination", text: "Owner11 nominated Breece Hall for $37" },
-          { type: "bid", owner: "Owner10", amount: 41, text: "Owner10 bid $41" },
-        ],
-      },
-    } satisfies InteractiveMockDraftState;
-
-    const aiRaise = resolveInteractiveMockDraftAction(contestedState, "cam-bid") as {
-      command?: string;
-      mockDraft?: InteractiveMockDraftState;
-    };
-    expect(aiRaise.command).toBeUndefined();
-    expect(aiRaise.mockDraft?.phase).toBe("human-decision");
-    expect(aiRaise.mockDraft?.auction?.currentBid).toBe(43);
-    expect(aiRaise.mockDraft?.auction?.currentBidOwner).toBe("Owner10");
-    expect(aiRaise.mockDraft?.auction?.nextCamBid).toBe(44);
-    expect(aiRaise.mockDraft?.auction?.feed.map(event => event.text)).toEqual([
-      "Owner11 nominated Breece Hall for $37",
-      "Owner10 bid $41",
-      "Owner11 bid $42",
-      "Owner10 bid $43",
-    ]);
-  });
-
-  it("lets Owner11 explicitly nominate a selected player on his snake turn", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const commandsBeforeCamNomination = commandsBeforeAffordableRb3Decision.slice(0, 10);
-    const nominationTurn = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: commandsBeforeCamNomination,
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "owner11-nomination-test",
-    });
-    const nominated = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: commandsBeforeCamNomination,
-      watchOwner: "Owner11",
-      strategyKey: "three-rb",
-      seed: "owner11-nomination-test",
-      nominatedPlayer: "Breece Hall",
-      nominatedPrice: 3,
-    });
-
-    expect(nominationTurn).toMatchObject({
-      phase: "human-nomination",
-      nominator: "Owner11",
-    });
-    expect(nominated.nominator).toBe("Owner11");
-    expect(nominated.nomination?.player).toBe("Breece Hall");
-    expect(nominated.auction?.openingBid).toBe(3);
-    expect(nominated.auction?.feed[0]?.text).toBe("Owner11 nominated Breece Hall for $3");
-    expect(nominated.aiBids.length).toBeGreaterThan(0);
-    expect(nominated.aiSaleCommand).toContain("Breece Hall");
-    expect(["human-decision", "ai-sale"]).toContain(nominated.phase);
-
-    const resolved = resolveInteractiveMockDraftAction(
-      nominated,
-      nominated.phase === "human-decision" ? "pass" : "advance",
-    );
-    expect(resolved.command).toBe(nominated.aiSaleCommand);
-  });
-
-  it("uses the selected owner in user-facing auction errors", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const state = buildInteractiveMockDraftState({
-      projections,
-      historicalRecords,
-      keepers,
-      commands: [],
-      watchOwner: "Owner02",
-      strategyKey: "three-rb",
-      seed: "owner-error-test",
-    });
-
-    const stateWithoutDecision = { ...state };
-    delete stateWithoutDecision.nomination;
-    delete stateWithoutDecision.camDecision;
-
-    expect(() => resolveInteractiveMockDraftAction(
-      stateWithoutDecision,
-      "cam-bid",
-    )).toThrow("Owner02 does not have a live decision to win.");
+    expect(violations).toEqual([]);
   });
 });
