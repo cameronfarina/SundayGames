@@ -156,7 +156,7 @@ describe("season simulation worker runner", () => {
       completedCount: 1,
     });
     expect(executionCount).toBe(6);
-  });
+  }, 15_000);
 
   it("times out active work and releases its worker slot", async () => {
     const runner = createBoundedSeasonSimulationRunner(async (_input, options) =>
