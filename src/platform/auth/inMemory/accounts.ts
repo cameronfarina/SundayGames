@@ -1,0 +1,65 @@
+import { AuthError } from "../errors.js";
+import type {
+  AccountCredentialRecord,
+  AccountRecord,
+  CreateAccountRecordInput,
+  CreateOrReplacePendingAccountInput,
+  PendingAccountRegistrationResult,
+} from "../records.js";
+import type { InMemoryAuthState } from "./state.js";
+
+export const createAccount = (state: InMemoryAuthState, input: CreateAccountRecordInput): AccountRecord => {
+  if (state.accountIdsByEmail.has(input.email)) {
+    throw new AuthError("duplicate_email", "An account with this email already exists.");
+  }
+  const account: AccountRecord = {
+    id: input.id,
+    email: input.email,
+    emailVerifiedAt: input.emailVerifiedAt ?? input.now,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+  state.accountsById.set(input.id, { account, passwordHash: input.passwordHash });
+  state.accountIdsByEmail.set(input.email, input.id);
+  state.authVersionsByAccountId.set(input.id, 1);
+  return account;
+};
+
+export const createOrReplacePendingAccount = (
+  state: InMemoryAuthState,
+  input: CreateOrReplacePendingAccountInput,
+): PendingAccountRegistrationResult => {
+  const existingId = state.accountIdsByEmail.get(input.email);
+  if (existingId === undefined) {
+    const account: AccountRecord = {
+      id: input.id,
+      email: input.email,
+      createdAt: input.now,
+      updatedAt: input.now,
+    };
+    state.accountsById.set(input.id, { account, passwordHash: input.passwordHash });
+    state.accountIdsByEmail.set(input.email, input.id);
+    state.authVersionsByAccountId.set(input.id, 1);
+    return { account, status: "created", credentialVersion: 1 };
+  }
+  const existing = state.accountsById.get(existingId);
+  if (existing === undefined) throw new Error("Auth email index is inconsistent.");
+  if (existing.account.emailVerifiedAt !== undefined) return { account: existing.account, status: "verified" };
+
+  const credentialVersion = (state.authVersionsByAccountId.get(existingId) ?? 1) + 1;
+  const account = { ...existing.account, updatedAt: input.now };
+  state.accountsById.set(existingId, { account, passwordHash: input.passwordHash });
+  state.authVersionsByAccountId.set(existingId, credentialVersion);
+  return { account, status: "reissued", credentialVersion };
+};
+
+export const findAccountCredentialByEmail = (
+  state: InMemoryAuthState,
+  normalizedEmail: string,
+): AccountCredentialRecord | null => {
+  const accountId = state.accountIdsByEmail.get(normalizedEmail);
+  return accountId === undefined ? null : state.accountsById.get(accountId) ?? null;
+};
+
+export const findAccountById = (state: InMemoryAuthState, accountId: string): AccountRecord | null =>
+  state.accountsById.get(accountId)?.account ?? null;

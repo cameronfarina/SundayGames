@@ -173,7 +173,7 @@ const parseOverride = (value: unknown): PlayerContextOverride => {
 };
 
 export const parsePlayerContextJson = (content: string): PlayerContextOverride[] => {
-  const parsed = JSON.parse(content) as unknown;
+  const parsed: unknown = JSON.parse(content);
   return jsonOverrideValues(parsed).map(parseOverride);
 };
 

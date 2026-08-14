@@ -136,6 +136,14 @@ export const parseDraftRoomRankings = (
     if (!name || !position) return [];
 
     const providerRanks = providerRanksFor(row);
+    const byeWeek = rowNumber(row, "BYE");
+    const adpRank = rowNumber(row, "ADP");
+    const fantasyProsRank = rowNumber(row, "FantasyPros");
+    const platformRank = platformRankFor(row, providerRanks);
+    const platformGapVsFantasyPros = platformGapFor(row);
+    const landmineScore = rowNumber(row, "Landmine");
+    const round = rowNumber(row, "Round");
+    const pick = rowNumber(row, "Pick");
     const ranking: DraftRoomRanking = {
       sourceId,
       sourceLabel: sourceLabelFor(sourceId),
@@ -145,26 +153,15 @@ export const parseDraftRoomRankings = (
       team: rowValue(row, "Team")?.trim() ?? "",
       position,
       providerRanks,
+      ...(byeWeek === undefined ? {} : { byeWeek }),
+      ...(adpRank === undefined ? {} : { adpRank }),
+      ...(fantasyProsRank === undefined ? {} : { fantasyProsRank }),
+      ...(platformRank === undefined ? {} : { platformRank }),
+      ...(platformGapVsFantasyPros === undefined ? {} : { platformGapVsFantasyPros }),
+      ...(landmineScore === undefined ? {} : { landmineScore }),
+      ...(round === undefined ? {} : { round }),
+      ...(pick === undefined ? {} : { pick }),
     };
-    const optionalNumbers: [
-      keyof DraftRoomRanking,
-      number | undefined,
-    ][] = [
-      ["byeWeek", rowNumber(row, "BYE")],
-      ["adpRank", rowNumber(row, "ADP")],
-      ["fantasyProsRank", rowNumber(row, "FantasyPros")],
-      ["platformRank", platformRankFor(row, providerRanks)],
-      ["platformGapVsFantasyPros", platformGapFor(row)],
-      ["landmineScore", rowNumber(row, "Landmine")],
-      ["round", rowNumber(row, "Round")],
-      ["pick", rowNumber(row, "Pick")],
-    ];
-
-    for (const [key, value] of optionalNumbers) {
-      if (value !== undefined) {
-        (ranking as unknown as Record<string, unknown>)[key] = value;
-      }
-    }
 
     return [ranking];
   });

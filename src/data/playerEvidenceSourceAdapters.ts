@@ -14,14 +14,10 @@ export interface LoadPlayerEvidenceSourceRowsOptions {
   adapter?: PlayerEvidenceSourceAdapterKey;
 }
 
-type EvidenceJsonValue = {
-  evidence?: unknown[];
-};
-
 type CsvValue = string | number | boolean | undefined;
 
 const evidenceCategorySet = new Set<string>(factualPlayerContextCategories);
-const optionalEvidencePayloadFields = [
+const optionalEvidencePayloadFields: readonly string[] = [
   "score",
   "confidence",
   "source",
@@ -31,8 +27,8 @@ const optionalEvidencePayloadFields = [
   "sourceDate",
   "source_quality",
   "sourceQuality",
-] as const;
-const requiredEvidencePayloadFields = ["score", "source", "note"] as const;
+];
+const requiredEvidencePayloadFields: readonly string[] = ["score", "source", "note"];
 
 const isEvidenceCategory = (value: string): value is FactualPlayerContextCategory =>
   evidenceCategorySet.has(value);
@@ -156,18 +152,20 @@ const shouldSkipUntouchedCsvRow = (row: CsvRow): boolean => {
 
 const evidenceValuesFromJson = (parsed: unknown): unknown[] => {
   if (Array.isArray(parsed)) return parsed;
-  if (isRecord(parsed) && Array.isArray((parsed as EvidenceJsonValue).evidence)) {
-    return (parsed as EvidenceJsonValue).evidence ?? [];
+  if (isRecord(parsed) && Array.isArray(parsed.evidence)) {
+    return parsed.evidence;
   }
 
   throw new Error("Player evidence JSON must be an evidence array or an object with an evidence array.");
 };
 
-const parseScoredLocalJson = (content: string): PlayerContextEvidence[] =>
-  evidenceValuesFromJson(JSON.parse(content) as unknown).map(value => {
+const parseScoredLocalJson = (content: string): PlayerContextEvidence[] => {
+  const parsed: unknown = JSON.parse(content);
+  return evidenceValuesFromJson(parsed).map(value => {
     if (!isRecord(value)) throw new Error("Player evidence JSON rows must be objects.");
     return evidenceForRecord(value);
   });
+};
 
 const parseScoredLocalCsv = (content: string): PlayerContextEvidence[] =>
   parseCsvRecords(content).flatMap(row =>
