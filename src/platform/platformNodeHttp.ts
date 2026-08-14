@@ -79,6 +79,7 @@ const appShellPaths = new Set([
   "/invite",
   "/setup",
   "/league",
+  "/commissioner",
   "/practice",
   "/my-team",
   "/mock-drafts",

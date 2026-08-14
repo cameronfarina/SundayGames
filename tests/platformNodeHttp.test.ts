@@ -578,6 +578,7 @@ describe("platform Node HTTP adapter", () => {
       "/invite?token=test",
       "/setup",
       "/league",
+      "/commissioner",
       "/practice",
       "/my-team",
       "/mock-drafts",
