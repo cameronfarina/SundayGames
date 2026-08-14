@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type SyntheticEvent } from "react";
 import { Button, TextField } from "../../../../shared/ui/index.js";
+import { invalidateKeeperConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import type { CommissionerKeeper } from "../../api/workspaceSchemas";
 import { errorMessage } from "../../model/errorMessage";
-import { commissionerKeys } from "../../pages/CommissionerPage/hooks/useCommissionerWorkspace";
 
 interface KeeperSectionProps {
   readonly keepers: readonly CommissionerKeeper[];
@@ -17,9 +17,7 @@ interface KeeperIdentity { readonly playerId: string; readonly teamId: string }
 export function KeeperSection({ keepers, season }: KeeperSectionProps) {
   const [command, setCommand] = useState("");
   const queryClient = useQueryClient();
-  const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: commissionerKeys.keepers(season.id) });
-  };
+  const refresh = async () => { await invalidateKeeperConsumers(queryClient, season.id); };
   const add = useMutation({
     mutationFn: () => commissionerApi.addKeeper(season.id, command.trim()),
     onSuccess: async () => { setCommand(""); await refresh(); },

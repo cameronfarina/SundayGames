@@ -1,15 +1,15 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { QueryFunctionContext } from "@tanstack/react-query";
 import type { PlatformFetch } from "../http/requestPlatformJson";
+import { seasonQueryKeys } from "../queries/seasonQueryKeys";
 import { getOnboarding } from "./onboardingApi";
 
 const ONBOARDING_STALE_TIME_MS = 60_000;
-type OnboardingQueryKey = readonly ["onboarding"];
 
-export const onboardingQueryKey = (): OnboardingQueryKey => ["onboarding"];
+export const onboardingQueryKey = seasonQueryKeys.onboarding;
 
 const onboardingQueryFunction = (fetcher?: PlatformFetch) => async (
-  { signal }: QueryFunctionContext<OnboardingQueryKey>,
+  { signal }: QueryFunctionContext<ReturnType<typeof onboardingQueryKey>>,
 ) => await getOnboarding({
   ...(fetcher === undefined ? {} : { fetcher }),
   signal,

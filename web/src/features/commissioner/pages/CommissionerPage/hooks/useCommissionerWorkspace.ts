@@ -1,27 +1,22 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useOnboardingQuery } from "../../../../../shared/api/onboarding/onboardingQuery";
+import { seasonQueryKeys } from "../../../../../shared/api/queries/seasonQueryKeys";
 import { commissionerApi } from "../../../api/commissionerApi";
 
-export const commissionerKeys = {
-  season: (seasonId: string) => ["commissioner", "season", seasonId],
-  keepers: (seasonId: string) => ["commissioner", "keepers", seasonId],
-  invitations: (seasonId: string) => ["commissioner", "invitations", seasonId],
-};
-
 const seasonOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: commissionerKeys.season(seasonId),
+  queryKey: seasonQueryKeys.commissionerSeason(seasonId),
   queryFn: () => commissionerApi.season(seasonId),
   enabled,
 });
 
 const keeperOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: commissionerKeys.keepers(seasonId),
+  queryKey: seasonQueryKeys.commissionerKeepers(seasonId),
   queryFn: () => commissionerApi.keepers(seasonId),
   enabled,
 });
 
 const invitationOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: commissionerKeys.invitations(seasonId),
+  queryKey: seasonQueryKeys.commissionerInvitations(seasonId),
   queryFn: () => commissionerApi.invitations(seasonId),
   enabled,
 });

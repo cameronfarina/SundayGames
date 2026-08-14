@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
+import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
 import type { CommissionerKeeper } from "../../api/workspaceSchemas";
 import { auctionSeason, jsonResponse, requestPath } from "../../test/commissionerFixtures";
 import { KeeperSection } from "./KeeperSection";
@@ -15,9 +16,13 @@ const achane = {
 const renderSection = (fetcher: PlatformFetch, keepers: readonly CommissionerKeeper[] = [achane]) => {
   vi.stubGlobal("fetch", fetcher);
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}>
+  client.setQueryData(seasonQueryKeys.commissionerKeepers(auctionSeason.id), { keepers });
+  client.setQueryData(seasonQueryKeys.seasonKeepers(auctionSeason.id), { keepers });
+  client.setQueryData(seasonQueryKeys.practiceCatalog(auctionSeason.id, "balanced"), { players: [] });
+  const view = render(<QueryClientProvider client={client}>
     <KeeperSection keepers={keepers} season={auctionSeason} />
   </QueryClientProvider>);
+  return { ...view, client };
 };
 
 describe("KeeperSection", () => {
@@ -39,14 +44,18 @@ describe("KeeperSection", () => {
       return Promise.resolve(jsonResponse({ keepers: [] }));
     };
     const fetcher = vi.fn(respond);
-    renderSection(fetcher);
+    const { client } = renderSection(fetcher);
     const user = userEvent.setup();
 
     fireEvent.submit(screen.getByRole("form", { name: "Add keeper" }));
     expect(fetcher).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText("Keeper command"), "cam keeping achane 50{Enter}");
     expect(await screen.findByText("Keeper saved.")).toBeVisible();
+    expect(client.getQueryState(seasonQueryKeys.seasonKeepers(auctionSeason.id))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(seasonQueryKeys.practiceCatalog(auctionSeason.id, "balanced"))?.isInvalidated).toBe(true);
+    client.setQueryData(seasonQueryKeys.seasonKeepers(auctionSeason.id), { keepers: [achane] });
     await user.click(screen.getByRole("button", { name: "Remove" }));
+    expect(client.getQueryState(seasonQueryKeys.seasonKeepers(auctionSeason.id))?.isInvalidated).toBe(true);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(bodies[0]).toBe(JSON.stringify({ command: "cam keeping achane 50", confirmed: true }));
     expect(methods[1]).toBe("DELETE");

@@ -1,11 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { onboardingQueryKey } from "../../../../shared/api/onboarding/onboardingQuery";
+import { invalidateLeagueSetupConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
-import { commissionerKeys } from "../../pages/CommissionerPage/hooks/useCommissionerWorkspace";
 
 interface LeagueSetupSectionProps { readonly season: CommissionerSeason }
 
@@ -22,13 +21,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
   const preview = useMutation({ mutationFn: () => commissionerApi.previewTeams(season.id, content) });
   const apply = useMutation({
     mutationFn: () => commissionerApi.applyTeams(season.id, content),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: commissionerKeys.season(season.id) }),
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: commissionerKeys.invitations(season.id) }),
-      ]);
-    },
+    onSuccess: async () => { await invalidateLeagueSetupConsumers(queryClient, season.id); },
   });
   const settings = season.settings;
   const previewReady = preview.data?.import.status === "ready";

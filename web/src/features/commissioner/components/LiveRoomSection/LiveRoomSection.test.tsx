@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { onboardingLeagueSchema } from "../../../../shared/api/onboarding/onboardingSchema";
+import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
 import { seasonSchema } from "../../api/seasonSchemas";
 import { auctionSeason, jsonResponse, ownerLeague, requestPath, snakeSeason } from "../../test/commissionerFixtures";
 import { LiveRoomSection } from "./LiveRoomSection";
@@ -18,17 +19,20 @@ const LocationOutput = () => {
 
 const renderSection = (fetcher: PlatformFetch, season = auctionSeason, league = ownerLeague) => {
   vi.stubGlobal("fetch", fetcher);
-  return render(<MemoryRouter initialEntries={["/league"]}>
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
+  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
+  client.setQueryData(seasonQueryKeys.leagueSeason(season.id), { season });
+  const view = render(<MemoryRouter initialEntries={["/league"]}>
+    <QueryClientProvider client={client}>
       <LiveRoomSection league={league} season={season} />
     </QueryClientProvider>
     <LocationOutput />
   </MemoryRouter>);
+  return { ...view, client };
 };
 
 describe("LiveRoomSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
-
   it("publishes setup, creates an auction room, enters it, and archives it", async () => {
     const requests: string[] = [];
     const respond: PlatformFetch = (input, init) => {
@@ -39,10 +43,12 @@ describe("LiveRoomSection", () => {
       }
       return Promise.resolve(jsonResponse({ room: { roomId: "room-1", status: "setup" } }));
     };
-    renderSection(vi.fn(respond));
+    const { client } = renderSection(vi.fn(respond));
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Publish reviewed league" }));
     await user.click(await screen.findByRole("button", { name: "Create room" }));
+    expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
+    client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
     expect(await screen.findByRole("link", { name: "Enter draft room" }))
       .toHaveAttribute("href", "/draft-room?seasonId=season-1&roomId=room-1");
     await user.click(screen.getByRole("link", { name: "Enter draft room" }));
@@ -51,9 +57,9 @@ describe("LiveRoomSection", () => {
     await user.click(screen.getByRole("button", { name: "Archive room" }));
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));
     expect(await screen.findByRole("button", { name: "Create room" })).toBeVisible();
+    expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
     expect(requests).toContain("DELETE /seasons/season-1/live-room");
   });
-
   it("uses a scheduled time and lets a commissioner cancel archive confirmation", async () => {
     const scheduled = seasonSchema.parse({
       ...publishedSeason, draft: { scheduledAt: "2026-08-30T19:00:00.000Z", timezone: "America/New_York" },
@@ -68,7 +74,6 @@ describe("LiveRoomSection", () => {
     await user.click(screen.getByRole("button", { name: "Keep room" }));
     expect(screen.getByRole("button", { name: "Archive room" })).toBeVisible();
   });
-
   it("sends an edited scheduled time when creating a room", async () => {
     const scheduled = seasonSchema.parse({
       ...publishedSeason, draft: { scheduledAt: "2026-08-30T19:00:00.000Z" },
@@ -88,7 +93,6 @@ describe("LiveRoomSection", () => {
     expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
     expect(bodies[0]).toContain("startsAt");
   });
-
   it("shows unsupported snake copy and mutation errors", async () => {
     const errorFetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({
       error: { code: "publish_failed", message: "Review setup first." },

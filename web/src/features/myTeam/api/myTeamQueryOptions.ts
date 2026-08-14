@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
 import {
   getKeepers,
   getPostDraftTeam,
@@ -6,13 +7,13 @@ import {
 } from "./myTeamApi";
 
 export const seasonTeamQueryOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: ["season-team", seasonId],
+  queryKey: seasonQueryKeys.seasonTeam(seasonId),
   queryFn: async ({ signal }) => await getSeasonTeam(seasonId, { signal }),
   enabled,
 });
 
 export const keepersQueryOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: ["season-keepers", seasonId],
+  queryKey: seasonQueryKeys.seasonKeepers(seasonId),
   queryFn: async ({ signal }) => await getKeepers(seasonId, { signal }),
   enabled,
 });

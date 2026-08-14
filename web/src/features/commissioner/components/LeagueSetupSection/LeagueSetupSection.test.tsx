@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
+import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
 import { seasonSchema } from "../../api/seasonSchemas";
 import { auctionSeason, jsonResponse, requestPath, snakeSeason } from "../../test/commissionerFixtures";
 import { LeagueSetupSection } from "./LeagueSetupSection";
@@ -13,9 +14,14 @@ const readyImport = { status: "ready", blockers: [], records: [{
 
 const renderSection = (fetcher: PlatformFetch, snake = false) => {
   vi.stubGlobal("fetch", fetcher);
-  return render(<QueryClientProvider client={new QueryClient()}>
+  const client = new QueryClient();
+  client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
+  client.setQueryData(seasonQueryKeys.leagueSeason(auctionSeason.id), { season: auctionSeason });
+  client.setQueryData(seasonQueryKeys.seasonTeam(auctionSeason.id), { season: auctionSeason });
+  const view = render(<QueryClientProvider client={client}>
     <LeagueSetupSection season={snake ? snakeSeason : auctionSeason} />
   </QueryClientProvider>);
+  return { ...view, client };
 };
 
 describe("LeagueSetupSection", () => {
@@ -30,7 +36,7 @@ describe("LeagueSetupSection", () => {
           }, 207),
     );
     const fetcher = vi.fn(respond);
-    renderSection(fetcher);
+    const { client } = renderSection(fetcher);
     const user = userEvent.setup();
     const apply = screen.getByRole("button", { name: "Apply changes" });
     expect(apply).toBeDisabled();
@@ -38,6 +44,9 @@ describe("LeagueSetupSection", () => {
     expect(await screen.findByText("Ready to apply 1 teams.")).toBeVisible();
     await user.click(apply);
     expect(await screen.findByText("League teams saved.")).toBeVisible();
+    expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
+    expect(client.getQueryState(seasonQueryKeys.leagueSeason(auctionSeason.id))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(seasonQueryKeys.seasonTeam(auctionSeason.id))?.isInvalidated).toBe(true);
   });
 
   it("shows blocked previews, reset behavior, errors, and snake details", async () => {

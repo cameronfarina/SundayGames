@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Button } from "../../../../shared/ui/index.js";
+import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerInvitation } from "../../api/workspaceSchemas";
 import { errorMessage } from "../../model/errorMessage";
-import { commissionerKeys } from "../../pages/CommissionerPage/hooks/useCommissionerWorkspace";
 
 interface InvitationSectionProps {
   readonly invitations: readonly CommissionerInvitation[];
@@ -24,7 +24,7 @@ export function InvitationSection({ invitations, seasonId }: InvitationSectionPr
   const create = useMutation({
     mutationFn: () => commissionerApi.createInvitation(seasonId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: commissionerKeys.invitations(seasonId) });
+      await queryClient.invalidateQueries({ queryKey: seasonQueryKeys.commissionerInvitations(seasonId) });
     },
   });
   const current = create.data?.invitation ?? active;

@@ -1,13 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { onboardingQueryKey } from "../../../../shared/api/onboarding/onboardingQuery";
+import {
+  invalidateLiveRoomConsumers,
+  invalidatePublishedSeasonConsumers,
+} from "../../../../shared/api/queries/seasonQueryInvalidation";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
-import { commissionerKeys } from "../../pages/CommissionerPage/hooks/useCommissionerWorkspace";
 
 interface LiveRoomSectionProps {
   readonly league: OnboardingLeague;
@@ -25,17 +27,20 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const publish = useMutation({
     mutationFn: () => commissionerApi.publish(season.id),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: commissionerKeys.season(season.id) }),
+    onSuccess: async () => { await invalidatePublishedSeasonConsumers(queryClient, season.id); },
   });
-  const create = useMutation({ mutationFn: () => commissionerApi.createRoom(
-    season.id,
-    startsAt.length === 0 ? undefined : new Date(startsAt).toISOString(),
-  ) });
+  const create = useMutation({
+    mutationFn: () => commissionerApi.createRoom(
+      season.id,
+      startsAt.length === 0 ? undefined : new Date(startsAt).toISOString(),
+    ),
+    onSuccess: async () => { await invalidateLiveRoomConsumers(queryClient, season.id); },
+  });
   const archive = useMutation({
     mutationFn: () => commissionerApi.archiveRoom(season.id),
     onSuccess: async () => {
       setConfirmArchive(false);
-      await queryClient.invalidateQueries({ queryKey: onboardingQueryKey() });
+      await invalidateLiveRoomConsumers(queryClient, season.id);
     },
   });
   const published = publish.data?.season.setupStatus === "published" || season.setupStatus !== "draft";

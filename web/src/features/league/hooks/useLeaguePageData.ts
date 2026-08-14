@@ -3,6 +3,7 @@ import {
   onboardingQueryKey,
   useOnboardingQuery,
 } from "../../../shared/api/onboarding/onboardingQuery";
+import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
 import {
   claimLeagueTeam,
   loadLeagueSeason,
@@ -11,15 +12,13 @@ import {
 } from "../api/leagueApi";
 import { selectActiveLeague } from "../lib/leagueDisplay";
 
-const seasonKey = (seasonId: string) => ["league-season", seasonId];
-const keepersKey = (seasonId: string) => ["season-keepers", seasonId];
 const seasonOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: seasonKey(seasonId),
+  queryKey: seasonQueryKeys.leagueSeason(seasonId),
   queryFn: () => loadLeagueSeason(seasonId),
   enabled,
 });
 const keepersOptions = (seasonId: string, enabled: boolean) => queryOptions({
-  queryKey: keepersKey(seasonId),
+  queryKey: seasonQueryKeys.seasonKeepers(seasonId),
   queryFn: () => loadSeasonKeepers(seasonId),
   enabled,
 });
@@ -43,7 +42,7 @@ export const useClaimLeagueTeam = () => {
     onSuccess: async (_response, input) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: onboardingQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: seasonKey(input.seasonId) }),
+        queryClient.invalidateQueries({ queryKey: seasonQueryKeys.leagueSeason(input.seasonId) }),
       ]);
     },
   });
