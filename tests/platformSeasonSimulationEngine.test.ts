@@ -14,7 +14,7 @@ import {
   type SeasonSimulationTargetConstraint,
 } from "../src/platform/seasonSimulationEngine.js";
 
-const teams = ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
+const teams = ["Owner11", "Owner12", "Matt", "Nick"].map((name, index) => ({
   id: `team-${index + 1}`,
   leagueSeasonId: "season-2026",
   ownerId: `owner-${index + 1}`,
@@ -364,10 +364,10 @@ describe("season simulation runner", () => {
       hitCount: 0,
       hitRate: 0,
       reason: "retained_by_other_team",
-      message: "Jadarian Price is retained by Sam Team and cannot be acquired. Choose another target.",
+      message: "Jadarian Price is retained by Owner12 Team and cannot be acquired. Choose another target.",
     });
     expect(result.strategy.warnings).toContain(
-      "Jadarian Price is retained by Sam Team and cannot be acquired. Choose another target.",
+      "Jadarian Price is retained by Owner12 Team and cannot be acquired. Choose another target.",
     );
   });
 
@@ -437,7 +437,7 @@ describe("season simulation runner", () => {
   it.each([
     ["Premium Runner", "Value Runner", "alg001-95"],
     ["Value Runner", "Premium Runner", "alg001-3"],
-  ])("acquires an exactly affordable pair of uncapped targets in order %s then %s", (
+  ])("acquires uncapped targets at modeled clearing prices in order %s then %s", (
     firstTarget,
     secondTarget,
     seedPrefix,
@@ -455,10 +455,10 @@ describe("season simulation runner", () => {
       "Premium Runner",
       "Value Runner",
     ]);
-    expect(humanTeam?.spent).toBe(100);
-    expect(humanTeam?.budgetRemaining).toBe(0);
+    expect(humanTeam?.spent).toBe(97);
+    expect(humanTeam?.budgetRemaining).toBe(3);
     expect(humanTeam?.roster).toEqual(expect.arrayContaining([
-      expect.objectContaining({ playerName: "Premium Runner", price: 61 }),
+      expect.objectContaining({ playerName: "Premium Runner", price: 58 }),
       expect.objectContaining({ playerName: "Value Runner", price: 39 }),
     ]));
   });
@@ -499,13 +499,13 @@ describe("season simulation runner", () => {
     const humanTeam = result.runs[0]?.teams.find(team => team.isUserTeam);
 
     expect(humanTeam?.roster).toEqual(expect.arrayContaining([
-      expect.objectContaining({ playerName: "Premium Runner", price: 61 }),
+      expect.objectContaining({ playerName: "Premium Runner", price: 58 }),
       expect.objectContaining({ playerName: "Value Runner", price: 39 }),
     ]));
     expect(humanTeam?.roster).toHaveLength(2);
     expect(new Set(humanTeam?.roster.map(player => player.playerId)).size).toBe(2);
-    expect(humanTeam?.spent).toBe(100);
-    expect(humanTeam?.budgetRemaining).toBe(0);
+    expect(humanTeam?.spent).toBe(97);
+    expect(humanTeam?.budgetRemaining).toBe(3);
   });
 
   it("keeps a budget-infeasible uncapped target plan within auction invariants", () => {
@@ -632,7 +632,7 @@ describe("season simulation runner", () => {
     });
     expect(result.runs[0]?.teams).toHaveLength(4);
     expect(result.runs[0]?.teams.find(team => team.teamId === "team-1")).toMatchObject({
-      teamName: "Cam Team",
+      teamName: "Owner11 Team",
       isUserTeam: true,
       roster: expect.arrayContaining([
         expect.objectContaining({

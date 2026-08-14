@@ -44,6 +44,7 @@ import {
   type SeasonSimulationTargetConstraint,
   type SeasonSimulationTargetOutcome,
 } from "./seasonSimulationTargets.js";
+import { reconciledSeasonSimulationTeams } from "./seasonSimulationAuctionBudgets.js";
 import { resolveAuctionTargetPlan } from "./seasonSimulationTargetPlan.js";
 
 export type {
@@ -1565,10 +1566,15 @@ const runSeasonSimulationsUnchecked = (
     if (!state.teams.some(team => team.id === input.humanTeamId)) {
       throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
     }
+    const reconciledTeams = reconciledSeasonSimulationTeams({
+      state,
+      targetsByPlayerId,
+      positionCaps: strategyResolution.strategy.positionCaps ?? [],
+    });
     runs.push({
       runNumber,
       seed,
-      teams: state.teams.map(team => teamResultFor({
+      teams: reconciledTeams.map(team => teamResultFor({
         teamId: team.id,
         teamName: team.name,
         isUserTeam: team.id === input.humanTeamId,
