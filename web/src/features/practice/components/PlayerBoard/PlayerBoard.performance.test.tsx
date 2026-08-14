@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PlayerCatalog } from "../../api/playerCatalogSchema";
@@ -32,14 +32,14 @@ const shortlist: readonly PracticeShortlistItem[] = [{
 }];
 
 describe("PlayerBoard performance", () => {
-  it("bounds the initial rows and lets users reveal the complete catalog", async () => {
-    const user = userEvent.setup();
+  it("bounds the initial rows and lets users reveal the complete catalog", () => {
     render(<PlayerBoard catalog={catalog} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
 
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(51);
     expect(screen.getByText("50 shown / 500 matching / 500 loaded")).toBeInTheDocument();
+    const revealButton = screen.getByRole("button", { name: /Show .* more players/u });
     for (let visiblePlayers = 50; visiblePlayers < catalog.players.length; visiblePlayers += 50) {
-      await user.click(screen.getByRole("button", { name: /Show .* more players/u }));
+      fireEvent.click(revealButton);
     }
     expect(screen.getByText("Player 500")).toBeInTheDocument();
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(501);
