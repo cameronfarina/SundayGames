@@ -42,9 +42,12 @@ export const historicalBoardFilesForEnvironment = (
   }));
 };
 
-const positionValues = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
+const positionValues: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
-const missing2023WaiverPlaceholder = {
+const missing2023WaiverPlaceholder: Omit<
+  HistoricalAuctionRecord,
+  "season" | "owner" | "source"
+> = {
   rosterRow: 16,
   originalPlayerName: "Seattle Seahawks",
   normalizedPlayerName: "Seattle Seahawks",
@@ -52,7 +55,7 @@ const missing2023WaiverPlaceholder = {
   price: 1,
   isKeeper: false,
   acquisitionType: "post-draft waiver",
-} as const;
+};
 
 const parseCsv = (content: string): string[][] => {
   const rows: string[][] = [];

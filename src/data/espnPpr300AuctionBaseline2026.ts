@@ -23,7 +23,19 @@ const sourceRoster = Object.freeze({
   BENCH: 7,
 });
 
-export const espnPpr300AuctionBaseline2026Source = Object.freeze({
+interface EspnPpr300AuctionBaselineSource {
+  provider: "ESPN";
+  title: string;
+  url: string;
+  lastUpdated: string;
+  scoring: "ppr";
+  receptionPoints: number;
+  teamCount: number;
+  salaryCap: number;
+  roster: Readonly<typeof sourceRoster>;
+}
+
+export const espnPpr300AuctionBaseline2026Source: EspnPpr300AuctionBaselineSource = Object.freeze({
   provider: "ESPN",
   title: "2026 ESPN Fantasy Football Draft Kit - PPR Top 300 Cheat Sheet",
   url: "https://g.espncdn.com/s/ffldraftkit/26/NFL26_CS_PPR300.pdf?adddata=2026CS_PPR300",
@@ -33,7 +45,7 @@ export const espnPpr300AuctionBaseline2026Source = Object.freeze({
   teamCount: 10,
   salaryCap: 200,
   roster: sourceRoster,
-} as const);
+});
 
 // overall rank | position | position rank | player | NFL team | ESPN value | bye
 const rawEspnPpr300AuctionBaseline2026 = `1|RB|1|Jahmyr Gibbs|DET|57|6
@@ -337,7 +349,10 @@ const rawEspnPpr300AuctionBaseline2026 = `1|RB|1|Jahmyr Gibbs|DET|57|6
 299|DST|21|Saints D/ST|NO|0|8
 300|DST|22|Vikings D/ST|MIN|0|6`;
 
-const positions = new Set<Position>(["QB", "RB", "WR", "TE", "K", "DST"]);
+const positions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+
+const positionFor = (value: string | undefined): Position | undefined =>
+  positions.find(position => position === value);
 
 const integer = (value: string | undefined, label: string): number => {
   const parsed = Number(value);
@@ -349,7 +364,8 @@ const integer = (value: string | undefined, label: string): number => {
 
 const parseRow = (row: string): EspnPpr300AuctionBaselineValue => {
   const [overallRankValue, positionValue, positionRankValue, name, teamAbbreviation, auctionValueValue, byeWeekValue] = row.split("|");
-  if (!positionValue || !positions.has(positionValue as Position)) {
+  const position = positionFor(positionValue);
+  if (position === undefined) {
     throw new Error(`Invalid ESPN PPR Top 300 position: ${positionValue ?? "missing"}.`);
   }
   if (!name || !teamAbbreviation) {
@@ -358,7 +374,7 @@ const parseRow = (row: string): EspnPpr300AuctionBaselineValue => {
 
   return Object.freeze({
     overallRank: integer(overallRankValue, "overall rank"),
-    position: positionValue as Position,
+    position,
     positionRank: integer(positionRankValue, "position rank"),
     name,
     normalizedName: canonicalPlayerIdentityKey(name),

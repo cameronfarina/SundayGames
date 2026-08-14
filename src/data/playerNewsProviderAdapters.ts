@@ -27,18 +27,8 @@ const parser = new XMLParser({
   trimValues: true,
 });
 
-type RssItemValue = {
-  guid?: unknown;
-  title?: unknown;
-  link?: unknown;
-  description?: unknown;
-  pubDate?: unknown;
-};
-
-const valuesArray = <T>(value: T | T[] | undefined): T[] => {
-  if (value === undefined) return [];
-  return Array.isArray(value) ? value : [value];
-};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const textValue = (value: unknown): string => {
   if (typeof value === "string") return value.trim();
@@ -79,7 +69,7 @@ const rotowireTagsFor = (title: string, summary: string): string[] => {
   return tags.length ? tags : ["News"];
 };
 
-const itemValueFor = (raw: RssItemValue, fetchedAt: string): RawPlayerNewsItem => {
+const itemValueFor = (raw: Record<string, unknown>, fetchedAt: string): RawPlayerNewsItem => {
   const rawTitle = textValue(raw.title);
   const parts = titleParts(rawTitle);
   const summary = cleanSummary(raw.description);
@@ -105,14 +95,12 @@ export const parseRotowireRssNews = ({
   content,
   fetchedAt = new Date().toISOString(),
 }: ParseRotowireRssNewsOptions): RawPlayerNewsItem[] => {
-  const parsed = parser.parse(content) as {
-    rss?: {
-      channel?: {
-        item?: RssItemValue | RssItemValue[];
-      };
-    };
-  };
-  return valuesArray(parsed.rss?.channel?.item).map(item => itemValueFor(item, fetchedAt));
+  const parsed: unknown = parser.parse(content);
+  if (!isRecord(parsed) || !isRecord(parsed.rss) || !isRecord(parsed.rss.channel)) return [];
+  const items = Array.isArray(parsed.rss.channel.item)
+    ? parsed.rss.channel.item.filter(isRecord)
+    : isRecord(parsed.rss.channel.item) ? [parsed.rss.channel.item] : [];
+  return items.map(item => itemValueFor(item, fetchedAt));
 };
 
 export const fetchRotowireRssNews = async ({

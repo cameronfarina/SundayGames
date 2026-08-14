@@ -16,7 +16,7 @@ const playerIdentityKey = (name: string): string =>
     .trim()
     .replace(/\s+/g, " ");
 
-const canonicalNameAliases = [
+const canonicalNameAliases: readonly (readonly [string, string])[] = [
   ["Aaron Jones Sr.", "Aaron Jones"],
   ["Brian Thomas Jr.", "Brian Thomas"],
   ["Brian Robinson Jr.", "Brian Robinson"],
@@ -32,7 +32,7 @@ const canonicalNameAliases = [
   ["Odell Beckham Jr.", "Odell Beckham"],
   ["Patrick Mahomes II", "Patrick Mahomes"],
   ["Travis Etienne Jr.", "Travis Etienne"],
-] as const;
+];
 
 const canonicalNameByAlias = new Map<string, string>(
   canonicalNameAliases.map(([alias, canonicalName]) => [playerIdentityKey(alias), canonicalName]),

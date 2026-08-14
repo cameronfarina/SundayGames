@@ -1,4 +1,17 @@
-export const playerContextCategories = [
+export type PlayerContextCategory =
+  | "role"
+  | "injury"
+  | "contract"
+  | "coaching"
+  | "schedule"
+  | "bye"
+  | "opportunity"
+  | "defensiveAttention"
+  | "skillFit"
+  | "environment"
+  | "risk";
+
+export const playerContextCategories: readonly PlayerContextCategory[] = [
   "role",
   "injury",
   "contract",
@@ -10,17 +23,22 @@ export const playerContextCategories = [
   "skillFit",
   "environment",
   "risk",
-] as const;
+];
 
-export type PlayerContextCategory = (typeof playerContextCategories)[number];
-export const factualPlayerContextCategories = [
+export type FactualPlayerContextCategory =
+  | "opportunity"
+  | "defensiveAttention"
+  | "skillFit"
+  | "environment"
+  | "risk";
+
+export const factualPlayerContextCategories: readonly FactualPlayerContextCategory[] = [
   "opportunity",
   "defensiveAttention",
   "skillFit",
   "environment",
   "risk",
-] as const satisfies readonly PlayerContextCategory[];
-export type FactualPlayerContextCategory = (typeof factualPlayerContextCategories)[number];
+];
 export type PlayerContextSignals = Partial<Record<PlayerContextCategory, number>>;
 export type PlayerContextNotes = Partial<Record<PlayerContextCategory, string>>;
 export type PlayerContextWeights = Record<PlayerContextCategory, number>;
@@ -68,7 +86,7 @@ export const defaultPlayerContextWeights: PlayerContextWeights = {
   risk: 0.07,
 };
 
-const playerContextOverrides = [
+const playerContextOverrides: readonly PlayerContextOverride[] = [
   {
     player: "Jadarian Price",
     signals: {
@@ -165,18 +183,18 @@ const playerContextOverrides = [
       injury: "ACL recovery and early-season availability risk.",
     },
   },
-] as const satisfies readonly PlayerContextOverride[];
+];
 
-export const defaultPlayerContextConfig = {
+export const defaultPlayerContextConfig: PlayerContextConfig = {
   enabled: false,
   weights: defaultPlayerContextWeights,
   maxAdjustment: 0.18,
   maxPositiveAdjustment: 0.04,
   maxNegativeAdjustment: 0.18,
   overrides: playerContextOverrides,
-} as const satisfies PlayerContextConfig;
+};
 
-export const customWeightsPlayerContextConfig = {
+export const customWeightsPlayerContextConfig: PlayerContextConfig = {
   ...defaultPlayerContextConfig,
   enabled: true,
-} as const satisfies PlayerContextConfig;
+};
