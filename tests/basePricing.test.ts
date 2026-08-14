@@ -16,6 +16,11 @@ const expectPriceBetween = (actual: number, low: number, high: number): void => 
   expect(actual).toBeLessThanOrEqual(high);
 };
 
+const defined = <T>(value: T | undefined, label: string): T => {
+  if (value === undefined) throw new Error(`Expected ${label}.`);
+  return value;
+};
+
 describe("audited base pricing", () => {
   it("reconciles public anchor prices to the configured league market", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
@@ -43,18 +48,18 @@ describe("audited base pricing", () => {
       buildBasePrices(projections, historicalRecords).map(price => [price.name, price]),
     );
 
-    expectPriceBetween(byName.get("Jahmyr Gibbs")!.price, 68, 72);
-    expectPriceBetween(byName.get("Bijan Robinson")!.price, 67, 71);
-    expectPriceBetween(byName.get("Puka Nacua")!.price, 67, 71);
-    expectPriceBetween(byName.get("Ja'Marr Chase")!.price, 66, 70);
-    expectPriceBetween(byName.get("Jaxon Smith-Njigba")!.price, 66, 70);
-    expectPriceBetween(byName.get("Christian McCaffrey")!.price, 64, 69);
-    expectPriceBetween(byName.get("Amon-Ra St. Brown")!.price, 63, 68);
-    expectPriceBetween(byName.get("CeeDee Lamb")!.price, 61, 66);
-    expect(byName.get("Josh Allen")!.price).toBe(35);
-    expect(byName.get("Trey McBride")!.price).toBe(38);
+    expectPriceBetween(defined(byName.get("Jahmyr Gibbs"), "Jahmyr Gibbs price").price, 68, 72);
+    expectPriceBetween(defined(byName.get("Bijan Robinson"), "Bijan Robinson price").price, 67, 71);
+    expectPriceBetween(defined(byName.get("Puka Nacua"), "Puka Nacua price").price, 67, 71);
+    expectPriceBetween(defined(byName.get("Ja'Marr Chase"), "Ja'Marr Chase price").price, 66, 70);
+    expectPriceBetween(defined(byName.get("Jaxon Smith-Njigba"), "Jaxon Smith-Njigba price").price, 66, 70);
+    expectPriceBetween(defined(byName.get("Christian McCaffrey"), "Christian McCaffrey price").price, 64, 69);
+    expectPriceBetween(defined(byName.get("Amon-Ra St. Brown"), "Amon-Ra St. Brown price").price, 63, 68);
+    expectPriceBetween(defined(byName.get("CeeDee Lamb"), "CeeDee Lamb price").price, 61, 66);
+    expect(defined(byName.get("Josh Allen"), "Josh Allen price").price).toBe(35);
+    expect(defined(byName.get("Trey McBride"), "Trey McBride price").price).toBe(38);
 
-    const jadarian = byName.get("Jadarian Price")!;
+    const jadarian = defined(byName.get("Jadarian Price"), "Jadarian Price price");
     expect(Math.round(jadarian.preSustainabilityPrice)).toBe(22);
     expect(jadarian.sustainabilityFactor).toBe(0.68);
     expect(jadarian.price).toBe(15);
@@ -73,9 +78,9 @@ describe("audited base pricing", () => {
         .map(price => [price.name, price]),
     );
 
-    const barkley = byName.get("Saquon Barkley")!;
-    const jeanty = byName.get("Ashton Jeanty")!;
-    const jacobs = byName.get("Josh Jacobs")!;
+    const barkley = defined(byName.get("Saquon Barkley"), "Saquon Barkley price");
+    const jeanty = defined(byName.get("Ashton Jeanty"), "Ashton Jeanty price");
+    const jacobs = defined(byName.get("Josh Jacobs"), "Josh Jacobs price");
 
     expect(barkley.historicalRoomPrice).toBeGreaterThanOrEqual(68);
     expect(barkley.historicalRoomFloor).toBeGreaterThanOrEqual(58);
@@ -112,8 +117,8 @@ describe("audited base pricing", () => {
         ],
       },
     });
-    const defaultPuka = defaultPrices.find(price => price.name === "Puka Nacua")!;
-    const customPuka = customPrices.find(price => price.name === "Puka Nacua")!;
+    const defaultPuka = defined(defaultPrices.find(price => price.name === "Puka Nacua"), "default Puka price");
+    const customPuka = defined(customPrices.find(price => price.name === "Puka Nacua"), "custom Puka price");
 
     expect(summarizePricePool(customPrices).spend).toEqual(defaultPricingConfig.auditedSpendTargets);
     expect(defaultPuka.contextAdjustmentFactor).toBe(1);
@@ -175,7 +180,7 @@ describe("audited base pricing", () => {
         ],
       },
     });
-    const london = customPrices.find(price => price.name === "Drake London")!;
+    const london = defined(customPrices.find(price => price.name === "Drake London"), "Drake London price");
 
     expect(london.rawPrice).toBeLessThan(60);
     expect(london.price).toBeLessThanOrEqual(56);
