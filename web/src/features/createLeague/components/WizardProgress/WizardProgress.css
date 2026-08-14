@@ -1,0 +1,21 @@
+.wizard-progress {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+}
+
+.wizard-progress li {
+  border-bottom: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  padding: 0 var(--space-2) var(--space-3);
+  text-align: center;
+}
+
+.wizard-progress li[aria-current="step"] {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}

@@ -1,0 +1,65 @@
+.dialog__content:has(.create-league-wizard) {
+  height: min(92vh, 62rem);
+  max-width: 78rem;
+  width: min(96vw, 78rem);
+}
+
+.create-league-wizard,
+.create-league-step {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.create-league-step h2,
+.create-league-step p { margin: 0; }
+.create-league-step > p { color: var(--color-text-muted); }
+.create-league-eyebrow { color: var(--color-accent); font-size: var(--font-size-xs); font-weight: 800; text-transform: uppercase; }
+
+.create-league-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.create-league-grid--two { grid-template-columns: repeat(2, 1fr); }
+.create-league-grid--three { grid-template-columns: repeat(3, 1fr); }
+.create-league-grid--four { grid-template-columns: repeat(4, 1fr); }
+
+.create-league-reference {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(18rem, 1fr) auto auto auto;
+}
+
+.create-league-reference > span {
+  align-self: center;
+  color: var(--color-text-muted);
+  padding-top: var(--space-5);
+}
+
+.create-league-teams {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.team-fields {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+}
+
+.team-fields legend { font-weight: 800; padding: 0 var(--space-2); }
+.create-league-footer { display: flex; gap: var(--space-3); justify-content: flex-end; width: 100%; }
+
+@media (max-width: 48rem) {
+  .create-league-grid--two,
+  .create-league-grid--three,
+  .create-league-grid--four,
+  .create-league-reference,
+  .create-league-teams { grid-template-columns: 1fr; }
+  .create-league-reference > span { display: none; }
+}

@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router-dom";
+import { LeagueLocationProbe } from "./LeagueLocationProbe.testSupport";
 import { LeaguePage } from "./LeaguePage";
 
 export const leagueServer = setupServer();
@@ -117,6 +118,7 @@ export const renderLeaguePage = (entry = "/league") => {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[entry]}>
         <LeaguePage />
+        <LeagueLocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   );

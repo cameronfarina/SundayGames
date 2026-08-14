@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { CreateLeagueWizard } from "../../../createLeague/components/CreateLeagueWizard/CreateLeagueWizard";
 import { DraftStatus } from "../../components/DraftStatus/DraftStatus";
 import { LeagueHeader } from "../../components/LeagueHeader/LeagueHeader";
 import { LeagueSettings } from "../../components/LeagueSettings/LeagueSettings";
@@ -8,11 +9,11 @@ import { TeamClaimPanel } from "../../components/TeamClaimPanel/TeamClaimPanel";
 import { useLeaguePageData } from "../../hooks/useLeaguePageData";
 import "./LeaguePage.css";
 
-export function LeaguePage() {
-  const [search] = useSearchParams();
-  const requestedSeasonId = search.get("seasonId");
-  const data = useLeaguePageData(requestedSeasonId);
+interface LeaguePageContentProps {
+  readonly data: ReturnType<typeof useLeaguePageData>;
+}
 
+function LeaguePageContent({ data }: LeaguePageContentProps) {
   if (data.onboarding.isPending) return <LeagueLoading />;
   if (data.onboarding.error !== null) {
     return <LeagueError error={data.onboarding.error} retry={() => void data.onboarding.refetch()} />;
@@ -37,5 +38,27 @@ export function LeaguePage() {
       <DraftStatus league={league} />
       <LeagueTeams teams={season.teams} keepers={data.keepers.data.keepers} />
     </div>
+  );
+}
+
+export function LeaguePage() {
+  const [search, setSearch] = useSearchParams();
+  const data = useLeaguePageData(search.get("seasonId"));
+  const updateSearch = (seasonId?: string) => {
+    const nextSearch = new URLSearchParams(search);
+    nextSearch.delete("create");
+    if (seasonId !== undefined) nextSearch.set("seasonId", seasonId);
+    setSearch(nextSearch, { replace: true });
+  };
+
+  return (
+    <>
+      <LeaguePageContent data={data} />
+      <CreateLeagueWizard
+        onClose={() => { updateSearch(); }}
+        onCreated={updateSearch}
+        open={search.get("create") === "1"}
+      />
+    </>
   );
 }
