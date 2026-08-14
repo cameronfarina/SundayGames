@@ -15,10 +15,9 @@ describe("production deployment workflows", () => {
   });
 
   it("keeps the repeatable deployed smoke away from real draft mutations", async () => {
-    const content = await readFile("e2e/platform-readiness.spec.ts", "utf8");
-    const deployedSmoke = content.slice(
-      content.indexOf("const exerciseDeployedWorkspace"),
-      content.indexOf("const exerciseReadyWorkspace"),
+    const deployedSmoke = await readFile(
+      "e2e/support/platform-readiness/deployedWorkspace.ts",
+      "utf8",
     );
 
     expect(deployedSmoke).toContain("#setup-season-id-input");
