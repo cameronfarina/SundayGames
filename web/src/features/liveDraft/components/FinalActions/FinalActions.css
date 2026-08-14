@@ -1,0 +1,24 @@
+.final-actions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+  padding: var(--space-4);
+}
+.final-actions h2,
+.final-actions p { margin: 0; }
+.final-actions p { color: var(--color-text-muted); }
+.final-actions__buttons { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.final-actions__link {
+  background: var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-background);
+  font-weight: 800;
+  padding: 0.7rem 1rem;
+  text-decoration: none;
+}
+.final-actions .inline-notice { flex-basis: 100%; }
+
+@media (max-width: 48rem) {
+  .final-actions { align-items: stretch; flex-direction: column; }
+}

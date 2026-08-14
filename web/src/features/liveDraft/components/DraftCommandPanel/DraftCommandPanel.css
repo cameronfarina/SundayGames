@@ -1,0 +1,15 @@
+.draft-command__body { padding: var(--space-4); }
+.draft-command__sale {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.draft-command__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.draft-command__member-note { color: var(--color-text-muted); margin: 0; }
+.draft-command .inline-notice { margin-top: var(--space-3); }
+
+@media (max-width: 42rem) {
+  .draft-command__sale { grid-template-columns: 1fr; }
+  .draft-command__sale .progress-button { width: 100%; }
+}

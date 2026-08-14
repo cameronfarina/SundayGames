@@ -1,0 +1,15 @@
+.sale-ledger__body { padding: var(--space-4); }
+.sale-ledger__list { list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+.sale-ledger__list li {
+  align-items: center;
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 4rem;
+  padding: var(--space-3) 0;
+}
+.sale-ledger__list li > span { display: grid; }
+.sale-ledger__list small { color: var(--color-text-muted); }
+.sale-ledger__correction { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+.sale-ledger__correction > div:last-child { display: flex; gap: var(--space-2); margin-top: var(--space-3); }

@@ -1,0 +1,141 @@
+import { useState } from "react";
+import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
+import { InlineNotice } from "../../../../shared/ui";
+import type {
+  LiveDraftBoardPlayer,
+  LiveDraftExport,
+  LiveDraftRoom,
+} from "../../api/liveDraftSchemas";
+import type { LiveDraftConnection } from "../../hooks/useLiveDraftUpdates";
+import { selectedTeamId } from "../../lib/liveDraftDisplay";
+import { liveDraftErrorMessage } from "../../lib/liveDraftError";
+import type { LiveDraftAction } from "../../lib/liveDraftMutation";
+import { DraftCommandPanel } from "../../components/DraftCommandPanel/DraftCommandPanel";
+import { DraftStatus } from "../../components/DraftStatus/DraftStatus";
+import { FinalActions } from "../../components/FinalActions/FinalActions";
+import { PlayerBoard } from "../../components/PlayerBoard/PlayerBoard";
+import { SaleLedger } from "../../components/SaleLedger/SaleLedger";
+import { TeamRoster } from "../../components/TeamRoster/TeamRoster";
+
+export interface WorkspaceProps {
+  readonly busy: boolean;
+  readonly connection: LiveDraftConnection;
+  readonly createExport: () => Promise<LiveDraftExport>;
+  readonly onAction: (action: LiveDraftAction) => Promise<LiveDraftRoom>;
+  readonly onRefresh: () => Promise<void>;
+  readonly room: LiveDraftRoom;
+}
+
+interface Feedback { readonly message: string; readonly variant: "info" | "success" | "error" }
+interface Download { readonly fileName: string; readonly href: string }
+
+export const LiveDraftWorkspace = ({
+  busy,
+  connection,
+  createExport,
+  onAction,
+  onRefresh,
+  room,
+}: WorkspaceProps) => {
+  const [command, setCommand] = useState("");
+  const [download, setDownload] = useState<Download>();
+  const [feedback, setFeedback] = useState<Feedback>();
+  const [viewedTeamId, setViewedTeamId] = useState(() => selectedTeamId(room));
+  const latestSale = room.salesLog.at(-1);
+  const undoMessage = latestSale === undefined
+    ? "Undo the latest sale?"
+    : `Undo the latest sale of ${latestSale.playerName}?`;
+  const perform = async (action: LiveDraftAction, pendingMessage: string) => {
+    setFeedback({ message: pendingMessage, variant: "info" });
+    try {
+      const updatedRoom = await onAction(action);
+      setFeedback({ message: "Draft room updated.", variant: "success" });
+      return updatedRoom;
+    } catch (error) {
+      if (error instanceof PlatformApiError && error.code === "stale_revision") {
+        await onRefresh();
+        setFeedback({
+          message: "The room changed first. Review the latest state and try again.",
+          variant: "error",
+        });
+      } else setFeedback({ message: liveDraftErrorMessage(error), variant: "error" });
+      throw error;
+    }
+  };
+  const run = (action: LiveDraftAction, pendingMessage: string) => {
+    void perform(action, pendingMessage).catch(() => undefined);
+  };
+  const logSale = () => {
+    void perform({ action: "sales", command: command.trim() }, "Logging sale...")
+      .then(() => { setCommand(""); }).catch(() => undefined);
+  };
+  const endDraft = () => {
+    if (!window.confirm("End and lock the completed draft now?")) return;
+    void perform({ action: "end" }, "Checking draft rosters...").catch((error: unknown) => {
+      if (!(error instanceof PlatformApiError) || error.code !== "draft_incomplete") return;
+      const confirmed = window.confirm(
+        `${error.message}\n\nEnd this incomplete draft anyway? You can reopen it later.`,
+      );
+      if (confirmed) run({ action: "end", allowIncomplete: true }, "Ending incomplete draft...");
+      else setFeedback({ message: "Draft remains open.", variant: "info" });
+    });
+  };
+  const usePlayer = (player: LiveDraftBoardPlayer) => {
+    const team = room.teamSummaries.find(candidate => candidate.teamId === viewedTeamId);
+    setCommand(team === undefined
+      ? `${player.name} `
+      : `${team.ownerDisplayName} drafted ${player.name} for `);
+  };
+  const exportDraft = () => {
+    void createExport().then(result => {
+      setDownload({
+        fileName: result.artifact.storageKey.split("/")
+          .filter(segment => segment.length > 0).at(-1) ?? "mockd-draft.csv",
+        href: `data:${encodeURIComponent(result.artifact.contentType)},${encodeURIComponent(result.content)}`,
+      });
+      setFeedback({ message: "Final CSV is ready to download.", variant: "success" });
+    }).catch((error: unknown) => {
+      setFeedback({ message: liveDraftErrorMessage(error), variant: "error" });
+    });
+  };
+
+  return <>
+    {room.status === "ended" ? <FinalActions
+      busy={busy} {...(download === undefined ? {} : { download })} onExport={exportDraft}
+      onReopen={() => {
+        if (window.confirm("Reopen this draft in a paused state?")) {
+          run({ action: "reopen" }, "Reopening draft...");
+        }
+      }} room={room}
+    /> : <DraftCommandPanel
+      busy={busy} command={command} {...(feedback === undefined ? {} : { feedback })}
+      onCommandChange={setCommand} onEnd={endDraft} onLogSale={logSale}
+      onPauseOrResume={() => { run({ action: room.status === "paused" ? "resume" : "pause" },
+        room.status === "paused" ? "Resuming draft..." : "Pausing draft..."); }}
+      onStart={() => { run({ action: "start" }, "Starting draft..."); }}
+      onUndo={() => {
+        if (window.confirm(undoMessage)) {
+          run({ action: "undo" }, "Undoing latest sale...");
+        }
+      }} room={room}
+    />}
+    {room.status === "ended" && feedback !== undefined &&
+      <InlineNotice variant={feedback.variant}>{feedback.message}</InlineNotice>}
+    <DraftStatus connection={connection} room={room} />
+    <div className="live-draft__grid">
+      <PlayerBoard canManage={room.canMutateRoom} onUsePlayer={usePlayer}
+        players={room.board} roomIsLive={room.status === "live"} />
+      <TeamRoster onTeamChange={setViewedTeamId}
+        {...(viewedTeamId === undefined ? {} : { selectedTeamId: viewedTeamId })}
+        teams={room.teamSummaries} />
+      <SaleLedger canCorrect={room.canMutateRoom && room.status === "live" && !busy}
+        onCorrect={(saleEventId, replacementSale) => {
+          if (!window.confirm("Apply this correction to the selected sale?")) return false;
+          run({
+          action: "corrections", replacementSale, saleEventId,
+          }, "Applying correction...");
+          return true;
+        }} sales={room.salesLog} />
+    </div>
+  </>;
+};
