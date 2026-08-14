@@ -29,7 +29,7 @@ export const exerciseCompletedAuctionMockResults = async (
       await passButton.click();
     } else {
       const nominationButton = availablePlayersTable(page)
-        .getByRole("button", { name: /^Nominate /u })
+        .locator('button[aria-label^="Nominate "]:enabled')
         .last();
       await expect(nominationButton).toBeVisible();
       await expect(nominationButton).toBeEnabled();
