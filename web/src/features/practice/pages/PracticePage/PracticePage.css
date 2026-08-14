@@ -40,6 +40,7 @@
 }
 
 .practice-page__baseline a,
+.practice-page__modes a,
 .practice-page--error button,
 .practice-page__error button {
   background: var(--color-accent);
@@ -51,6 +52,11 @@
   font-weight: 800;
   padding: 0.65rem 0.9rem;
   text-decoration: none;
+}
+
+.practice-page__modes {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .practice-page__workspace {

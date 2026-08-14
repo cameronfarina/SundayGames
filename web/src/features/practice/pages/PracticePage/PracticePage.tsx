@@ -34,6 +34,9 @@ export function PracticePage() {
   const detail = useSimulationDetailQuery(historyId);
   const mutations = usePracticeMutations(seasonId ?? "", strategy);
   const targets = shortlist.data ?? [];
+  const mockDraftSearch = seasonId === undefined
+    ? ""
+    : `?${new URLSearchParams({ seasonId }).toString()}`;
 
   const setParameter = (name: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -69,6 +72,11 @@ export function PracticePage() {
       onStrategyChange={value => { setParameter("strategy", value); }}
       strategy={strategy}
     />
+    {activeLeague !== undefined && (
+      <nav aria-label="Practice modes" className="practice-page__modes">
+        <Link to={`/mock-drafts${mockDraftSearch}`}>Start auction mock</Link>
+      </nav>
+    )}
     {activeLeague === undefined && <aside className="practice-page__baseline">
       <div><strong>Baseline values</strong><p>Start with current consensus values, then join a league for keeper-aware pricing and full draft simulations.</p></div>
       <Link to="/league?create=1">Create league</Link>

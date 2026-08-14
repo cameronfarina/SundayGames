@@ -32,6 +32,17 @@ function LocationOutput() {
 }
 
 describe("PracticePage", () => {
+  it("opens an auction mock for the active league", async () => {
+    vi.stubGlobal("fetch", createPracticeFetch());
+    const view = render(<PracticePage />, { wrapper: providers() });
+
+    expect(await screen.findByRole("link", { name: "Start auction mock" })).toHaveAttribute(
+      "href",
+      "/mock-drafts?seasonId=season-1",
+    );
+    view.unmount();
+  });
+
   it("loads personalized board data and persists draft-target changes", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", createPracticeFetch());
