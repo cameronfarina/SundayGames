@@ -3,6 +3,7 @@ import { leagueConfig } from "../config/league.js";
 import {
   applySeasonLongProjectionCalibrations,
   fantasyPointsForSeasonStatLine,
+  type SeasonLongProjectionInput,
 } from "../src/modeling/seasonLongProjection.js";
 import {
   loadCurrentProjections,
@@ -12,9 +13,9 @@ import {
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 const seasonLongProjectionPath = "data/raw/season-long-projections-2026.json";
 
-const achaneSeasonLine = {
+const achaneSeasonLine: SeasonLongProjectionInput = {
   player: "De'Von Achane",
-  position: "RB" as const,
+  position: "RB",
   provider: "Oddschecker and FantasyPros",
   sourceDate: "2026-08-13",
   sourceUrl: "https://www.oddschecker.com/us/football/nfl-specials/devon-achane",
@@ -47,10 +48,10 @@ describe("season-long projection calibration", () => {
   it("preserves ESPN's weekly shape while scaling it to the season-long total", async () => {
     const baseline = await loadEspnWeeksOneToFour(projectionPath);
     const baselineAchane = baseline.find(player => player.name === "De'Von Achane");
-    expect(baselineAchane).toBeDefined();
+    if (baselineAchane === undefined) throw new Error("Expected the Achane projection.");
 
     const [calibratedAchane] = applySeasonLongProjectionCalibrations(
-      [baselineAchane!],
+      [baselineAchane],
       [achaneSeasonLine],
       leagueConfig.scoring,
     );
