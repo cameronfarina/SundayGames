@@ -1,281 +1,58 @@
-import { describe, expect, it, vi } from "vitest";
-import { leagueConfig, ownerOrder } from "../config/league.js";
-import type { MockBatch } from "../src/modeling/mockBatch.js";
-import { InMemoryJobQueue } from "../src/platform/jobs.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
-import { createPlatformJobHandlers } from "../src/platform/platformJobHandlers.js";
-import {
-  dispatchNextPlatformJob,
-  enqueuePricingRebuildJob,
-  enqueueSimulationRunExecutionJob,
-  platformJobTypes,
-  type PlatformJobHandlerContext,
-} from "../src/platform/platformJobOrchestrator.js";
-import { createPlatformApp, InMemoryPlatformStore } from "../src/platform/platformApp.js";
-import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
+import { describe, expect, it } from "vitest";
 
-const now = new Date("2026-08-09T12:00:00.000Z");
+const expectedBehaviors = [
+  "dispatches an idempotent simulation job through the app and reports execution progress",
+  "fails unsupported platform jobs instead of completing placeholders",
+];
 
-const mockBatch = ({
-  runsPerScenario,
-  seedPrefix,
-  forcedSales,
-}: Parameters<SimulationMockBatchRunner>[0]): MockBatch => ({
-  options: {
-    scenarioKeys: ["expected"],
-    runsPerScenario,
-    seedPrefix,
-    forcedSales: [...forcedSales],
-  },
-  runs: [],
-  summary: {
-    runCount: runsPerScenario,
-    scenarios: [],
-    players: [],
-    owners: [],
-    ownerPlayerExposure: [],
-  },
-});
+const directory = path.resolve("tests/platformJobHandlers");
+const files = readdirSync(directory)
+  .filter(file => file.endsWith(".ts"))
+  .map(file => path.join(directory, file));
+const behaviorFiles = files.filter(file => file.endsWith(".test.ts"));
 
-const signUpAndLogin = async (
-  app: ReturnType<typeof createPlatformApp>,
-  email: string,
-  password: string,
-  createdAt: Date,
-) => {
-  await app.createAccount({ email, password, now: createdAt });
-  const login = await app.login({ email, password, now: createdAt });
-  if (login === null) throw new Error(`Expected ${email} login.`);
-
-  return login;
+const metadataFor = (file: string) => {
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const unsafe: string[] = [];
+  let assertions = 0;
+  const forbidden: ReadonlySet<ts.SyntaxKind> = new Set([
+    ts.SyntaxKind.AnyKeyword,
+    ts.SyntaxKind.AsExpression,
+    ts.SyntaxKind.NonNullExpression,
+    ts.SyntaxKind.TypeAssertionExpression,
+  ]);
+  const visit = (node: ts.Node): void => {
+    if (forbidden.has(node.kind)) unsafe.push(ts.SyntaxKind[node.kind] ?? "unknown");
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "expect") assertions += 1;
+      const title = node.arguments[0];
+      if (node.expression.text === "it" && title !== undefined && ts.isStringLiteralLike(title)) {
+        names.push(title.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return { names, assertions, unsafe };
 };
 
-describe("platform job handlers", () => {
-  it("dispatches an idempotent simulation job through the app and reports execution progress", async () => {
-    const repository = new InMemoryJobQueue();
-    const progressEvents: string[] = [];
-    const originalUpdateProgress = repository.updateProgress.bind(repository);
-    const updateProgress = vi.spyOn(repository, "updateProgress").mockImplementation(input => {
-      progressEvents.push(input.progress.message);
-
-      return originalUpdateProgress(input);
-    });
-    const runnerCalls: Array<Parameters<SimulationMockBatchRunner>[0]> = [];
-    const app = createPlatformApp({
-      store: new InMemoryPlatformStore(),
-      simulationRunner: options => {
-        runnerCalls.push(options);
-        progressEvents.push("runner");
-
-        return mockBatch(options);
-      },
-    });
-    const persist = vi.fn(() => {
-      progressEvents.push("persist");
-    });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 100001",
-      setupStatus: "published",
-    });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
-    if (camTeam === undefined) throw new Error("Expected Owner11 team fixture.");
-
-    await app.registerLeagueSeason({
-      actorSessionToken: owner11.sessionToken,
-      season,
-      memberships: [
-        {
-          userId: owner11.account.id,
-          leagueId: season.leagueId,
-          role: "owner",
-          ownerId: camTeam.ownerId,
-          teamId: camTeam.id,
-        },
-      ],
-      now,
-    });
-    const simulation = await app.createSimulationRun({
-      actorSessionToken: owner11.sessionToken,
-      leagueId: season.leagueId,
-      seasonId: season.id,
-      ownerId: camTeam.ownerId,
-      teamId: camTeam.id,
-      count: 12,
-      seedPrefix: "owner11-balanced",
-      idempotencyKey: "owner11-balanced",
-      strategy: {
-        hardLocks: [
-          { playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" },
-        ],
-      },
-      now,
-    });
-    const workerExecution = vi.spyOn(app, "executeSimulationRunForWorker");
-    const job = enqueueSimulationRunExecutionJob({
-      repository,
-      userId: owner11.account.id,
-      leagueId: season.leagueId,
-      seasonId: season.id,
-      simulationRunId: simulation.id,
-      runCount: 12,
-      seedPrefix: "owner11-balanced",
-      now,
-    });
-    const duplicateJob = enqueueSimulationRunExecutionJob({
-      repository,
-      userId: owner11.account.id,
-      leagueId: season.leagueId,
-      seasonId: season.id,
-      simulationRunId: simulation.id,
-      runCount: 12,
-      seedPrefix: "owner11-balanced",
-      now: new Date(now.getTime() + 500),
-    });
-
-    expect(duplicateJob).toBe(job);
-
-    const dispatchedAt = new Date(now.getTime() + 1_000);
-    const completedJob = await dispatchNextPlatformJob({
-      repository,
-      workerId: "worker_simulations",
-      now: dispatchedAt,
-      handlers: createPlatformJobHandlers({ app, persist }),
-    });
-
-    expect(completedJob).toBe(job);
-    expect(workerExecution).toHaveBeenCalledWith({
-      runId: simulation.id,
-      userId: owner11.account.id,
-      leagueId: season.leagueId,
-      seasonId: season.id,
-      now: dispatchedAt,
-    });
-    expect(persist).toHaveBeenCalledTimes(1);
-    expect(runnerCalls).toEqual([
-      expect.objectContaining({
-        runsPerScenario: 12,
-        seedPrefix: "owner11-balanced",
-        forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
-      }),
-    ]);
-    expect(updateProgress).toHaveBeenCalledTimes(2);
-    expect(updateProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      jobId: job.id,
-      workerId: "worker_simulations",
-      progress: {
-        completed: 0,
-        total: 12,
-        message: "Running simulation run 0/12",
-      },
-    }));
-    expect(updateProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      jobId: job.id,
-      workerId: "worker_simulations",
-      progress: {
-        completed: 12,
-        total: 12,
-        message: "Completed simulation run 12/12",
-      },
-    }));
-    expect(progressEvents).toEqual([
-      "Running simulation run 0/12",
-      "runner",
-      "persist",
-      "Completed simulation run 12/12",
-    ]);
-    expect(completedJob).toMatchObject({
-      status: "completed",
-      resultSummary: {
-        type: platformJobTypes.simulationRunExecution,
-        simulationRunId: simulation.id,
-        runCount: 12,
-        completedRunCount: 12,
-      },
-    });
-
-    await expect(dispatchNextPlatformJob({
-      repository,
-      workerId: "worker_simulations",
-      now: new Date(now.getTime() + 2_000),
-      handlers: createPlatformJobHandlers({ app, persist }),
-    })).resolves.toBeNull();
+describe("platform job handler test architecture", () => {
+  it("preserves platform job handler behaviors and assertions", () => {
+    const metadata = behaviorFiles.map(metadataFor);
+    expect(metadata.flatMap(item => item.names).sort()).toEqual([...expectedBehaviors].sort());
+    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(16);
   });
 
-  it("fails unsupported platform jobs instead of completing placeholders", async () => {
-    const repository = new InMemoryJobQueue();
-    const job = enqueuePricingRebuildJob({
-      repository,
-      userId: "user_commish",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      seasonYear: 2026,
-      modelVersion: "auction-v1",
-      inputSnapshotId: "input-snapshot-2026",
-      inputHash: "hash-2026",
-      scenarioIds: ["expected"],
-      reason: "manual",
-      maxAttempts: 1,
-      now,
+  it("keeps platform job handler tests focused and free of unsafe type escapes", () => {
+    const violations = files.flatMap(file => {
+      const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
+      const unsafe = metadataFor(file).unsafe.map(finding => `${path.basename(file)}: ${finding}`);
+      return lines > 150 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
     });
-
-    const handlers = createPlatformJobHandlers({
-      app: {
-        executeSimulationRunForWorker: async () => {
-          throw new Error("Unexpected simulation execution.");
-        },
-      },
-    });
-    const context: PlatformJobHandlerContext = {
-      job,
-      workerId: "worker_prices",
-      updateProgress: () => job,
-      heartbeat: () => job,
-    };
-
-    expect(() =>
-      handlers[platformJobTypes.historicalImportParse]({
-        type: platformJobTypes.historicalImportParse,
-        seasonYear: 2026,
-        fileHash: "sha256:board",
-        sourceFilename: "board.csv",
-      }, context),
-    ).toThrow("Platform job handler for historical-import-parse is not implemented yet.");
-    expect(() =>
-      handlers[platformJobTypes.pricingRebuild]({
-        type: platformJobTypes.pricingRebuild,
-        seasonYear: 2026,
-        modelVersion: "auction-v1",
-        inputSnapshotId: "input-snapshot-2026",
-        inputHash: "hash-2026",
-        scenarioIds: ["expected"],
-        reason: "manual",
-      }, context),
-    ).toThrow("Platform job handler for pricing-rebuild is not implemented yet.");
-    expect(() =>
-      handlers[platformJobTypes.draftRoomExport]({
-        type: platformJobTypes.draftRoomExport,
-        draftRoomId: "room_final",
-        format: "csv",
-        sourceRevision: 1,
-      }, context),
-    ).toThrow("Platform job handler for draft-room-export is not implemented yet.");
-
-    const failedJob = await dispatchNextPlatformJob({
-      repository,
-      workerId: "worker_prices",
-      now: new Date(now.getTime() + 1_000),
-      handlers,
-    });
-
-    expect(failedJob).toBe(job);
-    expect(failedJob).toMatchObject({
-      status: "failed",
-      resultSummary: undefined,
-      sanitizedError: {
-        name: "UnsupportedPlatformJobHandlerError",
-        message: "Job failed. Check worker logs for details.",
-      },
-    });
+    expect(violations).toEqual([]);
   });
 });
