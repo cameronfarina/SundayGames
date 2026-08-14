@@ -4,22 +4,15 @@ import type {
   GenericAuctionMockState,
   GenericAuctionMockTeamReadModel,
 } from "./genericAuctionMockEngine.js";
+import {
+  modeledTargetWinningBid,
+  neutralTargetPricingState,
+} from "./seasonSimulationTargetPricing.js";
 import type {
   ResolvedSeasonSimulationTarget,
   SeasonSimulationTargetConstraint,
   SeasonSimulationTargetInfeasibility,
 } from "./seasonSimulationTargets.js";
-
-const modeledWinningBidFor = (
-  player: GenericAuctionMockBoardPlayer,
-  target: SeasonSimulationTargetConstraint,
-  minimumBid: number,
-): number => {
-  const marketPrice = Math.max(minimumBid, Math.round(player.expectedPrice));
-  return target.maxAuctionPrice === undefined
-    ? marketPrice
-    : Math.min(target.maxAuctionPrice, marketPrice);
-};
 
 const positionsFitOpenSlots = (
   positions: readonly string[],
@@ -91,6 +84,11 @@ export const resolveAuctionTargetPlan = (input: {
   const team = input.state.teams.find(candidate => candidate.id === input.humanTeamId);
   if (team === undefined) return { targets: input.targets, plannedAcquisitions: [] };
 
+  const targetPlayerIds = input.targets
+    .filter(target => target.infeasibility === undefined)
+    .map(target => target.playerId);
+  const planningState = neutralTargetPricingState({ state: input.state, targetPlayerIds });
+
   const retainedPlayerIds = new Set(team.roster.map(player => player.playerId));
   const plannedAcquisitions: GenericAuctionMockPlannedAcquisition[] = [];
   const plannedPlayers: GenericAuctionMockBoardPlayer[] = [];
@@ -112,11 +110,11 @@ export const resolveAuctionTargetPlan = (input: {
       return { ...resolvedTarget, infeasibility: rosterInfeasibility(resolvedTarget.target) };
     }
 
-    const modeledWinningBid = modeledWinningBidFor(
+    const modeledWinningBid = modeledTargetWinningBid({
+      state: planningState,
       player,
-      resolvedTarget.target,
-      input.state.configuration.minimumBidDollars,
-    );
+      target: resolvedTarget.target,
+    });
     const nextCost = plannedCost + modeledWinningBid;
     const openNonTargetSlots = team.rosterSlotsRemaining - nextPlayers.length;
     const requiredBudget = nextCost

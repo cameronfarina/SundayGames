@@ -26,8 +26,8 @@ describe("season simulation target-plan feasibility", () => {
       .filter(team => team.isUserTeam)
       .every(team => team.roster
         .filter(player => player.source === "human")
-        .map(player => player.price)
-        .join(",") === "57,38"))
+        .map(player => player.playerName)
+        .join(",") === "Premium Runner,Value Runner"))
       .toBe(true);
   });
 

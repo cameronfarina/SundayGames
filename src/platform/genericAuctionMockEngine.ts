@@ -1380,6 +1380,31 @@ const aiMaximumsFor = (
     });
 };
 
+export const modeledHumanWinningBidFor = (
+  state: GenericAuctionMockState,
+  playerId: string,
+): number | undefined => {
+  const player = playerFor(state, playerId);
+  const humanTeam = teamFor(state, state.configuration.humanTeamId);
+  const minimumBid = state.configuration.minimumBidDollars;
+  if (!canAcquire(state, humanTeam, player, minimumBid)) return undefined;
+
+  const nomination = nominationFor({
+    state,
+    player,
+    nominatedByTeam: humanTeam,
+    highestBidderTeam: humanTeam,
+    currentPrice: minimumBid,
+    humanPassed: false,
+  });
+  const strongestAiMaximum = aiMaximumsFor(state, nomination)[0]?.maximum;
+  const winningBid = strongestAiMaximum === undefined
+    ? minimumBid
+    : strongestAiMaximum + 1;
+
+  return winningBid <= humanTeam.maxBid ? winningBid : undefined;
+};
+
 const aiBidEventsFor = (
   nomination: GenericAuctionMockNomination,
   nextNomination: GenericAuctionMockNomination,
