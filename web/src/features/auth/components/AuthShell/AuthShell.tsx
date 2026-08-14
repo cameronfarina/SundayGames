@@ -10,8 +10,8 @@ interface AuthShellProps {
 }
 
 export const AuthShell = ({ children, description, footer, title }: AuthShellProps) => (
-  <main className="auth-shell">
-    <section aria-labelledby="auth-title" className="auth-shell__panel">
+  <section aria-labelledby="auth-title" className="auth-shell">
+    <div className="auth-shell__panel">
       <Link className="auth-shell__brand" to="/practice">Mockd</Link>
       <header className="auth-shell__header">
         <p className="auth-shell__eyebrow">Your draft workspace</p>
@@ -20,6 +20,6 @@ export const AuthShell = ({ children, description, footer, title }: AuthShellPro
       </header>
       {children}
       {footer !== undefined && <footer className="auth-shell__footer">{footer}</footer>}
-    </section>
-  </main>
+    </div>
+  </section>
 );

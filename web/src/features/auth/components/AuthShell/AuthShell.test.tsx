@@ -10,7 +10,8 @@ describe("AuthShell", () => {
         <AuthShell description="Secure access" title="Sign in"><form aria-label="Login" /></AuthShell>
       </MemoryRouter>,
     );
-    expect(screen.getByRole("main")).toBeVisible();
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Sign in" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeVisible();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
