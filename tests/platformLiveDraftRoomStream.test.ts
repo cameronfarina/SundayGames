@@ -427,6 +427,28 @@ describe("live draft room stream contract", () => {
     expect(nextEvents.events.map(event => event.revision)).toEqual([2, 3, 4]);
   });
 
+  it("replays retained events in revision order when storage returns them out of order", () => {
+    const room = buildLiveRoom();
+    const roomWithUnorderedEvents: LiveDraftRoom = {
+      ...room,
+      events: [...room.events].reverse(),
+    };
+
+    const nextEvents = liveDraftRoomEventsAfterRevision({
+      room: roomWithUnorderedEvents,
+      actor: commissioner,
+      afterRevision: 1,
+    });
+
+    expect(nextEvents.requiresSnapshot).toBe(false);
+    expect(nextEvents.events.map(event => event.event)).toEqual([
+      "room.started",
+      "room.sale",
+      "room.ended",
+    ]);
+    expect(nextEvents.events.map(event => event.revision)).toEqual([2, 3, 4]);
+  });
+
   it("formats revisioned events as EventSource-compatible SSE text", () => {
     const room = buildLiveRoom();
     const nextEvents = liveDraftRoomEventsAfterRevision({
