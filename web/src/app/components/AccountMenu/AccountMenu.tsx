@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
 import { PasswordChangeForm } from "../../../features/auth/components/PasswordChangeForm/PasswordChangeForm";
+import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
 import { authErrorMessage } from "../../../features/auth/model/authErrorMessage";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
@@ -20,8 +21,7 @@ export const AccountMenu = ({ email }: AccountMenuProps) => {
   const signOut = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      await queryClient.cancelQueries();
-      queryClient.clear();
+      await resetAccountQueryState(queryClient);
       void navigate("/login", { replace: true });
     },
   });

@@ -1,8 +1,9 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { resetPassword } from "../../api/authApi";
+import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import "../AuthForm/AuthForm.css";
 
@@ -12,13 +13,17 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const reset = useMutation({
     mutationFn: () => resetPassword({
       newPassword: password,
       newPasswordConfirmation: confirmation,
       token,
     }),
-    onSuccess: () => { void navigate("/login?passwordChanged=1", { replace: true }); },
+    onSuccess: async () => {
+      await resetAccountQueryState(queryClient);
+      void navigate("/login?passwordChanged=1", { replace: true });
+    },
   });
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();

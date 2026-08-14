@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../api/authApi";
+import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 
 export const SignOutButton = () => {
@@ -9,8 +10,7 @@ export const SignOutButton = () => {
   const signOut = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      await queryClient.cancelQueries();
-      queryClient.clear();
+      await resetAccountQueryState(queryClient);
       void navigate("/login", { replace: true });
     },
   });

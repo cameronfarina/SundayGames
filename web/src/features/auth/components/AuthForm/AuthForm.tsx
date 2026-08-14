@@ -4,8 +4,7 @@ import type { SyntheticEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { createAccount, login } from "../../api/authApi";
-import type { AuthSession } from "../../api/authSchemas";
-import { sessionQueryKey } from "../../api/sessionQuery";
+import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
 import "./AuthForm.css";
@@ -28,7 +27,7 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
   const returnTo = safeReturnPath(searchParams.get("returnTo"));
   const loginAndCacheSession = async (): Promise<void> => {
     const authenticated = await login({ email, password });
-    queryClient.setQueryData<AuthSession>(sessionQueryKey(), { account: authenticated.account });
+    await resetAccountQueryState(queryClient, { account: authenticated.account });
   };
 
   const authentication = useMutation({
