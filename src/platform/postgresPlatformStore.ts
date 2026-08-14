@@ -73,8 +73,10 @@ const snapshotHash = (snapshot: InMemoryPlatformStoreSnapshot): string =>
     .update(JSON.stringify(serializePlatformStoreSnapshot(snapshot)))
     .digest("hex");
 
-const snapshotJsonForPostgres = (snapshot: InMemoryPlatformStoreSnapshot): unknown =>
-  JSON.parse(JSON.stringify(serializePlatformStoreSnapshot(snapshot))) as unknown;
+const snapshotJsonForPostgres = (snapshot: InMemoryPlatformStoreSnapshot): unknown => {
+  const parsed: unknown = JSON.parse(JSON.stringify(serializePlatformStoreSnapshot(snapshot)));
+  return parsed;
+};
 
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
 
