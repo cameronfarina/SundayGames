@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import "./EmptyTeamState.css";
 
@@ -12,8 +13,8 @@ export const EmptyTeamState = ({ league }: EmptyTeamStateProps) => {
         <h2 id="my-team-empty-title">Your team starts with a league</h2>
         <p>Create a league or join an invitation before building a team.</p>
         <div className="my-team-actions">
-          <a className="my-team-primary-link" href="/league?create=1">Create league</a>
-          <a className="my-team-secondary-link" href="/invite">Join a league</a>
+          <Link className="my-team-primary-link" to="/league?create=1">Create league</Link>
+          <Link className="my-team-secondary-link" to="/invite">Join a league</Link>
         </div>
       </section>
     );

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Button, InlineNotice } from "../../../../shared/ui";
 import type { LiveDraftRoom } from "../../api/liveDraftSchemas";
 import "./FinalActions.css";
@@ -29,9 +30,9 @@ export const FinalActions = ({
       <div><h2 id="draft-complete-title">Draft complete</h2>
         <p>Review final rosters, then export the completed draft when every spot is filled.</p></div>
       <div className="final-actions__buttons">
-        {room.role !== "observer" && <a className="final-actions__link" href={`/my-team?seasonId=${encodeURIComponent(room.seasonId)}`}>
+        {room.role !== "observer" && <Link className="final-actions__link" to={`/my-team?seasonId=${encodeURIComponent(room.seasonId)}`}>
           View My Team
-        </a>}
+        </Link>}
         {room.canMutateRoom && <Button disabled={busy || !canExport} onClick={onExport}>
           Prepare final CSV
         </Button>}

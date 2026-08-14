@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { invitationAuthPaths } from "../../lib/invitationPaths";
 
 export function InvitationAuthActions({ token }: { readonly token: string }) {
@@ -9,8 +10,8 @@ export function InvitationAuthActions({ token }: { readonly token: string }) {
         <p>Sign in or create an account, then choose the team you manage.</p>
       </div>
       <div className="invite-actions">
-        <a className="invite-button invite-button--primary" href={paths.login}>Sign in</a>
-        <a className="invite-button" href={paths.signup}>Create account</a>
+        <Link className="invite-button invite-button--primary" to={paths.login}>Sign in</Link>
+        <Link className="invite-button" to={paths.signup}>Create account</Link>
       </div>
     </section>
   );

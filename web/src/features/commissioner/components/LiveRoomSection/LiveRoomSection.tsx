@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { onboardingQueryKey } from "../../../../shared/api/onboarding/onboardingQuery";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import { Button } from "../../../../shared/ui/index.js";
@@ -56,7 +57,7 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
             {create.isPending ? "Creating room..." : "Create room"}
           </Button>
         </div> : <div className="commissioner-actions">
-          <a className="commissioner-button commissioner-primary" href={roomPath(season.id, activeRoom.roomId)}>Enter draft room</a>
+          <Link className="commissioner-button commissioner-primary" to={roomPath(season.id, activeRoom.roomId)}>Enter draft room</Link>
           {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
             <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
               {archive.isPending ? "Archiving room..." : "Confirm archive"}

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { onboardingLeagueSchema } from "../../../../shared/api/onboarding/onboardingSchema";
@@ -10,11 +11,19 @@ import { LiveRoomSection } from "./LiveRoomSection";
 
 const publishedSeason = seasonSchema.parse({ ...auctionSeason, setupStatus: "published" });
 
+const LocationOutput = () => {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}{location.search}</span>;
+};
+
 const renderSection = (fetcher: PlatformFetch, season = auctionSeason, league = ownerLeague) => {
   vi.stubGlobal("fetch", fetcher);
-  return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-    <LiveRoomSection league={league} season={season} />
-  </QueryClientProvider>);
+  return render(<MemoryRouter initialEntries={["/league"]}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
+      <LiveRoomSection league={league} season={season} />
+    </QueryClientProvider>
+    <LocationOutput />
+  </MemoryRouter>);
 };
 
 describe("LiveRoomSection", () => {
@@ -36,6 +45,9 @@ describe("LiveRoomSection", () => {
     await user.click(await screen.findByRole("button", { name: "Create room" }));
     expect(await screen.findByRole("link", { name: "Enter draft room" }))
       .toHaveAttribute("href", "/draft-room?seasonId=season-1&roomId=room-1");
+    await user.click(screen.getByRole("link", { name: "Enter draft room" }));
+    expect(screen.getByTestId("location"))
+      .toHaveTextContent("/draft-room?seasonId=season-1&roomId=room-1");
     await user.click(screen.getByRole("button", { name: "Archive room" }));
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));
     expect(await screen.findByRole("button", { name: "Create room" })).toBeVisible();
@@ -85,9 +97,9 @@ describe("LiveRoomSection", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Publish reviewed league" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Review setup first.");
-    view.rerender(<QueryClientProvider client={new QueryClient()}>
+    view.rerender(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
       <LiveRoomSection league={ownerLeague} season={snakeSeason} />
-    </QueryClientProvider>);
+    </QueryClientProvider></MemoryRouter>);
     expect(screen.getByText("Hosted live rooms currently support auction drafts only.")).toBeVisible();
   });
 
