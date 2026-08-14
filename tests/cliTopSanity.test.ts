@@ -1,8 +1,32 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const flagSchema = z.object({ key: z.string(), severity: z.string(), message: z.string() });
+const sanityReportSchema = z.object({
+  config: z.object({ scenarioKey: z.string(), limit: z.number(), runs: z.number() }),
+  summary: z.object({
+    reviewedCount: z.number(),
+    flaggedPlayerCount: z.number(),
+    flagCounts: z.record(z.string(), z.number()),
+    highPriceVolume: z.array(z.object({ threshold: z.number(), status: z.string() })),
+  }),
+  players: z.array(z.object({
+    rank: z.number(),
+    name: z.string(),
+    scenarioPrice: z.number(),
+    averageMockSalePrice: z.number(),
+    saleVsScenarioPrice: z.number(),
+    contextEvidenceCount: z.number(),
+    flags: z.array(flagSchema),
+  })),
+  flaggedPlayers: z.array(z.object({
+    name: z.string(),
+    flags: z.array(z.object({ key: z.string() })),
+  })),
+});
 
 describe("CLI top-player sanity report", () => {
   it("scans the top auction players and flags review-worthy pricing signals", async () => {
@@ -23,46 +47,7 @@ describe("CLI top-player sanity report", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const report = JSON.parse(stdout) as {
-      config: {
-        scenarioKey: string;
-        limit: number;
-        runs: number;
-      };
-      summary: {
-        reviewedCount: number;
-        flaggedPlayerCount: number;
-        flagCounts: Record<string, number>;
-        highPriceVolume: {
-          threshold: number;
-          historicalMaxCount: number;
-          scenarioCount: number;
-          mockMaxCount: number;
-          status: string;
-        }[];
-      };
-      players: {
-        rank: number;
-        name: string;
-        position: string;
-        basePrice: number;
-        scenarioPrice: number;
-        averageMockSalePrice: number;
-        saleVsScenarioPrice: number;
-        contextEvidenceCount: number;
-        flags: {
-          key: string;
-          severity: string;
-          message: string;
-        }[];
-      }[];
-      flaggedPlayers: {
-        name: string;
-        flags: {
-          key: string;
-        }[];
-      }[];
-    };
+    const report = sanityReportSchema.parse(JSON.parse(stdout));
 
     expect(report.config).toMatchObject({
       scenarioKey: "expected",

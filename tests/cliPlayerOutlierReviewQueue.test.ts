@@ -1,8 +1,24 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const outlierQueueSchema = z.object({
+  summary: z.object({
+    playerCount: z.number(),
+    highPriorityCount: z.number(),
+    reasonCounts: z.record(z.string(), z.number()),
+  }),
+  rows: z.array(z.object({
+    priority: z.string(),
+    player: z.string(),
+    scenarioPrice: z.number(),
+    outlierReasons: z.array(z.object({ key: z.string(), message: z.string() })),
+    auditCommand: z.string(),
+    reviewStatus: z.string(),
+  })),
+});
 
 describe("CLI player outlier review queue", () => {
   it("prints a prioritized top-player outlier queue", async () => {
@@ -23,25 +39,7 @@ describe("CLI player outlier review queue", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const queue = JSON.parse(stdout) as {
-      summary: {
-        playerCount: number;
-        highPriorityCount: number;
-        reasonCounts: Record<string, number>;
-      };
-      rows: {
-        priority: string;
-        player: string;
-        scenarioPrice: number;
-        primaryReason: string;
-        outlierReasons: {
-          key: string;
-          message: string;
-        }[];
-        auditCommand: string;
-        reviewStatus: string;
-      }[];
-    };
+    const queue = outlierQueueSchema.parse(JSON.parse(stdout));
 
     expect(queue.summary.playerCount).toBeGreaterThan(0);
     expect(queue.summary.highPriorityCount).toBeGreaterThan(0);

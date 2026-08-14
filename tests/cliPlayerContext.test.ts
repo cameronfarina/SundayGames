@@ -4,8 +4,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const priceReportSchema = z.object({
+  config: z.object({
+    playerContext: z.object({
+      enabled: z.boolean(),
+      overrideCount: z.number(),
+      importPath: z.string().optional(),
+    }),
+  }),
+  prices: z.array(z.object({
+    name: z.string(),
+    contextAdjustmentFactor: z.number(),
+    contextSignals: z.record(z.string(), z.number()),
+    contextNotes: z.record(z.string(), z.string()).optional(),
+  })),
+});
 
 describe("CLI player context imports", () => {
   it("uses imported player context files in custom pricing commands", async () => {
@@ -24,21 +40,7 @@ describe("CLI player context imports", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      config: {
-        playerContext: {
-          enabled: boolean;
-          overrideCount: number;
-          importPath?: string;
-        };
-      };
-      prices: {
-        name: string;
-        contextAdjustmentFactor: number;
-        contextSignals: Record<string, number>;
-        contextNotes?: Record<string, string>;
-      }[];
-    };
+    const result = priceReportSchema.parse(JSON.parse(stdout));
     const puka = result.prices.find(price => price.name === "Puka Nacua");
 
     expect(result.config.playerContext.enabled).toBe(true);

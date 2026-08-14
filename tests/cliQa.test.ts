@@ -1,8 +1,25 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const qaReportSchema = z.object({
+  status: z.string(),
+  recommendedExitCode: z.number(),
+  options: z.object({
+    scenarioKeys: z.array(z.string()),
+    runsPerScenario: z.number(),
+    seedPrefix: z.string(),
+  }),
+  summary: z.object({ hardFailCount: z.number() }),
+  checks: z.array(z.object({
+    key: z.string(),
+    severity: z.string(),
+    status: z.string(),
+  })),
+  artifactPaths: z.array(z.string()),
+});
 
 describe("CLI QA", () => {
   it("prints the blessed engine QA report", async () => {
@@ -21,24 +38,7 @@ describe("CLI QA", () => {
         maxBuffer: 30 * 1024 * 1024,
       },
     );
-    const report = JSON.parse(stdout) as {
-      status: string;
-      recommendedExitCode: number;
-      options: {
-        scenarioKeys: string[];
-        runsPerScenario: number;
-        seedPrefix: string;
-      };
-      summary: {
-        hardFailCount: number;
-      };
-      checks: {
-        key: string;
-        severity: string;
-        status: string;
-      }[];
-      artifactPaths: string[];
-    };
+    const report = qaReportSchema.parse(JSON.parse(stdout));
 
     expect(["pass", "warn"]).toContain(report.status);
     expect(report.recommendedExitCode).toBe(0);

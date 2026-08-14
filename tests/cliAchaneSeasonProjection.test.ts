@@ -1,8 +1,25 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const auditSchema = z.object({
+  player: z.object({
+    seasonProjection: z.number(),
+    projectionCalibration: z.object({
+      provider: z.string(),
+      sourceDate: z.string(),
+      sourceUrl: z.string(),
+      baselineSeasonProjection: z.number(),
+      calibratedSeasonProjection: z.number(),
+      weeklyScaleFactor: z.number(),
+      scoringBreakdown: z.object({ total: z.number() }),
+    }),
+  }),
+  pricing: z.object({ projectionRank: z.number(), basePrice: z.number() }),
+  explanation: z.array(z.string()),
+});
 
 describe("Achane player audit", () => {
   it("explains the season-long projection calibration before pricing", async () => {
@@ -23,25 +40,7 @@ describe("Achane player audit", () => {
         maxBuffer: 20 * 1024 * 1024,
       },
     );
-    const result = JSON.parse(stdout) as {
-      player: {
-        seasonProjection: number;
-        projectionCalibration: {
-          provider: string;
-          sourceDate: string;
-          sourceUrl: string;
-          baselineSeasonProjection: number;
-          calibratedSeasonProjection: number;
-          weeklyScaleFactor: number;
-          scoringBreakdown: { total: number };
-        };
-      };
-      pricing: {
-        projectionRank: number;
-        basePrice: number;
-      };
-      explanation: string[];
-    };
+    const result = auditSchema.parse(JSON.parse(stdout));
 
     expect(result.player.seasonProjection).toBe(216.95);
     expect(result.player.projectionCalibration).toMatchObject({
