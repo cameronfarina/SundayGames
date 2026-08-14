@@ -10,6 +10,7 @@ describe("application routes", () => {
     "/signup",
     "/practice",
     "/mock-drafts",
+    "/draft-room",
     "/league",
     "/my-team",
     "/commissioner",

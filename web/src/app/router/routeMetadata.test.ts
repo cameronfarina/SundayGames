@@ -8,6 +8,7 @@ describe("route metadata", () => {
     ["/my-team", "My team | Mockd"],
     ["/commissioner", "Commissioner | Mockd"],
     ["/mock-drafts/session-1", "Mock draft | Mockd"],
+    ["/draft-room", "Live draft | Mockd"],
     ["/login", "Sign in | Mockd"],
     ["/signup", "Create account | Mockd"],
     ["/unknown", "Mockd"],

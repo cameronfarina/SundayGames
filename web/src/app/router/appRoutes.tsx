@@ -33,6 +33,10 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
         lazy: () => import("../../features/mockDraft/routes/mockDraftRoute"),
       },
       {
+        path: "draft-room",
+        lazy: () => import("../../features/liveDraft/routes/liveDraftRoute"),
+      },
+      {
         path: "league",
         lazy: () => import("../../features/league/routes/leagueRoute"),
       },
