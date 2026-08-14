@@ -76,6 +76,22 @@ describe("live draft room setup repositories", () => {
     expect(client.queries[1]?.params).toEqual([input.seasonId]);
   });
 
+  it("rejects malformed stored player data instead of trusting database JSON", async () => {
+    const client = new SetupClient();
+    const repository = new PostgresLiveDraftRoomSetupRepository(client);
+    await repository.save(input);
+    if (client.stored === undefined) throw new Error("Expected a stored setup fixture.");
+    client.stored.player_catalog_json = [{
+      name: "Puka Nacua",
+      position: "not-a-position",
+      expectedPrice: 73,
+    }];
+
+    await expect(repository.findForSeason(input.seasonId)).rejects.toThrow(
+      "Stored live draft setup field playerCatalog[0].position is invalid.",
+    );
+  });
+
   it("rejects stale in-memory setup updates", async () => {
     const repository = new InMemoryLiveDraftRoomSetupRepository();
     const saved = await repository.save(input, { expectedContentHash: null });
