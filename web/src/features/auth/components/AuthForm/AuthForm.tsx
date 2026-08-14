@@ -1,9 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { createAccount, login } from "../../api/authApi";
+import type { AuthSession } from "../../api/authSchemas";
+import { sessionQueryKey } from "../../api/sessionQuery";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
 import "./AuthForm.css";
@@ -22,12 +24,17 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
   const [notice, setNotice] = useState<string>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const returnTo = safeReturnPath(searchParams.get("returnTo"));
+  const loginAndCacheSession = async (): Promise<void> => {
+    const authenticated = await login({ email, password });
+    queryClient.setQueryData<AuthSession>(sessionQueryKey(), { account: authenticated.account });
+  };
 
   const authentication = useMutation({
     mutationFn: async (): Promise<AuthOutcome> => {
       if (mode === "login") {
-        await login({ email, password });
+        await loginAndCacheSession();
         return { kind: "authenticated" };
       }
       const invitationToken = invitationTokenFromReturnTo(returnTo);
@@ -38,7 +45,7 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
         returnTo,
       });
       if ("account" in signup) {
-        await login({ email, password });
+        await loginAndCacheSession();
         return { kind: "authenticated" };
       }
       return { kind: "notice", message: signup.message };

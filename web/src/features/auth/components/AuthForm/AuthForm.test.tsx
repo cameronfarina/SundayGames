@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { authRoutes } from "../../routes/authRoutes";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
+import { sessionQueryKey, useSessionQuery } from "../../api/sessionQuery";
+import { createProtectedLoader } from "../../routes/protectedLoader";
 
 const account = {
   createdAt: "2026-08-13T12:00:00.000Z",
@@ -27,18 +28,17 @@ const jsonResponse = (body: unknown, status = 200): Response => new Response(
   JSON.stringify(body),
   { headers: { "content-type": "application/json" }, status },
 );
-const Provider = ({ children }: PropsWithChildren) => (
-  <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
-);
+const SessionAccount = () => <p>{useSessionQuery().data?.account.email}</p>;
 const mountRoute = (path: string) => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createMemoryRouter([
     ...authRoutes,
-    { path: "/practice", element: <h1>Practice</h1> },
-    { path: "/league", element: <h1>League</h1> },
+    { path: "/practice", element: <SessionAccount />, loader: createProtectedLoader(queryClient) },
+    { path: "/league", element: <SessionAccount />, loader: createProtectedLoader(queryClient) },
     { path: "/invite", element: <h1>Invitation</h1> },
   ], { initialEntries: [path] });
-  render(<Provider><RouterProvider router={router} /></Provider>);
-  return router;
+  render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>);
+  return { queryClient, router };
 };
 const enterCredentials = async () => {
   await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "cam@example.com");
@@ -52,22 +52,28 @@ afterEach(() => {
 
 describe("AuthForm", () => {
   it("submits login on Enter and redirects only to a safe return path", async () => {
-    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse(loginBody));
+    const fetcher = vi.fn<PlatformFetch>()
+      .mockImplementation(() => Promise.resolve(jsonResponse(loginBody)));
     vi.stubGlobal("fetch", fetcher);
-    const navigation = mountRoute("/login?returnTo=%2Fleague%3FseasonId%3Dseason-1");
+    const path = "/login?returnTo=%2Fleague%3FseasonId%3Dseason-1";
+    const { queryClient, router: navigation } = mountRoute(path);
     await enterCredentials();
     await userEvent.type(screen.getByLabelText("Password"), "{Enter}");
-
     await waitFor(() => {
       expect(navigation.state.location.pathname).toBe("/league");
     });
     expect(navigation.state.location.search).toBe("?seasonId=season-1");
-    expect(fetcher).toHaveBeenCalledWith("/sessions", expect.objectContaining({ method: "POST" }));
+    expect(screen.getByText("cam@example.com")).toBeVisible();
+    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ account });
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith("/sessions", expect.objectContaining({
+      method: "POST",
+    }));
   });
 
   it("uses Practice for an unsafe return path and exposes password-change context", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(loginBody)));
-    const navigation = mountRoute("/login?passwordChanged=1&returnTo=https%3A%2F%2Fevil.example");
+    const path = "/login?passwordChanged=1&returnTo=https%3A%2F%2Fevil.example";
+    const { router: navigation } = mountRoute(path);
     expect(screen.getByRole("status")).toHaveTextContent("Password changed");
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -83,37 +89,41 @@ describe("AuthForm", () => {
         message: "Verify your email before signing in.",
       },
     }, 403)));
-    mountRoute("/login?returnTo=%2Finvite%3Ftoken%3Dleague-token");
+    const { queryClient } = mountRoute("/login?returnTo=%2Finvite%3Ftoken%3Dleague-token");
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-
     expect(await screen.findByRole("alert")).toHaveTextContent("Verify your email");
     expect(screen.getByRole("link", { name: "Resend verification" }))
       .toHaveAttribute("href", expect.stringContaining("%2Finvite%3Ftoken%3Dleague-token"));
+    expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();
   });
 
-  it("logs in after immediate signup and forwards the invitation token", async () => {
+  it("caches the auto-login session before protected signup navigation", async () => {
     const fetcher = vi.fn<PlatformFetch>()
       .mockImplementationOnce(async () => {
         await new Promise(resolve => setTimeout(resolve, 25));
         return jsonResponse({ account }, 201);
       })
-      .mockResolvedValueOnce(jsonResponse(loginBody));
+      .mockImplementation(() => Promise.resolve(jsonResponse(loginBody)));
     vi.stubGlobal("fetch", fetcher);
-    const navigation = mountRoute("/signup?returnTo=%2Finvite%3Ftoken%3Dleague-token");
+    const { queryClient, router: navigation } = mountRoute(
+      "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1",
+    );
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(screen.getByRole("button", { name: "Creating account..." })).toBeDisabled();
     await waitFor(() => {
-      expect(navigation.state.location.pathname).toBe("/invite");
+      expect(navigation.state.location.pathname).toBe("/league");
     });
-
+    expect(screen.getByText("cam@example.com")).toBeVisible();
+    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ account });
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",
-      invitationToken: "league-token",
       password: "secure password",
-      returnTo: "/invite?token=league-token",
+      returnTo: "/league?seasonId=season-1",
     }));
+    expect(fetcher).toHaveBeenNthCalledWith(2, "/sessions", expect.objectContaining({ method: "POST" }));
   });
 
   it("shows the privacy-preserving verification notice without logging in", async () => {
@@ -122,12 +132,19 @@ describe("AuthForm", () => {
       message: "If this email can be registered, a verification link is on its way.",
     }, 202));
     vi.stubGlobal("fetch", fetcher);
-    mountRoute("/signup");
+    const { queryClient } = mountRoute("/signup?returnTo=%2Finvite%3Ftoken%3Dleague-token");
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-
     expect(await screen.findByRole("status")).toHaveTextContent("verification link");
     expect(fetcher).toHaveBeenCalledOnce();
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      email: "cam@example.com",
+      invitationToken: "league-token",
+      password: "secure password",
+      returnTo: "/invite?token=league-token",
+    }));
+    expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();
+    expect(screen.getByRole("link", { name: "Sign in" }))
+      .toHaveAttribute("href", "/login?returnTo=%2Finvite%3Ftoken%3Dleague-token");
   });
 });
