@@ -303,6 +303,7 @@ export function enqueueSimulationRunExecutionJob(
 
   return submitPlatformJob({
     ...input,
+    idempotencyKey: undefined,
     payload,
     defaultIdempotencyKeyParts: [input.simulationRunId],
   });

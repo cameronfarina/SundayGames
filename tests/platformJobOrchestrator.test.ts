@@ -15,6 +15,34 @@ import {
 const now = new Date("2026-08-09T12:00:00.000Z");
 
 describe("platform job orchestrator", () => {
+  it("allows only one outstanding execution job for a simulation run", () => {
+    const repository = new InMemoryJobQueue();
+    const first = enqueueSimulationRunExecutionJob({
+      repository,
+      userId: "user_cam",
+      leagueId: "league_214674",
+      seasonId: "season_2026",
+      simulationRunId: "sim_cam_plan",
+      runCount: 25,
+      idempotencyKey: "attacker-controlled-first",
+      now,
+    });
+    const second = enqueueSimulationRunExecutionJob({
+      repository,
+      userId: "user_cam",
+      leagueId: "league_214674",
+      seasonId: "season_2026",
+      simulationRunId: "sim_cam_plan",
+      runCount: 25,
+      idempotencyKey: "attacker-controlled-second",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    expect(second).toBe(first);
+    expect(repository.listForUser("user_cam")).toEqual([first]);
+    expect(first.idempotencyKey).toBe("simulation-run-execution:sim_cam_plan");
+  });
+
   it("enqueues product jobs idempotently with type-specific keys mapped to repository job kinds", () => {
     const repository = new InMemoryJobQueue();
 

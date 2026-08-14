@@ -2,6 +2,17 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Owner } from "../../config/league.js";
 import type { ForcedAuctionSale, MockBatch } from "../modeling/mockBatch.js";
 import type { SeasonSimulationResult } from "./seasonSimulationEngine.js";
+import {
+  maximumRetainedSimulationRunsPerUser,
+  maximumSimulationCandidatePoolSize,
+  maximumSimulationHardLocks,
+  maximumSimulationHistoryPageSize,
+  maximumSimulationIdentifierLength,
+  maximumSimulationSoftTargets,
+  maximumSimulationStrategyElementLength,
+  maximumStructuredSimulationStrategyCharacters,
+  boundedSimulationHistoryPageSize,
+} from "./simulationLimits.js";
 
 export const maxSimulationCount = 100;
 
@@ -13,10 +24,14 @@ export type SimulationErrorCode =
   | "idempotency_conflict"
   | "invalid_count"
   | "invalid_hard_lock_price"
+  | "invalid_simulation_strategy"
   | "invalid_soft_target_candidate_pool"
   | "invalid_soft_target_label"
   | "invalid_soft_target_max_bid"
   | "missing_hard_lock_player"
+  | "invalid_simulation_identifier"
+  | "simulation_capacity_reached"
+  | "simulation_strategy_too_large"
   | "simulation_not_found";
 
 export class SimulationError extends Error {
@@ -180,6 +195,37 @@ export const hashSimulationInput = (input: unknown): string =>
 const normalizePlayerKey = (playerName: string): string =>
   playerName.trim().toLowerCase().replace(/\s+/g, " ");
 
+const assertStrategyText = (value: string): void => {
+  if (value.length > maximumSimulationStrategyElementLength) {
+    throw new SimulationError(
+      "simulation_strategy_too_large",
+      `A simulation strategy name cannot exceed ${maximumSimulationStrategyElementLength} characters.`,
+    );
+  }
+};
+
+const assertRequestIdentifier = (label: string, value: string): void => {
+  if (value.trim().length === 0) {
+    throw new SimulationError(
+      "invalid_simulation_identifier",
+      `Simulation ${label} is required.`,
+    );
+  }
+  if (value.length > maximumSimulationIdentifierLength) {
+    throw new SimulationError(
+      "invalid_simulation_identifier",
+      `Simulation ${label} cannot exceed ${maximumSimulationIdentifierLength} characters.`,
+    );
+  }
+};
+
+export const assertSimulationRequestIdentifiers = (
+  input: Pick<CreateSimulationRequestInput, "seedPrefix" | "idempotencyKey">,
+): void => {
+  assertRequestIdentifier("seed prefix", input.seedPrefix);
+  assertRequestIdentifier("idempotency key", input.idempotencyKey);
+};
+
 export const assertSimulationCount = (count: number): void => {
   if (!Number.isInteger(count) || count < 1) {
     throw new SimulationError("invalid_count", "Simulation count must be at least 1.");
@@ -193,11 +239,18 @@ export const assertSimulationCount = (count: number): void => {
 const normalizeHardLocks = (
   hardLocks: readonly SimulationHardLockInput[] = [],
 ): readonly SimulationHardLock[] => {
+  if (hardLocks.length > maximumSimulationHardLocks) {
+    throw new SimulationError(
+      "simulation_strategy_too_large",
+      `Simulation strategy cannot contain more than ${maximumSimulationHardLocks} hard locks.`,
+    );
+  }
   const seenPlayerNamesByKey = new Map<string, string>();
   const normalizedHardLocks: SimulationHardLock[] = [];
 
   for (const hardLock of hardLocks) {
     const playerName = hardLock.playerName.trim();
+    assertStrategyText(playerName);
 
     if (playerName.length === 0) {
       throw new SimulationError("missing_hard_lock_player", "Hard locks must include a player name.");
@@ -230,11 +283,29 @@ const normalizeHardLocks = (
 
 const normalizeSoftTargets = (
   softTargets: readonly SimulationSoftTargetInput[] = [],
-): readonly SimulationSoftTarget[] =>
-  softTargets.map(softTarget => {
+): readonly SimulationSoftTarget[] => {
+  if (softTargets.length > maximumSimulationSoftTargets) {
+    throw new SimulationError(
+      "simulation_strategy_too_large",
+      `Simulation strategy cannot contain more than ${maximumSimulationSoftTargets} soft targets.`,
+    );
+  }
+
+  return softTargets.map(softTarget => {
+    if (softTarget.candidatePool.length > maximumSimulationCandidatePoolSize) {
+      throw new SimulationError(
+        "simulation_strategy_too_large",
+        `A soft target cannot contain more than ${maximumSimulationCandidatePoolSize} candidates.`,
+      );
+    }
     const label = softTarget.label.trim();
+    assertStrategyText(label);
     const candidatePool = softTarget.candidatePool
-      .map(candidate => candidate.trim())
+      .map(candidate => {
+        const normalizedCandidate = candidate.trim();
+        assertStrategyText(normalizedCandidate);
+        return normalizedCandidate;
+      })
       .filter(candidate => candidate.length > 0);
 
     if (label.length === 0) {
@@ -261,11 +332,29 @@ const normalizeSoftTargets = (
       maxBid: softTarget.maxBid,
     };
   });
+};
 
-export const normalizeStrategy = (strategy: SimulationStrategyInput): SimulationStrategy => ({
-  hardLocks: normalizeHardLocks(strategy.hardLocks),
-  softTargets: normalizeSoftTargets(strategy.softTargets),
-});
+export const normalizeStrategy = (strategy: SimulationStrategyInput): SimulationStrategy => {
+  const normalized = {
+    hardLocks: normalizeHardLocks(strategy.hardLocks),
+    softTargets: normalizeSoftTargets(strategy.softTargets),
+  };
+  const characterCount = normalized.hardLocks.reduce(
+    (total, hardLock) => total + hardLock.playerName.length,
+    normalized.softTargets.reduce(
+      (total, target) => total + target.label.length
+        + target.candidatePool.reduce((candidateTotal, candidate) => candidateTotal + candidate.length, 0),
+      0,
+    ),
+  );
+  if (characterCount > maximumStructuredSimulationStrategyCharacters) {
+    throw new SimulationError(
+      "simulation_strategy_too_large",
+      `Structured simulation strategy text cannot exceed ${maximumStructuredSimulationStrategyCharacters} characters.`,
+    );
+  }
+  return normalized;
+};
 
 export const simulationInputHashPayload = (
   input: Omit<CreateSimulationRequestInput, "createdAt">,
@@ -286,7 +375,7 @@ export const canReadSimulationRun = (userId: string, run: SimulationRun): boolea
 
 export interface SimulationRepository {
   createRequest(input: CreateSimulationRequestInput): MaybePromise<SimulationRun>;
-  listForUser(userId: string): MaybePromise<SimulationRun[]>;
+  listForUser(userId: string, limit?: number): MaybePromise<SimulationRun[]>;
   listHistoryForUserSeason(
     userId: string,
     seasonId: string,
@@ -326,6 +415,7 @@ export class InMemorySimulationRepository implements SimulationRepository {
     const createdAt = input.createdAt ?? new Date();
 
     assertSimulationCount(input.count);
+    assertSimulationRequestIdentifiers(input);
 
     const strategy = normalizeStrategy(input.strategy);
     const inputHash = hashSimulationInput(simulationInputHashPayload(input, strategy));
@@ -346,6 +436,8 @@ export class InMemorySimulationRepository implements SimulationRepository {
         return existingRun;
       }
     }
+
+    this.#makeRetentionRoom(input.userId);
 
     const request: SimulationRequest = {
       id: createSimulationRequestId(),
@@ -378,15 +470,20 @@ export class InMemorySimulationRepository implements SimulationRepository {
     return run;
   }
 
-  listForUser(userId: string): SimulationRun[] {
-    return [...this.#runsById.values()].filter(run => canReadSimulationRun(userId, run));
+  listForUser(userId: string, limit = maximumSimulationHistoryPageSize): SimulationRun[] {
+    return [...this.#runsById.values()]
+      .filter(run => canReadSimulationRun(userId, run))
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, boundedSimulationHistoryPageSize(limit))
+      .map(run => ({ ...run, result: undefined }));
   }
 
   listHistoryForUserSeason(userId: string, seasonId: string, limit: number): SimulationRun[] {
-    return this.listForUser(userId)
+    return [...this.#runsById.values()]
+      .filter(run => canReadSimulationRun(userId, run))
       .filter(run => run.request.seasonId === seasonId)
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .slice(0, limit)
+      .slice(0, boundedSimulationHistoryPageSize(limit))
       .map(run => ({
         ...run,
         result: run.result?.seasonSimulation === undefined
@@ -498,6 +595,34 @@ export class InMemorySimulationRepository implements SimulationRepository {
       ),
       run.id,
     );
+  }
+
+  #makeRetentionRoom(userId: string): void {
+    const userRuns = [...this.#runsById.values()]
+      .filter(run => run.request.userId === userId);
+    const removalCount = userRuns.length - maximumRetainedSimulationRunsPerUser + 1;
+    if (removalCount <= 0) return;
+
+    const removableRuns = userRuns
+      .filter(run => run.status === "completed" || run.status === "failed" || run.status === "canceled")
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+      .slice(0, removalCount);
+    if (removableRuns.length < removalCount) {
+      throw new SimulationError(
+        "simulation_capacity_reached",
+        "Finish or cancel an active simulation before starting another one.",
+      );
+    }
+
+    for (const run of removableRuns) {
+      this.#runsById.delete(run.id);
+      this.#runIdsByIdempotencyKey.delete(idempotencyIndexKey(
+        run.request.userId,
+        run.request.leagueId,
+        run.request.seasonId,
+        run.request.idempotencyKey,
+      ));
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import type { Owner } from "../../config/league.js";
 import {
   SimulationError,
   assertSimulationCount,
+  assertSimulationRequestIdentifiers,
   createSimulationId,
   createSimulationRequestId,
   createSimulationResultId,
@@ -18,6 +19,10 @@ import {
   type SimulationSoftTarget,
   type SimulationStrategy,
 } from "./simulations.js";
+import {
+  boundedSimulationHistoryPageSize,
+  maximumRetainedSimulationRunsPerUser,
+} from "./simulationLimits.js";
 import type {
   PostgresTransactionalQueryClient,
 } from "./postgresJobQueue.js";
@@ -233,6 +238,16 @@ FROM simulation_runs r
 LEFT JOIN simulation_results sr ON sr.simulation_run_id = r.id
 `.trim();
 
+const selectSimulationWithoutResultSql = `
+SELECT
+  r.*,
+  NULL::text AS result_id,
+  NULL::jsonb AS summary_json,
+  NULL::jsonb AS result_set_json,
+  NULL::timestamptz AS result_created_at
+FROM simulation_runs r
+`.trim();
+
 const selectSimulationHistorySql = `
 SELECT
   r.*,
@@ -258,6 +273,7 @@ export class PostgresSimulationRepository implements SimulationRepository {
   async createRequest(input: CreateSimulationRequestInput): Promise<SimulationRun> {
     const createdAt = input.createdAt ?? new Date();
     assertSimulationCount(input.count);
+    assertSimulationRequestIdentifiers(input);
     const strategy = normalizeStrategy(input.strategy);
     const inputHash = hashSimulationInput(simulationInputHashPayload(input, strategy));
     const request: SimulationRequest = {
@@ -275,8 +291,44 @@ export class PostgresSimulationRepository implements SimulationRepository {
       inputHash,
       createdAt,
     };
-    const result = await this.#client.query<SimulationRunRow>(
-      `
+    return await this.#client.transaction(async client => {
+      await client.query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE", [input.userId]);
+      const existingRun = await this.#findByIdempotency({
+        userId: input.userId,
+        leagueId: input.leagueId,
+        seasonId: input.seasonId,
+        idempotencyKey: input.idempotencyKey,
+      }, client);
+      if (existingRun !== null) {
+        if (existingRun.request.inputHash !== inputHash) {
+          throw new SimulationError(
+            "idempotency_conflict",
+            "A simulation request already exists for this idempotency key with different input.",
+          );
+        }
+        return existingRun;
+      }
+
+      await client.query(
+        `
+WITH removable AS (
+  SELECT id
+  FROM simulation_runs
+  WHERE user_id = $1
+    AND status IN ('completed', 'failed', 'canceled')
+  ORDER BY created_at ASC, id ASC
+  LIMIT GREATEST(
+    (SELECT COUNT(*) FROM simulation_runs WHERE user_id = $1) - $2 + 1,
+    0
+  )
+)
+DELETE FROM simulation_runs WHERE id IN (SELECT id FROM removable)
+`.trim(),
+        [input.userId, maximumRetainedSimulationRunsPerUser],
+      );
+
+      const result = await client.query<SimulationRunRow>(
+        `
 INSERT INTO simulation_runs (
   id,
   league_id,
@@ -290,49 +342,46 @@ INSERT INTO simulation_runs (
   status,
   created_at,
   updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'requested', $10, $10)
+)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'requested', $10, $10
+WHERE (SELECT COUNT(*) FROM simulation_runs WHERE user_id = $4) < $11
 ON CONFLICT (user_id, league_id, league_season_id, idempotency_key) DO NOTHING
 RETURNING *, NULL::text AS result_id, NULL::jsonb AS summary_json, NULL::jsonb AS result_set_json, NULL::timestamptz AS result_created_at;
 `.trim(),
-      [
-        createSimulationId(),
-        input.leagueId,
-        input.seasonId,
-        input.userId,
-        input.ownerId,
-        input.teamId,
-        input.idempotencyKey,
-        inputHash,
-        jsonbParameter(request),
-        createdAt,
-      ],
-    );
-    const insertedRow = firstRow(result);
-    if (insertedRow !== undefined) return runFromRow(insertedRow);
-
-    const existingRun = await this.#findByIdempotency({
-      userId: input.userId,
-      leagueId: input.leagueId,
-      seasonId: input.seasonId,
-      idempotencyKey: input.idempotencyKey,
-    });
-    if (existingRun === null) {
-      throw new SimulationError("simulation_not_found", "Simulation run was not found.");
-    }
-    if (existingRun.request.inputHash !== inputHash) {
-      throw new SimulationError(
-        "idempotency_conflict",
-        "A simulation request already exists for this idempotency key with different input.",
+        [
+          createSimulationId(),
+          input.leagueId,
+          input.seasonId,
+          input.userId,
+          input.ownerId,
+          input.teamId,
+          input.idempotencyKey,
+          inputHash,
+          jsonbParameter(request),
+          createdAt,
+          maximumRetainedSimulationRunsPerUser,
+        ],
       );
-    }
+      const insertedRow = firstRow(result);
+      if (insertedRow !== undefined) return runFromRow(insertedRow);
 
-    return existingRun;
+      throw new SimulationError(
+        "simulation_capacity_reached",
+        "Finish or cancel an active simulation before starting another one.",
+      );
+    });
   }
 
-  async listForUser(userId: string): Promise<SimulationRun[]> {
+  async listForUser(
+    userId: string,
+    limit = maximumRetainedSimulationRunsPerUser,
+  ): Promise<SimulationRun[]> {
     const result = await this.#client.query<SimulationRunRow>(
-      `${selectSimulationWithResultSql} WHERE r.user_id = $1 ORDER BY r.created_at ASC, r.id ASC`,
-      [userId],
+      `${selectSimulationWithoutResultSql}
+WHERE r.user_id = $1
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $2`,
+      [userId, boundedSimulationHistoryPageSize(limit)],
     );
 
     return result.rows.map(runFromRow);
@@ -344,7 +393,7 @@ RETURNING *, NULL::text AS result_id, NULL::jsonb AS summary_json, NULL::jsonb A
 WHERE r.user_id = $1 AND r.league_season_id = $2
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3`,
-      [userId, seasonId, limit],
+      [userId, seasonId, boundedSimulationHistoryPageSize(limit)],
     );
 
     return result.rows.map(runFromRow);
@@ -527,8 +576,8 @@ ON CONFLICT (simulation_run_id) DO UPDATE SET
     leagueId: string;
     seasonId: string;
     idempotencyKey: string;
-  }): Promise<SimulationRun | null> {
-    const result = await this.#client.query<SimulationRunRow>(
+  }, client: PostgresQueryClient = this.#client): Promise<SimulationRun | null> {
+    const result = await client.query<SimulationRunRow>(
       `
 ${selectSimulationWithResultSql}
 WHERE r.user_id = $1

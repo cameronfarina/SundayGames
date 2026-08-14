@@ -92,8 +92,11 @@ import {
 } from "./openAiLeagueMembersScreenshotAnalyzer.js";
 import {
   SimulationError,
-  type SimulationStrategyInput,
 } from "./simulations.js";
+import {
+  seasonSimulationTextInputFromUnknown,
+  simulationStrategyInputFromUnknown,
+} from "./simulationHttpInput.js";
 import {
   HistoricalImportError,
   HistoricalImportTargetError,
@@ -714,13 +717,18 @@ const simulationErrorStatus = (code: SimulationError["code"]): number => {
       return 404;
     case "idempotency_conflict":
       return 409;
+    case "simulation_capacity_reached":
+      return 429;
     case "duplicate_hard_lock":
     case "invalid_count":
     case "invalid_hard_lock_price":
+    case "invalid_simulation_identifier":
+    case "invalid_simulation_strategy":
     case "invalid_soft_target_candidate_pool":
     case "invalid_soft_target_label":
     case "invalid_soft_target_max_bid":
     case "missing_hard_lock_player":
+    case "simulation_strategy_too_large":
       return 400;
   }
 };
@@ -896,7 +904,10 @@ const errorResponseFor = (error: unknown): PlatformHttpResponse<PlatformHttpErro
   }
 
   if (error instanceof SimulationError) {
-    return knownError(simulationErrorStatus(error.code), error.code, error.message);
+    const response = knownError(simulationErrorStatus(error.code), error.code, error.message);
+    return error.code === "simulation_capacity_reached"
+      ? { ...response, headers: { "Retry-After": "5" } }
+      : response;
   }
 
   if (error instanceof LiveDraftRoomError) {
@@ -1886,7 +1897,7 @@ const routeSimulations = async (
         count: optionalNumber(request.body.count) ?? Number.NaN,
         seedPrefix: stringValue(request.body.seedPrefix),
         idempotencyKey: stringValue(request.body.idempotencyKey),
-        strategy: (request.body.strategy ?? {}) as SimulationStrategyInput,
+        strategy: simulationStrategyInputFromUnknown(request.body.strategy),
         now: request.now,
       });
 
@@ -2640,6 +2651,7 @@ const routeSeasonSimulations = async (
       `Simulation run count must be a whole number from 1 through ${maximumSeasonSimulationRunCount}.`,
     );
   }
+  const simulationTextInput = seasonSimulationTextInputFromUnknown(request.body);
   const context = await seasonMockDraftContextFor(
     app,
     request,
@@ -2686,7 +2698,7 @@ const routeSeasonSimulations = async (
   };
   const strategyInput = [
     presetStrategyInput[strategyPreset],
-    optionalString(request.body.strategy) ?? "",
+    simulationTextInput.strategy,
   ].filter(Boolean).join(" and ");
   const practiceTargets = await app.listPracticeShortlist({
     actorSessionToken: request.sessionToken,
@@ -2755,9 +2767,7 @@ const routeSeasonSimulations = async (
         summary: { runCount, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
         seasonSimulation: simulation,
         strategyText: strategyInput,
-        ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
-          ? { note: request.body.note.trim().slice(0, 1_000) }
-          : {}),
+        ...(simulationTextInput.note === undefined ? {} : { note: simulationTextInput.note }),
       },
       now: createdAt,
     });
@@ -2765,9 +2775,7 @@ const routeSeasonSimulations = async (
     return {
       historyId: completedRun.id,
       summary: summarizeSeasonSimulation(simulation),
-      ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
-        ? { note: request.body.note.trim().slice(0, 1_000) }
-        : {}),
+      ...(simulationTextInput.note === undefined ? {} : { note: simulationTextInput.note }),
     };
   };
   const acceptsEventStream = (headerValue(request.headers, "accept") ?? "")
@@ -4079,7 +4087,7 @@ export const createPlatformHttpHandler = (
       }
       if (root === "invitations") return await routeInvitations(app, parsedRequest, services);
       if (root === "seasons") return await routeSeason(app, parsedRequest, services);
-      if (root === "simulations") return routeSimulations(app, parsedRequest, services);
+      if (root === "simulations") return await routeSimulations(app, parsedRequest, services);
       if (root === "historical-imports") return await routeHistoricalImports(app, parsedRequest, services);
       if (root === "pricing-snapshots") return await routePricingSnapshots(app, parsedRequest);
       if (root === "jobs") return await routeJobs(app, parsedRequest);

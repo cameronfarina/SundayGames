@@ -8,6 +8,7 @@ import type {
   PostgresTransactionalQueryClient,
 } from "../src/platform/postgresJobQueue.js";
 import { PostgresSimulationRepository } from "../src/platform/postgresSimulations.js";
+import { maximumRetainedSimulationRunsPerUser } from "../src/platform/simulationLimits.js";
 import {
   SimulationError,
   executeSimulationRun,
@@ -164,6 +165,29 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
 
+    if (normalizedSql.startsWith("SELECT id FROM accounts") && normalizedSql.includes("FOR UPDATE")) {
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith("WITH removable AS")) {
+      const userId = values[0];
+      const limit = values[1];
+      if (typeof userId !== "string" || typeof limit !== "number") {
+        throw new Error("Retention queries require a user id and numeric limit.");
+      }
+      const userRows = [...this.runs.values()].filter(row => row.user_id === userId);
+      const removalCount = Math.max(userRows.length - limit + 1, 0);
+      const removableRows = userRows
+        .filter(row => row.status === "completed" || row.status === "failed" || row.status === "canceled")
+        .sort((left, right) => left.created_at.getTime() - right.created_at.getTime())
+        .slice(0, removalCount);
+      for (const row of removableRows) {
+        this.results.delete(row.id);
+        this.runs.delete(row.id);
+      }
+      return { rows: [], rowCount: removableRows.length };
+    }
+
     if (normalizedSql.startsWith("INSERT INTO simulation_runs")) {
       const row = this.#rowFromInsert(values);
       const existing = this.#findByIdempotency(
@@ -174,9 +198,35 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
       );
 
       if (existing !== undefined) return { rows: [], rowCount: 0 };
+      const retentionLimit = values[10];
+      const userRunCount = [...this.runs.values()].filter(candidate => candidate.user_id === row.user_id).length;
+      if (typeof retentionLimit === "number" && userRunCount >= retentionLimit) {
+        return { rows: [], rowCount: 0 };
+      }
 
       this.runs.set(row.id, row);
       return { rows: [this.#joinedRow(row) as TRow], rowCount: 1 };
+    }
+
+    if (
+      normalizedSql.includes("FROM simulation_runs r") &&
+      !normalizedSql.includes("LEFT JOIN simulation_results") &&
+      normalizedSql.includes("WHERE r.user_id = $1")
+    ) {
+      const userId = values[0];
+      const limit = values[1];
+      if (typeof userId !== "string" || typeof limit !== "number") {
+        throw new Error("History queries require a user id and numeric limit.");
+      }
+      const rows = [...this.runs.values()]
+        .filter(row => row.user_id === userId)
+        .sort((left, right) => {
+          const createdAtOrder = right.created_at.getTime() - left.created_at.getTime();
+          return createdAtOrder === 0 ? right.id.localeCompare(left.id) : createdAtOrder;
+        })
+        .slice(0, limit)
+        .map(row => this.#joinedRowWithoutResult(row) as TRow);
+      return { rows };
     }
 
     if (
@@ -385,6 +435,16 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
     };
   }
 
+  #joinedRowWithoutResult(row: StoredSimulationRunRow): JoinedSimulationRow {
+    return {
+      ...cloneRunRow(row),
+      result_id: null,
+      summary_json: null,
+      result_set_json: null,
+      result_created_at: null,
+    };
+  }
+
   #findByIdempotency(
     userId: string,
     leagueId: string,
@@ -408,6 +468,59 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
 }
 
 describe("Postgres simulation repository", () => {
+  it("serializes concurrent account creates and never exceeds the retained-run quota", async () => {
+    const client = new FakePostgresSimulationClient();
+    const repository = new PostgresSimulationRepository(client);
+    const attempts = Array.from(
+      { length: maximumRetainedSimulationRunsPerUser + 1 },
+      (_, index) => repository.createRequest({
+        ...baseRequestInput,
+        idempotencyKey: `concurrent-${index}`,
+        createdAt: new Date(now.getTime() + index),
+      }),
+    );
+
+    const outcomes = await Promise.allSettled(attempts);
+    expect(outcomes.filter(outcome => outcome.status === "fulfilled"))
+      .toHaveLength(maximumRetainedSimulationRunsPerUser);
+    expect(outcomes.filter(outcome => outcome.status === "rejected"))
+      .toEqual([expect.objectContaining({
+        reason: new SimulationError(
+          "simulation_capacity_reached",
+          "Finish or cancel an active simulation before starting another one.",
+        ),
+      })]);
+    expect(client.runs.size).toBe(maximumRetainedSimulationRunsPerUser);
+    const lockQueries = client.queries.filter(query => query.text.includes("FOR UPDATE"));
+    expect(lockQueries).toHaveLength(maximumRetainedSimulationRunsPerUser + 1);
+    expect(lockQueries.every(query => query.inTransaction)).toBe(true);
+  });
+
+  it("prunes the oldest terminal run before admitting a newer request", async () => {
+    const client = new FakePostgresSimulationClient();
+    const repository = new PostgresSimulationRepository(client);
+    let oldestRunId = "";
+
+    for (let index = 0; index < maximumRetainedSimulationRunsPerUser; index += 1) {
+      const run = await repository.createRequest({
+        ...baseRequestInput,
+        idempotencyKey: `terminal-${index}`,
+        createdAt: new Date(now.getTime() + index),
+      });
+      if (index === 0) oldestRunId = run.id;
+      await repository.markFailed(run.id);
+    }
+    const newest = await repository.createRequest({
+      ...baseRequestInput,
+      idempotencyKey: "newest",
+      createdAt: new Date(now.getTime() + maximumRetainedSimulationRunsPerUser),
+    });
+
+    expect(client.runs.size).toBe(maximumRetainedSimulationRunsPerUser);
+    expect(client.runs.has(oldestRunId)).toBe(false);
+    expect(client.runs.has(newest.id)).toBe(true);
+  });
+
   it("creates simulation requests idempotently for the same user league season and key", async () => {
     const client = new FakePostgresSimulationClient();
     const repository = new PostgresSimulationRepository(client);
