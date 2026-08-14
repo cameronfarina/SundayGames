@@ -134,11 +134,33 @@ const observableHttpMethods = new Set([
 const defaultSecurityHeaders = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
-} as const;
-const htmlAntiFramingHeaders = {
-  "Content-Security-Policy": "frame-ancestors 'none'",
+};
+const htmlSecurityHeaders = {
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "style-src-attr 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "manifest-src 'self'",
+    "worker-src 'self' blob:",
+  ].join("; "),
+  "Permissions-Policy": [
+    "camera=()",
+    "display-capture=()",
+    "geolocation=()",
+    "microphone=()",
+    "payment=()",
+    "usb=()",
+  ].join(", "),
   "X-Frame-Options": "DENY",
-} as const;
+};
 const requestIds = new WeakMap<IncomingMessage, string>();
 
 const ensurePlatformRequestId = (
@@ -398,13 +420,77 @@ const setDefaultSecurityHeaders = (response: ServerResponse): void => {
 
 const setHtmlSecurityHeaders = (response: ServerResponse): void => {
   setDefaultSecurityHeaders(response);
-  for (const [name, value] of Object.entries(htmlAntiFramingHeaders)) {
+  for (const [name, value] of Object.entries(htmlSecurityHeaders)) {
     if (!response.hasHeader(name)) response.setHeader(name, value);
+  }
+};
+
+const cacheControlPreventsStorage = (response: ServerResponse): boolean => {
+  const cacheControl = response.getHeader("Cache-Control");
+  if (typeof cacheControl === "string") {
+    return cacheControl
+      .split(",")
+      .some(directive => directive.trim().toLowerCase() === "no-store");
+  }
+  if (Array.isArray(cacheControl)) {
+    return cacheControl.some(value => value
+      .split(",")
+      .some(directive => directive.trim().toLowerCase() === "no-store"));
+  }
+
+  return false;
+};
+
+const setPrivateNoStoreCacheControl = (response: ServerResponse): void => {
+  if (!cacheControlPreventsStorage(response)) {
+    response.setHeader("Cache-Control", "private, no-store");
   }
 };
 
 const isDirectSecureRequest = (request: IncomingMessage): boolean =>
   "encrypted" in request.socket && request.socket.encrypted === true;
+
+const normalizedProtocol = (value: string): string => {
+  const trimmed = value.trim();
+  const unquoted = trimmed.startsWith("\"") && trimmed.endsWith("\"")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+
+  return unquoted.trim().toLowerCase();
+};
+
+const trustedForwardedProtocol = (headers: IncomingHttpHeaders): string | undefined => {
+  const forwarded = headerValue(headers, "forwarded");
+  if (forwarded !== undefined) {
+    const firstHop = forwarded.split(",", 1)[0] ?? "";
+    for (const parameter of firstHop.split(";")) {
+      const separatorIndex = parameter.indexOf("=");
+      if (separatorIndex === -1) continue;
+      if (parameter.slice(0, separatorIndex).trim().toLowerCase() === "proto") {
+        return normalizedProtocol(parameter.slice(separatorIndex + 1));
+      }
+    }
+  }
+
+  const xForwardedProto = headerValue(headers, "x-forwarded-proto");
+  return xForwardedProto === undefined
+    ? undefined
+    : normalizedProtocol(xForwardedProto.split(",", 1)[0] ?? "");
+};
+
+const isSecureRequest = (request: IncomingMessage, trustProxy: boolean): boolean =>
+  isDirectSecureRequest(request)
+  || (trustProxy && trustedForwardedProtocol(request.headers) === "https");
+
+const setTransportSecurityHeader = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  trustProxy: boolean,
+): void => {
+  if (isSecureRequest(request, trustProxy) && !response.hasHeader("Strict-Transport-Security")) {
+    response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+};
 
 const validatedClientAddress = (rawAddress: string): string | undefined => {
   let address = rawAddress.trim();
@@ -522,6 +608,7 @@ const writeJsonResponse = async (
     }
   }
   setDefaultSecurityHeaders(response);
+  setPrivateNoStoreCacheControl(response);
   response.setHeader("Content-Length", Buffer.byteLength(body));
   response.end(body);
 };
@@ -610,7 +697,7 @@ const platformRequestMetadataFor = (
     path: request.url ?? "/",
     sessionToken,
     headers: platformHeadersFor(request.headers),
-    isSecure: isDirectSecureRequest(request),
+    isSecure: isSecureRequest(request, trustProxy),
     clientAddress: clientAddressFor(request, trustProxy),
     ...(signal === undefined ? {} : { signal }),
   };
@@ -686,6 +773,7 @@ export const createPlatformNodeHttpAdapter = (
 
   return async (request, response) => {
     ensurePlatformRequestId(request, response);
+    setTransportSecurityHeader(request, response, trustProxy);
 
     try {
       const browserRedirect = redirectForBrowserRequest(request);

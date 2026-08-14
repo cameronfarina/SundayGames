@@ -13,6 +13,7 @@ import {
   mockdSessionCookie,
   observePlatformNodeHttpServer,
 } from "../src/platform/platformNodeHttp.js";
+import type { PlatformBrowserAsset } from "../src/platform/platformStaticWebAssets.js";
 
 let server: HttpServer | HttpsServer | undefined;
 type TestAdapterOptions = NonNullable<Parameters<typeof createPlatformNodeHttpAdapter>[1]>;
@@ -147,7 +148,11 @@ const requestBeforeSendingBody = async (
 const httpsJsonFetch = async (
   baseUrl: string,
   path: string,
-): Promise<{ status: number; body: unknown }> =>
+): Promise<{
+  status: number;
+  strictTransportSecurity: string | string[] | undefined;
+  body: unknown;
+}> =>
   await new Promise((resolve, reject) => {
     const request = httpsRequest(
       `${baseUrl}${path}`,
@@ -161,6 +166,7 @@ const httpsJsonFetch = async (
           const bodyText = Buffer.concat(chunks).toString("utf8");
           resolve({
             status: response.statusCode ?? 0,
+            strictTransportSecurity: response.headers["strict-transport-security"],
             body: JSON.parse(bodyText) as unknown,
           });
         });
@@ -526,23 +532,81 @@ describe("platform Node HTTP adapter", () => {
     expect(callCount).toBe(0);
   });
 
-  it("adds baseline security headers to JSON and strict anti-framing headers to HTML", async () => {
+  it("serves the React app shell with a restrictive browser security policy", async () => {
     const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }), {
       appHtml: "<!doctype html><title>Mockd app</title>",
     });
 
-    const jsonResponse = await fetch(`${baseUrl}/api/status`);
     const htmlResponse = await fetch(`${baseUrl}/login`);
 
-    for (const response of [jsonResponse, htmlResponse]) {
-      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    }
-
-    expect(htmlResponse.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(htmlResponse.headers.get("content-security-policy")).toBe(
+      "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; "
+      + "style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; "
+      + "font-src 'self'; connect-src 'self'; "
+      + "form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self' blob:",
+    );
     expect(htmlResponse.headers.get("x-frame-options")).toBe("DENY");
-    expect(jsonResponse.headers.get("content-security-policy")).toBeNull();
-    expect(jsonResponse.headers.get("x-frame-options")).toBeNull();
+    expect(htmlResponse.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(htmlResponse.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(htmlResponse.headers.get("permissions-policy")).toBe(
+      "camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()",
+    );
+  });
+
+  it("prevents API JSON responses from entering shared or browser caches", async () => {
+    const baseUrl = await listen(async request => {
+      if (request.path === "/explicit-cache-policy") {
+        return {
+          status: 200,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+          body: { ok: true },
+        };
+      }
+      if (request.path === "/unsafe-cache-policy") {
+        return {
+          status: 200,
+          headers: { "Cache-Control": "public, max-age=3600" },
+          body: { ok: true },
+        };
+      }
+
+      return { status: 200, body: { ok: true } };
+    });
+
+    const defaultResponse = await fetch(`${baseUrl}/session`, {
+      headers: { cookie: "mockd_session=private-session-token" },
+    });
+    const explicitResponse = await fetch(`${baseUrl}/explicit-cache-policy`);
+    const unsafeResponse = await fetch(`${baseUrl}/unsafe-cache-policy`);
+
+    expect(defaultResponse.headers.get("cache-control")).toBe("private, no-store");
+    expect(defaultResponse.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(defaultResponse.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(explicitResponse.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0",
+    );
+    expect(unsafeResponse.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("preserves immutable caching for hashed browser assets", async () => {
+    const browserAssets: ReadonlyMap<string, PlatformBrowserAsset> = new Map([
+      ["/assets/app-a1b2c3.js", {
+        body: Buffer.from("window.mockd = true;"),
+        cacheControl: "public, max-age=31536000, immutable",
+        contentType: "text/javascript; charset=utf-8",
+      }],
+    ]);
+    const baseUrl = await listen(
+      async () => ({ status: 404, body: { error: { code: "not_found" } } }),
+      { browserAssets },
+    );
+
+    const response = await fetch(`${baseUrl}/assets/app-a1b2c3.js`);
+
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(response.headers.get("cache-control")).not.toContain("no-store");
   });
 
   it("marks platform requests as secure for directly HTTPS traffic", async () => {
@@ -553,10 +617,36 @@ describe("platform Node HTTP adapter", () => {
       return { status: 200, body: { ok: true } };
     });
 
-    await httpsJsonFetch(baseUrl, "/session");
+    const response = await httpsJsonFetch(baseUrl, "/session");
 
     expect(seenRequests).toHaveLength(1);
     expect(seenRequests[0]?.isSecure).toBe(true);
+    expect(response.strictTransportSecurity).toBe("max-age=31536000; includeSubDomains");
+  });
+
+  it("does not advertise HSTS for plain HTTP or untrusted proxy headers", async () => {
+    const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }));
+
+    const response = await fetch(`${baseUrl}/session`, {
+      headers: { "x-forwarded-proto": "https" },
+    });
+
+    expect(response.headers.get("strict-transport-security")).toBeNull();
+  });
+
+  it("advertises HSTS when an explicitly trusted proxy reports HTTPS", async () => {
+    const baseUrl = await listen(
+      async () => ({ status: 200, body: { ok: true } }),
+      { trustProxy: true },
+    );
+
+    const response = await fetch(`${baseUrl}/session`, {
+      headers: { "x-forwarded-proto": "https, http" },
+    });
+
+    expect(response.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000; includeSubDomains",
+    );
   });
 
   it("serves one React app document from every product route", async () => {
@@ -587,7 +677,7 @@ describe("platform Node HTTP adapter", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+      expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
       expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(await response.text()).toBe(appHtml);
     }
