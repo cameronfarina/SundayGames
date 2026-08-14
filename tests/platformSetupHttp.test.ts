@@ -8,7 +8,10 @@ import type {
   RegisterLeagueSeasonRepositoryInput,
 } from "../src/platform/leagueSetup.js";
 import { leagueSeasonSetupRevision } from "../src/platform/leagueSetup.js";
-import { InMemoryPlatformInvitationRepository } from "../src/platform/platformInvitations.js";
+import {
+  acceptPlatformInvitation,
+  InMemoryPlatformInvitationRepository,
+} from "../src/platform/platformInvitations.js";
 import {
   applyLeagueSetupImport,
   previewLeagueSetupImport,
@@ -396,7 +399,7 @@ describe("platform setup import HTTP helpers", () => {
     });
   });
 
-  it("matches registered accounts by import email and ignores mismatched client-provided account ids", async () => {
+  it("does not trust registered emails or client-provided account ids during setup import", async () => {
     const { app, cam, season } = await setupRegisteredSeason();
     await app.createAccount({ email: "beaton@example.com", password: "beaton password", now });
     await app.createAccount({ email: "outsider@example.com", password: "outsider password", now });
@@ -420,12 +423,71 @@ describe("platform setup import HTTP helpers", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(app.store.findMembership(beaton.account.id, season.leagueId)).toMatchObject({
-      userId: beaton.account.id,
-      role: "admin",
-      inviteEmail: "beaton@example.com",
-    });
+    expect(app.store.findMembership(beaton.account.id, season.leagueId)).toBeNull();
     expect(app.store.findMembership(outsider.account.id, season.leagueId)).toBeNull();
+    expect(JSON.stringify(response.body)).not.toContain(beaton.account.id);
+    expect(JSON.stringify(response.body)).not.toContain(outsider.account.id);
+    expect(response.body).toMatchObject({
+      pendingInvites: [{
+        email: "beaton@example.com",
+        role: "admin",
+      }],
+    });
+  });
+
+  it("keeps a registered non-member pending until the matching account accepts the invitation", async () => {
+    const { app, cam, season } = await setupRegisteredSeason();
+    const invitationRepository = new InMemoryPlatformInvitationRepository();
+    await app.createAccount({ email: "victim@example.com", password: "victim password", now });
+    const victim = await app.login({ email: "victim@example.com", password: "victim password", now });
+    if (victim === null) throw new Error("Expected victim fixture login.");
+
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: cam.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Cam,Cam's Club,cam@example.com,owner",
+        "Seth,Seth's Champs,seth@example.com,member",
+        "Victim,Victim's Team,victim@example.com,admin",
+      ].join("\n"),
+      knownUsers: [{ email: "victim@example.com", accountId: victim.account.id }],
+      invitationRepository,
+      now,
+    });
+
+    expect(response.status).toBe(200);
+    expect(app.store.findMembership(victim.account.id, season.leagueId)).toBeNull();
+    expect(JSON.stringify(response.body)).not.toContain(victim.account.id);
+    expect(response.body).toMatchObject({
+      pendingInvites: [{
+        email: "victim@example.com",
+        role: "admin",
+      }],
+      invitations: [{
+        email: "victim@example.com",
+        status: "pending",
+      }],
+    });
+    if (!("invitations" in response.body)) throw new Error("Expected setup import response.");
+    const invitation = response.body.invitations[0];
+    if (invitation === undefined || invitation.acceptPath === undefined) {
+      throw new Error("Expected an actionable invitation.");
+    }
+    const token = new URL(invitation.acceptPath, "http://mockd.local").searchParams.get("token");
+    if (token === null) throw new Error("Expected invitation token.");
+
+    await expect(acceptPlatformInvitation(invitationRepository, {
+      token,
+      account: victim.account,
+      now,
+    })).resolves.toMatchObject({
+      membership: {
+        userId: victim.account.id,
+        leagueId: season.leagueId,
+        role: "admin",
+      },
+    });
   });
 
   it("preserves already claimed member access when team setup is reapplied without known user rows", async () => {

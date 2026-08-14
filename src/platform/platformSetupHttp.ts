@@ -178,40 +178,6 @@ const hasRealLiveDraftRoom = async (
   seasonId: string,
 ): Promise<boolean> => await app.hasLiveDraftRoomForSeason(seasonId);
 
-const registeredAccountIdForEmail = async (
-  app: PlatformApp,
-  email: string,
-): Promise<string | null> => {
-  const account = await app.findAccountByEmail(normalizeEmailKey(email));
-
-  return account?.id ?? null;
-};
-
-const knownUserIdsByEmail = async (
-  app: PlatformApp,
-  knownUsers: readonly PlatformLeagueSetupImportKnownUser[] | undefined,
-): Promise<ReadonlyMap<string, string>> => {
-  const knownUserIds = new Map<string, string>();
-
-  for (const knownUser of knownUsers ?? []) {
-    const email = normalizeEmailKey(knownUser.email);
-    const accountId = await registeredAccountIdForEmail(app, email);
-    const submittedUserId = knownUser.userId ?? knownUser.accountId;
-
-    if (accountId === null || email.length === 0) continue;
-    if (
-      submittedUserId !== undefined &&
-      submittedUserId.trim().length > 0 &&
-      submittedUserId !== accountId
-    ) {
-      continue;
-    }
-    knownUserIds.set(email, accountId);
-  }
-
-  return knownUserIds;
-};
-
 const actorAccountIdFor = async (
   app: PlatformApp,
   actorSessionToken: string,
@@ -284,18 +250,6 @@ const membershipsForAppliedImport = async (
 }> => {
   const membershipsByUserId = new Map<string, PlatformLeagueMembership>();
   const claimedTeamIds = new Set<string>();
-  const userIdsByEmail = await knownUserIdsByEmail(app, input.knownUsers);
-
-  for (const seed of seeds) {
-    if (seed.email === undefined) continue;
-
-    const email = normalizeEmailKey(seed.email);
-    const knownUserId = userIdsByEmail.get(email) ?? (await registeredAccountIdForEmail(app, email));
-    if (knownUserId === undefined || knownUserId === null) continue;
-
-    membershipsByUserId.set(knownUserId, membershipForSeed(seed, knownUserId));
-    claimedTeamIds.add(seed.teamId);
-  }
 
   const actorAccountId = await actorAccountIdFor(app, input.actorSessionToken, input.now);
   for (const existingMembership of await app.listLeagueMemberships(season.leagueId)) {
