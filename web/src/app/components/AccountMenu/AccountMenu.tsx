@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
 import { PasswordChangeForm } from "../../../features/auth/components/PasswordChangeForm/PasswordChangeForm";
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
-import { authErrorMessage } from "../../../features/auth/model/authErrorMessage";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
 import { accountInitials } from "./accountInitials";
@@ -51,7 +50,7 @@ export const AccountMenu = ({ email }: AccountMenuProps) => {
         <PasswordChangeForm />
       </Dialog>
       {signOut.error !== null && (
-        <p className="account-menu__error" role="alert">{authErrorMessage(signOut.error)}</p>
+        <p className="account-menu__error" role="alert">Could not sign out. Try again.</p>
       )}
     </div>
   );

@@ -17,7 +17,7 @@ export interface DropdownMenuProps {
 }
 
 export const DropdownMenu = ({ children, items, label }: DropdownMenuProps) => (
-  <MenuPrimitive.Root>
+  <MenuPrimitive.Root modal={false}>
     <MenuPrimitive.Trigger aria-label={label} className="dropdown-menu__trigger">
       {children ?? "⋯"}
     </MenuPrimitive.Trigger>

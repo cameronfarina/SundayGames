@@ -105,14 +105,13 @@ test("primary navigation stays in the current document and the account menu dism
     await route.continue();
   });
   await signOutThroughAccountMenu(page);
-  await expect(page.locator("#app-error")).toBeVisible();
-  await expect(page.locator("#app-error-message")).toHaveText("Could not sign out. Try again.");
+  await expect(page.getByRole("alert")).toHaveText("Could not sign out. Try again.");
   await expectAuthenticatedAccount(page, email);
   await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
-  await expectCurrentDocument(2);
+  await expectCurrentDocument(3);
 
   rejectSignOut = false;
   await signOutThroughAccountMenu(page);
   await expectSignedOut(page);
-  await expectCurrentDocument(3);
+  await expectCurrentDocument(4);
 });

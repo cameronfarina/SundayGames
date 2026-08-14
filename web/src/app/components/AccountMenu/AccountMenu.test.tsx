@@ -88,7 +88,7 @@ describe("AccountMenu", () => {
 
   it("reports sign-out failures without discarding the current session", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      error: { code: "server_error", message: "Could not sign out." },
+      error: { code: "server_error", message: "Something went wrong." },
     }), { status: 503 })));
     const user = userEvent.setup();
     const { queryClient, router } = renderMenu();
@@ -96,7 +96,7 @@ describe("AccountMenu", () => {
     await user.click(screen.getByRole("button", { name: "Account menu" }));
     await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not sign out");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not sign out. Try again.");
     expect(router.state.location.pathname).toBe("/practice");
     expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ private: "session" });
     expect(queryClient.getQueryData(onboardingQueryOptions().queryKey)).toEqual(cachedOnboarding);
