@@ -5,6 +5,7 @@ import type {
   PostgresQueryResult,
 } from "./postgresPlatformStore.js";
 import type { PostgresTransactionalQueryClient } from "./postgresJobQueue.js";
+import { NodePostgresPoolAdapter } from "./postgresClient/nodePostgresPoolAdapter.js";
 
 export interface PostgresPoolQueryResult<TRow = Record<string, unknown>> {
   rows: TRow[];
@@ -111,11 +112,11 @@ export const createNodePostgresClient = ({
   max,
   statementTimeoutMs,
 }: CreateNodePostgresClientOptions): NodePostgresClient => {
-  const pool = new Pool({
+  const pool = new NodePostgresPoolAdapter(new Pool({
     connectionString: databaseUrl,
     ...(max === undefined ? {} : { max }),
     ...(statementTimeoutMs === undefined ? {} : { statement_timeout: statementTimeoutMs }),
-  }) as unknown as PostgresPoolLike;
+  }));
 
   return new NodePostgresClient(pool);
 };

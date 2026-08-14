@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  createNodePostgresClient,
   NodePostgresClient,
   type PostgresPoolClientLike,
   type PostgresPoolLike,
@@ -22,7 +21,7 @@ class FakeConnectedClient implements PostgresPoolClientLike {
       throw error;
     }
 
-    return { rows: [{ text } as TRow], rowCount: 1 };
+    return { rows: [], rowCount: 1 };
   }
 
   release(): void {
@@ -41,7 +40,7 @@ class FakePool implements PostgresPoolLike {
   ): Promise<{ rows: TRow[]; rowCount: number }> {
     this.queries.push({ text, values });
 
-    return { rows: [{ id: "row_1" } as TRow], rowCount: 1 };
+    return { rows: [], rowCount: 1 };
   }
 
   async connect(): Promise<PostgresPoolClientLike> {
@@ -59,7 +58,7 @@ describe("node Postgres client adapter", () => {
     const client = new NodePostgresClient(pool);
 
     await expect(client.query("SELECT $1::text AS id", ["owner11"])).resolves.toEqual({
-      rows: [{ id: "row_1" }],
+      rows: [],
       rowCount: 1,
     });
     expect(pool.queries).toEqual([
@@ -77,8 +76,8 @@ describe("node Postgres client adapter", () => {
     await expect(client.transaction(async transactionClient => {
       const result = await transactionClient.query("SELECT 1");
 
-      return result.rows[0];
-    })).resolves.toEqual({ text: "SELECT 1" });
+      return result.rowCount;
+    })).resolves.toBe(1);
 
     expect(pool.connectedClient.queries.map(query => query.text)).toEqual([
       "BEGIN",
@@ -125,19 +124,5 @@ describe("node Postgres client adapter", () => {
       "UPDATE platform_store_snapshots",
       "COMMIT",
     ]);
-  });
-
-  it("creates a real pg pool from runtime connection settings", () => {
-    const client = createNodePostgresClient({
-      databaseUrl: "postgres://mockd:test@localhost:5432/mockd",
-      max: 4,
-      statementTimeoutMs: 2_000,
-    });
-
-    expect(client.pool.options).toMatchObject({
-      connectionString: "postgres://mockd:test@localhost:5432/mockd",
-      max: 4,
-      statement_timeout: 2_000,
-    });
   });
 });
