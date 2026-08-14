@@ -51,10 +51,12 @@ describe("player context custom weights", () => {
 
   it("combines enabled manual category signals into one capped factor", () => {
     const adjustment = calculatePlayerContextAdjustment("Example Player", contextConfig);
+    const override = contextConfig.overrides[0];
+    if (override === undefined) throw new Error("Expected the player context fixture.");
 
     expect(adjustment.enabled).toBe(true);
-    expect(adjustment.signals).toEqual(contextConfig.overrides[0]!.signals);
-    expect(adjustment.notes).toEqual(contextConfig.overrides[0]!.notes);
+    expect(adjustment.signals).toEqual(override.signals);
+    expect(adjustment.notes).toEqual(override.notes);
     expect(adjustment.uncappedAdjustment).toBeCloseTo(-0.095);
     expect(adjustment.cappedAdjustment).toBeCloseTo(-0.095);
     expect(adjustment.factor).toBeCloseTo(0.905);
