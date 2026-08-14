@@ -43,7 +43,6 @@ export interface ParsedOptionValue {
 export const defaultServerStartupTimeoutMs = 30_000;
 export const defaultDeployedPreflightTimeoutMs = 15_000;
 export const shutdownTimeoutMs = 5_000;
-export const screenshotAnalysisE2eApiKey = "mockd-e2e-deterministic-analyzer";
 
 export const deployedSmokeEnvironment: Readonly<
   Record<keyof DeployedPlatformSmokeConfig, string>
