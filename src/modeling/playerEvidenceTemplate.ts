@@ -5,7 +5,7 @@ import type {
 
 type CsvValue = string | number | boolean | undefined;
 
-const headers = [
+const headers: readonly string[] = [
   "player",
   "category",
   "score",
@@ -24,7 +24,7 @@ const headers = [
   "evidence_status",
   "flags",
   "research_prompt",
-] as const;
+];
 
 const csvCell = (value: CsvValue): string => {
   const text = value === undefined ? "" : String(value);

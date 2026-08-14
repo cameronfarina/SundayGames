@@ -73,8 +73,15 @@ const defaultMinimumCompleteEvidenceRate = 0.6;
 const defaultFailingCompleteEvidenceRate = 0.25;
 const defaultMinimumProvenanceRate = 1;
 const defaultFailingProvenanceRate = 0.75;
-const requiredProvenanceFields = ["source", "note"] as const;
-const optionalMetadataFields = ["provider", "sourceDate", "sourceQuality"] as const;
+type RequiredProvenanceField = "source" | "note";
+type OptionalMetadataField = "provider" | "sourceDate" | "sourceQuality";
+
+const requiredProvenanceFields: readonly RequiredProvenanceField[] = ["source", "note"];
+const optionalMetadataFields: readonly OptionalMetadataField[] = [
+  "provider",
+  "sourceDate",
+  "sourceQuality",
+];
 
 const roundToTwo = (value: number): number =>
   Math.round((value + Number.EPSILON) * 100) / 100;

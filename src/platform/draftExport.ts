@@ -1,4 +1,22 @@
-export const draftExportSlotOrder = [
+export type DraftExportRosterSlotKey =
+  | "QB"
+  | "RB1"
+  | "RB2"
+  | "WR1"
+  | "WR2"
+  | "TE"
+  | "FLEX"
+  | "K"
+  | "DST"
+  | "BENCH1"
+  | "BENCH2"
+  | "BENCH3"
+  | "BENCH4"
+  | "BENCH5"
+  | "BENCH6"
+  | "BENCH7";
+
+export const draftExportSlotOrder: readonly DraftExportRosterSlotKey[] = [
   "QB",
   "RB1",
   "RB2",
@@ -15,9 +33,8 @@ export const draftExportSlotOrder = [
   "BENCH5",
   "BENCH6",
   "BENCH7",
-] as const;
+];
 
-export type DraftExportRosterSlotKey = typeof draftExportSlotOrder[number];
 export type DraftExportPlayerSource = "keeper" | "auction";
 export type DraftExportCell = string | number;
 export type DraftExportErrorCode = "duplicate_player" | "invalid_price" | "invalid_slot";

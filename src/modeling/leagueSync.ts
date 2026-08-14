@@ -51,8 +51,15 @@ const hasEnvValue = (env: LeagueSyncEnv, key: string): boolean => Boolean(env[ke
 const allConfigured = (env: LeagueSyncEnv, keys: readonly string[]): boolean =>
   keys.every(key => hasEnvValue(env, key));
 
-const yahooRequiredEnv = ["MOCKD_YAHOO_CLIENT_ID", "MOCKD_YAHOO_CLIENT_SECRET"] as const;
-const espnRequiredEnv = ["MOCKD_ESPN_LEAGUE_ID", "MOCKD_ESPN_SWID", "MOCKD_ESPN_S2"] as const;
+const yahooRequiredEnv: readonly string[] = [
+  "MOCKD_YAHOO_CLIENT_ID",
+  "MOCKD_YAHOO_CLIENT_SECRET",
+];
+const espnRequiredEnv: readonly string[] = [
+  "MOCKD_ESPN_LEAGUE_ID",
+  "MOCKD_ESPN_SWID",
+  "MOCKD_ESPN_S2",
+];
 
 export const leagueSyncProviderStatuses = (
   env: LeagueSyncEnv = process.env,

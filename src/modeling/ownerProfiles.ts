@@ -1,8 +1,11 @@
 import { ownerOrder, positions, type Owner, type Position } from "../../config/league.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 
-const profilePositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Position[];
-const specialTeamsPositions = ["K", "DST"] as const satisfies readonly Position[];
+type ProfilePosition = "QB" | "RB" | "WR" | "TE";
+type SpecialTeamsPosition = "K" | "DST";
+
+const profilePositions: readonly ProfilePosition[] = ["QB", "RB", "WR", "TE"];
+const specialTeamsPositions: readonly SpecialTeamsPosition[] = ["K", "DST"];
 const oneDecimal = 10;
 const concentrationScale = 100;
 const maximumRepresentativeSpecialTeamsPrice = 10;
@@ -11,7 +14,7 @@ export type HistoricalWeights = Record<number, number>;
 
 export interface OwnerProfile {
   owner: Owner;
-  openAuctionSpend: Record<(typeof profilePositions)[number], number>;
+  openAuctionSpend: Record<ProfilePosition, number>;
   rosterCounts: Record<Position, number>;
   normalSpecialTeamsSpend: number;
   topTwoConcentration: number;

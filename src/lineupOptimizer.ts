@@ -32,19 +32,34 @@ export const optimizeLineup = (
   const k = sorted("K");
   const dst = sorted("DST");
 
-  if (qb.length < 1 || rb.length < 2 || wr.length < 2 || te.length < 1 || k.length < 1 || dst.length < 1) {
+  const [startingQb] = qb;
+  const [startingRb1, startingRb2] = rb;
+  const [startingWr1, startingWr2] = wr;
+  const [startingTe] = te;
+  const [startingKicker] = k;
+  const [startingDefense] = dst;
+  if (
+    startingQb === undefined
+    || startingRb1 === undefined
+    || startingRb2 === undefined
+    || startingWr1 === undefined
+    || startingWr2 === undefined
+    || startingTe === undefined
+    || startingKicker === undefined
+    || startingDefense === undefined
+  ) {
     throw new Error("Roster cannot form a legal starting lineup.");
   }
 
   const lineup: LineupEntry[] = [
-    { player: qb[0]!, slot: "QB" },
-    { player: rb[0]!, slot: "RB1" },
-    { player: rb[1]!, slot: "RB2" },
-    { player: wr[0]!, slot: "WR1" },
-    { player: wr[1]!, slot: "WR2" },
-    { player: te[0]!, slot: "TE" },
-    { player: k[0]!, slot: "K" },
-    { player: dst[0]!, slot: "DST" },
+    { player: startingQb, slot: "QB" },
+    { player: startingRb1, slot: "RB1" },
+    { player: startingRb2, slot: "RB2" },
+    { player: startingWr1, slot: "WR1" },
+    { player: startingWr2, slot: "WR2" },
+    { player: startingTe, slot: "TE" },
+    { player: startingKicker, slot: "K" },
+    { player: startingDefense, slot: "DST" },
   ];
 
   const used = new Set(lineup.map(entry => entry.player.name));

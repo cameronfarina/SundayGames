@@ -12,7 +12,7 @@ export interface ResolvedHistoricalImportDocumentLimits {
 }
 
 export class HistoricalImportDocumentLimitError extends Error {
-  readonly code = "historical_import_document_too_large" as const;
+  readonly code: "historical_import_document_too_large" = "historical_import_document_too_large";
 
   constructor(message: string) {
     super(message);

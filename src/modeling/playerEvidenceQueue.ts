@@ -43,27 +43,27 @@ export interface PlayerEvidenceQueue {
 
 type CsvValue = string | number | boolean | undefined;
 
-const categoriesByFlag = {
+const categoriesByFlag: Record<SanityFlagKey, readonly FactualPlayerContextCategory[]> = {
   highMockPremium: ["opportunity", "defensiveAttention", "environment"],
   largeProjectionRankLift: ["opportunity", "defensiveAttention", "skillFit"],
   missingFactualEvidence: [...factualPlayerContextCategories],
   contextPenalty: ["risk", "environment"],
   hardCeilingPressure: ["opportunity", "skillFit", "risk"],
-} as const satisfies Record<SanityFlagKey, readonly FactualPlayerContextCategory[]>;
+};
 
-const promptByCategory = {
+const promptByCategory: Record<FactualPlayerContextCategory, string> = {
   opportunity: "Opportunity: Validate role, routes/targets/touches, and whether the Weeks 1-4 projection is sustainable.",
   defensiveAttention: "Defensive attention: Check whether the player is gaining or losing true No. 1 defensive attention.",
   skillFit: "Skill fit: Compare separation, efficiency, explosive-play, or usage traits against the projected role.",
   environment: "Environment: Check team, quarterback, coordinator, pace, pass rate, and scoring-context changes.",
   risk: "Risk: Check injury, suspension, contract, holdout, age, and role-volatility downside.",
-} as const satisfies Record<FactualPlayerContextCategory, string>;
+};
 
-const priorityScore = {
+const priorityScore: Record<PlayerEvidenceQueuePriority, number> = {
   high: 3,
   medium: 2,
   low: 1,
-} as const satisfies Record<PlayerEvidenceQueuePriority, number>;
+};
 
 const categoryOrder = new Map(
   factualPlayerContextCategories.map((category, index) => [category, index]),
