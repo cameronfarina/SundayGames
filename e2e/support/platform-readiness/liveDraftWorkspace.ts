@@ -7,7 +7,9 @@ import type {
   ReadySmokeWorkspace,
 } from "./types.js";
 
-export const exerciseLiveDraft = async (workspace: ReadySmokeWorkspace): Promise<void> => {
+export const exerciseLiveDraft = async (
+  workspace: ReadySmokeWorkspace,
+): Promise<void> => {
   const {
     commissionerPage: camPage,
     memberPage: sethPage,
@@ -18,36 +20,66 @@ export const exerciseLiveDraft = async (workspace: ReadySmokeWorkspace): Promise
   } = workspace;
   const roomId = createdRoom.roomId;
 
-  await expect(camPage.locator("#draft-room-view")).toBeVisible();
-  await expect(sethPage.locator("#draft-room-view")).toBeVisible();
-  await expect(camPage.locator("#draft-commissioner-controls")).toBeVisible();
-  await expect(sethPage.locator("#draft-member-note")).toBeVisible();
-  const commissionerPlayerRow = camPage.locator("#draft-board-rows [data-player-name]")
+  await expect(
+    camPage.getByRole("heading", { name: "Live auction draft" }),
+  ).toBeVisible();
+  await expect(
+    sethPage.getByRole("heading", { name: "Live auction draft" }),
+  ).toBeVisible();
+  await expect(
+    camPage.getByRole("region", { name: "Draft command" }),
+  ).toBeVisible();
+  await expect(
+    sethPage.getByText(
+      "League members can follow the live board, sales, budgets, and rosters here.",
+    ),
+  ).toBeVisible();
+  const commissionerPlayerRow = camPage
+    .getByRole("row")
     .filter({ hasText: salePlayerName })
     .first();
-  const memberPlayerRow = sethPage.locator("#draft-board-rows [data-player-name]")
+  const memberPlayerRow = sethPage
+    .getByRole("row")
     .filter({ hasText: salePlayerName })
     .first();
   await expect(commissionerPlayerRow).toBeVisible();
   await expect(memberPlayerRow).toBeVisible();
 
-  await camPage.locator("#draft-start").click();
-  await expect(camPage.locator("#draft-room-status")).toHaveText("Live");
-  await expect(sethPage.locator("#draft-room-status")).toHaveText("Live");
-  const startedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
+  await camPage.getByRole("button", { name: "Start draft" }).click();
+  const commissionerStatus = camPage.getByRole("region", {
+    name: "Draft status",
+  });
+  const memberStatus = sethPage.getByRole("region", { name: "Draft status" });
+  await expect(
+    commissionerStatus.getByText("Live", { exact: true }),
+  ).toBeVisible();
+  await expect(memberStatus.getByText("Live", { exact: true })).toBeVisible();
+  const startedRoom = expectOk(
+    await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`),
+  ).room;
   expect(startedRoom).toMatchObject({
     status: "live",
     revision: createdRoom.revision + 1,
   });
 
-  const saleEventPromise = waitForSaleEvent(sethPage, roomId, startedRoom.revision);
-  await commissionerPlayerRow.getByRole("button", { name: `Use ${salePlayerName} in sale command` }).click();
-  const saleCommand = camPage.locator("#draft-sale-command");
+  const saleEventPromise = waitForSaleEvent(
+    sethPage,
+    roomId,
+    startedRoom.revision,
+  );
+  await commissionerPlayerRow
+    .getByRole("button", { name: `Use ${salePlayerName} in sale command` })
+    .click();
+  const saleCommand = camPage.getByRole("textbox", { name: "Sale command" });
   await saleCommand.fill(`${await saleCommand.inputValue()}${salePrice}`);
-  await camPage.locator("#draft-log-sale").click();
-  await expect(camPage.locator("#draft-sales")).toContainText(salePlayerName);
-  await expect(sethPage.locator("#draft-sales")).toContainText(salePlayerName);
-  const soldRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
+  await camPage.getByRole("button", { name: "Log sale" }).click();
+  const commissionerSales = camPage.getByRole("region", { name: "All sales" });
+  const memberSales = sethPage.getByRole("region", { name: "All sales" });
+  await expect(commissionerSales).toContainText(salePlayerName);
+  await expect(memberSales).toContainText(salePlayerName);
+  const soldRoom = expectOk(
+    await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`),
+  ).room;
   const saleEvent = await saleEventPromise;
 
   expect(soldRoom).toMatchObject({
@@ -66,18 +98,22 @@ export const exerciseLiveDraft = async (workspace: ReadySmokeWorkspace): Promise
     lastEventId: `${roomId}:${soldRoom.revision}`,
     data: expect.objectContaining({
       revision: soldRoom.revision,
-      sale: expect.objectContaining({
-        ownerDisplayName: commissionerOwnerName,
-        playerName: salePlayerName,
-        price: salePrice,
-      }),
+      salesLog: [
+        expect.objectContaining({
+          ownerDisplayName: commissionerOwnerName,
+          playerName: salePlayerName,
+          price: salePrice,
+        }),
+      ],
     }),
   });
 
-  const polledEvents = expectOk(await api<EventsBody>(
-    sethPage,
-    `/live-rooms/${roomId}/events?afterRevision=${startedRoom.revision}`,
-  )).events;
+  const polledEvents = expectOk(
+    await api<EventsBody>(
+      sethPage,
+      `/live-rooms/${roomId}/events?afterRevision=${startedRoom.revision}`,
+    ),
+  ).events;
   expect(polledEvents.currentRevision).toBe(soldRoom.revision);
   expect(polledEvents.events).toEqual([
     expect.objectContaining({
@@ -86,15 +122,17 @@ export const exerciseLiveDraft = async (workspace: ReadySmokeWorkspace): Promise
     }),
   ]);
 
-  camPage.once("dialog", dialog => dialog.accept());
-  await camPage.locator("#draft-undo").click();
-  await expect(camPage.locator("#draft-sales")).not.toContainText(salePlayerName);
-  await expect(sethPage.locator("#draft-sales")).not.toContainText(salePlayerName);
+  camPage.once("dialog", (dialog) => dialog.accept());
+  await camPage.getByRole("button", { name: "Undo latest sale" }).click();
+  await expect(commissionerSales).not.toContainText(salePlayerName);
+  await expect(memberSales).not.toContainText(salePlayerName);
 
-  await commissionerPlayerRow.getByRole("button", { name: `Use ${salePlayerName} in sale command` }).click();
+  await commissionerPlayerRow
+    .getByRole("button", { name: `Use ${salePlayerName} in sale command` })
+    .click();
   await saleCommand.fill(`${await saleCommand.inputValue()}${salePrice}`);
-  await camPage.locator("#draft-log-sale").click();
-  await expect(camPage.locator("#draft-sales")).toContainText(salePlayerName);
+  await camPage.getByRole("button", { name: "Log sale" }).click();
+  await expect(commissionerSales).toContainText(salePlayerName);
 
   let endConfirmationCount = 0;
   const acceptEndConfirmation = (dialog: Dialog): void => {
@@ -102,23 +140,34 @@ export const exerciseLiveDraft = async (workspace: ReadySmokeWorkspace): Promise
     void dialog.accept();
   };
   camPage.on("dialog", acceptEndConfirmation);
-  await camPage.locator("#draft-end").click();
-  await expect(camPage.locator("#draft-room-status")).toHaveText("Complete");
+  await camPage.getByRole("button", { name: "End draft" }).click();
+  await expect(
+    commissionerStatus.getByText("Complete", { exact: true }),
+  ).toBeVisible();
   camPage.off("dialog", acceptEndConfirmation);
   expect(endConfirmationCount).toBe(2);
-  await expect(sethPage.locator("#draft-room-status")).toHaveText("Complete");
-  const endedRoom = expectOk(await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`)).room;
+  await expect(
+    memberStatus.getByText("Complete", { exact: true }),
+  ).toBeVisible();
+  const endedRoom = expectOk(
+    await api<LiveDraftRoomBody>(camPage, `/live-rooms/${roomId}`),
+  ).room;
   expect(endedRoom).toMatchObject({
     status: "ended",
     exportReadiness: {
       status: "blocked",
-      blockers: expect.arrayContaining([expect.stringContaining("open roster slots")]),
+      blockers: expect.arrayContaining([
+        expect.stringContaining("open roster slots"),
+      ]),
     },
   });
-  await expect(camPage.locator("#draft-export")).toBeDisabled();
+  await expect(
+    camPage.getByRole("button", { name: "Prepare final CSV" }),
+  ).toBeDisabled();
   const blockedExport = await api<{ error: { code: string; message: string } }>(
     camPage,
-    `/live-rooms/${roomId}/export-artifacts`, {
+    `/live-rooms/${roomId}/export-artifacts`,
+    {
       method: "POST",
       body: {},
     },

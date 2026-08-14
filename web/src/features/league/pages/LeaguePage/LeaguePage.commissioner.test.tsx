@@ -52,7 +52,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Create draft room" })).toHaveAttribute(
       "href",
-      "/commissioner?seasonId=season-1#live-room-setup-title",
+      "/commissioner?seasonId=season-1#live-room",
     );
   });
 });

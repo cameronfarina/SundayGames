@@ -12,51 +12,43 @@ export const applyCommissionerSetup = async (
   season: LeagueSeason,
   camEmail: string,
 ): Promise<string> => {
-  await page.goto(`/setup?seasonId=${encodeURIComponent(season.id)}`);
+  await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
   await expectAuthenticatedAccount(page, camEmail);
-  await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
-  await page.getByText("Advanced: paste a team list", { exact: true }).click();
-  await page.locator("#setup-rows-input").fill(setupRowsFor(camEmail));
-  await page.getByRole("button", { name: "Preview" }).click();
-  await expect(page.locator("#setup-status")).toHaveText("Ready to apply.");
-  await expect(page.locator("#setup-preview-body tr")).toHaveCount(ownerOrder.length);
+  const setupSection = page.locator("#league-setup");
+  const teamRows = setupSection.getByRole("textbox", { name: "Teams and managers" });
+  await teamRows.fill(setupRowsFor(camEmail));
+  await page.getByRole("button", { name: "Preview changes" }).click();
+  await expect(setupSection.getByRole("status")).toHaveText(
+    `Ready to apply ${String(ownerOrder.length)} teams.`,
+  );
   await page.getByRole("button", { name: "Apply changes" }).click();
-  await expect(page.locator("#setup-status")).toHaveText("League setup updated.");
+  await expect(setupSection.getByRole("status")).toHaveText("League teams saved.");
+  const invitationSection = page.locator("#league-invite");
   await page.getByRole("button", { name: "Create league link" }).click();
-  await expect(page.locator("#league-invite-link-row")).toBeVisible();
-  const invitationUrl = await page.locator("#league-invite-link-input").inputValue();
+  const invitationLink = page.getByLabel("Shareable league link");
+  await expect(invitationLink).toBeVisible();
+  const invitationUrl = await invitationLink.inputValue();
   expect(invitationUrl).toContain("/invite?token=");
   await page.getByRole("button", { name: "Copy link" }).click();
-  await expect(page.locator("#invitation-create-status")).toHaveText("League link copied.");
+  await expect(invitationSection.getByRole("status")).toHaveText("League link copied.");
   await page.reload();
-  await expect(page.locator("#league-invite-link-row")).toBeVisible();
-  await expect(page.locator("#league-invite-link-input")).toHaveValue(invitationUrl);
+  await expect(page.getByLabel("Shareable league link")).toHaveValue(invitationUrl);
   await expect(page.getByRole("button", { name: "Generate new link" })).toBeVisible();
 
-  const finalReview = page.locator("#setup-final-review");
-  const publishButton = page.getByRole("button", { name: "Publish league" });
-  const createRoomButton = page.getByRole("button", { name: "Create draft room" });
-  await expect(page.locator("#setup-settings-summary")).toContainText("$200 auction");
-  await expect(finalReview).not.toBeChecked();
-  await expect(publishButton).toBeDisabled();
-  await expect(createRoomButton).toBeDisabled();
-  await finalReview.check();
+  await expect(page.getByText("$200 auction", { exact: true })).toBeVisible();
+  const publishButton = page.getByRole("button", { name: "Publish reviewed league" });
+  const createRoomButton = page.getByRole("button", { name: "Create room" });
   await expect(publishButton).toBeEnabled();
+  await expect(createRoomButton).toBeDisabled();
   await publishButton.click();
-  await expect(page.locator("#live-room-setup-status")).toHaveText(
-    "League setup published. The shared draft room can now be created.",
-  );
-  await expect(finalReview).toBeChecked();
-  await expect(finalReview).toBeDisabled();
   await expect(createRoomButton).toBeEnabled();
 
   await page.goto(`/league?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#live-draft-readiness-action")).toHaveText("Create draft room");
-  await expect(page.locator("#open-live-draft-button")).toHaveText("Create draft room");
-  await page.locator("#live-draft-readiness-action").click();
-  await expect(page).toHaveURL(new RegExp(`/setup\\?seasonId=${season.id}#live-room-setup-title$`, "u"));
-  await expect(page.locator("#setup-season-id-input")).toHaveValue(season.id);
-  await expect(page.getByRole("button", { name: "Create draft room" })).toBeEnabled();
+  await page.getByRole("link", { name: "Create draft room" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/commissioner\\?seasonId=${season.id}#live-room$`, "u"),
+  );
+  await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
 
   return invitationUrl;
 };
@@ -65,10 +57,10 @@ export const createLiveRoomFromSetup = async (
   page: Page,
   season: LeagueSeason,
 ): Promise<LiveDraftRoomReadModel> => {
-  await Promise.all([
-    page.waitForURL(/\/draft-room\?seasonId=.*&roomId=/),
-    page.getByRole("button", { name: "Create draft room" }).click(),
-  ]);
+  await page.getByRole("button", { name: "Create room" }).click();
+  const enterRoom = page.getByRole("link", { name: "Enter draft room" });
+  await expect(enterRoom).toBeVisible();
+  await Promise.all([page.waitForURL(/\/draft-room\?seasonId=.*&roomId=/), enterRoom.click()]);
   const roomId = new URL(page.url()).searchParams.get("roomId");
   if (roomId === null) throw new Error("Expected created room URL to include roomId.");
   const room = expectOk(await api<LiveDraftRoomBody>(page, `/live-rooms/${encodeURIComponent(roomId)}`)).room;
