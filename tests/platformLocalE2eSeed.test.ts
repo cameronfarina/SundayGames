@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { keepers } from "../config/keepers.js";
 import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
@@ -14,28 +15,29 @@ import {
   loadLocalE2eSeedRuntime,
   seedLocalE2e,
   seedLocalE2eFromEnv,
+  type SeedLocalE2eOptions,
 } from "../src/platform/seedLocalE2e.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
-const playerCatalog = [
+const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 11 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72, teamAbbreviation: "DET", byeWeek: 6 },
   { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 6 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+];
 
-const seedOptions = {
+const seedOptions: SeedLocalE2EOptions = {
   now,
   playerCatalog,
   initialRosters: [],
-} as const;
+};
 
 const asRecord = (value: unknown, label: string): Record<string, unknown> => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`Expected ${label} to be an object.`);
   }
 
-  return value as Record<string, unknown>;
+  return z.record(z.string(), z.unknown()).parse(value);
 };
 
 const asArray = (value: unknown, label: string): unknown[] => {
@@ -66,8 +68,8 @@ describe("local E2E platform seed", () => {
 
     const first = await seedLocalE2eFromEnv(env, seedOptions);
     const second = await seedLocalE2eFromEnv(env, seedOptions);
-    const saved = JSON.parse(await readFile(path, "utf8")) as unknown;
-    const savedAuth = JSON.parse(await readFile(`${path}.auth.json`, "utf8")) as unknown;
+    const saved = JSON.parse(await readFile(path, "utf8"));
+    const savedAuth = JSON.parse(await readFile(`${path}.auth.json`, "utf8"));
     const root = asRecord(saved, "saved store");
     const auth = asRecord(asRecord(savedAuth, "saved auth sidecar").auth, "auth");
     const accounts = asArray(auth.accountCredentials, "auth.accountCredentials");
@@ -127,7 +129,7 @@ describe("local E2E platform seed", () => {
     }
 
     const rerun = await seedLocalE2eFromEnv(env, seedOptions);
-    const saved = JSON.parse(await readFile(path, "utf8")) as unknown;
+    const saved = JSON.parse(await readFile(path, "utf8"));
     const root = asRecord(saved, "saved store");
     const liveDraftRooms = asArray(root.liveDraftRooms, "liveDraftRooms");
     const room = asRecord(liveDraftRooms[0], "live room");
