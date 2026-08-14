@@ -14,8 +14,7 @@ class OnboardingClient {
   constructor(readonly rows: PlatformOnboardingRow[]) {}
 
   query<TRow = Record<string, unknown>>(
-    sql: string,
-    params?: readonly unknown[],
+    sql: string, params?: readonly unknown[],
   ): Promise<PostgresQueryResult<TRow>>;
   async query(
     sql: string,
