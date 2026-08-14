@@ -81,6 +81,9 @@ class FakePostgresExportArtifactClient implements PostgresTransactionalQueryClie
   readonly contents = new Map<string, DraftRoomExportContentRow>();
   readonly queries: Array<{ text: string; values: readonly unknown[]; inTransaction: boolean }> = [];
   transactionCount = 0;
+  concurrentArtifactContentBase64: string | undefined;
+  dropNextArtifactInsert = false;
+  dropNextContentInsert = false;
 
   #inTransaction = false;
 
@@ -178,6 +181,10 @@ class FakePostgresExportArtifactClient implements PostgresTransactionalQueryClie
         unknown,
         Date,
       ];
+      if (this.dropNextArtifactInsert) {
+        this.dropNextArtifactInsert = false;
+        return { rows: [], rowCount: 0 };
+      }
       if (this.exports.has(id)) return { rows: [], rowCount: 0 };
 
       this.exports.set(id, {
@@ -198,12 +205,27 @@ class FakePostgresExportArtifactClient implements PostgresTransactionalQueryClie
         completed_at: new Date(completedAt.getTime()),
       });
 
+      if (this.concurrentArtifactContentBase64 !== undefined) {
+        this.contents.set(`${id}:content`, {
+          id: `${id}:content`,
+          artifact_id: id,
+          content_base64: this.concurrentArtifactContentBase64,
+          created_at: new Date(completedAt.getTime()),
+        });
+        this.concurrentArtifactContentBase64 = undefined;
+        return { rows: [], rowCount: 0 };
+      }
+
       return { rows: [{ id } as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("INSERT INTO draft_room_export_contents")) {
       const [id, artifactId, contentBase64, createdAtValue] =
         values as readonly [string, string, string, Date];
+      if (this.dropNextContentInsert) {
+        this.dropNextContentInsert = false;
+        return { rows: [], rowCount: 0 };
+      }
       if (this.contents.has(id)) return { rows: [], rowCount: 0 };
 
       this.contents.set(id, {
@@ -333,5 +355,50 @@ describe("Postgres export artifacts", () => {
       newer.artifact,
       older.artifact,
     ]);
+  });
+
+  it("returns an identical artifact inserted concurrently", async () => {
+    const client = new FakePostgresExportArtifactClient();
+    const repository = new PostgresExportArtifactRepository(client);
+    const artifactResult = createDraftExportArtifact(artifactInput);
+    client.concurrentArtifactContentBase64 = artifactResult.content.toString("base64");
+
+    await expect(repository.save(
+      artifactResult,
+      { createdByUserId: "user_commish" },
+    )).resolves.toEqual(artifactResult);
+    expect(client.exports).toHaveLength(1);
+    expect(client.contents).toHaveLength(1);
+  });
+
+  it("rejects an insert conflict without a readable artifact", async () => {
+    const client = new FakePostgresExportArtifactClient();
+    const repository = new PostgresExportArtifactRepository(client);
+    client.dropNextArtifactInsert = true;
+
+    await expect(repository.save(
+      createDraftExportArtifact(artifactInput),
+      { createdByUserId: "user_commish" },
+    )).rejects.toThrow("An export artifact already exists");
+  });
+
+  it("rolls back an export whose content was not stored", async () => {
+    const client = new FakePostgresExportArtifactClient();
+    const repository = new PostgresExportArtifactRepository(client);
+    client.dropNextContentInsert = true;
+
+    await expect(repository.save(
+      createDraftExportArtifact(artifactInput),
+      { createdByUserId: "user_commish" },
+    )).rejects.toThrow("was not stored");
+    expect(client.exports).toHaveLength(0);
+  });
+
+  it("returns undefined when a room revision has no completed artifact", async () => {
+    const repository = new PostgresExportArtifactRepository(
+      new FakePostgresExportArtifactClient(),
+    );
+
+    await expect(repository.findByRoomRevision("room_missing", 1)).resolves.toBeUndefined();
   });
 });
