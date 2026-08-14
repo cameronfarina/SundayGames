@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import {
   claimLeagueTeam,
-  loadLeagueOnboarding,
   loadLeagueSeason,
   loadSeasonKeepers,
 } from "./leagueApi";
@@ -10,18 +9,6 @@ import {
 const jsonResponse = (body: unknown, status = 200): Response => Response.json(body, { status });
 
 describe("league API", () => {
-  it("loads and validates onboarding", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
-      account: { id: "user-1", email: "cam@example.com" },
-      leagues: [],
-    }));
-
-    await expect(loadLeagueOnboarding(fetcher)).resolves.toMatchObject({ leagues: [] });
-    expect(fetcher).toHaveBeenCalledWith("/onboarding", expect.objectContaining({
-      credentials: "same-origin",
-    }));
-  });
-
   it("rejects malformed season data", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ season: { id: 3 } }));
 

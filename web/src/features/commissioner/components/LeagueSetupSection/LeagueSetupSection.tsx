@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { onboardingQueryKey } from "../../../../shared/api/onboarding/onboardingQuery";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
@@ -24,7 +25,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: commissionerKeys.season(season.id) }),
-        queryClient.invalidateQueries({ queryKey: commissionerKeys.onboarding }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKey() }),
         queryClient.invalidateQueries({ queryKey: commissionerKeys.invitations(season.id) }),
       ]);
     },

@@ -1,17 +1,12 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useOnboardingQuery } from "../../../../../shared/api/onboarding/onboardingQuery";
 import { commissionerApi } from "../../../api/commissionerApi";
 
 export const commissionerKeys = {
-  onboarding: ["commissioner", "onboarding"],
   season: (seasonId: string) => ["commissioner", "season", seasonId],
   keepers: (seasonId: string) => ["commissioner", "keepers", seasonId],
   invitations: (seasonId: string) => ["commissioner", "invitations", seasonId],
 };
-
-const onboardingOptions = () => queryOptions({
-  queryKey: commissionerKeys.onboarding,
-  queryFn: commissionerApi.onboarding,
-});
 
 const seasonOptions = (seasonId: string, enabled: boolean) => queryOptions({
   queryKey: commissionerKeys.season(seasonId),
@@ -32,7 +27,7 @@ const invitationOptions = (seasonId: string, enabled: boolean) => queryOptions({
 });
 
 export const useCommissionerWorkspace = (requestedSeasonId: string | null) => {
-  const onboarding = useQuery(onboardingOptions());
+  const onboarding = useOnboardingQuery();
   const manageableLeagues = onboarding.data?.leagues.filter(league => league.canManageLeague) ?? [];
   const requestedLeague = onboarding.data?.leagues.find(league => league.seasonId === requestedSeasonId);
   const selectedLeague = requestedLeague ?? manageableLeagues[0];

@@ -1,8 +1,8 @@
-import type { LeagueOnboarding, OnboardingLeague } from "../api/leagueSchemas";
+import type { Onboarding, OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import type { LeagueSeasonSettings } from "../api/seasonSchemas";
 
 export const selectActiveLeague = (
-  onboarding: LeagueOnboarding,
+  onboarding: Onboarding,
   requestedSeasonId: string | null,
 ): OnboardingLeague | undefined => requestedSeasonId === null
   ? onboarding.leagues[0]

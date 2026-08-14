@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sessionQueryKey } from "../../../features/auth/api/sessionQuery";
-import type { Onboarding } from "../../../features/myTeam/api/onboardingSchema";
-import { onboardingQueryOptions } from "../../../features/myTeam/api/myTeamQueryOptions";
+import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
+import type { Onboarding } from "../../../shared/api/onboarding/onboardingSchema";
 import { AccountMenu } from "./AccountMenu";
 
 const cachedOnboarding: Onboarding = {

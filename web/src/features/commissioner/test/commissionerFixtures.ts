@@ -1,5 +1,5 @@
 import { seasonSchema } from "../api/seasonSchemas";
-import { onboardingSchema } from "../api/workspaceSchemas";
+import { onboardingSchema } from "../../../shared/api/onboarding/onboardingSchema";
 
 export const auctionSeason = seasonSchema.parse({
   id: "season-1",

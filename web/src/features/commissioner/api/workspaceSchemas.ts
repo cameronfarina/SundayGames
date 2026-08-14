@@ -1,32 +1,5 @@
 import { z } from "zod";
 
-const roleSchema = z.enum(["owner", "admin", "member", "observer"]);
-
-export const onboardingSchema = z.object({
-  account: z.object({ id: z.string(), email: z.string() }),
-  leagues: z.array(z.object({
-    leagueId: z.string(),
-    leagueName: z.string(),
-    seasonId: z.string(),
-    seasonYear: z.number(),
-    membership: z.object({
-      role: roleSchema,
-      ownerId: z.string().optional(),
-      teamId: z.string().optional(),
-      ownerDisplayName: z.string().optional(),
-      teamDisplayName: z.string().optional(),
-    }),
-    canManageLeague: z.boolean(),
-    readiness: z.object({
-      leagueSetup: z.enum(["ready", "needs_attention"]),
-      teamClaim: z.enum(["ready", "needs_attention"]),
-      liveDraft: z.enum(["ready", "needs_attention"]),
-    }),
-    nextDraftAt: z.string().optional(),
-    liveDraft: z.object({ roomId: z.string(), status: z.string() }).nullable(),
-  })),
-});
-
 export const keeperSchema = z.object({
   teamId: z.string(),
   playerId: z.string().optional(),
@@ -77,6 +50,5 @@ export const roomResponseSchema = z.object({
 
 export const okResponseSchema = z.object({ ok: z.literal(true) });
 
-export type CommissionerLeague = z.infer<typeof onboardingSchema>["leagues"][number];
 export type CommissionerKeeper = z.infer<typeof keeperSchema>;
 export type CommissionerInvitation = z.infer<typeof invitationSchema>;

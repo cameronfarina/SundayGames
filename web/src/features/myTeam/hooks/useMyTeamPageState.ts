@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { useOnboardingQuery } from "../../../shared/api/onboarding/onboardingQuery";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import {
   keepersQueryOptions,
-  onboardingQueryOptions,
   postDraftTeamQueryOptions,
   seasonTeamQueryOptions,
 } from "../api/myTeamQueryOptions";
-import type { OnboardingLeague } from "../api/onboardingSchema";
 import type { PostDraftTeam } from "../api/postDraftSchema";
 import type { Keeper, SeasonTeam } from "../api/seasonTeamSchema";
 
@@ -33,7 +33,7 @@ const activeLeague = (
 export const useMyTeamPageState = (): MyTeamPageState => {
   const [searchParams] = useSearchParams();
   const requestedSeasonId = searchParams.get("seasonId");
-  const onboarding = useQuery(onboardingQueryOptions());
+  const onboarding = useOnboardingQuery();
   const league = activeLeague(onboarding.data?.leagues ?? [], requestedSeasonId);
   const teamId = league?.membership.teamId;
   const assigned = teamId !== undefined;

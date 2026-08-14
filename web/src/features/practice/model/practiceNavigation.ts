@@ -1,4 +1,4 @@
-import type { PracticeLeague } from "../api/practiceContextSchema";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 
 export const practiceStrategy = (value: string | null): string => {
   if (value === "hero-rb") return value;
@@ -8,8 +8,8 @@ export const practiceStrategy = (value: string | null): string => {
 };
 
 export const selectedPracticeLeague = (
-  leagues: readonly PracticeLeague[],
+  leagues: readonly OnboardingLeague[],
   requestedSeasonId: string | null,
-): PracticeLeague | undefined => requestedSeasonId === "baseline"
+): OnboardingLeague | undefined => requestedSeasonId === "baseline"
   ? undefined
   : leagues.find(league => league.seasonId === requestedSeasonId) ?? leagues[0];

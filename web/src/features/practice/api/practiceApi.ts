@@ -3,7 +3,6 @@ import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
 import { playerCatalogSchema } from "./playerCatalogSchema";
 import {
-  practiceContextSchema,
   practiceShortlistItemSchema,
   practiceShortlistSchema,
 } from "./practiceContextSchema";
@@ -32,14 +31,6 @@ const jsonInit = (method: "DELETE" | "POST" | "PUT", body: unknown): RequestInit
   headers: { "content-type": "application/json" },
   method,
 });
-
-export const getPracticeContext = async (context: RequestContext = {}) =>
-  await requestPlatformJson({
-    ...fetcherExtra(context),
-    init: getInit(context),
-    path: "/onboarding",
-    responseSchema: practiceContextSchema,
-  });
 
 interface CatalogRequest extends RequestContext {
   readonly seasonId?: string;

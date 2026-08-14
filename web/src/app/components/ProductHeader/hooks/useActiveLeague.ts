@@ -1,9 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { onboardingQueryOptions } from "../../../../features/myTeam/api/myTeamQueryOptions";
+import { useOnboardingQuery } from "../../../../shared/api/onboarding/onboardingQuery";
 
 export const useActiveLeague = () => {
-  const onboarding = useQuery(onboardingQueryOptions());
+  const onboarding = useOnboardingQuery();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSeasonId = searchParams.get("seasonId");
   const leagues = onboarding.data?.leagues ?? [];

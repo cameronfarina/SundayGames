@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { OnboardingLeague } from "../../api/leagueSchemas";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 
 const roomPath = (league: OnboardingLeague): string | undefined => {
   const roomId = league.liveDraft?.roomId;

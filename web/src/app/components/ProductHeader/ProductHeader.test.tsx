@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { Onboarding } from "../../../features/myTeam/api/onboardingSchema";
-import { onboardingQueryOptions } from "../../../features/myTeam/api/myTeamQueryOptions";
 import { sessionQueryKey } from "../../../features/auth/api/sessionQuery";
+import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
+import type { Onboarding } from "../../../shared/api/onboarding/onboardingSchema";
 import { ProductHeader } from "./ProductHeader";
 
 beforeAll(() => {

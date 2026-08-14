@@ -3,7 +3,6 @@ import type { PlatformApiError } from "../../../shared/api/http/PlatformApiError
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
 import {
   getPlayerCatalog,
-  getPracticeContext,
   listPracticeShortlist,
   listSimulationHistory,
   loadSimulation,
@@ -30,15 +29,13 @@ const simulation = {
 };
 
 describe("Practice API", () => {
-  it("loads context and builds encoded catalog queries", async () => {
+  it("builds encoded catalog queries", async () => {
     const fetcher = vi.fn<PlatformFetch>()
-      .mockResolvedValueOnce(jsonResponse({ account: { email: "cam@example.com", id: "user-1" }, leagues: [] }))
       .mockResolvedValueOnce(jsonResponse({ draftFormat: "auction", players: [player] }));
 
-    await expect(getPracticeContext({ fetcher })).resolves.toMatchObject({ leagues: [] });
     await expect(getPlayerCatalog({ fetcher, seasonId: "season / 1", strategy: "hero-rb" }))
       .resolves.toMatchObject({ players: [player] });
-    expect(fetcher.mock.calls[1]?.[0]).toBe("/player-catalog?seasonId=season+%2F+1&strategy=hero-rb");
+    expect(fetcher.mock.calls[0]?.[0]).toBe("/player-catalog?seasonId=season+%2F+1&strategy=hero-rb");
   });
 
   it("supports the complete shortlist lifecycle", async () => {

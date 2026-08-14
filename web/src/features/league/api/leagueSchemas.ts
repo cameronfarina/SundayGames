@@ -2,37 +2,6 @@ import { z } from "zod";
 import { leagueSeasonSettingsSchema } from "./seasonSchemas";
 
 const roleSchema = z.enum(["owner", "admin", "member", "observer"]);
-const readinessSchema = z.enum(["ready", "needs_attention"]);
-
-export const onboardingLeagueSchema = z.object({
-  leagueId: z.string(),
-  leagueName: z.string(),
-  seasonId: z.string(),
-  seasonYear: z.number().int(),
-  membership: z.object({
-    role: roleSchema,
-    ownerId: z.string().optional(),
-    teamId: z.string().optional(),
-    ownerDisplayName: z.string().optional(),
-    teamDisplayName: z.string().optional(),
-  }),
-  canManageLeague: z.boolean(),
-  readiness: z.object({
-    leagueSetup: readinessSchema,
-    teamClaim: readinessSchema,
-    liveDraft: readinessSchema,
-  }),
-  nextDraftAt: z.string().optional(),
-  liveDraft: z.object({
-    roomId: z.string(),
-    status: z.string(),
-  }).nullable(),
-});
-
-export const leagueOnboardingSchema = z.object({
-  account: z.object({ id: z.string(), email: z.email() }),
-  leagues: z.array(onboardingLeagueSchema),
-});
 
 export const fantasyTeamSchema = z.object({
   id: z.string(),
@@ -94,8 +63,6 @@ export const membershipSchema = z.object({
 
 export const teamClaimResponseSchema = z.object({ membership: membershipSchema });
 
-export type LeagueOnboarding = z.infer<typeof leagueOnboardingSchema>;
-export type OnboardingLeague = z.infer<typeof onboardingLeagueSchema>;
 export type LeagueSeason = z.infer<typeof leagueSeasonSchema>;
 export type FantasyTeam = z.infer<typeof fantasyTeamSchema>;
 export type SeasonKeeper = z.infer<typeof keeperSchema>;

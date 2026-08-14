@@ -1,4 +1,4 @@
-import type { OnboardingLeague } from "../../api/onboardingSchema";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import "./EmptyTeamState.css";
 
 interface EmptyTeamStateProps {

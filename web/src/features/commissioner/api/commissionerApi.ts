@@ -13,7 +13,6 @@ import {
   keeperMutationResponseSchema,
   keepersResponseSchema,
   okResponseSchema,
-  onboardingSchema,
   roomResponseSchema,
 } from "./workspaceSchemas";
 
@@ -27,10 +26,6 @@ const seasonPath = (seasonId: string, suffix = ""): string =>
   `/seasons/${encodeURIComponent(seasonId)}${suffix}`;
 
 export const commissionerApi = {
-  onboarding: async () => await requestPlatformJson({
-    path: "/onboarding",
-    responseSchema: onboardingSchema,
-  }),
   season: async (seasonId: string) => await requestPlatformJson({
     path: seasonPath(seasonId),
     responseSchema: seasonResponseSchema,

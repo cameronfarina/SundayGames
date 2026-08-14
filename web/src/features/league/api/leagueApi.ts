@@ -1,16 +1,9 @@
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
 import {
-  leagueOnboardingSchema,
   leagueSeasonResponseSchema,
   seasonKeepersResponseSchema,
   teamClaimResponseSchema,
 } from "./leagueSchemas";
-
-export const loadLeagueOnboarding = (fetcher: typeof fetch = fetch) => requestPlatformJson({
-  path: "/onboarding",
-  responseSchema: leagueOnboardingSchema,
-  fetcher,
-});
 
 export const loadLeagueSeason = (seasonId: string, fetcher: typeof fetch = fetch) =>
   requestPlatformJson({

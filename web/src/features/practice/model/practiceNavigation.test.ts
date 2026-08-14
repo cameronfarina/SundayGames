@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PracticeLeague } from "../api/practiceContextSchema";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { practiceStrategy, selectedPracticeLeague } from "./practiceNavigation";
 
-const league = (seasonId: string): PracticeLeague => ({
+const league = (seasonId: string): OnboardingLeague => ({
   canManageLeague: false,
   leagueId: `league-${seasonId}`,
   leagueName: seasonId,

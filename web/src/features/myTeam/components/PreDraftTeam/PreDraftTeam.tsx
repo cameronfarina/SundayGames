@@ -1,4 +1,4 @@
-import type { OnboardingLeague } from "../../api/onboardingSchema";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import type { Keeper, SeasonTeam } from "../../api/seasonTeamSchema";
 import { TeamFacts } from "../TeamFacts/TeamFacts";
 import "../TeamTable/TeamTable.css";

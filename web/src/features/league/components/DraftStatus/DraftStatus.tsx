@@ -1,4 +1,4 @@
-import type { OnboardingLeague } from "../../api/leagueSchemas";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 
 const draftDate = (value: string | undefined): string => value === undefined
   ? "No draft time scheduled"

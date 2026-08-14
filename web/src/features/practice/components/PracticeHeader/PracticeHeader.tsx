@@ -1,10 +1,10 @@
-import type { PracticeLeague } from "../../api/practiceContextSchema";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
 import "./PracticeHeader.css";
 
 interface PracticeHeaderProps {
-  readonly activeLeague: PracticeLeague | undefined;
-  readonly leagues: readonly PracticeLeague[];
+  readonly activeLeague: OnboardingLeague | undefined;
+  readonly leagues: readonly OnboardingLeague[];
   readonly onLeagueChange: (seasonId: string) => void;
   readonly onStrategyChange: (strategy: string) => void;
   readonly strategy: string;

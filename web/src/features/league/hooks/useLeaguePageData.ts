@@ -1,20 +1,18 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  onboardingQueryKey,
+  useOnboardingQuery,
+} from "../../../shared/api/onboarding/onboardingQuery";
+import {
   claimLeagueTeam,
-  loadLeagueOnboarding,
   loadLeagueSeason,
   loadSeasonKeepers,
   type ClaimLeagueTeamInput,
 } from "../api/leagueApi";
 import { selectActiveLeague } from "../lib/leagueDisplay";
 
-const onboardingKey = ["league-onboarding"];
 const seasonKey = (seasonId: string) => ["league-season", seasonId];
 const keepersKey = (seasonId: string) => ["season-keepers", seasonId];
-const onboardingOptions = () => queryOptions({
-  queryKey: onboardingKey,
-  queryFn: () => loadLeagueOnboarding(),
-});
 const seasonOptions = (seasonId: string, enabled: boolean) => queryOptions({
   queryKey: seasonKey(seasonId),
   queryFn: () => loadLeagueSeason(seasonId),
@@ -27,7 +25,7 @@ const keepersOptions = (seasonId: string, enabled: boolean) => queryOptions({
 });
 
 export const useLeaguePageData = (requestedSeasonId: string | null) => {
-  const onboarding = useQuery(onboardingOptions());
+  const onboarding = useOnboardingQuery();
   const selectedLeague = onboarding.data === undefined
     ? undefined
     : selectActiveLeague(onboarding.data, requestedSeasonId);
@@ -44,7 +42,7 @@ export const useClaimLeagueTeam = () => {
     mutationFn: (input: ClaimLeagueTeamInput) => claimLeagueTeam(input),
     onSuccess: async (_response, input) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: onboardingKey }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKey() }),
         queryClient.invalidateQueries({ queryKey: seasonKey(input.seasonId) }),
       ]);
     },

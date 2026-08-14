@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
+import { onboardingLeagueSchema } from "../../../../shared/api/onboarding/onboardingSchema";
 import { seasonSchema } from "../../api/seasonSchemas";
 import { auctionSeason, jsonResponse, ownerLeague, requestPath, snakeSeason } from "../../test/commissionerFixtures";
 import { LiveRoomSection } from "./LiveRoomSection";
@@ -45,7 +46,10 @@ describe("LiveRoomSection", () => {
     const scheduled = seasonSchema.parse({
       ...publishedSeason, draft: { scheduledAt: "2026-08-30T19:00:00.000Z", timezone: "America/New_York" },
     });
-    const liveLeague = { ...ownerLeague, liveDraft: { roomId: "room-live", status: "countdown" } };
+    const liveLeague = onboardingLeagueSchema.parse({
+      ...ownerLeague,
+      liveDraft: { roomId: "room-live", status: "countdown" },
+    });
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ ok: true }))), scheduled, liveLeague);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Archive room" }));
@@ -95,7 +99,10 @@ describe("LiveRoomSection", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Create room" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Room unavailable.");
-    const liveLeague = { ...ownerLeague, liveDraft: { roomId: "room-live", status: "setup" } };
+    const liveLeague = onboardingLeagueSchema.parse({
+      ...ownerLeague,
+      liveDraft: { roomId: "room-live", status: "setup" },
+    });
     view.unmount();
     renderSection(errorFetcher, publishedSeason, liveLeague);
     await user.click(screen.getByRole("button", { name: "Archive room" }));
@@ -115,7 +122,10 @@ describe("LiveRoomSection", () => {
     await user.click(screen.getByRole("button", { name: "Create room" }));
     expect(screen.getByRole("status")).toHaveTextContent("Creating live room");
     unmountCreate();
-    const liveLeague = { ...ownerLeague, liveDraft: { roomId: "room-live", status: "setup" } };
+    const liveLeague = onboardingLeagueSchema.parse({
+      ...ownerLeague,
+      liveDraft: { roomId: "room-live", status: "setup" },
+    });
     renderSection(fetcher, publishedSeason, liveLeague);
     await user.click(screen.getByRole("button", { name: "Archive room" }));
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));

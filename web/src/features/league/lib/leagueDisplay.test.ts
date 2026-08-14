@@ -5,9 +5,10 @@ import {
   describeScoring,
   selectActiveLeague,
 } from "./leagueDisplay";
-import { leagueOnboardingSchema, leagueSeasonSchema } from "../api/leagueSchemas";
+import { onboardingSchema } from "../../../shared/api/onboarding/onboardingSchema";
+import { leagueSeasonSchema } from "../api/leagueSchemas";
 
-const onboarding = leagueOnboardingSchema.parse({
+const onboarding = onboardingSchema.parse({
   account: { id: "user-1", email: "cam@example.com" },
   leagues: [
     {

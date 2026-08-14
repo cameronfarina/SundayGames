@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { onboardingQueryKey } from "../../../../shared/api/onboarding/onboardingQuery";
+import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
-import type { CommissionerLeague } from "../../api/workspaceSchemas";
 import { errorMessage } from "../../model/errorMessage";
 import { commissionerKeys } from "../../pages/CommissionerPage/hooks/useCommissionerWorkspace";
 
 interface LiveRoomSectionProps {
-  readonly league: CommissionerLeague;
+  readonly league: OnboardingLeague;
   readonly season: CommissionerSeason;
 }
 
@@ -33,7 +34,7 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
     mutationFn: () => commissionerApi.archiveRoom(season.id),
     onSuccess: async () => {
       setConfirmArchive(false);
-      await queryClient.invalidateQueries({ queryKey: commissionerKeys.onboarding });
+      await queryClient.invalidateQueries({ queryKey: onboardingQueryKey() });
     },
   });
   const published = publish.data?.season.setupStatus === "published" || season.setupStatus !== "draft";

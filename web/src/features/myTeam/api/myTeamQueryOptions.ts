@@ -1,15 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
   getKeepers,
-  getOnboarding,
   getPostDraftTeam,
   getSeasonTeam,
 } from "./myTeamApi";
-
-export const onboardingQueryOptions = () => queryOptions({
-  queryKey: ["onboarding"],
-  queryFn: async ({ signal }) => await getOnboarding({ signal }),
-});
 
 export const seasonTeamQueryOptions = (seasonId: string, enabled: boolean) => queryOptions({
   queryKey: ["season-team", seasonId],

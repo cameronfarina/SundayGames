@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { sessionQueryKey } from "../../../features/auth/api/sessionQuery";
-import { onboardingQueryOptions } from "../../../features/myTeam/api/myTeamQueryOptions";
+import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
 import { AppLayout } from "./AppLayout";
 
 const renderLayout = () => {

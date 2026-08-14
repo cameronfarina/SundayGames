@@ -1,4 +1,4 @@
-import type { OnboardingLeague } from "../../../features/myTeam/api/onboardingSchema";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { Select } from "../../../shared/ui/Select/Select";
 
 interface LeaguePickerProps {

@@ -1,5 +1,4 @@
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
-import { onboardingSchema } from "./onboardingSchema";
 import { postDraftSchema } from "./postDraftSchema";
 import { keepersSchema, seasonTeamSchema } from "./seasonTeamSchema";
 
@@ -8,13 +7,6 @@ interface MyTeamRequest {
 }
 
 const initFor = (signal: AbortSignal): RequestInit => ({ signal });
-
-export const getOnboarding = async (request: MyTeamRequest) =>
-  await requestPlatformJson({
-    path: "/onboarding",
-    responseSchema: onboardingSchema,
-    init: initFor(request.signal),
-  });
 
 export const getSeasonTeam = async (seasonId: string, request: MyTeamRequest) =>
   await requestPlatformJson({

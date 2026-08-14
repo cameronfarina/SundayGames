@@ -1,18 +1,12 @@
 import { queryOptions, skipToken, useQuery } from "@tanstack/react-query";
+import { useOnboardingQuery } from "../../../../../shared/api/onboarding/onboardingQuery";
 import {
   getPlayerCatalog,
-  getPracticeContext,
   listPracticeShortlist,
   listSimulationHistory,
   loadSimulation,
 } from "../../../api/practiceApi";
 import { practiceQueryKeys } from "./practiceQueryKeys";
-
-const contextOptions = () => queryOptions({
-  queryFn: ({ signal }) => getPracticeContext({ signal }),
-  queryKey: practiceQueryKeys.context,
-  staleTime: 30_000,
-});
 
 const catalogOptions = (
   seasonId: string | undefined,
@@ -50,7 +44,7 @@ const detailOptions = (historyId: string | undefined) => queryOptions({
   queryKey: practiceQueryKeys.simulation(historyId ?? "none"),
 });
 
-export const usePracticeContextQuery = () => useQuery(contextOptions());
+export const usePracticeContextQuery = useOnboardingQuery;
 export const usePlayerCatalogQuery = (seasonId: string | undefined, strategy: string, enabled: boolean) =>
   useQuery(catalogOptions(seasonId, strategy, enabled));
 export const useShortlistQuery = (seasonId: string | undefined) => useQuery(shortlistOptions(seasonId));
