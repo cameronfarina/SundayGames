@@ -3,6 +3,8 @@ import type { LiveDraftRoomPlayerCatalogEntry } from "./liveDraftRooms.js";
 
 type ProtectedStarterPosition = "QB" | "TE" | "K" | "DST";
 
+type ProjectionCoverageMode = "complete" | "partial" | "missing";
+
 const protectedStarterPositions: readonly ProtectedStarterPosition[] = [
   "QB",
   "TE",
@@ -50,6 +52,31 @@ const nflTeamKeyFor = (player: LiveDraftRoomPlayerCatalogEntry): string | undefi
   return key === undefined || key.length === 0 ? undefined : key;
 };
 
+const hasProjectionFor = (player: LiveDraftRoomPlayerCatalogEntry): boolean =>
+  player.week1Projection !== undefined
+  || player.weeks1To4Projection !== undefined
+  || player.seasonProjection !== undefined;
+
+const projectionCoverageModeFor = (
+  players: readonly LiveDraftRoomPlayerCatalogEntry[],
+): ProjectionCoverageMode => {
+  const projectedCount = players.filter(hasProjectionFor).length;
+  if (projectedCount === 0) return "missing";
+  return projectedCount === players.length ? "complete" : "partial";
+};
+
+const marketFallbackCandidatesFor = (
+  players: readonly LiveDraftRoomPlayerCatalogEntry[],
+  coverageMode: ProjectionCoverageMode,
+): readonly LiveDraftRoomPlayerCatalogEntry[] => coverageMode === "complete"
+  ? []
+  : players
+    .filter(player => !hasProjectionFor(player) && nflTeamKeyFor(player) !== undefined)
+    .sort((left, right) =>
+      right.expectedPrice - left.expectedPrice
+      || canonicalPlayerIdentityKey(left.name).localeCompare(canonicalPlayerIdentityKey(right.name))
+    );
+
 export const starterEligiblePlayerIdsFor = (
   players: readonly LiveDraftRoomPlayerCatalogEntry[],
 ): ReadonlySet<string> => {
@@ -57,18 +84,18 @@ export const starterEligiblePlayerIdsFor = (
 
   for (const position of protectedStarterPositions) {
     const representedTeams = new Set<string>();
-    const positiveCandidates = players
-      .filter(player =>
-        player.position === position
-        && projectedWeeklyProductionFor(player) > 0
-      );
+    const positionPlayers = players.filter(player => player.position === position);
+    const coverageMode = projectionCoverageModeFor(positionPlayers);
+    const positiveCandidates = positionPlayers.filter(player =>
+      hasProjectionFor(player) && projectedWeeklyProductionFor(player) > 0
+    );
     const topWeeklyProjection = positiveCandidates.reduce(
       (topProjection, player) => Math.max(topProjection, projectedWeeklyProductionFor(player)),
       0,
     );
     const minimumWeeklyProjection = topWeeklyProjection
       * minimumWeeklyProjectionShareByPosition[position];
-    const candidates = positiveCandidates
+    const projectedCandidates = positiveCandidates
       .filter(player => projectedWeeklyProductionFor(player) >= minimumWeeklyProjection)
       .sort((left, right) =>
         projectedSeasonProductionFor(right) - projectedSeasonProductionFor(left)
@@ -76,6 +103,10 @@ export const starterEligiblePlayerIdsFor = (
         || right.expectedPrice - left.expectedPrice
         || canonicalPlayerIdentityKey(left.name).localeCompare(canonicalPlayerIdentityKey(right.name))
       );
+    const candidates = [
+      ...projectedCandidates,
+      ...marketFallbackCandidatesFor(positionPlayers, coverageMode),
+    ];
     let eligibleCount = 0;
 
     for (const player of candidates) {
