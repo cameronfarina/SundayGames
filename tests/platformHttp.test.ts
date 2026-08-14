@@ -2440,7 +2440,7 @@ describe("platform HTTP contract", () => {
     expect(simulationResponse).toMatchObject({
       status: 200,
       body: {
-        simulation: {
+        summary: {
           draftFormat: "snake",
           runCount: 2,
           completedCount: 2,
@@ -2449,21 +2449,12 @@ describe("platform HTTP contract", () => {
             warnings: [],
           },
           targetOutcome: { playerName: "Player 1", hitCount: 2, hitRate: 1 },
-          runs: expect.arrayContaining([
-            expect.objectContaining({
-              label: "Run 1",
-              teams: expect.arrayContaining([
-                expect.objectContaining({ roster: expect.any(Array), week1Points: expect.any(Number) }),
-              ]),
-            }),
-          ]),
         },
       },
     });
-    const simulation = expectBodyRecord(expectBodyRecord(simulationResponse.body).simulation);
+    const summary = expectBodyRecord(expectBodyRecord(simulationResponse.body).summary);
     const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
-    const runs = simulation.runs as Array<{ teams: Array<{ roster: Array<{ week1Points: number }> }> }>;
-    expect(runs[0]?.teams.flatMap(team => team.roster).some(player => player.week1Points > 0)).toBe(true);
+    expect(summary).not.toHaveProperty("runs");
     const newerSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
@@ -2499,9 +2490,47 @@ describe("platform HTTP contract", () => {
       body: {
         historyId,
         note: "Compare a first-round target.",
-        simulation: { runCount: 2, runs: expect.any(Array) },
+        summary: { runCount: 2 },
       },
     });
+    const detailResponse = await handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}/runs/1`,
+      sessionToken: cam.sessionToken,
+    });
+    expect(detailResponse).toMatchObject({
+      status: 200,
+      body: {
+        historyId,
+        run: {
+          label: "Run 1",
+          runNumber: 1,
+          teams: expect.arrayContaining([
+            expect.objectContaining({ roster: expect.any(Array), week1Points: expect.any(Number) }),
+          ]),
+        },
+      },
+    });
+    await expect(handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}`,
+      sessionToken: outsider.sessionToken,
+    })).resolves.toMatchObject({ status: 403, body: { error: { code: "private_resource" } } });
+    await expect(handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}/runs/1`,
+      sessionToken: outsider.sessionToken,
+    })).resolves.toMatchObject({ status: 403, body: { error: { code: "private_resource" } } });
+    await expect(handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}/runs/3`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({ status: 404 });
+    await expect(handle({
+      method: "GET",
+      path: `/season-simulations/${historyId}/runs/not-a-run`,
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({ status: 404 });
     const streamedSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
@@ -2529,7 +2558,9 @@ describe("platform HTTP contract", () => {
     for await (const chunk of stream as AsyncIterable<string>) streamedEvents += chunk;
     expect(streamedEvents).toContain('event: progress\ndata: {"completed":1,"total":2}');
     expect(streamedEvents).toContain('event: progress\ndata: {"completed":2,"total":2}');
-    expect(streamedEvents).toContain('event: result\ndata: {"simulation":');
+    expect(streamedEvents).toContain('event: result\ndata: {"historyId":');
+    expect(streamedEvents).toContain('"summary":{"completedCount":2,"draftFormat":"snake"');
+    expect(streamedEvents).not.toContain('"runs":');
     await expect(handle({
       method: "POST",
       path: "/season-simulations",

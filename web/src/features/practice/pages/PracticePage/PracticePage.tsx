@@ -15,6 +15,7 @@ import {
   useShortlistQuery,
   useSimulationDetailQuery,
   useSimulationHistoryQuery,
+  useSimulationRunQuery,
 } from "./hooks/usePracticeQueries";
 import "./PracticePage.css";
 
@@ -23,6 +24,10 @@ const messageFor = (error: Error): string => error.message;
 export function PracticePage() {
   const [params, setParams] = useSearchParams();
   const historyId = params.get("runId") ?? undefined;
+  const requestedRunNumber = Number(params.get("simulationRun") ?? "1");
+  const selectedRunNumber = Number.isInteger(requestedRunNumber) && requestedRunNumber > 0
+    ? requestedRunNumber
+    : 1;
   const context = usePracticeContextQuery();
   const strategy = practiceStrategy(params.get("strategy"));
   const leagues = context.data?.leagues ?? [];
@@ -31,8 +36,11 @@ export function PracticePage() {
   const catalog = usePlayerCatalogQuery(seasonId, strategy, context.isSuccess);
   const shortlist = useShortlistQuery(seasonId);
   const history = useSimulationHistoryQuery(seasonId);
-  const detail = useSimulationDetailQuery(historyId);
   const mutations = usePracticeMutations(seasonId ?? "", strategy);
+  const runMutation = mutations.run.mutation;
+  const mutationResult = runMutation.data?.historyId === historyId ? runMutation.data : undefined;
+  const detail = useSimulationDetailQuery(mutationResult === undefined ? historyId : undefined);
+  const runDetail = useSimulationRunQuery(historyId, selectedRunNumber);
   const targets = shortlist.data ?? [];
   const mockDraftSearch = seasonId === undefined
     ? ""
@@ -41,6 +49,12 @@ export function PracticePage() {
   const setParameter = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     next.set(name, value);
+    setParams(next);
+  };
+  const openSimulation = (value: string) => {
+    const next = new URLSearchParams(params);
+    next.set("runId", value);
+    next.set("simulationRun", "1");
     setParams(next);
   };
   const toggleTarget = (player: PracticePlayer) => {
@@ -55,8 +69,8 @@ export function PracticePage() {
       position: item.position,
     });
   };
-  const mutationError = mutations.targets.save.error ?? mutations.targets.remove.error ?? mutations.run.error;
-  const result = detail.data ?? mutations.run.data;
+  const mutationError = mutations.targets.save.error ?? mutations.targets.remove.error ?? runMutation.error;
+  const result = detail.data ?? mutationResult;
 
   if (context.isPending) return <section aria-label="Practice" className="practice-page"><p role="status">Loading Practice…</p></section>;
   if (context.isError) return <section aria-labelledby="practice-error-title" className="practice-page practice-page--error">
@@ -102,11 +116,12 @@ export function PracticePage() {
         ? <section className="practice-page__error"><p>{messageFor(history.error)}</p><button onClick={() => { void history.refetch(); }} type="button">Retry history</button></section>
         : <SimulationWorkspace
         history={history.data}
-        onOpenHistory={value => { setParameter("runId", value); }}
-        onRun={request => { mutations.run.mutate(request, {
-          onSuccess: response => { setParameter("runId", response.historyId); },
+        onOpenHistory={openSimulation}
+        onRun={request => { runMutation.mutate(request, {
+          onSuccess: response => { openSimulation(response.historyId); },
         }); }}
-        pending={mutations.run.isPending}
+        pending={runMutation.isPending}
+        progress={mutations.run.progress}
         shortlist={targets}
         teamClaimed={activeLeague.readiness.teamClaim === "ready"}
       />}
@@ -114,6 +129,14 @@ export function PracticePage() {
     {mutationError !== null && <p aria-live="assertive" className="practice-page__error">{messageFor(mutationError)}</p>}
     {historyId !== undefined && detail.isPending && <p role="status">Loading saved simulation…</p>}
     {detail.isError && <section className="practice-page__error"><p>{messageFor(detail.error)}</p><button onClick={() => { void detail.refetch(); }} type="button">Retry saved run</button></section>}
-    {result !== undefined && <SimulationResults note={result.note} simulation={result.simulation} />}
+    {runDetail.isError && <section className="practice-page__error"><p>{messageFor(runDetail.error)}</p><button onClick={() => { void runDetail.refetch(); }} type="button">Retry selected run</button></section>}
+    {result !== undefined && <SimulationResults
+      note={result.note}
+      onRunChange={runNumber => { setParameter("simulationRun", String(runNumber)); }}
+      pendingRun={runDetail.isPending}
+      run={runDetail.data?.run}
+      selectedRunNumber={selectedRunNumber}
+      summary={result.summary}
+    />}
   </section>;
 }

@@ -1,8 +1,14 @@
 import { z } from "zod";
 import type { PlatformFetch } from "../../../../../shared/api/http/requestPlatformJson";
-import { league, player, simulationFixture, target } from "./practiceFixtures";
+import {
+  league,
+  player,
+  simulationRunFixture,
+  simulationSummaryFixture,
+  target,
+} from "./practiceFixtures";
 
-export { simulationFixture } from "./practiceFixtures";
+export { simulationSummaryFixture } from "./practiceFixtures";
 
 interface PracticeFetchOptions {
   readonly catalogEmpty?: boolean;
@@ -11,6 +17,8 @@ interface PracticeFetchOptions {
   readonly detailError?: boolean;
   readonly hasLeague?: boolean;
   readonly historyError?: boolean;
+  readonly runCount?: number;
+  readonly runDetailError?: boolean;
   readonly targetError?: boolean;
   readonly teamClaimed?: boolean;
 }
@@ -31,6 +39,11 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
   let catalogFailures = options.catalogError === true ? 1 : 0;
   let contextFailures = options.contextError === true ? 1 : 0;
   let historyFailures = options.historyError === true ? 1 : 0;
+  const simulationSummary = {
+    ...simulationSummaryFixture,
+    completedCount: options.runCount ?? simulationSummaryFixture.completedCount,
+    runCount: options.runCount ?? simulationSummaryFixture.runCount,
+  };
   return async (input, init) => {
     const requestUrl = input instanceof Request
       ? input.url
@@ -89,18 +102,30 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
         completedCount: 1,
         draftFormat: "auction",
         runCount: 1,
-        strategy: simulationFixture.strategy,
+        strategy: simulationSummary.strategy,
       } }] });
     }
     if (url.pathname === "/season-simulations" && method === "POST") {
-      return response({ historyId: "history-new", note: "New run", simulation: simulationFixture });
+      const result = { historyId: "history-new", note: "New run", summary: simulationSummary };
+      return new Response([
+        'event: progress\ndata: {"completed":1,"total":1}\n\n',
+        `event: result\ndata: ${JSON.stringify(result)}\n\n`,
+      ].join(""), { headers: { "content-type": "text/event-stream" }, status: 200 });
     }
     if (url.pathname === "/season-simulations/history-1" || url.pathname === "/season-simulations/history-new") {
       if (options.detailError === true) {
         return response({ error: { code: "history_failed", message: "Saved run unavailable." } }, 503);
       }
       const saved = url.pathname.endsWith("history-1");
-      return response({ historyId: saved ? "history-1" : "history-new", note: saved ? "Saved run" : "New run", simulation: simulationFixture });
+      return response({ historyId: saved ? "history-1" : "history-new", note: saved ? "Saved run" : "New run", summary: simulationSummary });
+    }
+    if (/^\/season-simulations\/history-(?:1|new)\/runs\/[12]$/u.test(url.pathname)) {
+      if (options.runDetailError === true) {
+        return response({ error: { code: "run_failed", message: "Roster run unavailable." } }, 503);
+      }
+      const historyId = url.pathname.includes("history-1") ? "history-1" : "history-new";
+      const runNumber = url.pathname.endsWith("/2") ? 2 : 1;
+      return response({ historyId, run: { ...simulationRunFixture, label: `Run ${String(runNumber)}`, runNumber } });
     }
     return response({ error: { code: "not_found", message: "Not found." } }, 404);
   };

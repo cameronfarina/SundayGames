@@ -6,7 +6,9 @@ import {
   practiceShortlistItemSchema,
   practiceShortlistSchema,
 } from "./practiceContextSchema";
-import { simulationHistoryItemSchema, simulationResponseSchema } from "./simulationSchema";
+import { simulationHistoryItemSchema } from "./simulationSchema";
+
+export { loadSimulation, loadSimulationRun, runSimulations } from "./simulationApi";
 
 interface RequestContext {
   readonly fetcher?: PlatformFetch;
@@ -106,36 +108,3 @@ export const listSimulationHistory = async (request: SeasonRequest) => {
   });
   return response.history;
 };
-
-interface LoadSimulationRequest extends RequestContext {
-  readonly historyId: string;
-}
-
-export const loadSimulation = async (request: LoadSimulationRequest) =>
-  await requestPlatformJson({
-    ...fetcherExtra(request),
-    init: getInit(request),
-    path: `/season-simulations/${encodeURIComponent(request.historyId)}`,
-    responseSchema: simulationResponseSchema,
-  });
-
-interface RunSimulationRequest extends SeasonRequest {
-  readonly count: number;
-  readonly note: string;
-  readonly strategy: string;
-  readonly strategyPreset: string;
-}
-
-export const runSimulations = async (request: RunSimulationRequest) =>
-  await requestPlatformJson({
-    ...fetcherExtra(request),
-    init: jsonInit("POST", {
-      count: request.count,
-      note: request.note,
-      seasonId: request.seasonId,
-      strategy: request.strategy,
-      strategyPreset: request.strategyPreset,
-    }),
-    path: "/season-simulations",
-    responseSchema: simulationResponseSchema,
-  });

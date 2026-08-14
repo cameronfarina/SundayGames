@@ -40,7 +40,7 @@ const targetOutcomeSchema = z.object({
   playerName: z.string(),
 });
 
-export const simulationSchema = z.object({
+export const simulationSummarySchema = z.object({
   completedCount: z.number().int().nonnegative(),
   draftFormat: z.enum(["auction", "snake"]),
   playerExposure: z.array(z.object({
@@ -54,16 +54,17 @@ export const simulationSchema = z.object({
   })),
   positionCounts: z.record(z.string(), z.object({ perRun: z.number(), total: z.number() })),
   runCount: z.number().int().positive(),
-  runs: z.array(z.object({
-    label: z.string(),
-    runNumber: z.number().int().positive(),
-    seed: z.string(),
-    teams: z.array(teamSchema),
-  })),
   seedPrefix: z.string(),
   strategy: strategySchema,
   targetOutcome: targetOutcomeSchema.optional(),
   targetOutcomes: z.array(targetOutcomeSchema).optional(),
+});
+
+export const simulationRunSchema = z.object({
+  label: z.string(),
+  runNumber: z.number().int().positive(),
+  seed: z.string(),
+  teams: z.array(teamSchema),
 });
 
 export const simulationHistoryItemSchema = z.object({
@@ -71,7 +72,7 @@ export const simulationHistoryItemSchema = z.object({
   createdAt: z.string().optional(),
   id: z.string(),
   note: z.string().optional(),
-  simulation: simulationSchema.pick({
+  simulation: simulationSummarySchema.pick({
     completedCount: true,
     draftFormat: true,
     runCount: true,
@@ -85,8 +86,20 @@ export const simulationHistoryItemSchema = z.object({
 export const simulationResponseSchema = z.object({
   historyId: z.string(),
   note: z.string().optional(),
-  simulation: simulationSchema,
+  summary: simulationSummarySchema,
 });
 
-export type PracticeSimulation = z.infer<typeof simulationSchema>;
+export const simulationRunResponseSchema = z.object({
+  historyId: z.string(),
+  run: simulationRunSchema,
+});
+
+export const simulationProgressSchema = z.object({
+  completed: z.number().int().nonnegative(),
+  total: z.number().int().positive(),
+}).refine(progress => progress.completed <= progress.total);
+
+export type PracticeSimulationRun = z.infer<typeof simulationRunSchema>;
+export type PracticeSimulationSummary = z.infer<typeof simulationSummarySchema>;
+export type SimulationProgress = z.infer<typeof simulationProgressSchema>;
 export type SimulationHistoryItem = z.infer<typeof simulationHistoryItemSchema>;

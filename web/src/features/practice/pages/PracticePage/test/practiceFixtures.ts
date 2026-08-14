@@ -20,28 +20,29 @@ export const target = {
   userId: "user-1",
 };
 
-export const simulationFixture = {
+export const simulationSummaryFixture = {
   completedCount: 1,
   draftFormat: "auction",
   playerExposure: [],
   positionCounts: {},
   runCount: 1,
-  runs: [{
-    label: "Run 1",
-    runNumber: 1,
-    seed: "one",
-    teams: [{
-      budgetRemaining: 0,
-      isUserTeam: true,
-      roster: [],
-      spent: 200,
-      teamId: "team-1",
-      teamName: "Short King",
-      week1Points: 106.5,
-    }],
-  }],
   seedPrefix: "test",
   strategy: { preferredPositions: [], rawInput: "", summary: "Balanced", warnings: [] },
+};
+
+export const simulationRunFixture = {
+  label: "Run 1",
+  runNumber: 1,
+  seed: "one",
+  teams: [{
+    budgetRemaining: 0,
+    isUserTeam: true,
+    roster: [],
+    spent: 200,
+    teamId: "team-1",
+    teamName: "Short King",
+    week1Points: 106.5,
+  }],
 };
 
 export const league = (teamClaimed: boolean) => ({

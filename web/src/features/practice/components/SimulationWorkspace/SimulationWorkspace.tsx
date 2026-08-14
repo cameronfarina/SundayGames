@@ -1,6 +1,6 @@
 import type { SyntheticEvent } from "react";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
-import type { SimulationHistoryItem } from "../../api/simulationSchema";
+import type { SimulationHistoryItem, SimulationProgress } from "../../api/simulationSchema";
 import { formText, simulationStrategyText } from "../../model/simulationPlan";
 import "./SimulationWorkspace.css";
 
@@ -15,11 +15,15 @@ interface SimulationWorkspaceProps {
   readonly onOpenHistory: (historyId: string) => void;
   readonly onRun: (request: RunRequest) => void;
   readonly pending: boolean;
+  readonly progress: SimulationProgress | undefined;
   readonly shortlist: readonly PracticeShortlistItem[];
   readonly teamClaimed: boolean;
 }
 
 export function SimulationWorkspace(props: SimulationWorkspaceProps) {
+  const progressPercent = props.progress === undefined
+    ? 0
+    : Math.round((props.progress.completed / props.progress.total) * 100);
   const submit = (event: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -49,8 +53,14 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
           {props.pending ? "Running simulations" : "Run simulations"}
         </button>
         {props.pending && <div aria-live="polite" className="simulation-workspace__progress">
-          <progress aria-label="Simulation progress" />
-          <span>Running complete league drafts. Results will appear here when the server finishes.</span>
+          <progress
+            aria-label="Simulation progress"
+            max={props.progress?.total ?? 1}
+            value={props.progress?.completed ?? 0}
+          />
+          <span>{props.progress === undefined
+            ? "Preparing league simulations…"
+            : `${String(props.progress.completed)} of ${String(props.progress.total)} drafts complete (${String(progressPercent)}%)`}</span>
         </div>}
       </form>
       <div className="simulation-history">

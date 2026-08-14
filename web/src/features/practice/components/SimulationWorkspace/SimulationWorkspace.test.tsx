@@ -58,6 +58,7 @@ describe("SimulationWorkspace", () => {
         onOpenHistory={onOpenHistory}
         onRun={onRun}
         pending={false}
+        progress={undefined}
         shortlist={[target]}
         teamClaimed
       />,
@@ -84,12 +85,25 @@ describe("SimulationWorkspace", () => {
 
   it("shows honest progress and locks simulation without a claimed team", () => {
     const { rerender, unmount } = render(
-      <SimulationWorkspace history={[]} onOpenHistory={vi.fn()} onRun={vi.fn()} pending shortlist={[]} teamClaimed />,
+      <SimulationWorkspace
+        history={[]}
+        onOpenHistory={vi.fn()}
+        onRun={vi.fn()}
+        pending
+        progress={{ completed: 5, total: 25 }}
+        shortlist={[]}
+        teamClaimed
+      />,
     );
-    expect(screen.getByRole("progressbar", { name: "Simulation progress" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Simulation progress" })).toHaveAttribute("value", "5");
+    expect(screen.getByText("5 of 25 drafts complete (20%)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Running simulations" })).toBeDisabled();
 
-    rerender(<SimulationWorkspace history={[]} onOpenHistory={vi.fn()} onRun={vi.fn()} pending={false} shortlist={[]} teamClaimed={false} />);
+    rerender(<SimulationWorkspace history={[]} onOpenHistory={vi.fn()} onRun={vi.fn()} pending progress={undefined} shortlist={[]} teamClaimed />);
+    expect(screen.getByText("Preparing league simulations…")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Simulation progress" })).toHaveAttribute("max", "1");
+
+    rerender(<SimulationWorkspace history={[]} onOpenHistory={vi.fn()} onRun={vi.fn()} pending={false} progress={undefined} shortlist={[]} teamClaimed={false} />);
     expect(screen.getByText("Claim a team before running private league simulations.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run simulations" })).toBeDisabled();
     expect(screen.getByText("No saved simulation runs yet.")).toBeInTheDocument();

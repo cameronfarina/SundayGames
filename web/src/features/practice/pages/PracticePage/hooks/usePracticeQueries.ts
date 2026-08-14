@@ -5,6 +5,7 @@ import {
   listPracticeShortlist,
   listSimulationHistory,
   loadSimulation,
+  loadSimulationRun,
 } from "../../../api/practiceApi";
 import { practiceQueryKeys } from "./practiceQueryKeys";
 
@@ -44,9 +45,18 @@ const detailOptions = (historyId: string | undefined) => queryOptions({
   queryKey: practiceQueryKeys.simulation(historyId ?? "none"),
 });
 
+const runOptions = (historyId: string | undefined, runNumber: number) => queryOptions({
+  queryFn: historyId === undefined
+    ? skipToken
+    : ({ signal }) => loadSimulationRun({ historyId, runNumber, signal }),
+  queryKey: practiceQueryKeys.simulationRun(historyId ?? "none", runNumber),
+});
+
 export const usePracticeContextQuery = useOnboardingQuery;
 export const usePlayerCatalogQuery = (seasonId: string | undefined, strategy: string, enabled: boolean) =>
   useQuery(catalogOptions(seasonId, strategy, enabled));
 export const useShortlistQuery = (seasonId: string | undefined) => useQuery(shortlistOptions(seasonId));
 export const useSimulationHistoryQuery = (seasonId: string | undefined) => useQuery(historyOptions(seasonId));
 export const useSimulationDetailQuery = (historyId: string | undefined) => useQuery(detailOptions(historyId));
+export const useSimulationRunQuery = (historyId: string | undefined, runNumber: number) =>
+  useQuery(runOptions(historyId, runNumber));

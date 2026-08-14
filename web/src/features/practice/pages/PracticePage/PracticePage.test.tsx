@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { PracticePage } from "./PracticePage";
 import { createPracticeFetch } from "./test/createPracticeFetch";
 
@@ -30,6 +31,16 @@ function LocationOutput() {
   const location = useLocation();
   return <output data-testid="practice-location">{location.search}</output>;
 }
+
+const pathFor = (input: RequestInfo | URL): string => {
+  const value = input instanceof Request
+    ? input.url
+    : input instanceof URL ? input.href : input;
+  return new URL(value, "http://mockd.test").pathname;
+};
+
+const requestCount = (fetcher: ReturnType<typeof vi.fn<PlatformFetch>>, path: string) =>
+  fetcher.mock.calls.filter(call => pathFor(call[0]) === path).length;
 
 describe("PracticePage", () => {
   it("opens an auction mock for the active league", async () => {
@@ -73,16 +84,27 @@ describe("PracticePage", () => {
 
   it("runs simulations and opens saved results", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", createPracticeFetch());
+    const fetcher = vi.fn<PlatformFetch>();
+    fetcher.mockImplementation(createPracticeFetch({ runCount: 2 }));
+    vi.stubGlobal("fetch", fetcher);
     const view = render(<PracticePage />, { wrapper: providers() });
     await screen.findByRole("button", { name: "Remove Puka Nacua from draft targets" });
+    expect(requestCount(fetcher, "/season-simulations/history-1/runs/1")).toBe(0);
 
     await user.click(screen.getByRole("button", { name: "Run simulations" }));
     expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Short King" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Short King" })).toBeInTheDocument();
+    expect(requestCount(fetcher, "/season-simulations/history-new")).toBe(0);
+    expect(requestCount(fetcher, "/season-simulations/history-new/runs/1")).toBe(1);
     await user.click(screen.getByRole("button", { name: /Open 1-run simulation/u }));
     expect(await screen.findByText("Saved run", { selector: ".simulation-results__note p" })).toBeInTheDocument();
     expect(screen.getByTestId("practice-location")).toHaveTextContent("runId=history-1");
+    expect(requestCount(fetcher, "/season-simulations/history-1/runs/1")).toBe(1);
+    await user.click(screen.getByRole("combobox", { name: "Simulation run" }));
+    await user.click(screen.getByRole("option", { name: "Run 2" }));
+    expect(await screen.findByText("Run 2", { selector: ".practice-select__trigger span" })).toBeInTheDocument();
+    expect(screen.getByTestId("practice-location")).toHaveTextContent("simulationRun=2");
+    expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);
     view.unmount();
   });
 });

@@ -88,4 +88,27 @@ describe("PracticePage states", () => {
     expect(await screen.findByRole("heading", { name: "Previous runs" })).toBeInTheDocument();
     view.unmount();
   });
+
+  it("reports and retries a selected roster run failure", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPracticeFetch({ runDetailError: true }));
+    const view = render(<PracticePage />, { wrapper: providersFor("/practice?seasonId=season-1") });
+
+    await user.click(await screen.findByRole("button", { name: /Open 1-run simulation/u }));
+    expect(await screen.findByText("Roster run unavailable.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry selected run" }));
+    expect(await screen.findByText("Roster run unavailable.")).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("falls back to the first run for an invalid run URL", async () => {
+    vi.stubGlobal("fetch", createPracticeFetch());
+    const view = render(<PracticePage />, {
+      wrapper: providersFor("/practice?seasonId=season-1&runId=history-1&simulationRun=invalid"),
+    });
+
+    expect(await screen.findByRole("combobox", { name: "Simulation run" })).toHaveTextContent("Run 1");
+    expect(await screen.findByRole("heading", { name: "Short King" })).toBeInTheDocument();
+    view.unmount();
+  });
 });

@@ -1,7 +1,7 @@
-import type { PracticeSimulation } from "../../api/simulationSchema";
+import type { PracticeSimulationRun } from "../../api/simulationSchema";
 import "./TeamCard.css";
 
-type SimulationTeam = PracticeSimulation["runs"][number]["teams"][number];
+type SimulationTeam = PracticeSimulationRun["teams"][number];
 type RosterPlayer = SimulationTeam["roster"][number];
 
 interface TeamCardProps {

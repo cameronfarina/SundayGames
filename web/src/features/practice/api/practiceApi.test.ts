@@ -5,9 +5,7 @@ import {
   getPlayerCatalog,
   listPracticeShortlist,
   listSimulationHistory,
-  loadSimulation,
   removePracticeTarget,
-  runSimulations,
   savePracticeTarget,
 } from "./practiceApi";
 
@@ -23,7 +21,6 @@ const simulation = {
   playerExposure: [],
   positionCounts: {},
   runCount: 1,
-  runs: [],
   seedPrefix: "practice-test",
   strategy: { preferredPositions: [], rawInput: "", summary: "Balanced", warnings: [] },
 };
@@ -63,26 +60,14 @@ describe("Practice API", () => {
       .resolves.toBe(true);
   });
 
-  it("loads simulation history, details, and runs", async () => {
+  it("loads compact simulation history", async () => {
     const history = [{ completedAt: "2026-08-13T12:00:00.000Z", id: "run-1", simulation }];
     const fetcher = vi.fn<PlatformFetch>()
-      .mockResolvedValueOnce(jsonResponse({ history }))
-      .mockResolvedValueOnce(jsonResponse({ historyId: "run-1", note: "Test", simulation }))
-      .mockResolvedValueOnce(jsonResponse({ historyId: "run-2", simulation }));
+      .mockResolvedValueOnce(jsonResponse({ history }));
 
     const simulationHistory = await listSimulationHistory({ fetcher, seasonId: "season-1" });
     expect(simulationHistory.map(item => ({ id: item.id, runCount: item.simulation.runCount })))
       .toEqual([{ id: "run-1", runCount: 1 }]);
-    await expect(loadSimulation({ fetcher, historyId: "run-1" }))
-      .resolves.toMatchObject({ historyId: "run-1", note: "Test" });
-    await expect(runSimulations({
-      count: 25,
-      fetcher,
-      note: "Compare builds",
-      seasonId: "season-1",
-      strategy: "Draft Puka Nacua.",
-      strategyPreset: "balanced",
-    })).resolves.toMatchObject({ historyId: "run-2" });
   });
 
   it("rejects malformed payloads instead of trusting server JSON", async () => {

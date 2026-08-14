@@ -1,23 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { PracticeShortlistItem } from "../../../api/practiceContextSchema";
-import {
-  removePracticeTarget,
-  runSimulations,
-  savePracticeTarget,
-} from "../../../api/practiceApi";
+import { removePracticeTarget, savePracticeTarget } from "../../../api/practiceApi";
 import { removeShortlistTarget, replaceShortlistTarget } from "../../../model/shortlist";
 import { practiceQueryKeys } from "./practiceQueryKeys";
+import { useRunSimulationMutation } from "./useRunSimulationMutation";
 
 interface TargetInput {
   readonly maxBid?: number;
   readonly playerName: string;
   readonly position: string;
-}
-
-interface SimulationInput {
-  readonly count: number;
-  readonly note: string;
-  readonly strategy: string;
 }
 
 export const useTargetMutations = (seasonId: string) => {
@@ -38,16 +29,6 @@ export const useTargetMutations = (seasonId: string) => {
     ),
   });
   return { pending: remove.isPending || save.isPending, remove, save };
-};
-
-export const useRunSimulationMutation = (seasonId: string, strategyPreset: string) => {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: SimulationInput) => runSimulations({ seasonId, strategyPreset, ...input }),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: practiceQueryKeys.history(seasonId) });
-    },
-  });
 };
 
 export const usePracticeMutations = (seasonId: string, strategyPreset: string) => ({

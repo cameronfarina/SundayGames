@@ -168,6 +168,10 @@ import {
   type SeasonSimulationTargetConstraint,
 } from "./seasonSimulationEngine.js";
 import type { SeasonSimulationRunner } from "./seasonSimulationWorkerRunner.js";
+import {
+  simulationRunForNumber,
+  summarizeSeasonSimulation,
+} from "./seasonSimulationHttpContract.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -2591,10 +2595,31 @@ const routeSeasonSimulations = async (
     return {
       status: 200,
       body: {
-        simulation: run.result.seasonSimulation,
+        summary: summarizeSeasonSimulation(run.result.seasonSimulation),
         note: run.result.note,
         historyId: run.id,
       },
+    };
+  }
+  if (
+    request.method === "GET"
+    && request.segments.length === 4
+    && request.segments[2] === "runs"
+  ) {
+    const run = await app.getSimulationRun({
+      actorSessionToken: request.sessionToken,
+      runId: request.segments[1] ?? "",
+      now: request.now,
+    });
+    if (run.result?.seasonSimulation === undefined) return notFound();
+    const runNumber = Number(request.segments[3]);
+    const simulationRun = Number.isInteger(runNumber) && runNumber > 0
+      ? simulationRunForNumber(run.result.seasonSimulation, runNumber)
+      : undefined;
+    if (simulationRun === undefined) return notFound();
+    return {
+      status: 200,
+      body: { historyId: run.id, run: simulationRun },
     };
   }
   if (request.segments.length !== 1 || request.method !== "POST") {
@@ -2729,7 +2754,13 @@ const routeSeasonSimulations = async (
       now: createdAt,
     });
 
-    return { simulation, historyId: completedRun.id };
+    return {
+      historyId: completedRun.id,
+      summary: summarizeSeasonSimulation(simulation),
+      ...(typeof request.body.note === "string" && request.body.note.trim().length > 0
+        ? { note: request.body.note.trim().slice(0, 1_000) }
+        : {}),
+    };
   };
   const acceptsEventStream = (headerValue(request.headers, "accept") ?? "")
     .toLowerCase()
