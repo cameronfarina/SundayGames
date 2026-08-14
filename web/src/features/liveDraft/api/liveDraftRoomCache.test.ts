@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { liveRoom } from "../test/liveDraftFixtures";
 import { liveDraftRoomSchema } from "./liveDraftSchemas";
-import { liveDraftRoomCacheUpdate } from "./liveDraftRoomCache";
+import {
+  liveDraftRoomCacheUpdate,
+  type LiveDraftRoomEventName,
+} from "./liveDraftRoomCache";
 
-const roomAtRevision = (revision: number, status: "live" | "paused" = "live") =>
+type RoomStatus = "ended" | "live" | "paused";
+
+const validTransitions: readonly (readonly [LiveDraftRoomEventName, RoomStatus])[] = [
+  ["room.started", "live"],
+  ["room.resumed", "live"],
+  ["room.paused", "paused"],
+  ["room.ended", "ended"],
+];
+
+const roomAtRevision = (
+  revision: number,
+  status: RoomStatus = "live",
+) =>
   liveDraftRoomSchema.parse({
     ...liveRoom,
     revision,
@@ -49,12 +64,30 @@ describe("liveDraftRoomCacheUpdate", () => {
     expect(liveDraftRoomCacheUpdate(
       liveRoom,
       "room.sale",
-      liveDraftRoomSchema.parse({ ...roomAtRevision(3), roomId: "room-2" }),
+      liveDraftRoomSchema.parse({
+        ...roomAtRevision(3),
+        connection: { ...liveRoom.connection, cursor: "room-2:3", revision: 3 },
+        roomId: "room-2",
+      }),
     )).toEqual({ type: "refetch" });
     expect(liveDraftRoomCacheUpdate(liveRoom, "room.error", roomAtRevision(3))).toEqual({
       type: "refetch",
     });
     expect(liveDraftRoomCacheUpdate(undefined, "room.snapshot", roomAtRevision(3))).toEqual({
+      type: "refetch",
+    });
+  });
+
+  it.each(validTransitions)("applies a contiguous %s event with matching status", (event, status) => {
+    const incoming = roomAtRevision(3, status);
+    expect(liveDraftRoomCacheUpdate(liveRoom, event, incoming)).toEqual({
+      room: incoming,
+      type: "applied",
+    });
+  });
+
+  it("refetches when an ended event does not contain an ended room", () => {
+    expect(liveDraftRoomCacheUpdate(liveRoom, "room.ended", roomAtRevision(3))).toEqual({
       type: "refetch",
     });
   });

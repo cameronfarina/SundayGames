@@ -97,4 +97,17 @@ describe("RouteEffects", () => {
     expect(scrollTo).not.toHaveBeenCalled();
     expect(focus).not.toHaveBeenCalled();
   });
+
+  it("resets scroll when a route has no focus target", async () => {
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    render(<MemoryRouter initialEntries={["/practice"]}><RouteEffects /></MemoryRouter>);
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledExactlyOnceWith({
+        behavior: "instant",
+        left: 0,
+        top: 0,
+      });
+    });
+  });
 });

@@ -17,14 +17,12 @@ const eventResult = (
     requiresSnapshot,
   },
 }).events;
-
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
   FakeEventSource.reset();
 });
-
 describe("useLiveDraftUpdates", () => {
   it("applies typed room events without recreating the subscription as revisions advance", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
@@ -62,7 +60,6 @@ describe("useLiveDraftUpdates", () => {
     unmount();
     expect(source.close).toHaveBeenCalledOnce();
   });
-
   it("refetches for invalid payloads and revision gaps", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
     const refresh = vi.fn(() => Promise.resolve());
@@ -80,11 +77,16 @@ describe("useLiveDraftUpdates", () => {
     expect(refresh).toHaveBeenCalledOnce();
     expect(applyRoomUpdate).not.toHaveBeenCalled();
 
+    act(() => { source.emitRaw("room.sale", "{}"); });
+    act(() => { source.emitEvent("room.sale", new Event("room.sale")); });
+    act(() => { source.emitEvent("room.unknown", new Event("room.unknown")); });
+    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(applyRoomUpdate).not.toHaveBeenCalled();
+
     act(() => { source.emit("room.sale", { ...liveRoom, revision: 6 }); });
     expect(applyRoomUpdate).toHaveBeenCalledOnce();
-    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(4);
   });
-
   it("polls when EventSource is unavailable", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", undefined);
@@ -94,21 +96,23 @@ describe("useLiveDraftUpdates", () => {
       .mockResolvedValueOnce(eventResult(5, false, false))
       .mockResolvedValueOnce(eventResult(4, false, true))
       .mockResolvedValueOnce(eventResult(4, false, false));
-    const { result, unmount } = renderHook(() => useLiveDraftUpdates({
+    const { result, rerender, unmount } = renderHook(({ revision }) => useLiveDraftUpdates({
       applyRoomUpdate: vi.fn(() => true),
       pollEvents,
       refresh,
-      revision: 4,
+      revision,
       roomId: "room-1",
-    }));
+    }), { initialProps: { revision: 4 } });
 
     expect(result.current).toBe("polling");
     await act(async () => vi.advanceTimersByTimeAsync(5000));
     expect(pollEvents).toHaveBeenCalledExactlyOnceWith("room-1", 4, expect.any(Object));
     expect(refresh).toHaveBeenCalledOnce();
+    rerender({ revision: 5 });
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
-    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(refresh).toHaveBeenCalledTimes(2);
     expect(pollEvents).toHaveBeenCalledTimes(4);
+    expect(pollEvents).toHaveBeenLastCalledWith("room-1", 5, expect.any(Object));
     expect(vi.getTimerCount()).toBe(1);
     unmount();
     expect(vi.getTimerCount()).toBe(0);

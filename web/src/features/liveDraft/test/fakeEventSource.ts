@@ -4,7 +4,7 @@ export class FakeEventSource {
   static latest: FakeEventSource | undefined;
   static created = 0;
   readonly url: string;
-  readonly listeners = new Map<string, EventListenerOrEventListenerObject[]>();
+  readonly listeners = new Map<string, EventListener[]>();
   onerror: ((event: Event) => void) | null = null;
   onopen: ((event: Event) => void) | null = null;
   readonly close = vi.fn();
@@ -15,7 +15,7 @@ export class FakeEventSource {
     FakeEventSource.created += 1;
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+  addEventListener(type: string, listener: EventListener) {
     const listeners = this.listeners.get(type) ?? [];
     this.listeners.set(type, [...listeners, listener]);
   }
@@ -25,10 +25,12 @@ export class FakeEventSource {
   }
 
   emitRaw(type: string, data: string) {
-    const event = new MessageEvent(type, { data });
+    this.emitEvent(type, new MessageEvent(type, { data }));
+  }
+
+  emitEvent(type: string, event: Event) {
     for (const listener of this.listeners.get(type) ?? []) {
-      if (typeof listener === "function") listener(event);
-      else listener.handleEvent(event);
+      listener(event);
     }
   }
 

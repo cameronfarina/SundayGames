@@ -53,17 +53,16 @@ export const useLiveDraftUpdates = ({
 }: LiveDraftUpdateOptions): LiveDraftConnection => {
   const [connection, setConnection] = useState<LiveDraftConnection>(() =>
     initialConnection(roomId, revision));
-  const revisionRef = useRef(revision);
+  const revisionRef = useRef(0);
   const subscriptionReady = roomId !== undefined && revision !== undefined;
 
   useEffect(() => {
-    revisionRef.current = revision;
+    if (revision !== undefined) revisionRef.current = revision;
   }, [revision]);
 
   useEffect(() => {
     if (roomId === undefined || !subscriptionReady) return;
     const initialRevision = revisionRef.current;
-    if (initialRevision === undefined) return;
     const refreshRoom = () => { void refresh(); };
     const offline = () => { setConnection("offline"); };
     const online = () => {
@@ -75,7 +74,6 @@ export const useLiveDraftUpdates = ({
     if (typeof EventSource !== "function") {
       const timer = window.setInterval(() => {
         const afterRevision = revisionRef.current;
-        if (afterRevision === undefined) return;
         void pollEvents(roomId, afterRevision, {}).then(events => {
           if (
             events.requiresSnapshot ||

@@ -65,6 +65,11 @@ describe("useLiveDraftRoom", () => {
     expect(queryClient.getQueryData<LiveDraftRoom>(liveDraftRoomQueryKey(liveRoom.roomId)))
       .toEqual(updatedRoom);
 
+    act(() => { source.emit("room.sale", updatedRoom); });
+    expect(invalidate).toHaveBeenCalledOnce();
+    expect(queryClient.getQueryData<LiveDraftRoom>(liveDraftRoomQueryKey(liveRoom.roomId)))
+      .toEqual(updatedRoom);
+
     unmount();
     queryClient.clear();
   });
