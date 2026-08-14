@@ -35,7 +35,7 @@ describe("OpenAI league members screenshot analyzer", () => {
 
   it("sends a non-stored original-detail image request with a strict schema", async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      const requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const requestBody: unknown = JSON.parse(String(init?.body));
 
       expect(requestBody).toMatchObject({
         model: "gpt-5.6-terra",
