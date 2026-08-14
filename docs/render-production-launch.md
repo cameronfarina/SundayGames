@@ -13,6 +13,16 @@ The web service runs migrations before a release. The migration runner holds a P
 
 The web service intentionally stays at one instance. Render persistent disks attach to only one instance, and disk-backed services have a short stop/start window during deploys. Do not deploy during the live draft window.
 
+## Validate The Blueprint
+
+Run `npm run platform:render:validate` before applying Blueprint changes. The command uses the checked-in Render schema at `scripts/render-blueprint.schema.json`, so local and CI validation are deterministic and do not require network access. The adjacent schema README records its provider URL and refresh procedure.
+
+To validate against a deliberately downloaded schema or a different Blueprint, pass the schema first and Blueprint second:
+
+```bash
+npm run platform:render:validate -- /path/to/render-schema.json /path/to/render.yaml
+```
+
 ## 1. Create The Render Stack
 
 1. Confirm the GitHub `main` branch is green.

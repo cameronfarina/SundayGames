@@ -1,20 +1,24 @@
 import { readFile } from "node:fs/promises";
-import * as Ajv2020Module from "ajv/dist/2020.js";
-import * as addFormatsModule from "ajv-formats";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
-const [schemaPath, blueprintPath = "render.yaml", ...extraArguments] = process.argv.slice(2);
-if (schemaPath === undefined || extraArguments.length > 0) {
+const defaultSchemaPath = "scripts/render-blueprint.schema.json";
+const [
+  schemaPath = defaultSchemaPath,
+  blueprintPath = "render.yaml",
+  ...extraArguments
+] = process.argv.slice(2);
+
+if (extraArguments.length > 0) {
   throw new Error(
-    "Usage: tsx scripts/validate-render-blueprint.ts <render-schema.json> [render.yaml]",
+    "Usage: tsx scripts/validate-render-blueprint.ts [render-schema.json] [render.yaml]",
   );
 }
 
-const schema = JSON.parse(await readFile(schemaPath, "utf8")) as object;
-const blueprint = parse(await readFile(blueprintPath, "utf8")) as unknown;
-const ajv = new Ajv2020Module.Ajv2020({ allErrors: true, strict: false });
-const addFormats = addFormatsModule.default as unknown as (instance: Ajv2020Module.Ajv2020) => void;
-addFormats(ajv);
+const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+const blueprint = parse(await readFile(blueprintPath, "utf8"));
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+ajv.addFormat("uri", value => URL.canParse(value));
 const validate = ajv.compile(schema);
 
 if (!validate(blueprint)) {

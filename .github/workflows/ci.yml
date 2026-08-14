@@ -46,12 +46,8 @@ jobs:
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
-      - name: Validate Render Blueprint against the provider schema
-        run: |
-          curl --proto '=https' --tlsv1.2 --fail --show-error --silent \
-            https://render.com/schema/render.yaml.json \
-            --output /tmp/render-schema.json
-          npm run platform:render:validate -- /tmp/render-schema.json
+      - name: Validate Render Blueprint against the pinned provider schema
+        run: npm run platform:render:validate
 
   local-e2e:
     name: Local end-to-end smoke

@@ -1,0 +1,2 @@
+services:
+  - name: missing-required-service-fields

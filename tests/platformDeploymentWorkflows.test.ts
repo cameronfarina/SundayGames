@@ -62,5 +62,7 @@ describe("production deployment workflows", () => {
     expect(content).not.toContain("MOCKD_SIMULATION_DATA_MODE=local-fixtures");
     expect(content).not.toContain(".State.Health.Status");
     expect(content).toContain("platform:render:validate");
+    expect(content).toContain("pinned provider schema");
+    expect(content).not.toContain("render.com/schema/render.yaml.json");
   });
 });
