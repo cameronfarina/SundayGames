@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { expectAuthenticatedAccount } from "./support/auth.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
 
-const signUp = async (page: import("@playwright/test").Page, email: string): Promise<void> => {
+const signUp = async (page: Page, email: string): Promise<void> => {
   await page.goto("/signup");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -12,54 +12,65 @@ const signUp = async (page: import("@playwright/test").Page, email: string): Pro
   await expectAuthenticatedAccount(page, email);
 };
 
+const expectStep = async (dialog: Locator, name: string): Promise<void> => {
+  await expect(dialog.getByRole("heading", { name })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeInViewport();
+};
+
 test("league setup follows the complete manual workflow", async ({ page }) => {
   test.skip(isDeployedSmoke, "League creation changes are not allowed against a deployed target.");
 
   await signUp(page, "league.setup.e2e@example.com");
+  await page.goto("/league");
+  await page.getByRole("link", { name: "Create a league" }).click();
 
-  await page.goto("/league?create=1");
-  await page.getByRole("button", { name: "Input league info" }).click();
+  const dialog = page.getByRole("dialog", { name: "Input league info" });
+  await expectStep(dialog, "League basics");
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "League name" }).fill("League setup E2E");
+  await dialog.getByRole("spinbutton", { name: "Number of teams" }).fill("4");
+  await dialog.getByRole("button", { name: "Next" }).click();
 
-  const setupDialog = page.getByRole("dialog", { name: "Input league info" });
-  await expect(setupDialog.getByRole("heading", { name: "League basics" })).toBeVisible();
-  await expect(setupDialog.getByRole("button", { name: "Try ESPN import" })).toBeVisible();
+  await expectStep(dialog, "Reference league");
+  await dialog.getByRole("button", { name: "Enter settings manually" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Manual setup selected");
+  await dialog.getByRole("button", { name: "Next" }).click();
 
-  await setupDialog.getByLabel("League name").fill("League setup E2E");
-  await setupDialog.getByLabel("Team count").fill("4");
-  await setupDialog.getByRole("button", { name: "Next" }).click();
-  await expect(setupDialog.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
+  await expectStep(dialog, "Scoring rules");
+  await dialog.getByRole("spinbutton", { name: "Points per reception" }).fill("1");
+  await dialog.getByRole("button", { name: "Next" }).click();
 
-  await setupDialog.getByRole("button", { name: "Next" }).click();
-  await expect(setupDialog.getByRole("heading", { name: "Roster settings" })).toBeVisible();
+  await expectStep(dialog, "Roster slots");
+  await dialog.getByRole("spinbutton", { name: "Bench" }).fill("6");
+  await dialog.getByRole("button", { name: "Next" }).click();
 
-  await setupDialog.getByRole("button", { name: "Next" }).click();
-  await expect(setupDialog.getByRole("heading", { name: "Teams", exact: true })).toBeVisible();
-  await expect(setupDialog.locator("#league-create-screenshot-panel")).toBeHidden();
+  await expectStep(dialog, "League teams");
+  const finish = dialog.getByRole("button", { name: "Finish" });
+  await expect(dialog.getByText("0 of 4 team names entered")).toBeVisible();
+  await expect(finish).toBeDisabled();
 
-  const teamNameInputs = setupDialog.getByLabel("Team name");
-  for (let index = 0; index < 4; index += 1) {
-    await teamNameInputs.nth(index).fill(`Team ${index + 1}`);
+  for (let index = 1; index <= 3; index += 1) {
+    const team = dialog.getByRole("group", { name: `Team ${String(index)}` });
+    await team.getByRole("textbox", { name: "Team name" }).fill(`Team ${String(index)}`);
   }
-  await teamNameInputs.nth(3).fill("Team 1");
-  await expect(setupDialog.locator("#league-create-team-progress")).toHaveText(
-    "Give each team a unique name before finishing.",
-  );
-  await expect(setupDialog.getByRole("button", { name: "Finish" })).toBeDisabled();
-  await teamNameInputs.nth(3).fill("Team ... Four");
-  await expect(setupDialog.getByRole("button", { name: "Finish" })).toBeEnabled();
-  await setupDialog.getByRole("button", { name: "Finish" }).click();
+  await expect(dialog.getByText("3 of 4 team names entered")).toBeVisible();
+  await expect(finish).toBeDisabled();
+
+  const lastTeam = dialog.getByRole("group", { name: "Team 4" });
+  await lastTeam.getByRole("textbox", { name: "Team name" }).fill("Team Four");
+  await lastTeam.getByRole("textbox", { name: "Managers" }).fill("Cam, Mackie");
+  await lastTeam.getByRole("textbox", { name: "Abbreviation" }).fill("CAM");
+  await lastTeam.scrollIntoViewIfNeeded();
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeInViewport();
+  await expect(finish).toBeInViewport();
+  await expect(finish).toBeEnabled();
+  await finish.click();
 
   await expect(page).toHaveURL(/\/league\?seasonId=/u);
-  await expect(page.locator("#team-claim-panel")).toBeVisible();
-  await expect(page.locator("#league-setup-readiness-action")).toHaveText("Finish setup");
-  await expect(page.locator("#team-claim-readiness-action")).toHaveText("Claim your team");
-  await expect(page.locator("#live-draft-readiness-action")).toHaveText("Finish setup first");
-  await expect.poll(async () => await page.evaluate(() => {
-    const claim = document.querySelector("#team-claim-panel");
-    const readiness = document.querySelector('[aria-label="League readiness"]');
-    const settings = document.querySelector("#league-overview-title");
-    if (!claim || !readiness || !settings) return false;
-    return Boolean(claim.compareDocumentPosition(readiness) & Node.DOCUMENT_POSITION_FOLLOWING)
-      && Boolean(readiness.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING);
-  })).toBe(true);
+  await expect(page.getByRole("heading", { name: "League setup E2E" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Claim your team" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "League settings" })).toBeVisible();
+  await expect(page.getByText("1 PPR")).toBeVisible();
+  await expect(page.getByText(/15 players/u)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Finish setup" })).toBeVisible();
 });
