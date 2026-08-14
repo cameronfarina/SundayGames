@@ -17,6 +17,14 @@ const providersFor = (entry: string) => {
 };
 
 describe("PracticePage states", () => {
+  it("shows a loading status while Practice context is pending", () => {
+    vi.stubGlobal("fetch", () => new Promise<Response>(() => undefined));
+    const view = render(<PracticePage />, { wrapper: providersFor("/practice") });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading Practice");
+    view.unmount();
+  });
+
   it("keeps the baseline board useful before a user joins a league", async () => {
     vi.stubGlobal("fetch", createPracticeFetch({ hasLeague: false }));
     const view = render(<PracticePage />, { wrapper: providersFor("/practice") });
