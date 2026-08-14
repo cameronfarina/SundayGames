@@ -12,7 +12,8 @@ const hasText = (value: unknown): boolean =>
 export const missingProvenanceFieldsFor = (
   evidence: NonNullable<PlayerEvidenceQueueRow["currentEvidence"]>[number],
 ): string[] => {
-  const missingFields = requiredFields.filter(field => !hasText(evidence[field]));
+  const missingFields: string[] = requiredFields
+    .filter(field => !hasText(evidence[field]));
   const presentMetadataFields = metadataFields.filter(field => hasText(evidence[field]));
   if (presentMetadataFields.length > 0 && presentMetadataFields.length < metadataFields.length) {
     missingFields.push(...metadataFields.filter(field => !hasText(evidence[field])));
