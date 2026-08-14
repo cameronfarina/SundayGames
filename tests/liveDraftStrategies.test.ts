@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseLiveDraftStrategyKey,
   projectionAdjustedAuctionValue,
   projectionRankAdjustmentFactor,
   projectionScoringMatches,
   strategyAdjustedAuctionValue,
 } from "../src/modeling/liveDraftStrategies.js";
+
+describe("live draft strategy parsing", () => {
+  it("accepts supported keys and defaults unknown values", () => {
+    expect(parseLiveDraftStrategyKey("balanced")).toBe("balanced");
+    expect(parseLiveDraftStrategyKey("wr-heavy")).toBe("wr-heavy");
+    expect(parseLiveDraftStrategyKey("unknown")).toBe("three-rb");
+    expect(parseLiveDraftStrategyKey(undefined)).toBe("three-rb");
+  });
+});
 
 describe("projection-adjusted auction values", () => {
   it("turns positional projection rank differences into a capped adjustment", () => {

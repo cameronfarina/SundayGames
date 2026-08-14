@@ -39,12 +39,17 @@ export const liveDraftStrategies: Record<LiveDraftStrategyKey, LiveDraftStrategy
 };
 
 export const defaultLiveDraftStrategyKey: LiveDraftStrategyKey = "three-rb";
-const strategyKeys: readonly LiveDraftStrategyKey[] = ["balanced", "three-rb", "hero-rb", "wr-heavy"];
+
+const isLiveDraftStrategyKey = (value: string): value is LiveDraftStrategyKey =>
+  value === "balanced" ||
+  value === "three-rb" ||
+  value === "hero-rb" ||
+  value === "wr-heavy";
 
 export const liveDraftStrategyFor = (key: LiveDraftStrategyKey): LiveDraftStrategyDefinition =>
   liveDraftStrategies[key];
 
 export const parseLiveDraftStrategyKey = (value: unknown): LiveDraftStrategyKey =>
-  typeof value === "string" && strategyKeys.some(key => key === value)
+  typeof value === "string" && isLiveDraftStrategyKey(value)
     ? value
     : defaultLiveDraftStrategyKey;
