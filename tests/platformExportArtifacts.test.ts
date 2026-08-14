@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftExportResult } from "../src/platform/draftExport.js";
+import type { CreateDraftExportArtifactInput } from "../src/platform/exportArtifacts.js";
 import {
   ExportArtifactError,
   InMemoryExportArtifactRepository,
@@ -17,14 +18,14 @@ const draftExportResult: DraftExportResult = {
   csv: "Slot,Player,Price\nQB,Jayden Daniels,25\n",
 };
 
-const artifactInput = {
+const artifactInput: CreateDraftExportArtifactInput = {
   draftExport: draftExportResult,
   leagueId: "league_100001",
   seasonId: "season_2026",
   roomId: "room_final",
   sourceRevision: 7,
   createdAt,
-} as const;
+};
 
 describe("platform export artifacts", () => {
   it("wraps a draft CSV export with deterministic metadata and a sha256 payload hash", () => {
