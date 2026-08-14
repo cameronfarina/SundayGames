@@ -3,6 +3,7 @@ import { leagueConfig, ownerOrder } from "../config/league.js";
 import {
   buildCurrentMockdLeagueSeason,
   type AnyLeagueSeason,
+  type AuctionLeagueSeason,
   type LeagueSeason,
 } from "../src/platform/leagueSeason.js";
 import type {
@@ -89,7 +90,7 @@ const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
 
 const cloneDate = (date: Date): Date => new Date(date.getTime());
 
-const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const cloneJson = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
 const jsonValue = (value: unknown): unknown => typeof value === "string"
   ? JSON.parse(value)
@@ -598,7 +599,9 @@ interface LeagueSeasonRow {
   scoring_json: unknown;
 }
 
-const buildSeason = (options: { seasonYear?: number; leagueName?: string } = {}): LeagueSeason =>
+const buildSeason = (
+  options: { seasonYear?: number; leagueName?: string } = {},
+): AuctionLeagueSeason =>
   buildCurrentMockdLeagueSeason(
     ownerOrder,
     leagueConfig,

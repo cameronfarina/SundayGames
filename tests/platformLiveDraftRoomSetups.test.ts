@@ -15,7 +15,6 @@ const input: SaveLiveDraftRoomSetupInput = {
   playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
   initialRosters: [{
     teamId: "team_cam",
-    ownerId: "owner11",
     playerName: "De'Von Achane",
     position: "RB",
     price: 50,

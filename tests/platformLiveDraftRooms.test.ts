@@ -1,27 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
-import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  buildCurrentMockdLeagueSeason,
+  type AuctionLeagueSeason,
+  type LeagueSeason,
+} from "../src/platform/leagueSeason.js";
 import {
   InMemoryLiveDraftRoomRepository,
   LiveDraftRoomError,
+  type LiveDraftRoomActor,
   type LiveDraftRoomPlayerCatalogEntry,
 } from "../src/platform/liveDraftRooms.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const commissioner = { userId: "user_commish", leagueId: "league-100001", role: "admin" } as const;
-const member = { userId: "user_member", leagueId: "league-100001", role: "member" } as const;
-const nonMember = { userId: "user_outside", leagueId: "other-league", role: "admin" } as const;
+const commissioner: LiveDraftRoomActor = {
+  userId: "user_commish", leagueId: "league-100001", role: "admin",
+};
+const member: LiveDraftRoomActor = {
+  userId: "user_member", leagueId: "league-100001", role: "member",
+};
+const nonMember: LiveDraftRoomActor = {
+  userId: "user_outside", leagueId: "other-league", role: "admin",
+};
 
-const playerCatalog = [
+const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
   { name: "Xavier Legette", position: "WR", expectedPrice: 2 },
   { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
   { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
   { name: "Trevor Lawrence", position: "QB", expectedPrice: 9 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+] satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
-const publishedSeason = (): LeagueSeason =>
+const publishedSeason = (): AuctionLeagueSeason =>
   buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     setupStatus: "published",
     leagueName: "Sunday league",

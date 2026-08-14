@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
 import {
   buildCurrentMockdLeagueSeason,
-  type LeagueSeason,
+  type AuctionLeagueSeason,
 } from "../src/platform/leagueSeason.js";
 import {
   commitHistoricalImportBatch,
@@ -58,7 +58,7 @@ interface SaleRow {
 
 const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
 
-const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const cloneJson = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
 const jsonValue = (value: unknown): unknown => typeof value === "string"
   ? JSON.parse(value)
@@ -81,7 +81,7 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
 
   #inTransaction = false;
 
-  constructor(readonly season: LeagueSeason) {}
+  constructor(readonly season: AuctionLeagueSeason) {}
 
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
     this.transactionCount += 1;
@@ -378,7 +378,7 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
   }
 }
 
-const buildSeason = (): LeagueSeason =>
+const buildSeason = (): AuctionLeagueSeason =>
   buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     seasonYear: 2025,
     setupStatus: "locked",

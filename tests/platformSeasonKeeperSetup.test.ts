@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LeagueSeason } from "../src/platform/leagueSeason.js";
+import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
+import type { LiveDraftRoomSetup } from "../src/platform/liveDraftRoomSetups.js";
 import {
   applySeasonKeeperCommand,
   listSeasonKeepers,
@@ -57,14 +59,14 @@ const auctionSeason = {
   },
 } satisfies LeagueSeason;
 
-const catalog = [
-  { name: "De'Von Achane", position: "RB" as const, expectedPrice: 50, teamAbbreviation: "MIA" },
-  { name: "Breece Hall", position: "RB" as const, expectedPrice: 40, teamAbbreviation: "NYJ" },
-  { name: "Jaxson Dart", position: "QB" as const, expectedPrice: 2, teamAbbreviation: "NYG" },
-  { name: "Puka Nacua", position: "WR" as const, expectedPrice: 70, teamAbbreviation: "LAR" },
+const catalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
+  { name: "De'Von Achane", position: "RB", expectedPrice: 50, teamAbbreviation: "MIA" },
+  { name: "Breece Hall", position: "RB", expectedPrice: 40, teamAbbreviation: "NYJ" },
+  { name: "Jaxson Dart", position: "QB", expectedPrice: 2, teamAbbreviation: "NYG" },
+  { name: "Puka Nacua", position: "WR", expectedPrice: 70, teamAbbreviation: "LAR" },
 ];
 
-const emptySetup = {
+const emptySetup: LiveDraftRoomSetup = {
   seasonId: auctionSeason.id,
   sourceVersion: "current-catalog-2026",
   playerCatalog: catalog,
@@ -284,14 +286,14 @@ describe("season keeper setup", () => {
       command: "owner01 keeping achane 10",
     });
     if (preview.kind !== "preview") throw new Error("Expected preview.");
-    const setup = {
+    const setup: LiveDraftRoomSetup = {
       ...emptySetup,
       initialRosters: [{
         teamId: "team-owner11",
         playerName: "De'Von Achane",
-        position: "RB" as const,
+        position: "RB",
         price: 10,
-        source: "imported" as const,
+        source: "imported",
       }],
     };
 
@@ -306,14 +308,15 @@ describe("season keeper setup", () => {
     const snakeSeason: LeagueSeason = {
       ...auctionSeason,
       settings: {
-        ...auctionSeason.settings,
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
-        auction: undefined,
+        scoring: auctionSeason.settings.scoring,
         snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
         },
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
       },
     };
     const preview = previewSeasonKeeperCommand({
@@ -337,14 +340,15 @@ describe("season keeper setup", () => {
     const threeRoundSeason: LeagueSeason = {
       ...auctionSeason,
       settings: {
-        ...auctionSeason.settings,
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
-        auction: undefined,
+        scoring: auctionSeason.settings.scoring,
         snake: { rounds: 3, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
         },
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
       },
     };
     const preview = previewSeasonKeeperCommand({
@@ -353,6 +357,9 @@ describe("season keeper setup", () => {
       command: "owner01 keeping dart 3",
     });
     if (preview.kind !== "preview") throw new Error("Expected keeper preview.");
+    if (threeRoundSeason.settings.draftFormat !== "snake") {
+      throw new Error("Expected snake settings.");
+    }
     const twoRoundSeason: LeagueSeason = {
       ...threeRoundSeason,
       settings: {
@@ -372,14 +379,15 @@ describe("season keeper setup", () => {
     const snakeSeason: LeagueSeason = {
       ...auctionSeason,
       settings: {
-        ...auctionSeason.settings,
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
-        auction: undefined,
+        scoring: auctionSeason.settings.scoring,
         snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
         },
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
       },
     };
     const achane = previewSeasonKeeperCommand({

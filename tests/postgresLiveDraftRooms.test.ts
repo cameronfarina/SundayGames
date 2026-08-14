@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { leagueConfig, ownerOrder } from "../config/league.js";
-import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  buildCurrentMockdLeagueSeason,
+  type AuctionLeagueSeason,
+  type LeagueSeason,
+} from "../src/platform/leagueSeason.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type {
   PostgresQueryClient,
@@ -9,16 +13,19 @@ import type {
 import { PostgresLiveDraftRoomRepository } from "../src/platform/postgresLiveDraftRooms.js";
 import {
   LiveDraftRoomError,
+  type LiveDraftRoomActor,
   type LiveDraftRoomPlayerCatalogEntry,
 } from "../src/platform/liveDraftRooms.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const commissioner = { userId: "user_commish", leagueId: "league-100001", role: "admin" } as const;
+const commissioner: LiveDraftRoomActor = {
+  userId: "user_commish", leagueId: "league-100001", role: "admin",
+};
 
-const playerCatalog = [
+const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+] satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 interface DraftRoomRow {
   id: string;
@@ -482,7 +489,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
   }
 }
 
-const publishedSeason = (): LeagueSeason =>
+const publishedSeason = (): AuctionLeagueSeason =>
   buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     setupStatus: "published",
     leagueName: "Sunday league",

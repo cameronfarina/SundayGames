@@ -4,6 +4,7 @@ import {
   applyGenericAuctionMockCommand,
   createGenericAuctionMockState,
   type GenericAuctionMockConfig,
+  type GenericAuctionMockState,
 } from "../src/platform/genericAuctionMockEngine.js";
 
 const config: GenericAuctionMockConfig = {
@@ -78,7 +79,7 @@ describe("auction command validation", () => {
 
   it("rejects a bid phase without an active nomination", () => {
     const started = start();
-    const inconsistent = {
+    const inconsistent: GenericAuctionMockState = {
       ...started,
       session: { ...started.session, phase: "awaiting_human_bid", currentNomination: undefined },
     };

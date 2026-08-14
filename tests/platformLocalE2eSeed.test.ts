@@ -26,7 +26,7 @@ const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67, teamAbbreviation: "DET", byeWeek: 6 },
 ];
 
-const seedOptions: SeedLocalE2EOptions = {
+const seedOptions: SeedLocalE2eOptions = {
   now,
   playerCatalog,
   initialRosters: [],
