@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { leagueConfig, ownerOrder } from "../config/league.js";
+import { leagueConfig, ownerOrder, type Position } from "../config/league.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
@@ -19,32 +19,32 @@ import type { SimulationMockBatchRunner } from "../src/platform/simulations.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
-const playerCatalog = [
+const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
-] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
+];
 
 const completeInitialRostersFor = (
   season: LeagueSeason,
 ): LiveDraftRoomInitialRosterPlayer[] => {
-  const positions = [
+  const positions: readonly Position[] = [
     "QB", "QB", "QB", "RB", "RB", "RB", "RB", "WR",
     "WR", "WR", "WR", "WR", "TE", "TE", "K", "DST",
-  ] as const;
+  ];
 
-  return season.teams.flatMap(team => positions.map((position, index) => ({
+  return season.teams.flatMap(team => positions.map((position, index): LiveDraftRoomInitialRosterPlayer => ({
     teamId: team.id,
     playerName: `${team.id} ${position} ${index + 1}`,
     position,
     price: 1,
     expectedPrice: 1,
-    source: "imported" as const,
+    source: "imported",
   })));
 };
 
-const baselinePrices = [
+const baselinePrices: readonly PricingSourcePrice[] = [
   { name: "Puka Nacua", normalizedName: "puka nacua", position: "WR", price: 50 },
-] as const satisfies readonly PricingSourcePrice[];
+];
 
 const mockRunner: SimulationMockBatchRunner = () => ({
   options: {
@@ -63,12 +63,14 @@ const mockRunner: SimulationMockBatchRunner = () => ({
   },
 });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
 const asRecord = (value: unknown, label: string): Record<string, unknown> => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (!isRecord(value)) {
     throw new Error(`Expected ${label} to be an object.`);
   }
-
-  return value as Record<string, unknown>;
+  return value;
 };
 
 describe("file-backed platform store", () => {
@@ -98,6 +100,61 @@ describe("file-backed platform store", () => {
       liveDraftRooms: [],
       exportArtifacts: [],
     });
+  });
+
+  it("rejects malformed workspace snapshots at the file boundary", async () => {
+    const path = await storePath();
+    await writeFile(path, JSON.stringify({ memberships: "not-an-array" }), "utf8");
+
+    await expect(FilePlatformStore.load(path)).rejects.toThrow(
+      "Invalid platform store snapshot at memberships",
+    );
+  });
+
+  it("rejects malformed auth sidecars at the file boundary", async () => {
+    const path = await storePath();
+    await writeFile(`${path}.auth.json`, JSON.stringify({
+      schemaVersion: 1,
+      auth: {
+        accountCredentials: [],
+        sessions: [{ id: "session-1" }],
+      },
+    }), "utf8");
+
+    await expect(FilePlatformStore.load(path)).rejects.toThrow(
+      "Invalid platform store snapshot at auth.sessions[0].accountId",
+    );
+  });
+
+  it("accepts an auth sidecar envelope before auth has been persisted", async () => {
+    const path = await storePath();
+    await writeFile(`${path}.auth.json`, JSON.stringify({ schemaVersion: 1 }), "utf8");
+
+    const loaded = await FilePlatformStore.load(path);
+
+    expect(loaded.store.snapshot().auth).toEqual({ accountCredentials: [], sessions: [] });
+  });
+
+  it("propagates filesystem errors other than missing files", async () => {
+    const path = await storePath();
+    await mkdir(path);
+
+    await expect(FilePlatformStore.load(path)).rejects.toThrow();
+  });
+
+  it("cleans interrupted atomic writes and continues the serialized save queue", async () => {
+    const path = await storePath();
+    const fileStore = new FilePlatformStore(path);
+    await mkdir(path);
+
+    await expect(fileStore.save()).rejects.toThrow();
+    if (directory === undefined) throw new Error("Expected a temporary directory.");
+    expect((await readdir(directory)).some(name => name.endsWith(".tmp"))).toBe(false);
+
+    await rm(path, { recursive: true });
+    await fileStore.save();
+
+    await expect(FilePlatformStore.load(path)).resolves.toBeInstanceOf(FilePlatformStore);
   });
 
   it("roundtrips a registered league season and active auth session", async () => {

@@ -12,6 +12,7 @@ import {
 import { InMemoryPlatformStore } from "../src/platform/platformApp.js";
 import { InMemoryMockDraftSessionRepository } from "../src/platform/mockSessions.js";
 import { createSeasonMockConfigurationSnapshot } from "../src/platform/seasonMockSnapshot.js";
+import { persistedSimulationRun } from "./platformStoreSnapshotFixtures/simulationRun.js";
 
 describe("platform store snapshot codec", () => {
   it("round trips archived league metadata for file-backed local storage", () => {
@@ -63,10 +64,8 @@ describe("platform store snapshot codec", () => {
   });
 
   it("recovers legacy keeper setup data from an existing live room", async () => {
-    const season = {
-      ...buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig),
-      setupStatus: "published" as const,
-    };
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    season.setupStatus = "published";
     const team = season.teams[0];
     if (team === undefined) throw new Error("Expected a seeded team.");
     const store = new InMemoryPlatformStore();
@@ -203,5 +202,97 @@ describe("platform store snapshot codec", () => {
         },
       }],
     })).toThrow("Mock draft configuration snapshot is malformed.");
+  });
+
+  it("defaults collections omitted by legacy snapshots", () => {
+    expect(deserializePlatformStoreSnapshot({ schemaVersion: 1 })).toEqual(
+      emptyPlatformStoreSnapshot(),
+    );
+  });
+
+  it("defaults legacy null collections and auth state", () => {
+    expect(deserializePlatformStoreSnapshot({
+      schemaVersion: 1,
+      auth: null,
+      memberships: null,
+    })).toEqual(emptyPlatformStoreSnapshot());
+  });
+
+  it("rejects a malformed top-level collection", () => {
+    expect(() => deserializePlatformStoreSnapshot({ memberships: "not-an-array" }))
+      .toThrow("Invalid platform store snapshot at memberships");
+  });
+
+  it("rejects malformed nested auth records", () => {
+    expect(() => deserializePlatformStoreSnapshot({
+      auth: {
+        accountCredentials: [],
+        sessions: [{
+          id: "session-1",
+          accountId: "account-1",
+          createdAt: "2026-08-09T12:00:00.000Z",
+          expiresAt: "2026-08-09T13:00:00.000Z",
+        }],
+      },
+    })).toThrow("Invalid platform store snapshot at auth.sessions[0].tokenHash");
+  });
+
+  it("revives persisted dates without changing date-like job input values", () => {
+    const decoded = deserializePlatformStoreSnapshot({
+      auth: {
+        accountCredentials: [],
+        sessions: [{
+          id: "session-1",
+          accountId: "account-1",
+          tokenHash: "hash-1",
+          createdAt: "2026-08-09T12:00:00.000Z",
+          expiresAt: "2026-08-09T13:00:00.000Z",
+          revokedAt: null,
+        }],
+      },
+      jobs: [{
+        id: "job-1",
+        userId: "account-1",
+        leagueId: "league-1",
+        seasonId: "season-1",
+        kind: "simulation",
+        status: "queued",
+        inputJson: { updatedAt: "2026-08-09T12:00:00.000Z" },
+        inputHash: "input-hash",
+        idempotencyKey: "job-key",
+        progress: { completed: 0, total: 1, message: "Queued" },
+        attempts: 0,
+        maxAttempts: 3,
+        workerId: null,
+        lockedAt: null,
+        heartbeatAt: null,
+        lockExpiresAt: null,
+        startedAt: null,
+        finishedAt: null,
+        cancellationRequestedAt: null,
+        resultSummary: null,
+        sanitizedError: null,
+        createdAt: "2026-08-09T12:00:00.000Z",
+        updatedAt: "2026-08-09T12:00:00.000Z",
+      }],
+    });
+
+    expect(decoded.auth.sessions[0]?.createdAt).toEqual(
+      new Date("2026-08-09T12:00:00.000Z"),
+    );
+    expect(decoded.jobs[0]?.createdAt).toEqual(
+      new Date("2026-08-09T12:00:00.000Z"),
+    );
+    expect(decoded.jobs[0]?.inputJson).toEqual({
+      updatedAt: "2026-08-09T12:00:00.000Z",
+    });
+    expect(decoded.jobs[0]?.resultSummary).toBeNull();
+  });
+
+  it("round trips complete simulation results without trusting nested JSON", () => {
+    const simulationRun = persistedSimulationRun();
+    const decoded = deserializePlatformStoreSnapshot({ simulationRuns: [simulationRun] });
+
+    expect(decoded.simulationRuns).toEqual([simulationRun]);
   });
 });
