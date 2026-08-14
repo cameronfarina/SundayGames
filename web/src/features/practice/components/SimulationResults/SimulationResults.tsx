@@ -1,3 +1,5 @@
+import clsx from "clsx";
+import { useId } from "react";
 import type {
   PracticeSimulationRun,
   PracticeSimulationSummary,
@@ -14,6 +16,50 @@ interface SimulationResultsProps {
   readonly selectedRunNumber: number;
   readonly summary: PracticeSimulationSummary;
 }
+
+type TargetOutcome = Exclude<PracticeSimulationSummary["targetOutcome"], undefined>;
+
+const targetReasonFallbacks: Record<Exclude<TargetOutcome["reason"], undefined>, string> = {
+  ambiguous_player_name: "The player name matches multiple players.",
+  player_not_found: "The player was not found in the player catalog.",
+  retained_by_other_team: "The player is retained by another team.",
+  retained_by_your_team_above_max_price: "Your keeper price is above the target cap.",
+};
+
+const targetOutcomeDetail = (outcome: TargetOutcome) => {
+  if (outcome.message !== undefined) return outcome.message;
+  return outcome.reason === undefined ? undefined : targetReasonFallbacks[outcome.reason];
+};
+
+const TargetOutcomeItem = ({ outcome }: { readonly outcome: TargetOutcome }) => {
+  const detail = targetOutcomeDetail(outcome);
+  const headlineId = useId();
+  const infeasible = outcome.status === "infeasible";
+
+  return <li>
+    <div
+      aria-labelledby={headlineId}
+      className={clsx("simulation-results__target-outcome", {
+        "simulation-results__target-outcome--infeasible": infeasible,
+      })}
+      role="group"
+    >
+      <p className="simulation-results__target-headline" id={headlineId}>
+        {infeasible
+          ? <>
+            <strong className="simulation-results__target-status simulation-results__target-status--infeasible">Unavailable</strong>
+            <span>{outcome.playerName}</span>
+          </>
+          : <>
+            {outcome.status === "hit" && <strong className="simulation-results__target-status simulation-results__target-status--hit">Hit</strong>}
+            {outcome.status === "miss" && <strong className="simulation-results__target-status simulation-results__target-status--miss">Miss</strong>}
+            <span>{String(Math.round(outcome.hitRate * 100))}% {outcome.playerName}</span>
+          </>}
+      </p>
+      {infeasible && detail !== undefined && <p className="simulation-results__target-detail">{detail}</p>}
+    </div>
+  </li>;
+};
 
 const targetOutcomes = (summary: PracticeSimulationSummary) => {
   if (summary.targetOutcomes !== undefined) return summary.targetOutcomes;
@@ -47,9 +93,11 @@ export function SimulationResults(props: SimulationResultsProps) {
       </ul>}
       <dl className="simulation-results__metrics">
         <div><dt>Completed</dt><dd>{String(props.summary.completedCount)} / {String(props.summary.runCount)}</dd></div>
-        <div><dt>Target hit rates</dt><dd>{outcomes.length === 0
+        <div><dt>Target outcomes</dt><dd>{outcomes.length === 0
           ? "No named targets"
-          : outcomes.map(outcome => `${String(Math.round(outcome.hitRate * 100))}% ${outcome.playerName}`).join(" · ")}</dd></div>
+          : <ul aria-label="Target outcomes" className="simulation-results__target-outcomes">
+            {outcomes.map(outcome => <TargetOutcomeItem key={outcome.playerId} outcome={outcome} />)}
+          </ul>}</dd></div>
         <div><dt>Format</dt><dd>{props.summary.draftFormat === "auction" ? "Auction" : "Snake"}</dd></div>
       </dl>
       {props.note !== undefined && props.note.length > 0 && <div className="simulation-results__note"><strong>Run note</strong><p>{props.note}</p></div>}

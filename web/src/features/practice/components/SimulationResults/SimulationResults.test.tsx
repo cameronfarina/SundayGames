@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { SimulationResults } from "./SimulationResults";
@@ -70,7 +70,7 @@ describe("SimulationResults", () => {
     expect(screen.queryByRole("heading", { name: "Sentinels" })).not.toBeInTheDocument();
     unmount();
   });
-  it("handles simulations without named targets or roster results", () => {
+  it("renders a legacy singular target outcome and missing roster results", () => {
     const view = render(<SimulationResults note={undefined} onRunChange={vi.fn()} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
       ...summary,
       draftFormat: "snake",
@@ -79,7 +79,9 @@ describe("SimulationResults", () => {
       targetOutcomes: undefined,
     }} />);
 
-    expect(screen.getByText("25% Jadarian Price")).toBeInTheDocument();
+    const targetOutcome = screen.getByRole("group", { name: "25% Jadarian Price" });
+    expect(within(targetOutcome).queryByText(/^(?:Hit|Miss|Unavailable)$/u))
+      .not.toBeInTheDocument();
     expect(screen.getByText("Snake")).toBeInTheDocument();
     expect(screen.getByText("No roster results were returned.")).toBeInTheDocument();
     expect(screen.queryByText("Run note")).not.toBeInTheDocument();

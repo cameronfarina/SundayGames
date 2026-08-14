@@ -34,10 +34,19 @@ const teamSchema = z.object({
 });
 
 const targetOutcomeSchema = z.object({
+  feasible: z.boolean().optional(),
   hitCount: z.number().int().nonnegative(),
   hitRate: z.number().min(0).max(1),
+  message: z.string().optional(),
   playerId: z.string(),
   playerName: z.string(),
+  reason: z.enum([
+    "ambiguous_player_name",
+    "player_not_found",
+    "retained_by_other_team",
+    "retained_by_your_team_above_max_price",
+  ]).optional(),
+  status: z.enum(["hit", "miss", "infeasible"]).optional(),
 });
 
 export const simulationSummarySchema = z.object({
