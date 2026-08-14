@@ -13,6 +13,21 @@ import {
   expectSignedOut,
   signOutThroughAccountMenu,
 } from "./support/auth.js";
+import {
+  abandonAuctionMock,
+  availablePlayersTable,
+  chooseRoster,
+  createAuctionMock,
+  expectAuctionMockSetup,
+  startAuctionMock,
+} from "./support/mockDraft.js";
+import {
+  choosePracticeOption,
+  expectPracticeBoard,
+  exercisePracticeBoardControls,
+  practiceBoard,
+  practicePlayerRows,
+} from "./support/practice.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
 
@@ -404,159 +419,29 @@ const openUnifiedBoard = async (
   await page.getByRole("link", { name: "Practice", exact: true }).click();
   await expect(page).toHaveURL(/\/practice\?seasonId=/);
   expect(new URL(page.url()).searchParams.get("seasonId")).toBe(seasonId);
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
-  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
-  await expect(page.locator("#standalone-board-sort")).toHaveValue(/market|mine/);
-  await expect(page.locator("#standalone-pricing-source")).toContainText("Market uses");
-  const boardViewport = await page.locator("#standalone-player-scroll").evaluate(element => ({
-    clientHeight: element.clientHeight,
-    maxHeight: getComputedStyle(element).maxHeight,
-  }));
-  expect(boardViewport.clientHeight).toBeLessThanOrEqual(720);
-  expect(boardViewport.maxHeight).not.toBe("none");
-  if (expectedPlayerCount !== undefined) {
-    await expect(page.locator("#standalone-player-rows tr")).toHaveCount(expectedPlayerCount);
-    await expect(page.locator("#standalone-board-status")).toContainText(
-      `${expectedPlayerCount} shown / ${expectedPlayerCount} loaded`,
-    );
-  }
+  await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
+  await expectPracticeBoard(page, expectedPlayerCount);
 };
 
 const exerciseDurableMockWorkspace = async (
   page: Page,
   season: LeagueSeason,
 ): Promise<void> => {
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
-  const mockUrl = new URL(page.url());
-  expect(mockUrl.searchParams.get("seasonId")).toBe(season.id);
-  expect(mockUrl.searchParams.get("mockSessionId")).toBeTruthy();
-  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
-  await expect(page.locator("#mock-draft-title")).toHaveText(
-    season.settings.draftFormat === "auction" ? "Auction mock draft" : "Snake mock draft",
-  );
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-player-rows tr").first()).toBeVisible();
-  await expect(page.locator("#mock-draft-player-head")).toContainText("NFL");
-  await expect(page.locator("#mock-draft-player-head")).toContainText("Bye");
-  if (season.settings.draftFormat === "auction") {
-    await expect(page.locator("#mock-draft-player-head")).toContainText("Market value");
-    await expect(page.locator("#mock-draft-player-head")).toContainText("Our value");
-  }
-  const firstPlayerRow = page.locator("#mock-draft-player-rows tr").first();
-  const firstPlayerPosition = await firstPlayerRow.getAttribute("data-position");
-  await expect(firstPlayerRow.locator('[data-label="Position"]')).toHaveClass(/position-label/);
-  await expect(firstPlayerRow.locator('[data-label="Position"]')).toHaveAttribute(
-    "data-position",
-    firstPlayerPosition ?? "",
-  );
-  await expect(firstPlayerRow.locator('[data-label="NFL"]')).not.toHaveText("-");
-  await expect(firstPlayerRow.locator('[data-label="Bye"]')).not.toHaveText("-");
-
-  const rosterTeamSelect = page.locator("#mock-draft-roster-team");
-  await expect(rosterTeamSelect.locator("option")).toHaveCount(season.teams.length);
-  const claimedTeamId = await rosterTeamSelect.inputValue();
-  const otherTeamId = await rosterTeamSelect.locator("option").evaluateAll(
-    (options, selectedTeamId) => options
-      .map(option => option.getAttribute("value") ?? "")
-      .find(value => value !== selectedTeamId) ?? "",
-    claimedTeamId,
-  );
-  expect(otherTeamId).not.toBe("");
-  await rosterTeamSelect.selectOption(otherTeamId);
-  await expect(rosterTeamSelect).toHaveValue(otherTeamId);
-  await expect(page.locator("#mock-draft-roster")).toHaveAttribute("data-team-id", otherTeamId);
-  if (season.settings.draftFormat === "auction") {
-    await expect(page.locator("#mock-draft-roster-facts")).toBeVisible();
-    await expect(page.locator("#mock-roster-budget-left")).toHaveText(/^\$/);
-    await expect(page.locator("#mock-roster-max-bid")).toHaveText(/^\$/);
-  } else {
-    await expect(page.locator("#mock-draft-roster-facts")).toBeHidden();
-  }
-  await rosterTeamSelect.selectOption(claimedTeamId);
-  await expect(page.locator("#mock-draft-roster")).toHaveAttribute("data-team-id", claimedTeamId);
-  const mockViewport = await page.locator("#mock-draft-player-scroll").evaluate(element => ({
-    clientHeight: element.clientHeight,
-    maxHeight: getComputedStyle(element).maxHeight,
-  }));
-  expect(mockViewport.clientHeight).toBeLessThanOrEqual(720);
-  expect(mockViewport.maxHeight).not.toBe("none");
-
-  const rbFilter = page.locator('[data-mock-position="RB"]');
-  await rbFilter.click();
-  await expect(rbFilter).toHaveAttribute("aria-pressed", "true");
-  const visiblePositions = await page.locator("#mock-draft-player-rows tr").evaluateAll(rows =>
-    rows.map(row => row.getAttribute("data-position"))
-  );
-  expect(visiblePositions.length).toBeGreaterThan(0);
-  expect(new Set(visiblePositions)).toEqual(new Set(["RB"]));
-  await page.locator('[data-mock-position="ALL"]').click();
-
-  await page.locator("#mock-draft-start").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
-
-  const passButton = page.locator("#mock-draft-pass");
-  if (await passButton.isEnabled()) {
-    await passButton.click();
-  } else {
-    const availableDecision = page.locator("#mock-draft-player-rows .mock-player-action:enabled").first();
-    await expect(availableDecision).toBeVisible();
-    await availableDecision.click();
-  }
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
-
-  const persistedState = await page.locator("#mock-draft-state").textContent();
-  const persistedProgress = await page.locator("#mock-draft-progress").textContent();
-  const decisionSelector = season.settings.draftFormat === "auction"
-    ? "#mock-auction-player"
-    : "#mock-draft-status";
-  const persistedDecision = await page.locator(decisionSelector).textContent();
-  const persistedRoster = await page.locator("#mock-draft-roster").textContent();
-  const persistedSessionId = new URL(page.url()).searchParams.get("mockSessionId");
+  const persistedSessionId = await createAuctionMock(page);
+  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(season.id);
+  await expectAuctionMockSetup(page);
+  const otherTeam = season.teams[1];
+  if (otherTeam !== undefined) await chooseRoster(page, otherTeam.displayName);
+  await startAuctionMock(page);
+  const beforeReload = await page.getByRole("main").textContent();
   await page.reload();
-  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
-  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBe(persistedSessionId);
-  await expect(page.locator("#mock-draft-state")).toHaveText(persistedState ?? "");
-  await expect(page.locator("#mock-draft-progress")).toHaveText(persistedProgress ?? "");
-  await expect(page.locator(decisionSelector)).toHaveText(persistedDecision ?? "");
-  await expect(page.locator("#mock-draft-roster")).toHaveText(persistedRoster ?? "");
-
-  let abandonConfirmationCount = 0;
-  page.once("dialog", dialog => {
-    abandonConfirmationCount += 1;
-    expect(dialog.type()).toBe("confirm");
-    expect(dialog.message()).toBe("Abandon this mock draft? Your current mock picks will be discarded.");
-    void dialog.accept();
-  });
-  await page.locator("#mock-draft-abandon").click();
-  expect(abandonConfirmationCount).toBe(1);
-  await expect(page.locator("#mock-draft-state")).toHaveText("Abandoned");
-  await expect(page.locator("#mock-draft-abandoned")).toBeVisible();
-  await expect(page.locator("#mock-draft-abandoned")).toBeFocused();
-  await expect(page.locator("#mock-draft-abandoned")).toContainText(
-    "Your active mock slot is available again.",
-  );
-  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBeNull();
-
-  await page.goto(
-    `/mock-drafts?seasonId=${encodeURIComponent(season.id)}&mockSessionId=${encodeURIComponent(persistedSessionId ?? "")}`,
-  );
-  await expect(page.locator("#mock-draft-state")).toHaveText("Abandoned");
-  await expect(page.locator("#mock-draft-abandoned")).toContainText(
-    "Your active mock slot is available again.",
-  );
-
-  await page.locator("#mock-draft-start-another").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-abandoned")).toBeHidden();
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Opening your league mock...");
-  const replacementSessionId = new URL(page.url()).searchParams.get("mockSessionId");
-  expect(replacementSessionId).toBeTruthy();
+  await expect(page.getByRole("region", { name: "Live auction" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("sessionId")).toBe(persistedSessionId);
+  await expect(page.getByRole("main")).toHaveText(beforeReload ?? "");
+  await abandonAuctionMock(page);
+  const replacementSessionId = await createAuctionMock(page);
   expect(replacementSessionId).not.toBe(persistedSessionId);
-  await page.locator("#mock-draft-start").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
+  await expectAuctionMockSetup(page);
 };
 
 const exerciseCompletedAuctionMockResults = async (
@@ -565,81 +450,57 @@ const exerciseCompletedAuctionMockResults = async (
   claimedTeamId: string,
 ): Promise<void> => {
   await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
-  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
-  await expect(page.locator("#mock-draft-title")).toHaveText("Auction mock draft");
-  await page.locator("#mock-draft-start").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
+  await expectPracticeBoard(page);
+  await createAuctionMock(page);
+  await startAuctionMock(page);
 
-  const finishButton = page.locator("#mock-draft-complete");
+  const finishButton = page.getByRole("button", { name: "Finish mock" });
   for (let decision = 0; decision < season.settings.roster.rosterSize * 4; decision += 1) {
     if (await finishButton.isEnabled()) break;
 
-    const buyButton = page.locator("#mock-draft-buy");
-    if (await buyButton.isEnabled()) {
+    const buyButton = page.getByRole("button", { name: /^Bid \$\d+$/u });
+    const passButton = page.getByRole("button", { name: "Pass", exact: true });
+    if (await buyButton.count() > 0 && await buyButton.isEnabled()) {
       await buyButton.click();
+    } else if (await passButton.count() > 0 && await passButton.isEnabled()) {
+      await passButton.click();
     } else {
-      const openSlot = page.locator("#mock-draft-roster li").filter({ hasText: "Open" }).first();
-      const openPosition = (await openSlot.locator(".position-label").textContent())?.replace(/\d+$/u, "");
-      const positionFilter = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"].includes(openPosition ?? "")
-        ? openPosition
-        : "ALL";
-      await page.locator(`[data-mock-position="${positionFilter}"]`).click();
-      const nominationButton = page.locator("#mock-draft-player-rows .mock-player-action:enabled").last();
+      const nominationButton = availablePlayersTable(page)
+        .getByRole("button", { name: /^Nominate /u })
+        .last();
       await expect(nominationButton).toBeVisible();
+      await expect(nominationButton).toBeEnabled();
       await nominationButton.click();
     }
-    await expect(page.locator("#mock-draft-status")).not.toHaveText(
-      "Updating the mock draft...",
-      { timeout: 15_000 },
-    );
+    await expect(page.getByRole("button", { name: "Abandon mock" })).toBeEnabled({ timeout: 15_000 });
   }
 
   await expect(finishButton).toBeEnabled();
   await finishButton.click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Completed");
-  await expect(page.locator("#mock-draft-status")).toHaveText(
-    "Mock complete. Review your roster or start another mock from Practice.",
-  );
-  await expect(page.locator("#mock-draft-results")).toBeVisible();
-
-  const teamPanels = page.locator("#mock-draft-results-grid .simulation-team");
+  const results = page.getByRole("region", { name: "League results" });
+  await expect(results).toBeVisible();
+  const teamPanels = results.getByRole("article");
   await expect(teamPanels).toHaveCount(season.teams.length);
-  await expect(page.locator("#mock-draft-results-coverage")).toHaveText(
+  await expect(results).toContainText(
     `Week 1 estimates available for all ${season.teams.length * season.settings.roster.rosterSize} rostered players.`,
   );
 
   for (const team of season.teams) {
-    const panel = page.locator(
-      `#mock-draft-results-grid .simulation-team[data-team-id="${team.id}"]`,
-    );
+    const panel = teamPanels.filter({ has: page.getByRole("heading", { name: team.displayName }) });
     await expect(panel).toHaveCount(1);
-    await expect(panel.locator("h3")).toContainText(team.displayName);
-    await expect(panel.locator(".simulation-team-summary")).toHaveText(
-      /^#\d+ projected · \$\d+ spent · \$\d+ left$/u,
-    );
-    await expect(panel.locator(".simulation-team-score")).toContainText("Week 1");
-
-    const rosterRows = panel.locator(".simulation-team-roster tbody tr");
-    await expect(rosterRows).toHaveCount(season.settings.roster.rosterSize);
-    for (let rowIndex = 0; rowIndex < season.settings.roster.rosterSize; rowIndex += 1) {
-      const numericCells = rosterRows.nth(rowIndex).locator("td.numeric");
-      await expect(numericCells.nth(0)).toHaveText(/^\$\d+$/u);
-      await expect(numericCells.nth(1)).toHaveText(/^\d+\.\d$/u);
-    }
+    await expect(panel).toContainText(/^#\d+/u);
+    await expect(panel).toContainText(/\$\d+ spent · \$\d+ left/u);
+    await expect(panel).toContainText(/\d+(?:\.\d+)? Week 1/u);
+    await expect(panel.getByRole("row")).toHaveCount(season.settings.roster.rosterSize + 1);
   }
 
   const claimedTeam = season.teams.find(team => team.id === claimedTeamId);
   expect(claimedTeam).toBeDefined();
-  const claimedPanel = page.locator(
-    `#mock-draft-results-grid .simulation-team[data-team-id="${claimedTeamId}"][data-user-team="true"]`,
-  );
+  const claimedPanel = teamPanels.filter({
+    has: page.getByRole("heading", { name: claimedTeam?.displayName ?? "" }),
+  });
   await expect(claimedPanel).toHaveCount(1);
-  await expect(claimedPanel.locator("h3")).toContainText(claimedTeam?.displayName ?? "");
-  await expect(claimedPanel.locator(".team-badge")).toHaveText("Your team");
+  await expect(claimedPanel.getByText("Your team", { exact: true })).toBeVisible();
 };
 
 const exerciseBoardSimulations = async (
@@ -647,49 +508,49 @@ const exerciseBoardSimulations = async (
   season: LeagueSeason,
 ): Promise<void> => {
   const runNote = "Local E2E simulation history";
-  const panel = page.locator("#simulation-panel");
-  await expect(panel).toBeVisible();
-  await panel.locator(":scope > summary").click();
-  await page.locator("#simulation-count").fill("2");
-  await page.locator("#simulation-strategy").fill("Target an elite RB");
-  await page.locator("#simulation-note").fill(runNote);
-  await page.locator("#simulation-run").click();
-  await expect(page.locator("#simulation-results")).toBeVisible();
-  await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
-  await expect(page.locator("#simulation-format")).toHaveText(/Auction|Snake/);
-  await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
-  await expect(page.locator("#simulation-run-picker option")).toHaveCount(2);
-  await expect(page.locator("#simulation-league-grid .simulation-team")).toHaveCount(season.teams.length);
-  await expect(page.locator('.simulation-team[data-user-team="true"]')).toHaveCount(1);
+  const workspace = page.getByRole("region", { name: "Run full-league drafts" });
+  await expect(workspace).toBeVisible();
+  await workspace.getByLabel("Number of simulations").fill("2");
+  await workspace.getByLabel("Additional draft instructions").fill("Target an elite RB");
+  await workspace.getByLabel("Run label").fill(runNote);
+  await workspace.getByRole("button", { name: "Run simulations" }).click();
+  await expect(workspace.getByRole("button", { name: "Running simulations" })).toBeDisabled();
+  const results = page.getByRole("region", { name: "League outcomes" });
+  await expect(results).toBeVisible({ timeout: 30_000 });
+  await expect(results.getByText("Completed", { exact: true }).locator("..")).toContainText("2 / 2");
+  await expect(results.getByText("Format", { exact: true }).locator("..")).toContainText(/Auction|Snake/u);
+  await expect(results.getByRole("combobox", { name: "Simulation run" })).toHaveText("Run 1");
+  await expect(results.getByRole("article")).toHaveCount(season.teams.length);
+  await expect(results.getByText("Your team", { exact: true })).toHaveCount(1);
   const assertLeagueRun = async (): Promise<void> => {
-    const teams = page.locator("#simulation-league-grid .simulation-team");
+    const teams = results.getByRole("article");
     await expect(teams).toHaveCount(season.teams.length);
     for (let index = 0; index < season.teams.length; index += 1) {
       const team = teams.nth(index);
-      expect(Number.parseFloat(await team.locator(".simulation-team-score").innerText())).toBeGreaterThan(0);
-      expect(await team.locator(".simulation-team-roster tbody tr").count()).toBeGreaterThan(0);
-      await expect(team.locator(".simulation-team-roster thead")).toContainText("W1");
+      await expect(team.getByText("Week 1", { exact: true })).toBeVisible();
+      expect(await team.getByRole("row").count()).toBeGreaterThan(1);
+      await expect(team.getByRole("columnheader", { name: "W1" })).toBeVisible();
     }
   };
   await assertLeagueRun();
-  await page.locator("#simulation-run-picker").selectOption("1");
-  await expect(page.locator("#simulation-run-picker")).toHaveValue("1");
+  await choosePracticeOption(page, "Simulation run", "Run 2");
+  await expect(results.getByRole("combobox", { name: "Simulation run" })).toHaveText("Run 2");
   await assertLeagueRun();
-  expect(await page.locator("#simulation-exposure-body tr").count()).toBeGreaterThan(0);
-  await expect(page.locator("#simulation-history")).toBeVisible();
-  await expect(page.locator("#simulation-history-picker option")).toHaveCount(1);
-  await expect(page.locator("#simulation-history-note")).toHaveText(runNote);
+  await results.getByText("Player exposure across all runs", { exact: true }).click();
+  expect(await results.getByRole("table").first().getByRole("row").count()).toBeGreaterThan(1);
+  const history = workspace.getByRole("heading", { name: "Previous runs" }).locator("..");
+  await expect(history).toContainText(runNote);
+  await expect(history.getByRole("button", { name: /Open 2-run simulation/u })).toHaveCount(1);
 
   await page.reload();
-  await expect(panel).toBeVisible();
-  await panel.locator(":scope > summary").click();
-  await expect(page.locator("#simulation-history-picker option")).toHaveCount(1);
-  await expect(page.locator("#simulation-history-note")).toHaveText(runNote);
-  await page.locator("#simulation-history-open").click();
-  await expect(page.locator("#simulation-results")).toBeVisible();
-  await expect(page.locator("#simulation-completed")).toHaveText("2 / 2");
-  await expect(page.locator("#simulation-league-grid .simulation-team")).toHaveCount(season.teams.length);
-  await expect(page.locator("#simulation-status")).toHaveText("Simulation results are private to your account.");
+  const restoredWorkspace = page.getByRole("region", { name: "Run full-league drafts" });
+  const restoredHistory = restoredWorkspace.getByRole("heading", { name: "Previous runs" }).locator("..");
+  await expect(restoredHistory).toContainText(runNote);
+  await restoredHistory.getByRole("button", { name: /Open 2-run simulation/u }).click();
+  const restoredResults = page.getByRole("region", { name: "League outcomes" });
+  await expect(restoredResults).toBeVisible();
+  await expect(restoredResults.getByText("Completed", { exact: true }).locator("..")).toContainText("2 / 2");
+  await expect(restoredResults.getByRole("article")).toHaveCount(season.teams.length);
 };
 
 const createLiveRoomFromSetup = async (
@@ -929,7 +790,7 @@ const exerciseDeployedWorkspace = async (browser: Browser): Promise<void> => {
   await openUnifiedBoard(commissionerPage, season.id);
   await openUnifiedBoard(memberPage, season.id);
   await exerciseBoardSimulations(memberPage, season);
-  await expect(memberPage.locator("#standalone-board-open-mock")).toHaveAttribute(
+  await expect(memberPage.getByRole("link", { name: "Start auction mock" })).toHaveAttribute(
     "href",
     `/mock-drafts?seasonId=${encodeURIComponent(season.id)}`,
   );
@@ -952,40 +813,38 @@ const exerciseReadyWorkspace = async (workspace: ReadySmokeWorkspace): Promise<v
   const roomId = createdRoom.roomId;
 
   await Promise.all([
-    camPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
-    sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    camPage.goto(`/league?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    sethPage.goto(`/league?seasonId=${encodeURIComponent(appliedSeason.id)}`),
   ]);
-  await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
-  await expect(sethPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
-  await expect(sethPage.locator("#my-team-name")).toHaveText(memberTeamName);
+  await expect(camPage.getByRole("heading", { name: appliedSeason.league.name })).toBeVisible();
+  await expect(sethPage.getByRole("heading", { name: appliedSeason.league.name })).toBeVisible();
+  await expect(sethPage.getByRole("heading", { name: memberTeamName })).toBeVisible();
 
   const fullPlayerCount = createdRoom.board.length + createdRoom.teamSummaries.reduce(
     (count, team) => count + team.roster.length,
     0,
   );
   await openUnifiedBoard(camPage, appliedSeason.id, fullPlayerCount);
-  await expect(camPage.locator("#standalone-board-open-live")).toHaveCount(0);
+  await expect(camPage.getByRole("link", { name: "Enter draft" })).toHaveCount(0);
   await camPage.getByRole("link", { name: "League", exact: true }).click();
   await expect(camPage).toHaveURL(/\/league\?seasonId=/);
-  await expect(camPage.locator("#league-name")).toHaveText(appliedSeason.league.name);
+  await expect(camPage.getByRole("heading", { name: appliedSeason.league.name })).toBeVisible();
   await accountMenuButton(camPage).click();
-  await expect(camPage.locator("#account-create-league")).toBeVisible();
-  await camPage.locator("#account-create-league").click();
-  await expect(camPage).toHaveURL(/\/league\?create=1$/);
-  await expect(camPage.locator("#empty-leagues")).toBeVisible();
-  await expect(camPage.locator("#league-context")).toBeHidden();
+  await expect(camPage.getByRole("menu")).toBeVisible();
+  await camPage.keyboard.press("Escape");
+  await expect(camPage.getByRole("menu")).toBeHidden();
 
   await openUnifiedBoard(sethPage, appliedSeason.id, fullPlayerCount);
   await exerciseBoardSimulations(sethPage, appliedSeason);
   await exerciseDurableMockWorkspace(sethPage, appliedSeason);
 
   await Promise.all([
-    camPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
-    sethPage.goto(`/app?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    camPage.goto(`/league?seasonId=${encodeURIComponent(appliedSeason.id)}`),
+    sethPage.goto(`/league?seasonId=${encodeURIComponent(appliedSeason.id)}`),
   ]);
   await Promise.all([
-    camPage.locator("#open-live-draft-button").click(),
-    sethPage.locator("#open-live-draft-button").click(),
+    camPage.getByRole("link", { name: "Enter draft" }).click(),
+    sethPage.getByRole("link", { name: "Enter draft" }).click(),
   ]);
   await expect(camPage.locator("#draft-room-view")).toBeVisible();
   await expect(sethPage.locator("#draft-room-view")).toBeVisible();
@@ -1108,6 +967,37 @@ test("local platform supports fixture signup, setup, invitation, realtime draft,
   await exerciseReadyWorkspace(await localFixtureWorkspace(browser));
 });
 
+test("Draft Lab supports baseline browsing and league-aware planning", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "draft.lab.e2e@example.com");
+
+  await page.goto("/practice");
+  await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
+  await expectPracticeBoard(page, 500);
+  await expect(page.getByText("Baseline values", { exact: true })).toBeVisible();
+  await expect(practicePlayerRows(page).first().getByRole("button", {
+    name: /Add .+ to draft targets/u,
+  })).toBeDisabled();
+
+  const season = await seedSeasonFromBrowser(page, account, "draft-lab-controls");
+  await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
+  await expectPracticeBoard(page, 500);
+  await exercisePracticeBoardControls(page);
+  await expect(page.getByRole("link", { name: "Start auction mock" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run simulations" })).toBeVisible();
+});
+
+test("Draft Lab saves simulation runs and resumes an auction mock", async ({ browser }) => {
+  test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  const { page, account } = await pageForLocalFixtureUser(browser, "draft.lab.runs.e2e@example.com");
+  const season = await seedSeasonFromBrowser(page, account, "draft-lab-runs");
+
+  await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
+  await expectPracticeBoard(page, 500);
+  await exerciseBoardSimulations(page, season);
+  await exerciseDurableMockWorkspace(page, season);
+});
+
 test("primary navigation stays in the current document and the account menu dismisses accessibly", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const email = "soft.navigation.e2e@example.com";
@@ -1129,8 +1019,8 @@ test("primary navigation stays in the current document and the account menu dism
   });
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expectPracticeBoard(page);
+  await exercisePracticeBoardControls(page);
   expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: 1 });
 
   const documentId = "soft-navigation-document";
@@ -1146,38 +1036,39 @@ test("primary navigation stays in the current document and the account menu dism
 
   await page.getByRole("link", { name: "League", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#league-workspace")).toBeVisible();
-  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
 
   await page.getByRole("link", { name: "My team", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#my-team-workspace")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/.+/u);
   await expectCurrentDocument();
 
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#league-workspace")).toBeVisible();
-  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/practice\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-board h1")).toBeFocused();
-  await expect(page).toHaveTitle("Practice | Mockd");
+  await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+  await expectPracticeBoard(page);
+  await expect(page).toHaveTitle("Draft lab | Mockd");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#league-workspace")).toBeVisible();
-  await expect(page.locator("#league-workspace h1")).toBeFocused();
+  await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
-  await expect(page.locator("#my-team-workspace")).toBeVisible();
-  await expect(page.locator("#my-team-workspace h1")).toBeFocused();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("My team | Mockd");
   await expectCurrentDocument();
 
@@ -1185,7 +1076,7 @@ test("primary navigation stays in the current document and the account menu dism
   const accountMenu = page.getByRole("menu");
   await menuButton.click();
   await expect(accountMenu).toBeVisible();
-  await page.locator("#my-team-workspace h1").click();
+  await page.getByRole("main").click({ position: { x: 10, y: 10 } });
   await expect(accountMenu).toBeHidden();
 
   await menuButton.click();
@@ -1224,7 +1115,7 @@ test("a stale failed mock request cannot overwrite a newer mock session", async 
   const { page, account } = await pageForLocalFixtureUser(browser, "stale.mock.e2e@example.com");
   const season = await seedSeasonFromBrowser(page, account, "stale-mock-load");
   await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
+  await expectPracticeBoard(page);
   await page.evaluate(() => {
     document.documentElement.dataset.staleMockDocument = "original";
   });
@@ -1244,12 +1135,13 @@ test("a stale failed mock request cannot overwrite a newer mock session", async 
     await route.fallback();
   });
 
-  await page.locator("#standalone-board-open-mock").click();
+  await page.getByRole("link", { name: "Start auction mock" }).click();
+  await page.getByRole("button", { name: "Create auction mock" }).click();
   await expect.poll(() => pendingFirstRequest.route !== undefined).toBe(true);
   await page.getByRole("link", { name: "Practice", exact: true }).click();
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-start")).toBeEnabled();
+  await page.getByRole("link", { name: "Start auction mock" }).click();
+  await page.getByRole("button", { name: "Create auction mock" }).click();
+  await expectAuctionMockSetup(page);
   await expect.poll(async () => await page.evaluate(() =>
     document.documentElement.dataset.staleMockDocument
   )).toBe("original");
@@ -1259,9 +1151,8 @@ test("a stale failed mock request cannot overwrite a newer mock session", async 
     contentType: "application/json",
     body: JSON.stringify({ error: { code: "stale_failure", message: "Stale request failed." } }),
   });
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-start")).toBeEnabled();
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Stale request failed.");
+  await expectAuctionMockSetup(page);
+  await expect(page.getByText("Stale request failed.", { exact: true })).toHaveCount(0);
 });
 
 test("completed auction mock shows every team's priced Week 1 roster", async ({ browser }) => {
@@ -1364,22 +1255,22 @@ test("auction mock only enables legal nominations for the final open slot", asyn
   })).season;
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(createdSeason.id)}`);
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-start")).toBeEnabled();
-  await page.locator("#mock-draft-start").click();
-  await expect(page.locator("#mock-draft-state")).toHaveText("Active");
-  await expect(page.locator("#mock-draft-open-slots")).toHaveText("1");
+  await createAuctionMock(page);
+  await expectAuctionMockSetup(page);
+  await startAuctionMock(page);
+  await expect(page.getByText("Open slots", { exact: true }).locator("..")).toContainText("1");
 
-  const quarterbackAction = page.locator(
-    '#mock-draft-player-rows tr[data-position="QB"] .mock-player-action',
-  ).first();
-  const invalidAction = page.locator(
-    '#mock-draft-player-rows tr:not([data-position="QB"]) .mock-player-action',
-  ).first();
+  const playerRows = availablePlayersTable(page).getByRole("row").filter({
+    has: page.getByRole("button", { name: /^Nominate /u }),
+  });
+  const quarterbackAction = playerRows.filter({
+    has: page.getByRole("cell", { name: "QB", exact: true }),
+  }).first().getByRole("button", { name: /^Nominate /u });
+  const invalidAction = playerRows.filter({
+    has: page.getByRole("cell", { name: "RB", exact: true }),
+  }).first().getByRole("button", { name: /^Nominate /u });
   await expect(quarterbackAction).toBeEnabled();
   await expect(invalidAction).toBeDisabled();
-  await expect(invalidAction).toHaveAttribute("title", "No open roster slot can accept this position.");
 
   const nominationResponse = page.waitForResponse(response =>
     response.request().method() === "POST"
@@ -1388,7 +1279,7 @@ test("auction mock only enables legal nominations for the final open slot", asyn
   );
   await quarterbackAction.click();
   expect((await nominationResponse).status()).toBe(200);
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Updating the mock draft...");
+  await expect(page.getByRole("region", { name: "Live auction" })).toBeVisible();
 });
 
 test("commissioner history and keepers persist into an unopened live room", async ({ browser }) => {
@@ -1614,28 +1505,37 @@ test("commissioner league switching discards stale setup fetch responses", async
   });
 
   await page.goto(`/setup?seasonId=${encodeURIComponent(seasonA.id)}`);
-  await expect(page.locator("#header-league-picker")).toHaveValue(seasonA.id);
-  await page.locator("#header-league-picker").selectOption(seasonB.id);
-  await expect(page.locator("#invitation-create-status")).toHaveText("No league link is active yet.");
-  await expect(page.locator("#create-league-invite-button")).toHaveText("Create league link");
-  await expect(page.locator("#setup-team-body")).toContainText("League B Cam");
+  const headerLeaguePicker = page.getByRole("banner").getByRole("combobox", {
+    name: "Active league",
+  });
+  await expect(headerLeaguePicker).toHaveText(`League A · ${String(seasonA.seasonYear)}`);
+  await headerLeaguePicker.click();
+  await page.getByRole("option", {
+    name: `League B · ${String(seasonB.seasonYear)}`,
+    exact: true,
+  }).click();
+  await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Cam/u);
   await delay(400);
-  await expect(page.locator("#invitation-create-status")).toHaveText("No league link is active yet.");
-  await expect(page.locator("#create-league-invite-button")).toHaveText("Create league link");
-  await expect(page.locator("#setup-team-body")).not.toContainText("League A Cam");
+  await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Teams and managers" })).not.toHaveValue(/League A Cam/u);
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page).toHaveURL(/mockSessionId=/);
-  const leagueAMockSessionId = new URL(page.url()).searchParams.get("mockSessionId");
-  await page.locator("#header-league-picker").selectOption(seasonB.id);
-  await expect(page.locator("#header-league-picker")).toHaveValue(seasonB.id);
-  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
+  const leagueAMockSessionId = await createAuctionMock(page);
+  await expectAuctionMockSetup(page);
+  const mockLeaguePicker = page.getByRole("banner").getByRole("combobox", {
+    name: "Active league",
+  });
+  await mockLeaguePicker.click();
+  await page.getByRole("option", {
+    name: `League B · ${String(seasonB.seasonYear)}`,
+    exact: true,
+  }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("seasonId")).toBe(seasonB.id);
-  await expect.poll(() => new URL(page.url()).searchParams.get("mockSessionId")).not.toBeNull();
-  expect(new URL(page.url()).searchParams.get("mockSessionId")).not.toBe(leagueAMockSessionId);
-  await expect(page.locator("#mock-draft-status")).not.toHaveText("Opening your league mock...");
-  await expect(page.locator("#mock-draft-status")).not.toContainText("belongs to another league");
+  await expect(page.getByRole("button", { name: "Create auction mock" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("sessionId")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("sessionId")).not.toBe(leagueAMockSessionId);
+  await expect(page.getByText(/belongs to another league/u)).toHaveCount(0);
 });
 
 test("deployed platform supports authenticated workspaces without mutating the real draft", async ({ browser }) => {

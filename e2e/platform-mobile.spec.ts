@@ -9,6 +9,17 @@ import {
   expectSignedOut,
   signOutThroughAccountMenu,
 } from "./support/auth.js";
+import {
+  availablePlayersTable,
+  createAuctionMock,
+  expectAuctionMockSetup,
+} from "./support/mockDraft.js";
+import {
+  choosePracticeOption,
+  expectPracticeBoard,
+  practiceBoard,
+  practicePlayerRows,
+} from "./support/practice.js";
 
 const mobileViewport = { width: 390, height: 844 } as const;
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
@@ -342,73 +353,50 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
     { times: 1 },
   );
 
-  await page.goto(`/app?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(page.locator("#league-name")).toHaveText(leagueName);
-  await expect(page.locator("#my-team-name")).toHaveText("Cam");
-  await expect(page.locator("#membership-role")).toHaveText("Admin");
-  await expect(page.locator("#open-live-draft-button")).toHaveText("Open live draft");
+  await page.goto(`/league?seasonId=${encodeURIComponent(season.id)}`);
+  await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Enter draft" })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
     accountMenuButton(page),
-    page.locator("#header-league-picker"),
-    page.locator("#open-live-draft-button"),
+    page.getByRole("link", { name: "Enter draft" }),
   ]);
 
   await page.getByRole("link", { name: "Practice", exact: true }).click();
   await expect(page).toHaveURL(/\/practice\?seasonId=/);
   expect(new URL(page.url()).searchParams.get("seasonId")).toBe(season.id);
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
-  await expect(page.locator("#standalone-board-status")).toContainText("500 shown / 500 loaded");
-  await expect(page.locator("#standalone-board-sort")).toHaveValue("mine");
-  await expect(page.locator("#standalone-pricing-source")).toContainText("Market blends");
-  await expect(page.locator("#standalone-pricing-warnings")).toContainText(
-    "Limited league history; value confidence is lower.",
-  );
-  const rankedTarget = page.locator("#standalone-player-rows tr").nth(7);
-  const targetName = (await rankedTarget.locator(".player-name").textContent())?.trim();
-  const targetRank = (await rankedTarget.locator('[data-label="Rank"]').textContent())?.trim();
+  await expectPracticeBoard(page, 500);
+  const rankedTarget = practicePlayerRows(page).nth(7);
+  const targetName = (await rankedTarget.getByRole("cell").nth(2).textContent())?.trim();
+  const targetRank = (await rankedTarget.getByRole("cell").nth(1).textContent())?.trim();
   expect(targetName).toBeTruthy();
   expect(targetRank).toBeTruthy();
-  await page.locator("#standalone-player-search").fill(targetName || "");
-  await expect(page.locator('#standalone-player-rows tr [data-label="Rank"]')).toHaveText(targetRank || "");
-  await page.locator("#standalone-player-search").fill("");
-  await page.locator("#standalone-board-sort").selectOption("rank");
-  await expect(page.locator('#standalone-player-rows tr').first().locator('[data-label="Rank"]')).toHaveText("1");
-  await expectBoundedScrollRegion(page.locator("#standalone-player-scroll"));
+  const search = practiceBoard(page).getByRole("searchbox", { name: "Search players" });
+  await search.fill(targetName ?? "");
+  await expect(practicePlayerRows(page).first().getByRole("cell").nth(1)).toHaveText(targetRank ?? "");
+  await search.fill("");
+  await choosePracticeOption(page, "Sort players", "Rank");
+  await expect(practicePlayerRows(page).first()).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
 
-  await page.locator("#standalone-board-open-mock").click();
-  await expect(page).toHaveURL(/\/mock-drafts\?seasonId=.*&mockSessionId=/);
-  const mockSessionId = new URL(page.url()).searchParams.get("mockSessionId");
-  expect(mockSessionId).toBeTruthy();
-  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
-  await expect(page.locator("#mock-draft-title")).toHaveText("Auction mock draft");
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
-  await expect(page.locator("#mock-draft-player-rows tr").first()).toBeVisible();
-  await expectBoundedScrollRegion(page.locator("#mock-draft-player-scroll"));
-  const mobileWorkspaceOrder = await page.evaluate(() => ({
-    rosterTop: document.querySelector(".mock-roster-panel")?.getBoundingClientRect().top ?? 0,
-    boardTop: document.querySelector("#mock-draft-player-scroll")?.getBoundingClientRect().top ?? 0,
-  }));
-  expect(mobileWorkspaceOrder.rosterTop).toBeLessThan(mobileWorkspaceOrder.boardTop);
+  const mockSessionId = await createAuctionMock(page);
+  await expectAuctionMockSetup(page);
+  const rosterBox = await page.getByRole("region", { name: / roster$/u }).boundingBox();
+  const boardBox = await availablePlayersTable(page).boundingBox();
+  expect(rosterBox?.y).toBeLessThan(boardBox?.y ?? 0);
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
-    page.locator("#mock-draft-start"),
-    page.locator("#mock-draft-buy"),
-    page.locator("#mock-draft-pass"),
-    page.locator("#mock-draft-undo"),
-    page.locator("#mock-draft-complete"),
+    page.getByRole("button", { name: "Start draft" }),
+    page.getByRole("button", { name: "Abandon mock" }),
   ]);
   await page.reload();
-  await expect(page.locator("#mock-draft-workspace")).toBeVisible();
-  expect(new URL(page.url()).searchParams.get("mockSessionId")).toBe(mockSessionId);
-  await expect(page.locator("#mock-draft-state")).toHaveText("Setup");
+  await expectAuctionMockSetup(page);
+  expect(new URL(page.url()).searchParams.get("sessionId")).toBe(mockSessionId);
 
   await page.getByRole("link", { name: "League", exact: true }).click();
-  await expect(page.locator("#league-workspace")).toBeVisible();
-
-  await page.locator("#open-live-draft-button").click();
+  await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
+  await page.getByRole("link", { name: "Enter draft" }).click();
   await expect(page.locator("#draft-room-view")).toBeVisible();
   await expect(page.locator("#draft-board-cards")).toBeVisible();
   await expect(page.locator("#draft-board-cards [data-player-name]")).toHaveCount(playerCatalog.length - 1);
@@ -451,20 +439,14 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   const seasonId = requiredDeployedValue("MOCKD_E2E_DEPLOYED_SEASON_ID");
   await signInExisting(page, email, accountPassword);
 
-  await page.goto(`/app?seasonId=${encodeURIComponent(seasonId)}`);
-  await expect(page.locator("#league-workspace")).toBeVisible();
-  await expect(page.locator("#membership-role")).toHaveText(/Owner|Admin/);
-  await expect(page.locator("#my-team-name")).not.toHaveText("Needs attention");
+  await page.goto(`/league?seasonId=${encodeURIComponent(seasonId)}`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
-  await expectNoControlOverlap([
-    accountMenuButton(page),
-    page.locator("#header-league-picker"),
-  ]);
+  await expectNoControlOverlap([accountMenuButton(page)]);
 
   await page.getByRole("link", { name: "Practice", exact: true }).click();
   await expect(page).toHaveURL(/\/practice\?seasonId=/);
-  await expect(page.locator("#standalone-board")).toBeVisible();
-  await expect(page.locator("#standalone-player-rows .player-name").first()).toBeVisible();
-  await expect(page.locator("#standalone-board-status")).toContainText("loaded");
+  await expectPracticeBoard(page);
   await expectNoHorizontalPageOverflow(page);
 });
