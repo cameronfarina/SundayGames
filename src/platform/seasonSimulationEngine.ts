@@ -36,19 +36,26 @@ import {
   type SeasonSimulationPreferenceRule,
   type SeasonSimulationPreferredPosition,
 } from "./seasonSimulationPreferences.js";
+import {
+  seasonSimulationTargetOutcomeFor,
+  targetKeeperInfeasibilityFor,
+  targetResolutionInfeasibilityFor,
+  type ResolvedSeasonSimulationTarget,
+  type SeasonSimulationTargetConstraint,
+  type SeasonSimulationTargetOutcome,
+} from "./seasonSimulationTargets.js";
 
 export type {
   SeasonSimulationPreferenceOutcome,
   SeasonSimulationPreferenceRule,
   SeasonSimulationPreferredPosition,
 } from "./seasonSimulationPreferences.js";
-
-export interface SeasonSimulationTargetConstraint {
-  playerName: string;
-  maxAuctionPrice?: number | undefined;
-  maxSnakeRound?: number | undefined;
-  maxSnakeOverallPick?: number | undefined;
-}
+export type {
+  SeasonSimulationTargetConstraint,
+  SeasonSimulationTargetOutcome,
+  SeasonSimulationTargetOutcomeReason,
+  SeasonSimulationTargetOutcomeStatus,
+} from "./seasonSimulationTargets.js";
 
 export interface SeasonSimulationPositionCap {
   position: "QB" | "RB" | "WR" | "TE";
@@ -154,13 +161,6 @@ export interface SeasonSimulationRunResult {
   label: string;
   seed: string;
   teams: readonly SeasonSimulationTeamResult[];
-}
-
-export interface SeasonSimulationTargetOutcome {
-  playerId: string;
-  playerName: string;
-  hitCount: number;
-  hitRate: number;
 }
 
 export interface SeasonSimulationResult {
@@ -1105,10 +1105,7 @@ const aggregateRuns = (input: {
   runCount: number;
   seedPrefix: string;
   strategy: ParsedSeasonSimulationStrategy;
-  resolvedTargets: readonly {
-    playerId: string;
-    target: SeasonSimulationTargetConstraint;
-  }[];
+  resolvedTargets: readonly ResolvedSeasonSimulationTarget[];
   preferences: readonly ResolvedSeasonSimulationPreference[];
   pairPlayerId: string | undefined;
   humanTeamId: string;
@@ -1165,15 +1162,16 @@ const aggregateRuns = (input: {
     .sort((left, right) =>
       right.count - left.count || left.playerName.localeCompare(right.playerName)
     );
-  const targetOutcomes = input.resolvedTargets.map(({ playerId, target }) => {
-    const targetExposure = exposure.get(playerId);
-    return {
-      playerId,
-      playerName: target.playerName,
-      hitCount: targetExposure?.count ?? 0,
-      hitRate: (targetExposure?.count ?? 0) / input.runCount,
-    };
-  });
+  const humanRosters = input.runs.map(run =>
+    run.teams.find(team => team.teamId === input.humanTeamId)?.roster ?? []
+  );
+  const targetOutcomes = input.resolvedTargets.map(resolvedTarget =>
+    seasonSimulationTargetOutcomeFor({
+      resolvedTarget,
+      draftFormat: input.draftFormat,
+      humanRosters,
+    })
+  );
   const targetOutcome = targetOutcomes[0];
   const preferenceOutcomes = input.preferences.map(preference => {
     const hitCount = input.runs.filter(run => {
@@ -1239,12 +1237,11 @@ const resolvedStrategy = (
   strategy: ParsedSeasonSimulationStrategy,
   setup: LiveDraftRoomSetup,
   humanTeamId: string,
+  teams: readonly { id: string; displayName: string }[],
+  draftFormat: "auction" | "snake" | undefined,
 ): {
   strategy: ParsedSeasonSimulationStrategy;
-  resolvedTargets: readonly {
-    playerId: string;
-    target: SeasonSimulationTargetConstraint;
-  }[];
+  resolvedTargets: readonly ResolvedSeasonSimulationTarget[];
   pairPlayerId: string | undefined;
 } => {
   const catalogNamesById = new Map(setup.playerCatalog.map(player => [
@@ -1295,12 +1292,24 @@ const resolvedStrategy = (
   const pairResolution = resolveCatalogId(strategy.pairWithPlayerName);
   const pairPlayerId = pairResolution.id;
   const warnings = [...strategy.warnings];
-  for (const { target, resolution } of resolvedTargets) {
-    if (resolution.id !== undefined) continue;
-    warnings.push(resolution.ambiguous
-      ? `Target player ${target.playerName} matches multiple players; use the full name.`
-      : `Target player ${target.playerName} was not found in the player catalog.`);
-  }
+  const classifiedTargets = resolvedTargets.map(({ target, resolution, playerId }) => {
+    const infeasibility = resolution.id === undefined
+      ? targetResolutionInfeasibilityFor({ target, ambiguous: resolution.ambiguous })
+      : targetKeeperInfeasibilityFor({
+        playerId,
+        target,
+        humanTeamId,
+        draftFormat,
+        initialRosters: setup.initialRosters,
+        teams,
+      });
+    if (infeasibility !== undefined) warnings.push(infeasibility.message);
+    return {
+      playerId,
+      target,
+      ...(infeasibility === undefined ? {} : { infeasibility }),
+    };
+  });
   if (strategy.pairWithPlayerName !== undefined && pairPlayerId === undefined) {
     warnings.push(pairResolution.ambiguous
       ? `Pair-with player ${strategy.pairWithPlayerName} matches multiple players; use the full name.`
@@ -1331,7 +1340,7 @@ const resolvedStrategy = (
       }),
       warnings,
     },
-    resolvedTargets: resolvedTargets.map(({ target, playerId }) => ({ target, playerId })),
+    resolvedTargets: classifiedTargets,
     pairPlayerId,
   };
 };
@@ -1420,7 +1429,13 @@ const runSeasonSimulationsUnchecked = (
     );
   }
   const parsed = { ...parsedStrategy, warnings: formatWarnings };
-  const baseStrategyResolution = resolvedStrategy(parsed, input.setup, input.humanTeamId);
+  const baseStrategyResolution = resolvedStrategy(
+    parsed,
+    input.setup,
+    input.humanTeamId,
+    input.season.teams,
+    input.season.settings.draftFormat,
+  );
   const preferenceResolution = resolveSeasonSimulationPreferences({
     preferences: baseStrategyResolution.strategy.preferredPositions,
     season: input.season,
