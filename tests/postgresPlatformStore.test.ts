@@ -22,10 +22,14 @@ class FakePostgresClient implements PostgresQueryClient {
   readonly queries: { text: string; values: readonly unknown[] }[] = [];
   row: StoredSnapshotRow | undefined;
 
-  async query<TRow = Record<string, unknown>>(
+  query<TRow = Record<string, unknown>>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<PostgresQueryResult<TRow>>;
+  async query(
     text: string,
     values: readonly unknown[] = [],
-  ): Promise<PostgresQueryResult<TRow>> {
+  ): Promise<PostgresQueryResult<unknown>> {
     this.queries.push({ text, values });
 
     if (text.startsWith("CREATE TABLE") || text.startsWith("CREATE INDEX")) {
@@ -33,7 +37,7 @@ class FakePostgresClient implements PostgresQueryClient {
     }
 
     if (text.startsWith("SELECT revision, snapshot_json")) {
-      return { rows: this.row === undefined ? [] : [this.row as TRow] };
+      return { rows: this.row === undefined ? [] : [this.row] };
     }
 
     if (text.startsWith("INSERT INTO platform_store_snapshots")) {
@@ -49,7 +53,7 @@ class FakePostgresClient implements PostgresQueryClient {
           snapshot_json: snapshotJson,
         };
 
-        return { rows: [{ revision: nextRevision } as TRow], rowCount: 1 };
+        return { rows: [{ revision: nextRevision }], rowCount: 1 };
       }
 
       if (this.row.revision !== expectedRevision) {
@@ -61,7 +65,7 @@ class FakePostgresClient implements PostgresQueryClient {
         snapshot_json: snapshotJson,
       };
 
-      return { rows: [{ revision: nextRevision } as TRow], rowCount: 1 };
+      return { rows: [{ revision: nextRevision }], rowCount: 1 };
     }
 
     throw new Error(`Unexpected SQL: ${text}`);

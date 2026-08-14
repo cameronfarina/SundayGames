@@ -4,20 +4,22 @@ import {
   LiveDraftRoomSetupWriteConflictError,
   PostgresLiveDraftRoomSetupRepository,
   type LiveDraftRoomSetupPostgresRow,
+  type SaveLiveDraftRoomSetupInput,
 } from "../src/platform/liveDraftRoomSetups.js";
 import type { PostgresQueryClient, PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
+import { dateValueAt } from "./support/postgresParameterValues.js";
 
-const input = {
+const input: SaveLiveDraftRoomSetupInput = {
   seasonId: "season_2026",
   sourceVersion: "mockd-2026-v1",
-  playerCatalog: [{ name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 }],
+  playerCatalog: [{ name: "Puka Nacua", position: "WR", expectedPrice: 73 }],
   initialRosters: [{
     teamId: "team_cam",
     ownerId: "owner11",
     playerName: "De'Von Achane",
-    position: "RB" as const,
+    position: "RB",
     price: 50,
-    source: "keeper" as const,
+    source: "keeper",
   }],
   updatedAt: new Date("2026-08-10T12:00:00.000Z"),
 };
@@ -26,7 +28,14 @@ class SetupClient implements PostgresQueryClient {
   readonly queries: Array<{ sql: string; params: readonly unknown[] }> = [];
   stored: LiveDraftRoomSetupPostgresRow | undefined;
 
-  async query<TRow>(sql: string, params: readonly unknown[] = []): Promise<PostgresQueryResult<TRow>> {
+  query<TRow = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<PostgresQueryResult<TRow>>;
+  async query(
+    sql: string,
+    params: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<unknown>> {
     this.queries.push({ sql, params });
     if (sql.startsWith("INSERT INTO")) {
       if (sql.includes("DO NOTHING") && this.stored !== undefined) return { rows: [] };
@@ -36,7 +45,7 @@ class SetupClient implements PostgresQueryClient {
         player_catalog_json: JSON.parse(String(params[2])),
         initial_rosters_json: JSON.parse(String(params[3])),
         content_hash: String(params[4]),
-        updated_at: params[5] as Date,
+        updated_at: dateValueAt(params, 5),
       };
     } else if (sql.startsWith("UPDATE ")) {
       if (this.stored?.content_hash !== params[6]) return { rows: [] };
@@ -46,10 +55,10 @@ class SetupClient implements PostgresQueryClient {
         player_catalog_json: JSON.parse(String(params[2])),
         initial_rosters_json: JSON.parse(String(params[3])),
         content_hash: String(params[4]),
-        updated_at: params[5] as Date,
+        updated_at: dateValueAt(params, 5),
       };
     }
-    return { rows: (this.stored === undefined ? [] : [this.stored]) as TRow[] };
+    return { rows: this.stored === undefined ? [] : [this.stored] };
   }
 }
 

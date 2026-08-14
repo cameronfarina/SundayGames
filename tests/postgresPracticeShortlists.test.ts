@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PostgresPracticeShortlistRepository } from "../src/platform/postgresPracticeShortlists.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type { PostgresQueryClient, PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
+import { dateValueAt } from "./support/postgresParameterValues.js";
 
 interface StoredItem {
   id: string;
@@ -25,15 +26,19 @@ class PracticeShortlistClient implements PostgresTransactionalQueryClient {
     return await operation(this);
   }
 
-  async query<TRow = Record<string, unknown>>(
+  query<TRow = Record<string, unknown>>(
+    sql: string,
+    values?: readonly unknown[],
+  ): Promise<PostgresQueryResult<TRow>>;
+  async query(
     sql: string,
     values: readonly unknown[] = [],
-  ): Promise<PostgresQueryResult<TRow>> {
+  ): Promise<PostgresQueryResult<unknown>> {
     this.queries.push({ sql, values });
     const normalized = sql.replace(/\s+/gu, " ").trim();
     if (normalized.startsWith("SELECT pg_advisory_xact_lock")) return { rows: [] };
     if (normalized.startsWith("SELECT id FROM target_lists")) {
-      return { rows: this.listId === undefined ? [] : [{ id: this.listId } as TRow] };
+      return { rows: this.listId === undefined ? [] : [{ id: this.listId }] };
     }
     if (normalized.startsWith("INSERT INTO target_lists")) {
       this.listId = String(values[0]);
@@ -44,13 +49,13 @@ class PracticeShortlistClient implements PostgresTransactionalQueryClient {
       const item = [...this.items.values()].find(candidate =>
         candidate.listId === values[0] && candidate.playerName.toLowerCase() === playerName
       );
-      return { rows: item === undefined ? [] : [{ id: item.id, priority: item.priority } as TRow] };
+      return { rows: item === undefined ? [] : [{ id: item.id, priority: item.priority }] };
     }
     if (normalized.startsWith("SELECT COALESCE(MAX(priority)")) {
-      return { rows: [{ next_priority: this.items.size + 1 } as TRow] };
+      return { rows: [{ next_priority: this.items.size + 1 }] };
     }
     if (normalized.startsWith("INSERT INTO target_list_items")) {
-      const now = values[6] as Date;
+      const now = dateValueAt(values, 6);
       this.items.set(String(values[0]), {
         id: String(values[0]),
         listId: String(values[1]),
@@ -69,7 +74,7 @@ class PracticeShortlistClient implements PostgresTransactionalQueryClient {
         item.playerName = String(values[1]);
         item.position = String(values[2]);
         item.maxBid = values[3] === null ? null : Number(values[3]);
-        item.updatedAt = values[4] as Date;
+        item.updatedAt = dateValueAt(values, 4);
       }
       return { rows: [] };
     }
@@ -80,7 +85,7 @@ class PracticeShortlistClient implements PostgresTransactionalQueryClient {
       );
       if (item === undefined) return { rows: [] };
       this.items.delete(item.id);
-      return { rows: [{ id: item.id } as TRow] };
+      return { rows: [{ id: item.id }] };
     }
     if (normalized.includes("FROM target_list_items i JOIN target_lists l")) {
       const requestedItemId = normalized.includes("WHERE i.id = $1") ? String(values[0]) : undefined;
@@ -97,7 +102,7 @@ class PracticeShortlistClient implements PostgresTransactionalQueryClient {
           priority: item.priority,
           created_at: item.createdAt,
           updated_at: item.updatedAt,
-        } as TRow));
+        }));
       return { rows };
     }
     throw new Error(`Unexpected SQL: ${normalized}`);

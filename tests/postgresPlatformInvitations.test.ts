@@ -6,6 +6,16 @@ import {
 } from "../src/platform/postgresPlatformInvitations.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type { PostgresQueryClient, PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
+import type {
+  PlatformInvitationKind,
+  PlatformInvitationRecord,
+} from "../src/platform/platformInvitations.js";
+import type { WorkspaceRole } from "../src/platform/workspacePrivacy.js";
+import {
+  dateValueAt,
+  nullableStringValueAt,
+  stringValueAt,
+} from "./support/postgresParameterValues.js";
 
 const invitationRow: PlatformInvitationPostgresRow = {
   id: "invite_1",
@@ -27,38 +37,62 @@ const invitationRow: PlatformInvitationPostgresRow = {
   accepted_by_user_id: null,
 };
 
+const invitationKindValueAt = (
+  values: readonly unknown[],
+  index: number,
+): PlatformInvitationKind => {
+  const value = values[index];
+  if (value !== "team" && value !== "league") throw new Error("Expected invitation kind.");
+  return value;
+};
+
+const workspaceRoleValueAt = (values: readonly unknown[], index: number): WorkspaceRole => {
+  const value = values[index];
+  if (value !== "owner" && value !== "admin" && value !== "member" && value !== "observer") {
+    throw new Error("Expected workspace role.");
+  }
+  return value;
+};
+
 class InvitationClient implements PostgresTransactionalQueryClient {
   readonly queries: Array<{ sql: string; params: readonly unknown[] }> = [];
   invitationInsertReturnsNoRows = false;
   invitationRevokeReturnsNoRows = false;
   transactionCount = 0;
 
-  async query<TRow>(sql: string, params: readonly unknown[] = []): Promise<PostgresQueryResult<TRow>> {
+  query<TRow = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<PostgresQueryResult<TRow>>;
+  async query(
+    sql: string,
+    params: readonly unknown[] = [],
+  ): Promise<PostgresQueryResult<unknown>> {
     this.queries.push({ sql, params });
     if (sql.includes("SET status = 'revoked'")) {
       if (this.invitationRevokeReturnsNoRows) return { rows: [] };
-      return { rows: [{ id: params[0] } as TRow] };
+      return { rows: [{ id: stringValueAt(params, 0) }] };
     }
     if (sql.includes("INSERT INTO league_invitations")) {
       if (this.invitationInsertReturnsNoRows) return { rows: [] };
       return {
         rows: [{
           ...invitationRow,
-          id: params[0],
-          league_id: params[1],
-          season_id: params[2],
-          invitation_kind: params[3],
-          email_normalized: params[4],
-          role: params[5],
-          owner_id: params[6],
-          team_id: params[7],
-          owner_display_name: params[8],
-          team_display_name: params[9],
-          invited_by_user_id: params[10],
-          token_hash: params[11],
-          expires_at: params[12],
-          created_at: params[13],
-        } as TRow],
+          id: stringValueAt(params, 0),
+          league_id: stringValueAt(params, 1),
+          season_id: stringValueAt(params, 2),
+          invitation_kind: invitationKindValueAt(params, 3),
+          email_normalized: nullableStringValueAt(params, 4),
+          role: workspaceRoleValueAt(params, 5),
+          owner_id: nullableStringValueAt(params, 6),
+          team_id: nullableStringValueAt(params, 7),
+          owner_display_name: nullableStringValueAt(params, 8),
+          team_display_name: nullableStringValueAt(params, 9),
+          invited_by_user_id: stringValueAt(params, 10),
+          token_hash: stringValueAt(params, 11),
+          expires_at: dateValueAt(params, 12),
+          created_at: dateValueAt(params, 13),
+        }],
       };
     }
     if (sql.includes("FROM league_invitations") && sql.includes("invitation_kind = 'league'")) {
@@ -73,7 +107,7 @@ class InvitationClient implements PostgresTransactionalQueryClient {
           owner_display_name: null,
           team_display_name: null,
           token_hash: "winner_hash",
-        } as TRow],
+        }],
       };
     }
     if (sql.includes("UPDATE league_invitations") && sql.includes("RETURNING")) {
@@ -81,13 +115,13 @@ class InvitationClient implements PostgresTransactionalQueryClient {
         rows: [{
           ...invitationRow,
           status: "accepted",
-          accepted_at: params[2],
-          accepted_by_user_id: params[1],
-        } as TRow],
+          accepted_at: dateValueAt(params, 2),
+          accepted_by_user_id: stringValueAt(params, 1),
+        }],
       };
     }
-    if (sql.includes("INSERT INTO league_memberships")) return { rows: [{ id: "membership_1" } as TRow] };
-    if (sql.includes("UPDATE fantasy_teams")) return { rows: [{ id: "team_seth" } as TRow] };
+    if (sql.includes("INSERT INTO league_memberships")) return { rows: [{ id: "membership_1" }] };
+    if (sql.includes("UPDATE fantasy_teams")) return { rows: [{ id: "team_seth" }] };
     return { rows: [] };
   }
 
@@ -140,20 +174,20 @@ describe("Postgres platform invitations", () => {
   it("replaces a pending invitation atomically", async () => {
     const client = new InvitationClient();
     const repository = new PostgresPlatformInvitationRepository(client);
-    const replacement = {
+    const replacement: PlatformInvitationRecord = {
       id: "invite_2",
       leagueId: "league_1",
       seasonId: "season_2026",
-      kind: "team" as const,
+      kind: "team",
       email: "owner04@example.com",
-      role: "member" as const,
+      role: "member",
       ownerId: "owner04",
       teamId: "team_seth",
       ownerDisplayName: "Owner04",
       teamDisplayName: "Owner04's Team",
       invitedByUserId: "acct_owner11",
       tokenHash: "replacement_hash",
-      status: "pending" as const,
+      status: "pending",
       expiresAt: new Date("2026-08-18T12:00:00.000Z"),
       createdAt: new Date("2026-08-11T12:00:00.000Z"),
     };
