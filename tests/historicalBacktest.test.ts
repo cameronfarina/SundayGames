@@ -29,7 +29,7 @@ describe("historical backtest", () => {
     expect(report.summary.largestDeltas).toHaveLength(10);
     expect(report.summary.largestDeltas[0]).toMatchObject({
       status: "warn",
-      thresholdPressure: expect.any(Number) as number,
+      thresholdPressure: expect.any(Number),
     });
     expect(report.summary.largestDeltas.some(delta => delta.category === "high_price_volume"))
       .toBe(true);
@@ -81,5 +81,14 @@ describe("historical backtest", () => {
     expect(report.notes).toContain(
       "Backtest compares historical seasons against other historical seasons only; it does not claim projection accuracy without historical projection files.",
     );
+  });
+
+  it("returns an isolated report that callers cannot mutate across builds", async () => {
+    const historicalRecords = await loadHistoricalAuctionRecords();
+    const first = buildHistoricalBacktest(historicalRecords);
+    first.notes.length = 0;
+
+    const second = buildHistoricalBacktest(historicalRecords);
+    expect(second.notes).toHaveLength(3);
   });
 });
