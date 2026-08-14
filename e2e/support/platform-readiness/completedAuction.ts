@@ -28,9 +28,13 @@ export const exerciseCompletedAuctionMockResults = async (
     } else if (await passButton.count() > 0 && await passButton.isEnabled()) {
       await passButton.click();
     } else {
-      const nominationButton = availablePlayersTable(page)
-        .locator('button[aria-label^="Nominate "]:enabled')
-        .last();
+      const nominationButtons = availablePlayersTable(page)
+        .locator('button[aria-label^="Nominate "]:enabled');
+      await expect.poll(async () => (
+        await finishButton.isEnabled() || await nominationButtons.count() > 0
+      )).toBe(true);
+      if (await finishButton.isEnabled()) break;
+      const nominationButton = nominationButtons.last();
       await expect(nominationButton).toBeVisible();
       await expect(nominationButton).toBeEnabled();
       await nominationButton.click();
