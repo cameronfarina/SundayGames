@@ -126,5 +126,9 @@ describe("season mock results", () => {
     expect(results.teams.every(team => team.roster.length === 2)).toBe(true);
     expect(results.teams.every(team => team.roster.every(player => player.starter))).toBe(true);
     expect(results.teams.find(team => team.isUserTeam)?.teamId).toBe("team-1");
+    expect(results.teams.flatMap(team => team.roster).every(player => player.source !== "keeper")).toBe(true);
+    expect(results.teams.flatMap(team => team.roster).map(player => player.overallPick).sort((left, right) =>
+      (left ?? 0) - (right ?? 0)
+    )).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
