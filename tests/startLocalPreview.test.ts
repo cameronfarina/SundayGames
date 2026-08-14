@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  localPreviewPlatformPort,
   localPreviewPlatformCommand,
+  localPreviewWebCommand,
+  localPreviewWebPort,
   readPrimaryWorktreeDirectory,
   resolveLocalPreviewPaths,
 } from "../scripts/start-local-preview.js";
@@ -106,7 +109,10 @@ describe("local preview paths", () => {
     });
   });
 
-  it("runs the platform server from current TypeScript source", () => {
+  it("runs the API and source-backed React server on separate supervised ports", () => {
     expect(localPreviewPlatformCommand).toEqual(["run", "platform:web:dev"]);
+    expect(localPreviewWebCommand).toEqual(["run", "web:dev"]);
+    expect(localPreviewPlatformPort).toBe(4320);
+    expect(localPreviewWebPort).toBe(4319);
   });
 });

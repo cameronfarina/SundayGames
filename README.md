@@ -50,8 +50,11 @@ npm install
 npm run dev
 ```
 
-`npm run dev` seeds the reusable local demo and starts the platform shell at
-`http://127.0.0.1:4319/login`. Sign in with `cam@mockd.local` and
+`npm run dev` seeds the reusable local demo and starts the React app with Vite
+and hot module replacement at `http://127.0.0.1:4319/login`. The command prints
+a unique frontend runtime ID so a stale process is immediately visible. API,
+cookie, and event-stream traffic is proxied to the supervised local platform
+process; stopping the command stops both servers. Sign in with `cam@mockd.local` and
 `mockd local e2e password`; League, Board, Mock drafts, Simulations, and Live
 draft all run behind that one authenticated origin and survive a
 normal browser refresh. Use `MOCKD_PLATFORM_DATA_FILE` or
