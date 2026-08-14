@@ -563,6 +563,87 @@ const preservesSlotsForTargets = (
   );
 };
 
+const canReserveTargetsForTeam = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  targetPlayers: readonly GenericAuctionMockBoardPlayer[],
+): boolean => {
+  const projectedPositionCounts = { ...team.positionCounts };
+  for (const targetPlayer of targetPlayers) {
+    projectedPositionCounts[targetPlayer.position]
+      = (projectedPositionCounts[targetPlayer.position] ?? 0) + 1;
+  }
+  if (Object.entries(projectedPositionCounts).some(([position, count]) =>
+    count > (state.configuration.positionMaximums[position] ?? 0)
+  )) return false;
+
+  return canFitTargetPositions(
+    targetPlayers.map(targetPlayer => targetPlayer.position),
+    team.slots.filter(slot => slot.playerId === undefined),
+  );
+};
+
+const minimumTargetAcquisitionCostFor = (
+  state: GenericAuctionMockState,
+  player: GenericAuctionMockBoardPlayer,
+  targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
+): number => {
+  const minimumBid = state.configuration.minimumBidDollars;
+  const targetCap = targetsByPlayerId.get(player.id)?.maxAuctionPrice;
+  const expectedClearingPrice = Math.max(minimumBid, Math.round(player.expectedPrice));
+  return targetCap === undefined
+    ? expectedClearingPrice
+    : Math.min(targetCap, expectedClearingPrice);
+};
+
+const plannedFutureTargetsFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  player: GenericAuctionMockBoardPlayer,
+  targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
+): readonly GenericAuctionMockBoardPlayer[] => {
+  const minimumBid = state.configuration.minimumBidDollars;
+  const nomination = state.session.currentNomination;
+  const candidateIsTarget = targetsByPlayerId.has(player.id);
+  const currentBid = nomination?.playerId === player.id ? nomination.nextBid : minimumBid;
+  const candidateCost = candidateIsTarget ? currentBid : 0;
+  const candidateSlots = candidateIsTarget ? 1 : 0;
+  const availableTargets = availableTargetPlayersFor(
+    state,
+    team,
+    player.id,
+    targetsByPlayerId,
+  );
+  const plannedTargets: GenericAuctionMockBoardPlayer[] = [];
+  let plannedTargetCost = 0;
+
+  for (const targetPlayer of availableTargets) {
+    if (plannedTargets.length >= team.rosterSlotsRemaining - candidateSlots) break;
+    const nextTargets = [...plannedTargets, targetPlayer];
+    const targetsFit = candidateIsTarget
+      ? preservesSlotsForTargets(state, team, player, nextTargets)
+      : canReserveTargetsForTeam(state, team, nextTargets);
+    if (!targetsFit) continue;
+
+    const nextTargetCost = minimumTargetAcquisitionCostFor(
+      state,
+      targetPlayer,
+      targetsByPlayerId,
+    );
+    const unplannedSlots = team.rosterSlotsRemaining - nextTargets.length - candidateSlots;
+    const minimumRosterCost = unplannedSlots * minimumBid;
+    if (
+      candidateCost + plannedTargetCost + nextTargetCost + minimumRosterCost
+      > team.budgetRemaining
+    ) continue;
+
+    plannedTargets.push(targetPlayer);
+    plannedTargetCost += nextTargetCost;
+  }
+
+  return plannedTargets;
+};
+
 const selectAuctionNomination = (
   state: GenericAuctionMockState,
   targetsByPlayerId: ReadonlyMap<string, SeasonSimulationTargetConstraint>,
@@ -660,27 +741,29 @@ const auctionWillingnessFor = (
     state.configuration.minimumBidDollars,
     Math.round(baseValue) + needDollars + preferenceDollars + targetDollars,
   );
-  const availableTargetPlayers = availableTargetPlayersFor(
+  const plannedTargetPlayers = plannedFutureTargetsFor(
     state,
     team,
-    player.id,
+    player,
     targetsByPlayerId,
   );
   if (
     !isTarget
-    && availableTargetPlayers.some(targetPlayer => targetPlayer.position === player.position)
+    && plannedTargetPlayers.some(targetPlayer => targetPlayer.position === player.position)
   ) return 0;
-  const reservedTargetBudget = availableTargetPlayers.reduce((total, targetPlayer) => {
-    const targetConstraint = targetsByPlayerId.get(targetPlayer.id);
-    const targetBudget = targetConstraint?.maxAuctionPrice
-      ?? Math.round(targetPlayer.expectedPrice) + humanClearingPriceCushionDollars;
-    return total + Math.max(0, targetBudget - state.configuration.minimumBidDollars);
-  }, 0);
+  const reservedTargetBudget = plannedTargetPlayers.reduce(
+    (total, targetPlayer) => total + Math.max(
+      0,
+      minimumTargetAcquisitionCostFor(state, targetPlayer, targetsByPlayerId)
+        - state.configuration.minimumBidDollars,
+    ),
+    0,
+  );
   const preservesTargetSlots = preservesSlotsForTargets(
     state,
     team,
     player,
-    availableTargetPlayers,
+    plannedTargetPlayers,
   );
   const strategyLimit = Math.min(
     team.maxBid,

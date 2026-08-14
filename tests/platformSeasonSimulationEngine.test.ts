@@ -11,6 +11,7 @@ import {
   parseSeasonSimulationStrategy,
   runSeasonSimulations,
   SeasonSimulationError,
+  type SeasonSimulationTargetConstraint,
 } from "../src/platform/seasonSimulationEngine.js";
 
 const teams = ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
@@ -139,6 +140,51 @@ const snakeSetup: LiveDraftRoomSetup = {
   }],
   contentHash: "snake-hash",
   updatedAt: new Date("2026-08-11T12:00:00.000Z"),
+};
+
+const runTargetBudgetAuctionPlan = (
+  targetConstraints: readonly SeasonSimulationTargetConstraint[],
+  seedPrefix: string,
+  budgetDollars = 100,
+) => {
+  const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
+    ...auctionSeason,
+    settings: {
+      ...auctionSeason.settings,
+      auction: { budgetDollars, minimumBidDollars: 1 },
+      roster: {
+        rosterSize: 2,
+        lineup: { RB: 2 },
+        lineupSlotCount: 2,
+        rosterMaximums: { QB: 0, RB: 2, WR: 0, TE: 0, K: 0, DST: 0 },
+      },
+    },
+  };
+  const setup: LiveDraftRoomSetup = {
+    ...auctionSetup,
+    initialRosters: [],
+    playerCatalog: [
+      { name: "Premium Runner", position: "RB", expectedPrice: 57 },
+      { name: "Value Runner", position: "RB", expectedPrice: 38 },
+      ...Array.from(
+        { length: 6 },
+        (_, index): LiveDraftRoomSetup["playerCatalog"][number] => ({
+          name: `Depth Runner ${index + 1}`,
+          position: "RB",
+          expectedPrice: 1,
+        }),
+      ),
+    ],
+  };
+
+  return runSeasonSimulations({
+    season,
+    setup,
+    humanTeamId: "team-1",
+    runCount: 1,
+    targetConstraints,
+    seedPrefix,
+  });
 };
 
 describe("season simulation strategy parser", () => {
@@ -287,6 +333,96 @@ describe("season simulation strategy parser", () => {
 });
 
 describe("season simulation runner", () => {
+  it.each([
+    ["Premium Runner", "Value Runner", "alg001-95"],
+    ["Value Runner", "Premium Runner", "alg001-3"],
+  ])("acquires an exactly affordable pair of uncapped targets in order %s then %s", (
+    firstTarget,
+    secondTarget,
+    seedPrefix,
+  ) => {
+    const result = runTargetBudgetAuctionPlan(
+      [
+        { playerName: firstTarget },
+        { playerName: secondTarget },
+      ],
+      seedPrefix,
+    );
+    const humanTeam = result.runs[0]?.teams.find(team => team.isUserTeam);
+
+    expect(humanTeam?.roster.map(player => player.playerName).sort()).toEqual([
+      "Premium Runner",
+      "Value Runner",
+    ]);
+    expect(humanTeam?.spent).toBe(100);
+    expect(humanTeam?.budgetRemaining).toBe(0);
+    expect(humanTeam?.roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "Premium Runner", price: 61 }),
+      expect.objectContaining({ playerName: "Value Runner", price: 39 }),
+    ]));
+  });
+
+  it.each([
+    ["Premium Runner", "Value Runner", "alg001-95"],
+    ["Value Runner", "Premium Runner", "alg001-3"],
+  ])("acquires an exactly affordable pair of capped targets in order %s then %s", (
+    firstTarget,
+    secondTarget,
+    seedPrefix,
+  ) => {
+    const targetFor = (playerName: string): SeasonSimulationTargetConstraint => ({
+      playerName,
+      maxAuctionPrice: playerName === "Premium Runner" ? 61 : 39,
+    });
+    const result = runTargetBudgetAuctionPlan(
+      [targetFor(firstTarget), targetFor(secondTarget)],
+      seedPrefix,
+    );
+    const humanTeam = result.runs[0]?.teams.find(team => team.isUserTeam);
+
+    expect(result.targetOutcomes?.every(outcome => outcome.hitCount === 1)).toBe(true);
+    expect(humanTeam?.roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "Premium Runner", price: 61 }),
+      expect.objectContaining({ playerName: "Value Runner", price: 39 }),
+    ]));
+    expect(humanTeam?.spent).toBe(100);
+    expect(humanTeam?.budgetRemaining).toBe(0);
+  });
+
+  it("honors the feasible prefix of an over-capacity uncapped target plan", () => {
+    const result = runTargetBudgetAuctionPlan([
+      { playerName: "Premium Runner" },
+      { playerName: "Value Runner" },
+      { playerName: "Depth Runner 1" },
+    ], "alg001-95");
+    const humanTeam = result.runs[0]?.teams.find(team => team.isUserTeam);
+
+    expect(humanTeam?.roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "Premium Runner", price: 61 }),
+      expect.objectContaining({ playerName: "Value Runner", price: 39 }),
+    ]));
+    expect(humanTeam?.roster).toHaveLength(2);
+    expect(new Set(humanTeam?.roster.map(player => player.playerId)).size).toBe(2);
+    expect(humanTeam?.spent).toBe(100);
+    expect(humanTeam?.budgetRemaining).toBe(0);
+  });
+
+  it("keeps a budget-infeasible uncapped target plan within auction invariants", () => {
+    const result = runTargetBudgetAuctionPlan([
+      { playerName: "Premium Runner" },
+      { playerName: "Value Runner" },
+    ], "alg001-95", 90);
+    const humanTeam = result.runs[0]?.teams.find(team => team.isUserTeam);
+
+    expect(humanTeam?.roster).toHaveLength(2);
+    expect(humanTeam?.roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "Premium Runner" }),
+    ]));
+    expect(new Set(humanTeam?.roster.map(player => player.playerId)).size).toBe(2);
+    expect(humanTeam?.spent).toBeLessThanOrEqual(90);
+    expect(humanTeam?.budgetRemaining).toBeGreaterThanOrEqual(0);
+  });
+
   it("reports each completed league draft while a simulation batch runs", () => {
     const progress: Array<{ completed: number; total: number }> = [];
 
