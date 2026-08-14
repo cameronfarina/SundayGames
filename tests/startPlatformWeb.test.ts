@@ -104,7 +104,6 @@ describe("platform web startup", () => {
       },
       end: closePool,
     });
-    vi.spyOn(postgresClientModule, "createNodePostgresClient").mockReturnValue(postgresClient);
     const startPlatformServer = vi.spyOn(platformServerModule, "startPlatformServer").mockRejectedValue(
       new Error("server startup failed"),
     );
@@ -114,7 +113,7 @@ describe("platform web startup", () => {
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
       MOCKD_ENABLE_LEGACY_MOCK_BATCH: "true",
       MOCKD_TRUST_PROXY: "true",
-    })).rejects.toThrow("server startup failed");
+    }, { postgresClientFactory: () => postgresClient })).rejects.toThrow("server startup failed");
     expect(startPlatformServer).toHaveBeenCalledWith(expect.objectContaining({
       legacyMockBatchEnabled: true,
       trustProxy: true,
