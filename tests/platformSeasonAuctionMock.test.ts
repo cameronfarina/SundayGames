@@ -128,33 +128,58 @@ describe("season auction mock adapter", () => {
     expect(config.positionMaximums).toEqual({ QB: 3, RB: 4, WR: 5, TE: 4, K: 1, DST: 1 });
   });
 
-  it("marks only enough projected specialists to fill every starting lineup", () => {
+  it("caps specialist eligibility at 32 viable roles without promoting near-zero depth", () => {
     const specialistPositions = ["QB", "TE", "K", "DST"] as const;
+    const projectedRoleCount = 33;
+    const viableRoleDepth = 32;
     const specialistSeason: LeagueSeason = {
       ...season,
       settings: {
         ...season.settings,
         roster: {
-          rosterSize: 4,
-          lineup: { QB: 1, TE: 1, K: 1, DST: 1 },
-          lineupSlotCount: 4,
-          rosterMaximums: { QB: 1, RB: 0, WR: 0, TE: 1, K: 1, DST: 1 },
+          rosterSize: 6,
+          lineup: { QB: 1, TE: 1, K: 1, DST: 1, BENCH: 2 },
+          lineupSlotCount: 6,
+          rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 2, DST: 2 },
         },
       },
     };
     const specialistSetup: LiveDraftRoomSetup = {
       ...setup,
       initialRosters: [],
-      playerCatalog: specialistPositions.flatMap(position =>
-        Array.from({ length: 6 }, (_, index) => ({
-          name: `${position} Option ${index + 1}`,
-          position,
-          expectedPrice: Math.max(1, 5 - index),
-          week1Projection: index === 5 ? 0 : 20 - index,
-          weeks1To4Projection: index === 5 ? 100 : 80 - index,
-          seasonProjection: index === 5 ? 400 : 300 - index,
-        }))
-      ),
+      playerCatalog: [
+        ...specialistPositions.flatMap(position => [
+          ...Array.from({ length: projectedRoleCount }, (_, index) => ({
+            name: `${position} Viable ${index + 1}`,
+            position,
+            expectedPrice: Math.max(1, projectedRoleCount - index),
+            teamAbbreviation: `NFL${index + 1}`,
+            week1Projection: 20 - index * 0.1,
+            weeks1To4Projection: 80 - index * 0.1,
+            seasonProjection: 300 - index,
+          })),
+          {
+            name: `${position} Near-Zero Backup`,
+            position,
+            expectedPrice: 1,
+            week1Projection: 0.1,
+            weeks1To4Projection: 0.4,
+            seasonProjection: 1.7,
+          },
+        ]),
+        {
+          name: "RB Bench Depth",
+          position: "RB",
+          expectedPrice: 1,
+          week1Projection: 1,
+        },
+        {
+          name: "WR Bench Depth",
+          position: "WR",
+          expectedPrice: 1,
+          week1Projection: 1,
+        },
+      ],
     };
 
     const config = buildSeasonAuctionMockConfig({
@@ -168,21 +193,19 @@ describe("season auction mock adapter", () => {
     for (const position of specialistPositions) {
       const players = config.players.filter(player => player.position === position);
       expect(players.filter(player => player.projectedStarter).map(player => player.name))
-        .toEqual(Array.from({ length: 4 }, (_, index) => `${position} Option ${index + 1}`));
-      expect(players[4]).toMatchObject({
-        name: `${position} Option 5`,
-        week1Projection: 16,
-        weeks1To4Projection: 76,
-        seasonProjection: 296,
-      });
-      expect(players[4]?.projectedStarter).toBeUndefined();
-      expect(players[5]).toMatchObject({
-        name: `${position} Option 6`,
-        week1Projection: 0,
-        seasonProjection: 400,
-      });
-      expect(players[5]?.projectedStarter).toBeUndefined();
+        .toEqual(Array.from({ length: viableRoleDepth }, (_, index) => `${position} Viable ${index + 1}`));
+      expect(players.filter(player => player.starterEligible).map(player => player.name))
+        .toEqual(Array.from({ length: viableRoleDepth }, (_, index) => `${position} Viable ${index + 1}`));
+      expect(players.find(player => player.name === `${position} Viable ${projectedRoleCount}`))
+        .toMatchObject({ starterEligible: false });
+      const placeholder = players.find(player => player.name === `${position} Near-Zero Backup`);
+      expect(placeholder).toMatchObject({ starterEligible: false });
+      expect(placeholder).not.toHaveProperty("projectedStarter");
     }
+    expect(config.players.find(player => player.name === "RB Bench Depth"))
+      .not.toHaveProperty("starterEligible");
+    expect(config.players.find(player => player.name === "WR Bench Depth"))
+      .not.toHaveProperty("starterEligible");
   });
 
   it("rejects unknown legacy roster slots", () => {

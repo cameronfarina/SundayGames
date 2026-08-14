@@ -650,6 +650,235 @@ describe("generic auction mock engine", () => {
     });
   });
 
+  it("fails explicitly instead of filling a required starter slot with a zero projection", () => {
+    const config = baseConfig({
+      rosterSlots: [{ slot: "QB", count: 1, eligiblePositions: ["QB"] }],
+      positionMaximums: { QB: 1 },
+      players: [
+        {
+          id: "kept-starter",
+          name: "Kept Starter",
+          position: "QB",
+          expectedPrice: 10,
+          week1Projection: 20,
+          starterEligible: true,
+        },
+        {
+          id: "starter-2",
+          name: "Starter Two",
+          position: "QB",
+          expectedPrice: 8,
+          week1Projection: 18,
+          starterEligible: true,
+        },
+        {
+          id: "starter-3",
+          name: "Starter Three",
+          position: "QB",
+          expectedPrice: 7,
+          week1Projection: 17,
+          starterEligible: true,
+        },
+        {
+          id: "zero-backup",
+          name: "Zero Backup",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0,
+          starterEligible: false,
+        },
+      ],
+      keepers: [{ teamId: "team-a", playerId: "kept-starter", price: 1 }],
+    });
+
+    expect(() => start(config)).toThrowError(expect.objectContaining({
+      code: "no_eligible_player",
+    }));
+  });
+
+  it("uses the best positive projection when the starter-eligible pool is exhausted", () => {
+    const config = baseConfig({
+      rosterSlots: [{ slot: "QB", count: 1, eligiblePositions: ["QB"] }],
+      positionMaximums: { QB: 1 },
+      players: [
+        {
+          id: "kept-starter",
+          name: "Kept Starter",
+          position: "QB",
+          expectedPrice: 10,
+          week1Projection: 20,
+          starterEligible: true,
+        },
+        {
+          id: "starter-2",
+          name: "Starter Two",
+          position: "QB",
+          expectedPrice: 8,
+          week1Projection: 18,
+          starterEligible: true,
+        },
+        {
+          id: "starter-3",
+          name: "Starter Three",
+          position: "QB",
+          expectedPrice: 7,
+          week1Projection: 17,
+          starterEligible: true,
+        },
+        {
+          id: "positive-fallback",
+          name: "Positive Fallback",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 2,
+          starterEligible: false,
+        },
+        {
+          id: "zero-backup",
+          name: "Zero Backup",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0,
+          starterEligible: false,
+        },
+      ],
+      keepers: [{ teamId: "team-a", playerId: "kept-starter", price: 1 }],
+    });
+
+    const ready = start(config);
+
+    expect(ready.session.phase).toBe("ready_to_complete");
+    expect(ready.teams.every(team => team.rosterSlotsRemaining === 0)).toBe(true);
+    expect(ready.sales.find(sale => sale.playerId === "positive-fallback"))
+      .toMatchObject({ source: "ai" });
+    expect(ready.board.players.find(player => player.id === "zero-backup"))
+      .toMatchObject({ status: "available" });
+  });
+
+  it("keeps ineligible specialist keepers on the bench and leaves RB/WR depth draftable", () => {
+    const config = baseConfig({
+      rosterSlots: [
+        { slot: "QB", count: 1, eligiblePositions: ["QB"] },
+        { slot: "BENCH", count: 1, eligiblePositions: ["QB", "RB", "WR"] },
+      ],
+      positionMaximums: { QB: 2, RB: 1, WR: 1 },
+      players: [
+        {
+          id: "kept-backup",
+          name: "Kept Backup",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0.5,
+          starterEligible: false,
+        },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          id: `starter-${index + 1}`,
+          name: `Starter ${index + 1}`,
+          position: "QB",
+          expectedPrice: 10 - index,
+          week1Projection: 20 - index,
+          starterEligible: true,
+        })),
+        {
+          id: "backup-depth",
+          name: "Backup Depth",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0.4,
+          starterEligible: false,
+        },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          id: `rb-${index + 1}`,
+          name: `RB ${index + 1}`,
+          position: "RB",
+          expectedPrice: 4 - index,
+          week1Projection: 8 - index,
+        })),
+        ...Array.from({ length: 4 }, (_, index) => ({
+          id: `wr-${index + 1}`,
+          name: `WR ${index + 1}`,
+          position: "WR",
+          expectedPrice: 4 - index,
+          week1Projection: 8 - index,
+        })),
+      ],
+      keepers: [
+        { teamId: "team-a", playerId: "kept-backup", price: 1 },
+        { teamId: "team-a", playerId: "starter-1", price: 1 },
+      ],
+    });
+
+    const ready = start(config);
+    const humanRoster = ready.teams.find(team => team.id === "team-a")?.roster;
+    const aiRosters = ready.teams.filter(team => !team.isHuman).map(team => team.roster);
+
+    expect(humanRoster?.find(player => player.playerId === "kept-backup"))
+      .toMatchObject({ source: "keeper", rosterSlot: "BENCH" });
+    expect(humanRoster?.find(player => player.playerId === "starter-1"))
+      .toMatchObject({ source: "keeper", rosterSlot: "QB" });
+    expect(aiRosters.every(roster => roster.some(player =>
+      player.rosterSlot === "QB" && player.playerId.startsWith("starter-")
+    ))).toBe(true);
+    expect(aiRosters.every(roster => roster.some(player =>
+      player.rosterSlot === "BENCH" && (player.position === "RB" || player.position === "WR")
+    ))).toBe(true);
+    expect(ready.teams.every(team => team.rosterSlotsRemaining === 0)).toBe(true);
+    expect(ready.board.players.find(player => player.id === "backup-depth"))
+      .toMatchObject({ status: "available" });
+  });
+
+  it("reserves the minimum bid for a positive fallback after starter eligibility is exhausted", () => {
+    const setup = createGenericAuctionMockState(baseConfig({
+      budgetDollars: 20,
+      minimumBidDollars: 2,
+      rosterSlots: [
+        { slot: "RB", count: 1, eligiblePositions: ["RB"] },
+        { slot: "QB", count: 1, eligiblePositions: ["QB"] },
+      ],
+      positionMaximums: { RB: 1, QB: 1 },
+      players: [
+        {
+          id: "target-rb",
+          name: "Target RB",
+          position: "RB",
+          expectedPrice: 20,
+          week1Projection: 12,
+        },
+        {
+          id: "positive-fallback",
+          name: "Positive Fallback",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 2,
+          starterEligible: false,
+        },
+        {
+          id: "zero-backup",
+          name: "Zero Backup",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0,
+          starterEligible: false,
+        },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          id: `depth-rb-${index + 1}`,
+          name: `Depth RB ${index + 1}`,
+          position: "RB",
+          expectedPrice: 1,
+          week1Projection: 5,
+        })),
+      ],
+    }));
+    const team = setup.teams.find(candidate => candidate.id === "team-b");
+    const target = setup.board.players.find(player => player.id === "target-rb");
+
+    expect(team).toBeDefined();
+    expect(target).toBeDefined();
+    if (team === undefined || target === undefined) return;
+
+    expect(maximumAutomatedAuctionBidFor(setup, team, target)).toBe(18);
+  });
+
   it("reranks paced AI bidders when the human cannot afford the next bid", () => {
     const config = baseConfig({
       humanTeamId: "team-b",

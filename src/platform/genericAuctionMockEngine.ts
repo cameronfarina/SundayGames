@@ -37,6 +37,7 @@ export interface GenericAuctionMockPlayer {
   week1Projection?: number | undefined;
   weeks1To4Projection?: number | undefined;
   seasonProjection?: number | undefined;
+  starterEligible?: boolean | undefined;
   projectedStarter?: boolean | undefined;
 }
 
@@ -385,6 +386,8 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
       || (player.weeks1To4Projection !== undefined
         && !isNonNegativeFinite(player.weeks1To4Projection))
       || (player.seasonProjection !== undefined && !isNonNegativeFinite(player.seasonProjection))
+      || (player.starterEligible !== undefined && typeof player.starterEligible !== "boolean")
+      || (player.projectedStarter !== undefined && typeof player.projectedStarter !== "boolean")
     )
   ) {
     throw new GenericAuctionMockError(
@@ -531,12 +534,16 @@ const playerFor = (
 const assignableSlotFor = (
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockPlayer,
+  preferFlexibleSlot = false,
 ): GenericAuctionMockRosterSlot | undefined => team.slots
   .filter(slot => slot.playerId === undefined && slot.eligiblePositions.includes(player.position))
-  .sort((left, right) =>
-    left.eligiblePositions.length - right.eligiblePositions.length
-    || left.slot.localeCompare(right.slot)
-  )[0];
+  .sort((left, right) => {
+    const flexibilityDifference = left.eligiblePositions.length - right.eligiblePositions.length;
+    const preferredDifference = preferFlexibleSlot
+      ? -flexibilityDifference
+      : flexibilityDifference;
+    return preferredDifference || left.slot.localeCompare(right.slot);
+  })[0];
 
 const canAcquire = (
   state: GenericAuctionMockState,
@@ -565,6 +572,7 @@ const assertCanAcquire = (
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockPlayer,
   price: number,
+  preferFlexibleSlot = false,
 ): GenericAuctionMockRosterSlot => {
   assertPrice(state, price);
 
@@ -586,7 +594,7 @@ const assertCanAcquire = (
     );
   }
 
-  const slot = assignableSlotFor(team, player);
+  const slot = assignableSlotFor(team, player, preferFlexibleSlot);
   if (slot === undefined) {
     throw new GenericAuctionMockError(
       "roster_limit",
@@ -609,7 +617,8 @@ interface GenericAuctionMockAnalysisCache {
   eligibleAiTeamsByPlayerId: Map<string, readonly GenericAuctionMockTeamReadModel[]>;
   projectedRosterPricesByTeamAndPlayerId: Map<string, readonly number[]>;
   projectedRbOrWrAlternativeByTeamId: Map<string, boolean>;
-  remainingProjectedStartersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
+  remainingStarterEligiblePlayersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
+  starterEligibilitySignalByPosition: Map<string, boolean>;
 }
 
 interface GenericAuctionMockAnalysisCacheEntry {
@@ -631,7 +640,8 @@ const analysisCacheFor = (state: GenericAuctionMockState): GenericAuctionMockAna
     eligibleAiTeamsByPlayerId: new Map(),
     projectedRosterPricesByTeamAndPlayerId: new Map(),
     projectedRbOrWrAlternativeByTeamId: new Map(),
-    remainingProjectedStartersByPosition: new Map(),
+    remainingStarterEligiblePlayersByPosition: new Map(),
+    starterEligibilitySignalByPosition: new Map(),
   };
   analysisCacheByBoard.set(state.board, { teams: state.teams, cache: created });
   return created;
@@ -693,6 +703,30 @@ const projectedWeeklyProductionFor = (player: GenericAuctionMockPlayer): number 
   ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection / 4)
   ?? (player.seasonProjection === undefined ? 0 : player.seasonProjection / 17);
 
+const projectedSeasonProductionFor = (player: GenericAuctionMockPlayer): number =>
+  player.seasonProjection
+  ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection * 4.25)
+  ?? (player.week1Projection === undefined ? 0 : player.week1Projection * 17);
+
+const isStarterEligible = (player: GenericAuctionMockPlayer): boolean =>
+  player.starterEligible ?? (player.projectedStarter === true);
+
+const hasStarterEligibilitySignalFor = (
+  state: GenericAuctionMockState,
+  position: string,
+): boolean => {
+  const byPosition = analysisCacheFor(state).starterEligibilitySignalByPosition;
+  const cached = byPosition.get(position);
+  if (cached !== undefined) return cached;
+
+  const configured = state.configuration.players.some(player =>
+    player.position === position
+    && player.starterEligible !== undefined
+  );
+  byPosition.set(position, configured);
+  return configured;
+};
+
 const hasOpenDedicatedStarterSlotFor = (
   team: GenericAuctionMockTeamReadModel,
   position: string,
@@ -711,17 +745,17 @@ const openDedicatedStarterDemandFor = (
   && slot.eligiblePositions[0] === position
 ).length, 0);
 
-const remainingProjectedStartersFor = (
+const remainingStarterEligiblePlayersFor = (
   state: GenericAuctionMockState,
   position: string,
 ): readonly GenericAuctionMockBoardPlayer[] => {
-  const byPosition = analysisCacheFor(state).remainingProjectedStartersByPosition;
+  const byPosition = analysisCacheFor(state).remainingStarterEligiblePlayersByPosition;
   const cached = byPosition.get(position);
   if (cached !== undefined) return cached;
 
   const remaining = state.board.players.filter(player =>
     player.position === position
-    && player.projectedStarter === true
+    && isStarterEligible(player)
     && player.status !== "sold"
   );
   byPosition.set(position, remaining);
@@ -748,6 +782,24 @@ const hasProjectedRbOrWrAlternative = (
   return hasAlternative;
 };
 
+const bestPositiveStarterFallbackFor = (
+  state: GenericAuctionMockState,
+  team: GenericAuctionMockTeamReadModel,
+  position: string,
+): GenericAuctionMockBoardPlayer | undefined => state.board.players
+  .filter(candidate =>
+    candidate.position === position
+    && candidate.status !== "sold"
+    && projectedWeeklyProductionFor(candidate) > 0
+    && canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
+  )
+  .sort((left, right) =>
+    projectedWeeklyProductionFor(right) - projectedWeeklyProductionFor(left)
+    || projectedSeasonProductionFor(right) - projectedSeasonProductionFor(left)
+    || right.expectedPrice - left.expectedPrice
+    || left.id.localeCompare(right.id)
+  )[0];
+
 export const isAutomatedAuctionAcquisitionEligible = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
@@ -755,23 +807,25 @@ export const isAutomatedAuctionAcquisitionEligible = (
 ): boolean => {
   const assignedSlot = assignableSlotFor(team, player);
   if (assignedSlot === undefined) return false;
+  if (!hasStarterEligibilitySignalFor(state, player.position)) return true;
   if (
     benchOnlySpecialistPositions.has(player.position)
     && !hasOpenDedicatedStarterSlotFor(team, player.position)
     && hasProjectedRbOrWrAlternative(state, team)
   ) return false;
 
-  const projectedStarters = remainingProjectedStartersFor(state, player.position);
-  if (projectedStarters.length === 0) return true;
+  const starterEligiblePlayers = remainingStarterEligiblePlayersFor(state, player.position);
 
   if (hasOpenDedicatedStarterSlotFor(team, player.position)) {
-    return player.projectedStarter === true || !projectedStarters.some(candidate =>
+    if (starterEligiblePlayers.some(candidate =>
       canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
-    );
-  }
-  if (player.projectedStarter !== true) return true;
+    )) return isStarterEligible(player);
 
-  return projectedStarters.length > openDedicatedStarterDemandFor(state, player.position);
+    return bestPositiveStarterFallbackFor(state, team, player.position)?.id === player.id;
+  }
+  if (!isStarterEligible(player)) return true;
+
+  return starterEligiblePlayers.length > openDedicatedStarterDemandFor(state, player.position);
 };
 
 export const maximumAutomatedAuctionBidFor = (
@@ -786,16 +840,16 @@ export const maximumAutomatedAuctionBidFor = (
     slot.playerId === undefined && slot.slot !== assignedSlot.slot
   );
   let reserve = remainingSlots.length * state.configuration.minimumBidDollars;
-  const positionsNeedingProjectedStarters = new Set(remainingSlots
+  const positionsNeedingStarterEligiblePlayers = new Set(remainingSlots
     .filter(slot => slot.eligiblePositions.length === 1)
     .map(slot => slot.eligiblePositions[0])
     .filter((position): position is string => position !== undefined));
 
-  for (const position of positionsNeedingProjectedStarters) {
+  for (const position of positionsNeedingStarterEligiblePlayers) {
     const needed = remainingSlots.filter(slot =>
       slot.eligiblePositions.length === 1 && slot.eligiblePositions[0] === position
     ).length;
-    const affordableStarters = remainingProjectedStartersFor(state, position)
+    const affordableStarters = remainingStarterEligiblePlayersFor(state, position)
       .filter(candidate => candidate.id !== player.id)
       .sort((left, right) =>
         left.expectedPrice - right.expectedPrice
@@ -958,7 +1012,7 @@ const nominationScoreFor = (
   const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
   const positionWeight = tendency?.nominationPositionWeights?.[player.position] ?? 1;
   const needWeight = state.configuration.ai?.rosterNeedDollars ?? 1;
-  const projectedStarterNeed = player.projectedStarter === true
+  const projectedStarterNeed = isStarterEligible(player)
     && hasOpenDedicatedStarterSlotFor(team, player.position);
 
   return player.expectedPrice * positionWeight
@@ -1154,7 +1208,10 @@ const addAcquisition = ({
   if (player.status === "sold") {
     throw new GenericAuctionMockError("duplicate_player", `${player.name} is already unavailable.`);
   }
-  const slot = assertCanAcquire(state, team, player, price);
+  const preferFlexibleSlot = source === "keeper"
+    && hasStarterEligibilitySignalFor(state, player.position)
+    && !isStarterEligible(player);
+  const slot = assertCanAcquire(state, team, player, price, preferFlexibleSlot);
   const rosterPlayer: GenericAuctionMockRosterPlayer = {
     playerId: player.id,
     playerName: player.name,
