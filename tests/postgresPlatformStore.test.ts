@@ -151,5 +151,8 @@ describe("Postgres platform store", () => {
 
     expect(postgresStore.store.snapshot()).toEqual(new InMemoryPlatformStore().snapshot());
     expect(postgresStore.loadedRevision).toBeNull();
+
+    await postgresStore.save();
+    expect(client.queries.at(-1)?.values[4]).toBeInstanceOf(Date);
   });
 });
