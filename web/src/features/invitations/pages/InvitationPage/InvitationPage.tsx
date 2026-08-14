@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { InvitationAuthActions } from "../../components/InvitationAuthActions/InvitationAuthActions";
 import { InvitationError, InvitationLoading } from "../../components/InvitationState/InvitationState";
 import { InvitationTeamList } from "../../components/InvitationTeamList/InvitationTeamList";
@@ -40,9 +40,9 @@ export function InvitationPage() {
       </header>
       {data.session.data.status === "signed-out" ? <InvitationAuthActions token={token} /> : null}
       {connectedLeague === undefined ? null : (
-        <a className="invite-button invite-button--primary" href={leaguePathForInvitation(connectedLeague.seasonId)}>
+        <Link className="invite-button invite-button--primary" to={leaguePathForInvitation(connectedLeague.seasonId)}>
           Open league
-        </a>
+        </Link>
       )}
       <InvitationTeamList
         connectedTeamId={connectedTeamId}

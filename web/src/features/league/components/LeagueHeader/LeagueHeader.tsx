@@ -27,7 +27,7 @@ export function LeagueHeader({ league }: { readonly league: OnboardingLeague }) 
           <Link className="league-button" to={`${setupPath}#live-room-setup-title`}>Create draft room</Link>
         ) : null}
         {draftPath === undefined ? null : (
-          <a className="league-button league-button--primary" href={draftPath}>Enter draft</a>
+          <Link className="league-button league-button--primary" to={draftPath}>Enter draft</Link>
         )}
       </div>
     </header>
