@@ -36,6 +36,10 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
         path: "my-team",
         lazy: () => import("../../features/myTeam/routes/myTeamRoute"),
       },
+      {
+        path: "commissioner",
+        lazy: () => import("../../features/commissioner/routes/commissionerRoute"),
+      },
     ],
   },
 ];

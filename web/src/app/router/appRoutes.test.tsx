@@ -5,7 +5,15 @@ import { createAppRoutes } from "./appRoutes";
 const appRoutes = createAppRoutes(new QueryClient());
 
 describe("application routes", () => {
-  it.each(["/login", "/signup", "/practice", "/league", "/my-team", "/invite"])(
+  it.each([
+    "/login",
+    "/signup",
+    "/practice",
+    "/league",
+    "/my-team",
+    "/commissioner",
+    "/invite",
+  ])(
     "owns the %s browser route",
     path => {
       expect(matchRoutes(appRoutes, path)).not.toBeNull();
