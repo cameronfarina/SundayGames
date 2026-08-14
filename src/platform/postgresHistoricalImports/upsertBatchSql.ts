@@ -1,0 +1,53 @@
+export const upsertBatchSql = `
+INSERT INTO historical_import_batches (
+  id,
+  league_id,
+  league_season_id,
+  season_year,
+  uploaded_by_user_id,
+  file_name,
+  file_hash,
+  status,
+  replacement_requested,
+  mapping_json,
+  warnings_json,
+  blockers_json,
+  committed_at,
+  superseded_at,
+  superseded_by_batch_id,
+  created_at,
+  updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $16)
+ON CONFLICT (id) DO UPDATE SET
+  league_id = EXCLUDED.league_id,
+  league_season_id = EXCLUDED.league_season_id,
+  season_year = EXCLUDED.season_year,
+  uploaded_by_user_id = EXCLUDED.uploaded_by_user_id,
+  file_name = EXCLUDED.file_name,
+  file_hash = EXCLUDED.file_hash,
+  status = EXCLUDED.status,
+  replacement_requested = EXCLUDED.replacement_requested,
+  mapping_json = EXCLUDED.mapping_json,
+  warnings_json = EXCLUDED.warnings_json,
+  blockers_json = EXCLUDED.blockers_json,
+  committed_at = EXCLUDED.committed_at,
+  superseded_at = EXCLUDED.superseded_at,
+  superseded_by_batch_id = EXCLUDED.superseded_by_batch_id,
+  updated_at = EXCLUDED.updated_at
+RETURNING
+  id,
+  league_id,
+  league_season_id,
+  season_year,
+  uploaded_by_user_id,
+  file_hash,
+  status,
+  replacement_requested,
+  mapping_json,
+  warnings_json,
+  blockers_json,
+  created_at,
+  committed_at,
+  superseded_at,
+  superseded_by_batch_id;
+`.trim();
