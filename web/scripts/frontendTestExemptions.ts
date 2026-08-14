@@ -1,0 +1,117 @@
+export interface FrontendTestExemption {
+  file: string;
+  reason: string;
+}
+
+const coveredBy = (files: string[], reason: string): FrontendTestExemption[] => (
+  files.map(file => ({ file, reason }))
+);
+
+export const frontendTestExemptions: FrontendTestExemption[] = [
+  ...coveredBy([
+    "web/src/main.tsx",
+    "web/src/app/components/ProductHeader/hooks/useActiveLeague.ts",
+    "web/src/app/components/ProductHeader/LeaguePicker.tsx",
+    "web/src/app/components/ProductHeader/ProductNavigation.tsx",
+  ], "Covered by application shell and ProductHeader integration tests."),
+  ...coveredBy([
+    "web/src/features/auth/api/authSchemas.ts",
+    "web/src/features/auth/components/EmailRequestForm/EmailRequestForm.tsx",
+    "web/src/features/auth/components/ResetPasswordForm/ResetPasswordForm.tsx",
+    "web/src/features/auth/pages/ForgotPasswordPage/ForgotPasswordPage.tsx",
+    "web/src/features/auth/pages/LoginPage/LoginPage.tsx",
+    "web/src/features/auth/pages/ResetPasswordPage/ResetPasswordPage.tsx",
+    "web/src/features/auth/pages/SignupPage/SignupPage.tsx",
+    "web/src/features/auth/pages/VerifyEmailPage/VerifyEmailPage.tsx",
+    "web/src/features/auth/routes/authRoutes.tsx",
+    "web/src/features/auth/routes/VerifyEmailRoute.tsx",
+  ], "Covered by authentication API, form, and router integration tests."),
+  ...coveredBy([
+    "web/src/features/commissioner/api/commissionerApi.ts",
+    "web/src/features/commissioner/api/importSchemas.ts",
+    "web/src/features/commissioner/api/seasonSchemas.ts",
+    "web/src/features/commissioner/api/workspaceSchemas.ts",
+    "web/src/features/commissioner/components/HistoricalImportSection/HistoricalFileRow.tsx",
+    "web/src/features/commissioner/pages/CommissionerPage/hooks/useCommissionerWorkspace.ts",
+    "web/src/features/commissioner/routes/commissionerRoute.tsx",
+  ], "Covered by commissioner workflow and API integration tests."),
+  ...coveredBy([
+    "web/src/features/createLeague/api/createLeagueSchemas.ts",
+    "web/src/features/createLeague/components/CreateLeagueWizard/WizardStepContent.tsx",
+    "web/src/features/createLeague/components/ImportReview/ImportReview.tsx",
+    "web/src/features/createLeague/components/steps/BasicsStep.tsx",
+    "web/src/features/createLeague/components/steps/ReferenceStep.tsx",
+    "web/src/features/createLeague/components/steps/RosterStep.tsx",
+    "web/src/features/createLeague/components/steps/ScoringStep.tsx",
+    "web/src/features/createLeague/components/steps/TeamFields.tsx",
+    "web/src/features/createLeague/components/steps/TeamsStep.tsx",
+    "web/src/features/createLeague/components/WizardProgress/WizardProgress.tsx",
+    "web/src/features/createLeague/hooks/useCreateLeagueWizard.ts",
+    "web/src/features/createLeague/model/createLeagueTypes.ts",
+  ], "Covered by create-league wizard integration tests."),
+  ...coveredBy([
+    "web/src/features/invitations/api/invitationSchemas.ts",
+    "web/src/features/invitations/components/InvitationAuthActions/InvitationAuthActions.tsx",
+    "web/src/features/invitations/components/InvitationState/InvitationState.tsx",
+    "web/src/features/invitations/components/InvitationTeamList/InvitationTeamList.tsx",
+    "web/src/features/invitations/hooks/useInvitationPageData.ts",
+    "web/src/features/invitations/routes/invitationRoute.ts",
+  ], "Covered by invitation page integration tests."),
+  ...coveredBy([
+    "web/src/features/league/api/leagueSchemas.ts",
+    "web/src/features/league/api/seasonSchemas.ts",
+    "web/src/features/league/components/DraftStatus/DraftStatus.tsx",
+    "web/src/features/league/components/LeagueHeader/LeagueHeader.tsx",
+    "web/src/features/league/components/LeagueSettings/LeagueSettings.tsx",
+    "web/src/features/league/components/LeagueState/LeagueState.tsx",
+    "web/src/features/league/components/LeagueTeams/LeagueTeams.tsx",
+    "web/src/features/league/components/TeamClaimPanel/TeamClaimPanel.tsx",
+    "web/src/features/league/hooks/useLeaguePageData.ts",
+    "web/src/features/league/pages/LeaguePage/LeaguePage.tsx",
+    "web/src/features/league/routes/leagueRoute.ts",
+  ], "Covered by member, commissioner, and league-state integration tests."),
+  ...coveredBy([
+    "web/src/features/liveDraft/hooks/useLiveDraftRoom.ts",
+    "web/src/features/liveDraft/pages/LiveDraftPage/LiveDraftPage.tsx",
+    "web/src/features/liveDraft/pages/LiveDraftPage/LiveDraftWorkspace.tsx",
+    "web/src/features/liveDraft/routes/liveDraftRoute.tsx",
+  ], "Covered by live draft state and workflow integration tests."),
+  ...coveredBy([
+    "web/src/features/mockDraft/api/auctionBoardSchemas.ts",
+    "web/src/features/mockDraft/api/auctionStateSchemas.ts",
+    "web/src/features/mockDraft/api/mockDraftSchemas.ts",
+    "web/src/features/mockDraft/components/ResultsGrid/ResultTeamCard.tsx",
+    "web/src/features/mockDraft/index.ts",
+  ], "Covered by mock draft API, page, and results integration tests."),
+  ...coveredBy([
+    "web/src/features/myTeam/api/myTeamApi.ts",
+    "web/src/features/myTeam/api/myTeamCommonSchemas.ts",
+    "web/src/features/myTeam/api/myTeamQueryOptions.ts",
+    "web/src/features/myTeam/api/onboardingSchema.ts",
+    "web/src/features/myTeam/api/postDraftSchema.ts",
+    "web/src/features/myTeam/api/seasonTeamSchema.ts",
+    "web/src/features/myTeam/components/EmptyTeamState/EmptyTeamState.tsx",
+    "web/src/features/myTeam/components/PostDraftTeam/PostDraftTeam.tsx",
+    "web/src/features/myTeam/components/PreDraftTeam/PreDraftTeam.tsx",
+    "web/src/features/myTeam/components/TeamFacts/TeamFacts.tsx",
+    "web/src/features/myTeam/hooks/useMyTeamPageState.ts",
+    "web/src/features/myTeam/pages/MyTeamPage/MyTeamPage.tsx",
+  ], "Covered by pre-draft, post-draft, and state integration tests."),
+  ...coveredBy([
+    "web/src/features/practice/api/playerCatalogSchema.ts",
+    "web/src/features/practice/api/practiceContextSchema.ts",
+    "web/src/features/practice/api/simulationSchema.ts",
+    "web/src/features/practice/components/PracticeHeader/PracticeHeader.tsx",
+    "web/src/features/practice/components/SimulationResults/TeamCard.tsx",
+    "web/src/features/practice/pages/PracticePage/PracticePage.tsx",
+    "web/src/features/practice/pages/PracticePage/hooks/practiceQueryKeys.ts",
+    "web/src/features/practice/pages/PracticePage/hooks/usePracticeMutations.ts",
+    "web/src/features/practice/pages/PracticePage/hooks/usePracticeQueries.ts",
+    "web/src/features/practice/routes/practiceRoute.ts",
+  ], "Covered by practice API, simulation, page, and router integration tests."),
+  ...coveredBy([
+    "web/src/shared/api/http/PlatformApiError.ts",
+    "web/src/shared/api/http/platformErrorSchema.ts",
+    "web/src/shared/ui/index.ts",
+  ], "Covered by shared HTTP and UI primitive integration tests."),
+];

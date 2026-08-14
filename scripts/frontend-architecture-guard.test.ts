@@ -23,7 +23,7 @@ describe("frontend architecture guard", () => {
     await mkdir(sourceDirectory, { recursive: true });
     const oversizedSource = Array.from(
       { length: frontendMaximumLines + 1 },
-      (_, index) => `export const line${index} = ${index};`,
+      (_, index) => `export const line${String(index)} = ${String(index)};`,
     ).join("\n");
     await writeFile(join(sourceDirectory, "Oversized.ts"), oversizedSource);
 
@@ -38,7 +38,7 @@ describe("frontend architecture guard", () => {
     await mkdir(sourceDirectory, { recursive: true });
     const source = Array.from(
       { length: frontendPreferredLines + 1 },
-      (_, index) => `export const line${index} = ${index};`,
+      (_, index) => `export const line${String(index)} = ${String(index)};`,
     ).join("\n");
     await writeFile(join(sourceDirectory, "Large.ts"), source);
 

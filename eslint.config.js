@@ -11,11 +11,41 @@ import typescript from "typescript-eslint";
 const sourceFiles = ["web/src/**/*.{ts,tsx}"];
 const testFiles = ["web/src/**/*.test.{ts,tsx}"];
 const configFiles = ["web/*.config.ts"];
+const architectureToolFiles = [
+  "scripts/frontend-architecture-guard*.ts",
+  "web/scripts/**/*.ts",
+];
 const restrictedTypeSyntax = [
   "error",
   { selector: "TSAsExpression", message: "Type assertions are not allowed." },
   { selector: "TSTypeAssertion", message: "Type assertions are not allowed." },
   { selector: "TSNonNullExpression", message: "Non-null assertions are not allowed." },
+];
+const nativeSelectSyntax = [
+  {
+    selector: "JSXOpeningElement[name.name='select']",
+    message: "Use the shared Select primitive instead of a native select.",
+  },
+  {
+    selector: "JSXSelfClosingElement[name.name='select']",
+    message: "Use the shared Select primitive instead of a native select.",
+  },
+];
+const featureMainSyntax = [
+  {
+    selector: "JSXOpeningElement[name.name='main']",
+    message: "Application layouts own the main landmark.",
+  },
+];
+const directFetchSyntax = [
+  {
+    selector: "CallExpression[callee.name='fetch']",
+    message: "Call fetch only from a typed API module.",
+  },
+  {
+    selector: "CallExpression[callee.object.name=/^(globalThis|window)$/][callee.property.name='fetch']",
+    message: "Call fetch only from a typed API module.",
+  },
 ];
 const bannedTypeScriptComments = ["error", {
   "ts-check": true,
@@ -53,9 +83,32 @@ export default typescript.config(
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
       "max-lines": ["error", { max: 250, skipBlankLines: true, skipComments: true }],
-      "no-restricted-syntax": restrictedTypeSyntax,
+      "no-restricted-syntax": [
+        ...restrictedTypeSyntax,
+        ...nativeSelectSyntax,
+        ...directFetchSyntax,
+      ],
       "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
     },
+  },
+  {
+    files: ["web/src/features/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        ...restrictedTypeSyntax,
+        ...nativeSelectSyntax,
+        ...featureMainSyntax,
+        ...directFetchSyntax,
+      ],
+    },
+  },
+  {
+    files: ["web/src/features/*/api/**/*.{ts,tsx}", "web/src/shared/api/**/*.{ts,tsx}"],
+    rules: { "no-restricted-syntax": [...restrictedTypeSyntax, ...nativeSelectSyntax] },
+  },
+  {
+    files: ["web/src/shared/ui/Select/Select.tsx"],
+    rules: { "no-restricted-syntax": [...restrictedTypeSyntax, ...directFetchSyntax] },
   },
   {
     files: testFiles,
@@ -73,6 +126,24 @@ export default typescript.config(
     },
     rules: {
       "@typescript-eslint/ban-ts-comment": bannedTypeScriptComments,
+      "no-restricted-syntax": restrictedTypeSyntax,
+    },
+  },
+  {
+    files: architectureToolFiles,
+    extends: [eslint.configs.recommended, ...typescript.configs.strictTypeChecked],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/ban-ts-comment": bannedTypeScriptComments,
+      "@typescript-eslint/consistent-type-imports": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "max-lines": ["error", { max: 250, skipBlankLines: true, skipComments: true }],
       "no-restricted-syntax": restrictedTypeSyntax,
     },
   },

@@ -1,6 +1,16 @@
 import { readdir, readFile } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
+import { featureCycleViolations } from "../web/scripts/frontendFeatureCycles.js";
+import { importBoundaryViolations } from "../web/scripts/frontendImportBoundaries.js";
+import {
+  syntaxQualityViolations,
+  type FrontendQualityViolation,
+} from "../web/scripts/frontendQualitySyntax.js";
+import { missingColocatedTestViolations } from "../web/scripts/frontendTestCoverage.js";
+import type { FrontendSourceModule } from "../web/scripts/frontendQualityTypes.js";
+
+export type { FrontendQualityViolation } from "../web/scripts/frontendQualitySyntax.js";
 
 export const frontendMaximumLines = 250;
 export const frontendPreferredLines = 150;
@@ -26,6 +36,29 @@ const sourceFilesWithin = async (directory: string): Promise<string[]> => {
   }));
 
   return nestedFiles.flat();
+};
+
+export const frontendQualityViolations = async (
+  rootDirectory: string,
+): Promise<FrontendQualityViolation[]> => {
+  const files = (await sourceFilesWithin(join(rootDirectory, "web", "src")))
+    .filter(file => [".ts", ".tsx"].includes(extname(file)))
+    .sort();
+  const modules: FrontendSourceModule[] = await Promise.all(files.map(async file => {
+    const content = await readFile(file, "utf8");
+    return { content, file, relativeFile: relative(rootDirectory, file) };
+  }));
+  const violations = modules.flatMap(module => {
+    return [
+      ...syntaxQualityViolations(module.file, module.relativeFile, module.content),
+      ...importBoundaryViolations(module.file, module.relativeFile, module.content),
+    ].sort((left, right) => left.line - right.line);
+  });
+  return [
+    ...violations,
+    ...featureCycleViolations(modules),
+    ...missingColocatedTestViolations(files.map(file => relative(rootDirectory, file))),
+  ].sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line);
 };
 
 export const frontendArchitectureViolations = async (
@@ -60,13 +93,21 @@ export const frontendArchitectureWarnings = async (
 const run = async (): Promise<void> => {
   const warnings = await frontendArchitectureWarnings(process.cwd());
   const violations = await frontendArchitectureViolations(process.cwd());
+  const qualityViolations = await frontendQualityViolations(process.cwd());
   for (const warning of warnings) {
-    console.warn(`${warning.file} has ${warning.lines} lines; prefer ${frontendPreferredLines} or fewer.`);
+    console.warn(
+      `${warning.file} has ${String(warning.lines)} lines; prefer ${String(frontendPreferredLines)} or fewer.`,
+    );
   }
-  if (violations.length === 0) return;
+  if (violations.length === 0 && qualityViolations.length === 0) return;
 
   for (const violation of violations) {
-    console.error(`${violation.file} has ${violation.lines} lines; maximum is ${frontendMaximumLines}.`);
+    console.error(
+      `${violation.file} has ${String(violation.lines)} lines; maximum is ${String(frontendMaximumLines)}.`,
+    );
+  }
+  for (const violation of qualityViolations) {
+    console.error(`${violation.file}:${String(violation.line)} [${violation.rule}] ${violation.detail}`);
   }
   process.exitCode = 1;
 };
