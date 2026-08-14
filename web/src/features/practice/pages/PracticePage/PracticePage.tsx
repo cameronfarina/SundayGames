@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
+import { searchForSeason } from "../../../../shared/navigation/seasonSearch";
 import type { PracticePlayer } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import { PlayerBoard } from "../../components/PlayerBoard/PlayerBoard";
@@ -82,7 +83,7 @@ export function PracticePage() {
     <PracticeHeader
       activeLeague={activeLeague}
       leagues={leagues}
-      onLeagueChange={value => { setParameter("seasonId", value); }}
+      onLeagueChange={value => { setParams(searchForSeason(params, value)); }}
       onStrategyChange={value => { setParameter("strategy", value); }}
       strategy={strategy}
     />

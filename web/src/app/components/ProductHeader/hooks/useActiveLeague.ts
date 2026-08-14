@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useOnboardingQuery } from "../../../../shared/api/onboarding/onboardingQuery";
+import { searchForSeason } from "../../../../shared/navigation/seasonSearch";
 
 export const useActiveLeague = () => {
   const onboarding = useOnboardingQuery();
@@ -8,12 +9,11 @@ export const useActiveLeague = () => {
   const leagues = onboarding.data?.leagues ?? [];
   const activeLeague = leagues.find(league => league.seasonId === requestedSeasonId) ?? leagues.at(0);
   const setActiveLeague = (seasonId: string) => {
-    const nextSearchParams = new URLSearchParams(searchParams);
-    nextSearchParams.set("seasonId", seasonId);
-    setSearchParams(nextSearchParams, { replace: true });
+    setSearchParams(searchForSeason(searchParams, seasonId), { replace: true });
   };
-  const navigationSearch = new URLSearchParams(searchParams);
-  if (activeLeague !== undefined) navigationSearch.set("seasonId", activeLeague.seasonId);
+  const navigationSearch = activeLeague === undefined
+    ? new URLSearchParams(searchParams)
+    : searchForSeason(searchParams, activeLeague.seasonId);
 
   return {
     activeLeague,

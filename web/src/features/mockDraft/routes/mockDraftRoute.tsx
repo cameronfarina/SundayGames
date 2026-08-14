@@ -29,6 +29,7 @@ export function MockDraftRoutePage() {
   return (
     <MockDraftPage
       {...(sessionId === undefined ? {} : { initialSessionId: sessionId })}
+      key={seasonId}
       onSessionChange={setSessionId}
       seasonId={seasonId}
     />

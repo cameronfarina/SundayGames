@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { PracticePage } from "./PracticePage";
 import { createPracticeFetch } from "./test/createPracticeFetch";
+import { league } from "./test/practiceFixtures";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 beforeAll(() => {
@@ -18,10 +19,10 @@ beforeAll(() => {
   });
 });
 
-const providers = () => {
+const providers = (entry = "/practice?seasonId=season-1") => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return function TestProviders({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}><MemoryRouter initialEntries={["/practice?seasonId=season-1"]}>
+    return <QueryClientProvider client={client}><MemoryRouter initialEntries={[entry]}>
       {children}<LocationOutput />
     </MemoryRouter></QueryClientProvider>;
   };
@@ -104,6 +105,40 @@ describe("PracticePage", () => {
     await user.click(screen.getByRole("option", { name: "Run 2" }));
     expect(await screen.findByText("Run 2", { selector: ".practice-select__trigger span" })).toBeInTheDocument();
     expect(screen.getByTestId("practice-location")).toHaveTextContent("simulationRun=2");
+    expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);
+    view.unmount();
+  });
+
+  it("removes the previous league simulation when the active league changes", async () => {
+    const user = userEvent.setup();
+    const baseFetch = createPracticeFetch({ runCount: 2 });
+    const fetcher = vi.fn<PlatformFetch>(async (input, init) => {
+      if (pathFor(input) !== "/onboarding") return baseFetch(input, init);
+      return new Response(JSON.stringify({
+        account: { email: "cam@example.com", id: "user-1" },
+        leagues: [
+          league(true),
+          {
+            ...league(true),
+            leagueId: "league-2",
+            leagueName: "Work League",
+            seasonId: "season-2",
+          },
+        ],
+      }), { headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const entry = "/practice?seasonId=season-1&runId=history-1&simulationRun=2&strategy=wr-heavy";
+    const view = render(<PracticePage />, { wrapper: providers(entry) });
+
+    expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Active league" }));
+    await user.click(screen.getByRole("option", { name: "Work League · 2026" }));
+
+    expect(screen.getByTestId("practice-location")).toHaveTextContent(
+      "seasonId=season-2&strategy=wr-heavy",
+    );
+    expect(screen.queryByRole("heading", { name: "League outcomes" })).not.toBeInTheDocument();
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);
     view.unmount();
   });

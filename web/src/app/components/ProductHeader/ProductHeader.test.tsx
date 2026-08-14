@@ -78,7 +78,7 @@ const renderHeader = (leagues: Onboarding["leagues"], initialEntry: string) => {
 describe("ProductHeader", () => {
   it("switches leagues in the URL and derives commissioner access from the active league", async () => {
     const user = userEvent.setup();
-    renderHeader([commissionerLeague, memberLeague], "/practice?seasonId=season-2026&view=targets");
+    renderHeader([commissionerLeague, memberLeague], "/practice?seasonId=season-2026&runId=old&sessionId=old&simulationRun=3&view=targets");
 
     expect(screen.getByRole("link", { name: "Commissioner" })).toBeVisible();
     await user.click(screen.getByRole("combobox", { name: "Active league" }));
