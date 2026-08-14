@@ -26,7 +26,7 @@ describe("importEspnLeagueSettings", () => {
       return {
         code: 200,
         body: {
-          id: 214674,
+          id: 100001,
           seasonId: 2026,
           settings: {
             name: "The League",
@@ -55,13 +55,13 @@ describe("importEspnLeagueSettings", () => {
           teams: [
             {
               id: 3,
-              abbrev: "CAM",
-              location: "Cam's",
+              abbrev: "OWN11",
+              location: "Owner11's",
               nickname: "Team",
               email: "private@example.com",
               status: "active",
             },
-            { id: 7, abbrev: "BTD", name: "Beaton FC" },
+            { id: 7, abbrev: "BTD", name: "Owner01 FC" },
           ],
           cookies: "private-cookie",
           tokens: ["private-token"],
@@ -70,21 +70,21 @@ describe("importEspnLeagueSettings", () => {
     };
 
     const result = await importEspnLeagueSettings(
-      { leagueIdOrUrl: 214674, season: 2026 },
+      { leagueIdOrUrl: 100001, season: 2026 },
       transport,
     );
 
     expect(requestedUrls).toHaveLength(1);
     const requestedUrl = new URL(requestedUrls[0] ?? "");
     expect(requestedUrl.origin).toBe("https://lm-api-reads.fantasy.espn.com");
-    expect(requestedUrl.pathname).toBe("/apis/v3/games/ffl/seasons/2026/segments/0/leagues/214674");
+    expect(requestedUrl.pathname).toBe("/apis/v3/games/ffl/seasons/2026/segments/0/leagues/100001");
     expect(requestedUrl.searchParams.getAll("view")).toEqual(["mSettings", "mTeam"]);
     expect(result).toEqual({
       kind: "review",
       provider: "espn",
       confirmationRequired: true,
       review: {
-        externalLeagueId: "214674",
+        externalLeagueId: "100001",
         season: 2026,
         leagueName: "The League",
         teamCount: 2,
@@ -115,14 +115,14 @@ describe("importEspnLeagueSettings", () => {
         teams: [
           {
             externalTeamId: "7",
-            displayName: "Beaton FC",
+            displayName: "Owner01 FC",
             abbreviation: "BTD",
             draftOrderPosition: 1,
           },
           {
             externalTeamId: "3",
-            displayName: "Cam's Team",
-            abbreviation: "CAM",
+            displayName: "Owner11's Team",
+            abbreviation: "OWN11",
             draftOrderPosition: 2,
           },
         ],
@@ -156,7 +156,7 @@ describe("importEspnLeagueSettings", () => {
 
     const result = await importEspnLeagueSettings(
       {
-        leagueIdOrUrl: "https://fantasy.espn.com/football/league/settings?leagueId=214674",
+        leagueIdOrUrl: "https://fantasy.espn.com/football/league/settings?leagueId=100001",
         season: 2026,
       },
       transport,
@@ -165,7 +165,7 @@ describe("importEspnLeagueSettings", () => {
     expect(requests).toEqual([
       {
         method: "GET",
-        url: expect.stringContaining("/leagues/214674"),
+        url: expect.stringContaining("/leagues/100001"),
       },
     ]);
     expect(result).toEqual({
@@ -173,7 +173,7 @@ describe("importEspnLeagueSettings", () => {
       provider: "espn",
       confirmationRequired: true,
       reason: "private_or_unauthorized",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       season: 2026,
       confirmationMethods: ["screenshot", "manual"],
       message: "This ESPN league is private. Confirm its settings from screenshots or enter them manually.",

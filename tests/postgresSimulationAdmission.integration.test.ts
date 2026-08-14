@@ -34,20 +34,20 @@ describeWithPostgres("Postgres simulation admission", () => {
     await applyPlatformPostgresMigrations(client);
     await client.query(
       `INSERT INTO accounts (id, email, email_normalized, password_hash)
-       VALUES ('user_cam', 'cam@example.com', 'cam@example.com', 'hash')`,
+       VALUES ('user_cam', 'owner11@example.com', 'owner11@example.com', 'hash')`,
     );
     await client.query(
       `INSERT INTO leagues (id, name, created_by_user_id)
-       VALUES ('league_214674', 'Sunday Games', 'user_cam')`,
+       VALUES ('league_100001', 'Sunday Games', 'user_cam')`,
     );
     await client.query(
       `INSERT INTO league_seasons (id, league_id, season_year, name)
-       VALUES ('season_2026', 'league_214674', 2026, '2026')`,
+       VALUES ('season_2026', 'league_100001', 2026, '2026')`,
     );
     await client.query(
       `INSERT INTO fantasy_teams (
          id, league_season_id, team_key, team_name, owner_name, display_order
-       ) VALUES ('team_cam', 'season_2026', 'cam', 'Short King', 'Cam', 1)`,
+       ) VALUES ('team_cam', 'season_2026', 'owner11', 'Short King', 'Owner11', 1)`,
     );
   }, 30_000);
 
@@ -65,7 +65,7 @@ describeWithPostgres("Postgres simulation admission", () => {
       { length: maximumRetainedSimulationRunsPerUser + 1 },
       (_, index) => repository.createRequest({
         userId: "user_cam",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         ownerId: "owner_cam",
         teamId: "team_cam",

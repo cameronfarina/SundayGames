@@ -5,6 +5,7 @@ const profilePositions = ["QB", "RB", "WR", "TE"] as const satisfies readonly Po
 const specialTeamsPositions = ["K", "DST"] as const satisfies readonly Position[];
 const oneDecimal = 10;
 const concentrationScale = 100;
+const maximumRepresentativeSpecialTeamsPrice = 10;
 
 export type HistoricalWeights = Record<number, number>;
 
@@ -35,13 +36,6 @@ const roundToOneDecimal = (value: number): number =>
 
 const isSpecialTeamsPosition = (position: Position): position is "K" | "DST" =>
   specialTeamsPositions.some(specialTeamsPosition => specialTeamsPosition === position);
-
-const isTyeKickerBudgetDump = (record: HistoricalAuctionRecord): boolean =>
-  record.season === 2025 &&
-  record.owner === "Tye" &&
-  record.normalizedPlayerName === "Chase McLaughlin" &&
-  record.position === "K" &&
-  record.price === 29;
 
 const weightedSum = (
   records: readonly HistoricalAuctionRecord[],
@@ -76,7 +70,7 @@ const rosterCountForPosition = (
 const normalSpecialTeamsSpend = (records: readonly HistoricalAuctionRecord[]): number =>
   auctionRecords(records)
     .filter(record => isSpecialTeamsPosition(record.position))
-    .filter(record => !isTyeKickerBudgetDump(record))
+    .filter(record => record.price <= maximumRepresentativeSpecialTeamsPrice)
     .reduce((total, record) => total + record.price, 0);
 
 const topTwoConcentration = (records: readonly HistoricalAuctionRecord[]): number => {

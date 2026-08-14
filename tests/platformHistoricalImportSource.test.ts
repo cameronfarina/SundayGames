@@ -4,7 +4,7 @@ import { parseHistoricalImportSource } from "../src/platform/historicalImportSou
 describe("platform historical import source parsing", () => {
   it("marks the first wide-sheet roster row as keepers only when requested", () => {
     const result = parseHistoricalImportSource([
-      "Team,Cam,,,Sam,,",
+      "Team,Owner11,,,Owner12,,",
       "Money Left,$0,,,$1,,",
       "Max Bid,$1,,,$2,,",
       "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
@@ -20,7 +20,7 @@ describe("platform historical import source parsing", () => {
     expect(result.rows).toEqual([
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "De'Von Achane",
         position: "RB",
         priceDollars: 50,
@@ -29,7 +29,7 @@ describe("platform historical import source parsing", () => {
       },
       {
         sourceRowNumber: 3,
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         playerName: "New England Patriots",
         position: "DST",
         priceDollars: 3,
@@ -38,7 +38,7 @@ describe("platform historical import source parsing", () => {
       },
       {
         sourceRowNumber: 4,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "Ja'Marr Chase",
         position: "WR",
         priceDollars: 61,
@@ -47,7 +47,7 @@ describe("platform historical import source parsing", () => {
       },
       {
         sourceRowNumber: 5,
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         playerName: "Jake Elliott",
         position: "K",
         priceDollars: 2,
@@ -60,7 +60,7 @@ describe("platform historical import source parsing", () => {
 
   it("does not assume the first roster row contains keepers", () => {
     const result = parseHistoricalImportSource([
-      "Team,Cam,,,Sam,,",
+      "Team,Owner11,,,Owner12,,",
       "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
     ].join("\n"));
 
@@ -72,23 +72,23 @@ describe("platform historical import source parsing", () => {
 
   it("keeps incomplete wide-sheet player cells for downstream validation", () => {
     const result = parseHistoricalImportSource([
-      "Team,Cam,,,Sam,,",
+      "Team,Owner11,,,Owner12,,",
       "1,$50,RB,De'Von Achane,$3,DEF,New England Patriots",
       "2,$4,,Mystery Player,$2,K,",
     ].join("\n"));
 
     expect(result.rows).toEqual([
-      expect.objectContaining({ ownerDisplayName: "Cam", playerName: "De'Von Achane", position: "RB" }),
-      expect.objectContaining({ ownerDisplayName: "Sam", playerName: "New England Patriots", position: "DST" }),
+      expect.objectContaining({ ownerDisplayName: "Owner11", playerName: "De'Von Achane", position: "RB" }),
+      expect.objectContaining({ ownerDisplayName: "Owner12", playerName: "New England Patriots", position: "DST" }),
       {
         sourceRowNumber: 4,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "Mystery Player",
         priceDollars: 4,
       },
       {
         sourceRowNumber: 5,
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         position: "K",
         priceDollars: 2,
       },
@@ -98,14 +98,14 @@ describe("platform historical import source parsing", () => {
   it("keeps the existing row-oriented format and normalizes DEF to DST", () => {
     const result = parseHistoricalImportSource([
       "owner,player,position,price",
-      "Cam,New England Patriots,DEF,$3",
+      "Owner11,New England Patriots,DEF,$3",
     ].join("\n"));
 
     expect(result.warnings).toEqual([]);
     expect(result.rows).toEqual([
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "New England Patriots",
         position: "DST",
         priceDollars: 3,
@@ -116,11 +116,11 @@ describe("platform historical import source parsing", () => {
   it("auto-detects tab and semicolon delimiters from alias headers", () => {
     const tabResult = parseHistoricalImportSource([
       "team\tname\tposition\tamount\tespn aav\tyear\tplayer id\tis keeper\tacquisition",
-      " Cam \t Ja'Marr Chase \t WR \t $62 \t $55 \t 2025 \t player-jamarr-chase \t y \t keeper ",
+      " Owner11 \t Ja'Marr Chase \t WR \t $62 \t $55 \t 2025 \t player-jamarr-chase \t y \t keeper ",
     ].join("\n"));
     const semicolonResult = parseHistoricalImportSource([
       "owner name;player name;pos;salary;season year;espn id;type",
-      "Sam;Bijan Robinson;RB;62.0;2025;espn-bijan;auction",
+      "Owner12;Bijan Robinson;RB;62.0;2025;espn-bijan;auction",
     ].join("\n"));
 
     expect(tabResult.warnings).toEqual([]);
@@ -129,7 +129,7 @@ describe("platform historical import source parsing", () => {
       {
         sourceRowNumber: 2,
         seasonYear: 2025,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "Ja'Marr Chase",
         playerId: "player-jamarr-chase",
         position: "WR",
@@ -144,7 +144,7 @@ describe("platform historical import source parsing", () => {
       {
         sourceRowNumber: 2,
         seasonYear: 2025,
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         playerName: "Bijan Robinson",
         playerId: "espn-bijan",
         position: "RB",
@@ -157,14 +157,14 @@ describe("platform historical import source parsing", () => {
   it("parses quoted CSV cells without splitting embedded delimiters", () => {
     const result = parseHistoricalImportSource([
       "owner,player,position,price",
-      "Cam,\"Amon-Ra St. Brown, Jr.\",WR,\"$58\"",
+      "Owner11,\"Amon-Ra St. Brown, Jr.\",WR,\"$58\"",
     ].join("\n"));
 
     expect(result.warnings).toEqual([]);
     expect(result.rows).toEqual([
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "Amon-Ra St. Brown, Jr.",
         position: "WR",
         priceDollars: 58,
@@ -175,27 +175,27 @@ describe("platform historical import source parsing", () => {
   it("leaves blank and invalid prices undefined for downstream validation", () => {
     const result = parseHistoricalImportSource([
       "owner,player,position,price",
-      "Cam,Ja'Marr Chase,WR,",
-      "Seth,Christian McCaffrey,RB,free",
-      "Sam,Bijan Robinson,RB,1e2",
+      "Owner11,Ja'Marr Chase,WR,",
+      "Owner04,Christian McCaffrey,RB,free",
+      "Owner12,Bijan Robinson,RB,1e2",
     ].join("\n"));
 
     expect(result.rows).toEqual([
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         playerName: "Ja'Marr Chase",
         position: "WR",
       },
       {
         sourceRowNumber: 3,
-        ownerDisplayName: "Seth",
+        ownerDisplayName: "Owner04",
         playerName: "Christian McCaffrey",
         position: "RB",
       },
       {
         sourceRowNumber: 4,
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         playerName: "Bijan Robinson",
         position: "RB",
       },
@@ -205,16 +205,16 @@ describe("platform historical import source parsing", () => {
   it("parses keeper booleans from commissioner-friendly tokens", () => {
     const result = parseHistoricalImportSource([
       "owner,player,position,price,keeper",
-      "Cam,Player 1,QB,1,true",
-      "Cam,Player 2,RB,2,yes",
-      "Cam,Player 3,WR,3,y",
-      "Cam,Player 4,TE,4,keeper",
-      "Cam,Player 5,K,5,1",
-      "Cam,Player 6,DST,6,false",
-      "Cam,Player 7,QB,7,no",
-      "Cam,Player 8,RB,8,n",
-      "Cam,Player 9,WR,9,auction",
-      "Cam,Player 10,TE,10,0",
+      "Owner11,Player 1,QB,1,true",
+      "Owner11,Player 2,RB,2,yes",
+      "Owner11,Player 3,WR,3,y",
+      "Owner11,Player 4,TE,4,keeper",
+      "Owner11,Player 5,K,5,1",
+      "Owner11,Player 6,DST,6,false",
+      "Owner11,Player 7,QB,7,no",
+      "Owner11,Player 8,RB,8,n",
+      "Owner11,Player 9,WR,9,auction",
+      "Owner11,Player 10,TE,10,0",
     ].join("\n"));
 
     expect(result.rows.map(row => row.keeper)).toEqual([
@@ -234,11 +234,11 @@ describe("platform historical import source parsing", () => {
   it("uses a stable sha256 file hash across trailing source whitespace", () => {
     const base = [
       "owner,player,position,price",
-      "Cam,Ja'Marr Chase,WR,$62",
+      "Owner11,Ja'Marr Chase,WR,$62",
     ].join("\n");
     const withTrailingWhitespace = [
       "owner,player,position,price   ",
-      "Cam,Ja'Marr Chase,WR,$62   ",
+      "Owner11,Ja'Marr Chase,WR,$62   ",
       "",
       "",
     ].join("\n");
@@ -252,12 +252,12 @@ describe("platform historical import source parsing", () => {
   it("rejects delimited sources that exceed row or cell limits", () => {
     const csv = [
       "owner,player,position,price",
-      "Cam,Player One,RB,1",
-      "Sam,Player Two,WR,2",
+      "Owner11,Player One,RB,1",
+      "Owner12,Player Two,WR,2",
     ].join("\n");
     const tsv = [
       "owner\tplayer\tposition\tprice",
-      "Cam\tPlayer One\tRB\t1",
+      "Owner11\tPlayer One\tRB\t1",
     ].join("\n");
 
     expect(() => parseHistoricalImportSource(csv, { maxRows: 2, maxCells: 100 }))

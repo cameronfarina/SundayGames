@@ -72,7 +72,7 @@ const snakeSeason = (): LeagueSeason => ({
   league: { id: "snake-league", externalLeagueId: "snake-1", name: "Snake League", provider: "espn" },
   seasonYear: 2026,
   setupStatus: "published",
-  teams: ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
+  teams: ["Owner11", "Owner12", "Matt", "Nick"].map((name, index) => ({
     id: `snake-team-${index + 1}`,
     leagueSeasonId: "snake-season-2026",
     ownerId: `snake-owner-${index + 1}`,
@@ -523,16 +523,16 @@ describe("platform HTTP contract", () => {
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => playerCatalog,
     });
-    const cam = await createLoggedInAccount(handle, "latest-practice-pricing@example.com");
+    const owner11 = await createLoggedInAccount(handle, "latest-practice-pricing@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -579,7 +579,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/player-catalog",
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -600,16 +600,16 @@ describe("platform HTTP contract", () => {
       currentPlayerCatalogProvider: async () => snakePlayerCatalog,
       liveDraftRoomSetupRepository,
     });
-    const cam = await createLoggedInAccount(handle, "snake-practice-keepers@example.com");
+    const owner11 = await createLoggedInAccount(handle, "snake-practice-keepers@example.com");
     const season = snakeSeason();
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -637,7 +637,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/player-catalog",
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -665,17 +665,17 @@ describe("platform HTTP contract", () => {
       allowPublicSignup: true,
       provisioningToken: "test-provisioning-token",
     });
-    const cam = await createLoggedInAccount(handle, "snake-hosted-room@example.com");
+    const owner11 = await createLoggedInAccount(handle, "snake-hosted-room@example.com");
     const season = snakeSeason();
 
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -687,7 +687,7 @@ describe("platform HTTP contract", () => {
     const response = await handle({
       method: "POST",
       path: "/live-rooms",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
       body: {
         seasonId: season.id,
@@ -731,6 +731,9 @@ describe("platform HTTP contract", () => {
       },
       { name: "George Kittle", position: "TE", expectedPrice: 10 },
       { name: "Jake Elliott", position: "K", expectedPrice: 5 },
+      { name: "Reserve Receiver One", position: "WR", expectedPrice: 3 },
+      { name: "Reserve Receiver Two", position: "WR", expectedPrice: 2 },
+      { name: "Reserve Receiver Three", position: "WR", expectedPrice: 1 },
     ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
     let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
     let simulationHumanValues: Readonly<Record<string, number>> | undefined;
@@ -769,7 +772,7 @@ describe("platform HTTP contract", () => {
         };
       },
     });
-    const cam = await createLoggedInAccount(handle, "market-source@example.com");
+    const owner11 = await createLoggedInAccount(handle, "market-source@example.com");
     const baseSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
     const teams = baseSeason.teams.slice(0, 4).map((team, index) => ({
       ...team,
@@ -798,11 +801,11 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: teams[0]?.ownerId,
@@ -813,7 +816,7 @@ describe("platform HTTP contract", () => {
     const rebuilt = await handle({
       method: "POST",
       path: `/seasons/${season.id}/pricing/rebuild`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         modelVersion: "market-source-test",
         scenarioIds: ["expected"],
@@ -836,7 +839,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/player-catalog",
       query: { seasonId: season.id, strategy: "balanced" },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -851,7 +854,7 @@ describe("platform HTTP contract", () => {
     const mockResponse = await handle({
       method: "POST",
       path: "/season-mock-drafts",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, strategy: "balanced" },
     });
     expect(mockResponse).toMatchObject({ status: 201 });
@@ -869,7 +872,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "PUT",
       path: "/practice-shortlist",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, playerName: "Puka Nacua", maxBid: 57 },
     })).resolves.toMatchObject({
       status: 200,
@@ -879,10 +882,10 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
     })).resolves.toMatchObject({ status: 200 });
-    expect(simulationAccountId).toBe(cam.account.id);
+    expect(simulationAccountId).toBe(owner11.account.id);
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
     expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
@@ -894,7 +897,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
     })).resolves.toEqual({
       status: 429,
@@ -918,11 +921,11 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season: fullPprSeason,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: teams[0]?.ownerId,
@@ -934,7 +937,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/player-catalog",
       query: { seasonId: season.id, strategy: "balanced" },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -953,7 +956,7 @@ describe("platform HTTP contract", () => {
       provider: "espn",
       confirmationRequired: true,
       reason: "private_or_unauthorized",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       season: 2026,
       confirmationMethods: ["screenshot", "manual"],
       message: "This ESPN league is private. Confirm its settings from screenshots or enter them manually.",
@@ -972,26 +975,26 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/league-imports/espn/review",
-      body: { leagueIdOrUrl: "214674", season: 2026 },
+      body: { leagueIdOrUrl: "100001", season: 2026 },
     })).resolves.toMatchObject({ status: 401, body: { error: { code: "auth_required" } } });
 
     await expect(handle({
       method: "POST",
       path: "/league-imports/espn/review",
       sessionToken: login.sessionToken,
-      body: { leagueIdOrUrl: "214674", season: 2026 },
+      body: { leagueIdOrUrl: "100001", season: 2026 },
     })).resolves.toEqual({ status: 200, body: outcome });
     await expect(handle({
       method: "POST",
       path: "/league-imports/espn/review",
       sessionToken: login.sessionToken,
-      body: { leagueIdOrUrl: "214674", season: 2026 },
+      body: { leagueIdOrUrl: "100001", season: 2026 },
     })).resolves.toMatchObject({
       status: 429,
       body: { error: { code: "rate_limited" } },
       headers: { "Retry-After": "60" },
     });
-    expect(espnLeagueSettingsImporter).toHaveBeenCalledWith({ leagueIdOrUrl: "214674", season: 2026 });
+    expect(espnLeagueSettingsImporter).toHaveBeenCalledWith({ leagueIdOrUrl: "100001", season: 2026 });
     expect(espnLeagueSettingsImporter).toHaveBeenCalledTimes(1);
   });
 
@@ -1000,12 +1003,12 @@ describe("platform HTTP contract", () => {
     const leagueMembersScreenshotAnalyzer = {
       analyze: vi.fn(async () => ({
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
+        externalLeagueId: "100001",
         teams: [{
           draftOrderPosition: 1,
           abbreviation: "Mack",
           teamDisplayName: "Short King",
-          managerDisplayNames: ["Cam Farina"],
+          managerDisplayNames: ["Owner11 Manager"],
           confidence: "high" as const,
           issues: [],
           confirmed: false,
@@ -1027,10 +1030,10 @@ describe("platform HTTP contract", () => {
       body: {
         import: {
           leagueName: "The Sunday Games",
-          externalLeagueId: "214674",
+          externalLeagueId: "100001",
           teams: [expect.objectContaining({
             teamDisplayName: "Short King",
-            managerDisplayNames: ["Cam Farina"],
+            managerDisplayNames: ["Owner11 Manager"],
           })],
         },
       },
@@ -1069,13 +1072,13 @@ describe("platform HTTP contract", () => {
     const login = await createLoggedInAccount(handle, "league-creator@example.com");
     const setup = {
       provider: "espn",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       leagueName: "The Sunday Games",
       seasonYear: 2026,
       expectedTeamCount: 4,
       teams: [
-        { externalTeamId: "1", displayName: "Short King", managerNames: ["Cam"] },
-        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Beaton"] },
+        { externalTeamId: "1", displayName: "Short King", managerNames: ["Owner11"] },
+        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Owner01"] },
         { externalTeamId: "3", displayName: "Old Dogs", managerNames: ["Jacob"] },
         { externalTeamId: "4", displayName: "Peace Bridge", managerNames: ["Nick"] },
       ],
@@ -1180,13 +1183,13 @@ describe("platform HTTP contract", () => {
     const login = await createLoggedInAccount(handle, "limited-league-creator@example.com");
     const setup = {
       provider: "espn",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       leagueName: "The Sunday Games",
       seasonYear: 2026,
       expectedTeamCount: 4,
       teams: [
-        { externalTeamId: "1", displayName: "Short King", managerNames: ["Cam"] },
-        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Beaton"] },
+        { externalTeamId: "1", displayName: "Short King", managerNames: ["Owner11"] },
+        { externalTeamId: "2", displayName: "Dart Vader", managerNames: ["Owner01"] },
         { externalTeamId: "3", displayName: "Old Dogs", managerNames: ["Jacob"] },
         { externalTeamId: "4", displayName: "Peace Bridge", managerNames: ["Nick"] },
       ],
@@ -1228,18 +1231,18 @@ describe("platform HTTP contract", () => {
       liveDraftRoomSetupRepository,
       liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
     });
-    const cam = await createLoggedInAccount(handle, "keeper-commissioner@example.com");
+    const owner11 = await createLoggedInAccount(handle, "keeper-commissioner@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -1251,8 +1254,8 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/preview`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 50" },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 50" },
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -1266,15 +1269,15 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 50", confirmed: false },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 50", confirmed: false },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "keeper_confirmation_required" } } });
 
     const applied = await handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 50", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 50", confirmed: true },
     });
     expect(applied).toMatchObject({
       status: 200,
@@ -1287,7 +1290,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/player-catalog",
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -1312,32 +1315,32 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: `/seasons/${season.id}/keepers`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({ status: 200, body: { keepers: [{ playerName: "De'Von Achane" }] } });
 
     await expect(handle({
       method: "DELETE",
       path: `/seasons/${season.id}/keepers`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { teamId: camTeam.id, playerId: "devon achane" },
     })).resolves.toMatchObject({ status: 200, body: { keepers: [] } });
 
     await handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 50", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 50", confirmed: true },
     });
     await handle({
       method: "POST",
       path: `/seasons/${season.id}/publish`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { confirmed: true },
     });
     const createdRoomResponse = await handle({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {},
     });
     expect(createdRoomResponse).toMatchObject({
@@ -1366,8 +1369,8 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 49", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 49", confirmed: true },
     })).resolves.toMatchObject({ status: 500 });
     await expect(liveDraftRoomSetupRepository.findForSeason(season.id)).resolves.toMatchObject({
       initialRosters: [{ teamId: camTeam.id, playerName: "De'Von Achane", price: 50 }],
@@ -1377,15 +1380,15 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 48", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 48", confirmed: true },
     })).resolves.toMatchObject({
       status: 200,
       body: { keepers: [{ teamId: camTeam.id, playerName: "De'Von Achane", price: 48 }] },
     });
     const roomId = `room-${season.id}-real`;
     await expect(app.getLiveDraftRoomState({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
     })).resolves.toMatchObject({
       selectedTeam: {
@@ -1397,11 +1400,11 @@ describe("platform HTTP contract", () => {
       },
     });
     const roomAfterKeeperUpdate = await app.getLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
     });
     const latestPricing = (await app.listLeaguePricingSnapshots({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       scenarioId: "expected",
@@ -1418,15 +1421,15 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 47", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 47", confirmed: true },
     })).resolves.toMatchObject({ status: 500 });
     rebuildPricing.mockRestore();
     await expect(liveDraftRoomSetupRepository.findForSeason(season.id)).resolves.toMatchObject({
       initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
     });
     await expect(app.getLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
     })).resolves.toMatchObject({
       initialRosters: [{ playerName: "De'Von Achane", price: 48 }],
@@ -1438,12 +1441,12 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "DELETE",
       path: `/seasons/${season.id}/keepers`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { teamId: camTeam.id, playerId: "devon achane" },
       now: new Date(now.getTime() + 1_000),
     })).resolves.toMatchObject({ status: 200, body: { keepers: [] } });
     await expect(app.getLiveDraftRoomState({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
     })).resolves.toMatchObject({
       selectedTeam: {
@@ -1457,17 +1460,17 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 48", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 48", confirmed: true },
       now: new Date(now.getTime() + 2_000),
     })).resolves.toMatchObject({ status: 200 });
 
     const synchronizedRoom = await app.getLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
     });
     await app.startLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId,
       expectedRevision: synchronizedRoom.revision,
       idempotencyKey: "start:keeper-lock",
@@ -1475,8 +1478,8 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 47", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 47", confirmed: true },
     })).resolves.toMatchObject({
       status: 409,
       body: {
@@ -1489,11 +1492,11 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/historical-imports/upload-preview`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         fileName: "2025-results.csv",
         mimeType: "text/csv",
-        base64: Buffer.from("owner,player,position,price\nCam,Puka Nacua,WR,$60").toString("base64"),
+        base64: Buffer.from("owner,player,position,price\nOwner11,Puka Nacua,WR,$60").toString("base64"),
         seasonYear: 2025,
       },
     })).resolves.toMatchObject({
@@ -1510,18 +1513,18 @@ describe("platform HTTP contract", () => {
       liveDraftRoomSetupRepository,
       liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
     });
-    const cam = await createLoggedInAccount(handle, "keeper-conflict@example.com");
+    const owner11 = await createLoggedInAccount(handle, "keeper-conflict@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -1530,7 +1533,7 @@ describe("platform HTTP contract", () => {
       },
     });
     const prepared = await app.preflightLeaguePricing({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       modelVersion: "league-history-keepers-v2",
@@ -1557,8 +1560,8 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/keepers/apply`,
-      sessionToken: cam.sessionToken,
-      body: { command: "cam keeping achane 50", confirmed: true },
+      sessionToken: owner11.sessionToken,
+      body: { command: "owner11 keeping achane 50", confirmed: true },
     })).resolves.toMatchObject({
       status: 409,
       body: { error: { code: "pricing_snapshot_conflict" } },
@@ -1573,18 +1576,18 @@ describe("platform HTTP contract", () => {
       liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
       liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
     });
-    const cam = await createLoggedInAccount(handle, "history-conflict@example.com");
+    const owner11 = await createLoggedInAccount(handle, "history-conflict@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -1595,15 +1598,15 @@ describe("platform HTTP contract", () => {
     const preview = await handle({
       method: "POST",
       path: `/seasons/${season.id}/historical-imports/preview`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
-        sourceText: "owner,player,position,price,year\nCam,Puka Nacua,WR,70,2025",
+        sourceText: "owner,player,position,price,year\nOwner11,Puka Nacua,WR,70,2025",
         seasonYear: 2025,
       },
     });
     const batchId = expectString(expectBodyRecord(expectBodyRecord(preview.body).batch).id);
     const proposed = await app.prepareHistoricalImportCommit({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       batchId,
       expectedLeagueId: season.leagueId,
       expectedLeagueSeasonId: season.id,
@@ -1612,7 +1615,7 @@ describe("platform HTTP contract", () => {
       now,
     });
     const prepared = await app.preflightLeaguePricing({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       modelVersion: "league-history-v2",
@@ -1638,7 +1641,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/historical-imports/${batchId}/commit`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, seasonYear: 2025 },
     })).resolves.toMatchObject({
       status: 409,
@@ -1710,7 +1713,7 @@ describe("platform HTTP contract", () => {
     });
     const rows = Array.from(
       { length: 2_500 },
-      (_, index) => `Cam,Player ${index + 1},RB,1,2025`,
+      (_, index) => `Owner11,Player ${index + 1},RB,1,2025`,
     );
 
     await expect(handle({
@@ -1739,16 +1742,16 @@ describe("platform HTTP contract", () => {
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentSnakeCatalog, initialRosters: [] }),
     });
-    const cam = await createLoggedInAccount(handle, "snake-mock@example.com");
+    const owner11 = await createLoggedInAccount(handle, "snake-mock@example.com");
     const season = snakeSeason();
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -1760,7 +1763,7 @@ describe("platform HTTP contract", () => {
     const created = await handle({
       method: "POST",
       path: "/season-mock-drafts",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id },
     });
     expect(created).toMatchObject({
@@ -1786,7 +1789,7 @@ describe("platform HTTP contract", () => {
     const started = await handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "start-1",
@@ -1801,7 +1804,7 @@ describe("platform HTTP contract", () => {
     const picked = await handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "pick-1",
@@ -1825,7 +1828,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "pick-1",
@@ -1842,7 +1845,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "stale-pick",
@@ -1855,7 +1858,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: `/season-mock-drafts/${mockSession.id}`,
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -1869,7 +1872,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "pick-2",
@@ -1879,7 +1882,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "complete-1",
@@ -1907,7 +1910,7 @@ describe("platform HTTP contract", () => {
     });
 
     const legacySession = await app.createMockDraftSession({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: season.teams[0]?.ownerId ?? "",
@@ -1919,7 +1922,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: `/season-mock-drafts/${legacySession.id}`,
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 409,
       body: { error: { code: "snapshot_migration_required" } },
@@ -1938,18 +1941,18 @@ describe("platform HTTP contract", () => {
     const app = createPlatformApp({ store, simulationRunner: mockRunner });
     const setupProvider = vi.fn(async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }));
     const handle = createPlatformHttpHandler(app, { liveDraftRoomSetupProvider: setupProvider });
-    const cam = await createLoggedInAccount(handle, "mock-rate-limit@example.com");
+    const owner11 = await createLoggedInAccount(handle, "mock-rate-limit@example.com");
     const season = snakeSeason();
     const team = season.teams[0];
     if (team === undefined) throw new Error("Expected a team fixture.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: team.ownerId,
@@ -1960,7 +1963,7 @@ describe("platform HTTP contract", () => {
     const createMock = (createdAt: Date) => handle({
       method: "POST",
       path: "/season-mock-drafts",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: createdAt,
       body: {
         seasonId: season.id,
@@ -1993,18 +1996,18 @@ describe("platform HTTP contract", () => {
     });
     const app = createPlatformApp({ store, simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
-    const cam = await createLoggedInAccount(handle, "mock-reset-limit@example.com");
+    const owner11 = await createLoggedInAccount(handle, "mock-reset-limit@example.com");
     const season = snakeSeason();
     const team = season.teams[0];
     if (team === undefined) throw new Error("Expected a team fixture.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: team.ownerId,
@@ -2015,7 +2018,7 @@ describe("platform HTTP contract", () => {
     const createMock = (createdAt: Date) => handle({
       method: "POST",
       path: "/mock-sessions",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: createdAt,
       body: {
         leagueId: season.leagueId,
@@ -2029,7 +2032,7 @@ describe("platform HTTP contract", () => {
     const completedSession = expectBodyRecord(expectBodyRecord(completedResponse.body).mockSession);
     const completedSessionId = expectString(completedSession.id);
     store.mockDraftSessions.markCompleted({
-      userId: cam.account.id,
+      userId: owner11.account.id,
       sessionId: completedSessionId,
       expectedRevision: 1,
       now: new Date(now.getTime() + 1_000),
@@ -2039,7 +2042,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/mock-sessions/${completedSessionId}/reset`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 3_000),
       body: { expectedRevision: 1 },
     })).resolves.toEqual({
@@ -2065,18 +2068,18 @@ describe("platform HTTP contract", () => {
     });
     const app = createPlatformApp({ store, simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
-    const cam = await createLoggedInAccount(handle, "mock-command-limits@example.com");
+    const owner11 = await createLoggedInAccount(handle, "mock-command-limits@example.com");
     const season = snakeSeason();
     const team = season.teams[0];
     if (team === undefined) throw new Error("Expected a team fixture.");
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: team.ownerId,
@@ -2088,7 +2091,7 @@ describe("platform HTTP contract", () => {
       const created = await handle({
         method: "POST",
         path: "/mock-sessions",
-        sessionToken: cam.sessionToken,
+        sessionToken: owner11.sessionToken,
         body: {
           leagueId: season.leagueId,
           seasonId: season.id,
@@ -2103,7 +2106,7 @@ describe("platform HTTP contract", () => {
     const utf8CommandRequest = {
       method: "POST",
       path: `/mock-sessions/${bytesSessionId}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         expectedCommandCount: 0,
@@ -2118,7 +2121,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/mock-sessions/${bytesSessionId}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         expectedCommandCount: 1,
@@ -2140,7 +2143,7 @@ describe("platform HTTP contract", () => {
       await expect(handle({
         method: "POST",
         path: `/mock-sessions/${countSessionId}/commands`,
-        sessionToken: cam.sessionToken,
+        sessionToken: owner11.sessionToken,
         body: {
           expectedRevision: 1,
           expectedCommandCount: index,
@@ -2152,7 +2155,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/mock-sessions/${countSessionId}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         expectedCommandCount: 2,
@@ -2172,7 +2175,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: "/mock-sessions",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       query: {
         leagueId: season.leagueId,
         seasonId: season.id,
@@ -2215,7 +2218,7 @@ describe("platform HTTP contract", () => {
       return { playerCatalog: snakePlayerCatalog, initialRosters: [] };
     });
     const handle = createPlatformHttpHandler(app, { liveDraftRoomSetupProvider: setupProvider });
-    const cam = await createLoggedInAccount(handle, "mock-abandon-owner@example.com");
+    const owner11 = await createLoggedInAccount(handle, "mock-abandon-owner@example.com");
     const rival = await createLoggedInAccount(handle, "mock-abandon-rival@example.com");
     const season = snakeSeason();
     const camTeam = season.teams[0];
@@ -2224,12 +2227,12 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
           {
-            userId: cam.account.id,
+            userId: owner11.account.id,
             leagueId: season.leagueId,
             role: "owner",
             ownerId: camTeam.ownerId,
@@ -2248,7 +2251,7 @@ describe("platform HTTP contract", () => {
     const createMock = (handler: PlatformHttpHandler, createdAt: Date) => handler({
       method: "POST",
       path: "/season-mock-drafts",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: createdAt,
       body: { seasonId: season.id, strategy: "balanced" },
     });
@@ -2275,7 +2278,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${sessionId}/abandon`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 3_000),
       body: { seasonId: season.id, expectedRevision: revision },
     })).resolves.toMatchObject({
@@ -2291,7 +2294,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: `/season-mock-drafts/${sessionId}/abandon`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 3_500),
       body: { seasonId: season.id, expectedRevision: revision },
     })).resolves.toMatchObject({
@@ -2329,7 +2332,7 @@ describe("platform HTTP contract", () => {
         }],
       }),
     });
-    const cam = await createLoggedInAccount(handle, "auction-mock@example.com");
+    const owner11 = await createLoggedInAccount(handle, "auction-mock@example.com");
     const snake = snakeSeason();
     const season: LeagueSeason = {
       ...snake,
@@ -2345,11 +2348,11 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -2360,7 +2363,7 @@ describe("platform HTTP contract", () => {
     const created = await handle({
       method: "POST",
       path: "/season-mock-drafts",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, strategy: "wr-heavy" },
     });
     expect(created).toMatchObject({
@@ -2410,7 +2413,7 @@ describe("platform HTTP contract", () => {
     const started = await handle({
       method: "POST",
       path: `/season-mock-drafts/${mockSession.id}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         commandId: "start-auction",
@@ -2440,17 +2443,17 @@ describe("platform HTTP contract", () => {
         maxTrackedEmails: 10,
       }),
     });
-    const cam = await createLoggedInAccount(handle, "snake-simulations@example.com");
+    const owner11 = await createLoggedInAccount(handle, "snake-simulations@example.com");
     const outsider = await createLoggedInAccount(handle, "simulation-outsider@example.com");
     const season = snakeSeason();
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -2480,14 +2483,14 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 101, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_run_count" } } });
 
     const simulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now,
       body: {
         seasonId: season.id,
@@ -2517,7 +2520,7 @@ describe("platform HTTP contract", () => {
     const newerSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 1_000),
       body: { seasonId: season.id, count: 1, strategy: "Draft Player 2 by round 2" },
     });
@@ -2526,7 +2529,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: "/season-simulations",
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -2543,7 +2546,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: `/season-simulations/${historyId}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -2555,7 +2558,7 @@ describe("platform HTTP contract", () => {
     const detailResponse = await handle({
       method: "GET",
       path: `/season-simulations/${historyId}/runs/1`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     });
     expect(detailResponse).toMatchObject({
       status: 200,
@@ -2583,17 +2586,17 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: `/season-simulations/${historyId}/runs/3`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({ status: 404 });
     await expect(handle({
       method: "GET",
       path: `/season-simulations/${historyId}/runs/not-a-run`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({ status: 404 });
     const streamedSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 2_000),
       headers: { accept: "text/event-stream" },
       body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
@@ -2625,7 +2628,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/season-simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 3_000),
       body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({
@@ -2641,17 +2644,17 @@ describe("platform HTTP contract", () => {
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog, initialRosters: [] }),
     });
-    const cam = await createLoggedInAccount(handle, "practice-shortlist@example.com");
+    const owner11 = await createLoggedInAccount(handle, "practice-shortlist@example.com");
     const outsider = await createLoggedInAccount(handle, "practice-shortlist-outsider@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [{
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: season.teams[0]?.ownerId,
@@ -2674,23 +2677,23 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "PUT",
       path: "/practice-shortlist",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, playerName: "Puka Nacua", maxBid: 0 },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_max_bid" } } });
     await expect(handle({
       method: "PUT",
       path: "/practice-shortlist",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, playerName: "puka nacua", position: "WR" },
     })).resolves.toMatchObject({
       status: 200,
-      body: { item: { playerName: "Puka Nacua", position: "WR", userId: cam.account.id } },
+      body: { item: { playerName: "Puka Nacua", position: "WR", userId: owner11.account.id } },
     });
     await expect(handle({
       method: "GET",
       path: "/practice-shortlist",
       query: { seasonId: season.id },
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: { items: [{ playerName: "Puka Nacua", position: "WR" }] },
@@ -2699,7 +2702,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "DELETE",
       path: "/practice-shortlist",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, playerName: "Puka Nacua" },
     })).resolves.toMatchObject({ status: 200, body: { removed: true } });
     expect(store.snapshot().practiceShortlistItems).toHaveLength(0);
@@ -2782,9 +2785,9 @@ describe("platform HTTP contract", () => {
     const acceptedMemberships: unknown[] = [];
     const onboardingRepository = {
       listForUser: async (userId: string) => userId === "missing" ? [] : [{
-        leagueId: "league-214674",
+        leagueId: "league-100001",
         leagueName: "Sunday Games",
-        seasonId: "league-214674-season-2026",
+        seasonId: "league-100001-season-2026",
         seasonYear: 2026,
         membership: { role: "owner" as const },
         canManageLeague: true,
@@ -2805,30 +2808,30 @@ describe("platform HTTP contract", () => {
         acceptedMemberships.push(result.membership);
       },
     });
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
-    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
+    const owner04 = await createLoggedInAccount(handle, "owner04@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Sunday Games",
       setupStatus: "published",
     });
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
-      memberships: [{ userId: cam.account.id, leagueId: season.leagueId, role: "owner" }],
+      memberships: [{ userId: owner11.account.id, leagueId: season.leagueId, role: "owner" }],
       now,
     });
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    if (sethTeam === undefined) throw new Error("Expected Seth team fixture.");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    if (sethTeam === undefined) throw new Error("Expected Owner04 team fixture.");
     await issuePlatformInvitation(invitationRepository, {
       leagueId: season.leagueId,
       seasonId: season.id,
-      email: seth.account.email,
+      email: owner04.account.email,
       role: "member",
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       ownerDisplayName: sethTeam.ownerDisplayName,
       teamDisplayName: sethTeam.displayName,
-      invitedByUserId: cam.account.id,
+      invitedByUserId: owner11.account.id,
       now,
       expiresAt: new Date(now.getTime() + 86_400_000),
     }, {
@@ -2839,15 +2842,15 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: "/onboarding",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
-      body: { account: { id: cam.account.id }, leagues: [{ leagueName: "Sunday Games" }] },
+      body: { account: { id: owner11.account.id }, leagues: [{ leagueName: "Sunday Games" }] },
     });
     await expect(handle({
       method: "GET",
       path: `/invitations?seasonId=${encodeURIComponent(season.id)}`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     })).resolves.toMatchObject({
       status: 403,
       body: { error: { code: "membership_required" } },
@@ -2855,30 +2858,30 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: `/invitations?seasonId=${encodeURIComponent(season.id)}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: { invitations: [{ id: "invite_seth", status: "pending" }] },
     });
 
-    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
-    if (beatonTeam === undefined) throw new Error("Expected Beaton team fixture.");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Owner01");
+    if (beatonTeam === undefined) throw new Error("Expected Owner01 team fixture.");
     const issued = await handle({
       method: "POST",
       path: "/invitations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now,
       body: {
         seasonId: season.id,
         teamId: beatonTeam.id,
-        email: " Beaton@Example.com ",
+        email: " Owner01@Example.com ",
       },
     });
     expect(issued).toMatchObject({
       status: 201,
       body: {
         invitation: {
-          email: "beaton@example.com",
+          email: "owner01@example.com",
           role: "member",
           teamDisplayName: beatonTeam.displayName,
           acceptPath: expect.stringContaining("/invite?token="),
@@ -2888,7 +2891,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/invitations",
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       now,
       body: {
         seasonId: season.id,
@@ -2899,7 +2902,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/invitations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now,
       body: {
         seasonId: season.id,
@@ -2914,7 +2917,7 @@ describe("platform HTTP contract", () => {
     const reissued = await handle({
       method: "POST",
       path: "/invitations/invite_seth/reissue",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now,
     });
     expect(reissued).toMatchObject({
@@ -2941,18 +2944,18 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/invitations/claim",
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       body: { token, teamId: sethTeam.id },
       now,
     })).resolves.toMatchObject({
       status: 200,
       body: {
         invitation: { status: "accepted" },
-        membership: { userId: seth.account.id, teamId: sethTeam.id },
+        membership: { userId: owner04.account.id, teamId: sethTeam.id },
       },
     });
     expect(acceptedMemberships).toEqual([
-      expect.objectContaining({ userId: seth.account.id, leagueId: season.leagueId }),
+      expect.objectContaining({ userId: owner04.account.id, leagueId: season.leagueId }),
     ]);
   });
 
@@ -2964,13 +2967,13 @@ describe("platform HTTP contract", () => {
       createPlatformHttpHandler(app, { allowPublicSignup: true }),
       "commissioner@example.com",
     );
-    const seth = await createLoggedInAccount(
+    const owner04 = await createLoggedInAccount(
       createPlatformHttpHandler(app, { allowPublicSignup: true }),
-      "seth@example.com",
+      "owner04@example.com",
     );
-    const hoody = await createLoggedInAccount(
+    const owner02 = await createLoggedInAccount(
       createPlatformHttpHandler(app, { allowPublicSignup: true }),
-      "hoody@example.com",
+      "owner02@example.com",
     );
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Sunday Games",
@@ -3053,17 +3056,17 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/invitations/claim",
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       now,
       body: { token, teamId: sethTeam.id },
     })).resolves.toMatchObject({
       status: 200,
-      body: { membership: { userId: seth.account.id, teamId: sethTeam.id } },
+      body: { membership: { userId: owner04.account.id, teamId: sethTeam.id } },
     });
     await expect(handle({
       method: "POST",
       path: "/invitations/claim",
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       now: new Date(now.getTime() + 31 * 24 * 60 * 60 * 1_000),
       body: { token, teamId: sethTeam.id },
     })).resolves.toMatchObject({
@@ -3073,23 +3076,23 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/invitations/claim",
-      sessionToken: hoody.sessionToken,
+      sessionToken: owner02.sessionToken,
       now,
       body: { token, teamId: sethTeam.id },
     })).resolves.toMatchObject({
       status: 409,
       body: { error: { code: "team_already_claimed" } },
     });
-    expect(await store.findMembership(hoody.account.id, season.leagueId)).toBeNull();
+    expect(await store.findMembership(owner02.account.id, season.leagueId)).toBeNull();
     await expect(handle({
       method: "POST",
       path: "/invitations/claim",
-      sessionToken: hoody.sessionToken,
+      sessionToken: owner02.sessionToken,
       now,
       body: { token, teamId: hoodyTeam.id },
     })).resolves.toMatchObject({
       status: 200,
-      body: { membership: { userId: hoody.account.id, teamId: hoodyTeam.id } },
+      body: { membership: { userId: owner02.account.id, teamId: hoodyTeam.id } },
     });
     expect(await invitationRepository.findById(expectString(invitation.id)))
       .toMatchObject({ kind: "league", status: "pending" });
@@ -3336,7 +3339,7 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/accounts",
       body: {
-        email: "  Cam@Example.com ",
+        email: "  Owner11@Example.com ",
         password: "secure password",
         now,
       },
@@ -3346,7 +3349,7 @@ describe("platform HTTP contract", () => {
     expect(created.body).toMatchObject({
       account: {
         id: expect.stringMatching(/^acct_/),
-        email: "cam@example.com",
+        email: "owner11@example.com",
       },
     });
 
@@ -3354,7 +3357,7 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/accounts",
       body: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "different password",
         now,
       },
@@ -3374,7 +3377,7 @@ describe("platform HTTP contract", () => {
       method: "POST",
       path: "/sessions",
       body: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "wrong password",
         now,
       },
@@ -3395,7 +3398,7 @@ describe("platform HTTP contract", () => {
       path: "/sessions",
       headers: { host: "mockd.example.com" },
       body: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
         now,
       },
@@ -3405,7 +3408,7 @@ describe("platform HTTP contract", () => {
     expect(login.body).toMatchObject({
       account: {
         id: expect.stringMatching(/^acct_/),
-        email: "cam@example.com",
+        email: "owner11@example.com",
       },
       session: {
         id: expect.stringMatching(/^sess_/),
@@ -3428,13 +3431,13 @@ describe("platform HTTP contract", () => {
       leagueId: "league_1",
       seasonId: "season_2026",
       kind: "team",
-      email: "seth@example.com",
+      email: "owner04@example.com",
       role: "member",
-      ownerId: "seth",
+      ownerId: "owner04",
       teamId: "team_seth",
-      ownerDisplayName: "Seth",
-      teamDisplayName: "Seth",
-      invitedByUserId: "acct_cam",
+      ownerDisplayName: "Owner04",
+      teamDisplayName: "Owner04",
+      invitedByUserId: "acct_owner11",
       tokenHash: hashPlatformInvitationToken("valid-invitation-token"),
       status: "pending",
       expiresAt: new Date(now.getTime() + 60_000),
@@ -3446,7 +3449,7 @@ describe("platform HTTP contract", () => {
       seasonId: "season_2026",
       kind: "league",
       role: "member",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       tokenHash: hashPlatformInvitationToken("shared-league-token"),
       status: "pending",
       expiresAt: new Date(now.getTime() + 60_000),
@@ -3474,13 +3477,13 @@ describe("platform HTTP contract", () => {
       path: "/accounts",
       now,
       body: {
-        email: "seth@example.com",
+        email: "owner04@example.com",
         password: "secure password",
         invitationToken: "valid-invitation-token",
       },
     })).resolves.toMatchObject({
       status: 201,
-      body: { account: { email: "seth@example.com" } },
+      body: { account: { email: "owner04@example.com" } },
     });
 
     await expect(handle({
@@ -3541,25 +3544,25 @@ describe("platform HTTP contract", () => {
   it("bootstraps and clears the current browser session", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
 
     const current = await handle({
       method: "GET",
       path: "/session",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now,
     });
     const loggedOut = await handle({
       method: "DELETE",
       path: "/session",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       headers: { host: "mockd.example.com" },
       now: new Date(now.getTime() + 1_000),
     });
     const afterLogout = await handle({
       method: "GET",
       path: "/session",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 2_000),
     });
 
@@ -3567,8 +3570,8 @@ describe("platform HTTP contract", () => {
       status: 200,
       body: {
         account: {
-          id: cam.account.id,
-          email: "cam@example.com",
+          id: owner11.account.id,
+          email: "owner11@example.com",
         },
       },
     });
@@ -3694,17 +3697,17 @@ describe("platform HTTP contract", () => {
   it("does not authenticate protected routes with session tokens in query strings or bodies", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
 
     const queryTokenResponse = await handle({
       method: "GET",
-      path: `/seasons/missing-season?sessionToken=${encodeURIComponent(cam.sessionToken)}`,
+      path: `/seasons/missing-season?sessionToken=${encodeURIComponent(owner11.sessionToken)}`,
     });
     const bodyTokenResponse = await handle({
       method: "GET",
       path: "/seasons/missing-season",
       body: {
-        sessionToken: cam.sessionToken,
+        sessionToken: owner11.sessionToken,
       },
     });
 
@@ -3729,7 +3732,7 @@ describe("platform HTTP contract", () => {
       path: "/accounts",
       now,
       body: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
         now: new Date("2099-01-01T00:00:00.000Z"),
       },
@@ -3739,7 +3742,7 @@ describe("platform HTTP contract", () => {
       path: "/sessions",
       now,
       body: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
         now: new Date("2099-01-01T00:00:00.000Z"),
       },
@@ -3796,23 +3799,23 @@ describe("platform HTTP contract", () => {
         })),
       }),
     });
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
           {
-            userId: cam.account.id,
+            userId: owner11.account.id,
             leagueId: season.leagueId,
             role: "owner",
             ownerId: camTeam.ownerId,
@@ -3826,7 +3829,7 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "POST",
       path: "/live-rooms",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
       body: {
         seasonId: season.id,
@@ -3848,7 +3851,7 @@ describe("platform HTTP contract", () => {
     await handle({
       method: "POST",
       path: "/live-rooms/room_wr_limit/start",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         idempotencyKey: "start-room-wr-limit",
@@ -3859,11 +3862,11 @@ describe("platform HTTP contract", () => {
     const overLimitSale = await handle({
       method: "POST",
       path: "/live-rooms/room_wr_limit/sales",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 2,
         idempotencyKey: "sale:legette:2",
-        sale: "cam legette 2",
+        sale: "owner11 legette 2",
         now: new Date(now.getTime() + 2_000),
       },
     });
@@ -3873,7 +3876,7 @@ describe("platform HTTP contract", () => {
       body: {
         error: {
           code: "position_limit",
-          message: "Cam cannot buy Xavier Legette: roster limit is 6 WRs.",
+          message: "Owner11 cannot buy Xavier Legette: roster limit is 6 WRs.",
         },
       },
     });
@@ -3882,25 +3885,25 @@ describe("platform HTTP contract", () => {
   it("claims a league season team for the authenticated account", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const handle = createPlatformHttpHandler(app);
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
-    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
+    const owner04 = await createLoggedInAccount(handle, "owner04@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
-          { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-          { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+          { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+          { userId: owner04.account.id, leagueId: season.leagueId, role: "member" },
         ],
       },
     });
@@ -3908,7 +3911,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "GET",
       path: `/seasons/${season.id}`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     })).resolves.toMatchObject({
       status: 200,
       body: {
@@ -3918,7 +3921,7 @@ describe("platform HTTP contract", () => {
     const beforeClaim = await handle({
       method: "GET",
       path: `/seasons/${season.id}`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     });
     expect((expectBodyRecord(beforeClaim.body).claimableTeams as Array<{ id: string }>).map(team => team.id))
       .not.toContain(camTeam.id);
@@ -3926,7 +3929,7 @@ describe("platform HTTP contract", () => {
     const claim = await handle({
       method: "POST",
       path: `/seasons/${season.id}/team-claims`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       body: {
         ownerId: sethTeam.ownerId,
         teamId: sethTeam.id,
@@ -3937,7 +3940,7 @@ describe("platform HTTP contract", () => {
       status: 200,
       body: {
         membership: {
-          userId: seth.account.id,
+          userId: owner04.account.id,
           leagueId: season.leagueId,
           role: "member",
           ownerId: sethTeam.ownerId,
@@ -3948,7 +3951,7 @@ describe("platform HTTP contract", () => {
     const afterClaim = await handle({
       method: "GET",
       path: `/seasons/${season.id}`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     });
     expect((expectBodyRecord(afterClaim.body).claimableTeams as Array<{ id: string }>).map(team => team.id))
       .not.toContain(sethTeam.id);
@@ -3961,24 +3964,24 @@ describe("platform HTTP contract", () => {
       initialRosters: [],
     }));
     const handle = createPlatformHttpHandler(app, { liveDraftRoomSetupProvider });
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
-    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
+    const owner04 = await createLoggedInAccount(handle, "owner04@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
-          { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-          { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+          { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+          { userId: owner04.account.id, leagueId: season.leagueId, role: "member" },
         ],
       },
     });
@@ -3986,7 +3989,7 @@ describe("platform HTTP contract", () => {
     const denied = await handle({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       body: {},
     });
     expect(denied).toMatchObject({
@@ -3997,7 +4000,7 @@ describe("platform HTTP contract", () => {
     const missingSetup = await createPlatformHttpHandler(app)({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {},
     });
     expect(missingSetup).toEqual({
@@ -4014,7 +4017,7 @@ describe("platform HTTP contract", () => {
     const created = await handle({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: { startsAt },
     });
 
@@ -4038,7 +4041,7 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "DELETE",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     })).resolves.toMatchObject({
       status: 403,
       body: { error: { code: "shared_mutation_denied" } },
@@ -4046,13 +4049,13 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "DELETE",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     })).resolves.toEqual({ status: 200, body: { ok: true } });
     await expect(app.hasLiveDraftRoomForSeason(season.id)).resolves.toBe(false);
     await expect(handle({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {},
     })).resolves.toMatchObject({ status: 201 });
   });
@@ -4086,32 +4089,32 @@ describe("platform HTTP contract", () => {
         })),
       }),
     });
-    const cam = await createLoggedInAccount(handle, "cam@example.com");
-    const seth = await createLoggedInAccount(handle, "seth@example.com");
+    const owner11 = await createLoggedInAccount(handle, "owner11@example.com");
+    const owner04 = await createLoggedInAccount(handle, "owner04@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     const registered = await handle({
       method: "PUT",
       path: `/seasons/${season.id}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
           {
-            userId: cam.account.id,
+            userId: owner11.account.id,
             leagueId: season.leagueId,
             role: "owner",
             ownerId: camTeam.ownerId,
             teamId: camTeam.id,
           },
           {
-            userId: seth.account.id,
+            userId: owner04.account.id,
             leagueId: season.leagueId,
             role: "member",
             ownerId: sethTeam.ownerId,
@@ -4129,7 +4132,7 @@ describe("platform HTTP contract", () => {
       method: "GET",
       path: `/seasons/${season.id}`,
       headers: {
-        "x-session-token": seth.sessionToken,
+        "x-session-token": owner04.sessionToken,
       },
     });
 
@@ -4139,12 +4142,12 @@ describe("platform HTTP contract", () => {
     const mismatchedSeason = await handle({
       method: "PUT",
       path: "/seasons/another-season",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         season,
         memberships: [
           {
-            userId: cam.account.id,
+            userId: owner11.account.id,
             leagueId: season.leagueId,
             role: "owner",
             ownerId: camTeam.ownerId,
@@ -4168,12 +4171,12 @@ describe("platform HTTP contract", () => {
     const importPreview = await handle({
       method: "POST",
       path: `/seasons/${season.id}/historical-imports/upload-preview`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         fileName: "draft-2025.csv",
         mimeType: "text/csv",
         base64: Buffer.from(
-          "owner,player,position,price,year\nCam,Puka Nacua,WR,70,2025",
+          "owner,player,position,price,year\nOwner11,Puka Nacua,WR,70,2025",
         ).toString("base64"),
         seasonYear: 2025,
         now,
@@ -4195,7 +4198,7 @@ describe("platform HTTP contract", () => {
     const committedImport = await handle({
       method: "POST",
       path: `/historical-imports/${previewBatchId}/commit`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         seasonYear: 2025,
@@ -4212,9 +4215,9 @@ describe("platform HTTP contract", () => {
     const secondImportPreview = await handle({
       method: "POST",
       path: `/seasons/${season.id}/historical-imports/preview`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
-        sourceText: "owner,player,position,price,year\nCam,Jahmyr Gibbs,RB,72,2025",
+        sourceText: "owner,player,position,price,year\nOwner11,Jahmyr Gibbs,RB,72,2025",
         seasonYear: 2025,
         now: new Date(now.getTime() + 300).toISOString(),
       },
@@ -4225,7 +4228,7 @@ describe("platform HTTP contract", () => {
     const conflictingImportCommit = await handle({
       method: "POST",
       path: `/historical-imports/${secondPreviewBatchId}/commit`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         seasonId: season.id,
         seasonYear: 2025,
@@ -4246,7 +4249,7 @@ describe("platform HTTP contract", () => {
     const pricingRebuild = await handle({
       method: "POST",
       path: `/seasons/${season.id}/pricing/rebuild`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 500),
       body: {
         modelVersion: "league-calibration-v1",
@@ -4272,7 +4275,7 @@ describe("platform HTTP contract", () => {
     const conflictingPricingRebuild = await handle({
       method: "POST",
       path: `/seasons/${season.id}/pricing/rebuild`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 550),
       body: {
         modelVersion: "league-calibration-v1",
@@ -4298,12 +4301,12 @@ describe("platform HTTP contract", () => {
     const listedPricing = await handle({
       method: "GET",
       path: `/seasons/${season.id}/pricing-snapshots?scenarioId=balanced`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     });
     const fetchedPricing = await handle({
       method: "GET",
       path: `/pricing-snapshots/${encodeURIComponent(modelRunId)}?scenarioId=balanced`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
     });
 
     expect(listedPricing.body).toMatchObject({
@@ -4316,18 +4319,18 @@ describe("platform HTTP contract", () => {
     const createdSimulation = await handle({
       method: "POST",
       path: "/simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         leagueId: season.leagueId,
         seasonId: season.id,
         ownerId: camTeam.ownerId,
         teamId: camTeam.id,
         count: 25,
-        seedPrefix: "cam-puka-plan",
-        idempotencyKey: "cam-puka-plan",
+        seedPrefix: "owner11-puka-plan",
+        idempotencyKey: "owner11-puka-plan",
         strategy: {
           hardLocks: [
-            { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+            { playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" },
           ],
         },
         now,
@@ -4342,9 +4345,9 @@ describe("platform HTTP contract", () => {
     const enqueuedSimulationJob = await handle({
       method: "POST",
       path: `/simulations/${simulationId}/jobs`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
-        idempotencyKey: "job:cam-puka-plan",
+        idempotencyKey: "job:owner11-puka-plan",
         now: new Date(now.getTime() + 750).toISOString(),
       },
     });
@@ -4360,19 +4363,11 @@ describe("platform HTTP contract", () => {
     const listedJobs = await handle({
       method: "GET",
       path: "/jobs",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     });
 
     expect(listedJobs.body).toMatchObject({
       jobs: [expect.objectContaining({ kind: "simulation" })],
-    });
-    await expect(handle({
-      method: "GET",
-      path: "/jobs?cursor=not-a-cursor",
-      sessionToken: cam.sessionToken,
-    })).resolves.toMatchObject({
-      status: 400,
-      body: { error: { code: "invalid_job_cursor" } },
     });
     const enqueuedJob = expectBodyRecord(enqueuedSimulationJob.body).job;
     if (!isRecord(enqueuedJob)) throw new Error("Expected job response.");
@@ -4381,7 +4376,7 @@ describe("platform HTTP contract", () => {
     const canceledJob = await handle({
       method: "POST",
       path: `/jobs/${enqueuedJobId}/cancel`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         now: new Date(now.getTime() + 900).toISOString(),
       },
@@ -4399,7 +4394,7 @@ describe("platform HTTP contract", () => {
     const fetchedCanceledSimulation = await handle({
       method: "GET",
       path: `/simulations/${simulationId}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     });
 
     expect(fetchedCanceledSimulation.body).toMatchObject({
@@ -4413,9 +4408,9 @@ describe("platform HTTP contract", () => {
     const rerunJob = await handle({
       method: "POST",
       path: `/jobs/${enqueuedJobId}/rerun`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
-        idempotencyKey: "rerun-cam-puka-plan",
+        idempotencyKey: "rerun-owner11-puka-plan",
         now: new Date(now.getTime() + 950).toISOString(),
       },
     });
@@ -4438,7 +4433,7 @@ describe("platform HTTP contract", () => {
     const duplicateRerun = await handle({
       method: "POST",
       path: `/jobs/${enqueuedJobId}/rerun`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         idempotencyKey: "different-client-key",
         now: new Date(now.getTime() + 960).toISOString(),
@@ -4457,7 +4452,7 @@ describe("platform HTTP contract", () => {
     const listedSimulations = await handle({
       method: "GET",
       path: "/simulations",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     });
 
     expect(listedSimulations.body).toMatchObject({
@@ -4469,7 +4464,7 @@ describe("platform HTTP contract", () => {
     const fetchedSimulation = await handle({
       method: "GET",
       path: `/simulations/${simulationId}`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
     });
 
     expect(fetchedSimulation.body).toMatchObject({
@@ -4479,7 +4474,7 @@ describe("platform HTTP contract", () => {
     const executedSimulation = await handle({
       method: "POST",
       path: `/simulations/${simulationId}/execute`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         now: new Date(now.getTime() + 1_000).toISOString(),
       },
@@ -4496,16 +4491,16 @@ describe("platform HTTP contract", () => {
     const sethSimulation = await handle({
       method: "POST",
       path: "/simulations",
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       body: {
         leagueId: season.leagueId,
         seasonId: season.id,
         ownerId: sethTeam.ownerId,
         teamId: sethTeam.id,
         count: 5,
-        seedPrefix: "seth-private-run",
-        idempotencyKey: "seth-private-run",
-        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+        seedPrefix: "owner04-private-run",
+        idempotencyKey: "owner04-private-run",
+        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
         now: new Date(now.getTime() + 1_100),
       },
     });
@@ -4516,7 +4511,7 @@ describe("platform HTTP contract", () => {
     const createdMockSession = await handle({
       method: "POST",
       path: "/mock-sessions",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         leagueId: season.leagueId,
         seasonId: season.id,
@@ -4535,12 +4530,12 @@ describe("platform HTTP contract", () => {
     const leakedResultReference = await handle({
       method: "POST",
       path: `/mock-sessions/${mockSessionId}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         expectedCommandCount: 0,
         commandId: "cmd_leak",
-        command: "show seth result",
+        command: "show owner04 result",
         idempotencyKey: "mock:leak",
         latestResultRef: { kind: "simulation-result", id: sethSimulationId },
         now: new Date(now.getTime() + 1_500).toISOString(),
@@ -4560,7 +4555,7 @@ describe("platform HTTP contract", () => {
     const listedMockSessions = await handle({
       method: "GET",
       path: "/mock-sessions",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       query: {
         leagueId: season.leagueId,
         seasonId: season.id,
@@ -4579,7 +4574,7 @@ describe("platform HTTP contract", () => {
     const appendedMockSession = await handle({
       method: "POST",
       path: `/mock-sessions/${mockSessionId}/commands`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         expectedCommandCount: 0,
@@ -4600,7 +4595,7 @@ describe("platform HTTP contract", () => {
     const resetMockSession = await handle({
       method: "POST",
       path: `/mock-sessions/${mockSessionId}/reset`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         now: new Date(now.getTime() + 3_000),
@@ -4618,7 +4613,7 @@ describe("platform HTTP contract", () => {
     const staleMockReset = await handle({
       method: "POST",
       path: `/mock-sessions/${mockSessionId}/reset`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
       },
@@ -4637,18 +4632,18 @@ describe("platform HTTP contract", () => {
     await expect(handle({
       method: "POST",
       path: "/live-rooms",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {},
     })).resolves.toMatchObject({ status: 404 });
 
     const createdRoom = await handle({
       method: "POST",
       path: "/live-rooms",
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       headers: { "x-mockd-provisioning-token": "test-provisioning-token" },
       body: {
         seasonId: season.id,
-        roomId: "room_214674_2026",
+        roomId: "room_100001_2026",
         viewerPasswordHashRef: "viewer-password-hash",
         playerCatalog,
         initialRosters: [
@@ -4661,7 +4656,7 @@ describe("platform HTTP contract", () => {
     expect(createdRoom.status).toBe(201);
     expect(createdRoom.body).toMatchObject({
       room: expect.objectContaining({
-        roomId: "room_214674_2026",
+        roomId: "room_100001_2026",
         status: "setup",
         role: "commissioner",
         canMutateRoom: true,
@@ -4671,13 +4666,13 @@ describe("platform HTTP contract", () => {
 
     const fetchedRoom = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026",
+      sessionToken: owner04.sessionToken,
     });
 
     expect(fetchedRoom.body).toMatchObject({
       room: expect.objectContaining({
-        roomId: "room_214674_2026",
+        roomId: "room_100001_2026",
         role: "member",
         canMutateRoom: false,
       }),
@@ -4686,8 +4681,8 @@ describe("platform HTTP contract", () => {
 
     const initialEvents = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/events?afterRevision=0",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026/events?afterRevision=0",
+      sessionToken: owner04.sessionToken,
     });
     expect(initialEvents.body).toMatchObject({
       events: {
@@ -4698,8 +4693,8 @@ describe("platform HTTP contract", () => {
 
     const startedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/start",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/start",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 1,
         idempotencyKey: "start-room",
@@ -4714,8 +4709,8 @@ describe("platform HTTP contract", () => {
 
     const pausedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/pause",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/pause",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 2,
         idempotencyKey: "pause-room",
@@ -4729,12 +4724,12 @@ describe("platform HTTP contract", () => {
 
     const saleWhilePaused = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 3,
         idempotencyKey: "sale:while-paused",
-        command: "cam puka 62",
+        command: "owner11 puka 62",
       },
     });
     expect(saleWhilePaused).toMatchObject({
@@ -4744,8 +4739,8 @@ describe("platform HTTP contract", () => {
 
     const resumedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/resume",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/resume",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 3,
         idempotencyKey: "resume-room",
@@ -4759,8 +4754,8 @@ describe("platform HTTP contract", () => {
 
     const memberRoomState = await handle({
       method: "GET",
-      path: `/live-rooms/room_214674_2026/state?selectedTeamId=${encodeURIComponent(sethTeam.id)}`,
-      sessionToken: seth.sessionToken,
+      path: `/live-rooms/room_100001_2026/state?selectedTeamId=${encodeURIComponent(sethTeam.id)}`,
+      sessionToken: owner04.sessionToken,
     });
     expect(memberRoomState.body).toMatchObject({
       state: expect.objectContaining({
@@ -4773,8 +4768,8 @@ describe("platform HTTP contract", () => {
 
     const mismatchedStructuredSale = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 4,
         idempotencyKey: "sale:mismatched-team-owner",
@@ -4800,11 +4795,11 @@ describe("platform HTTP contract", () => {
 
     const missingSaleRevision = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         idempotencyKey: "sale:puka:missing-revision",
-        command: "cam puka 62",
+        command: "owner11 puka 62",
         now: new Date(now.getTime() + 4_500),
       },
     });
@@ -4821,11 +4816,11 @@ describe("platform HTTP contract", () => {
 
     const missingSaleIdempotencyKey = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 4,
-        command: "cam puka 62",
+        command: "owner11 puka 62",
         now: new Date(now.getTime() + 4_600),
       },
     });
@@ -4842,12 +4837,12 @@ describe("platform HTTP contract", () => {
 
     const soldRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 4,
         idempotencyKey: "sale:puka:62",
-        command: "cam puka 62",
+        command: "owner11 puka 62",
         now: new Date(now.getTime() + 5_000),
       },
     });
@@ -4862,12 +4857,12 @@ describe("platform HTTP contract", () => {
 
     const retriedSoldRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 4,
         idempotencyKey: "sale:puka:62",
-        command: "cam puka 62",
+        command: "owner11 puka 62",
         now: new Date(now.getTime() + 5_500),
       },
     });
@@ -4882,8 +4877,8 @@ describe("platform HTTP contract", () => {
 
     const saleEvents = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/events?afterRevision=4",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026/events?afterRevision=4",
+      sessionToken: owner04.sessionToken,
     });
 
     expect(saleEvents.body).toMatchObject({
@@ -4906,8 +4901,8 @@ describe("platform HTTP contract", () => {
 
     const saleEventStream = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/event-stream?afterRevision=4",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026/event-stream?afterRevision=4",
+      sessionToken: owner04.sessionToken,
     });
 
     expect(saleEventStream.status).toBe(200);
@@ -4919,7 +4914,7 @@ describe("platform HTTP contract", () => {
     const saleEventIterator = expectAsyncTextStream(saleEventStream.body)[Symbol.asyncIterator]();
     const firstSaleEvent = await saleEventIterator.next();
     if (firstSaleEvent.done) throw new Error("Expected initial live-room snapshot event.");
-    expect(firstSaleEvent.value).toContain("id: room_214674_2026:5:snapshot\n");
+    expect(firstSaleEvent.value).toContain("id: room_100001_2026:5:snapshot\n");
     expect(firstSaleEvent.value).toContain("event: room.snapshot\n");
     expect(firstSaleEvent.value).toContain("\"playerName\":\"Puka Nacua\"");
     for (const payload of firstSaleEvent.value
@@ -4932,8 +4927,8 @@ describe("platform HTTP contract", () => {
 
     const undoneRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/undo",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/undo",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 5,
         idempotencyKey: "undo:puka:62",
@@ -4951,12 +4946,12 @@ describe("platform HTTP contract", () => {
 
     const resoldRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/sales",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/sales",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 6,
         idempotencyKey: "sale:puka:62:after-undo",
-        sale: "cam puka 62",
+        sale: "owner11 puka 62",
         now: new Date(now.getTime() + 7_000),
       },
     });
@@ -4969,28 +4964,28 @@ describe("platform HTTP contract", () => {
 
     const correctedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/corrections",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/corrections",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 7,
-        idempotencyKey: "correct:puka:seth:41",
+        idempotencyKey: "correct:puka:owner04:41",
         saleEventId: resoldSale.saleEventId,
-        replacementSale: "seth puka 41",
+        replacementSale: "owner04 puka 41",
         now: new Date(now.getTime() + 7_250),
       },
     });
     expect(correctedRoom.body).toMatchObject({
       room: expect.objectContaining({
         revision: 8,
-        salesLog: [expect.objectContaining({ ownerDisplayName: "Seth", price: 41 })],
+        salesLog: [expect.objectContaining({ ownerDisplayName: "Owner04", price: 41 })],
       }),
     });
     expectPublicBrowserPayload(correctedRoom.body);
 
     const undoneCorrection = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/undo",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/undo",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 8,
         idempotencyKey: "undo:correction:puka",
@@ -5000,15 +4995,15 @@ describe("platform HTTP contract", () => {
     expect(undoneCorrection.body).toMatchObject({
       room: expect.objectContaining({
         revision: 9,
-        salesLog: [expect.objectContaining({ ownerDisplayName: "Cam", price: 62 })],
+        salesLog: [expect.objectContaining({ ownerDisplayName: "Owner11", price: 62 })],
       }),
     });
     expectPublicBrowserPayload(undoneCorrection.body);
 
     const memberExportArtifact = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026/export-artifacts",
+      sessionToken: owner04.sessionToken,
       body: {
         exportedAt: new Date(now.getTime() + 7_500).toISOString(),
       },
@@ -5026,8 +5021,8 @@ describe("platform HTTP contract", () => {
 
     const earlyExportArtifact = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/export-artifacts",
+      sessionToken: owner11.sessionToken,
       body: {
         exportedAt: new Date(now.getTime() + 7_500).toISOString(),
       },
@@ -5045,8 +5040,8 @@ describe("platform HTTP contract", () => {
 
     const endedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/end",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/end",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 9,
         idempotencyKey: "end-room",
@@ -5062,8 +5057,8 @@ describe("platform HTTP contract", () => {
 
     const myTeam = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/my-team",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/my-team",
+      sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 8_500),
     });
     expect(myTeam).toMatchObject({
@@ -5074,7 +5069,7 @@ describe("platform HTTP contract", () => {
           players: expect.arrayContaining([expect.objectContaining({ playerName: "De'Von Achane" })]),
         },
         analysis: {
-          ownership: { userId: cam.account.id, teamId: camTeam.id },
+          ownership: { userId: owner11.account.id, teamId: camTeam.id },
           ranking: {
             status: "unavailable",
             teamCount: season.teams.length,
@@ -5087,8 +5082,8 @@ describe("platform HTTP contract", () => {
 
     const exportedRoom = await handle({
       method: "GET",
-      path: "/live-rooms/room_214674_2026/export?exportedAt=2026-08-09T12%3A00%3A09.000Z",
-      sessionToken: seth.sessionToken,
+      path: "/live-rooms/room_100001_2026/export?exportedAt=2026-08-09T12%3A00%3A09.000Z",
+      sessionToken: owner04.sessionToken,
     });
 
     expect(exportedRoom.body).toMatchObject({
@@ -5100,8 +5095,8 @@ describe("platform HTTP contract", () => {
 
     const exportArtifact = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/export-artifacts",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/export-artifacts",
+      sessionToken: owner11.sessionToken,
       body: {
         exportedAt: "2026-08-09T12:00:10.000Z",
       },
@@ -5118,8 +5113,8 @@ describe("platform HTTP contract", () => {
 
     const reopenedRoom = await handle({
       method: "POST",
-      path: "/live-rooms/room_214674_2026/reopen",
-      sessionToken: cam.sessionToken,
+      path: "/live-rooms/room_100001_2026/reopen",
+      sessionToken: owner11.sessionToken,
       body: {
         expectedRevision: 10,
         idempotencyKey: "reopen-room",

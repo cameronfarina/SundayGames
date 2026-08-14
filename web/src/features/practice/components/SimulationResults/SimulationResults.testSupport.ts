@@ -36,7 +36,7 @@ export const firstRun: PracticeSimulationRun = {
   label: "Run 1", runNumber: 1, seed: "one",
   teams: [
     { budgetRemaining: 0, isUserTeam: true, roster, spent: 200, teamId: "short", teamName: "Short King", week1Points: 106.5 },
-    { isUserTeam: false, roster: [], spent: 200, teamId: "seth", teamName: "Sentinels", week1Points: 101.1 },
+    { isUserTeam: false, roster: [], spent: 200, teamId: "owner04", teamName: "Sentinels", week1Points: 101.1 },
   ],
 };
 

@@ -65,7 +65,7 @@ describe("draft plan generation", () => {
           budgetTrajectory: [],
           rosters: [
             {
-              owner: "Cam",
+              owner: "Owner11",
               spend: 200,
               budgetRemaining: 0,
               week1Score: 120,
@@ -116,7 +116,7 @@ describe("draft plan generation", () => {
           budgetTrajectory: [],
           rosters: [
             {
-              owner: "Cam",
+              owner: "Owner11",
               spend: 200,
               budgetRemaining: 0,
               week1Score: 110,
@@ -190,7 +190,7 @@ describe("draft plan generation", () => {
 
     const report = buildDraftPlanReport({
       batch,
-      owner: "Cam",
+      owner: "Owner11",
       strategyKey: "three-rb",
       limit: 5,
     });
@@ -295,7 +295,7 @@ describe("draft plan generation", () => {
     expect(report.candidates).toHaveLength(2);
     expect(report.candidates[0]).toMatchObject({
       seed: "draft-plan-test:expected:1",
-      owner: "Cam",
+      owner: "Owner11",
       rosterSpend: 200,
       strategy: "three-rb",
       rbCoreSpend: 156,
@@ -357,7 +357,7 @@ describe("draft plan generation", () => {
           budgetTrajectory: [],
           rosters: [
             {
-              owner: "Cam",
+              owner: "Owner11",
               spend: 200,
               budgetRemaining: 0,
               week1Score: 124,
@@ -404,7 +404,7 @@ describe("draft plan generation", () => {
 
     const report = buildDraftPlanReport({
       batch,
-      owner: "Cam",
+      owner: "Owner11",
       strategyKey: "three-rb",
       limit: 5,
     });
@@ -439,7 +439,7 @@ describe("draft plan generation", () => {
           budgetTrajectory: [],
           rosters: [
             {
-              owner: "Cam",
+              owner: "Owner11",
               spend: 200,
               budgetRemaining: 0,
               week1Score: 118,
@@ -489,13 +489,13 @@ describe("draft plan generation", () => {
 
     const threeRbReport = buildDraftPlanReport({
       batch,
-      owner: "Cam",
+      owner: "Owner11",
       strategyKey: "three-rb",
       limit: 5,
     });
     const balancedReport = buildDraftPlanReport({
       batch,
-      owner: "Cam",
+      owner: "Owner11",
       strategyKey: "balanced",
       limit: 5,
     });

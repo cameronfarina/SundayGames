@@ -40,8 +40,8 @@ export const simulationAdmissionFixture = async () => {
     leagueName: "Simulation Admission",
     setupStatus: "published",
   });
-  const team = season.teams.find(candidate => candidate.ownerDisplayName === "Cam");
-  if (team === undefined) throw new Error("Expected Cam's team.");
+  const team = season.teams.find(candidate => candidate.ownerDisplayName === "Owner11");
+  if (team === undefined) throw new Error("Expected the primary synthetic team.");
   await app.registerLeagueSeason({
     actorSessionToken: login.sessionToken,
     season,

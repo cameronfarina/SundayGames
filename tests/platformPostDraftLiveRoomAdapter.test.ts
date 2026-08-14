@@ -23,7 +23,7 @@ const season = (): LeagueSeason => ({
   id: seasonId,
   league: {
     id: leagueId,
-    externalLeagueId: "214674",
+    externalLeagueId: "100001",
     name: "Sunday Games",
     provider: "espn",
   },
@@ -35,7 +35,7 @@ const season = (): LeagueSeason => ({
       id: "team_cam",
       leagueSeasonId: seasonId,
       ownerId: "owner_cam",
-      ownerDisplayName: "Cam",
+      ownerDisplayName: "Owner11",
       displayName: "Short King",
       draftOrderPosition: 1,
     },
@@ -43,7 +43,7 @@ const season = (): LeagueSeason => ({
       id: "team_sam",
       leagueSeasonId: seasonId,
       ownerId: "owner_sam",
-      ownerDisplayName: "Sam",
+      ownerDisplayName: "Owner12",
       displayName: "Massage Envy",
       draftOrderPosition: 2,
     },
@@ -59,8 +59,8 @@ const season = (): LeagueSeason => ({
       id: "team_seth",
       leagueSeasonId: seasonId,
       ownerId: "owner_seth",
-      ownerDisplayName: "Seth",
-      displayName: "Seth Team",
+      ownerDisplayName: "Owner04",
+      displayName: "Owner04 Team",
       draftOrderPosition: 4,
     },
   ],
@@ -92,14 +92,14 @@ const season = (): LeagueSeason => ({
 });
 
 const catalog = [
-  { name: "Cam Quarterback", position: "QB", expectedPrice: 20 },
+  { name: "Owner11 Quarterback", position: "QB", expectedPrice: 20 },
   { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
-  { name: "Sam Quarterback", position: "QB", expectedPrice: 8 },
-  { name: "Sam Running Back", position: "RB", expectedPrice: 12 },
+  { name: "Owner12 Quarterback", position: "QB", expectedPrice: 8 },
+  { name: "Owner12 Running Back", position: "RB", expectedPrice: 12 },
   { name: "Nick Quarterback", position: "QB", expectedPrice: 7 },
   { name: "Nick Running Back", position: "RB", expectedPrice: 11 },
-  { name: "Seth Quarterback", position: "QB", expectedPrice: 6 },
-  { name: "Seth Running Back", position: "RB", expectedPrice: 10 },
+  { name: "Owner04 Quarterback", position: "QB", expectedPrice: 6 },
+  { name: "Owner04 Running Back", position: "RB", expectedPrice: 10 },
 ] as const satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
 const endedRoom = (): LiveDraftRoom => {
@@ -111,14 +111,14 @@ const endedRoom = (): LiveDraftRoom => {
     season: season(),
     playerCatalog: catalog,
     initialRosters: [
-      { teamId: "team_cam", playerName: "Cam Quarterback", position: "QB", price: 20 },
+      { teamId: "team_cam", playerName: "Owner11 Quarterback", position: "QB", price: 20 },
       { teamId: "team_cam", playerName: "De'Von Achane", position: "RB", price: 50 },
-      { teamId: "team_sam", playerName: "Sam Quarterback", position: "QB", price: 8 },
-      { teamId: "team_sam", playerName: "Sam Running Back", position: "RB", price: 12 },
+      { teamId: "team_sam", playerName: "Owner12 Quarterback", position: "QB", price: 8 },
+      { teamId: "team_sam", playerName: "Owner12 Running Back", position: "RB", price: 12 },
       { teamId: "team_nick", playerName: "Nick Quarterback", position: "QB", price: 7 },
       { teamId: "team_nick", playerName: "Nick Running Back", position: "RB", price: 11 },
-      { teamId: "team_seth", playerName: "Seth Quarterback", position: "QB", price: 6 },
-      { teamId: "team_seth", playerName: "Seth Running Back", position: "RB", price: 10 },
+      { teamId: "team_seth", playerName: "Owner04 Quarterback", position: "QB", price: 6 },
+      { teamId: "team_seth", playerName: "Owner04 Running Back", position: "RB", price: 10 },
     ],
     createdAt: new Date("2026-09-01T18:00:00.000Z"),
   });
@@ -166,7 +166,7 @@ const projectionSnapshot = (room: LiveDraftRoom): PostDraftProjectionSnapshot =>
   projections: [
     {
       playerId: "player_cam_qb",
-      playerName: "Cam Quarterback",
+      playerName: "Owner11 Quarterback",
       position: "QB",
       seasonProjectedPoints: 300,
       weeklyProjectedPoints: 20,
@@ -180,14 +180,14 @@ const projectionSnapshot = (room: LiveDraftRoom): PostDraftProjectionSnapshot =>
     },
     {
       playerId: "player_sam_qb",
-      playerName: "Sam Quarterback",
+      playerName: "Owner12 Quarterback",
       position: "QB",
       seasonProjectedPoints: 100,
       weeklyProjectedPoints: 8,
     },
     {
       playerId: "player_sam_rb",
-      playerName: "Sam Running Back",
+      playerName: "Owner12 Running Back",
       position: "RB",
       seasonProjectedPoints: 80,
       weeklyProjectedPoints: 6,
@@ -208,14 +208,14 @@ const projectionSnapshot = (room: LiveDraftRoom): PostDraftProjectionSnapshot =>
     },
     {
       playerId: "player_seth_qb",
-      playerName: "Seth Quarterback",
+      playerName: "Owner04 Quarterback",
       position: "QB",
       seasonProjectedPoints: 80,
       weeklyProjectedPoints: 6,
     },
     {
       playerId: "player_seth_rb",
-      playerName: "Seth Running Back",
+      playerName: "Owner04 Running Back",
       position: "RB",
       seasonProjectedPoints: 60,
       weeklyProjectedPoints: 4,
@@ -239,7 +239,7 @@ describe("post-draft live room adapter", () => {
       teamId: "team_cam",
       ownerId: "owner_cam",
       players: [
-        { playerId: "player_cam_qb", playerName: "Cam Quarterback", position: "QB" },
+        { playerId: "player_cam_qb", playerName: "Owner11 Quarterback", position: "QB" },
         { playerId: "player_achane", playerName: "De'Von Achane", position: "RB" },
       ],
     });

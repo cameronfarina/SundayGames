@@ -82,7 +82,7 @@ const smokeRunIdFromEnv = (): string | undefined => {
 const smokeRunId = smokeRunIdFromEnv();
 const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
 const emailDomain = process.env.MOCKD_E2E_EMAIL_DOMAIN?.trim() || "example.com";
-const baseLeagueName = "E2E League 214674";
+const baseLeagueName = "E2E League 100001";
 const leagueName = smokeRunId === undefined ? baseLeagueName : `${baseLeagueName} ${smokeRunId}`;
 const provisioningToken = process.env.MOCKD_E2E_PROVISIONING_TOKEN?.trim() || "local-e2e-provisioning-token";
 
@@ -155,7 +155,7 @@ const cleanIdFragment = (value: string): string => {
   return cleanValue.length === 0 ? "smoke" : cleanValue;
 };
 
-const emailFor = (name: "cam" | "seth" | "hoody"): string =>
+const emailFor = (name: "owner11" | "owner04" | "owner02"): string =>
   smokeRunId === undefined
     ? `${name}.e2e@example.com`
     : `${name}.e2e+${smokeRunId}@${emailDomain}`;
@@ -304,8 +304,8 @@ const setupRowsFor = (camEmail: string): string =>
   [
     "owner,team,email,role",
     ...ownerOrder.map(owner => {
-      const email = owner === "Cam" ? camEmail : "";
-      const role = owner === "Cam" ? "admin" : "member";
+      const email = owner === "Owner11" ? camEmail : "";
+      const role = owner === "Owner11" ? "admin" : "member";
 
       return `${owner},${owner},${email},${role}`;
     }),
@@ -344,7 +344,7 @@ const seedSeasonFromBrowser = async (
         })),
       };
     })();
-  const camTeam = teamByOwner(season, "Cam");
+  const camTeam = teamByOwner(season, "Owner11");
 
   return expectOk(await api<SeasonBody>(page, "/seasons", {
     method: "POST",
@@ -619,9 +619,9 @@ const waitForSaleEvent = async (
   }) as BrowserSseEvent;
 
 const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorkspace> => {
-  const camEmail = emailFor("cam");
-  const sethEmail = emailFor("seth");
-  const hoodyEmail = emailFor("hoody");
+  const camEmail = emailFor("owner11");
+  const sethEmail = emailFor("owner04");
+  const hoodyEmail = emailFor("owner02");
   const { page: camPage, account: camAccount } = await pageForLocalFixtureUser(browser, camEmail);
   const seedSeason = await seedSeasonFromBrowser(camPage, camAccount);
   const invitationUrl = await applyCommissionerSetup(camPage, seedSeason, camEmail);
@@ -637,10 +637,10 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   await expectInvitationPage(sethPage, leagueName, ownerOrder.length);
   const beforeSethClaim = expectOk(await api<OnboardingBody>(sethPage, "/onboarding"));
   expect(beforeSethClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);
-  const sethTeamRow = await expectTeamCanBeClaimed(sethPage, "Seth");
+  const sethTeamRow = await expectTeamCanBeClaimed(sethPage, "Owner04");
   await Promise.all([
     sethPage.waitForURL(/\/league\?seasonId=/),
-    sethTeamRow.getByRole("button", { name: "Join as Seth" }).click(),
+    sethTeamRow.getByRole("button", { name: "Join as Owner04" }).click(),
   ]);
   const acceptedOnboarding = expectOk(await api<{ leagues: Array<{ membership: PlatformLeagueMembership }> }>(
     sethPage,
@@ -649,7 +649,7 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   await expect(sethPage.getByRole("heading", { name: leagueName })).toBeVisible();
   await sethPage.goto(invitationUrl);
   await expect(sethPage.getByRole("link", { name: "Open league" })).toBeVisible();
-  await expect(invitationTeam(sethPage, "Seth")).toContainText("Your team");
+  await expect(invitationTeam(sethPage, "Owner04")).toContainText("Your team");
   await expect(invitationTeams(sethPage).getByRole("button")).toHaveCount(0);
 
   const hoodyContext = await browser.newContext({
@@ -658,7 +658,7 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   const hoodyPage = await hoodyContext.newPage();
   await hoodyPage.goto(invitationUrl);
   await expectInvitationPage(hoodyPage, leagueName, ownerOrder.length);
-  await expect(invitationTeam(hoodyPage, "Seth")).toContainText("Claimed");
+  await expect(invitationTeam(hoodyPage, "Owner04")).toContainText("Claimed");
   await expect(hoodyPage.getByRole("button", { name: /^Join as /u })).toHaveCount(0);
   await hoodyPage.getByRole("link", { name: "Create account" }).click();
   await expect(hoodyPage).toHaveURL(/\/signup\?returnTo=/);
@@ -673,16 +673,16 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   await expectInvitationPage(hoodyPage, leagueName, ownerOrder.length);
   const beforeHoodyClaim = expectOk(await api<OnboardingBody>(hoodyPage, "/onboarding"));
   expect(beforeHoodyClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);
-  await expect(invitationTeam(hoodyPage, "Seth")).toContainText("Claimed");
-  const hoodyTeamRow = await expectTeamCanBeClaimed(hoodyPage, "Hoody");
+  await expect(invitationTeam(hoodyPage, "Owner04")).toContainText("Claimed");
+  const hoodyTeamRow = await expectTeamCanBeClaimed(hoodyPage, "Owner02");
   await Promise.all([
     hoodyPage.waitForURL(/\/league\?seasonId=/),
-    hoodyTeamRow.getByRole("button", { name: "Join as Hoody" }).click(),
+    hoodyTeamRow.getByRole("button", { name: "Join as Owner02" }).click(),
   ]);
   await expect(hoodyPage.getByRole("heading", { name: leagueName })).toBeVisible();
 
   const appliedSeason = expectOk(await api<SeasonBody>(camPage, `/seasons/${seedSeason.id}`)).season;
-  const appliedSethTeam = teamByOwner(appliedSeason, "Seth");
+  const appliedSethTeam = teamByOwner(appliedSeason, "Owner04");
   expect(acceptedOnboarding.leagues[0]?.membership).toMatchObject({
     role: "member",
     ownerId: appliedSethTeam.ownerId,
@@ -691,7 +691,7 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
   const acceptedHoodyOnboarding = expectOk(await api<{
     leagues: Array<{ membership: PlatformLeagueMembership }>;
   }>(hoodyPage, "/onboarding"));
-  const appliedHoodyTeam = teamByOwner(appliedSeason, "Hoody");
+  const appliedHoodyTeam = teamByOwner(appliedSeason, "Owner02");
   expect(acceptedHoodyOnboarding.leagues[0]?.membership).toMatchObject({
     role: "member",
     ownerId: appliedHoodyTeam.ownerId,
@@ -703,10 +703,10 @@ const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmokeWorksp
     memberPage: sethPage,
     season: appliedSeason,
     room: createdRoom,
-    commissionerOwnerName: "Cam",
-    memberOwnerName: "Seth",
-    commissionerTeamName: "Cam",
-    memberTeamName: "Seth",
+    commissionerOwnerName: "Owner11",
+    memberOwnerName: "Owner04",
+    commissionerTeamName: "Owner11",
+    memberTeamName: "Owner04",
     salePlayerName: "Puka Nacua",
     salePrice: 62,
   };
@@ -1290,7 +1290,7 @@ test("auction mock only enables legal nominations for the final open slot", asyn
 test("commissioner history and keepers persist into an unopened live room", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
   const { page, account } = await pageForLocalFixtureUser(browser, "keeper.history.e2e@example.com");
-  const owners = ["Cam", "Sam", "Seth", "Alex"];
+  const owners = ["Owner11", "Sam", "Owner04", "Alex"];
   const baseSeason = buildCurrentMockdLeagueSeason(owners, { ...leagueConfig, teams: owners.length }, {
     leagueName: "Keeper history E2E",
     setupStatus: "draft",
@@ -1330,7 +1330,7 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   }));
 
   const wideDraft = (camPrice: number, samPrice: number): string => [
-    "Team,Cam,,,Sam,,,Seth,,,Alex,,",
+    "Team,Owner11,,,Sam,,,Owner04,,,Alex,,",
     `1,$${camPrice},RB,De'Von Achane,$${samPrice},WR,CeeDee Lamb,$32,WR,Puka Nacua,$72,RB,Jahmyr Gibbs`,
     "2,$61,WR,Ja'Marr Chase,$9,QB,Trevor Lawrence,$68,RB,Bijan Robinson,$67,WR,Amon-Ra St. Brown",
   ].join("\n");
@@ -1437,7 +1437,7 @@ test("commissioner league switching discards stale setup fetch responses", async
   test.skip(isDeployedSmoke, "Local route delays are not used by deployed smoke.");
   const { page, account } = await pageForLocalFixtureUser(browser, "setup.switch.e2e@example.com");
   await page.setViewportSize({ width: 390, height: 844 });
-  const owners = ["Cam", "Seth", "Beaton", "Hoody"];
+  const owners = ["Owner11", "Owner04", "Owner01", "Owner02"];
   const buildSeason = (suffix: string, name: string): LeagueSeason => {
     const base = buildCurrentMockdLeagueSeason(owners, { ...leagueConfig, teams: owners.length }, {
       leagueName: name,
@@ -1468,7 +1468,7 @@ test("commissioner league switching discards stale setup fetch responses", async
   const seasonA = buildSeason("switch-a", "League A");
   const seasonB = buildSeason("switch-b", "League B");
   for (const season of [seasonA, seasonB]) {
-    const commissionerTeam = teamByOwner(season, "Cam");
+    const commissionerTeam = teamByOwner(season, "Owner11");
     expectOk(await api<SeasonBody>(page, "/seasons", {
       method: "POST",
       headers: { "x-mockd-provisioning-token": provisioningToken },
@@ -1520,10 +1520,10 @@ test("commissioner league switching discards stale setup fetch responses", async
     exact: true,
   }).click();
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Cam/u);
+  await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Owner11/u);
   await delay(400);
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Teams and managers" })).not.toHaveValue(/League A Cam/u);
+  await expect(page.getByRole("textbox", { name: "Teams and managers" })).not.toHaveValue(/League A Owner11/u);
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);
   const leagueAMockSessionId = await createAuctionMock(page);

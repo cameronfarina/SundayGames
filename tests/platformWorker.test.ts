@@ -20,7 +20,7 @@ describe("platform worker", () => {
     const job = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",
@@ -82,7 +82,7 @@ describe("platform worker", () => {
     const exportJob = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",
@@ -92,7 +92,7 @@ describe("platform worker", () => {
     const simulationJob = enqueueSimulationRunExecutionJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       simulationRunId: "sim_123",
       runCount: 25,
@@ -126,7 +126,7 @@ describe("platform worker", () => {
     const job = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",
@@ -178,7 +178,7 @@ describe("platform worker", () => {
     const job = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",
@@ -223,7 +223,7 @@ describe("platform worker", () => {
     const job = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",

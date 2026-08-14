@@ -54,7 +54,7 @@ describe("MyTeamPage before the draft ends", () => {
         keepers: [
           { ...keepers[0], price: 0, keeperRound: 4 },
           {
-            teamId: "team-cam",
+            teamId: "team-owner11",
             playerName: "DeVonta Smith",
             position: "WR",
             price: 0,
@@ -81,7 +81,7 @@ describe("MyTeamPage before the draft ends", () => {
     };
     server.use(
       http.get("/onboarding", () => HttpResponse.json({
-        account: { id: "account-cam", email: "cam@example.com" },
+        account: { id: "account-user", email: "user@example.com" },
         leagues: [assignedLeague, otherLeague],
       })),
       http.get("/seasons/season-2027", () => HttpResponse.json(season("auction", "season-2027"))),

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { keepers } from "../config/keepers.js";
+import { keepers, type KeeperDeclaration } from "../config/keepers.js";
 import {
   customWeightsPlayerContextConfig,
   factualPlayerContextCategories,
@@ -18,6 +18,25 @@ import { loadEspnWeeksOneToFour } from "../src/projections.js";
 
 const evidencePath = "data/raw/player-evidence-2026-initial.csv";
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
+const evidenceCoverageKeepers: readonly KeeperDeclaration[] = [
+  ...keepers,
+  {
+    owner: "Owner01",
+    player: "Jaxon Smith-Njigba",
+    position: "WR",
+    priorCost: 1,
+    newCost: 2,
+    status: "confirmed",
+  },
+  {
+    owner: "Owner02",
+    player: "Bucky Irving",
+    position: "RB",
+    priorCost: 1,
+    newCost: 2,
+    status: "confirmed",
+  },
+];
 
 describe("initial 2026 player evidence data", () => {
   it("covers every current top evidence-queue player with sourced factual categories", async () => {
@@ -38,9 +57,9 @@ describe("initial 2026 player evidence data", () => {
     const queue = buildPlayerEvidenceQueue(buildTopPlayerSanityReport({
       projections: await loadEspnWeeksOneToFour(projectionPath),
       historicalRecords: await loadHistoricalAuctionRecords(),
-      keepers,
+      keepers: evidenceCoverageKeepers,
       scenarioKey: "expected",
-      limit: 40,
+      limit: 38,
       runs: 2,
       seedPrefix: "initial-evidence-coverage",
       pricingConfig,

@@ -9,7 +9,7 @@ import { auctionSeason, jsonResponse, requestPath, snakeSeason } from "../../tes
 import { LeagueSetupSection } from "./LeagueSetupSection";
 
 const readyImport = { status: "ready", blockers: [], records: [{
-  sourceRowNumber: 2, ownerDisplayName: "Cam", teamDisplayName: "Short King", role: "member",
+  sourceRowNumber: 2, ownerDisplayName: "Owner11", teamDisplayName: "Short King", role: "member",
 }] };
 
 const renderSection = (fetcher: PlatformFetch, snake = false) => {

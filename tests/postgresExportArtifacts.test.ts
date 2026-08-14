@@ -24,7 +24,7 @@ const draftExportResult: DraftExportResult = {
 
 const artifactInput = {
   draftExport: draftExportResult,
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   roomId: "room_final",
   sourceRevision: 7,
@@ -243,7 +243,7 @@ describe("Postgres export artifacts", () => {
     expect(reloaded).toEqual(saved);
     expect(saved.content.toString("utf8")).toBe(draftExportResult.csv);
     expect(client.exports.get(artifactResult.artifact.id)).toMatchObject({
-      league_id: "league_214674",
+      league_id: "league_100001",
       league_season_id: "season_2026",
       draft_room_id: "room_final",
       created_by_user_id: "user_commish",

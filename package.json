@@ -7,8 +7,9 @@
     "node": ">=24.15.0 <25"
   },
   "scripts": {
-    "build": "npm run build:server && npm run build:web",
+    "build": "npm run clean:dist && npm run build:server && npm run build:web",
     "build:server": "tsc -p tsconfig.json",
+    "clean:dist": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build:web": "vite build --config web/vite.config.ts",
     "budget:web": "tsx scripts/check-web-bundle-budget.ts",
     "dev": "tsx scripts/start-local-preview.ts",

@@ -47,16 +47,16 @@ const fullDraftCommandsFor = (state: LiveDraftState): string[] => {
 
 describe("live draft room", () => {
   it("parses natural-language auction sale commands", () => {
-    expect(parseLiveDraftSaleCommand("jakub drafted kittle for 28")).toEqual({
-      ownerText: "jakub",
+    expect(parseLiveDraftSaleCommand("owner05 drafted kittle for 28")).toEqual({
+      ownerText: "owner05",
       playerText: "kittle",
       price: 28,
     });
   });
 
   it("preserves multiword owner and team labels in natural-language sale commands", () => {
-    expect(parseLiveDraftSaleCommand("Cam Audit drafted Puka Nacua for 62")).toEqual({
-      ownerText: "Cam Audit",
+    expect(parseLiveDraftSaleCommand("Owner11 Audit drafted Puka Nacua for 62")).toEqual({
+      ownerText: "Owner11 Audit",
       playerText: "Puka Nacua",
       price: 62,
     });
@@ -67,45 +67,45 @@ describe("live draft room", () => {
     });
   });
 
-  it("applies a live Kittle sale from projection fallback data and reprices Cam targets", async () => {
+  it("applies a live Kittle sale from projection fallback data and reprices Owner11 targets", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const initialState = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
     });
     const updatedState = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
-      commands: ["jakub drafted kittle for 28"],
+      commands: ["owner05 drafted kittle for 28"],
     });
 
     expect(updatedState.events).toHaveLength(1);
     expect(updatedState.events[0]).toMatchObject({
-      owner: "Jakub",
+      owner: "Owner05",
       player: "George Kittle",
       position: "TE",
       price: 28,
       expectedPrice: 2,
       playerSource: "projectionFallback",
     });
-    expect(updatedState.owners.find(owner => owner.owner === "Jakub")).toMatchObject({
+    expect(updatedState.owners.find(owner => owner.owner === "Owner05")).toMatchObject({
       spent: 31,
       budgetRemaining: 169,
       rosterSlotsRemaining: 14,
       maxBid: 156,
     });
-    expect(updatedState.owners.find(owner => owner.owner === "Jakub")?.slots).toEqual(
+    expect(updatedState.owners.find(owner => owner.owner === "Owner05")?.slots).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           slot: "RB1",
-          player: expect.objectContaining({ name: "Rhamondre Stevenson" }),
+          player: expect.objectContaining({ name: "Quinshon Judkins" }),
         }),
         expect.objectContaining({
           slot: "TE",
@@ -121,8 +121,8 @@ describe("live draft room", () => {
     expect(updatedState.availableTargets[0]?.recommendedMaxBid).toBeLessThanOrEqual(updatedState.watchOwner.maxBid);
     expect(updatedState.postDraftAudit).toHaveLength(1);
     expect(updatedState.postDraftAudit[0]).toMatchObject({
-      input: "jakub drafted kittle for 28",
-      owner: "Jakub",
+      input: "owner05 drafted kittle for 28",
+      owner: "Owner05",
       player: "George Kittle",
       position: "TE",
       price: 28,
@@ -146,16 +146,16 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
     });
     const discountedMarketState = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
-      commands: ["jakub drafted kittle for 28"],
+      commands: ["owner05 drafted kittle for 28"],
     });
 
     const initialGibbs = initialState.availableTargets.find(target => target.name === "Jahmyr Gibbs");
@@ -182,7 +182,7 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
     });
 
@@ -206,7 +206,7 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       targetLimit: 600,
     });
@@ -214,7 +214,7 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       targetLimit: 600,
       commands: fullDraftCommandsFor(setupState),
@@ -238,7 +238,7 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
     });
 
@@ -255,45 +255,45 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
-      commands: ["cam drafted jahmyr gibbs for 999"],
+      commands: ["owner11 drafted jahmyr gibbs for 999"],
     });
     const overPositionLimitState = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       commands: [
-        "cam drafted josh allen for 1",
-        "cam drafted lamar jackson for 1",
-        "cam drafted jayden daniels for 1",
-        "cam drafted justin herbert for 1",
+        "owner11 drafted josh allen for 1",
+        "owner11 drafted lamar jackson for 1",
+        "owner11 drafted jayden daniels for 1",
+        "owner11 drafted justin herbert for 1",
       ],
     });
 
     expect(leagueConfig.rosterMaximums).toMatchObject({ QB: 3, RB: 6, WR: 6, TE: 2, K: 2, DST: 2 });
     expect(overMaxBidState.events).toHaveLength(0);
-    expect(overMaxBidState.errors[0]?.message).toContain("Cam can only bid up to $136");
+    expect(overMaxBidState.errors[0]?.message).toContain("Owner11 can only bid up to $136");
     expect(overMaxBidState.availableTargets[0]?.name).toBe("Jahmyr Gibbs");
     expect(overPositionLimitState.events).toHaveLength(3);
-    expect(overPositionLimitState.errors[0]?.message).toBe("Cam cannot buy Justin Herbert: roster limit is 3 QBs.");
+    expect(overPositionLimitState.errors[0]?.message).toBe("Owner11 cannot buy Justin Herbert: roster limit is 3 QBs.");
   });
 
-  it("keeps room-wide targets visible after Cam reaches a position maximum", async () => {
+  it("keeps room-wide targets visible after Owner11 reaches a position maximum", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       commands: [
-        "cam drafted josh allen for 1",
-        "cam drafted lamar jackson for 1",
-        "cam drafted jayden daniels for 1",
+        "owner11 drafted josh allen for 1",
+        "owner11 drafted lamar jackson for 1",
+        "owner11 drafted jayden daniels for 1",
       ],
     });
 
@@ -316,9 +316,9 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
-      commands: ["cam drafted brown for 12"],
+      commands: ["owner11 drafted brown for 12"],
     });
 
     expect(state.events).toHaveLength(0);
@@ -335,7 +335,7 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       draftRoomRankings,
     });
@@ -345,7 +345,7 @@ describe("live draft room", () => {
     const puka = state.availableTargets.find(target => target.name === "Puka Nacua");
 
     expect(camFirstRunningBackSlot?.player).toMatchObject({
-      name: "De'Von Achane",
+      name: "Ashton Jeanty",
       position: "RB",
       price: 50,
     });
@@ -393,7 +393,7 @@ describe("live draft room", () => {
           minimumPrice: 50,
           maximumPrice: 76,
           status: "filled",
-          filledBy: "De'Von Achane",
+          filledBy: "Ashton Jeanty",
         }),
         expect.objectContaining({
           slot: "RB2",
@@ -435,7 +435,7 @@ describe("live draft room", () => {
     expect(state.shortlist[0]?.reasons).toContain("starter need");
     expect(state.positionContexts.find(context => context.position === "RB")).toMatchObject({
       position: "RB",
-      ownersNeeding: expect.arrayContaining(["Cam"]),
+      ownersNeeding: expect.arrayContaining(["Owner11"]),
     });
     expect(state.positionContexts.find(context => context.position === "WR")?.blockers.length).toBeGreaterThan(0);
     expect(state.readiness.checks).toEqual(
@@ -459,35 +459,35 @@ describe("live draft room", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
     });
 
-    expect(state.availableTargets.some(target => target.name === "De'Von Achane")).toBe(false);
+    expect(state.availableTargets.some(target => target.name === "Ashton Jeanty")).toBe(false);
     expect(state.keeperTargets).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        name: "De'Von Achane",
+        name: "Ashton Jeanty",
         position: "RB",
-        keeperOwner: "Cam",
+        keeperOwner: "Owner11",
         keeperCost: 50,
         keeperStatus: "confirmed",
         draftable: false,
-        tags: expect.arrayContaining(["keeper - Cam", "confirmed keeper"]),
+        tags: expect.arrayContaining(["keeper - Owner11", "confirmed keeper"]),
       }),
     ]));
   });
 
-  it("advances the live 3RB path bands after Cam pairs Achane with a core running back", async () => {
+  it("advances the live 3RB path bands after Owner11 pairs its keeper with a core running back", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "three-rb",
-      commands: ["cam drafted jahmyr gibbs for 62"],
+      commands: ["owner11 drafted jahmyr gibbs for 62"],
     });
 
     const nextRb = state.availableTargets.find(target => target.position === "RB");
@@ -501,7 +501,7 @@ describe("live draft room", () => {
       expect.objectContaining({
         slot: "RB2",
         status: "filled",
-        filledBy: "De'Von Achane",
+        filledBy: "Ashton Jeanty",
         maximumPrice: 76,
       }),
       expect.objectContaining({
@@ -514,19 +514,19 @@ describe("live draft room", () => {
     expect(nextRb?.tags).toContain("path max $46");
   });
 
-  it("fills the 3RB core after Cam adds two auction backs to Achane", async () => {
+  it("fills the 3RB core after Owner11 adds two auction backs to its keeper", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "three-rb",
       commands: [
-        "cam drafted jahmyr gibbs for 65",
-        "cam drafted bijan robinson for 65",
+        "owner11 drafted jahmyr gibbs for 65",
+        "owner11 drafted bijan robinson for 65",
       ],
     });
 
@@ -537,7 +537,7 @@ describe("live draft room", () => {
       expect.objectContaining({
         slot: "RB3",
         status: "filled",
-        filledBy: "De'Von Achane",
+        filledBy: "Ashton Jeanty",
       }),
     ]));
     expect(nextRb?.recommendedMaxBid).toBeLessThanOrEqual(state.watchOwner.maxBid);

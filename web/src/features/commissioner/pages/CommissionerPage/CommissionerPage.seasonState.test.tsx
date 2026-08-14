@@ -26,7 +26,7 @@ const seasonFor = (id: string, leagueId: string, teamName: string, year: number)
 const seasonA = seasonFor("season-a", "league-a", "Alpha", 2026);
 const seasonB = seasonFor("season-b", "league-b", "Beta", 2027);
 const onboarding = onboardingSchema.parse({
-  account: { id: "account-cam", email: "cam@example.com" },
+  account: { id: "account-user", email: "user@example.com" },
   leagues: [seasonA, seasonB].map(season => ({
     leagueId: season.leagueId,
     leagueName: season.league.name,

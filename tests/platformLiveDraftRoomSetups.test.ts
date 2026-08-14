@@ -13,7 +13,7 @@ const input = {
   playerCatalog: [{ name: "Puka Nacua", position: "WR" as const, expectedPrice: 73 }],
   initialRosters: [{
     teamId: "team_cam",
-    ownerId: "cam",
+    ownerId: "owner11",
     playerName: "De'Von Achane",
     position: "RB" as const,
     price: 50,

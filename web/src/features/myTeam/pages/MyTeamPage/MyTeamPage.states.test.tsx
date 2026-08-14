@@ -27,7 +27,7 @@ describe("MyTeamPage states", () => {
   it("guides an account without a league", async () => {
     const user = userEvent.setup();
     server.use(http.get("/onboarding", () => HttpResponse.json({
-      account: { id: "account-cam", email: "cam@example.com" },
+      account: { id: "account-user", email: "user@example.com" },
       leagues: [],
     })));
     renderMyTeamPage();

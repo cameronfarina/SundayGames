@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getOnboarding } from "./onboardingApi";
 
 const responseBody = {
-  account: { email: "cam@example.com", id: "account-1" },
+  account: { email: "user@example.com", id: "account-1" },
   leagues: [],
 };
 

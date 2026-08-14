@@ -1194,7 +1194,7 @@ describe("Postgres job queue", () => {
     const job = await enqueueDraftRoomExportJob({
       repository: queue,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",

@@ -34,12 +34,12 @@ describe("invitation API", () => {
 
   it("returns signed-in account details", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
-      account: { id: "user-1", email: "cam@example.com" },
+      account: { id: "user-1", email: "user@example.com" },
     }));
 
     await expect(loadInvitationSession(fetcher)).resolves.toEqual({
       status: "signed-in",
-      account: { id: "user-1", email: "cam@example.com" },
+      account: { id: "user-1", email: "user@example.com" },
     });
   });
 

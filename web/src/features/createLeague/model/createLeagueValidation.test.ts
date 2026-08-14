@@ -90,8 +90,8 @@ describe("create league validation", () => {
     expect(setup.teams[0]).toEqual({
         externalTeamId: "1",
         displayName: "Short King",
-        managerNames: ["Cam", "Mackie"],
-        abbreviation: "CAM",
+        managerNames: ["Owner11", "Mackie"],
+        abbreviation: "OWN11",
     });
     expect(setup).toMatchObject({
       draft: { type: "snake", rounds: 16, order: ["1", "2"], reversal: "standard" },
@@ -103,11 +103,11 @@ describe("create league validation", () => {
 
   it("preserves the ESPN identity in an imported setup", () => {
     let draft = completedDraft();
-    draft = { ...draft, referenceMode: "imported", externalLeagueId: "214674" };
+    draft = { ...draft, referenceMode: "imported", externalLeagueId: "100001" };
 
     expect(createLeagueSetup(draft)).toMatchObject({
       provider: "espn",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
     });
   });
 });

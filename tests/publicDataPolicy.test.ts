@@ -41,4 +41,37 @@ describe("public data policy", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("rejects non-synthetic league configuration from source and compiled image inputs", async () => {
+    const root = await mkdtemp(join(tmpdir(), "mockd-public-config-policy-"));
+
+    try {
+      await mkdir(join(root, "src"), { recursive: true });
+      await mkdir(join(root, "config"), { recursive: true });
+      await mkdir(join(root, "dist/config"), { recursive: true });
+      await writeFile(join(root, "Dockerfile"), approvedDockerInputs);
+      await writeFile(
+        join(root, ".gitignore"),
+        ".mockd/private-source-data/\ndata/private/\n",
+      );
+      await writeFile(
+        join(root, "src/localDemoFixtures.ts"),
+        'export const email = "private-owner@mockd.local";\n',
+      );
+      await writeFile(
+        join(root, "config/keepers.ts"),
+        'export const keepers = [{ owner: "PrivateOwner", player: "Private Player" }];\n',
+      );
+      await writeFile(join(root, "dist/config/league.js"), "export const leagueId = 999999;\n");
+
+      await expect(auditPublicData(root)).resolves.toEqual(expect.arrayContaining([
+        "Production input src/localDemoFixtures.ts contains non-synthetic local account email.",
+        "Production input config/keepers.ts contains non-synthetic keeper owner.",
+        "Production input config/keepers.ts contains non-synthetic keeper fixture.",
+        "Production input dist/config/league.js contains non-synthetic external league identifier.",
+      ]));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

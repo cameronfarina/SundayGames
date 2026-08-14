@@ -63,12 +63,12 @@ describe("OpenAI league members screenshot analyzer", () => {
             type: "output_text",
             text: JSON.stringify({
               leagueName: "The Sunday Games",
-              externalLeagueId: "214674",
+              externalLeagueId: "100001",
               teams: [{
                 draftOrderPosition: 1,
-                abbreviation: "SETH",
+                abbreviation: "OWN04",
                 teamDisplayName: "Washington Sentinels",
-                managerDisplayNames: ["Seth Fortier"],
+                managerDisplayNames: ["Owner04 Fortier"],
                 confidence: "high",
                 issues: [],
               }],
@@ -89,12 +89,12 @@ describe("OpenAI league members screenshot analyzer", () => {
       base64: tinyPng.toString("base64"),
     })).resolves.toEqual({
       leagueName: "The Sunday Games",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       teams: [{
         draftOrderPosition: 1,
-        abbreviation: "SETH",
+        abbreviation: "OWN04",
         teamDisplayName: "Washington Sentinels",
-        managerDisplayNames: ["Seth Fortier"],
+        managerDisplayNames: ["Owner04 Fortier"],
         confidence: "high",
         issues: [],
         confirmed: false,

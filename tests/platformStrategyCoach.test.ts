@@ -21,12 +21,12 @@ const catalog = [
 
 const planInput = {
   userId: "user_cam",
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   privateOwnerUserId: "user_cam",
   owner: {
     ownerId: "owner_cam",
-    ownerName: "Cam",
+    ownerName: "Owner11",
     teamId: "team_cam",
     teamName: "Sunday Games",
   },
@@ -44,12 +44,12 @@ describe("strategy coach plan builder", () => {
 
     expect(plan).toMatchObject({
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       privateOwnerUserId: "user_cam",
       promptText: expect.stringContaining("draft Jadarian as RB3"),
       owner: {
-        ownerName: "Cam",
+        ownerName: "Owner11",
         teamName: "Sunday Games",
       },
       extractedConstraints: {
@@ -136,9 +136,9 @@ describe("strategy coach plan builder", () => {
 
     expect(plan.extractedConstraints.globalMaxPrice).toBeUndefined();
     expect(service.getPlanForUser("user_cam", plan.id)?.id).toBe(plan.id);
-    expect(service.listPlansForUser("user_cam", "league_214674", "season_2026")).toEqual([plan]);
+    expect(service.listPlansForUser("user_cam", "league_100001", "season_2026")).toEqual([plan]);
     expect(service.getPlanForUser("user_sam", plan.id)).toBeNull();
-    expect(service.listPlansForUser("user_sam", "league_214674", "season_2026")).toEqual([]);
+    expect(service.listPlansForUser("user_sam", "league_100001", "season_2026")).toEqual([]);
     expect(service.getConversationForUser("user_sam", plan.conversationId ?? "")).toBeNull();
   });
 

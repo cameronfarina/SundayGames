@@ -84,7 +84,7 @@ describe("audited base pricing", () => {
 
     expect(jeanty.historicalRoomPrice).toBe(56);
     expect(jeanty.price).toBeGreaterThanOrEqual(52);
-    expect(availableByName.get("Ashton Jeanty")?.scenarioPrice).toBeGreaterThanOrEqual(53);
+    expect(availableByName.has("Ashton Jeanty")).toBe(false);
 
     expect(jacobs.historicalRoomPrice).toBeGreaterThanOrEqual(46);
     expect(jacobs.price).toBeGreaterThanOrEqual(41);

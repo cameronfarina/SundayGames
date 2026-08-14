@@ -18,7 +18,7 @@ const ownerMapping = (owner: Owner): ProductionOwnerAccountMapping => ({
 });
 
 const completeInput = () => ({
-  commissionerOwner: "Cam",
+  commissionerOwner: "Owner11",
   owners: ownerOrder.map(ownerMapping),
   selectedKeepers: keepers
     .filter(keeper => keeper.status === "confirmed")
@@ -88,18 +88,18 @@ describe("production provisioning document generator", () => {
         ...input,
         selectedKeepers: [
           ...input.selectedKeepers,
-          { owner: "Kenny", player: "Brock Bowers" },
+          { owner: "Owner09", player: "Trey McBride" },
         ],
       }),
     );
 
     expect(document.initialRosters).toContainEqual(expect.objectContaining({
-      playerName: "Brock Bowers",
+      playerName: "Trey McBride",
       price: 10,
       source: "keeper",
     }));
     expect(document.keepers).toContainEqual(expect.objectContaining({
-      playerId: document.initialRosters.find(player => player.playerName === "Brock Bowers")?.playerId,
+      playerId: document.initialRosters.find(player => player.playerName === "Trey McBride")?.playerId,
       keeperCost: 10,
       previousCost: 8,
       status: "published",
@@ -126,7 +126,7 @@ describe("production provisioning document generator", () => {
       ...input,
       selectedKeepers: [
         ...input.selectedKeepers,
-        { owner: "Cam", player: "Not A Configured Keeper" },
+        { owner: "Owner11", player: "Not A Configured Keeper" },
       ],
     })).rejects.toThrow(/does not exactly match a configured keeper/i);
   });
@@ -157,7 +157,7 @@ describe("production provisioning document generator", () => {
     await expect(generateProductionProvisioningDocument({
       ...input,
       owners: input.owners.slice(1),
-    })).rejects.toThrow(/missing configured owner Beaton/i);
+    })).rejects.toThrow(/missing configured owner Owner01/i);
     await expect(generateProductionProvisioningDocument({
       ...input,
       owners: input.owners.map((mapping, index) => index === 0
@@ -201,8 +201,8 @@ describe("production provisioning document generator", () => {
     })).rejects.toThrow(/passwordHashEnv/i);
     await expect(generateProductionProvisioningDocument({
       ...input,
-      owners: input.owners.map(mapping => mapping.owner === "Cam"
-        ? { ...mapping, email: "cam@mockd.local" }
+      owners: input.owners.map(mapping => mapping.owner === "Owner11"
+        ? { ...mapping, email: "commissioner@mockd.local" }
         : mapping),
     })).rejects.toThrow(/local E2E fixture marker/i);
   });

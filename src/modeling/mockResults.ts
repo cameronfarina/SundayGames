@@ -1,5 +1,5 @@
 import type { Owner, Position } from "../../config/league.js";
-import { ownerOrder } from "../../config/league.js";
+import { ownerOrder, primaryOwner } from "../../config/league.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import { lineupScore, optimizeLineup, playerMetricValue } from "../lineupOptimizer.js";
 import type { LineupEntry, Player, StarterSlot } from "../types.js";
@@ -780,7 +780,7 @@ const runResultFor = (
   index: number,
   strategyKey: LiveDraftStrategyKey,
   label?: string,
-  watchOwner: Owner = "Cam",
+  watchOwner: Owner = primaryOwner,
 ): MockResultsRun => {
   const baseTeams = ownerOrder.map(owner => {
     const roster = run.rosters.find(candidate => candidate.owner === owner);
@@ -817,7 +817,7 @@ export const buildMockResultsReport = (
   runStrategyKeys: readonly LiveDraftStrategyKey[] = [],
   script?: MockDraftScript,
   runLabels: readonly string[] = [],
-  watchOwner: Owner = "Cam",
+  watchOwner: Owner = primaryOwner,
 ): MockResultsReport => {
   const cam = batch.summary.owners.find(owner => owner.owner === watchOwner);
   const resolvedRunStrategyKeys = batch.runs.map((_run, index) => runStrategyKeys[index] ?? strategyKey);

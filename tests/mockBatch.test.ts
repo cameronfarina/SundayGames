@@ -122,7 +122,7 @@ describe("mock batch simulation", () => {
     })));
   }, 15000);
 
-  it("starts mocks from forced Cam purchases before AI owners fill the room", async () => {
+  it("starts mocks from forced Owner11 purchases before AI owners fill the room", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const run = runMockBatch({
@@ -134,7 +134,7 @@ describe("mock batch simulation", () => {
       seedPrefix: "forced-sale",
       diagnosticsMode: "summary",
       forcedSales: [
-        { owner: "Cam", player: "Puka Nacua", price: 75 },
+        { owner: "Owner11", player: "Puka Nacua", price: 75 },
       ],
     }).runs[0];
     const baselineRun = runMockBatch({
@@ -149,21 +149,21 @@ describe("mock batch simulation", () => {
     if (!run) throw new Error("Expected a forced-sale mock run.");
     if (!baselineRun) throw new Error("Expected a baseline mock run.");
 
-    const cam = run.rosters.find(roster => roster.owner === "Cam");
-    const puka = cam?.players.find(player => player.name === "Puka Nacua");
+    const owner11 = run.rosters.find(roster => roster.owner === "Owner11");
+    const puka = owner11?.players.find(player => player.name === "Puka Nacua");
 
     expect(puka).toMatchObject({
       position: "WR",
       price: 75,
     });
-    expect(cam?.players.some(player => player.name === "De'Von Achane" && player.price === 50)).toBe(true);
+    expect(owner11?.players.some(player => player.name === "Ashton Jeanty" && player.price === 50)).toBe(true);
     expect(run.picks.some(pick => pick.player === "Puka Nacua")).toBe(false);
     expect(run.inputCounts.auctionPlayers).toBe(baselineRun.inputCounts.auctionPlayers - 1);
     expect(run.pickCount).toBe(216);
-    expect(cam?.valid).toBe(true);
+    expect(owner11?.valid).toBe(true);
   }, 15000);
 
-  it("rejects forced purchases that Cam could not legally afford", async () => {
+  it("rejects forced purchases that Owner11 could not legally afford", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
 
@@ -176,9 +176,9 @@ describe("mock batch simulation", () => {
       seedPrefix: "forced-sale-over-max",
       diagnosticsMode: "summary",
       forcedSales: [
-        { owner: "Cam", player: "Puka Nacua", price: 190 },
+        { owner: "Owner11", player: "Puka Nacua", price: 190 },
       ],
-    })).toThrow("Cam cannot force Puka Nacua for $190: max bid is $136.");
+    })).toThrow("Owner11 cannot force Puka Nacua for $190: max bid is $136.");
   }, 15000);
 
   it("keeps owner personality profiles from locking the same elite RB pair every run", async () => {
@@ -199,12 +199,12 @@ describe("mock batch simulation", () => {
     ): string | undefined =>
       run.rosters.find(roster => roster.players.some(player => player.name === playerName))?.owner;
     const beatonBothCount = batch.runs.filter(run =>
-      draftedOwnerFor(run, "Jahmyr Gibbs") === "Beaton" &&
-      draftedOwnerFor(run, "Bijan Robinson") === "Beaton",
+      draftedOwnerFor(run, "Jahmyr Gibbs") === "Owner01" &&
+      draftedOwnerFor(run, "Bijan Robinson") === "Owner01",
     ).length;
     const beatonAtLeastOneCount = batch.runs.filter(run =>
-      draftedOwnerFor(run, "Jahmyr Gibbs") === "Beaton" ||
-      draftedOwnerFor(run, "Bijan Robinson") === "Beaton",
+      draftedOwnerFor(run, "Jahmyr Gibbs") === "Owner01" ||
+      draftedOwnerFor(run, "Bijan Robinson") === "Owner01",
     ).length;
     const eliteRbOwnerPairs = new Set(batch.runs.map(run => [
       draftedOwnerFor(run, "Jahmyr Gibbs"),
@@ -246,10 +246,10 @@ describe("mock batch simulation", () => {
     }
 
     const melloExpensiveStudCounts = new Set(batch.runs.map(run =>
-      rosterFor(run, "Mello").players.filter(player => player.price >= 50).length
+      rosterFor(run, "Owner14").players.filter(player => player.price >= 50).length
     ));
     const jakubTopTightEndCount = batch.runs.filter(run =>
-      rosterFor(run, "Jakub").players.some(player => player.position === "TE" && player.price >= 25)
+      rosterFor(run, "Owner05").players.some(player => player.position === "TE" && player.price >= 25)
     ).length;
     const largestWinnerCount = Math.max(...seasonWinnerCounts.values());
 
@@ -258,7 +258,7 @@ describe("mock batch simulation", () => {
     expect(largestWinnerCount).toBeLessThan(15);
   }, 20000);
 
-  it("varies Cam's true 3RB cores across live-style batch runs", async () => {
+  it("varies Owner11's true 3RB cores across live-style batch runs", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const strategySequence = [
@@ -273,18 +273,18 @@ describe("mock batch simulation", () => {
       keepers,
       scenarioKeys: ["expected"],
       runsPerScenario: 24,
-      seedPrefix: "cam-three-rb-variance",
+      seedPrefix: "owner11-three-rb-variance",
       diagnosticsMode: "summary",
       auctionConfigOverridesForRun: context =>
         strategyAuctionOverridesFor(
-          "Cam",
+          "Owner11",
           strategySequence[context.completedRuns % strategySequence.length] ?? "three-rb",
           { variantSeed: context.seed },
         ),
     });
     const camRbCoreFor = (run: (typeof batch.runs)[number]): string[] => {
-      const camRoster = run.rosters.find(roster => roster.owner === "Cam");
-      if (!camRoster) throw new Error("Missing Cam roster.");
+      const camRoster = run.rosters.find(roster => roster.owner === "Owner11");
+      if (!camRoster) throw new Error("Missing Owner11 roster.");
 
       return camRoster.players
         .filter(player => player.position === "RB")
@@ -298,8 +298,8 @@ describe("mock batch simulation", () => {
     const rbCores = threeRbRuns.map(camRbCoreFor);
     const uniqueRbCores = new Set(rbCores.map(core => core.join("|")));
     const hasKeeperPlusFlexibleAuctionCore = threeRbRuns.some(run => {
-      const camRoster = run.rosters.find(roster => roster.owner === "Cam");
-      if (!camRoster) throw new Error("Missing Cam roster.");
+      const camRoster = run.rosters.find(roster => roster.owner === "Owner11");
+      if (!camRoster) throw new Error("Missing Owner11 roster.");
       const rbPrices = camRoster.players
         .filter(player => player.position === "RB")
         .map(player => player.price)
@@ -311,7 +311,7 @@ describe("mock batch simulation", () => {
     });
 
     expect(rbCores.every(core => core.length === 3)).toBe(true);
-    expect(rbCores.every(core => core.includes("De'Von Achane"))).toBe(true);
+    expect(rbCores.every(core => core.includes("Ashton Jeanty"))).toBe(true);
     expect(uniqueRbCores.size).toBeGreaterThan(1);
     expect(hasKeeperPlusFlexibleAuctionCore).toBe(true);
   }, 20000);

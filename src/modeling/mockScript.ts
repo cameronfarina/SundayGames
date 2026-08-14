@@ -1,4 +1,4 @@
-import { type Owner } from "../../config/league.js";
+import { primaryOwner, type Owner } from "../../config/league.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 
 export interface MockDraftScriptTargetMaxBid {
@@ -21,7 +21,7 @@ export interface MockDraftScript {
   runsPerScenario?: number;
 }
 
-const defaultOwner: Owner = "Cam";
+const defaultOwner: Owner = primaryOwner;
 
 const cleanPlayerName = (value: string): string =>
   value

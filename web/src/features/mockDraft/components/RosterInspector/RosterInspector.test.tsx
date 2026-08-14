@@ -19,7 +19,7 @@ describe("RosterInspector", () => {
     const response = auctionMockResponseFixture();
     render(
       <RosterInspector
-        humanTeamId="team-cam"
+        humanTeamId="team-owner11"
         teams={response.state.teams}
       />,
     );
@@ -83,14 +83,14 @@ describe("RosterInspector", () => {
   it("falls back after the selected team leaves the response", async () => {
     const response = auctionMockResponseFixture();
     const { rerender } = render(
-      <RosterInspector humanTeamId="team-cam" teams={response.state.teams} />,
+      <RosterInspector humanTeamId="team-owner11" teams={response.state.teams} />,
     );
     await userEvent.click(screen.getByRole("combobox", { name: "Inspect team roster" }));
     await userEvent.click(screen.getByRole("option", { name: "Dart Vader roster" }));
-    const humanTeam = response.state.teams.find(team => team.id === "team-cam");
+    const humanTeam = response.state.teams.find(team => team.id === "team-owner11");
     expect(humanTeam).toBeDefined();
     if (humanTeam === undefined) return;
-    rerender(<RosterInspector humanTeamId="team-cam" teams={[humanTeam]} />);
+    rerender(<RosterInspector humanTeamId="team-owner11" teams={[humanTeam]} />);
     expect(screen.getByRole("combobox", { name: "Inspect team roster" }))
       .toHaveTextContent("Short King roster");
   });

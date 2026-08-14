@@ -15,19 +15,19 @@ describe("historical spreadsheet uploads", () => {
     await expect(historicalSpreadsheetUploadToSourceText({
       fileName: "draft-2025.csv",
       mimeType: "text/csv",
-      base64: base64For("owner,player,position,price\nCam,Achane,RB,50"),
-    })).resolves.toBe("owner,player,position,price\nCam,Achane,RB,50");
+      base64: base64For("owner,player,position,price\nOwner11,Achane,RB,50"),
+    })).resolves.toBe("owner,player,position,price\nOwner11,Achane,RB,50");
     await expect(historicalSpreadsheetUploadToSourceText({
       fileName: "draft-2025.tsv",
       mimeType: "text/tab-separated-values",
-      base64: base64For("owner\tplayer\tposition\tprice\nCam\tAchane\tRB\t50"),
-    })).resolves.toContain("Cam\tAchane\tRB\t50");
+      base64: base64For("owner\tplayer\tposition\tprice\nOwner11\tAchane\tRB\t50"),
+    })).resolves.toContain("Owner11\tAchane\tRB\t50");
   });
 
   it("converts the first XLSX worksheet into safe CSV source text", async () => {
     const readWorkbook = vi.fn(async () => [
       ["owner", "player", "position", "price"],
-      ["Cam", "Achane, De'Von", "RB", 50],
+      ["Owner11", "Achane, De'Von", "RB", 50],
     ]);
 
     await expect(historicalSpreadsheetUploadToSourceText({
@@ -35,7 +35,7 @@ describe("historical spreadsheet uploads", () => {
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       base64: xlsxBase64For(),
     }, { readWorkbook })).resolves.toBe(
-      'owner,player,position,price\nCam,"Achane, De\'Von",RB,50',
+      'owner,player,position,price\nOwner11,"Achane, De\'Von",RB,50',
     );
     expect(readWorkbook).toHaveBeenCalledOnce();
   });
@@ -58,8 +58,8 @@ describe("historical spreadsheet uploads", () => {
   it("rejects workbooks that exceed row or cell limits before creating source text", async () => {
     const rows = [
       ["owner", "player", "position", "price"],
-      ["Cam", "Player One", "RB", 1],
-      ["Sam", "Player Two", "WR", 2],
+      ["Owner11", "Player One", "RB", 1],
+      ["Owner12", "Player Two", "WR", 2],
     ];
 
     await expect(historicalSpreadsheetUploadToSourceText({

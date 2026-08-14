@@ -287,7 +287,7 @@ describe("platform app service", () => {
       leagueCreationLimits: strictLeagueCreationLimits,
     });
     const firstSeason = seasonForLeague("first");
-    const createdByUserId = "account-cam";
+    const createdByUserId = "account-owner11";
     const firstInput = {
       season: firstSeason,
       memberships: [{ userId: createdByUserId, leagueId: firstSeason.leagueId, role: "owner" as const }],
@@ -325,7 +325,7 @@ describe("platform app service", () => {
       creationWindowMs: 60 * 60 * 1_000,
     };
     const store = new InMemoryPlatformStore(undefined, { leagueCreationLimits: limits });
-    const createdByUserId = "account-cam";
+    const createdByUserId = "account-owner11";
     const firstSeason = seasonForLeague("archived-first");
     store.registerLeagueSeason({
       season: firstSeason,
@@ -361,7 +361,7 @@ describe("platform app service", () => {
         maxActiveLeaguesPerAccount: 10,
       },
     });
-    const createdByUserId = "account-cam";
+    const createdByUserId = "account-owner11";
     const firstSeason = seasonForLeague("window-first");
     store.registerLeagueSeason({
       season: firstSeason,
@@ -385,7 +385,7 @@ describe("platform app service", () => {
 
   it("restores active-league ownership from snapshots created before quota metadata", () => {
     const original = new InMemoryPlatformStore();
-    const createdByUserId = "account-cam";
+    const createdByUserId = "account-owner11";
     const firstSeason = seasonForLeague("legacy-snapshot");
     original.registerLeagueSeason({
       season: firstSeason,
@@ -439,20 +439,20 @@ describe("platform app service", () => {
 
   it("requires an owner or admin actor when registering league season data", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
     if (camTeam === undefined) throw new Error("Expected fixture team.");
 
     await expect(app.registerLeagueSeason({
-        actorSessionToken: cam.sessionToken,
+        actorSessionToken: owner11.sessionToken,
         season,
         memberships: [
           {
-            userId: cam.account.id,
+            userId: owner11.account.id,
             leagueId: season.leagueId,
             role: "member",
             ownerId: camTeam.ownerId,
@@ -472,21 +472,21 @@ describe("platform app service", () => {
       leagueSetupRepository,
       simulationRunner: mockRunner,
     });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     const nextSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       seasonYear: season.seasonYear + 1,
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    const nextCamTeam = nextSeason.teams.find(team => team.ownerDisplayName === "Cam");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    const nextCamTeam = nextSeason.teams.find(team => team.ownerDisplayName === "Owner11");
     if (camTeam === undefined || sethTeam === undefined || nextCamTeam === undefined) {
       throw new Error("Expected fixture teams.");
     }
@@ -494,15 +494,15 @@ describe("platform app service", () => {
     await leagueSetupRepository.registerLeagueSeason({
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
-      createdByUserId: cam.account.id,
+      createdByUserId: owner11.account.id,
       now,
     });
 
     expect(app.store.findLeagueSeason(season.id)).toBeNull();
-    await expect(app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now })).resolves.toEqual(season);
+    await expect(app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id, now })).resolves.toEqual(season);
     await expect(
       app.registerLeagueSeason({
         actorSessionToken: outsider.sessionToken,
@@ -524,11 +524,11 @@ describe("platform app service", () => {
     ));
 
     const registeredNextSeason = await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season: nextSeason,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: nextSeason.leagueId,
           role: "owner",
           ownerId: nextCamTeam.ownerId,
@@ -541,45 +541,45 @@ describe("platform app service", () => {
     expect(registeredNextSeason).toEqual(nextSeason);
     expect(leagueSetupRepository.registerInputs.at(-1)).toMatchObject({
       season: nextSeason,
-      createdByUserId: cam.account.id,
+      createdByUserId: owner11.account.id,
     });
-    await expect(app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: nextSeason.id, now })).resolves.toEqual(nextSeason);
+    await expect(app.getLeagueSeason({ actorSessionToken: owner11.sessionToken, seasonId: nextSeason.id, now })).resolves.toEqual(nextSeason);
   });
 
   it("lets league members claim one current team without taking another user's team", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const sam = await signUpAndLogin(app, "sam@example.com", "sam password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    const samTeam = season.teams.find(team => team.ownerDisplayName === "Sam");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    const samTeam = season.teams.find(team => team.ownerDisplayName === "Owner12");
     if (camTeam === undefined || sethTeam === undefined || samTeam === undefined) {
       throw new Error("Expected fixture teams.");
     }
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member" },
         { userId: sam.account.id, leagueId: season.leagueId, role: "member" },
       ],
     });
 
     await expect(app.claimLeagueSeasonTeam({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       seasonId: season.id,
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       now,
     })).resolves.toMatchObject({
-      userId: seth.account.id,
+      userId: owner04.account.id,
       leagueId: season.leagueId,
       role: "member",
       ownerId: sethTeam.ownerId,
@@ -597,13 +597,13 @@ describe("platform app service", () => {
     ));
 
     await expect(app.claimLeagueSeasonTeam({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       seasonId: season.id,
       ownerId: samTeam.ownerId,
       teamId: samTeam.id,
       now: new Date(now.getTime() + 1_000),
     })).resolves.toMatchObject({
-      userId: seth.account.id,
+      userId: owner04.account.id,
       ownerId: samTeam.ownerId,
       teamId: samTeam.id,
     });
@@ -622,29 +622,29 @@ describe("platform app service", () => {
 
   it("locks an assigned team claim after a live draft has started", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    const samTeam = season.teams.find(team => team.ownerDisplayName === "Sam");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    const samTeam = season.teams.find(team => team.ownerDisplayName === "Owner12");
     if (camTeam === undefined || sethTeam === undefined || samTeam === undefined) {
       throw new Error("Expected fixture teams.");
     }
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member" },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member" },
       ],
     });
     const room = await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_claim_lock",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -652,7 +652,7 @@ describe("platform app service", () => {
       now,
     });
     await app.startLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: room.revision,
       idempotencyKey: "start:claim-lock",
@@ -660,14 +660,14 @@ describe("platform app service", () => {
     });
 
     await expect(app.claimLeagueSeasonTeam({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       seasonId: season.id,
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       now: new Date(now.getTime() + 2_000),
     })).resolves.toMatchObject({ teamId: sethTeam.id, ownerId: sethTeam.ownerId });
     await expect(app.claimLeagueSeasonTeam({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       seasonId: season.id,
       ownerId: samTeam.ownerId,
       teamId: samTeam.id,
@@ -680,29 +680,29 @@ describe("platform app service", () => {
 
   it("registers a league season, gates shared access by membership, and keeps prep private", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     const registeredSeason = await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
 
     expect(registeredSeason).toEqual(season);
     expect(registeredSeason).not.toBe(season);
-    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id })).toEqual(season);
+    expect(await app.getLeagueSeason({ actorSessionToken: owner11.sessionToken, seasonId: season.id })).toEqual(season);
     await expect(
       app.getLeagueSeason({ actorSessionToken: outsider.sessionToken, seasonId: season.id }),
     ).rejects.toThrow(new PlatformAppError(
@@ -711,50 +711,50 @@ describe("platform app service", () => {
     ));
 
     const simulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
       count: 25,
-      seedPrefix: "cam-puka-plan",
-      idempotencyKey: "cam-puka-plan",
+      seedPrefix: "owner11-puka-plan",
+      idempotencyKey: "owner11-puka-plan",
       strategy: {
         hardLocks: [
-          { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+          { playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" },
         ],
       },
       now,
     });
     const simulationJob = await app.enqueueSimulationRunExecutionJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
-      idempotencyKey: "job:cam-puka-plan",
+      idempotencyKey: "job:owner11-puka-plan",
       now,
     });
 
     expect(simulationJob).toMatchObject({
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       kind: "simulation",
       status: "queued",
     });
-    await expect(app.listJobs({ actorSessionToken: cam.sessionToken })).resolves.toMatchObject({
+    await expect(app.listJobs({ actorSessionToken: owner11.sessionToken })).resolves.toMatchObject({
       jobs: [expect.objectContaining({ id: simulationJob.id, kind: "simulation" })],
       nextCursor: undefined,
     });
-    await expect(app.listJobs({ actorSessionToken: seth.sessionToken })).resolves.toEqual({
+    await expect(app.listJobs({ actorSessionToken: owner04.sessionToken })).resolves.toEqual({
       jobs: [],
       nextCursor: undefined,
     });
     await expect(app.cancelJob({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       jobId: simulationJob.id,
       now: new Date(now.getTime() + 500),
     })).rejects.toThrow(new PlatformAppError("private_resource", "This job belongs to another user."));
     await expect(app.cancelJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       jobId: simulationJob.id,
       now: new Date(now.getTime() + 750),
     })).resolves.toMatchObject({
@@ -764,7 +764,7 @@ describe("platform app service", () => {
       finishedAt: new Date(now.getTime() + 750),
     });
     await expect(app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
     })).resolves.toMatchObject({
       id: simulation.id,
@@ -772,13 +772,13 @@ describe("platform app service", () => {
       result: undefined,
     });
     const rerunJob = await app.rerunJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       jobId: simulationJob.id,
-      idempotencyKey: "rerun-cam-puka-plan",
+      idempotencyKey: "rerun-owner11-puka-plan",
       now: new Date(now.getTime() + 800),
     });
     await expect(app.rerunJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       jobId: simulationJob.id,
       idempotencyKey: "different-active-key",
       now: new Date(now.getTime() + 850),
@@ -796,7 +796,7 @@ describe("platform app service", () => {
     });
     expect(rerunJob.id).not.toBe(simulationJob.id);
     await expect(app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
     })).resolves.toMatchObject({
       id: simulation.id,
@@ -804,25 +804,25 @@ describe("platform app service", () => {
       result: undefined,
     });
     const completedRerunSimulation = await app.executeSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 860),
     });
     await app.cancelJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       jobId: rerunJob.id,
       now: new Date(now.getTime() + 865),
     });
     const rerunAfterCompletion = await app.rerunJob({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       jobId: simulationJob.id,
-      idempotencyKey: "rerun-cam-puka-plan",
+      idempotencyKey: "rerun-owner11-puka-plan",
       now: new Date(now.getTime() + 870),
     });
     expect(completedRerunSimulation.status).toBe("completed");
     expect(rerunAfterCompletion.id).toBe(rerunJob.id);
     await expect(app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
     })).resolves.toMatchObject({
       id: simulation.id,
@@ -830,75 +830,75 @@ describe("platform app service", () => {
       result: undefined,
     });
     await app.executeSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 872),
     });
     await expect(app.rerunJob({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       jobId: simulationJob.id,
-      idempotencyKey: "seth-rerun",
+      idempotencyKey: "owner04-rerun",
       now: new Date(now.getTime() + 875),
     })).rejects.toThrow(new PlatformAppError("private_resource", "This job belongs to another user."));
 
     const executableSimulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
       count: 25,
-      seedPrefix: "cam-puka-plan-direct",
-      idempotencyKey: "cam-puka-plan-direct",
+      seedPrefix: "owner11-puka-plan-direct",
+      idempotencyKey: "owner11-puka-plan-direct",
       strategy: {
         hardLocks: [
-          { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+          { playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" },
         ],
       },
       now: new Date(now.getTime() + 800),
     });
     const completed = await app.executeSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: executableSimulation.id,
       now: new Date(now.getTime() + 1_000),
     });
 
     expect(completed.result).toMatchObject({
       runCount: 25,
-      forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+      forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
     });
-    expect((await app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).map(run => run.status)).toEqual([
+    expect((await app.listSimulationRuns({ actorSessionToken: owner11.sessionToken })).map(run => run.status)).toEqual([
       "completed",
       "completed",
     ]);
-    await expect(app.listSimulationRuns({ actorSessionToken: seth.sessionToken })).resolves.toEqual([]);
+    await expect(app.listSimulationRuns({ actorSessionToken: owner04.sessionToken })).resolves.toEqual([]);
     await expect(
-      app.getSimulationRun({ actorSessionToken: seth.sessionToken, runId: executableSimulation.id }),
+      app.getSimulationRun({ actorSessionToken: owner04.sessionToken, runId: executableSimulation.id }),
     ).rejects.toThrow(new PlatformAppError("private_resource", "This prep artifact belongs to another user."));
   });
 
   it("lets a server worker execute an existing simulation while preserving private team ownership checks", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Owner01");
     if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
 
     const simulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -906,13 +906,13 @@ describe("platform app service", () => {
       count: 10,
       seedPrefix: "worker-plan",
       idempotencyKey: "worker-plan",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
 
     const completed = await app.executeSimulationRunForWorker({
       runId: simulation.id,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       now: new Date(now.getTime() + 1_000),
@@ -921,11 +921,11 @@ describe("platform app service", () => {
     expect(completed.status).toBe("completed");
     expect(completed.result).toMatchObject({
       runCount: 10,
-      forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+      forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
     });
     await expect(app.executeSimulationRunForWorker({
       runId: simulation.id,
-      userId: seth.account.id,
+      userId: owner04.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       now: new Date(now.getTime() + 1_500),
@@ -935,7 +935,7 @@ describe("platform app service", () => {
     ));
 
     const blockedSimulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -943,16 +943,16 @@ describe("platform app service", () => {
       count: 10,
       seedPrefix: "worker-plan-stale-claim",
       idempotencyKey: "worker-plan-stale-claim",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: beatonTeam.ownerId,
@@ -963,7 +963,7 @@ describe("platform app service", () => {
 
     await expect(app.executeSimulationRunForWorker({
       runId: blockedSimulation.id,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       now: new Date(now.getTime() + 2_000),
@@ -986,15 +986,15 @@ describe("platform app service", () => {
       simulationRepository,
       simulationRunner: mockRunner,
     });
-    const cam = await signUpAndLogin(app, "failed-season-sim@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "failed-season-sim@example.com", "owner11 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [{
-        userId: cam.account.id,
+        userId: owner11.account.id,
         leagueId: season.leagueId,
         role: "owner",
         ownerId: camTeam.ownerId,
@@ -1002,7 +1002,7 @@ describe("platform app service", () => {
       }],
     });
     const run = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1026,7 +1026,7 @@ describe("platform app service", () => {
     };
 
     await expect(app.completeSeasonSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: run.id,
       result,
       now,
@@ -1036,26 +1036,26 @@ describe("platform app service", () => {
 
   it("blocks outsider setup overwrites and replaces omitted league memberships", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Owner01");
     if (camTeam === undefined || sethTeam === undefined || beatonTeam === undefined) {
       throw new Error("Expected fixture teams.");
     }
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
 
@@ -1076,18 +1076,18 @@ describe("platform app service", () => {
       "Only league owners and admins can change shared draft data.",
     ));
 
-    expect(await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).toEqual(season);
+    expect(await app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id })).toEqual(season);
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
 
     await expect(
-      app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id }),
+      app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id }),
     ).rejects.toThrow(new PlatformAppError(
       "membership_required",
       "Join this league before viewing shared league data.",
@@ -1096,47 +1096,47 @@ describe("platform app service", () => {
 
   it("runs shared historical imports and league pricing rebuilds behind commissioner permissions", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const importSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
       seasonYear: 2025,
     });
     const draftSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
       seasonYear: 2026,
     });
-    const importCamTeam = importSeason.teams.find(team => team.ownerDisplayName === "Cam");
-    const draftCamTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Cam");
-    const draftSethTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Seth");
+    const importCamTeam = importSeason.teams.find(team => team.ownerDisplayName === "Owner11");
+    const draftCamTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Owner11");
+    const draftSethTeam = draftSeason.teams.find(team => team.ownerDisplayName === "Owner04");
     if (importCamTeam === undefined || draftCamTeam === undefined || draftSethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season: importSeason,
       memberships: [
-        { userId: cam.account.id, leagueId: importSeason.leagueId, role: "owner", ownerId: importCamTeam.ownerId, teamId: importCamTeam.id },
+        { userId: owner11.account.id, leagueId: importSeason.leagueId, role: "owner", ownerId: importCamTeam.ownerId, teamId: importCamTeam.id },
       ],
       now,
     });
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season: draftSeason,
       memberships: [
-        { userId: cam.account.id, leagueId: draftSeason.leagueId, role: "owner", ownerId: draftCamTeam.ownerId, teamId: draftCamTeam.id },
-        { userId: seth.account.id, leagueId: draftSeason.leagueId, role: "member", ownerId: draftSethTeam.ownerId, teamId: draftSethTeam.id },
+        { userId: owner11.account.id, leagueId: draftSeason.leagueId, role: "owner", ownerId: draftCamTeam.ownerId, teamId: draftCamTeam.id },
+        { userId: owner04.account.id, leagueId: draftSeason.leagueId, role: "member", ownerId: draftSethTeam.ownerId, teamId: draftSethTeam.id },
       ],
       now,
     });
 
     await expect(
       app.previewHistoricalImportSource({
-        actorSessionToken: seth.sessionToken,
+        actorSessionToken: owner04.sessionToken,
         leagueId: importSeason.leagueId,
         seasonYear: importSeason.seasonYear,
-        sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
+        sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,70,2025,player-puka",
         now,
       }),
     ).rejects.toThrow(new PlatformAppError(
@@ -1145,32 +1145,32 @@ describe("platform app service", () => {
     ));
 
     const preview = await app.previewHistoricalImportSource({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
-      sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,70,2025,player-puka",
+      sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,70,2025,player-puka",
       now,
     });
     const committed = await app.commitHistoricalImport({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       batchId: preview.batch.id,
       now: new Date(now.getTime() + 1_000),
     });
     const replacementPreview = await app.previewHistoricalImportSource({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
-      sourceText: "owner,player,position,price,year,player id\nCam,Puka Nacua,WR,90,2025,player-puka",
+      sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,90,2025,player-puka",
       replacementRequested: true,
       now: new Date(now.getTime() + 1_500),
     });
     await app.commitHistoricalImport({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       batchId: replacementPreview.batch.id,
       now: new Date(now.getTime() + 1_750),
     });
     const pricing = await app.rebuildLeaguePricing({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: draftSeason.leagueId,
       seasonYear: draftSeason.seasonYear,
       modelVersion: "league-calibration-v1",
@@ -1187,7 +1187,7 @@ describe("platform app service", () => {
       scenarioPrice: 70,
     });
     expect(await app.listLeaguePricingSnapshots({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       leagueId: draftSeason.leagueId,
       seasonYear: draftSeason.seasonYear,
     })).toEqual(pricing.snapshots);
@@ -1195,28 +1195,28 @@ describe("platform app service", () => {
 
   it("blocks outsider registration for a new season in an existing league", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
     const season2026 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
       seasonYear: 2026,
     });
     const season2027 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
       seasonYear: 2027,
     });
-    const camTeam = season2026.teams.find(team => team.ownerDisplayName === "Cam");
-    const outsiderTeam = season2027.teams.find(team => team.ownerDisplayName === "Beaton");
+    const camTeam = season2026.teams.find(team => team.ownerDisplayName === "Owner11");
+    const outsiderTeam = season2027.teams.find(team => team.ownerDisplayName === "Owner01");
     if (camTeam === undefined || outsiderTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season: season2026,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season2026.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -1242,37 +1242,37 @@ describe("platform app service", () => {
       "Only league owners and admins can change shared draft data.",
     ));
 
-    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season2026.id })).toEqual(season2026);
+    expect(await app.getLeagueSeason({ actorSessionToken: owner11.sessionToken, seasonId: season2026.id })).toEqual(season2026);
   });
 
   it("returns copies of shared league and live room state", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     const registeredSeason = await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
     registeredSeason.setupStatus = "draft";
     season.setupStatus = "draft";
 
-    expect((await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id })).setupStatus)
+    expect((await app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id })).setupStatus)
       .toBe("published");
 
     const room = await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_copy_test",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -1281,31 +1281,31 @@ describe("platform app service", () => {
     });
     room.status = "ended";
 
-    const freshRoom = await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId });
+    const freshRoom = await app.getLiveDraftRoom({ actorSessionToken: owner04.sessionToken, roomId: room.roomId });
     expect(freshRoom).not.toBe(room);
     expect(freshRoom.status).toBe("setup");
   });
 
   it("runs mock draft sessions through revision and command-count guards", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
 
     const session = await app.createMockDraftSession({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1314,7 +1314,7 @@ describe("platform app service", () => {
       now,
     });
     const appended = await app.appendMockDraftCommand({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       sessionId: session.id,
       expectedRevision: 1,
       expectedCommandCount: 0,
@@ -1325,7 +1325,7 @@ describe("platform app service", () => {
     });
 
     expect(await app.listMockDraftSessions({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1333,7 +1333,7 @@ describe("platform app service", () => {
     })).toEqual([appended]);
 
     const reset = await app.resetMockDraftSession({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       sessionId: session.id,
       expectedRevision: 1,
       now: new Date(now.getTime() + 2_000),
@@ -1343,7 +1343,7 @@ describe("platform app service", () => {
     expect(reset.commandLog).toEqual([]);
     await expect(
       app.appendMockDraftCommand({
-        actorSessionToken: cam.sessionToken,
+        actorSessionToken: owner11.sessionToken,
         sessionId: session.id,
         expectedRevision: 1,
         expectedCommandCount: 1,
@@ -1356,43 +1356,43 @@ describe("platform app service", () => {
 
   it("rejects mock draft result references to another user's private simulation", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
     const sethSimulation = await app.createSimulationRun({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       count: 5,
-      seedPrefix: "seth-private-run",
-      idempotencyKey: "seth-private-run",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      seedPrefix: "owner04-private-run",
+      idempotencyKey: "owner04-private-run",
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     await app.executeSimulationRun({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       runId: sethSimulation.id,
       now: new Date(now.getTime() + 500),
     });
     const camSession = await app.createMockDraftSession({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1402,12 +1402,12 @@ describe("platform app service", () => {
     });
 
     await expect(app.appendMockDraftCommand({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       sessionId: camSession.id,
       expectedRevision: 1,
       expectedCommandCount: 0,
       commandId: "cmd_leak",
-      command: "show seth result",
+      command: "show owner04 result",
       idempotencyKey: "mock:leak",
       latestResultRef: { kind: "simulation-result", id: sethSimulation.id },
       now: new Date(now.getTime() + 1_000),
@@ -1417,7 +1417,7 @@ describe("platform app service", () => {
     ));
 
     const [storedSession] = await app.listMockDraftSessions({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1433,24 +1433,24 @@ describe("platform app service", () => {
 
   it("rechecks current team claims before reading or mutating private prep", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Beaton");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const beatonTeam = season.teams.find(team => team.ownerDisplayName === "Owner01");
     if (camTeam === undefined || beatonTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
     const simulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1458,11 +1458,11 @@ describe("platform app service", () => {
       count: 5,
       seedPrefix: "old-claim",
       idempotencyKey: "old-claim",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     const mockSession = await app.createMockDraftSession({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -1472,11 +1472,11 @@ describe("platform app service", () => {
     });
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: beatonTeam.ownerId,
@@ -1485,13 +1485,13 @@ describe("platform app service", () => {
       ],
     });
 
-    await expect(app.listSimulationRuns({ actorSessionToken: cam.sessionToken })).resolves.toEqual([]);
+    await expect(app.listSimulationRuns({ actorSessionToken: owner11.sessionToken })).resolves.toEqual([]);
     await expect(
-      app.getSimulationRun({ actorSessionToken: cam.sessionToken, runId: simulation.id }),
+      app.getSimulationRun({ actorSessionToken: owner11.sessionToken, runId: simulation.id }),
     ).rejects.toThrow(new PlatformAppError("private_team_required", "Private prep can only use your claimed team."));
     await expect(
       app.appendMockDraftCommand({
-        actorSessionToken: cam.sessionToken,
+        actorSessionToken: owner11.sessionToken,
         sessionId: mockSession.id,
         expectedRevision: 1,
         expectedCommandCount: 0,
@@ -1504,29 +1504,29 @@ describe("platform app service", () => {
 
   it("routes live room commands through commissioner authorization and exports one draft sheet", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
 
     const room = await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
-      roomId: "room_214674_2026",
+      roomId: "room_100001_2026",
       viewerPasswordHashRef: "viewer-password-hash",
       playerCatalog,
       initialRosters: [
@@ -1535,14 +1535,14 @@ describe("platform app service", () => {
       now,
     });
 
-    expect(await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).toEqual(room);
-    expect(await app.getLiveDraftRoom({ actorSessionToken: seth.sessionToken, roomId: room.roomId })).not.toBe(room);
+    expect(await app.getLiveDraftRoom({ actorSessionToken: owner04.sessionToken, roomId: room.roomId })).toEqual(room);
+    expect(await app.getLiveDraftRoom({ actorSessionToken: owner04.sessionToken, roomId: room.roomId })).not.toBe(room);
     await expect(
       app.startLiveDraftRoom({
-        actorSessionToken: seth.sessionToken,
+        actorSessionToken: owner04.sessionToken,
         roomId: room.roomId,
         expectedRevision: 1,
-        idempotencyKey: "start-by-seth",
+        idempotencyKey: "start-by-owner04",
         now: new Date(now.getTime() + 1_000),
       }),
     ).rejects.toThrow(new PlatformAppError(
@@ -1551,28 +1551,28 @@ describe("platform app service", () => {
     ));
 
     await app.startLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: 1,
       idempotencyKey: "start-room",
       now: new Date(now.getTime() + 2_000),
     });
     const sold = await app.logLiveDraftSale({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 3_000),
     });
 
-    expect(sold.projection.teams.find(team => team.ownerDisplayName === "Cam")).toMatchObject({
+    expect(sold.projection.teams.find(team => team.ownerDisplayName === "Owner11")).toMatchObject({
       spent: 112,
       budgetRemaining: 88,
     });
 
     const memberState = await app.getLiveDraftRoomState({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       roomId: room.roomId,
     });
     expect(memberState).toMatchObject({
@@ -1584,14 +1584,14 @@ describe("platform app service", () => {
     expect(JSON.stringify(memberState)).not.toContain("viewerPasswordHashRef");
 
     const paused = await app.pauseLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: sold.revision,
       idempotencyKey: "pause-room",
       now: new Date(now.getTime() + 4_000),
     });
     await expect(app.resumeLiveDraftRoom({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       roomId: room.roomId,
       expectedRevision: paused.revision,
       idempotencyKey: "resume-room-by-member",
@@ -1601,7 +1601,7 @@ describe("platform app service", () => {
       "Only league owners and admins can change shared draft data.",
     ));
     const resumed = await app.resumeLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: paused.revision,
       idempotencyKey: "resume-room",
@@ -1610,35 +1610,35 @@ describe("platform app service", () => {
     const pukaSale = resumed.projection.sales.find(sale => sale.playerName === "Puka Nacua");
     if (pukaSale === undefined) throw new Error("Expected Puka sale fixture.");
     const corrected = await app.correctLiveDraftSale({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: resumed.revision,
       idempotencyKey: "correct-puka-sale",
       saleEventId: pukaSale.saleEventId,
-      replacementSale: "seth puka 41",
+      replacementSale: "owner04 puka 41",
       now: new Date(now.getTime() + 7_000),
     });
     expect(corrected.projection.sales).toEqual([
-      expect.objectContaining({ ownerDisplayName: "Seth", playerName: "Puka Nacua", price: 41 }),
+      expect.objectContaining({ ownerDisplayName: "Owner04", playerName: "Puka Nacua", price: 41 }),
     ]);
     const restored = await app.undoLastLiveDraftSale({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: corrected.revision,
       idempotencyKey: "undo-puka-correction",
       now: new Date(now.getTime() + 8_000),
     });
     expect(restored.projection.sales).toEqual([
-      expect.objectContaining({ ownerDisplayName: "Cam", playerName: "Puka Nacua", price: 62 }),
+      expect.objectContaining({ ownerDisplayName: "Owner11", playerName: "Puka Nacua", price: 62 }),
     ]);
 
     const exportResult = await app.exportLiveDraftRoom({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 9_000),
     });
     await expect(app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 10_000),
     })).rejects.toThrow(new PlatformAppError(
@@ -1646,7 +1646,7 @@ describe("platform app service", () => {
       "Only league owners and admins can change shared draft data.",
     ));
     const ended = await app.endLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: restored.revision,
       idempotencyKey: "end-room-before-export",
@@ -1654,7 +1654,7 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 11_000),
     });
     await expect(app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 12_000),
     })).rejects.toThrow(new PlatformAppError(
@@ -1662,7 +1662,7 @@ describe("platform app service", () => {
       "Only league owners and admins can change shared draft data.",
     ));
     await expect(app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       exportedAt: new Date(now.getTime() + 13_000),
     })).rejects.toThrow(new PlatformAppError(
@@ -1670,7 +1670,7 @@ describe("platform app service", () => {
       "Final export requires every team to fill every roster slot.",
     ));
     const reopened = await app.reopenLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: room.roomId,
       expectedRevision: ended.revision,
       idempotencyKey: "reopen-room-after-emergency-end",
@@ -1678,11 +1678,11 @@ describe("platform app service", () => {
     });
 
     expect(exportResult.sheetName).toBe("Draft Results");
-    expect(exportResult.table[0]?.slice(0, 2)).toEqual(["League", "League 214674"]);
+    expect(exportResult.table[0]?.slice(0, 2)).toEqual(["League", "League 100001"]);
 
     const teamHeaderRow = exportResult.table[5];
     if (teamHeaderRow === undefined) throw new Error("Expected team header row.");
-    const camColumn = teamHeaderRow.indexOf("Cam");
+    const camColumn = teamHeaderRow.indexOf("Owner11");
     expect(camColumn).toBeGreaterThanOrEqual(0);
 
     const rb1Row = exportResult.table.find(row => row[0] === "RB1");
@@ -1701,24 +1701,24 @@ describe("platform app service", () => {
       liveDraftRoomRepository,
       simulationRunner: mockRunner,
     });
-    const cam = await signUpAndLogin(app, "cam-snake-room@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-snake-room@example.com", "owner11 password", now);
     const season = asSnakeSeason(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Snake League",
       setupStatus: "published",
     }));
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
       ],
     });
 
     await expect(app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_snake",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -1734,26 +1734,26 @@ describe("platform app service", () => {
 
   it("cancels a setup room idempotently so league setup can resume and the room can be recreated", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const cam = await signUpAndLogin(app, "cam-cancel@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth-cancel@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-cancel@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04-cancel@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
     const created = await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_cancel_setup",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -1761,7 +1761,7 @@ describe("platform app service", () => {
       now,
     });
     const cancellation = {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: created.roomId,
       expectedRevision: created.revision,
       idempotencyKey: "cancel:room_cancel_setup",
@@ -1770,7 +1770,7 @@ describe("platform app service", () => {
 
     await expect(app.cancelLiveDraftRoom({
       ...cancellation,
-      actorSessionToken: seth.sessionToken,
+      actorSessionToken: owner04.sessionToken,
     })).rejects.toThrow(new PlatformAppError(
       "shared_mutation_denied",
       "Only league owners and admins can change shared draft data.",
@@ -1779,7 +1779,7 @@ describe("platform app service", () => {
     await expect(app.cancelLiveDraftRoom(cancellation)).resolves.toBeUndefined();
     await expect(app.hasLiveDraftRoomForSeason(season.id)).resolves.toBe(false);
     await expect(app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: created.roomId,
       viewerPasswordHashRef: "viewer-password-hash",
@@ -1797,26 +1797,26 @@ describe("platform app service", () => {
       exportArtifactRepository,
       simulationRunner: mockRunner,
     });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
-    const seth = await signUpAndLogin(app, "seth@example.com", "seth password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
     });
     const created = await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_async_repo",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -1824,22 +1824,22 @@ describe("platform app service", () => {
       now,
     });
     await app.startLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: created.roomId,
       expectedRevision: created.revision,
       idempotencyKey: "start-async-repo-room",
       now: new Date(now.getTime() + 1_000),
     });
     const sold = await app.logLiveDraftSale({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: created.roomId,
       expectedRevision: 2,
       idempotencyKey: "async-repo-sale-puka",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
     const ended = await app.endLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: created.roomId,
       expectedRevision: sold.revision,
       idempotencyKey: "end-async-repo-room",
@@ -1847,7 +1847,7 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 3_000),
     });
     await expect(app.createLiveDraftRoomExportArtifact({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       roomId: created.roomId,
       exportedAt: new Date(now.getTime() + 4_000),
     })).rejects.toThrow(new PlatformAppError(

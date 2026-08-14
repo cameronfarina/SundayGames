@@ -31,8 +31,8 @@ describe("season-backed private draft tools", () => {
       espnRank: 1,
     });
     expect(options.keepers).toContainEqual(expect.objectContaining({
-      owner: "Cam",
-      player: "De'Von Achane",
+      owner: "Owner11",
+      player: "Ashton Jeanty",
       newCost: 50,
     }));
   });

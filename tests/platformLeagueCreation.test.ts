@@ -8,14 +8,14 @@ describe("confirmed league creation", () => {
     let nextId = 0;
     const season = createLeagueSeasonFromConfirmedSetup({
       provider: "espn",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       leagueName: "The Sunday Games",
       seasonYear: 2026,
       expectedTeamCount: 4,
       teams: [
-        { externalTeamId: "7", displayName: "Short King", managerNames: ["Cam"] },
-        { externalTeamId: "4", displayName: "Dart Vader", managerNames: ["Beaton"] },
-        { externalTeamId: "8", displayName: "Third Team", managerNames: ["Sam"] },
+        { externalTeamId: "7", displayName: "Short King", managerNames: ["Owner11"] },
+        { externalTeamId: "4", displayName: "Dart Vader", managerNames: ["Owner01"] },
+        { externalTeamId: "8", displayName: "Third Team", managerNames: ["Owner12"] },
         { externalTeamId: "9", displayName: "Fourth Team", managerNames: ["Nick"] },
       ],
       draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
@@ -28,7 +28,7 @@ describe("confirmed league creation", () => {
       leagueId: "league-generated-1",
       league: {
         id: "league-generated-1",
-        externalLeagueId: "214674",
+        externalLeagueId: "100001",
         name: "The Sunday Games",
         provider: "espn",
       },
@@ -52,14 +52,14 @@ describe("confirmed league creation", () => {
         id: "team-generated-3",
         ownerId: "owner-generated-4",
         displayName: "Short King",
-        managerDisplayNames: ["Cam"],
+        managerDisplayNames: ["Owner11"],
         draftOrderPosition: 1,
       }),
       expect.objectContaining({
         id: "team-generated-5",
         ownerId: "owner-generated-6",
         displayName: "Dart Vader",
-        managerDisplayNames: ["Beaton"],
+        managerDisplayNames: ["Owner01"],
         draftOrderPosition: 2,
       }),
     ]));

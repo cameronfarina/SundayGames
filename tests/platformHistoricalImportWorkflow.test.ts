@@ -23,7 +23,7 @@ const playerCatalog = [
   { playerId: "player-jamarr-chase", name: "Ja'Marr Chase", position: "WR" },
   { name: "De'Von Achane", position: "RB" },
 ] as const satisfies readonly HistoricalImportPlayerCatalogEntry[];
-const camTeam = leagueSeason.teams.find(team => team.ownerDisplayName === "Cam");
+const camTeam = leagueSeason.teams.find(team => team.ownerDisplayName === "Owner11");
 
 const sourceText = (
   overrides: {
@@ -38,7 +38,7 @@ const sourceText = (
 ): string => [
   "owner,player,position,price,year,player id,keeper,acquisition",
   [
-    overrides.owner ?? "Cam",
+    overrides.owner ?? "Owner11",
     overrides.player ?? "Ja'Marr Chase",
     overrides.position ?? "WR",
     overrides.price ?? "$61",
@@ -58,8 +58,8 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Ja'Marr Chase,WR,$61",
-        "Sam,Devon Achane,RB,$50",
+        "Owner11,Ja'Marr Chase,WR,$61",
+        "Owner12,Devon Achane,RB,$50",
       ].join("\n"),
       playerCatalog,
       now,
@@ -71,7 +71,7 @@ describe("platform historical import workflow", () => {
       expect.objectContaining({
         status: "ready",
         record: expect.objectContaining({
-          ownerId: "owner-cam",
+          ownerId: "owner-owner11",
           playerId: "player-jamarr-chase",
           playerName: "Ja'Marr Chase",
         }),
@@ -79,7 +79,7 @@ describe("platform historical import workflow", () => {
       expect.objectContaining({
         status: "ready",
         record: expect.objectContaining({
-          ownerId: "owner-sam",
+          ownerId: "owner-owner12",
           playerId: "player-devon-achane-rb",
           playerName: "De'Von Achane",
         }),
@@ -95,7 +95,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Mark Ingram,RB,$1",
+        "Owner11,Mark Ingram,RB,$1",
       ].join("\n"),
       playerCatalog,
       now,
@@ -129,7 +129,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Jahmyr Gibs,RB,$70",
+        "Owner11,Jahmyr Gibs,RB,$70",
       ].join("\n"),
       playerCatalog: [
         ...playerCatalog,
@@ -209,7 +209,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Chris Jones,WR,$4",
+        "Owner11,Chris Jones,WR,$4",
       ].join("\n"),
       playerCatalog: [
         { playerId: "player-chris-jones-a", name: "Chris Jones", position: "WR" },
@@ -239,7 +239,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Chris Jones,WR,$4",
+        "Owner11,Chris Jones,WR,$4",
       ].join("\n"),
       playerCatalog: [
         { playerId: "player-chris-jones-a", name: "Chris Jones", position: "WR" },
@@ -264,7 +264,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "owner,player,position,price",
-        "Cam,Chris Jones,WR,$4",
+        "Owner11,Chris Jones,WR,$4",
       ].join("\n"),
       playerCatalog: [
         { name: "Chris Jones", position: "WR" },
@@ -286,7 +286,7 @@ describe("platform historical import workflow", () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
     const source = [
       "team,player,position,price",
-      "Cam's Old Team,Ja'Marr Chase,WR,$61",
+      "Owner11's Old Team,Ja'Marr Chase,WR,$61",
     ].join("\n");
     const preview = await previewHistoricalImportSourceWorkflow({
       repository,
@@ -303,27 +303,27 @@ describe("platform historical import workflow", () => {
         expect.objectContaining({ code: "owner_fuzzy_match", severity: "warning" }),
       ]),
       identityAudit: expect.objectContaining({
-        sourceOwnerOrTeamLabel: "Cam's Old Team",
+        sourceOwnerOrTeamLabel: "Owner11's Old Team",
         resolution: "fuzzy",
         mappedTeamId: camTeam?.id,
-        mappedCurrentOwnerDisplayName: "Cam",
+        mappedCurrentOwnerDisplayName: "Owner11",
       }),
       record: expect.objectContaining({
-        ownerId: "owner-cam",
-        ownerDisplayName: "Cam's Old Team",
+        ownerId: "owner-owner11",
+        ownerDisplayName: "Owner11's Old Team",
       }),
     }));
   });
 
   it("blocks a renamed owner label when fuzzy identity matching is ambiguous", async () => {
-    const cam = leagueSeason.teams.find(team => team.ownerDisplayName === "Cam");
-    const sam = leagueSeason.teams.find(team => team.ownerDisplayName === "Sam");
-    expect(cam).toBeDefined();
+    const owner11 = leagueSeason.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sam = leagueSeason.teams.find(team => team.ownerDisplayName === "Owner12");
+    expect(owner11).toBeDefined();
     expect(sam).toBeDefined();
     const ambiguousSeason = {
       ...leagueSeason,
       teams: leagueSeason.teams.map(team =>
-        team.id === sam?.id ? { ...team, managerDisplayNames: ["Cam Old"] } : team
+        team.id === sam?.id ? { ...team, managerDisplayNames: ["Owner11 Old"] } : team
       ),
     };
     const repository = new InMemoryHistoricalImportRepository([ambiguousSeason]);
@@ -334,7 +334,7 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: [
         "team,player,position,price",
-        "Cam's Old Team,Ja'Marr Chase,WR,$61",
+        "Owner11's Old Team,Ja'Marr Chase,WR,$61",
       ].join("\n"),
       playerCatalog,
       now,
@@ -344,9 +344,9 @@ describe("platform historical import workflow", () => {
     expect(preview.batch.blockers).toEqual([
       expect.objectContaining({
         code: "owner_ambiguous",
-        sourceValue: "Cam's Old Team",
+        sourceValue: "Owner11's Old Team",
         candidates: expect.arrayContaining([
-          expect.objectContaining({ teamId: cam?.id }),
+          expect.objectContaining({ teamId: owner11?.id }),
           expect.objectContaining({ teamId: sam?.id }),
         ]),
       }),
@@ -384,20 +384,20 @@ describe("platform historical import workflow", () => {
   });
 
   it("requires an explicit mapping when an owner label matches multiple teams", async () => {
-    const cam = leagueSeason.teams.find(team => team.ownerDisplayName === "Cam");
-    const sam = leagueSeason.teams.find(team => team.ownerDisplayName === "Sam");
-    expect(cam).toBeDefined();
+    const owner11 = leagueSeason.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sam = leagueSeason.teams.find(team => team.ownerDisplayName === "Owner12");
+    expect(owner11).toBeDefined();
     expect(sam).toBeDefined();
     const ambiguousSeason = {
       ...leagueSeason,
       teams: leagueSeason.teams.map(team =>
-        team.id === sam?.id ? { ...team, managerDisplayNames: ["Cam"] } : team
+        team.id === sam?.id ? { ...team, managerDisplayNames: ["Owner11"] } : team
       ),
     };
     const repository = new InMemoryHistoricalImportRepository([ambiguousSeason]);
     const source = [
       "owner,player,position,price",
-      "Cam,Ja'Marr Chase,WR,$61",
+      "Owner11,Ja'Marr Chase,WR,$61",
     ].join("\n");
     const blocked = await previewHistoricalImportSourceWorkflow({
       repository,
@@ -412,7 +412,7 @@ describe("platform historical import workflow", () => {
       expect.objectContaining({
         code: "owner_ambiguous",
         candidates: expect.arrayContaining([
-          expect.objectContaining({ teamId: cam?.id }),
+          expect.objectContaining({ teamId: owner11?.id }),
           expect.objectContaining({ teamId: sam?.id }),
         ]),
       }),
@@ -424,11 +424,11 @@ describe("platform historical import workflow", () => {
       seasonYear: 2025,
       sourceText: source,
       playerCatalog,
-      ownerMappings: [{ sourceOwnerOrTeamLabel: "Cam", teamId: cam?.id ?? "missing-team" }],
+      ownerMappings: [{ sourceOwnerOrTeamLabel: "Owner11", teamId: owner11?.id ?? "missing-team" }],
       now,
     });
     expect(mapped.batch).toMatchObject({ status: "previewed", blockers: [] });
-    expect(mapped.batch.rows[0]?.record).toEqual(expect.objectContaining({ ownerId: "owner-cam" }));
+    expect(mapped.batch.rows[0]?.record).toEqual(expect.objectContaining({ ownerId: "owner-owner11" }));
   });
 
   it("imports a prior draft year using the current season as its validation template", async () => {
@@ -468,7 +468,7 @@ describe("platform historical import workflow", () => {
       expect.objectContaining({
         leagueSeasonId: currentLeagueSeason.id,
         seasonYear: 2025,
-        ownerId: "owner-cam",
+        ownerId: "owner-owner11",
       }),
     ]);
     expect(repository.findLeagueSeason(currentLeagueSeason.leagueId, 2025)).toBeNull();
@@ -627,7 +627,7 @@ describe("platform historical import workflow", () => {
   it("treats wide-sheet keeper inference as part of the import identity", async () => {
     const repository = new InMemoryHistoricalImportRepository([leagueSeason]);
     const wideSource = [
-      "Team,Cam,,,Sam,,",
+      "Team,Owner11,,,Owner12,,",
       "1,$50,RB,De'Von Achane,$61,WR,Ja'Marr Chase",
     ].join("\n");
     const ordinaryPreview = await previewHistoricalImportSourceWorkflow({
@@ -673,7 +673,7 @@ describe("platform historical import workflow", () => {
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
       sourceText: sourceText({
-        owner: "Sam",
+        owner: "Owner12",
         player: "Justin Jefferson",
         playerId: "player-justin-jefferson",
       }),

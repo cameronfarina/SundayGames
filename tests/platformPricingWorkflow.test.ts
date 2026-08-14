@@ -26,12 +26,12 @@ const historicalSale = (
 ): HistoricalSaleRecord => ({
   id: "sale-2025-bijan",
   batchId: "batch-2025",
-  leagueId: "league-214674",
+  leagueId: "league-100001",
   leagueSeasonId: "league-season-2025",
   seasonYear: 2025,
   rowNumber: 7,
-  ownerId: "owner-cam",
-  ownerDisplayName: "Cam",
+  ownerId: "owner-owner11",
+  ownerDisplayName: "Owner11",
   playerId: "player-bijan-robinson",
   playerName: "Bijan Robinson",
   position: "RB",
@@ -46,7 +46,7 @@ const workflowInput = (
   overrides: Partial<Omit<RebuildLeaguePricingWorkflowInput, "repository">> = {},
 ): RebuildLeaguePricingWorkflowInput => ({
   repository,
-  leagueId: "league-214674",
+  leagueId: "league-100001",
   seasonYear: 2026,
   modelVersion: "league-calibration-v1",
   scenarioIds: ["balanced"],
@@ -139,7 +139,7 @@ describe("platform pricing workflow", () => {
     }));
 
     const leagueSeasonSnapshots = listLeaguePricingSnapshotsWorkflow(repository, {
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: "2026",
     });
     const upsideSnapshot = readLatestPricingSnapshotWorkflow(repository, {
@@ -149,7 +149,7 @@ describe("platform pricing workflow", () => {
 
     expect(leagueSeasonSnapshots).toEqual(league2026.snapshots);
     expect(listLeaguePricingSnapshotsWorkflow(repository, {
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       scenarioId: "upside",
     })).toEqual([league2026.snapshots[1]]);
@@ -174,7 +174,7 @@ describe("platform pricing workflow", () => {
     }));
 
     expect(readLatestLeaguePricingSnapshotWorkflow(repository, {
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: "2026",
       scenarioId: "balanced",
     })).toEqual(latest.snapshots[0]);

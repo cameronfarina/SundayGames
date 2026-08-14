@@ -13,7 +13,7 @@ import {
 } from "../src/platform/liveDraftRooms.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const commissioner = { userId: "user_commish", leagueId: "league-214674", role: "admin" } as const;
+const commissioner = { userId: "user_commish", leagueId: "league-100001", role: "admin" } as const;
 
 const playerCatalog = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
@@ -534,8 +534,8 @@ describe("Postgres live draft rooms", () => {
     const client = new FakePostgresLiveDraftRoomClient();
     const repository = new PostgresLiveDraftRoomRepository(client);
     const season = publishedSeason();
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     const created = await repository.createRoom({
       season,
       roomId: "room_sunday",
@@ -761,7 +761,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: started.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     });
     const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom("room_sunday");
@@ -770,8 +770,8 @@ describe("Postgres live draft rooms", () => {
     expect(reloaded).toEqual(sold);
     expect(reloaded.projection.sales.map(sale => sale.playerName)).toEqual(["Puka Nacua"]);
     expect(client.rooms.get("room_sunday")).toMatchObject({
-      league_id: "league-214674",
-      league_season_id: "league-214674-season-2026",
+      league_id: "league-100001",
+      league_season_id: "league-100001-season-2026",
       status: "live",
       current_revision: 3,
       created_by_user_id: "user_commish",
@@ -785,7 +785,7 @@ describe("Postgres live draft rooms", () => {
     expect([...client.sales.values()]).toMatchObject([
       {
         source_event_id: "room_sunday-rev-3-sale_logged",
-        fantasy_team_id: "league-214674-season-2026-team-11-cam",
+        fantasy_team_id: "league-100001-season-2026-team-11-owner11",
         player_name: "Puka Nacua",
         status: "active",
       },
@@ -911,7 +911,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: started.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     } as const;
 
@@ -952,7 +952,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: started.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     });
 
@@ -961,7 +961,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: sold.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Jahmyr Gibbs", price: 72 },
+      sale: { ownerText: "Owner11", playerName: "Jahmyr Gibbs", price: 72 },
       now: new Date(now.getTime() + 3_000),
     })).rejects.toThrow(new LiveDraftRoomError(
       "idempotency_conflict",
@@ -996,7 +996,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: created.revision,
       idempotencyKey: "sale-stale",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     })).rejects.toThrow(new LiveDraftRoomError(
       "stale_revision",
@@ -1030,7 +1030,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: started.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     });
     const undone = await repository.undoLastSale({
@@ -1113,7 +1113,7 @@ describe("Postgres live draft rooms", () => {
       actor: commissioner,
       expectedRevision: started.revision,
       idempotencyKey: "sale-puka",
-      sale: { ownerText: "Cam", playerName: "Puka Nacua", price: 67 },
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
       now: new Date(now.getTime() + 2_000),
     });
     const originalSale = sold.projection.sales[0];
@@ -1124,7 +1124,7 @@ describe("Postgres live draft rooms", () => {
       expectedRevision: sold.revision,
       idempotencyKey: "correct-puka",
       saleEventId: originalSale.saleEventId,
-      replacementSale: { ownerText: "Seth", playerName: "Puka Nacua", price: 41 },
+      replacementSale: { ownerText: "Owner04", playerName: "Puka Nacua", price: 41 },
       now: new Date(now.getTime() + 3_000),
     });
     const paused = await repository.pauseRoom({
@@ -1145,7 +1145,7 @@ describe("Postgres live draft rooms", () => {
 
     expect(reloaded).toEqual(resumed);
     expect(reloaded.projection.sales).toEqual([
-      expect.objectContaining({ ownerDisplayName: "Seth", playerName: "Puka Nacua", price: 41 }),
+      expect.objectContaining({ ownerDisplayName: "Owner04", playerName: "Puka Nacua", price: 41 }),
     ]);
     expect(client.events.map(event => [event.revision, event.event_type])).toEqual([
       [1, "room_created"],
@@ -1163,7 +1163,7 @@ describe("Postgres live draft rooms", () => {
       },
       {
         source_event_id: "room_sunday-rev-4-sale_corrected",
-        fantasy_team_id: "league-214674-season-2026-team-04-seth",
+        fantasy_team_id: "league-100001-season-2026-team-04-owner04",
         price: 41,
         status: "active",
       },
@@ -1180,7 +1180,7 @@ describe("Postgres live draft rooms", () => {
     expect(restored.projection.sales).toEqual([
       expect.objectContaining({
         saleEventId: originalSale.saleEventId,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         price: 67,
       }),
     ]);

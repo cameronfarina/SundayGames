@@ -97,13 +97,13 @@ export interface SeedLocalE2eOpenTeam {
 export interface SeedLocalE2eResult {
   storage?: LocalE2eSeedStorage | undefined;
   accounts: {
-    cam: SeedLocalE2eAccount;
-    seth: SeedLocalE2eAccount;
+    commissioner: SeedLocalE2eAccount;
+    manager: SeedLocalE2eAccount;
   };
   season: SeedLocalE2eSeasonSummary;
   teamClaims: {
-    cam: SeedLocalE2eTeamClaim;
-    seth: SeedLocalE2eTeamClaim;
+    commissioner: SeedLocalE2eTeamClaim;
+    manager: SeedLocalE2eTeamClaim;
   };
   openTeams: readonly SeedLocalE2eOpenTeam[];
   liveDraftRoom: SeedLocalE2eRoomSummary;
@@ -111,19 +111,22 @@ export interface SeedLocalE2eResult {
 
 const seedSessionExpiresAt = new Date("2100-01-01T00:00:00.000Z");
 const seedAccountFixtures = {
-  cam: {
-    id: "acct_mockd_e2e_cam",
+  commissioner: {
+    id: "acct_mockd_e2e_commissioner",
     email: localDemoEmail,
-    sessionId: "sess_mockd_e2e_cam",
-    sessionToken: "mockd-local-e2e-cam-session-token",
+    sessionId: "sess_mockd_e2e_commissioner",
+    sessionToken: "mockd-local-e2e-commissioner-session-token",
   },
-  seth: {
-    id: "acct_mockd_e2e_seth",
-    email: "seth@mockd.local",
-    sessionId: "sess_mockd_e2e_seth",
-    sessionToken: "mockd-local-e2e-seth-session-token",
+  manager: {
+    id: "acct_mockd_e2e_manager",
+    email: "manager@mockd.local",
+    sessionId: "sess_mockd_e2e_manager",
+    sessionToken: "mockd-local-e2e-manager-session-token",
   },
-} as const;
+};
+
+const commissionerOwner = ownerOrder[10] ?? "Owner11";
+const managerOwner = ownerOrder[3] ?? "Owner04";
 
 const optionalEnvString = (
   env: LocalE2eSeedEnv,
@@ -218,14 +221,14 @@ const seedAccount = async (
 const membershipFor = (
   account: SeedLocalE2eAccount,
   season: LeagueSeason,
-  ownerDisplayName: "Cam" | "Seth",
+  ownerDisplayName: string,
 ): PlatformLeagueMembership => {
   const team = teamByOwner(season, ownerDisplayName);
 
   return {
     userId: account.accountId,
     leagueId: season.leagueId,
-    role: ownerDisplayName === "Cam" ? "owner" : "member",
+    role: ownerDisplayName === commissionerOwner ? "owner" : "member",
     ownerId: team.ownerId,
     teamId: team.id,
   };
@@ -233,11 +236,11 @@ const membershipFor = (
 
 const findSeedRoom = async (
   app: LocalE2eSeedPlatformApp,
-  camSessionToken: string,
+  commissionerSessionToken: string,
 ): Promise<LiveDraftRoom | null> => {
   try {
     return await app.getLiveDraftRoom({
-      actorSessionToken: camSessionToken,
+      actorSessionToken: commissionerSessionToken,
       roomId: localDemoRoomId,
     });
   } catch (error) {
@@ -253,11 +256,11 @@ const findSeedRoom = async (
 const ensureSeedRoom = async (
   app: LocalE2eSeedPlatformApp,
   season: LeagueSeason,
-  cam: SeedLocalE2eAccount,
+  commissioner: SeedLocalE2eAccount,
   options: Pick<SeedLocalE2eOptions, "initialRosters" | "playerCatalog">,
   now: Date,
 ): Promise<LiveDraftRoom> => {
-  const existingRoom = await findSeedRoom(app, cam.sessionToken);
+  const existingRoom = await findSeedRoom(app, commissioner.sessionToken);
   if (existingRoom !== null) {
     if (existingRoom.status === "ended") {
       throw new Error(`Local E2E room ${localDemoRoomId} has ended. Remove it before reseeding.`);
@@ -266,7 +269,7 @@ const ensureSeedRoom = async (
     if (existingRoom.status === "live") return existingRoom;
 
     return await app.startLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: commissioner.sessionToken,
       roomId: existingRoom.roomId,
       expectedRevision: existingRoom.revision,
       idempotencyKey: `${localDemoRoomId}:start`,
@@ -275,7 +278,7 @@ const ensureSeedRoom = async (
   }
 
   const createdRoom = await app.createLiveDraftRoom({
-    actorSessionToken: cam.sessionToken,
+    actorSessionToken: commissioner.sessionToken,
     seasonId: season.id,
     roomId: localDemoRoomId,
     viewerPasswordHashRef: "local-e2e-viewer-password",
@@ -285,7 +288,7 @@ const ensureSeedRoom = async (
   });
 
   return await app.startLiveDraftRoom({
-    actorSessionToken: cam.sessionToken,
+    actorSessionToken: commissioner.sessionToken,
     roomId: createdRoom.roomId,
     expectedRevision: createdRoom.revision,
     idempotencyKey: `${localDemoRoomId}:start`,
@@ -303,7 +306,7 @@ const seasonSummaryFor = (season: LeagueSeason): SeedLocalE2eSeasonSummary => ({
 
 const teamClaimFor = (
   season: LeagueSeason,
-  ownerDisplayName: "Cam" | "Seth",
+  ownerDisplayName: string,
   membership: PlatformLeagueMembership,
 ): SeedLocalE2eTeamClaim => {
   const team = teamByOwner(season, ownerDisplayName);
@@ -330,7 +333,7 @@ const roomSummaryFor = (room: LiveDraftRoom): SeedLocalE2eRoomSummary => ({
 
 const openTeamsFor = (season: LeagueSeason): readonly SeedLocalE2eOpenTeam[] =>
   season.teams
-    .filter(team => team.ownerDisplayName !== "Cam" && team.ownerDisplayName !== "Seth")
+    .filter(team => team.ownerDisplayName !== commissionerOwner && team.ownerDisplayName !== managerOwner)
     .map(team => ({
       ownerDisplayName: team.ownerDisplayName,
       teamDisplayName: team.displayName,
@@ -395,42 +398,42 @@ export const seedLocalE2e = async (
     );
   }
   const now = dateOrDefault(options.now);
-  const cam = await seedAccount(app, seedAccountFixtures.cam, now);
-  const seth = await seedAccount(app, seedAccountFixtures.seth, now);
+  const commissioner = await seedAccount(app, seedAccountFixtures.commissioner, now);
+  const manager = await seedAccount(app, seedAccountFixtures.manager, now);
   const season = await app.registerLeagueSeason({
-    actorSessionToken: cam.sessionToken,
+    actorSessionToken: commissioner.sessionToken,
     season: draftSeason,
     memberships: [
-      membershipFor(cam, draftSeason, "Cam"),
-      membershipFor(seth, draftSeason, "Seth"),
+      membershipFor(commissioner, draftSeason, commissionerOwner),
+      membershipFor(manager, draftSeason, managerOwner),
     ],
     now,
   });
-  const camTeam = teamByOwner(season, "Cam");
-  const sethTeam = teamByOwner(season, "Seth");
-  const camClaim = await app.claimLeagueSeasonTeam({
-    actorSessionToken: cam.sessionToken,
+  const commissionerTeam = teamByOwner(season, commissionerOwner);
+  const managerTeam = teamByOwner(season, managerOwner);
+  const commissionerClaim = await app.claimLeagueSeasonTeam({
+    actorSessionToken: commissioner.sessionToken,
     seasonId: season.id,
-    ownerId: camTeam.ownerId,
-    teamId: camTeam.id,
+    ownerId: commissionerTeam.ownerId,
+    teamId: commissionerTeam.id,
     now,
   });
-  const sethClaim = await app.claimLeagueSeasonTeam({
-    actorSessionToken: seth.sessionToken,
+  const managerClaim = await app.claimLeagueSeasonTeam({
+    actorSessionToken: manager.sessionToken,
     seasonId: season.id,
-    ownerId: sethTeam.ownerId,
-    teamId: sethTeam.id,
+    ownerId: managerTeam.ownerId,
+    teamId: managerTeam.id,
     now,
   });
-  const liveDraftRoom = await ensureSeedRoom(app, season, cam, options, now);
+  const liveDraftRoom = await ensureSeedRoom(app, season, commissioner, options, now);
   await options.persist?.();
 
   return {
-    accounts: { cam, seth },
+    accounts: { commissioner, manager },
     season: seasonSummaryFor(season),
     teamClaims: {
-      cam: teamClaimFor(season, "Cam", camClaim),
-      seth: teamClaimFor(season, "Seth", sethClaim),
+      commissioner: teamClaimFor(season, commissionerOwner, commissionerClaim),
+      manager: teamClaimFor(season, managerOwner, managerClaim),
     },
     openTeams: openTeamsFor(season),
     liveDraftRoom: roomSummaryFor(liveDraftRoom),
@@ -472,8 +475,8 @@ const formatHumanResult = (result: SeedLocalE2eResult): string => [
   `Storage: ${storageLabel(result.storage)}`,
   `Season: ${result.season.id} (${result.season.teamCount} teams)`,
   `Live room: ${result.liveDraftRoom.roomId} (${result.liveDraftRoom.status}, revision ${result.liveDraftRoom.revision})`,
-  `Cam login: ${result.accounts.cam.email} / ${result.accounts.cam.password}`,
-  `Seth login: ${result.accounts.seth.email} / ${result.accounts.seth.password}`,
+  `Commissioner login: ${result.accounts.commissioner.email} / ${result.accounts.commissioner.password}`,
+  `Manager login: ${result.accounts.manager.email} / ${result.accounts.manager.password}`,
   `Unclaimed teams: ${result.openTeams.length}`,
 ].join("\n");
 

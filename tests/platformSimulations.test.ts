@@ -12,12 +12,12 @@ const now = new Date("2026-08-09T16:00:00.000Z");
 
 const baseRequestInput = {
   userId: "user_cam",
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   ownerId: "owner_cam",
   teamId: "team_cam",
   count: 25,
-  seedPrefix: "cam-balanced-rb3",
+  seedPrefix: "owner11-balanced-rb3",
   idempotencyKey: "balanced-rb3",
   strategy: {
     hardLocks: [
@@ -25,7 +25,7 @@ const baseRequestInput = {
         playerName: "Jadarian Price",
         price: 13,
         priceMode: "exact",
-        auctionOwner: "Cam",
+        auctionOwner: "Owner11",
       },
     ],
     softTargets: [
@@ -83,12 +83,12 @@ describe("private simulation runs", () => {
       id: expect.stringMatching(/^sim_/),
       request: {
         userId: "user_cam",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         ownerId: "owner_cam",
         teamId: "team_cam",
         count: 25,
-        seedPrefix: "cam-balanced-rb3",
+        seedPrefix: "owner11-balanced-rb3",
         idempotencyKey: "balanced-rb3",
         createdAt: now,
         privacyOwnerUserId: "user_cam",
@@ -127,13 +127,13 @@ describe("private simulation runs", () => {
             playerName: "Jadarian Price",
             price: 13,
             priceMode: "exact",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
           {
             playerName: "Kenneth Walker III",
             price: 30,
             priceMode: "ceiling",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
         ],
         softTargets: baseRequestInput.strategy.softTargets,
@@ -159,23 +159,23 @@ describe("private simulation runs", () => {
     expect(runnerCalls).toEqual([
       expect.objectContaining({
         runsPerScenario: 25,
-        seedPrefix: "cam-balanced-rb3",
+        seedPrefix: "owner11-balanced-rb3",
         forcedSales: [
-          { owner: "Cam", player: "Jadarian Price", price: 13 },
-          { owner: "Cam", player: "Kenneth Walker III", price: 30 },
+          { owner: "Owner11", player: "Jadarian Price", price: 13 },
+          { owner: "Owner11", player: "Kenneth Walker III", price: 30 },
         ],
         hardLocks: [
           {
             playerName: "Jadarian Price",
             price: 13,
             priceMode: "exact",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
           {
             playerName: "Kenneth Walker III",
             price: 30,
             priceMode: "ceiling",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
         ],
         softTargets: [
@@ -197,12 +197,12 @@ describe("private simulation runs", () => {
       runId: run.id,
       requestId: run.request.id,
       runCount: 25,
-      seedPrefix: "cam-balanced-rb3",
+      seedPrefix: "owner11-balanced-rb3",
       hardLockCount: 2,
       softTargetCount: 2,
       forcedSales: [
-        { owner: "Cam", player: "Jadarian Price", price: 13 },
-        { owner: "Cam", player: "Kenneth Walker III", price: 30 },
+        { owner: "Owner11", player: "Jadarian Price", price: 13 },
+        { owner: "Owner11", player: "Kenneth Walker III", price: 30 },
       ],
       summary: {
         runCount: 25,
@@ -262,7 +262,7 @@ describe("private simulation runs", () => {
       ...baseRequestInput,
       idempotencyKey: "missing-player",
       strategy: {
-        hardLocks: [{ playerName: " ", price: 13, auctionOwner: "Cam" }],
+        hardLocks: [{ playerName: " ", price: 13, auctionOwner: "Owner11" }],
         softTargets: [],
       },
       createdAt: now,
@@ -272,7 +272,7 @@ describe("private simulation runs", () => {
       ...baseRequestInput,
       idempotencyKey: "invalid-price",
       strategy: {
-        hardLocks: [{ playerName: "Jadarian Price", price: 0, auctionOwner: "Cam" }],
+        hardLocks: [{ playerName: "Jadarian Price", price: 0, auctionOwner: "Owner11" }],
         softTargets: [],
       },
       createdAt: now,
@@ -286,8 +286,8 @@ describe("private simulation runs", () => {
       idempotencyKey: "duplicate-lock",
       strategy: {
         hardLocks: [
-          { playerName: "Jadarian Price", price: 13, auctionOwner: "Cam" },
-          { playerName: " jadarian price ", price: 14, auctionOwner: "Cam" },
+          { playerName: "Jadarian Price", price: 13, auctionOwner: "Owner11" },
+          { playerName: " jadarian price ", price: 14, auctionOwner: "Owner11" },
         ],
         softTargets: [],
       },

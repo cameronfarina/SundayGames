@@ -13,7 +13,7 @@ describe("mock draft scripts", () => {
       runsPerScenario: 10,
       label: "Target Jadarian Price up to $20",
       targetMaxBids: [
-        { owner: "Cam", player: "Jadarian Price", maxBid: 20 },
+        { owner: "Owner11", player: "Jadarian Price", maxBid: 20 },
       ],
     });
   });
@@ -22,7 +22,7 @@ describe("mock draft scripts", () => {
     expect(parseMockDraftScript("target Puka Nacua:75")).toMatchObject({
       label: "Target Puka Nacua up to $75",
       targetMaxBids: [
-        { owner: "Cam", player: "Puka Nacua", maxBid: 75 },
+        { owner: "Owner11", player: "Puka Nacua", maxBid: 75 },
       ],
     });
   });
@@ -35,12 +35,12 @@ describe("mock draft scripts", () => {
       runsPerScenario: 10,
       label: "Build around Omarion Hampton at $46/$48/$50 / Target Zay Flowers up to $31",
       buildAround: {
-        owner: "Cam",
+        owner: "Owner11",
         player: "Omarion Hampton",
         prices: [46, 48, 50],
       },
       targetMaxBids: [
-        { owner: "Cam", player: "Zay Flowers", maxBid: 31 },
+        { owner: "Owner11", player: "Zay Flowers", maxBid: 31 },
       ],
     });
   });
@@ -51,7 +51,7 @@ describe("mock draft scripts", () => {
     )).toMatchObject({
       label: "Build around Omarion Hampton at $46/$48/$50",
       buildAround: {
-        owner: "Cam",
+        owner: "Owner11",
         player: "Omarion Hampton",
         prices: [46, 48, 50],
       },
@@ -63,7 +63,7 @@ describe("mock draft scripts", () => {
     if (!script) throw new Error("Expected mock draft script.");
 
     expect(canonicalizeMockDraftScript(script, ["Jadarian Price"]).targetMaxBids).toEqual([
-      { owner: "Cam", player: "Jadarian Price", maxBid: 20 },
+      { owner: "Owner11", player: "Jadarian Price", maxBid: 20 },
     ]);
   });
 
@@ -82,7 +82,7 @@ describe("mock draft scripts", () => {
     expect(canonicalizeMockDraftScript(script, ["Jadarian Price"])).toMatchObject({
       label: "Target Jadarian Price up to $20",
       targetMaxBids: [
-        { owner: "Cam", player: "Jadarian Price", maxBid: 20 },
+        { owner: "Owner11", player: "Jadarian Price", maxBid: 20 },
       ],
     });
   });

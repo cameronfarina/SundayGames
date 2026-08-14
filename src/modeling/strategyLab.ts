@@ -1,5 +1,5 @@
 import type { KeeperDeclaration } from "../../config/keepers.js";
-import { leagueConfig, type Owner, type Position } from "../../config/league.js";
+import { leagueConfig, primaryOwner, type Owner, type Position } from "../../config/league.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
 import type { ProjectionRecord } from "../projections.js";
@@ -191,11 +191,11 @@ export const buildAroundStrategyLabScenarios = ({
   return validateBuildAroundPrices(prices).map(price => ({
     key: `build-around-${keyPlayerPart}-${price}`,
     label: `Build around ${trimmedPlayer} $${price}`,
-    question: `If Cam builds around ${trimmedPlayer} at $${price}, what does the rest of the roster become?`,
+    question: `If the primary team builds around ${trimmedPlayer} at $${price}, what does the rest of the roster become?`,
     strategyKey,
     forcedSales: [
       ...baseForcedSales,
-      { owner: "Cam", player: trimmedPlayer, price },
+      { owner: primaryOwner, player: trimmedPlayer, price },
     ],
     targetMaxBids: [...targetMaxBids],
     notes: "Build-around sweep: compare the same anchor at different price points.",
@@ -206,83 +206,83 @@ export const defaultStrategyLabScenarios: readonly StrategyLabScenario[] = [
   {
     key: "puka-75",
     label: "Puka $75",
-    question: "If Cam keeps Achane and buys Puka Nacua for $75, what does the rest of the room leave us?",
+    question: "If the primary team buys Puka Nacua for $75, what does the rest of the room leave?",
     strategyKey: "wr-heavy",
-    forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 75 }],
+    forcedSales: [{ owner: primaryOwner, player: "Puka Nacua", price: 75 }],
   },
   {
     key: "puka-80",
     label: "Puka $80",
-    question: "If Cam keeps Achane and has to pay $80 for Puka, how thin does the build get?",
+    question: "If the primary team pays $80 for Puka, how thin does the build get?",
     strategyKey: "wr-heavy",
-    forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 80 }],
+    forcedSales: [{ owner: primaryOwner, player: "Puka Nacua", price: 80 }],
   },
   {
     key: "chase-70",
     label: "Chase $70",
-    question: "If Cam keeps Achane and buys Ja'Marr Chase for $70, does the discount beat the Puka builds?",
+    question: "If the primary team buys Ja'Marr Chase for $70, does the discount beat the Puka builds?",
     strategyKey: "wr-heavy",
-    forcedSales: [{ owner: "Cam", player: "Ja'Marr Chase", price: 70 }],
+    forcedSales: [{ owner: primaryOwner, player: "Ja'Marr Chase", price: 70 }],
   },
   {
     key: "puka-75-walker",
     label: "Puka $75 + Walker cap $42",
-    question: "If Cam pairs Puka with Achane and only wins Kenneth Walker when the room stays reasonable, can the value WR room hold up?",
+    question: "If the primary team buys Puka and only wins Kenneth Walker under its cap, can the value-WR build hold up?",
     strategyKey: "three-rb",
     forcedSales: [
-      { owner: "Cam", player: "Puka Nacua", price: 75 },
+      { owner: primaryOwner, player: "Puka Nacua", price: 75 },
     ],
-    targetMaxBids: [{ owner: "Cam", player: "Kenneth Walker III", maxBid: 42 }],
+    targetMaxBids: [{ owner: primaryOwner, player: "Kenneth Walker III", maxBid: 42 }],
   },
   {
     key: "elite-rb-rb2-caps",
     label: "Elite RB + RB2 caps",
-    question: "If Cam keeps Achane, bids up to elite prices for one more RB, and only takes Breece or Walker under a cap, how often does that structure land?",
+    question: "If the primary team bids to elite prices for one RB and caps the secondary options, how often does that structure land?",
     strategyKey: "three-rb",
     forcedSales: [],
     targetMaxBids: [
-      { owner: "Cam", player: "Jahmyr Gibbs", maxBid: 80 },
-      { owner: "Cam", player: "Bijan Robinson", maxBid: 80 },
-      { owner: "Cam", player: "Christian McCaffrey", maxBid: 80 },
-      { owner: "Cam", player: "Jonathan Taylor", maxBid: 72 },
-      { owner: "Cam", player: "Breece Hall", maxBid: 42 },
-      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
+      { owner: primaryOwner, player: "Jahmyr Gibbs", maxBid: 80 },
+      { owner: primaryOwner, player: "Bijan Robinson", maxBid: 80 },
+      { owner: primaryOwner, player: "Christian McCaffrey", maxBid: 80 },
+      { owner: primaryOwner, player: "Jonathan Taylor", maxBid: 72 },
+      { owner: primaryOwner, player: "Breece Hall", maxBid: 42 },
+      { owner: primaryOwner, player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
   {
     key: "value-wr-cook",
     label: "DeVonta + Ladd + Cook caps",
-    question: "If Cam skips the elite WR spend and targets value WRs plus James Cook only under caps, what is the upside?",
+    question: "If the primary team skips elite WR spend and targets value WRs plus James Cook under caps, what is the upside?",
     strategyKey: "hero-rb",
     forcedSales: [],
     targetMaxBids: [
-      { owner: "Cam", player: "DeVonta Smith", maxBid: 32 },
-      { owner: "Cam", player: "Ladd McConkey", maxBid: 24 },
-      { owner: "Cam", player: "James Cook III", maxBid: 52 },
+      { owner: primaryOwner, player: "DeVonta Smith", maxBid: 32 },
+      { owner: primaryOwner, player: "Ladd McConkey", maxBid: 24 },
+      { owner: primaryOwner, player: "James Cook III", maxBid: 52 },
     ],
   },
   {
     key: "value-wr-walker",
     label: "DeVonta + Ladd + Walker cap",
-    question: "If Cam keeps spend lighter at RB2 with Kenneth Walker only under a cap, does the room create better balance?",
+    question: "If the primary team keeps RB2 spend lighter with Kenneth Walker under a cap, does the room create better balance?",
     strategyKey: "hero-rb",
     forcedSales: [],
     targetMaxBids: [
-      { owner: "Cam", player: "DeVonta Smith", maxBid: 32 },
-      { owner: "Cam", player: "Ladd McConkey", maxBid: 24 },
-      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
+      { owner: primaryOwner, player: "DeVonta Smith", maxBid: 32 },
+      { owner: primaryOwner, player: "Ladd McConkey", maxBid: 24 },
+      { owner: primaryOwner, player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
   {
     key: "rb-stack-cook-walker",
     label: "Cook + RB2 caps",
-    question: "If Cam targets Cook, Breece, and Walker without forcing any of them, how hard does the WR room have to hit?",
+    question: "If the primary team targets Cook, Breece, and Walker without forcing them, how hard does the WR room have to hit?",
     strategyKey: "three-rb",
     forcedSales: [],
     targetMaxBids: [
-      { owner: "Cam", player: "James Cook III", maxBid: 52 },
-      { owner: "Cam", player: "Breece Hall", maxBid: 42 },
-      { owner: "Cam", player: "Kenneth Walker III", maxBid: 42 },
+      { owner: primaryOwner, player: "James Cook III", maxBid: 52 },
+      { owner: primaryOwner, player: "Breece Hall", maxBid: 42 },
+      { owner: primaryOwner, player: "Kenneth Walker III", maxBid: 42 },
     ],
   },
 ];
@@ -329,7 +329,7 @@ const forcedStartFor = ({
   const keeperScenario = scenarioByKey(scenarioKey, buildKeeperScenarios(keepers));
   const keeperPlayers = keepers
     .filter(keeper =>
-      keeper.owner === "Cam" &&
+      keeper.owner === primaryOwner &&
       keeperScenario.includedKeeperStatuses.includes(keeper.status),
     )
     .map(keeper => ({
@@ -377,8 +377,8 @@ const targetMaxBidOverridesFor = (
 };
 
 const benchWeek1ScoreFor = (run: MockResultsRun): number => {
-  const cam = run.teams.find(team => team.owner === "Cam");
-  if (!cam) throw new Error(`Missing Cam team for ${run.label}.`);
+  const cam = run.teams.find(team => team.owner === primaryOwner);
+  if (!cam) throw new Error(`Missing primary team for ${run.label}.`);
 
   return roundToTwo(
     cam.bench
@@ -395,15 +395,15 @@ const benchWeek1ScoreFor = (run: MockResultsRun): number => {
 };
 
 const starterFloorWeek1ScoreFor = (run: MockResultsRun): number => {
-  const cam = run.teams.find(team => team.owner === "Cam");
-  if (!cam) throw new Error(`Missing Cam team for ${run.label}.`);
+  const cam = run.teams.find(team => team.owner === primaryOwner);
+  if (!cam) throw new Error(`Missing primary team for ${run.label}.`);
 
   return roundToTwo(Math.min(...cam.starters.map(player => player.week1)));
 };
 
 const dollarPlayerCountFor = (run: MockResultsRun): number => {
-  const cam = run.teams.find(team => team.owner === "Cam");
-  if (!cam) throw new Error(`Missing Cam team for ${run.label}.`);
+  const cam = run.teams.find(team => team.owner === primaryOwner);
+  if (!cam) throw new Error(`Missing primary team for ${run.label}.`);
 
   return cam.players.filter(player => player.price <= 2).length;
 };
@@ -419,8 +419,8 @@ const thinnessScoreFor = (run: MockResultsRun): number => {
 };
 
 const sampleBuildFor = (run: MockResultsRun): StrategyLabSampleBuild => {
-  const cam = run.teams.find(team => team.owner === "Cam");
-  if (!cam) throw new Error(`Missing Cam team for ${run.label}.`);
+  const cam = run.teams.find(team => team.owner === primaryOwner);
+  if (!cam) throw new Error(`Missing primary team for ${run.label}.`);
 
   return {
     label: run.label,
@@ -567,7 +567,7 @@ export const runStrategyLab = async ({
       diagnosticsMode: "summary",
       forcedSales: strategyScenario.forcedSales,
       auctionConfigOverridesForRun: context => ({
-        ...strategyAuctionOverridesFor("Cam", strategyScenario.strategyKey, { variantSeed: context.seed }),
+        ...strategyAuctionOverridesFor(primaryOwner, strategyScenario.strategyKey, { variantSeed: context.seed }),
         ...targetMaxBidOverridesFor(strategyScenario.targetMaxBids ?? []),
       }),
     });
@@ -611,14 +611,14 @@ const targetMaxBidsMarkdown = (targetMaxBids: readonly StrategyLabTargetMaxBid[]
 const targetOutcomesMarkdown = (targetOutcomes: readonly StrategyLabTargetOutcome[]): string =>
   targetOutcomes
     .map(outcome =>
-      `${outcome.player}: Cam won ${outcome.draftedByCamCount}/${outcome.runCount} (${Math.round(outcome.draftedByCamRate * 100)}%), avg sale ${moneyText(outcome.averageSalePrice)}, range ${moneyText(outcome.minimumSalePrice)}-${moneyText(outcome.maximumSalePrice)}`,
+      `${outcome.player}: primary team won ${outcome.draftedByCamCount}/${outcome.runCount} (${Math.round(outcome.draftedByCamRate * 100)}%), avg sale ${moneyText(outcome.averageSalePrice)}, range ${moneyText(outcome.minimumSalePrice)}-${moneyText(outcome.maximumSalePrice)}`,
     )
     .join(" | ");
 
 const sampleMarkdown = (sample: StrategyLabSampleBuild): string =>
   [
     `Best sample ${sample.label}`,
-    `Cam rank ${sample.camRank}, Week 1 ${sample.camWeek1Score.toFixed(1)}, season strength ${sample.camSeasonStrengthScore.toFixed(1)}, thinness ${sample.thinnessScore.toFixed(1)}`,
+    `Primary team rank ${sample.camRank}, Week 1 ${sample.camWeek1Score.toFixed(1)}, season strength ${sample.camSeasonStrengthScore.toFixed(1)}, thinness ${sample.thinnessScore.toFixed(1)}`,
     `Core: ${sample.corePlayers.join(" | ")}`,
   ].join(" - ");
 
@@ -643,7 +643,7 @@ const sampleBenchMarkdown = (sample: StrategyLabSampleBuild): string =>
 
 export const strategyLabReportMarkdown = (report: StrategyLabReport): string => {
   const lines = [
-    "# Cam Strategy Lab",
+    "# Primary Team Strategy Lab",
     "",
     `Runs per scenario: ${report.options.runsPerScenario}`,
     "",

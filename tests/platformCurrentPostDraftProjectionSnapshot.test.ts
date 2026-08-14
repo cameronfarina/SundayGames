@@ -179,12 +179,12 @@ describe("current post-draft projection snapshots", () => {
 
     const analysis = analyzePostDraftTeam({
       ownership: {
-        userId: "user-cam",
-        privateOwnerUserId: "user-cam",
+        userId: "user-owner11",
+        privateOwnerUserId: "user-owner11",
         leagueId: season.leagueId,
         seasonId: season.id,
-        teamId: "team-cam",
-        ownerId: "owner-cam",
+        teamId: "team-owner11",
+        ownerId: "owner-owner11",
       },
       evaluatedAt: new Date("2026-09-08T12:00:00.000Z"),
       currentWeek: 1,
@@ -209,8 +209,8 @@ describe("current post-draft projection snapshots", () => {
         draftFormat: "auction",
         teams: [
           {
-            teamId: "team-cam",
-            ownerId: "owner-cam",
+            teamId: "team-owner11",
+            ownerId: "owner-owner11",
             players: [{ playerId: puka.playerId, playerName: puka.playerName, position: puka.position }],
           },
           {

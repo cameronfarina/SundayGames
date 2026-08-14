@@ -16,10 +16,10 @@ describe("create league API", () => {
       }));
     });
 
-    const response = await reviewEspnLeague({ leagueIdOrUrl: "214674", season: 2026 }, fetcher);
+    const response = await reviewEspnLeague({ leagueIdOrUrl: "100001", season: 2026 }, fetcher);
 
     expect(response.kind).toBe("review");
-    expect(requestBody).toEqual({ leagueIdOrUrl: "214674", season: 2026 });
+    expect(requestBody).toEqual({ leagueIdOrUrl: "100001", season: 2026 });
     expect(fetcher).toHaveBeenCalledWith("/league-imports/espn/review", expect.objectContaining({
       credentials: "same-origin",
       method: "POST",
@@ -32,16 +32,16 @@ describe("create league API", () => {
       provider: "espn",
       confirmationRequired: true,
       reason: "private_or_unauthorized",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       season: 2026,
       confirmationMethods: ["screenshot", "manual"],
       message: "This league is private. Enter its settings manually.",
     }), { status: 200 })));
     const malformedFetcher = vi.fn(() => Promise.resolve(new Response("{}", { status: 200 })));
 
-    await expect(reviewEspnLeague({ leagueIdOrUrl: "214674", season: 2026 }, manualFetcher))
+    await expect(reviewEspnLeague({ leagueIdOrUrl: "100001", season: 2026 }, manualFetcher))
       .resolves.toMatchObject({ kind: "manual-review-required" });
-    await expect(reviewEspnLeague({ leagueIdOrUrl: "214674", season: 2026 }, malformedFetcher))
+    await expect(reviewEspnLeague({ leagueIdOrUrl: "100001", season: 2026 }, malformedFetcher))
       .rejects.toMatchObject({ code: "invalid_response" });
   });
 

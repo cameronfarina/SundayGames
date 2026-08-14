@@ -2,10 +2,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { keepers } from "../config/keepers.js";
 import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import {
   loadLocalDemoPlayerCatalog,
+  localDemoEmail,
   localDemoPlayerCatalog,
 } from "../src/platform/localDemoFixtures.js";
 import {
@@ -76,8 +78,8 @@ describe("local E2E platform seed", () => {
     const room = asRecord(liveDraftRooms[0], "live room");
 
     expect(first.storage).toEqual({ kind: "file", path });
-    expect(second.accounts.cam.accountId).toBe(first.accounts.cam.accountId);
-    expect(second.accounts.seth.accountId).toBe(first.accounts.seth.accountId);
+    expect(second.accounts.commissioner.accountId).toBe(first.accounts.commissioner.accountId);
+    expect(second.accounts.manager.accountId).toBe(first.accounts.manager.accountId);
     expect(accounts).toHaveLength(2);
     expect(sessions).toHaveLength(2);
     expect(leagueSeasons).toHaveLength(1);
@@ -98,8 +100,8 @@ describe("local E2E platform seed", () => {
       revision: 2,
       boardCount: playerCatalog.length,
     });
-    expect(second.teamClaims.cam.ownerDisplayName).toBe("Cam");
-    expect(second.teamClaims.seth.ownerDisplayName).toBe("Seth");
+    expect(second.teamClaims.commissioner.ownerDisplayName).toBe("Owner11");
+    expect(second.teamClaims.manager.ownerDisplayName).toBe("Owner04");
   });
 
   it("preserves an existing seeded live room instead of recreating it", async () => {
@@ -110,11 +112,11 @@ describe("local E2E platform seed", () => {
 
     try {
       const room = await runtime.app.logLiveDraftSale({
-        actorSessionToken: seeded.accounts.cam.sessionToken,
+        actorSessionToken: seeded.accounts.commissioner.sessionToken,
         roomId: seeded.liveDraftRoom.roomId,
         expectedRevision: 2,
         idempotencyKey: "test:puka:62",
-        sale: "cam puka 62",
+        sale: "Owner11 drafted Puka for 62",
         now: new Date(now.getTime() + 1_000),
       });
 
@@ -158,9 +160,9 @@ describe("local E2E platform seed", () => {
     expect(seeded.liveDraftRoom).toMatchObject({
       roomId: "room_mockd_e2e_2026",
       status: "live",
-      boardCount: fullCatalog.length - 7,
+      boardCount: fullCatalog.length - keepers.length,
       catalogCount: fullCatalog.length,
-      initialRosterCount: 7,
+      initialRosterCount: keepers.length,
     });
   });
 
@@ -171,7 +173,7 @@ describe("local E2E platform seed", () => {
 
     try {
       await runtime.app.createAccount({
-        email: "cam@mockd.local",
+        email: localDemoEmail,
         password: "not the seed password",
         now,
       });
@@ -181,7 +183,7 @@ describe("local E2E platform seed", () => {
     }
 
     await expect(seedLocalE2eFromEnv(env, seedOptions)).rejects.toThrow(
-      "Existing account cam@mockd.local does not match the local E2E seed password.",
+      `Existing account ${localDemoEmail} does not match the local E2E seed password.`,
     );
   });
 
@@ -196,7 +198,7 @@ describe("local E2E platform seed", () => {
       });
 
       expect(result.season).toMatchObject({
-        id: "league-214674-season-2026",
+        id: "league-100001-season-2026",
         teamCount: 14,
       });
       expect(result.openTeams).toHaveLength(12);

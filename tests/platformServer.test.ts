@@ -1133,7 +1133,7 @@ class AsyncHistoricalImportRepository implements HistoricalImportRepository {
   transactionCount = 0;
 
   constructor(leagueSeasons = [buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-    leagueName: "League 214674",
+    leagueName: "League 100001",
     setupStatus: "published",
   })], readonly createBatchGate?: InsertGate) {
     this.inner = new InMemoryHistoricalImportRepository(leagueSeasons);
@@ -1458,7 +1458,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "  Cam@Example.com ",
+        email: "  Owner11@Example.com ",
         password: "secure password",
       }),
     });
@@ -1469,7 +1469,7 @@ describe("platform server composition", () => {
       body: {
         account: {
           id: expect.stringMatching(/^acct_/),
-          email: "cam@example.com",
+          email: "owner11@example.com",
           createdAt: now.toISOString(),
           updatedAt: now.toISOString(),
         },
@@ -1480,7 +1480,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -1491,7 +1491,7 @@ describe("platform server composition", () => {
       body: {
         account: {
           id: expect.stringMatching(/^acct_/),
-          email: "cam@example.com",
+          email: "owner11@example.com",
         },
         session: {
           id: expect.stringMatching(/^sess_/),
@@ -1588,9 +1588,9 @@ describe("platform server composition", () => {
           seasonYear: 2026,
           expectedTeamCount: 4,
           teams: [
-            { externalTeamId: "1", displayName: "One", managerNames: ["Cam"] },
-            { externalTeamId: "2", displayName: "Two", managerNames: ["Beaton"] },
-            { externalTeamId: "3", displayName: "Three", managerNames: ["Seth"] },
+            { externalTeamId: "1", displayName: "One", managerNames: ["Owner11"] },
+            { externalTeamId: "2", displayName: "Two", managerNames: ["Owner01"] },
+            { externalTeamId: "3", displayName: "Three", managerNames: ["Owner04"] },
             { externalTeamId: "4", displayName: "Four", managerNames: ["Nick"] },
           ],
           draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
@@ -1679,7 +1679,7 @@ describe("platform server composition", () => {
       liveDraftRoomSetupRepository: draftSetupRepository,
     });
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
 
@@ -1704,8 +1704,8 @@ describe("platform server composition", () => {
     });
     const sessionToken = sessionTokenFrom(login);
     const accountId = (prepAccount.body as { account: { id: string } }).account.id;
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await platformServer.app.registerLeagueSeason({
       actorSessionToken: sessionToken,
       season,
@@ -1783,33 +1783,33 @@ describe("platform server composition", () => {
     const camCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
     const sethCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "seth@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner04@example.com", password: "secure password" }),
     });
     const camLogin = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
     const sethLogin = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "seth@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner04@example.com", password: "secure password" }),
     });
     const camAccount = (camCreated.body as { account: { id: string } }).account;
     const sethAccount = (sethCreated.body as { account: { id: string } }).account;
     const camSessionToken = sessionTokenFrom(camLogin);
     const sethSessionToken = sessionTokenFrom(sethLogin);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await jsonFetch(baseUrl, `/seasons/${season.id}`, {
@@ -1898,7 +1898,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 2,
         idempotencyKey: "sale:puka:62",
-        command: "cam puka 62",
+        command: "owner11 puka 62",
       }),
     });
     await assertSharedUpdate("room.sale", 3, {
@@ -2000,7 +2000,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2021,8 +2021,8 @@ describe("platform server composition", () => {
 
     const saved = await readFile(dataFilePath, "utf8");
     const savedAuth = await readFile(`${dataFilePath}.auth.json`, "utf8");
-    expect(saved).not.toContain("cam@example.com");
-    expect(savedAuth).toContain("cam@example.com");
+    expect(saved).not.toContain("owner11@example.com");
+    expect(savedAuth).toContain("owner11@example.com");
     expect(JSON.parse(saved)).toMatchObject({
       schemaVersion: 1,
       auth: {
@@ -2039,7 +2039,7 @@ describe("platform server composition", () => {
       auth: {
         accountCredentials: [{
           account: {
-            email: "cam@example.com",
+            email: "owner11@example.com",
             createdAt: now.toISOString(),
           },
         }],
@@ -2059,7 +2059,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2067,7 +2067,7 @@ describe("platform server composition", () => {
     expect(login.status).toBe(200);
     expect(login.body).toMatchObject({
       account: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
       },
     });
     expect(login.setCookie).toContain("mockd_session=");
@@ -2118,7 +2118,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2131,7 +2131,7 @@ describe("platform server composition", () => {
           accountCredentials: [
             {
               account: {
-                email: "cam@example.com",
+                email: "owner11@example.com",
                 createdAt: now.toISOString(),
               },
             },
@@ -2153,7 +2153,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2161,7 +2161,7 @@ describe("platform server composition", () => {
     expect(login.status).toBe(200);
     expect(login.body).toMatchObject({
       account: {
-        email: "cam@example.com",
+        email: "owner11@example.com",
       },
     });
     expect(login.setCookie).toContain("mockd_session=");
@@ -2177,7 +2177,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2185,18 +2185,18 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await jsonFetch(baseUrl, "/seasons", {
       method: "POST",
@@ -2273,7 +2273,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         expectedRevision: 2,
         idempotencyKey: "sale:puka:62",
-        sale: "cam puka 62",
+        sale: "owner11 puka 62",
       }),
     });
     const roomEnded = await jsonFetch(baseUrl, "/live-rooms/room_postgres_normalized/end", {
@@ -2422,12 +2422,12 @@ describe("platform server composition", () => {
     const created = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
@@ -2435,8 +2435,8 @@ describe("platform server composition", () => {
       leagueName: "Rollback League",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await jsonFetch(baseUrl, "/seasons", {
       method: "POST",
@@ -2481,7 +2481,7 @@ describe("platform server composition", () => {
       currentSeasonId: season.id,
       sourceText: [
         "owner,player,position,price,year,player id,keeper,acquisition",
-        "Cam,Puka Nacua,WR,$61,2025,player-puka,false,auction",
+        "Owner11,Puka Nacua,WR,$61,2025,player-puka,false,auction",
       ].join("\n"),
       now,
     });
@@ -2549,7 +2549,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2557,18 +2557,18 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await jsonFetch(baseUrl, `/seasons/${season.id}`, {
       method: "PUT",
@@ -2687,7 +2687,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2695,7 +2695,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2705,18 +2705,18 @@ describe("platform server composition", () => {
     expect(platformServer.authRepository).toBe(platformServer.postgresAuthRepository);
     expect(postgresClient.row).toBeUndefined();
     expect(postgresAuthClient.accounts.get(accountId)).toMatchObject({
-      email: "cam@example.com",
-      email_normalized: "cam@example.com",
+      email: "owner11@example.com",
+      email_normalized: "owner11@example.com",
       password_hash: expect.stringMatching(/^scrypt\$/),
     });
     expect(JSON.stringify([...postgresAuthClient.sessions.values()])).not.toContain(sessionToken);
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     const registered = await jsonFetch(baseUrl, "/seasons", {
       method: "POST",
@@ -2861,7 +2861,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2869,18 +2869,18 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await jsonFetch(loadedBaseUrl, "/seasons", {
       method: "POST",
@@ -2922,7 +2922,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -2978,7 +2978,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -3077,7 +3077,7 @@ describe("platform server composition", () => {
     });
     if (ownerLogin === null || memberLogin === null) throw new Error("Expected fixture logins.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     await platformServer.app.registerLeagueSeason({
@@ -3141,7 +3141,7 @@ describe("platform server composition", () => {
     });
     if (login === null) throw new Error("Expected fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     await platformServer.app.registerLeagueSeason({
@@ -3199,7 +3199,7 @@ describe("platform server composition", () => {
     });
     if (login === null) throw new Error("Expected historical import fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     await platformServer.app.registerLeagueSeason({
@@ -3228,7 +3228,7 @@ describe("platform server composition", () => {
 
   it("bounds concurrent historical previews and releases admission for later files", async () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     const createEntered = deferred();
@@ -3311,8 +3311,8 @@ describe("platform server composition", () => {
           analysisEntered.resolve();
           await releaseAnalysis.promise;
           return {
-            leagueName: "League 214674",
-            externalLeagueId: "214674",
+            leagueName: "League 100001",
+            externalLeagueId: "100001",
             teams: ownerOrder.map((manager, index) => ({
               draftOrderPosition: index + 1,
               abbreviation: manager.slice(0, 4).toUpperCase(),
@@ -3338,7 +3338,7 @@ describe("platform server composition", () => {
     });
     if (login === null) throw new Error("Expected screenshot health fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     await platformServer.app.registerLeagueSeason({
@@ -3375,8 +3375,8 @@ describe("platform server composition", () => {
           analysisEntered.resolve();
           await releaseAnalysis.promise;
           return {
-            leagueName: "League 214674",
-            externalLeagueId: "214674",
+            leagueName: "League 100001",
+            externalLeagueId: "100001",
             teams: ownerOrder.map((manager, index) => ({
               draftOrderPosition: index + 1,
               abbreviation: manager.slice(0, 4).toUpperCase(),
@@ -3458,7 +3458,7 @@ describe("platform server composition", () => {
     });
     if (login === null) throw new Error("Expected simulation health fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     const claimedTeam = season.teams[0];
@@ -3502,7 +3502,7 @@ describe("platform server composition", () => {
 
     await expect(Promise.race([
       queuedMutation,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Mutation remained blocked.")), 100)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Mutation remained blocked.")), 1_000)),
     ])).resolves.toMatchObject({ status: 201 });
 
     await expect(Promise.race([
@@ -3768,23 +3768,23 @@ describe("platform server composition", () => {
     const { platformServer, baseUrl } = await createListeningServer({
       postgresClient,
     });
-    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
-    if (cam === null) throw new Error("Expected login.");
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await platformServer.app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -3794,7 +3794,7 @@ describe("platform server composition", () => {
       now,
     });
     const simulation = await platformServer.app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -3802,7 +3802,7 @@ describe("platform server composition", () => {
       count: 6,
       seedPrefix: "postgres-worker",
       idempotencyKey: "postgres-worker",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     await platformServer.persist();
@@ -3811,7 +3811,7 @@ describe("platform server composition", () => {
     const repository = new InMemoryJobQueue();
     const job = enqueueSimulationRunExecutionJob({
       repository,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       simulationRunId: simulation.id,
@@ -3866,23 +3866,23 @@ describe("platform server composition", () => {
       postgresClient,
     });
     const cachedHandlers = platformServer.jobHandlers;
-    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
-    if (cam === null) throw new Error("Expected login.");
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await platformServer.app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -3892,7 +3892,7 @@ describe("platform server composition", () => {
       now,
     });
     const simulation = await platformServer.app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -3900,7 +3900,7 @@ describe("platform server composition", () => {
       count: 6,
       seedPrefix: "cached-handler",
       idempotencyKey: "cached-handler",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     await platformServer.persist();
@@ -3926,7 +3926,7 @@ describe("platform server composition", () => {
     const repository = new InMemoryJobQueue();
     const job = enqueueSimulationRunExecutionJob({
       repository,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       simulationRunId: simulation.id,
@@ -3943,7 +3943,7 @@ describe("platform server composition", () => {
     })).resolves.toBe(job);
     expect(postgresClient.row?.revision).toBe(3);
     await expect(platformServer.app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 2_000),
     })).resolves.toMatchObject({
@@ -3962,23 +3962,23 @@ describe("platform server composition", () => {
       dataFilePath,
       jobRepository,
     });
-    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
-    if (cam === null) throw new Error("Expected login.");
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await platformServer.app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -3988,7 +3988,7 @@ describe("platform server composition", () => {
       now,
     });
     const simulation = await platformServer.app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -3996,7 +3996,7 @@ describe("platform server composition", () => {
       count: 6,
       seedPrefix: "external-queue",
       idempotencyKey: "external-queue",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     await platformServer.persist();
@@ -4005,7 +4005,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         idempotencyKey: "external-queue-job",
@@ -4013,14 +4013,14 @@ describe("platform server composition", () => {
       }),
     });
     const jobs = await jsonFetch(baseUrl, "/jobs", {
-      headers: { "x-session-token": cam.sessionToken },
+      headers: { "x-session-token": owner11.sessionToken },
     });
     const enqueuedJobId = (enqueued.body as { job: { id: string } }).job.id;
     const canceled = await jsonFetch(baseUrl, `/jobs/${enqueuedJobId}/cancel`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         now: new Date(now.getTime() + 2_000).toISOString(),
@@ -4033,7 +4033,7 @@ describe("platform server composition", () => {
       body: {
         job: {
           id: expect.stringMatching(/^job_/),
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           seasonId: season.id,
           status: "queued",
@@ -4061,7 +4061,7 @@ describe("platform server composition", () => {
       },
     });
     expect(jobRepository.inner.jobs()).toHaveLength(1);
-    expect(jobRepository.inner.fetchForUser(enqueuedJobId, cam.account.id)).toMatchObject({
+    expect(jobRepository.inner.fetchForUser(enqueuedJobId, owner11.account.id)).toMatchObject({
       id: enqueuedJobId,
       status: "canceled",
     });
@@ -4088,23 +4088,23 @@ describe("platform server composition", () => {
       jobRepository,
       simulationRepository,
     });
-    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
-    if (cam === null) throw new Error("Expected login.");
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await platformServer.app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -4119,7 +4119,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         leagueId: season.leagueId,
@@ -4129,7 +4129,7 @@ describe("platform server composition", () => {
         count: 6,
         seedPrefix: "external-sim",
         idempotencyKey: "external-sim",
-        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+        strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
         now: new Date(now.getTime() + 500).toISOString(),
       }),
     });
@@ -4138,7 +4138,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         idempotencyKey: "external-sim-job",
@@ -4150,7 +4150,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         now: new Date(now.getTime() + 2_000).toISOString(),
@@ -4160,7 +4160,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-session-token": cam.sessionToken,
+        "x-session-token": owner11.sessionToken,
       },
       body: JSON.stringify({
         idempotencyKey: "rerun-external-sim-job",
@@ -4189,7 +4189,7 @@ describe("platform server composition", () => {
         },
       },
     });
-    expect(await simulationRepository.fetchForUser(simulationId, cam.account.id)).toMatchObject({
+    expect(await simulationRepository.fetchForUser(simulationId, owner11.account.id)).toMatchObject({
       id: simulationId,
       status: "requested",
       result: undefined,
@@ -4204,12 +4204,12 @@ describe("platform server composition", () => {
       id: rerunJobId,
       status: "completed",
     });
-    expect(await simulationRepository.fetchForUser(simulationId, cam.account.id)).toMatchObject({
+    expect(await simulationRepository.fetchForUser(simulationId, owner11.account.id)).toMatchObject({
       id: simulationId,
       status: "completed",
       result: {
         runCount: 6,
-        forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+        forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
       },
     });
 
@@ -4224,7 +4224,7 @@ describe("platform server composition", () => {
     servers.push(loadedServer);
 
     await expect(loadedServer.app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulationId,
       now: new Date(now.getTime() + 5_000),
     })).resolves.toMatchObject({
@@ -4263,8 +4263,8 @@ describe("platform server composition", () => {
     });
     if (login === null) throw new Error("Expected shortlist fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     await platformServer.app.registerLeagueSeason({
       actorSessionToken: login.sessionToken,
       season,
@@ -4326,7 +4326,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -4334,18 +4334,18 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     const memberships = [
       {
         userId: accountId,
@@ -4420,7 +4420,7 @@ describe("platform server composition", () => {
   it("uses an external historical import repository for import HTTP routes without snapshot import writes", async () => {
     const postgresClient = new FakePostgresClient();
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
     const historicalImportRepository = new AsyncHistoricalImportRepository([season]);
@@ -4434,7 +4434,7 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
@@ -4442,14 +4442,14 @@ describe("platform server composition", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "cam@example.com",
+        email: "owner11@example.com",
         password: "secure password",
       }),
     });
     const accountId = (created.body as { account: { id: string } }).account.id;
     const sessionToken = sessionTokenFrom(login);
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     const memberships = [{
       userId: accountId,
       leagueId: season.leagueId,
@@ -4477,7 +4477,7 @@ describe("platform server composition", () => {
       body: JSON.stringify({
         sourceText: [
           "owner,player,position,price,year,keeper,acquisition",
-          "Cam,Ja'Marr Chase,WR,$61,2026,false,auction",
+          "Owner11,Ja'Marr Chase,WR,$61,2026,false,auction",
         ].join("\n"),
       }),
     });
@@ -4575,23 +4575,23 @@ describe("platform server composition", () => {
   it("persists worker-completed private simulations in the file-backed store", async () => {
     const dataFilePath = await storePath();
     const { platformServer } = await createListeningServer({ dataFilePath });
-    await platformServer.app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    const cam = await platformServer.app.login({ email: "cam@example.com", password: "cam password", now });
-    if (cam === null) throw new Error("Expected login.");
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
     await platformServer.app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -4601,7 +4601,7 @@ describe("platform server composition", () => {
       now,
     });
     const simulation = await platformServer.app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
@@ -4609,7 +4609,7 @@ describe("platform server composition", () => {
       count: 6,
       seedPrefix: "server-worker",
       idempotencyKey: "server-worker",
-      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" }] },
+      strategy: { hardLocks: [{ playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" }] },
       now,
     });
     await platformServer.persist();
@@ -4617,7 +4617,7 @@ describe("platform server composition", () => {
     const repository = new InMemoryJobQueue();
     const job = enqueueSimulationRunExecutionJob({
       repository,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       simulationRunId: simulation.id,
@@ -4643,7 +4643,7 @@ describe("platform server composition", () => {
     servers.push(loadedServer);
 
     await expect(loadedServer.app.getSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
       now: new Date(now.getTime() + 2_000),
     })).resolves.toMatchObject({
@@ -4651,7 +4651,7 @@ describe("platform server composition", () => {
       status: "completed",
       result: {
         runCount: 6,
-        forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+        forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
       },
     });
   });

@@ -8,8 +8,8 @@ import {
 } from "../src/platform/liveDraftRooms.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const commissioner = { userId: "user_commish", leagueId: "league-214674", role: "admin" } as const;
-const member = { userId: "user_member", leagueId: "league-214674", role: "member" } as const;
+const commissioner = { userId: "user_commish", leagueId: "league-100001", role: "admin" } as const;
+const member = { userId: "user_member", leagueId: "league-100001", role: "member" } as const;
 const nonMember = { userId: "user_outside", leagueId: "other-league", role: "admin" } as const;
 
 const playerCatalog = [
@@ -33,11 +33,11 @@ const multiwordTeamSeason = (): LeagueSeason => {
   return {
     ...season,
     teams: season.teams.map(team => {
-      if (team.ownerDisplayName === "Cam") {
-        return { ...team, ownerDisplayName: "Cam Audit", displayName: "Audit Aces" };
+      if (team.ownerDisplayName === "Owner11") {
+        return { ...team, ownerDisplayName: "Owner11 Audit", displayName: "Audit Aces" };
       }
-      if (team.ownerDisplayName === "Sam") {
-        return { ...team, ownerDisplayName: "Sam Audit", displayName: "Audit Angels" };
+      if (team.ownerDisplayName === "Owner12") {
+        return { ...team, ownerDisplayName: "Owner12 Audit", displayName: "Audit Angels" };
       }
 
       return team;
@@ -203,8 +203,8 @@ describe("live draft rooms", () => {
 
     expect(room).toMatchObject({
       roomId: "room_sunday",
-      leagueId: "league-214674",
-      seasonId: "league-214674-season-2026",
+      leagueId: "league-100001",
+      seasonId: "league-100001-season-2026",
       status: "setup",
       commissionerUserId: "user_commish",
       viewerPasswordHashRef: "viewer-password-hash",
@@ -242,7 +242,7 @@ describe("live draft rooms", () => {
     expect(() => createRoom(repository, { roomId: "room_same_season" })).toThrow(
       new LiveDraftRoomError(
         "room_already_exists",
-        'A live draft room already exists for season "league-214674-season-2026".',
+        'A live draft room already exists for season "league-100001-season-2026".',
       ),
     );
 
@@ -260,7 +260,7 @@ describe("live draft rooms", () => {
   it("atomically synchronizes keeper rosters and recalibrated player values into an unopened room", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
+    const camTeam = teamByOwner(season, "Owner11");
     const room = createRoom(repository, { season });
     const recalibratedCatalog = playerCatalog.map(player => ({
       ...player,
@@ -512,7 +512,7 @@ describe("live draft rooms", () => {
         roomId: "room_sunday",
         actor: commissioner,
         expectedRevision: 2,
-        sale: "cam puka 62",
+        sale: "owner11 puka 62",
       }),
     ).toThrow(new LiveDraftRoomError(
       "idempotency_key_required",
@@ -530,30 +530,30 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
-    const cam = room.projection.teams.find(team => team.ownerDisplayName === "Cam");
+    const owner11 = room.projection.teams.find(team => team.ownerDisplayName === "Owner11");
 
     expect(room.revision).toBe(3);
     expect(room.events.map(event => event.type)).toEqual(["room_created", "room_started", "sale_logged"]);
     expect(room.projection.sales).toEqual([
       expect.objectContaining({
-        ownerDisplayName: "Cam",
-        teamDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Owner11",
         playerName: "Puka Nacua",
         position: "WR",
         price: 62,
       }),
     ]);
-    expect(cam).toMatchObject({
-      ownerDisplayName: "Cam",
+    expect(owner11).toMatchObject({
+      ownerDisplayName: "Owner11",
       spent: 62,
       budgetRemaining: 138,
       rosterSlotsRemaining: 15,
       maxBid: 124,
     });
-    expect(cam?.roster).toEqual([
+    expect(owner11?.roster).toEqual([
       expect.objectContaining({ name: "Puka Nacua", position: "WR", price: 62 }),
     ]);
     expect(room.projection.board.map(player => player.name)).not.toContain("Puka Nacua");
@@ -586,7 +586,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 3_000),
     });
     const retriedSale = repository.logSaleCommand({
@@ -594,7 +594,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 4_000),
     });
 
@@ -608,7 +608,7 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 3,
         idempotencyKey: "sale:puka:62",
-        sale: "cam puka 61",
+        sale: "owner11 puka 61",
         now: new Date(now.getTime() + 5_000),
       }),
     ).toThrow(new LiveDraftRoomError(
@@ -628,7 +628,7 @@ describe("live draft rooms", () => {
       expectedRevision: 2,
       idempotencyKey: "sale:amon-ra:50",
       sale: {
-        ownerText: "Sam",
+        ownerText: "Owner12",
         playerName: "Amon-Ra St. Brown",
         price: 50,
       },
@@ -637,7 +637,7 @@ describe("live draft rooms", () => {
 
     expect(room.projection.sales).toEqual([
       expect.objectContaining({
-        ownerDisplayName: "Sam",
+        ownerDisplayName: "Owner12",
         playerName: "Amon-Ra St. Brown",
         price: 50,
       }),
@@ -647,8 +647,8 @@ describe("live draft rooms", () => {
   it("rejects structured sales when teamId and ownerId point to different teams", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     createRoom(repository, { season });
@@ -683,7 +683,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
 
@@ -693,7 +693,7 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 3,
         idempotencyKey: "sale:puka:63",
-        sale: "sam puka 63",
+        sale: "owner12 puka 63",
         now: new Date(now.getTime() + 3_000),
       }),
     ).toThrow(new LiveDraftRoomError("duplicate_player", "Puka Nacua is already unavailable."));
@@ -702,8 +702,8 @@ describe("live draft rooms", () => {
   it("rejects duplicate players in initial rosters", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
-    const samTeam = teamByOwner(season, "Sam");
+    const camTeam = teamByOwner(season, "Owner11");
+    const samTeam = teamByOwner(season, "Owner12");
 
     expect(() =>
       createRoom(repository, {
@@ -730,7 +730,7 @@ describe("live draft rooms", () => {
 
   it("rejects non-positive and non-whole-dollar initial roster prices", () => {
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
+    const camTeam = teamByOwner(season, "Owner11");
     const invalidPlayers = [
       { playerName: "Puka Nacua", price: 0 },
       { playerName: "Xavier Legette", price: 1.5 },
@@ -755,7 +755,7 @@ describe("live draft rooms", () => {
   it("rejects initial rosters that exceed the roster size", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
+    const camTeam = teamByOwner(season, "Owner11");
     const playerPositions = [
       "QB", "QB", "QB",
       "RB", "RB", "RB", "RB", "RB", "RB",
@@ -776,13 +776,13 @@ describe("live draft rooms", () => {
           price: 1,
         })),
       }),
-    ).toThrow(new LiveDraftRoomError("roster_full", "Cam has no open roster slots."));
+    ).toThrow(new LiveDraftRoomError("roster_full", "Owner11 has no open roster slots."));
   });
 
   it("rejects initial rosters that exceed a position maximum", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
+    const camTeam = teamByOwner(season, "Owner11");
 
     expect(() =>
       createRoom(repository, {
@@ -799,14 +799,14 @@ describe("live draft rooms", () => {
       }),
     ).toThrow(new LiveDraftRoomError(
       "position_limit",
-      "Cam cannot roster WR Seven: roster limit is 6 WRs.",
+      "Owner11 cannot roster WR Seven: roster limit is 6 WRs.",
     ));
   });
 
   it("rejects initial roster players above the team's max bid", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const season = publishedSeason();
-    const camTeam = teamByOwner(season, "Cam");
+    const camTeam = teamByOwner(season, "Owner11");
 
     expect(() =>
       createRoom(repository, {
@@ -817,13 +817,13 @@ describe("live draft rooms", () => {
       }),
     ).toThrow(new LiveDraftRoomError(
       "max_bid_exceeded",
-      "Cam cannot roster Puka Nacua for $190: max bid is $185.",
+      "Owner11 cannot roster Puka Nacua for $190: max bid is $185.",
     ));
   });
 
   it("rejects sales for players already on initial rosters", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
-    const camTeam = teamByOwner(publishedSeason(), "Cam");
+    const camTeam = teamByOwner(publishedSeason(), "Owner11");
     createRoom(repository, {
       initialRosters: [
         { teamId: camTeam.id, playerName: "De'Von Achane", position: "RB", price: 50 },
@@ -837,7 +837,7 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 2,
         idempotencyKey: "sale:achane:51",
-        sale: "sam achane 51",
+        sale: "owner12 achane 51",
         now: new Date(now.getTime() + 2_000),
       }),
     ).toThrow(new LiveDraftRoomError("duplicate_player", "De'Von Achane is already unavailable."));
@@ -845,7 +845,7 @@ describe("live draft rooms", () => {
 
   it("rejects position maximum overages with user-facing copy", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
-    const camTeam = teamByOwner(publishedSeason(), "Cam");
+    const camTeam = teamByOwner(publishedSeason(), "Owner11");
     createRoom(repository, {
       initialRosters: [
         { teamId: camTeam.id, playerName: "WR One", position: "WR", price: 1 },
@@ -864,12 +864,12 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 2,
         idempotencyKey: "sale:legette:2",
-        sale: "cam legette 2",
+        sale: "owner11 legette 2",
         now: new Date(now.getTime() + 2_000),
       }),
     ).toThrow(new LiveDraftRoomError(
       "position_limit",
-      "Cam cannot buy Xavier Legette: roster limit is 6 WRs.",
+      "Owner11 cannot buy Xavier Legette: roster limit is 6 WRs.",
     ));
   });
 
@@ -888,7 +888,7 @@ describe("live draft rooms", () => {
         },
       },
     };
-    const camTeam = teamByOwner(hybridSeason, "Cam");
+    const camTeam = teamByOwner(hybridSeason, "Owner11");
     const hybridCatalog = [
       { name: "QB One", position: "QB", expectedPrice: 10 },
       { name: "QB Two", position: "QB", expectedPrice: 9 },
@@ -908,11 +908,11 @@ describe("live draft rooms", () => {
         { teamId: camTeam.id, playerName: "TE One", position: "TE", price: 1 },
       ],
     });
-    const cam = room.projection.teams.find(team => team.teamId === camTeam.id);
+    const owner11 = room.projection.teams.find(team => team.teamId === camTeam.id);
 
-    expect(cam?.rosterSlotsRemaining).toBe(0);
-    expect(cam?.slots.map(slot => slot.slot)).toEqual(["QB", "OP", "RB_WR", "WR_TE", "FLEX"]);
-    expect(cam?.slots.every(slot => slot.player !== undefined)).toBe(true);
+    expect(owner11?.rosterSlotsRemaining).toBe(0);
+    expect(owner11?.slots.map(slot => slot.slot)).toEqual(["QB", "OP", "RB_WR", "WR_TE", "FLEX"]);
+    expect(owner11?.slots.every(slot => slot.player !== undefined)).toBe(true);
 
     expect(() => createRoom(new InMemoryLiveDraftRoomRepository(), {
       roomId: "room_too_many_qbs",
@@ -925,7 +925,7 @@ describe("live draft rooms", () => {
       ],
     })).toThrow(new LiveDraftRoomError(
       "position_limit",
-      "Cam cannot roster QB Three: roster limit is 2 QBs.",
+      "Owner11 cannot roster QB Three: roster limit is 2 QBs.",
     ));
   });
 
@@ -943,7 +943,7 @@ describe("live draft rooms", () => {
         },
       },
     };
-    const camTeam = teamByOwner(constrainedSeason, "Cam");
+    const camTeam = teamByOwner(constrainedSeason, "Owner11");
 
     expect(() => createRoom(new InMemoryLiveDraftRoomRepository(), {
       season: constrainedSeason,
@@ -957,7 +957,7 @@ describe("live draft rooms", () => {
       ],
     })).toThrow(new LiveDraftRoomError(
       "position_limit",
-      "Cam cannot roster TE One: no open roster slot accepts TE.",
+      "Owner11 cannot roster TE One: no open roster slot accepts TE.",
     ));
   });
 
@@ -993,12 +993,12 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 2,
         idempotencyKey: "sale:puka:190",
-        sale: "cam puka 190",
+        sale: "owner11 puka 190",
         now: new Date(now.getTime() + 2_000),
       }),
     ).toThrow(new LiveDraftRoomError(
       "max_bid_exceeded",
-      "Cam cannot buy Puka Nacua for $190: max bid is $185.",
+      "Owner11 cannot buy Puka Nacua for $190: max bid is $185.",
     ));
   });
 
@@ -1061,7 +1061,7 @@ describe("live draft rooms", () => {
         actor: commissioner,
         expectedRevision: 3,
         idempotencyKey: "sale:while-paused",
-        sale: "cam puka 62",
+        sale: "owner11 puka 62",
       }),
     ).toThrow(new LiveDraftRoomError(
       "room_paused",
@@ -1083,7 +1083,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 4,
       idempotencyKey: "sale:after-resume",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
     }).projection.sales).toHaveLength(1);
   });
 
@@ -1096,7 +1096,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
     const originalSale = sold.projection.sales[0];
@@ -1106,9 +1106,9 @@ describe("live draft rooms", () => {
       roomId: "room_sunday",
       actor: commissioner,
       expectedRevision: 3,
-      idempotencyKey: "correct:puka:seth:41",
+      idempotencyKey: "correct:puka:owner04:41",
       saleEventId: originalSale.saleEventId,
-      replacementSale: { ownerText: "Seth", playerName: "Puka Nacua", price: 41 },
+      replacementSale: { ownerText: "Owner04", playerName: "Puka Nacua", price: 41 },
       now: new Date(now.getTime() + 3_000),
     } as const;
     const corrected = repository.correctSale(correctionInput);
@@ -1117,19 +1117,19 @@ describe("live draft rooms", () => {
     expect(corrected.events.at(-1)).toMatchObject({
       type: "sale_corrected",
       correctedSaleEventId: originalSale.saleEventId,
-      previousSale: expect.objectContaining({ ownerDisplayName: "Cam", price: 62 }),
-      replacementSale: expect.objectContaining({ ownerDisplayName: "Seth", price: 41 }),
+      previousSale: expect.objectContaining({ ownerDisplayName: "Owner11", price: 62 }),
+      replacementSale: expect.objectContaining({ ownerDisplayName: "Owner04", price: 41 }),
     });
     expect(corrected.projection.sales).toEqual([
       expect.objectContaining({
         saleEventId: "room_sunday-rev-4-sale_corrected",
-        ownerDisplayName: "Seth",
+        ownerDisplayName: "Owner04",
         playerName: "Puka Nacua",
         price: 41,
       }),
     ]);
-    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Cam")?.spent).toBe(0);
-    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Seth")?.spent).toBe(41);
+    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Owner11")?.spent).toBe(0);
+    expect(corrected.projection.teams.find(team => team.ownerDisplayName === "Owner04")?.spent).toBe(41);
     expect(repository.correctSale(correctionInput)).toBe(corrected);
     expect(() =>
       repository.correctSale({
@@ -1153,7 +1153,7 @@ describe("live draft rooms", () => {
     expect(restored.projection.sales).toEqual([
       expect.objectContaining({
         saleEventId: originalSale.saleEventId,
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         price: 62,
       }),
     ]);
@@ -1168,7 +1168,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:puka:62",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
 
@@ -1182,7 +1182,7 @@ describe("live draft rooms", () => {
 
     expect(undone.revision).toBe(4);
     expect(undone.projection.sales).toEqual([]);
-    expect(undone.projection.teams.find(team => team.ownerDisplayName === "Cam")).toMatchObject({
+    expect(undone.projection.teams.find(team => team.ownerDisplayName === "Owner11")).toMatchObject({
       spent: 0,
       budgetRemaining: 200,
       maxBid: 185,
@@ -1204,7 +1204,7 @@ describe("live draft rooms", () => {
     })).toThrowError(expect.objectContaining({
       code: "draft_incomplete",
       message: expect.stringMatching(
-        /Draft is incomplete: 14 teams have open roster slots: Beaton \(16\).+Cam \(16\)/,
+        /Draft is incomplete: 14 teams have open roster slots: Owner01 \(16\).+Owner11 \(16\)/,
       ),
     }));
 
@@ -1225,7 +1225,7 @@ describe("live draft rooms", () => {
       incomplete: true,
       incompleteTeams: expect.arrayContaining([
         expect.objectContaining({
-          ownerDisplayName: "Cam",
+          ownerDisplayName: "Owner11",
           openRosterSlots: 16,
         }),
       ]),
@@ -1273,7 +1273,7 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:multiword-owner",
-      sale: "Cam Audit drafted Puka Nacua for 62",
+      sale: "Owner11 Audit drafted Puka Nacua for 62",
     });
     const teamSale = repository.logSaleCommand({
       roomId: "room_sunday",
@@ -1287,21 +1287,21 @@ describe("live draft rooms", () => {
       actor: commissioner,
       expectedRevision: 4,
       idempotencyKey: "sale:unique-alias",
-      sale: "Cam Aud drafted Amon-Ra St. Brown for 50",
+      sale: "Owner11 Aud drafted Amon-Ra St. Brown for 50",
     });
 
     expect(ownerSale.projection.sales.at(-1)).toMatchObject({
-      ownerDisplayName: "Cam Audit",
+      ownerDisplayName: "Owner11 Audit",
       teamDisplayName: "Audit Aces",
       playerName: "Puka Nacua",
     });
     expect(teamSale.projection.sales.at(-1)).toMatchObject({
-      ownerDisplayName: "Sam Audit",
+      ownerDisplayName: "Owner12 Audit",
       teamDisplayName: "Audit Angels",
       playerName: "Xavier Legette",
     });
     expect(aliasSale.projection.sales.at(-1)).toMatchObject({
-      ownerDisplayName: "Cam Audit",
+      ownerDisplayName: "Owner11 Audit",
       teamDisplayName: "Audit Aces",
       playerName: "Amon-Ra St. Brown",
     });
@@ -1320,7 +1320,7 @@ describe("live draft rooms", () => {
       sale: "Audit drafted Puka Nacua for 62",
     })).toThrow(new LiveDraftRoomError(
       "owner_not_found",
-      'Owner or team "Audit" matches multiple teams: Cam Audit - Audit Aces, Sam Audit - Audit Angels.',
+      'Owner or team "Audit" matches multiple teams: Owner11 Audit - Audit Aces, Owner12 Audit - Audit Angels.',
     ));
   });
 });

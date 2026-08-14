@@ -9,18 +9,18 @@ import {
 const now = new Date("2026-09-08T12:00:00.000Z");
 
 const projections = [
-  ["cam-qb-1", "Cam QB 1", "QB", 300, 20],
-  ["cam-qb-2", "Cam QB 2", "QB", 100, 8],
-  ["cam-rb-1", "Cam RB 1", "RB", 250, 17],
-  ["cam-rb-2", "Cam RB 2", "RB", 180, 13],
-  ["cam-wr-1", "Cam WR 1", "WR", 240, 16],
-  ["cam-wr-2", "Cam WR 2", "WR", 170, 12],
-  ["sam-qb-1", "Sam QB 1", "QB", 320, 22],
-  ["sam-rb-1", "Sam RB 1", "RB", 260, 18],
-  ["sam-rb-2", "Sam RB 2", "RB", 200, 14],
-  ["sam-rb-3", "Sam RB 3", "RB", 90, 7],
-  ["sam-wr-1", "Sam WR 1", "WR", 250, 17],
-  ["sam-wr-2", "Sam WR 2", "WR", 80, 6],
+  ["owner11-qb-1", "Owner11 QB 1", "QB", 300, 20],
+  ["owner11-qb-2", "Owner11 QB 2", "QB", 100, 8],
+  ["owner11-rb-1", "Owner11 RB 1", "RB", 250, 17],
+  ["owner11-rb-2", "Owner11 RB 2", "RB", 180, 13],
+  ["owner11-wr-1", "Owner11 WR 1", "WR", 240, 16],
+  ["owner11-wr-2", "Owner11 WR 2", "WR", 170, 12],
+  ["sam-qb-1", "Owner12 QB 1", "QB", 320, 22],
+  ["sam-rb-1", "Owner12 RB 1", "RB", 260, 18],
+  ["sam-rb-2", "Owner12 RB 2", "RB", 200, 14],
+  ["sam-rb-3", "Owner12 RB 3", "RB", 90, 7],
+  ["sam-wr-1", "Owner12 WR 1", "WR", 250, 17],
+  ["sam-wr-2", "Owner12 WR 2", "WR", 80, 6],
   ["alex-qb-1", "Alex QB 1", "QB", 280, 19],
   ["alex-rb-1", "Alex RB 1", "RB", 220, 15],
   ["alex-rb-2", "Alex RB 2", "RB", 160, 11],
@@ -45,7 +45,7 @@ const baseInput = {
   ownership: {
     userId: "user_cam",
     privateOwnerUserId: "user_cam",
-    leagueId: "league_214674",
+    leagueId: "league_100001",
     seasonId: "season_2026",
     teamId: "team_cam",
     ownerId: "owner_cam",
@@ -53,7 +53,7 @@ const baseInput = {
   evaluatedAt: now,
   currentWeek: 1,
   leagueSettings: {
-    leagueId: "league_214674",
+    leagueId: "league_100001",
     seasonId: "season_2026",
     scoring: {
       id: "half-ppr-2026",
@@ -71,7 +71,7 @@ const baseInput = {
   },
   completedDraftRoster: {
     snapshotId: "draft-rosters-1",
-    leagueId: "league_214674",
+    leagueId: "league_100001",
     seasonId: "season_2026",
     capturedAt: "2026-09-01T03:00:00.000Z",
     status: "complete",
@@ -105,7 +105,7 @@ const baseInput = {
   projectionSnapshot: {
     metadata: {
       snapshotId: "projections-1",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       scoringSettingsId: "half-ppr-2026",
       generatedAt: "2026-09-08T10:00:00.000Z",
@@ -125,7 +125,7 @@ const baseInput = {
   },
   currentRosterSnapshot: {
     snapshotId: "current-roster-1",
-    leagueId: "league_214674",
+    leagueId: "league_100001",
     seasonId: "season_2026",
     teamId: "team_cam",
     privateOwnerUserId: "user_cam",
@@ -151,10 +151,10 @@ describe("post-draft My Team analysis", () => {
           filledSlots: 4,
           requiredSlots: 4,
           lineup: [
-            expect.objectContaining({ slot: "QB", playerId: "cam-qb-1", projectedPoints: 300 }),
-            expect.objectContaining({ slot: "RB", playerId: "cam-rb-1", projectedPoints: 250 }),
-            expect.objectContaining({ slot: "WR", playerId: "cam-wr-1", projectedPoints: 240 }),
-            expect.objectContaining({ slot: "FLEX", playerId: "cam-rb-2", projectedPoints: 180 }),
+            expect.objectContaining({ slot: "QB", playerId: "owner11-qb-1", projectedPoints: 300 }),
+            expect.objectContaining({ slot: "RB", playerId: "owner11-rb-1", projectedPoints: 250 }),
+            expect.objectContaining({ slot: "WR", playerId: "owner11-wr-1", projectedPoints: 240 }),
+            expect.objectContaining({ slot: "FLEX", playerId: "owner11-rb-2", projectedPoints: 180 }),
           ],
           leagueRank: 2,
           normalizedScore: 53.85,
@@ -165,8 +165,8 @@ describe("post-draft My Team analysis", () => {
           countedPlayers: 2,
           availableBenchSlots: 2,
           players: [
-            expect.objectContaining({ playerId: "cam-wr-2", projectedPoints: 170 }),
-            expect.objectContaining({ playerId: "cam-qb-2", projectedPoints: 100 }),
+            expect.objectContaining({ playerId: "owner11-wr-2", projectedPoints: 170 }),
+            expect.objectContaining({ playerId: "owner11-qb-2", projectedPoints: 100 }),
           ],
           leagueRank: 2,
           normalizedScore: 58.82,
@@ -207,22 +207,22 @@ describe("post-draft My Team analysis", () => {
       reasons: [],
       records: expect.arrayContaining([
         {
-          recommendationId: "start-sit:QB:cam-qb-1",
+          recommendationId: "start-sit:QB:owner11-qb-1",
           slot: "QB",
           start: {
-            playerId: "cam-qb-1",
-            playerName: "Cam QB 1",
+            playerId: "owner11-qb-1",
+            playerName: "Owner11 QB 1",
             position: "QB",
             projectedPoints: 20,
           },
           sit: {
-            playerId: "cam-qb-2",
-            playerName: "Cam QB 2",
+            playerId: "owner11-qb-2",
+            playerName: "Owner11 QB 2",
             position: "QB",
             projectedPoints: 8,
           },
           projectedPointEdge: 12,
-          explanation: "Cam QB 1 projects for 12 more points than Cam QB 2 in the QB slot.",
+          explanation: "Owner11 QB 1 projects for 12 more points than Owner11 QB 2 in the QB slot.",
         },
       ]),
       snapshotIds: ["projections-1", "current-roster-1"],
@@ -269,7 +269,7 @@ describe("post-draft My Team analysis", () => {
       ...baseInput,
       currentRosterSnapshot: {
         snapshotId: "current-roster-1",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         teamId: "team_cam",
         privateOwnerUserId: "user_cam",
@@ -278,7 +278,7 @@ describe("post-draft My Team analysis", () => {
       },
       freeAgentSnapshot: {
         snapshotId: "free-agents-1",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         capturedAt: "2026-09-08T10:30:00.000Z",
         validThrough: "2026-09-08T11:30:00.000Z",
@@ -336,7 +336,7 @@ describe("post-draft My Team analysis", () => {
       projectionSnapshot: {
         ...baseInput.projectionSnapshot,
         projections: baseInput.projectionSnapshot.projections.filter(
-          projection => projection.playerId !== "cam-wr-2",
+          projection => projection.playerId !== "owner11-wr-2",
         ),
       },
     });
@@ -348,7 +348,7 @@ describe("post-draft My Team analysis", () => {
         code: "projection_coverage_incomplete",
         message: "Season projections do not cover every player in the completed draft roster.",
         projectionSnapshotId: "projections-1",
-        playerIds: ["cam-wr-2"],
+        playerIds: ["owner11-wr-2"],
       }],
     });
     expect(analysis.strengths).toEqual([]);
@@ -445,7 +445,7 @@ describe("post-draft My Team analysis", () => {
       },
       currentRosterSnapshot: {
         snapshotId: "current-roster-2",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         teamId: "team_cam",
         privateOwnerUserId: "user_cam",
@@ -455,7 +455,7 @@ describe("post-draft My Team analysis", () => {
       },
       freeAgentSnapshot: {
         snapshotId: "free-agents-2",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         capturedAt: "2026-09-08T11:45:00.000Z",
         validThrough: "2026-09-08T12:15:00.000Z",
@@ -477,7 +477,7 @@ describe("post-draft My Team analysis", () => {
       reasons: [],
       snapshotIds: ["projections-1", "current-roster-2", "free-agents-2"],
       records: [{
-        recommendationId: "pickup-drop:free-agent-qb:cam-qb-2",
+        recommendationId: "pickup-drop:free-agent-qb:owner11-qb-2",
         add: {
           playerId: "free-agent-qb",
           playerName: "Free Agent QB",
@@ -485,13 +485,13 @@ describe("post-draft My Team analysis", () => {
           projectedPoints: 14,
         },
         drop: {
-          playerId: "cam-qb-2",
-          playerName: "Cam QB 2",
+          playerId: "owner11-qb-2",
+          playerName: "Owner11 QB 2",
           position: "QB",
           projectedPoints: 8,
         },
         projectedPointGain: 6,
-        explanation: "Free Agent QB projects for 6 more points than Cam QB 2 this week at QB.",
+        explanation: "Free Agent QB projects for 6 more points than Owner11 QB 2 this week at QB.",
       }],
     });
   });
@@ -503,7 +503,7 @@ describe("post-draft My Team analysis", () => {
         ...baseInput.projectionSnapshot,
         metadata: {
           snapshotId: "static-fallback-1",
-          leagueId: "league_214674",
+          leagueId: "league_100001",
           seasonId: "season_2026",
           generatedAt: "2026-07-30T15:24:58.463Z",
           validThrough: "2026-07-30T15:24:58.463Z",
@@ -576,12 +576,12 @@ describe("post-draft My Team analysis", () => {
           message: "Weekly projections do not cover every player on the owned roster.",
           snapshotId: "static-fallback-1",
           playerIds: [
-            "cam-qb-1",
-            "cam-qb-2",
-            "cam-rb-1",
-            "cam-rb-2",
-            "cam-wr-1",
-            "cam-wr-2",
+            "owner11-qb-1",
+            "owner11-qb-2",
+            "owner11-rb-1",
+            "owner11-rb-2",
+            "owner11-wr-1",
+            "owner11-wr-2",
           ],
         },
         {
@@ -602,7 +602,7 @@ describe("post-draft My Team analysis", () => {
       ...baseInput,
       currentRosterSnapshot: {
         snapshotId: "current-roster-empty",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         teamId: "team_cam",
         privateOwnerUserId: "user_cam",
@@ -611,7 +611,7 @@ describe("post-draft My Team analysis", () => {
       },
       freeAgentSnapshot: {
         snapshotId: "free-agents-empty",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         capturedAt: "2026-09-08T11:45:00.000Z",
         validThrough: "2026-09-08T12:15:00.000Z",
@@ -654,7 +654,7 @@ describe("post-draft My Team analysis", () => {
       ...baseInput,
       freeAgentSnapshot: {
         snapshotId: "free-agents-without-projections",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         capturedAt: "2026-09-08T11:45:00.000Z",
         validThrough: "2026-09-08T12:15:00.000Z",
@@ -685,7 +685,7 @@ describe("post-draft My Team analysis", () => {
       projectionSnapshot: {
         ...baseInput.projectionSnapshot,
         projections: baseInput.projectionSnapshot.projections.map(projection =>
-          projection.playerId === "cam-wr-2"
+          projection.playerId === "owner11-wr-2"
             ? {
                 playerId: projection.playerId,
                 playerName: projection.playerName,
@@ -704,7 +704,7 @@ describe("post-draft My Team analysis", () => {
         input: "weeklyProjections",
         message: "Weekly projections do not cover every player on the owned roster.",
         snapshotId: "projections-1",
-        playerIds: ["cam-wr-2"],
+        playerIds: ["owner11-wr-2"],
       }],
       snapshotIds: ["projections-1", "current-roster-1"],
     });

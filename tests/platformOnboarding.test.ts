@@ -54,9 +54,9 @@ describe("platform onboarding", () => {
         teams: [{
           id: "team_cam",
           leagueSeasonId: "season_2026",
-          ownerId: "cam",
-          ownerDisplayName: "Cam",
-          displayName: "Cam's Team",
+          ownerId: "owner11",
+          ownerDisplayName: "Owner11",
+          displayName: "Owner11's Team",
           draftOrderPosition: 1,
         }],
         settings: {
@@ -73,10 +73,10 @@ describe("platform onboarding", () => {
         draft: { scheduledAt: "2026-08-29T18:00:00.000Z" },
       }],
       memberships: [{
-        userId: "acct_cam",
+        userId: "acct_owner11",
         leagueId: "league_1",
         role: "owner",
-        ownerId: "cam",
+        ownerId: "owner11",
         teamId: "team_cam",
       }],
       liveDraftRooms: [{
@@ -90,7 +90,7 @@ describe("platform onboarding", () => {
     }));
 
     const snapshot = await loadPlatformOnboarding(repository, {
-      account: { id: "acct_cam", email: "cam@example.com" },
+      account: { id: "acct_owner11", email: "owner11@example.com" },
     });
 
     expect(snapshot.leagues).toEqual([{
@@ -100,10 +100,10 @@ describe("platform onboarding", () => {
       seasonYear: 2026,
       membership: {
         role: "owner",
-        ownerId: "cam",
+        ownerId: "owner11",
         teamId: "team_cam",
-        ownerDisplayName: "Cam",
-        teamDisplayName: "Cam's Team",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Owner11's Team",
       },
       canManageLeague: true,
       readiness: {
@@ -144,16 +144,16 @@ describe("platform onboarding", () => {
       }],
       leagueCreationRecords: [{
         leagueId: "league_archived",
-        createdByUserId: "acct_cam",
+        createdByUserId: "acct_owner11",
         createdAt: new Date("2025-08-01T12:00:00.000Z"),
         archivedAt: new Date("2026-08-12T12:00:00.000Z"),
-        archivedByUserId: "acct_cam",
+        archivedByUserId: "acct_owner11",
       }],
-      memberships: [{ userId: "acct_cam", leagueId: "league_archived", role: "owner" }],
+      memberships: [{ userId: "acct_owner11", leagueId: "league_archived", role: "owner" }],
       liveDraftRooms: [],
     }));
 
-    await expect(repository.listForUser("acct_cam")).resolves.toEqual([]);
+    await expect(repository.listForUser("acct_owner11")).resolves.toEqual([]);
   });
 
   it("loads durable membership, claimed team, readiness, and live room identity", async () => {
@@ -165,9 +165,9 @@ describe("platform onboarding", () => {
       season_status: "published",
       role: "owner",
       team_id: "team_cam",
-      team_key: "cam",
-      team_name: "Cam's Team",
-      owner_name: "Cam",
+      team_key: "owner11",
+      team_name: "Owner11's Team",
+      owner_name: "Owner11",
       room_id: "room_2026",
       room_status: "setup",
       draft_scheduled_at: "2026-08-29T18:00:00.000Z",
@@ -175,11 +175,11 @@ describe("platform onboarding", () => {
     const repository = new PostgresPlatformOnboardingRepository(client);
 
     const snapshot = await loadPlatformOnboarding(repository, {
-      account: { id: "acct_cam", email: "cam@example.com" },
+      account: { id: "acct_owner11", email: "owner11@example.com" },
     });
 
     expect(snapshot).toEqual({
-      account: { id: "acct_cam", email: "cam@example.com" },
+      account: { id: "acct_owner11", email: "owner11@example.com" },
       leagues: [{
         leagueId: "league_1",
         leagueName: "Sunday Games",
@@ -187,10 +187,10 @@ describe("platform onboarding", () => {
         seasonYear: 2026,
         membership: {
           role: "owner",
-          ownerId: "cam",
+          ownerId: "owner11",
           teamId: "team_cam",
-          ownerDisplayName: "Cam",
-          teamDisplayName: "Cam's Team",
+          ownerDisplayName: "Owner11",
+          teamDisplayName: "Owner11's Team",
         },
         canManageLeague: true,
         readiness: {
@@ -203,7 +203,7 @@ describe("platform onboarding", () => {
       }],
     });
     expect(client.queries).toHaveLength(1);
-    expect(client.queries[0]?.params).toEqual(["acct_cam"]);
+    expect(client.queries[0]?.params).toEqual(["acct_owner11"]);
     expect(client.queries[0]?.sql).toContain("lm.user_id = $1");
     expect(client.queries[0]?.sql).toContain("ft.owner_user_id = lm.user_id");
     expect(client.queries[0]?.sql).toContain("l.archived_at IS NULL");
@@ -227,7 +227,7 @@ describe("platform onboarding", () => {
     }]);
 
     const snapshot = await loadPlatformOnboarding(new PostgresPlatformOnboardingRepository(client), {
-      account: { id: "acct_seth", email: "seth@example.com" },
+      account: { id: "acct_owner04", email: "owner04@example.com" },
     });
 
     expect(snapshot.leagues[0]).toMatchObject({

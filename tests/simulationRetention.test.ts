@@ -6,7 +6,7 @@ const now = new Date("2026-08-13T18:00:00.000Z");
 
 const requestInput = (idempotencyKey: string) => ({
   userId: "user_cam",
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   ownerId: "owner_cam",
   teamId: "team_cam",

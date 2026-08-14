@@ -14,7 +14,7 @@ afterEach(() => {
 describe("requestPlatformJson", () => {
   it("returns data only after runtime validation", async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
-      account: { email: "cam@example.com", id: "account-1" },
+      account: { email: "user@example.com", id: "account-1" },
     }), { status: 200 })));
 
     const result = await requestPlatformJson({
@@ -23,7 +23,7 @@ describe("requestPlatformJson", () => {
       responseSchema: accountSchema,
     });
 
-    expect(result.account.email).toBe("cam@example.com");
+    expect(result.account.email).toBe("user@example.com");
     expect(fetcher).toHaveBeenCalledWith("/session", expect.objectContaining({
       credentials: "same-origin",
     }));
@@ -79,7 +79,7 @@ describe("requestPlatformJson", () => {
 
   it("uses same-origin fetch when no test transport is supplied", async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
-      account: { email: "cam@example.com", id: "account-1" },
+      account: { email: "user@example.com", id: "account-1" },
     }), { status: 200 })));
     vi.stubGlobal("fetch", fetcher);
 

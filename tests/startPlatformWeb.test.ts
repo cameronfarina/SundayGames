@@ -230,7 +230,7 @@ describe("platform web startup", () => {
       leagueName: "Local fixture league",
       setupStatus: "published",
     });
-    const ownerTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+    const ownerTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
     if (ownerTeam === undefined) throw new Error("Expected local fixture owner team.");
 
     const published = await handle({

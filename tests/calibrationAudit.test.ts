@@ -145,27 +145,27 @@ describe("historical calibration audit", () => {
       delta: qbCount?.delta,
     });
 
-    const beaton = audit.ownerSpend.find(owner => owner.owner === "Beaton");
-    expect(beaton).toBeDefined();
-    expect(Number.isFinite(beaton?.mockAverageAuctionSpend ?? Number.NaN)).toBe(true);
+    const owner01 = audit.ownerSpend.find(owner => owner.owner === "Owner01");
+    expect(owner01).toBeDefined();
+    expect(Number.isFinite(owner01?.mockAverageAuctionSpend ?? Number.NaN)).toBe(true);
 
-    const seth = audit.ownerSpend.find(owner => owner.owner === "Seth");
-    const sethScenarioOpenBudget = scenarioOpenBudgetForOwner(batch, "Seth");
-    expect(seth).toMatchObject({
+    const owner04 = audit.ownerSpend.find(owner => owner.owner === "Owner04");
+    const sethScenarioOpenBudget = scenarioOpenBudgetForOwner(batch, "Owner04");
+    expect(owner04).toMatchObject({
       scenarioAverageOpenAuctionBudget: sethScenarioOpenBudget,
     });
-    expect(seth?.scenarioSpendDelta).toBe(
-      roundToTwo((seth?.mockAverageAuctionSpend ?? 0) - sethScenarioOpenBudget),
+    expect(owner04?.scenarioSpendDelta).toBe(
+      roundToTwo((owner04?.mockAverageAuctionSpend ?? 0) - sethScenarioOpenBudget),
     );
 
-    const sethSpendGate = audit.gates.items.find(gate => gate.key === "owner-spend:Seth");
+    const sethSpendGate = audit.gates.items.find(gate => gate.key === "owner-spend:Owner04");
     expect(sethSpendGate).toMatchObject({
       category: "owner_spend",
-      label: "Seth scenario auction spend",
+      label: "Owner04 scenario auction spend",
       status: "pass",
-      target: seth?.scenarioAverageOpenAuctionBudget,
-      actual: seth?.mockAverageAuctionSpend,
-      delta: seth?.scenarioSpendDelta,
+      target: owner04?.scenarioAverageOpenAuctionBudget,
+      actual: owner04?.mockAverageAuctionSpend,
+      delta: owner04?.scenarioSpendDelta,
     });
 
     expect(audit.summary.largestPriceTierCountDeltas).toHaveLength(3);

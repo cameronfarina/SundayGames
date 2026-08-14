@@ -30,11 +30,11 @@ describe("player news feed", () => {
         events: [{
           player: "Drafted RB",
           normalizedPlayerName: "drafted rb",
-          owner: "Cam",
+          owner: "Owner11",
           price: 33,
         }],
         owners: [{
-          owner: "Cam",
+          owner: "Owner11",
           roster: [{
             name: "Drafted RB",
             position: "RB",
@@ -83,7 +83,7 @@ describe("player news feed", () => {
       player: "Drafted RB",
       availability: {
         status: "drafted",
-        detail: "Cam bought for $33",
+        detail: "Owner11 bought for $33",
       },
     });
     expect(feed.summary).toMatchObject({
@@ -344,7 +344,7 @@ describe("player news feed", () => {
         events: [{
           player: "Deebo Samuel",
           normalizedPlayerName: "Deebo Samuel",
-          owner: "Mello",
+          owner: "Owner14",
           price: 17,
         }],
         owners: [],
@@ -353,7 +353,7 @@ describe("player news feed", () => {
 
     expect(feed.items[0]?.availability).toEqual({
       status: "drafted",
-      detail: "Mello bought for $17",
+      detail: "Owner14 bought for $17",
     });
   });
 

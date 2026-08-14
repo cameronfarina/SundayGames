@@ -17,11 +17,11 @@ const validDocument = {
   schemaVersion: "mockd.production-provisioning/v1",
   provisioningId: "mockd-2026-launch",
   environment: "production",
-  actorAccountId: "account-cam",
+  actorAccountId: "account-owner11",
   accounts: [
     {
-      id: "account-cam",
-      email: "cam@example.com",
+      id: "account-owner11",
+      email: "owner11@example.com",
       passwordHashEnv: "MOCKD_PROVISION_CAM_PASSWORD_HASH",
     },
   ],
@@ -33,10 +33,10 @@ const validDocument = {
   },
   memberships: [
     {
-      accountId: "account-cam",
+      accountId: "account-owner11",
       role: "owner",
-      ownerId: "owner-cam",
-      teamId: "team-cam",
+      ownerId: "owner-owner11",
+      teamId: "team-owner11",
     },
   ],
   season: {
@@ -65,9 +65,9 @@ const validDocument = {
     },
     teams: [
       {
-        id: "team-cam",
-        ownerId: "owner-cam",
-        ownerDisplayName: "Cam",
+        id: "team-owner11",
+        ownerId: "owner-owner11",
+        ownerDisplayName: "Owner11",
         name: "Sunday Scaries",
         draftOrderPosition: 1,
       },
@@ -87,7 +87,7 @@ const validDocument = {
   ],
   initialRosters: [
     {
-      teamId: "team-cam",
+      teamId: "team-owner11",
       playerId: "player-jalen-hurts",
       price: 18,
       source: "keeper",
@@ -95,8 +95,8 @@ const validDocument = {
   ],
   keepers: [
     {
-      id: "keeper-cam-hurts-2026",
-      teamId: "team-cam",
+      id: "keeper-owner11-hurts-2026",
+      teamId: "team-owner11",
       playerId: "player-jalen-hurts",
       keeperCost: 18,
       previousCost: 15,
@@ -114,9 +114,9 @@ describe("production provisioning document", () => {
     expect(document.league.id).toBe("league-real-123");
     expect(document.season.teams[0]?.leagueSeasonId).toBe("season-real-2026");
     expect(document.memberships[0]).toMatchObject({
-      userId: "account-cam",
+      userId: "account-owner11",
       leagueId: "league-real-123",
-      teamId: "team-cam",
+      teamId: "team-owner11",
     });
     expect(document.catalog[0]?.playerId).toBe("player-jalen-hurts");
     expect(document.keepers[0]?.playerId).toBe("player-jalen-hurts");
@@ -129,7 +129,7 @@ describe("production provisioning document", () => {
         {
           ...validDocument.accounts[0],
           id: "acct_mockd_e2e_cam",
-          email: "cam@mockd.local",
+          email: "commissioner@mockd.local",
         },
       ],
       actorAccountId: "acct_mockd_e2e_cam",
@@ -153,7 +153,7 @@ describe("production provisioning execution", () => {
     const repository: ProductionProvisioningRepository = {
       inspect: async () => ({
         changes: [
-          { resourceType: "account", resourceId: "account-cam", action: "create" },
+          { resourceType: "account", resourceId: "account-owner11", action: "create" },
           { resourceType: "league-season", resourceId: "season-real-2026", action: "create" },
         ],
         conflicts: [],
@@ -181,7 +181,7 @@ describe("production provisioning execution", () => {
       status: "planned",
       provisioningId: "mockd-2026-launch",
       changes: [
-        { resourceType: "account", resourceId: "account-cam", action: "create" },
+        { resourceType: "account", resourceId: "account-owner11", action: "create" },
         { resourceType: "league-season", resourceId: "season-real-2026", action: "create" },
       ],
     });
@@ -434,7 +434,7 @@ describe("Postgres production provisioning repository", () => {
     expect(await draftSetupRepository.findForSeason("season-real-2026")).toMatchObject({
       sourceVersion: "mockd-2026-launch",
       playerCatalog: [{ name: "Jalen Hurts", position: "QB", expectedPrice: 24 }],
-      initialRosters: [{ teamId: "team-cam", playerName: "Jalen Hurts", source: "keeper" }],
+      initialRosters: [{ teamId: "team-owner11", playerName: "Jalen Hurts", source: "keeper" }],
     });
     expect(client.players.size).toBe(1);
     expect(client.keepers.size).toBe(1);

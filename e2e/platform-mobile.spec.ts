@@ -337,7 +337,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
     : `mobile.release.e2e+${smokeRunId}@${emailDomain}`;
   const account = await signUpAndLogIn(page, email);
   const season = seasonForMobileRelease();
-  const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
+  const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
   if (camTeam === undefined) throw new Error("Expected the Cam fixture team.");
 
   expectOk(await api<SeasonBody>(page, "/seasons", {

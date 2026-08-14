@@ -19,9 +19,9 @@ export const team = {
   id: "team-1",
   leagueSeasonId: "season-1",
   ownerId: "owner-1",
-  ownerDisplayName: "Cam",
-  managerDisplayNames: ["Cam Farina"],
-  abbreviation: "CAM",
+  ownerDisplayName: "Owner11",
+  managerDisplayNames: ["Example Manager"],
+  abbreviation: "OWN11",
   displayName: "Short King",
   draftOrderPosition: 1,
 };
@@ -30,7 +30,7 @@ export const season = {
   id: "season-1",
   league: {
     id: "league-1",
-    externalLeagueId: "214674",
+    externalLeagueId: "100001",
     name: "Sunday Games",
     provider: "espn",
   },
@@ -70,7 +70,7 @@ interface OnboardingOptions {
 }
 
 export const onboarding = (options: OnboardingOptions = {}) => ({
-  account: { id: "user-1", email: "cam@example.com" },
+  account: { id: "user-1", email: "user@example.com" },
   leagues: [{
     leagueId: "league-1",
     leagueName: "Sunday Games",
@@ -81,7 +81,7 @@ export const onboarding = (options: OnboardingOptions = {}) => ({
       ...(options.claimed === true ? {
         ownerId: "owner-1",
         teamId: "team-1",
-        ownerDisplayName: "Cam",
+        ownerDisplayName: "Owner11",
         teamDisplayName: "Short King",
       } : {}),
     },

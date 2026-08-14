@@ -174,7 +174,7 @@ describe("auction engine economics", () => {
   });
 
   it("records the rotating nominator while elite market names come off early", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -195,7 +195,7 @@ describe("auction engine economics", () => {
     });
 
     expect(result.picks[0]).toMatchObject({
-      nominator: "Beaton",
+      nominator: "Owner01",
       player: "Elite market RB",
     });
     expect(result.picks[0]?.nominationDiagnostics).toMatchObject({
@@ -227,7 +227,7 @@ describe("auction engine economics", () => {
   });
 
   it("varies the opening nominator by seed while keeping each run deterministic", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const players = [
       player("Later value WR", "WR", 35),
       player("Elite market RB", "RB", 70),
@@ -252,7 +252,7 @@ describe("auction engine economics", () => {
   });
 
   it("lets the current nominator target an affordable roster need instead of the next luxury player", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const starterMinimums = {
       ...positionAmounts(0),
       RB: 1,
@@ -272,32 +272,32 @@ describe("auction engine economics", () => {
       players: [
         player("Elite opening WR", "WR", 70),
         player("Luxury QB", "QB", 60),
-        player("Hoody reachable RB", "RB", 18),
+        player("Owner02 reachable RB", "RB", 18),
         player("Fallback RB 1", "RB", 17),
         player("Fallback RB 2", "RB", 16),
       ],
       initialRostersByOwner: {
-        Hoody: [player("Hoody kept QB", "QB", 80)],
+        Owner02: [player("Owner02 kept QB", "QB", 80)],
       },
       config,
     });
 
     expect(result.picks[1]).toMatchObject({
-      nominator: "Hoody",
-      player: "Hoody reachable RB",
+      nominator: "Owner02",
+      player: "Owner02 reachable RB",
     });
     expect(result.picks[1]?.nominationDiagnostics.topCandidates[0]).toMatchObject({
-      player: "Hoody reachable RB",
+      player: "Owner02 reachable RB",
       scoreComponents: expect.objectContaining({
         ownerNeed: 1,
         affordability: 1,
       }),
     });
-    expect(result.picks[1]?.player).toBe("Hoody reachable RB");
+    expect(result.picks[1]?.player).toBe("Owner02 reachable RB");
   });
 
   it("lets nominators attack scarce roster holes that opponents still need", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const starterMinimums = {
       ...positionAmounts(0),
       RB: 1,
@@ -332,19 +332,19 @@ describe("auction engine economics", () => {
         player("Fallback RB", "RB", 1),
       ],
       initialRostersByOwner: {
-        Beaton: [player("Beaton kept RB", "RB", 10)],
+        Owner01: [player("Owner01 kept RB", "RB", 10)],
       },
       config,
     });
 
     expect(result.picks[0]).toMatchObject({
-      nominator: "Beaton",
+      nominator: "Owner01",
       player: "Opponent-needed RB",
     });
   });
 
   it("continues the nomination rotation after skipping owners with full rosters", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03", "Owner04"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -353,7 +353,7 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerDemandMultipliers: {
-        Seth: {
+        Owner04: {
           RB: 1.4,
         },
       },
@@ -367,16 +367,16 @@ describe("auction engine economics", () => {
         player("Fallback QB", "QB", 30),
       ],
       initialRostersByOwner: {
-        Beaton: [player("Beaton kept TE", "TE", 1)],
+        Owner01: [player("Owner01 kept TE", "TE", 1)],
       },
       config,
     });
 
-    expect(result.picks.slice(0, 2).map(pick => pick.nominator)).toEqual(["Hoody", "PJ"]);
+    expect(result.picks.slice(0, 2).map(pick => pick.nominator)).toEqual(["Owner02", "Owner03"]);
   });
 
   it("caps overspent owners without globally discounting the next tier", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03", "Owner04"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -395,8 +395,8 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton elite buy", "WR", 80)],
-        Hoody: [player("Hoody elite buy", "WR", 80)],
+        Owner01: [player("Owner01 elite buy", "WR", 80)],
+        Owner02: [player("Owner02 elite buy", "WR", 80)],
       },
     });
     const goodPlayer = player("Good-but-not-elite WR", "WR", 50);
@@ -410,15 +410,15 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    expect(["PJ", "Seth"]).toContain(sale.winner);
+    expect(["Owner03", "Owner04"]).toContain(sale.winner);
     expect(sale.price).toBeGreaterThan(goodPlayer.price);
     expect(goodPlayer.price).toBe(50);
-    expect(Math.max(...sale.bids.filter(bid => ["Beaton", "Hoody"].includes(bid.owner)).map(bid => bid.amount)))
+    expect(Math.max(...sale.bids.filter(bid => ["Owner01", "Owner02"].includes(bid.owner)).map(bid => bid.amount)))
       .toBeLessThan(goodPlayer.price);
   });
 
   it("keeps replacement-level player bids at the minimum bid without a late opening bump", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 10,
@@ -430,16 +430,16 @@ describe("auction engine economics", () => {
       },
       flexMinimum: 0,
       ownerDemandMultipliers: {
-        Beaton: { WR: 1.4 },
-        Hoody: { WR: 1.4 },
+        Owner01: { WR: 1.4 },
+        Owner02: { WR: 1.4 },
       },
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.3,
           scarcityChase: 1.2,
           replacementPatience: 1.05,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.3,
           scarcityChase: 1.2,
           replacementPatience: 1.05,
@@ -468,7 +468,7 @@ describe("auction engine economics", () => {
   });
 
   it("lets owner behavior tune aggression and patience separately from market anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -478,12 +478,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.12,
           scarcityChase: 1.15,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 0.92,
           scarcityChase: 0.85,
           replacementPatience: 0.9,
@@ -503,9 +503,9 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const aggressiveBid = sale.bids.find(bid => bid.owner === "Beaton")!;
-    const patientBid = sale.bids.find(bid => bid.owner === "Hoody")!;
-    expect(sale.winner).toBe("Beaton");
+    const aggressiveBid = sale.bids.find(bid => bid.owner === "Owner01")!;
+    const patientBid = sale.bids.find(bid => bid.owner === "Owner02")!;
+    expect(sale.winner).toBe("Owner01");
     expect(aggressiveBid.behaviorAggressionMultiplier).toBe(1.12);
     expect(aggressiveBid.amount).toBeGreaterThan(patientBid.amount);
     expect(target.price).toBe(40);
@@ -516,16 +516,16 @@ describe("auction engine economics", () => {
     const profiles = buildOwnerProfiles(historicalRecords);
     const behaviors = buildOwnerAuctionBehaviors(profiles);
 
-    const mello = behaviors.Mello;
-    const tye = behaviors.Tye;
-    expect(mello).toBeDefined();
-    expect(tye).toBeDefined();
-    if (!mello || !tye) throw new Error("Expected owner behaviors for Mello and Tye.");
+    const owner14 = behaviors.Owner14;
+    const owner06 = behaviors.Owner06;
+    expect(owner14).toBeDefined();
+    expect(owner06).toBeDefined();
+    if (!owner14 || !owner06) throw new Error("Expected owner behaviors for Owner14 and Owner06.");
 
-    const melloAnchorAggression = mello.anchorAggression;
-    const tyeAnchorAggression = tye.anchorAggression;
-    const melloDepthAggression = mello.depthAggression;
-    const tyeDepthAggression = tye.depthAggression;
+    const melloAnchorAggression = owner14.anchorAggression;
+    const tyeAnchorAggression = owner06.anchorAggression;
+    const melloDepthAggression = owner14.depthAggression;
+    const tyeDepthAggression = owner06.depthAggression;
     if (
       melloAnchorAggression === undefined ||
       tyeAnchorAggression === undefined ||
@@ -542,7 +542,7 @@ describe("auction engine economics", () => {
   });
 
   it("applies build-style behavior differently to anchor and depth bids", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -552,14 +552,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1.1,
           depthAggression: 0.9,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -575,8 +575,8 @@ describe("auction engine economics", () => {
     expect(anchorSale).toBeDefined();
     if (!anchorSale) throw new Error("Expected anchor sale to resolve.");
 
-    const anchorTopHeavyBid = anchorSale.bids.find(bid => bid.owner === "Beaton")!;
-    const anchorBalancedBid = anchorSale.bids.find(bid => bid.owner === "Hoody")!;
+    const anchorTopHeavyBid = anchorSale.bids.find(bid => bid.owner === "Owner01")!;
+    const anchorBalancedBid = anchorSale.bids.find(bid => bid.owner === "Owner02")!;
     expect(anchorTopHeavyBid.buildStyleMultiplier).toBe(1.1);
     expect(anchorTopHeavyBid.amount).toBeGreaterThan(anchorBalancedBid.amount);
 
@@ -584,8 +584,8 @@ describe("auction engine economics", () => {
     expect(depthSale).toBeDefined();
     if (!depthSale) throw new Error("Expected depth sale to resolve.");
 
-    const depthTopHeavyBid = depthSale.bids.find(bid => bid.owner === "Beaton")!;
-    const depthBalancedBid = depthSale.bids.find(bid => bid.owner === "Hoody")!;
+    const depthTopHeavyBid = depthSale.bids.find(bid => bid.owner === "Owner01")!;
+    const depthBalancedBid = depthSale.bids.find(bid => bid.owner === "Owner02")!;
     expect(depthTopHeavyBid.buildStyleMultiplier).toBe(0.9);
     expect(depthTopHeavyBid.amount).toBeLessThan(depthBalancedBid.amount);
   });
@@ -594,18 +594,18 @@ describe("auction engine economics", () => {
     const historicalRecords = await loadHistoricalAuctionRecords();
     const maximums = buildOwnerRosterMaximums(buildOwnerProfiles(historicalRecords));
 
-    expect(maximums.Beaton?.QB).toBe(2);
-    expect(maximums.CJ?.QB).toBe(1);
-    expect(maximums.Tye?.QB).toBe(2);
-    expect(maximums.Seth?.TE).toBe(1);
-    expect(maximums.PJ?.TE).toBeUndefined();
-    expect(maximums.Hoody?.K).toBe(1);
-    expect(maximums.Hoody?.DST).toBe(1);
-    expect(maximums.Beaton?.DST).toBe(1);
+    expect(maximums.Owner01?.QB).toBe(2);
+    expect(maximums.Owner08?.QB).toBe(1);
+    expect(maximums.Owner06?.QB).toBe(2);
+    expect(maximums.Owner04?.TE).toBe(1);
+    expect(maximums.Owner03?.TE).toBeUndefined();
+    expect(maximums.Owner02?.K).toBe(1);
+    expect(maximums.Owner02?.DST).toBe(1);
+    expect(maximums.Owner01?.DST).toBe(1);
   });
 
   it("applies owner-specific roster maximums during bidding", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -614,14 +614,14 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerRosterMaximums: {
-        Beaton: { QB: 1 },
+        Owner01: { QB: 1 },
       },
       seed: "owner-roster-maximums",
     });
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton starter QB", "QB", 20)],
+        Owner01: [player("Owner01 starter QB", "QB", 20)],
       },
     });
     const sale = resolveAuctionSale(player("Backup QB", "QB", 10), ownerStates, [], config);
@@ -629,12 +629,12 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    expect(sale.bids.some(bid => bid.owner === "Beaton")).toBe(false);
-    expect(sale.bids.some(bid => bid.owner === "Hoody")).toBe(true);
+    expect(sale.bids.some(bid => bid.owner === "Owner01")).toBe(false);
+    expect(sale.bids.some(bid => bid.owner === "Owner02")).toBe(true);
   });
 
   it("raises bids for cash-heavy owners late in the auction", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -648,15 +648,15 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [
-          player("Beaton bench RB", "RB", 1),
-          player("Beaton bench WR", "WR", 1),
-          player("Beaton bench TE", "TE", 1),
+        Owner01: [
+          player("Owner01 bench RB", "RB", 1),
+          player("Owner01 bench WR", "WR", 1),
+          player("Owner01 bench TE", "TE", 1),
         ],
-        Hoody: [
-          player("Hoody starter RB", "RB", 40),
-          player("Hoody starter WR", "WR", 35),
-          player("Hoody bench TE", "TE", 10),
+        Owner02: [
+          player("Owner02 starter RB", "RB", 40),
+          player("Owner02 starter WR", "WR", 35),
+          player("Owner02 bench TE", "TE", 10),
         ],
       },
     });
@@ -666,14 +666,14 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.endgamePressureMultiplier).toBeGreaterThan(1);
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(target.price);
   });
 
   it("raises mid-auction bids for cash-heavy owners while depleted owners stay constrained", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -708,8 +708,8 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton early elite", "RB", 75)],
-        Hoody: [player("Hoody early elite", "WR", 74)],
+        Owner01: [player("Owner01 early elite", "RB", 75)],
+        Owner02: [player("Owner02 early elite", "WR", 74)],
       },
     });
     const target = player("Good scarce RB", "RB", 45);
@@ -718,9 +718,9 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const pjBid = sale.bids.find(bid => bid.owner === "PJ");
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
-    const hoodyBid = sale.bids.find(bid => bid.owner === "Hoody");
+    const pjBid = sale.bids.find(bid => bid.owner === "Owner03");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
+    const hoodyBid = sale.bids.find(bid => bid.owner === "Owner02");
     expect(pjBid).toBeDefined();
     expect(beatonBid).toBeDefined();
     expect(hoodyBid).toBeDefined();
@@ -736,7 +736,7 @@ describe("auction engine economics", () => {
   });
 
   it("raises scarcity pressure when bidders have room for multiple same-tier players", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 150,
@@ -768,23 +768,23 @@ describe("auction engine economics", () => {
     const thinDepthStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [
-          player("Beaton RB 1", "RB", 1),
-          player("Beaton RB 2", "RB", 1),
-          player("Beaton RB 3", "RB", 1),
-          player("Beaton RB 4", "RB", 1),
+        Owner01: [
+          player("Owner01 RB 1", "RB", 1),
+          player("Owner01 RB 2", "RB", 1),
+          player("Owner01 RB 3", "RB", 1),
+          player("Owner01 RB 4", "RB", 1),
         ],
-        Hoody: [
-          player("Hoody RB 1", "RB", 1),
-          player("Hoody RB 2", "RB", 1),
-          player("Hoody RB 3", "RB", 1),
-          player("Hoody RB 4", "RB", 1),
+        Owner02: [
+          player("Owner02 RB 1", "RB", 1),
+          player("Owner02 RB 2", "RB", 1),
+          player("Owner02 RB 3", "RB", 1),
+          player("Owner02 RB 4", "RB", 1),
         ],
-        PJ: [
-          player("PJ RB 1", "RB", 1),
-          player("PJ RB 2", "RB", 1),
-          player("PJ RB 3", "RB", 1),
-          player("PJ RB 4", "RB", 1),
+        Owner03: [
+          player("Owner03 RB 1", "RB", 1),
+          player("Owner03 RB 2", "RB", 1),
+          player("Owner03 RB 3", "RB", 1),
+          player("Owner03 RB 4", "RB", 1),
         ],
       },
     });
@@ -808,7 +808,7 @@ describe("auction engine economics", () => {
   });
 
   it("does not count same-position depth that would strand required starters", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -849,7 +849,7 @@ describe("auction engine economics", () => {
   });
 
   it("downweights legal backup bidders in scarcity pressure", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ", "Seth"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03", "Owner04"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -876,10 +876,10 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton starter QB", "QB", 20)],
-        Hoody: [player("Hoody starter QB", "QB", 20)],
-        PJ: [player("PJ starter QB", "QB", 20)],
-        Seth: [player("Seth starter QB", "QB", 20)],
+        Owner01: [player("Owner01 starter QB", "QB", 20)],
+        Owner02: [player("Owner02 starter QB", "QB", 20)],
+        Owner03: [player("Owner03 starter QB", "QB", 20)],
+        Owner04: [player("Owner04 starter QB", "QB", 20)],
       },
     });
     const sale = resolveAuctionSale(player("Backup QB", "QB", 18), ownerStates, [], config);
@@ -891,7 +891,7 @@ describe("auction engine economics", () => {
   });
 
   it("discounts bids that would strand too little budget for remaining roster slots", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -911,8 +911,8 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton early star", "RB", 60)],
-        Hoody: [player("Hoody value start", "WR", 10)],
+        Owner01: [player("Owner01 early star", "RB", 60)],
+        Owner02: [player("Owner02 value start", "WR", 10)],
       },
     });
     const target = player("Budget-stranding WR", "WR", 30);
@@ -921,7 +921,7 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.budgetPacingMultiplier).toBeLessThan(1);
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
@@ -949,7 +949,7 @@ describe("auction engine economics", () => {
   });
 
   it("records owner budget trajectory from initial budgets through every sold pick", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 20,
@@ -977,7 +977,7 @@ describe("auction engine economics", () => {
     expect(initialRows).toEqual(expect.arrayContaining([
       expect.objectContaining({
         pick: 0,
-        owner: "Beaton",
+        owner: "Owner01",
         spent: 0,
         initialSpend: 0,
         auctionSpend: 0,
@@ -1030,7 +1030,7 @@ describe("auction engine economics", () => {
   });
 
   it("lets cash-heavy nominators open late depth players above anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 20,
@@ -1044,25 +1044,25 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton anchor", "RB", 14)],
-        Hoody: [player("Hoody anchor", "WR", 18)],
+        Owner01: [player("Owner01 anchor", "RB", 14)],
+        Owner02: [player("Owner02 anchor", "WR", 18)],
       },
     });
     const target = player("Late depth WR", "WR", 3);
-    const sale = resolveAuctionSale(target, ownerStates, [], config, { nominator: "Beaton" });
+    const sale = resolveAuctionSale(target, ownerStates, [], config, { nominator: "Owner01" });
 
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
-    expect(sale.winner).toBe("Beaton");
+    expect(sale.winner).toBe("Owner01");
     expect(beatonBid?.uncappedAmount).toBe(6);
     expect(sale.price).toBe(6);
   });
 
   it("starts spending down leftover dollars before the final two roster slots", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 20,
@@ -1076,17 +1076,17 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton anchor", "RB", 14)],
-        Hoody: [player("Hoody anchor", "WR", 18)],
+        Owner01: [player("Owner01 anchor", "RB", 14)],
+        Owner02: [player("Owner02 anchor", "WR", 18)],
       },
     });
     const target = player("Useful depth TE", "TE", 3);
-    const sale = resolveAuctionSale(target, ownerStates, [], config, { nominator: "Beaton" });
+    const sale = resolveAuctionSale(target, ownerStates, [], config, { nominator: "Owner01" });
 
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(sale.diagnostics.nominatorOpeningBid).toBeGreaterThan(target.price);
     expect(beatonBid?.uncappedAmount).toBe(sale.diagnostics.nominatorOpeningBid);
@@ -1094,7 +1094,7 @@ describe("auction engine economics", () => {
   });
 
   it("damps only the over-anchor portion of elite bids", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1104,12 +1104,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1137,7 +1137,7 @@ describe("auction engine economics", () => {
   });
 
   it("damps quarterback overbids without changing the QB anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1147,12 +1147,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1179,7 +1179,7 @@ describe("auction engine economics", () => {
   });
 
   it("discounts backup quarterback bids after an owner has a starter", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1199,7 +1199,7 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Kept QB", "QB", 20)],
+        Owner01: [player("Kept QB", "QB", 20)],
       },
     });
     const target = player("Backup QB", "QB", 18);
@@ -1208,14 +1208,14 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.rosterNeedMultiplier).toBe(0.5);
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
   it("raises unmet starter bids when a rival can consolidate a scarce anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1228,21 +1228,21 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1,
           depthAggression: 1,
         },
-        PJ: {
+        Owner03: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1289,7 +1289,7 @@ describe("auction engine economics", () => {
       createAuctionOwnerStates({
         config,
         initialRostersByOwner: {
-          Beaton: [player("Bijan Robinson", "RB", 70)],
+          Owner01: [player("Bijan Robinson", "RB", 70)],
         },
       }),
       remainingRunningBacks,
@@ -1301,9 +1301,9 @@ describe("auction engine economics", () => {
     if (!openRoomSale) throw new Error("Expected open room sale to resolve.");
     if (!rivalAnchorSale) throw new Error("Expected rival-anchor sale to resolve.");
 
-    const openHoodyBid = openRoomSale.bids.find(bid => bid.owner === "Hoody");
-    const pressuredHoodyBid = rivalAnchorSale.bids.find(bid => bid.owner === "Hoody");
-    const beatonBid = rivalAnchorSale.bids.find(bid => bid.owner === "Beaton");
+    const openHoodyBid = openRoomSale.bids.find(bid => bid.owner === "Owner02");
+    const pressuredHoodyBid = rivalAnchorSale.bids.find(bid => bid.owner === "Owner02");
+    const beatonBid = rivalAnchorSale.bids.find(bid => bid.owner === "Owner01");
 
     expect(openHoodyBid).toBeDefined();
     expect(pressuredHoodyBid).toBeDefined();
@@ -1314,7 +1314,7 @@ describe("auction engine economics", () => {
   });
 
   it("damps tight end overbids without changing the TE anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1324,12 +1324,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1356,7 +1356,7 @@ describe("auction engine economics", () => {
   });
 
   it("damps wide receiver overbids without changing the WR anchor", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const overrides = {
       owners,
       auctionBudget: 100,
@@ -1366,12 +1366,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1407,7 +1407,7 @@ describe("auction engine economics", () => {
   });
 
   it("can target same-position anchor counts for strategy-specific mock drafts", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1417,14 +1417,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1.35,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1433,7 +1433,7 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionAnchorTargets: {
-        Beaton: {
+        Owner01: {
           RB: 3,
         },
       },
@@ -1442,7 +1442,7 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [
+        Owner01: [
           player("Existing WR anchor 1", "WR", 46),
           player("Existing WR anchor 2", "WR", 45),
         ],
@@ -1453,14 +1453,14 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.buildStyleMultiplier).toBe(1.35);
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(45);
   });
 
   it("suppresses non-target anchor bids while a position-anchor strategy is unmet", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1470,14 +1470,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1.35,
           depthAggression: 0.6,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1486,7 +1486,7 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionAnchorTargets: {
-        Beaton: {
+        Owner01: {
           RB: 3,
         },
       },
@@ -1498,14 +1498,14 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.buildStyleMultiplier).toBe(0.6);
     expect(beatonBid?.uncappedAmount).toBeLessThan(45);
   });
 
   it("caps target-position anchor bids to reserve budget for the remaining core", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1515,14 +1515,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1.5,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1531,12 +1531,12 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionAnchorTargets: {
-        Beaton: {
+        Owner01: {
           RB: 3,
         },
       },
       ownerPositionCoreTargets: {
-        Beaton: {
+        Owner01: {
           RB: [60, 50, 40],
         },
       },
@@ -1545,7 +1545,7 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("First elite RB", "RB", 74)],
+        Owner01: [player("First elite RB", "RB", 74)],
       },
     });
     const sale = resolveAuctionSale(player("Second too-expensive RB", "RB", 74), ownerStates, [], config);
@@ -1553,7 +1553,7 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(73);
     expect(beatonBid?.strategyBudgetMaxBid).toBe(73);
@@ -1561,7 +1561,7 @@ describe("auction engine economics", () => {
   });
 
   it("caps target-position anchor bids by planned core slot", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1571,14 +1571,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1.5,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1587,17 +1587,17 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionAnchorTargets: {
-        Beaton: {
+        Owner01: {
           RB: 3,
         },
       },
       ownerPositionCoreTargets: {
-        Beaton: {
+        Owner01: {
           RB: [60, 50, 40],
         },
       },
       ownerPositionCoreMaxBids: {
-        Beaton: {
+        Owner01: {
           RB: [62, 54, 44],
         },
       },
@@ -1609,7 +1609,7 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(62);
     expect(beatonBid?.strategyBudgetMaxBid).toBe(62);
@@ -1617,7 +1617,7 @@ describe("auction engine economics", () => {
   });
 
   it("caps later position slots so a strategy does not buy expensive depth", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1627,14 +1627,14 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1643,7 +1643,7 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionSlotMaxBids: {
-        Beaton: {
+        Owner01: {
           RB: [62, 54, 44, 8],
         },
       },
@@ -1652,7 +1652,7 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [
+        Owner01: [
           player("RB slot 1", "RB", 58),
           player("RB slot 2", "RB", 53),
           player("RB slot 3", "RB", 39),
@@ -1664,7 +1664,7 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.uncappedAmount).toBeGreaterThan(8);
     expect(beatonBid?.strategyBudgetMaxBid).toBe(8);
@@ -1672,7 +1672,7 @@ describe("auction engine economics", () => {
   });
 
   it("targets named players up to a max bid without forcing the purchase", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1681,14 +1681,14 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1697,7 +1697,7 @@ describe("auction engine economics", () => {
         },
       },
       ownerPlayerTargetMaxBids: {
-        Beaton: {
+        Owner01: {
           "Breece Hall": 35,
         },
       },
@@ -1709,16 +1709,16 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.playerTargetMaxBid).toBe(35);
     expect(beatonBid?.maxBid).toBe(35);
     expect(beatonBid?.amount).toBe(35);
-    expect(sale.winner).toBe("Hoody");
+    expect(sale.winner).toBe("Owner02");
   });
 
   it("lets explicit player targets override general strategy budget rails", () => {
-    const owners: Owner[] = ["Beaton"];
+    const owners: Owner[] = ["Owner01"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1727,7 +1727,7 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1736,12 +1736,12 @@ describe("auction engine economics", () => {
         },
       },
       ownerPositionSlotMaxBids: {
-        Beaton: {
+        Owner01: {
           RB: [8],
         },
       },
       ownerPlayerTargetMaxBids: {
-        Beaton: {
+        Owner01: {
           "Breece Hall": 35,
         },
       },
@@ -1753,17 +1753,17 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.strategyBudgetMaxBid).toBe(8);
     expect(beatonBid?.playerTargetMaxBid).toBe(35);
     expect(beatonBid?.maxBid).toBe(35);
     expect(beatonBid?.amount).toBe(35);
-    expect(sale.winner).toBe("Beaton");
+    expect(sale.winner).toBe("Owner01");
   });
 
   it("preserves a legal roster path for explicit player targets still on the board", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 40,
@@ -1772,14 +1772,14 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
           anchorAggression: 1,
           depthAggression: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1788,7 +1788,7 @@ describe("auction engine economics", () => {
         },
       },
       ownerPlayerTargetMaxBids: {
-        Beaton: {
+        Owner01: {
           "Jadarian Price": 20,
         },
       },
@@ -1797,25 +1797,25 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Beaton Keeper", "QB", 1)],
-        Hoody: [player("Hoody Keeper", "QB", 1)],
+        Owner01: [player("Owner01 Keeper", "QB", 1)],
+        Owner02: [player("Owner02 Keeper", "QB", 1)],
       },
     });
     const target = player("Jadarian Price", "RB", 13);
     const nonTarget = player("Rico Dowdle", "RB", 12);
 
     const nonTargetSale = resolveAuctionSale(nonTarget, ownerStates, [target], config);
-    const beatonNonTargetBid = nonTargetSale?.bids.find(bid => bid.owner === "Beaton");
+    const beatonNonTargetBid = nonTargetSale?.bids.find(bid => bid.owner === "Owner01");
     expect(beatonNonTargetBid).toBeUndefined();
-    expect(nonTargetSale?.winner).toBe("Hoody");
+    expect(nonTargetSale?.winner).toBe("Owner02");
 
     const targetSale = resolveAuctionSale(target, ownerStates, [], config);
-    expect(targetSale?.winner).toBe("Beaton");
+    expect(targetSale?.winner).toBe("Owner01");
     expect(targetSale?.price).toBeLessThanOrEqual(20);
   });
 
   it("discounts backup tight end bids after an owner has a starter", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1835,7 +1835,7 @@ describe("auction engine economics", () => {
     const ownerStates = createAuctionOwnerStates({
       config,
       initialRostersByOwner: {
-        Beaton: [player("Kept TE", "TE", 20)],
+        Owner01: [player("Kept TE", "TE", 20)],
       },
     });
     const target = player("Backup TE", "TE", 18);
@@ -1844,14 +1844,14 @@ describe("auction engine economics", () => {
     expect(sale).toBeDefined();
     if (!sale) throw new Error("Expected sale to resolve.");
 
-    const beatonBid = sale.bids.find(bid => bid.owner === "Beaton");
+    const beatonBid = sale.bids.find(bid => bid.owner === "Owner01");
     expect(beatonBid).toBeDefined();
     expect(beatonBid?.rosterNeedMultiplier).toBe(0.6);
     expect(beatonBid?.uncappedAmount).toBeLessThan(target.price);
   });
 
   it("keeps sub-threshold anchors from crossing the high-price sale boundary", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -1861,12 +1861,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.3,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.3,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -1895,7 +1895,7 @@ describe("auction engine economics", () => {
   });
 
   it("keeps strong WR anchors from crossing into elite sale prices", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1904,22 +1904,22 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerDemandMultipliers: {
-        Beaton: { WR: 1.08 },
-        Hoody: { WR: 1.08 },
-        PJ: { WR: 1.08 },
+        Owner01: { WR: 1.08 },
+        Owner02: { WR: 1.08 },
+        Owner03: { WR: 1.08 },
       },
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
         },
-        PJ: {
+        Owner03: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
@@ -1957,7 +1957,7 @@ describe("auction engine economics", () => {
   });
 
   it("dampens over-anchor bids when sourced context evidence already penalizes the player", () => {
-    const owners: Owner[] = ["Beaton", "Hoody", "PJ"];
+    const owners: Owner[] = ["Owner01", "Owner02", "Owner03"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 200,
@@ -1966,22 +1966,22 @@ describe("auction engine economics", () => {
       starterMinimums: positionAmounts(0),
       flexMinimum: 0,
       ownerDemandMultipliers: {
-        Beaton: { WR: 1.08 },
-        Hoody: { WR: 1.08 },
-        PJ: { WR: 1.08 },
+        Owner01: { WR: 1.08 },
+        Owner02: { WR: 1.08 },
+        Owner03: { WR: 1.08 },
       },
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
         },
-        PJ: {
+        Owner03: {
           priceAggression: 1.12,
           scarcityChase: 1.1,
           replacementPatience: 1,
@@ -2048,7 +2048,7 @@ describe("auction engine economics", () => {
   });
 
   it("keeps near-elite anchors from adding extra $75-plus sales", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -2058,12 +2058,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.25,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.25,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -2094,7 +2094,7 @@ describe("auction engine economics", () => {
   });
 
   it("keeps sub-elite anchors from adding extra $80-plus sales", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -2104,12 +2104,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
@@ -2138,7 +2138,7 @@ describe("auction engine economics", () => {
   });
 
   it("keeps starter-tier anchors from adding extra $40-plus sales", () => {
-    const owners: Owner[] = ["Beaton", "Hoody"];
+    const owners: Owner[] = ["Owner01", "Owner02"];
     const config = buildAuctionConfig({
       owners,
       auctionBudget: 100,
@@ -2148,12 +2148,12 @@ describe("auction engine economics", () => {
       flexMinimum: 0,
       ownerDemandMultipliers: {},
       ownerBehaviors: {
-        Beaton: {
+        Owner01: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,
         },
-        Hoody: {
+        Owner02: {
           priceAggression: 1.2,
           scarcityChase: 1,
           replacementPatience: 1,

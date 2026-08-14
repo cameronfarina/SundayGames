@@ -16,20 +16,20 @@ const auctionSeason = {
   setupStatus: "draft",
   teams: [
     {
-      id: "team-cam",
+      id: "team-owner11",
       leagueSeasonId: "season-2026",
-      ownerId: "owner-cam",
-      ownerDisplayName: "Cam Farina",
-      managerDisplayNames: ["Cameron Farina"],
+      ownerId: "owner-owner11",
+      ownerDisplayName: "Owner11 Manager",
+      managerDisplayNames: ["Example Manager"],
       displayName: "Short King",
       abbreviation: "Mack",
       draftOrderPosition: 1,
     },
     {
-      id: "team-beaton",
+      id: "team-owner01",
       leagueSeasonId: "season-2026",
-      ownerId: "owner-beaton",
-      ownerDisplayName: "Matt Beaton",
+      ownerId: "owner-owner01",
+      ownerDisplayName: "Matt Owner01",
       displayName: "Dart Vader",
       draftOrderPosition: 2,
     },
@@ -78,12 +78,12 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 50",
+      command: "owner11 keeping achane 50",
     });
 
     expect(preview).toMatchObject({
       kind: "preview",
-      team: { id: "team-cam", name: "Short King" },
+      team: { id: "team-owner11", name: "Short King" },
       player: { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
       keeper: { draftType: "auction", auctionCostDollars: 50 },
     });
@@ -97,7 +97,7 @@ describe("season keeper setup", () => {
     });
 
     expect(next.initialRosters).toEqual([{
-      teamId: "team-cam",
+      teamId: "team-owner11",
       playerId: "devon achane",
       playerName: "De'Von Achane",
       position: "RB",
@@ -112,12 +112,12 @@ describe("season keeper setup", () => {
     const first = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 50",
+      command: "owner11 keeping achane 50",
     });
     const correction = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 48",
+      command: "owner11 keeping achane 48",
     });
     if (first.kind !== "preview" || correction.kind !== "preview") throw new Error("Expected previews.");
 
@@ -129,12 +129,12 @@ describe("season keeper setup", () => {
   });
 
   it("rejects assigning one player to two teams", () => {
-    const cam = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "cam keeping achane 50" });
-    const beaton = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "beaton keeping achane 45" });
-    if (cam.kind !== "preview" || beaton.kind !== "preview") throw new Error("Expected previews.");
-    const withCam = applySeasonKeeperCommand({ season: auctionSeason, setup: emptySetup, preview: cam });
+    const owner11 = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "owner11 keeping achane 50" });
+    const owner01 = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "owner01 keeping achane 45" });
+    if (owner11.kind !== "preview" || owner01.kind !== "preview") throw new Error("Expected previews.");
+    const withCam = applySeasonKeeperCommand({ season: auctionSeason, setup: emptySetup, preview: owner11 });
 
-    expect(() => applySeasonKeeperCommand({ season: auctionSeason, setup: withCam, preview: beaton }))
+    expect(() => applySeasonKeeperCommand({ season: auctionSeason, setup: withCam, preview: owner01 }))
       .toThrowError(new SeasonKeeperSetupError(
         "keeper_player_conflict",
         "De'Von Achane is already kept by Short King.",
@@ -145,7 +145,7 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 1",
+      command: "owner11 keeping achane 1",
     });
     if (preview.kind !== "preview") throw new Error("Expected keeper preview.");
     const changedSeason: LeagueSeason = {
@@ -167,7 +167,7 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 9",
+      command: "owner11 keeping achane 9",
     });
     if (preview.kind !== "preview") throw new Error("Expected keeper preview.");
     const constrainedSeason: LeagueSeason = {
@@ -189,12 +189,12 @@ describe("season keeper setup", () => {
     const achane = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 10",
+      command: "owner11 keeping achane 10",
     });
     const puka = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping nacua 10",
+      command: "owner11 keeping nacua 10",
     });
     if (achane.kind !== "preview" || puka.kind !== "preview") throw new Error("Expected previews.");
     const onePlayerSeason: LeagueSeason = {
@@ -222,12 +222,12 @@ describe("season keeper setup", () => {
     const achane = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 10",
+      command: "owner11 keeping achane 10",
     });
     const hall = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping hall 10",
+      command: "owner11 keeping hall 10",
     });
     if (achane.kind !== "preview" || hall.kind !== "preview") throw new Error("Expected previews.");
     const oneRunningBackSeason: LeagueSeason = {
@@ -254,7 +254,7 @@ describe("season keeper setup", () => {
     const dart = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "cam keeping dart 10",
+      command: "owner11 keeping dart 10",
     });
     if (dart.kind !== "preview") throw new Error("Expected preview.");
     const receiverOnlySeason: LeagueSeason = {
@@ -281,13 +281,13 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: auctionSeason,
       playerCatalog: catalog,
-      command: "beaton keeping achane 10",
+      command: "owner01 keeping achane 10",
     });
     if (preview.kind !== "preview") throw new Error("Expected preview.");
     const setup = {
       ...emptySetup,
       initialRosters: [{
-        teamId: "team-cam",
+        teamId: "team-owner11",
         playerName: "De'Von Achane",
         position: "RB" as const,
         price: 10,
@@ -309,7 +309,7 @@ describe("season keeper setup", () => {
         ...auctionSeason.settings,
         draftFormat: "snake",
         auction: undefined,
-        snake: { rounds: 2, order: ["team-cam", "team-beaton"], reversal: "standard" },
+        snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
@@ -319,14 +319,14 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: snakeSeason,
       playerCatalog: catalog,
-      command: "beaton keeping dart 2",
+      command: "owner01 keeping dart 2",
     });
     if (preview.kind !== "preview") throw new Error("Expected keeper preview.");
 
     const next = applySeasonKeeperCommand({ season: snakeSeason, setup: emptySetup, preview });
 
     expect(next.initialRosters[0]).toMatchObject({
-      teamId: "team-beaton",
+      teamId: "team-owner01",
       playerName: "Jaxson Dart",
       price: 0,
       keeperRound: 2,
@@ -340,7 +340,7 @@ describe("season keeper setup", () => {
         ...auctionSeason.settings,
         draftFormat: "snake",
         auction: undefined,
-        snake: { rounds: 3, order: ["team-cam", "team-beaton"], reversal: "standard" },
+        snake: { rounds: 3, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
@@ -350,7 +350,7 @@ describe("season keeper setup", () => {
     const preview = previewSeasonKeeperCommand({
       season: threeRoundSeason,
       playerCatalog: catalog,
-      command: "beaton keeping dart 3",
+      command: "owner01 keeping dart 3",
     });
     if (preview.kind !== "preview") throw new Error("Expected keeper preview.");
     const twoRoundSeason: LeagueSeason = {
@@ -375,7 +375,7 @@ describe("season keeper setup", () => {
         ...auctionSeason.settings,
         draftFormat: "snake",
         auction: undefined,
-        snake: { rounds: 2, order: ["team-cam", "team-beaton"], reversal: "standard" },
+        snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
@@ -385,12 +385,12 @@ describe("season keeper setup", () => {
     const achane = previewSeasonKeeperCommand({
       season: snakeSeason,
       playerCatalog: catalog,
-      command: "cam keeping achane 1",
+      command: "owner11 keeping achane 1",
     });
     const puka = previewSeasonKeeperCommand({
       season: snakeSeason,
       playerCatalog: catalog,
-      command: "cam keeping nacua 1",
+      command: "owner11 keeping nacua 1",
     });
     if (achane.kind !== "preview" || puka.kind !== "preview") throw new Error("Expected previews.");
     const withAchane = applySeasonKeeperCommand({ season: snakeSeason, setup: emptySetup, preview: achane });
@@ -403,11 +403,11 @@ describe("season keeper setup", () => {
   });
 
   it("removes only the requested team's keeper", () => {
-    const preview = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "cam keeping achane 50" });
+    const preview = previewSeasonKeeperCommand({ season: auctionSeason, playerCatalog: catalog, command: "owner11 keeping achane 50" });
     if (preview.kind !== "preview") throw new Error("Expected preview.");
     const withKeeper = applySeasonKeeperCommand({ season: auctionSeason, setup: emptySetup, preview });
 
-    const next = removeSeasonKeeper(withKeeper, { teamId: "team-cam", playerId: "devon achane" });
+    const next = removeSeasonKeeper(withKeeper, { teamId: "team-owner11", playerId: "devon achane" });
 
     expect(listSeasonKeepers(next)).toEqual([]);
   });

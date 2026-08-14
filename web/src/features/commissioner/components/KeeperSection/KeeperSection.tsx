@@ -43,7 +43,7 @@ export function KeeperSection({ keepers, season }: KeeperSectionProps) {
           id="keeper-command"
           label="Keeper command"
           onChange={event => { setCommand(event.target.value); }}
-          placeholder="Hoody keeping Tuten 5"
+          placeholder="Owner02 keeping Tuten 5"
           value={command}
         />
         <Button

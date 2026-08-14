@@ -1,5 +1,5 @@
 import { keepers } from "../config/keepers.js";
-import { leagueConfig, ownerOrder, type Owner } from "../config/league.js";
+import { leagueConfig, ownerOrder, primaryOwner, type Owner } from "../config/league.js";
 import { keeperSummary } from "./keeperModel.js";
 import { loadHistoricalAuctionRecords } from "./data/parseHistoricalBoards.js";
 import {
@@ -176,7 +176,7 @@ const scenarioListOptionValue = (): (typeof scenarioKeys)[number][] => {
 };
 
 const ownerOptionValue = (): Owner => {
-  const value = optionValue("--owner") ?? "Cam";
+  const value = optionValue("--owner") ?? primaryOwner;
   const owner = ownerOrder.find(candidate => candidate === value);
   if (!owner) throw new Error(`Unknown owner "${value}". Use one of: ${ownerOrder.join(", ")}.`);
   return owner;
@@ -237,11 +237,11 @@ const strategyLabPlayerPriceEntriesOptionValue = (
 
 const strategyLabForcedSalesOptionValue = (): ForcedAuctionSale[] | undefined =>
   strategyLabPlayerPriceEntriesOptionValue("--force")
-    ?.map(({ player, price }) => ({ owner: "Cam", player, price }));
+    ?.map(({ player, price }) => ({ owner: primaryOwner, player, price }));
 
 const strategyLabTargetMaxBidsOptionValue = (): StrategyLabTargetMaxBid[] | undefined =>
   strategyLabPlayerPriceEntriesOptionValue("--target")
-    ?.map(({ player, price }) => ({ owner: "Cam", player, maxBid: price }));
+    ?.map(({ player, price }) => ({ owner: primaryOwner, player, maxBid: price }));
 
 const buildAroundPricesFor = (priceSpec: string): number[] => {
   const [rangeText, stepText] = priceSpec.split(":");
@@ -313,7 +313,7 @@ const strategyLabScenariosFromOptions = (): StrategyLabScenario[] | undefined =>
   return [{
     key: "custom",
     label: optionValue("--label") ?? "Custom",
-    question: "Custom Cam strategy-lab path.",
+    question: "Custom primary-team strategy-lab path.",
     strategyKey: strategyLabStrategyOptionValue(),
     forcedSales,
     targetMaxBids,
@@ -461,7 +461,7 @@ const main = async (): Promise<void> => {
         seasonLongProjectionFile: defaultSeasonLongProjectionPath,
         projectionLeagueId: 278452,
         historicalLeagueId: leagueConfig.leagueId,
-        caveat: "Projection scoring is equivalent, but historical auction prices come only from league 214674 boards.",
+        caveat: "Projection scoring is public; historical pricing uses the configured local data source when present.",
         rankBasis: "Weeks 1-4 projected fantasy points positional rank",
       },
       count: rankings.length,

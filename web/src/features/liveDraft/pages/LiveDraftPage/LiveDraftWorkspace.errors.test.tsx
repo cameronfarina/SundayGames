@@ -111,7 +111,7 @@ describe("LiveDraftWorkspace failures", () => {
     />);
 
     const command = screen.getByRole("textbox", { name: "Sale command" });
-    await user.type(command, "Cam drafted Puka Nacua for 62{Enter}");
+    await user.type(command, "Owner11 drafted Puka Nacua for 62{Enter}");
     expect(await screen.findByText("Room request failed")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "End draft" }));
     await waitFor(() => { expect(onAction).toHaveBeenCalledTimes(2); });

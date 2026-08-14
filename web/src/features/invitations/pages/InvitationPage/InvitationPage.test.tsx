@@ -61,7 +61,7 @@ describe("InvitationPage", () => {
   it("opens the league when the account already has a team", async () => {
     useInvitationApi(true);
     invitationServer.use(http.get("/onboarding", () => HttpResponse.json({
-      account: { id: "user-1", email: "cam@example.com" },
+      account: { id: "user-1", email: "user@example.com" },
       leagues: [{ seasonId: "season-1", membership: { teamId: "team-1" } }],
     })));
     renderInvitationPage();

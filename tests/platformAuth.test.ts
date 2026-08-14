@@ -85,19 +85,19 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
 
     const account = await auth.createUser({
-      email: "  Cameron.Farina+Mockd@Example.COM  ",
+      email: "  Example.User+Mockd@Example.COM  ",
       password: "correct horse battery staple",
       now,
     });
 
     expect(account).toEqual({
       id: expect.stringMatching(/^acct_/),
-      email: "cameron.farina+mockd@example.com",
+      email: "example.user+mockd@example.com",
       emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     });
-    expect(normalizeEmail("CAMERON.FARINA+MOCKD@example.com")).toBe(account.email);
+    expect(normalizeEmail("EXAMPLE.USER+MOCKD@example.com")).toBe(account.email);
   });
 
   it("rejects duplicate account emails case-insensitively", async () => {

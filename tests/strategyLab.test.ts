@@ -12,7 +12,7 @@ import { loadEspnWeeksOneToFour } from "../src/projections.js";
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 
 describe("strategy lab", () => {
-  it("compares forced Cam paths with budget pressure and realistic mock outcomes", async () => {
+  it("compares forced Owner11 paths with budget pressure and realistic mock outcomes", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const report = await runStrategyLab({
@@ -31,9 +31,9 @@ describe("strategy lab", () => {
     expect(report.options.runsPerScenario).toBe(2);
     expect(report.scenarios).toHaveLength(defaultStrategyLabScenarios.length);
     expect(report.leaderboard).toHaveLength(defaultStrategyLabScenarios.length);
-    expect(puka75?.forcedSales).toEqual([{ owner: "Cam", player: "Puka Nacua", price: 75 }]);
+    expect(puka75?.forcedSales).toEqual([{ owner: "Owner11", player: "Puka Nacua", price: 75 }]);
     expect(puka75?.camForcedStart.players).toEqual([
-      { player: "De'Von Achane", position: "RB", price: 50, source: "keeper" },
+      { player: "Ashton Jeanty", position: "RB", price: 50, source: "keeper" },
       { player: "Puka Nacua", position: "WR", price: 75, source: "forced-sale" },
     ]);
     expect(puka75?.camForcedStart.budgetRemaining).toBe(75);
@@ -48,7 +48,7 @@ describe("strategy lab", () => {
       ),
     ).toBe(true);
     expect(valueWrCook?.forcedSales).toEqual([]);
-    expect(valueWrCook?.camForcedStart.players.map(player => player.player)).toEqual(["De'Von Achane"]);
+    expect(valueWrCook?.camForcedStart.players.map(player => player.player)).toEqual(["Ashton Jeanty"]);
     expect(valueWrCook?.targetMaxBids.map(target => target.player)).toEqual([
       "DeVonta Smith",
       "Ladd McConkey",
@@ -57,50 +57,50 @@ describe("strategy lab", () => {
     expect(valueWrCook?.targetOutcomes).toHaveLength(3);
   }, 20000);
 
-  it("builds forced Cam scenario sweeps around one player at multiple prices", () => {
+  it("builds forced Owner11 scenario sweeps around one player at multiple prices", () => {
     const scenarios = buildAroundStrategyLabScenarios({
       player: "Omarion Hampton",
       prices: [46, 48, 50],
       strategyKey: "three-rb",
-      targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
-      baseForcedSales: [{ owner: "Cam", player: "Jadarian Price", price: 18 }],
+      targetMaxBids: [{ owner: "Owner11", player: "Zay Flowers", maxBid: 31 }],
+      baseForcedSales: [{ owner: "Owner11", player: "Jadarian Price", price: 18 }],
     });
 
     expect(scenarios).toEqual([
       {
         key: "build-around-omarion-hampton-46",
         label: "Build around Omarion Hampton $46",
-        question: "If Cam builds around Omarion Hampton at $46, what does the rest of the roster become?",
+        question: "If the primary team builds around Omarion Hampton at $46, what does the rest of the roster become?",
         strategyKey: "three-rb",
         forcedSales: [
-          { owner: "Cam", player: "Jadarian Price", price: 18 },
-          { owner: "Cam", player: "Omarion Hampton", price: 46 },
+          { owner: "Owner11", player: "Jadarian Price", price: 18 },
+          { owner: "Owner11", player: "Omarion Hampton", price: 46 },
         ],
-        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        targetMaxBids: [{ owner: "Owner11", player: "Zay Flowers", maxBid: 31 }],
         notes: "Build-around sweep: compare the same anchor at different price points.",
       },
       {
         key: "build-around-omarion-hampton-48",
         label: "Build around Omarion Hampton $48",
-        question: "If Cam builds around Omarion Hampton at $48, what does the rest of the roster become?",
+        question: "If the primary team builds around Omarion Hampton at $48, what does the rest of the roster become?",
         strategyKey: "three-rb",
         forcedSales: [
-          { owner: "Cam", player: "Jadarian Price", price: 18 },
-          { owner: "Cam", player: "Omarion Hampton", price: 48 },
+          { owner: "Owner11", player: "Jadarian Price", price: 18 },
+          { owner: "Owner11", player: "Omarion Hampton", price: 48 },
         ],
-        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        targetMaxBids: [{ owner: "Owner11", player: "Zay Flowers", maxBid: 31 }],
         notes: "Build-around sweep: compare the same anchor at different price points.",
       },
       {
         key: "build-around-omarion-hampton-50",
         label: "Build around Omarion Hampton $50",
-        question: "If Cam builds around Omarion Hampton at $50, what does the rest of the roster become?",
+        question: "If the primary team builds around Omarion Hampton at $50, what does the rest of the roster become?",
         strategyKey: "three-rb",
         forcedSales: [
-          { owner: "Cam", player: "Jadarian Price", price: 18 },
-          { owner: "Cam", player: "Omarion Hampton", price: 50 },
+          { owner: "Owner11", player: "Jadarian Price", price: 18 },
+          { owner: "Owner11", player: "Omarion Hampton", price: 50 },
         ],
-        targetMaxBids: [{ owner: "Cam", player: "Zay Flowers", maxBid: 31 }],
+        targetMaxBids: [{ owner: "Owner11", player: "Zay Flowers", maxBid: 31 }],
         notes: "Build-around sweep: compare the same anchor at different price points.",
       },
     ]);
@@ -118,13 +118,13 @@ describe("strategy lab", () => {
     });
     const markdown = strategyLabReportMarkdown(report);
 
-    expect(markdown).toContain("# Cam Strategy Lab");
+    expect(markdown).toContain("# Primary Team Strategy Lab");
     expect(markdown).toContain("Puka $75");
     expect(markdown).toContain("Budget after forced start");
     expect(markdown).toContain("Best sample");
   }, 20000);
 
-  it("measures capped target outcomes without forcing targets onto Cam's roster", async () => {
+  it("measures capped target outcomes without forcing targets onto Owner11's roster", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const report = await runStrategyLab({
@@ -136,16 +136,16 @@ describe("strategy lab", () => {
       scenarios: [{
         key: "puka-cap-1",
         label: "Puka cap $1",
-        question: "If Cam only wants Puka at a fake-low cap, he should lose him and pivot.",
+        question: "If Owner11 only wants Puka at a fake-low cap, he should lose him and pivot.",
         strategyKey: "balanced",
         forcedSales: [],
-        targetMaxBids: [{ owner: "Cam", player: "Puka Nacua", maxBid: 1 }],
+        targetMaxBids: [{ owner: "Owner11", player: "Puka Nacua", maxBid: 1 }],
       }],
     });
     const scenario = report.scenarios[0];
 
     expect(scenario?.camForcedStart.players).toEqual([
-      { player: "De'Von Achane", position: "RB", price: 50, source: "keeper" },
+      { player: "Ashton Jeanty", position: "RB", price: 50, source: "keeper" },
     ]);
     expect(scenario?.targetOutcomes).toEqual([
       expect.objectContaining({

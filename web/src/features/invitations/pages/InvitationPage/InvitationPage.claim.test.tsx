@@ -12,7 +12,7 @@ import {
   useInvitationApi,
 } from "./InvitationPage.testSupport";
 
-const account = { id: "user-1", email: "cam@example.com" };
+const account = { id: "user-1", email: "user@example.com" };
 const emptyOnboarding = { account, leagues: [] };
 const claimedOnboarding = {
   account,

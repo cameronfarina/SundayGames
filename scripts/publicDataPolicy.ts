@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
+import { privateConfigurationViolations } from "./privateConfigurationPolicy.js";
 
 const privateDataPaths = [
   "data/raw/2023-board.csv",
@@ -19,6 +20,13 @@ const productionDataInputs = [
 const requiredIgnoreRules = [
   ".mockd/private-source-data/",
   "data/private/",
+];
+
+const productionCodeDirectories = [
+  "config",
+  "src",
+  "dist/config",
+  "dist/src",
 ];
 
 const fileExists = async (path: string): Promise<boolean> => {
@@ -41,7 +49,7 @@ const filesBelow = async (directory: string): Promise<string[]> => {
   return nested.flat();
 };
 
-const syntheticOwnerPattern = /^Owner \d{2}$/;
+const syntheticOwnerPattern = /^Owner\d{2}$/;
 
 const ownerLabels = (filePath: string, content: string): string[] => {
   if (extname(filePath) === ".csv") {
@@ -75,6 +83,15 @@ export const auditPublicData = async (root: string): Promise<string[]> => {
     const content = await readFile(path, "utf8");
     if (containsProtectedOwner(path, content)) {
       violations.push(`Historical fixture ${relative(root, path)} contains a protected owner identifier.`);
+    }
+  }
+
+  for (const directory of productionCodeDirectories) {
+    for (const path of await filesBelow(join(root, directory))) {
+      const content = await readFile(path, "utf8");
+      for (const label of privateConfigurationViolations(path, content)) {
+        violations.push(`Production input ${relative(root, path)} contains ${label}.`);
+      }
     }
   }
 

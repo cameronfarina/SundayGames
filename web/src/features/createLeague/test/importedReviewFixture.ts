@@ -13,7 +13,7 @@ export const importedReviewFixture: ImportedReviewFixture = {
   provider: "espn",
   confirmationRequired: true,
   review: {
-    externalLeagueId: "214674",
+    externalLeagueId: "100001",
     season: 2026,
     leagueName: "The League",
     teamCount: 2,
@@ -32,7 +32,7 @@ export const importedReviewFixture: ImportedReviewFixture = {
       {
         externalTeamId: "1",
         displayName: "Short King",
-        abbreviation: "CAM",
+        abbreviation: "OWN11",
         draftOrderPosition: 1,
       },
       {

@@ -20,8 +20,8 @@ export const recommendationReadiness = {
 
 export const postDraftResult = {
   roster: {
-    teamId: "team-cam",
-    ownerId: "cam",
+    teamId: "team-owner11",
+    ownerId: "owner11",
     players: [
       { playerId: "achane", playerName: "De'Von Achane", position: "RB" },
       { playerId: "smith", playerName: "DeVonta Smith", position: "WR" },
@@ -29,12 +29,12 @@ export const postDraftResult = {
   },
   analysis: {
     ownership: {
-      userId: "account-cam",
-      privateOwnerUserId: "account-cam",
+      userId: "account-user",
+      privateOwnerUserId: "account-user",
       leagueId: "league-1",
       seasonId: "season-2026",
-      teamId: "team-cam",
-      ownerId: "cam",
+      teamId: "team-owner11",
+      ownerId: "owner11",
     },
     generatedAt: "2026-08-31T02:00:00.000Z",
     projectionProvenance: {

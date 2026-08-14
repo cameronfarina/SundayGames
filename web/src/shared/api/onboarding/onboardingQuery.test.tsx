@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { onboardingQueryKey, onboardingQueryOptions, useOnboardingQuery } from "./onboardingQuery";
 
 const responseBody = {
-  account: { email: "cam@example.com", id: "account-1" },
+  account: { email: "user@example.com", id: "account-1" },
   leagues: [],
 };
 

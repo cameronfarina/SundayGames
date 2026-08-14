@@ -49,7 +49,7 @@ Load ESPN Weeks 1-4 projections, normalize position IDs, retain ESPN visible ran
 
 Acceptance criteria:
 - Projection records expose ESPN auction value, ESPN rank, model rank, and rank gap.
-- The source league caveat is explicit: projections came from league `278452`, while history is league `214674`; scoring rules are equivalent.
+- The source league caveat is explicit: projections came from league `278452`, while history is league `100001`; scoring rules are equivalent.
 - No historical ownership or price data is taken from ESPN exports.
 
 Status: implemented on `codex/pricing-core`.

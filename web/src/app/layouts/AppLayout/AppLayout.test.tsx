@@ -14,13 +14,13 @@ const renderLayout = () => {
   queryClient.setQueryData(sessionQueryKey(), {
     account: {
       createdAt: "2026-08-13T12:00:00.000Z",
-      email: "cam@example.com",
-      id: "account-cam",
+      email: "user@example.com",
+      id: "account-user",
       updatedAt: "2026-08-13T12:00:00.000Z",
     },
   });
   queryClient.setQueryData(onboardingQueryOptions().queryKey, {
-    account: { email: "cam@example.com", id: "account-cam" },
+    account: { email: "user@example.com", id: "account-user" },
     leagues: [],
   });
 

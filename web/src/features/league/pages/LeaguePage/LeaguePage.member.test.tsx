@@ -93,7 +93,7 @@ describe("LeaguePage member experience", () => {
     renderLeaguePage();
 
     expect(await screen.findByText("No draft time scheduled")).toBeVisible();
-    expect(screen.getByText("Cam")).toBeVisible();
+    expect(screen.getByText("Owner11")).toBeVisible();
     expect(screen.getByText("Round 3 keeper")).toBeVisible();
   });
 

@@ -13,7 +13,7 @@ describe("CLI draft plan report", () => {
         "--silent",
         "teams",
         "--",
-        "--owner=Cam",
+        "--owner=Owner11",
         "--strategy=three-rb",
         "--scenario=expected",
         "--runs=8",
@@ -73,7 +73,7 @@ describe("CLI draft plan report", () => {
       }[];
     };
 
-    expect(report.owner).toBe("Cam");
+    expect(report.owner).toBe("Owner11");
     expect(report.strategy.key).toBe("three-rb");
     expect(report.engineMode).toBe("fast");
     expect(report.runCount).toBe(8);
@@ -107,7 +107,7 @@ describe("CLI draft plan report", () => {
     ]));
     expect(report.candidates.length).toBeGreaterThan(0);
     for (const candidate of report.candidates) {
-      expect(candidate.owner).toBe("Cam");
+      expect(candidate.owner).toBe("Owner11");
       expect(candidate.rbCore).toHaveLength(3);
       expect(candidate.rbCore[0]?.price).toBeGreaterThanOrEqual(50);
       expect(candidate.rbCore[1]?.price).toBeGreaterThanOrEqual(35);
@@ -133,7 +133,7 @@ describe("CLI draft plan report", () => {
         "--silent",
         "teams",
         "--",
-        "--owner=Cam",
+        "--owner=Owner11",
         "--strategy=three-rb",
         "--scenario=expected",
         "--runs=4",
@@ -154,7 +154,7 @@ describe("CLI draft plan report", () => {
     expect(lines.length).toBeGreaterThan(1);
 
     const firstRow = lines[1]?.split(",") ?? [];
-    expect(firstRow[3]).toBe("Cam");
+    expect(firstRow[3]).toBe("Owner11");
     expect(firstRow[5]).toBe("fast");
     expect(Number(firstRow[6])).toBeLessThanOrEqual(200);
     expect(Number(firstRow[12])).toBeGreaterThanOrEqual(50);
@@ -171,7 +171,7 @@ describe("CLI draft plan report", () => {
         "--silent",
         "teams",
         "--",
-        "--owner=Cam",
+        "--owner=Owner11",
         "--strategy=three-rb",
         "--scenario=expected",
         "--runs=8",

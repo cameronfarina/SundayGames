@@ -59,7 +59,7 @@ test("league setup follows the complete manual workflow", async ({ page }) => {
   const lastTeam = dialog.getByRole("group", { name: "Team 4" });
   await lastTeam.getByRole("textbox", { name: "Team name" }).fill("Team Four");
   await lastTeam.getByRole("textbox", { name: "Managers" }).fill("Cam, Mackie");
-  await lastTeam.getByRole("textbox", { name: "Abbreviation" }).fill("CAM");
+  await lastTeam.getByRole("textbox", { name: "Abbreviation" }).fill("OWN11");
   await lastTeam.scrollIntoViewIfNeeded();
   await expect(dialog.getByRole("button", { name: "Back" })).toBeInViewport();
   await expect(finish).toBeInViewport();

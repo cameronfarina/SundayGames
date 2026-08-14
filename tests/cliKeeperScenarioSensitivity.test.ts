@@ -58,25 +58,25 @@ describe("CLI keeper scenario sensitivity", () => {
     expect(report.summary.reportedPlayerCount).toBe(60);
     expect(report.summary.truncated).toBe(true);
     expect(report.summary.keeperRemovedCount).toBeGreaterThan(report.summary.availabilityChangeCount);
-    expect(report.summary.unpricedKeeperCount).toBeGreaterThan(0);
+    expect(report.summary.unpricedKeeperCount).toBe(0);
     expect(report.summary.availabilityChangeCount).toBeGreaterThan(0);
-    expect(report.summary.keeperRemovalChangeCount).toBeGreaterThan(report.summary.availabilityChangeCount);
+    expect(report.summary.keeperRemovalChangeCount).toBe(report.summary.availabilityChangeCount);
     expect(report.rows.some(row =>
-      row.player === "Jaxon Smith-Njigba" &&
+      row.player === "Justin Jefferson" &&
       row.availabilityChanged &&
       row.scenarios.expected.available === false &&
       row.scenarios.expected.unavailableReason?.includes("assumed keeper"),
     )).toBe(true);
     expect(report.rows.some(row =>
-      row.player === "Pat Freiermuth" &&
-      row.pricedPool === false &&
+      row.player === "Mark Andrews" &&
+      row.pricedPool &&
       row.keeperRemoved &&
       row.keeperRemovalChanged &&
-      !row.availabilityChanged &&
+      row.availabilityChanged &&
       row.priceSpread === null &&
       row.keeperRemovalScenarios.join(",") === "expected,highRetention" &&
-      row.scenarios.confirmedOnly.unavailableReason === "outside priced auction pool" &&
-      row.scenarios.expected.unavailableReason === "Russ assumed keeper at $2",
+      row.scenarios.confirmedOnly.available &&
+      row.scenarios.expected.unavailableReason === "Owner10 assumed keeper at $2",
     )).toBe(true);
   }, 15000);
 
@@ -98,9 +98,9 @@ describe("CLI keeper scenario sensitivity", () => {
     );
 
     expect(stdout.split("\n")[0]).toBe("rank,player,position,base_price,confirmed_only_available,confirmed_only_price,confirmed_only_factor,expected_available,expected_price,expected_factor,high_retention_available,high_retention_price,high_retention_factor,price_spread,expected_vs_confirmed_delta,high_retention_vs_expected_delta,keeper_removed,keeper_removal_scenarios,keeper_removal_changed,availability_changed,unavailable_scenarios,unavailable_reasons");
-    expect(stdout).toContain("Jaxon Smith-Njigba");
-    expect(stdout).toContain("expected/highRetention: Seth assumed keeper at $42");
-    expect(stdout).toContain("Pat Freiermuth");
-    expect(stdout).toContain("confirmedOnly: outside priced auction pool; expected/highRetention: Russ assumed keeper at $2");
+    expect(stdout).toContain("Justin Jefferson");
+    expect(stdout).toContain("expected/highRetention: Owner04 assumed keeper at $42");
+    expect(stdout).toContain("Mark Andrews");
+    expect(stdout).toContain("expected/highRetention: Owner10 assumed keeper at $2");
   }, 15000);
 });

@@ -416,7 +416,7 @@ Required rehearsal before domain cutover:
 6. Take a manual backup of that source database and record its backup ID.
 7. Restore that backup into a second isolated database.
 8. Run the same SQL against the restored database. Counts must match the source counts unless the difference is explained.
-9. Start web against the restored database. Log in with a restored test account, such as `cam@mockd.local` / `mockd local e2e password` from `platform:seed:e2e`, open the restored room, and read/download the export artifact.
+9. Start web against the restored database. Log in with a restored test account, such as `commissioner@mockd.local` / `mockd local e2e password` from `platform:seed:e2e`, open the restored room, and read/download the export artifact.
 10. Record backup ID, restore target, started/finished timestamps, verification counts, browser result, owner, and any data loss.
 
 Verification SQL:

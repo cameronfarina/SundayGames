@@ -9,9 +9,9 @@ import {
 describe("platform league setup imports", () => {
   it("parses comma, pipe, and quoted rows into normalized team setup records", () => {
     const result = parseLeagueSetupImport([
-      "Cam, Cam's Team",
-      "Seth | ",
-      "\"Sam, Jr.\", Sam's Squad",
+      "Owner11, Owner11's Team",
+      "Owner04 | ",
+      "\"Owner12, Jr.\", Owner12's Squad",
     ].join("\n"));
 
     expect(result.status).toBe("ready");
@@ -19,20 +19,20 @@ describe("platform league setup imports", () => {
     expect(result.records).toEqual([
       {
         sourceRowNumber: 1,
-        ownerDisplayName: "Cam",
-        teamDisplayName: "Cam's Team",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Owner11's Team",
         role: "member",
       },
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Seth",
-        teamDisplayName: "Seth",
+        ownerDisplayName: "Owner04",
+        teamDisplayName: "Owner04",
         role: "member",
       },
       {
         sourceRowNumber: 3,
-        ownerDisplayName: "Sam, Jr.",
-        teamDisplayName: "Sam's Squad",
+        ownerDisplayName: "Owner12, Jr.",
+        teamDisplayName: "Owner12's Squad",
         role: "member",
       },
     ]);
@@ -41,7 +41,7 @@ describe("platform league setup imports", () => {
   it("parses CSV headers with email and role columns", () => {
     const result = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Cam,Cam's Team,cam@example.com,owner",
+      "Owner11,Owner11's Team,owner11@example.com,owner",
       "Alex,,alex@example.com,observer",
     ].join("\n"), {
       expectedTeamCount: 2,
@@ -51,9 +51,9 @@ describe("platform league setup imports", () => {
     expect(result.records).toEqual([
       {
         sourceRowNumber: 2,
-        ownerDisplayName: "Cam",
-        teamDisplayName: "Cam's Team",
-        email: "cam@example.com",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Owner11's Team",
+        email: "owner11@example.com",
         role: "owner",
       },
       {
@@ -69,9 +69,9 @@ describe("platform league setup imports", () => {
   it("blocks expected count mismatches, blank owners, duplicates, and invalid roles", () => {
     const result = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Cam,Cam's Team,cam@example.com,owner",
-      " cam ,Another Team,cam-alt@example.com,member",
-      "Seth,Cam's Team,seth@example.com,coach",
+      "Owner11,Owner11's Team,owner11@example.com,owner",
+      " owner11 ,Another Team,owner11-alt@example.com,member",
+      "Owner04,Owner11's Team,owner04@example.com,coach",
       ",No Owner,no-owner@example.com,member",
     ].join("\n"), {
       expectedTeamCount: 5,
@@ -119,8 +119,8 @@ describe("platform league setup imports", () => {
   it("returns row-level blockers for malformed pasted setup rows", () => {
     const result = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Cam,Cam's Team,cam@example.com,owner",
-      "\"Seth,Seth's Team,seth@example.com,member",
+      "Owner11,Owner11's Team,owner11@example.com,owner",
+      "\"Owner04,Owner04's Team,owner04@example.com,member",
     ].join("\n"), {
       expectedTeamCount: 2,
     });
@@ -163,9 +163,9 @@ describe("platform league setup imports", () => {
     };
     const parsed = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Cam,Cam's Team,cam@example.com,owner",
-      "Seth,Seth's Champs,seth@example.com,member",
-      "Beaton,,beaton@example.com,admin",
+      "Owner11,Owner11's Team,owner11@example.com,owner",
+      "Owner04,Owner04's Champs,owner04@example.com,member",
+      "Owner01,,owner01@example.com,admin",
     ].join("\n"), {
       expectedTeamCount: 3,
     });
@@ -177,13 +177,13 @@ describe("platform league setup imports", () => {
     expect(applied.season.settings).not.toBe(customDraftOrderSeason.settings);
     expect(applied.season.draft).toEqual(customDraftOrderSeason.draft);
     expect(applied.season.teams.map(team => team.id)).toEqual([
-      `${season.id}-team-01-cam`,
-      `${season.id}-team-02-seth`,
+      `${season.id}-team-01-owner11`,
+      `${season.id}-team-02-owner04`,
       customDraftOrderSeason.teams[0]!.id,
     ]);
     expect(applied.season.teams.map(team => team.ownerId)).toEqual([
-      "owner-cam",
-      "owner-seth",
+      "owner-owner11",
+      "owner-owner04",
       customDraftOrderSeason.teams[0]!.ownerId,
     ]);
     expect(applied.season.teams.map(team => team.draftOrderPosition)).toEqual([3, 1, 2]);
@@ -191,36 +191,36 @@ describe("platform league setup imports", () => {
       ownerDisplayName: team.ownerDisplayName,
       displayName: team.displayName,
     }))).toEqual([
-      { ownerDisplayName: "Cam", displayName: "Cam's Team" },
-      { ownerDisplayName: "Seth", displayName: "Seth's Champs" },
-      { ownerDisplayName: "Beaton", displayName: "Beaton" },
+      { ownerDisplayName: "Owner11", displayName: "Owner11's Team" },
+      { ownerDisplayName: "Owner04", displayName: "Owner04's Champs" },
+      { ownerDisplayName: "Owner01", displayName: "Owner01" },
     ]);
     expect(applied.memberships).toEqual([
       {
         leagueId: customDraftOrderSeason.leagueId,
         ownerId: applied.season.teams[0]!.ownerId,
         teamId: applied.season.teams[0]!.id,
-        ownerDisplayName: "Cam",
-        teamDisplayName: "Cam's Team",
-        email: "cam@example.com",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Owner11's Team",
+        email: "owner11@example.com",
         role: "owner",
       },
       {
         leagueId: customDraftOrderSeason.leagueId,
         ownerId: applied.season.teams[1]!.ownerId,
         teamId: applied.season.teams[1]!.id,
-        ownerDisplayName: "Seth",
-        teamDisplayName: "Seth's Champs",
-        email: "seth@example.com",
+        ownerDisplayName: "Owner04",
+        teamDisplayName: "Owner04's Champs",
+        email: "owner04@example.com",
         role: "member",
       },
       {
         leagueId: customDraftOrderSeason.leagueId,
         ownerId: applied.season.teams[2]!.ownerId,
         teamId: applied.season.teams[2]!.id,
-        ownerDisplayName: "Beaton",
-        teamDisplayName: "Beaton",
-        email: "beaton@example.com",
+        ownerDisplayName: "Owner01",
+        teamDisplayName: "Owner01",
+        email: "owner01@example.com",
         role: "admin",
       },
     ]);
@@ -238,9 +238,9 @@ describe("platform league setup imports", () => {
     const existingByOwner = new Map(season.teams.map(team => [team.ownerDisplayName, team]));
     const parsed = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Hoody,Hoody's Champs,hoody@example.com,member",
-      "PJ,PJ Ballers,pj@example.com,admin",
-      "Beaton,Beaton's Team,beaton@example.com,owner",
+      "Owner02,Owner02's Champs,owner02@example.com,member",
+      "Owner03,Owner03 Ballers,owner03@example.com,admin",
+      "Owner01,Owner01's Team,owner01@example.com,owner",
     ].join("\n"), {
       expectedTeamCount: 3,
     });
@@ -251,7 +251,7 @@ describe("platform league setup imports", () => {
       ownerDisplayName: team.ownerDisplayName,
       id: team.id,
       ownerId: team.ownerId,
-    }))).toEqual(["Hoody", "PJ", "Beaton"].map(ownerDisplayName => {
+    }))).toEqual(["Owner02", "Owner03", "Owner01"].map(ownerDisplayName => {
       const existing = existingByOwner.get(ownerDisplayName);
       if (existing === undefined) throw new Error(`Missing ${ownerDisplayName} team fixture.`);
 
@@ -268,7 +268,7 @@ describe("platform league setup imports", () => {
       ownerDisplayName: membership.ownerDisplayName,
       teamId: membership.teamId,
       ownerId: membership.ownerId,
-    }))).toEqual(["Hoody", "PJ", "Beaton"].map(ownerDisplayName => {
+    }))).toEqual(["Owner02", "Owner03", "Owner01"].map(ownerDisplayName => {
       const existing = existingByOwner.get(ownerDisplayName);
       if (existing === undefined) throw new Error(`Missing ${ownerDisplayName} team fixture.`);
 
@@ -291,17 +291,17 @@ describe("platform league setup imports", () => {
     });
     const parsed = parseLeagueSetupImport([
       "owner,team,email,role",
-      "Hoody,Hoody's Champs,hoody@example.com,member",
+      "Owner02,Owner02's Champs,owner02@example.com,member",
       "Alex,Expansion Team,alex@example.com,member",
     ].join("\n"), {
       expectedTeamCount: 2,
     });
 
     const applied = applyLeagueSetupImportToSeason(season, parsed.records);
-    const existingHoodyTeam = season.teams.find(team => team.ownerDisplayName === "Hoody");
+    const existingHoodyTeam = season.teams.find(team => team.ownerDisplayName === "Owner02");
     const newAlexTeam = applied.season.teams.find(team => team.ownerDisplayName === "Alex");
     if (existingHoodyTeam === undefined || newAlexTeam === undefined) {
-      throw new Error("Expected Hoody and Alex team fixtures.");
+      throw new Error("Expected Owner02 and Alex team fixtures.");
     }
 
     expect(newAlexTeam).toMatchObject({
@@ -311,7 +311,7 @@ describe("platform league setup imports", () => {
     });
     expect(season.teams.map(team => team.id)).not.toContain(newAlexTeam.id);
     expect(applied.memberships).toContainEqual(expect.objectContaining({
-      ownerDisplayName: "Hoody",
+      ownerDisplayName: "Owner02",
       teamId: existingHoodyTeam.id,
       ownerId: existingHoodyTeam.ownerId,
     }));

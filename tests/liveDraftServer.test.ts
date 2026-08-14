@@ -28,11 +28,11 @@ const createLiveDraftServer = (
 
 type TestServer = Awaited<ReturnType<typeof createLiveDraftServer>>["server"];
 
-const mockSaleCommand = "Beaton drafted Jahmyr Gibbs for 74";
-const realSaleCommand = "Jakub drafted Christian McCaffrey for 80";
+const mockSaleCommand = "Owner01 drafted Jahmyr Gibbs for 74";
+const realSaleCommand = "Owner05 drafted Christian McCaffrey for 80";
 const mockAiSaleCommands = [
   mockSaleCommand,
-  "Mello drafted Puka Nacua for 74",
+  "Owner14 drafted Puka Nacua for 74",
 ] as const;
 
 const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiveMockDraft"]> = {
@@ -54,21 +54,21 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
         status: "cam-decision",
         player: options.nominatedPlayer ?? "Breece Hall",
         currentBid: options.commands.length >= 2 ? 41 : 40,
-        currentBidOwner: "Chip",
+        currentBidOwner: "Owner07",
         nextCamBid: options.commands.length >= 2 ? 42 : 41,
         openingBid,
         feed: [
-          { type: "nomination", text: `Cam nominated ${options.nominatedPlayer ?? "Breece Hall"} for $${openingBid}` },
+          { type: "nomination", text: `Owner11 nominated ${options.nominatedPlayer ?? "Breece Hall"} for $${openingBid}` },
           {
             type: "bid",
-            owner: "Chip",
+            owner: "Owner07",
             amount: options.commands.length >= 2 ? 41 : 40,
-            text: `Chip bid $${options.commands.length >= 2 ? 41 : 40}`,
+            text: `Owner07 bid $${options.commands.length >= 2 ? 41 : 40}`,
           },
         ],
       },
       camDecision: options.nominatedPlayer || options.commands.length >= 2
-        ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Chip" }
+        ? { recommendedBid: 42, maxBid: 44, topAiBid: 41, topAiBidOwner: "Owner07" }
         : undefined,
       topTargets: [{ name: "Breece Hall" }],
       commandCount: options.commands.length,
@@ -94,19 +94,19 @@ const interactiveMockDraft: NonNullable<CreateLiveDraftServerOptions["interactiv
             auction: {
               ...draft.auction,
               currentBid: 43,
-              currentBidOwner: "Chip",
+              currentBidOwner: "Owner07",
               nextCamBid: 44,
               feed: [
                 ...(draft.auction.feed ?? []),
-                { type: "bid", owner: "Cam", amount: 42, text: "Cam bid $42" },
-                { type: "bid", owner: "Chip", amount: 43, text: "Chip bid $43" },
+                { type: "bid", owner: "Owner11", amount: 42, text: "Owner11 bid $42" },
+                { type: "bid", owner: "Owner07", amount: 43, text: "Owner07 bid $43" },
               ],
             },
-            camDecision: { recommendedBid: 44, maxBid: 44, topAiBid: 44, topAiBidOwner: "Chip" },
+            camDecision: { recommendedBid: 44, maxBid: 44, topAiBid: 44, topAiBidOwner: "Owner07" },
           },
         };
       }
-      return { command: `Cam drafted ${nominatedPlayer} for 42` };
+      return { command: `Owner11 drafted ${nominatedPlayer} for 42` };
     }
     if (action !== "advance" && action !== "pass") throw new Error(`Unexpected test action: ${action}`);
 
@@ -219,7 +219,7 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         minimumSalePrice: 76,
         maximumSalePrice: 78,
       }, {
-        name: "Cam RB starter high",
+        name: "Owner11 RB starter high",
         position: "RB",
         draftedCount: runCount,
         draftedRate: 1,
@@ -228,7 +228,7 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         minimumSalePrice: 60,
         maximumSalePrice: 60,
       }, {
-        name: "Cam RB flex",
+        name: "Owner11 RB flex",
         position: "RB",
         draftedCount: runCount,
         draftedRate: 1,
@@ -238,7 +238,7 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         maximumSalePrice: 25,
       }],
       owners: [{
-        owner: "Cam",
+        owner: "Owner11",
         runCount,
         invalidRosterCount: 0,
         averageSpend: 199,
@@ -250,7 +250,7 @@ const mockBatchRunner: NonNullable<CreateLiveDraftServerOptions["mockBatchRunner
         averagePositionSpend: { QB: 2, RB: 150, WR: 40, TE: 5, K: 1, DST: 1 },
       }],
       ownerPlayerExposure: [{
-        owner: "Cam",
+        owner: "Owner11",
         player: "Jahmyr Gibbs",
         position: "RB",
         draftedCount: runCount,
@@ -352,7 +352,7 @@ const collectJsonResponse = async (
 const waitForMockBatchJob = async (
   baseUrl: string,
   jobId: string,
-  owner = "Cam",
+  owner = "Owner11",
   draftSession = "live",
 ) => {
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -684,7 +684,7 @@ describe("live draft server", () => {
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
-      const openingCommand = "Cam drafted Jahmyr Gibbs for 80";
+      const openingCommand = "Owner11 drafted Jahmyr Gibbs for 80";
 
       const setup = await post(baseUrl, "/api/events", {
         mode: "interactive-mock",
@@ -782,12 +782,12 @@ describe("live draft server", () => {
       expect(batch.data.status).toMatch(/queued|running|complete/);
       expect(batch.data.totalRuns).toBe(3);
 
-      const completedBatch = await waitForMockBatchJob(baseUrl, batch.data.jobId, "Cam", "practice-3rb");
+      const completedBatch = await waitForMockBatchJob(baseUrl, batch.data.jobId, "Owner11", "practice-3rb");
       expect(completedBatch.status).toBe("complete");
       expect(completedBatch.percent).toBe(100);
       expect(completedBatch.result.mode).toBe("batch-mock");
       expect(completedBatch.result.summary.runCount).toBe(3);
-      expect(completedBatch.result.cam.owner).toBe("Cam");
+      expect(completedBatch.result.cam.owner).toBe("Owner11");
       expect(completedBatch.result.camTopExposures).toEqual([
         expect.objectContaining({ player: "Jahmyr Gibbs", draftedRate: 1 }),
       ]);
@@ -829,7 +829,7 @@ describe("live draft server", () => {
         runs: 1,
         seedPrefix: "wrong-audit-range",
       });
-      await waitForMockBatchJob(baseUrl, wrongStrategyBatch.data.jobId, "Cam", "practice-3rb");
+      await waitForMockBatchJob(baseUrl, wrongStrategyBatch.data.jobId, "Owner11", "practice-3rb");
 
       const sale = await post(baseUrl, "/api/mock/advance", {
         draftSession: "practice-3rb",
@@ -847,7 +847,7 @@ describe("live draft server", () => {
         runs: 1,
         seedPrefix: "matching-audit-range",
       });
-      await waitForMockBatchJob(baseUrl, matchingStrategyBatch.data.jobId, "Cam", "practice-3rb");
+      await waitForMockBatchJob(baseUrl, matchingStrategyBatch.data.jobId, "Owner11", "practice-3rb");
 
       const scopedState = await fetch(`${baseUrl}/api/state?draftSession=practice-3rb&mode=interactive-mock&strategy=three-rb`)
         .then(response => response.json());
@@ -1037,7 +1037,7 @@ describe("live draft server", () => {
         draftSession: "scratch:late-room",
         mode: "real",
         strategyKey: "three-rb",
-        command: "Seth drafted Derrick Henry for 62",
+        command: "Owner04 drafted Derrick Henry for 62",
       });
 
       expect(liveSale.status).toBe(200);
@@ -1069,7 +1069,7 @@ describe("live draft server", () => {
 
       expect(scratchState.activeDraftSession).toMatchObject({ key: "scratch:late-room", label: "Scratch: late-room" });
       expect(scratchState.events.map((event: { input: string }) => event.input)).toEqual([
-        "Seth drafted Derrick Henry for 62",
+        "Owner04 drafted Derrick Henry for 62",
       ]);
       expect(scratchState.session.paths.directory).toBe(join(directory, "scratch", "late-room"));
 
@@ -1109,7 +1109,7 @@ describe("live draft server", () => {
               draftSession,
               mode: "real",
               strategyKey: "three-rb",
-              command: "Seth drafted Derrick Henry for 62",
+              command: "Owner04 drafted Derrick Henry for 62",
             }),
           });
 
@@ -1270,7 +1270,7 @@ describe("live draft server", () => {
         mode: "real",
         strategyKey: "three-rb",
         commands: [
-          "cam drafted brown for 12",
+          "owner11 drafted brown for 12",
           "nobody drafted Jahmyr Gibbs for 1",
         ],
       });
@@ -1287,7 +1287,7 @@ describe("live draft server", () => {
         expect.objectContaining({
           index: 1,
           type: "ambiguous-player",
-          input: "cam drafted brown for 12",
+          input: "owner11 drafted brown for 12",
           matchOptions: expect.arrayContaining(["A.J. Brown", "Chase Brown"]),
         }),
         expect.objectContaining({
@@ -1302,7 +1302,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("previews Cam-selected mock nominations before appending the sale command", async () => {
+  it("previews Owner11-selected mock nominations before appending the sale command", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -1316,7 +1316,7 @@ describe("live draft server", () => {
       const nominationPreview = await post(baseUrl, "/api/mock/advance", {
         draftSession: "practice-3rb",
         strategyKey: "three-rb",
-        seed: "server-cam-nomination",
+        seed: "server-owner11-nomination",
         action: "cam-nominate",
         nominatedPlayer: "Breece Hall",
         nominatedPrice: 9,
@@ -1325,26 +1325,26 @@ describe("live draft server", () => {
       expect(nominationPreview.data.session.commandCount).toBe(0);
       expect(nominationPreview.data.mockDraft.nominatedPlayer).toBe("Breece Hall");
       expect(nominationPreview.data.mockDraft.auction.openingBid).toBe(9);
-      expect(nominationPreview.data.mockDraft.auction.feed[0].text).toBe("Cam nominated Breece Hall for $9");
+      expect(nominationPreview.data.mockDraft.auction.feed[0].text).toBe("Owner11 nominated Breece Hall for $9");
 
       const camBid = await post(baseUrl, "/api/mock/advance", {
         draftSession: "practice-3rb",
         strategyKey: "three-rb",
-        seed: "server-cam-nomination",
+        seed: "server-owner11-nomination",
         action: "cam-bid",
         nominatedPlayer: "Breece Hall",
       });
       expect(camBid.status).toBe(200);
       expect(camBid.data.session.commandCount).toBe(1);
       expect(camBid.data.events.map((event: { input: string }) => event.input)).toEqual([
-        "Cam drafted Breece Hall for 42",
+        "Owner11 drafted Breece Hall for 42",
       ]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
   });
 
-  it("returns an updated mock auction when AI keeps bidding after Cam raises", async () => {
+  it("returns an updated mock auction when AI keeps bidding after Owner11 raises", async () => {
     const directory = await tempSessionDirectory();
     try {
       const app = await createLiveDraftServer({
@@ -1364,8 +1364,8 @@ describe("live draft server", () => {
         mockAuction: {
           currentBid: 41,
           feed: [
-            { type: "nomination", text: "Cam nominated Breece Hall for $37" },
-            { type: "bid", owner: "Chip", amount: 41, text: "Chip bid $41" },
+            { type: "nomination", text: "Owner11 nominated Breece Hall for $37" },
+            { type: "bid", owner: "Owner07", amount: 41, text: "Owner07 bid $41" },
           ],
         },
       });
@@ -1375,14 +1375,14 @@ describe("live draft server", () => {
       expect(aiRaise.data.events).toHaveLength(0);
       expect(aiRaise.data.mockDraft.auction).toMatchObject({
         currentBid: 43,
-        currentBidOwner: "Chip",
+        currentBidOwner: "Owner07",
         nextCamBid: 44,
       });
       expect(aiRaise.data.mockDraft.auction.feed.map((event: { text: string }) => event.text)).toEqual([
-        "Cam nominated Breece Hall for $37",
-        "Chip bid $41",
-        "Cam bid $42",
-        "Chip bid $43",
+        "Owner11 nominated Breece Hall for $37",
+        "Owner07 bid $41",
+        "Owner11 bid $42",
+        "Owner07 bid $43",
       ]);
 
       const camWin = await post(baseUrl, "/api/mock/advance", {
@@ -1396,7 +1396,7 @@ describe("live draft server", () => {
       expect(camWin.status).toBe(200);
       expect(camWin.data.session.commandCount).toBe(1);
       expect(camWin.data.events.map((event: { input: string }) => event.input)).toEqual([
-        "Cam drafted Breece Hall for 42",
+        "Owner11 drafted Breece Hall for 42",
       ]);
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -1487,7 +1487,7 @@ describe("live draft server", () => {
       }));
 
       const latest = await fetch(
-        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Acompletion-results&owner=Cam`,
+        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Acompletion-results&owner=Owner11`,
       ).then(response => response.json());
       expect(latest.jobId).toBe(complete.data.mockBatchJob.jobId);
       expect(latest.result.runs[0].label).toBe("Completed mock draft");
@@ -1508,13 +1508,13 @@ describe("live draft server", () => {
       const baseUrl = await listen(app.server);
 
       const response = await fetch(
-        `${baseUrl}/api/mock/state?draftSession=practice-3rb&strategy=three-rb&owner=Hoody`,
+        `${baseUrl}/api/mock/state?draftSession=practice-3rb&strategy=three-rb&owner=Owner02`,
       );
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.watchOwner.owner).toBe("Hoody");
-      expect(data.mockDraft.watchOwner).toBe("Hoody");
+      expect(data.watchOwner.owner).toBe("Owner02");
+      expect(data.mockDraft.watchOwner).toBe("Owner02");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -1532,35 +1532,35 @@ describe("live draft server", () => {
       const baseUrl = await listen(app.server);
 
       const camJob = await post(baseUrl, "/api/mock-batch", {
-        owner: "Cam",
-        draftSession: "scratch:cam-results",
+        owner: "Owner11",
+        draftSession: "scratch:owner11-results",
         strategyKey: "three-rb",
         runs: 1,
-        seedPrefix: "cam-scoped-results",
+        seedPrefix: "owner11-scoped-results",
       });
-      await waitForMockBatchJob(baseUrl, camJob.data.jobId, "Cam", "scratch:cam-results");
+      await waitForMockBatchJob(baseUrl, camJob.data.jobId, "Owner11", "scratch:owner11-results");
 
       const hoodyJob = await post(baseUrl, "/api/mock-batch", {
-        owner: "Hoody",
-        draftSession: "scratch:hoody-results",
+        owner: "Owner02",
+        draftSession: "scratch:owner02-results",
         strategyKey: "wr-heavy",
         runs: 1,
-        seedPrefix: "hoody-scoped-results",
+        seedPrefix: "owner02-scoped-results",
       });
-      await waitForMockBatchJob(baseUrl, hoodyJob.data.jobId, "Hoody", "scratch:hoody-results");
+      await waitForMockBatchJob(baseUrl, hoodyJob.data.jobId, "Owner02", "scratch:owner02-results");
 
       const camLatestResponse = await fetch(
-        `${baseUrl}/api/mock-batch/latest?owner=Cam&draftSession=scratch%3Acam-results`,
+        `${baseUrl}/api/mock-batch/latest?owner=Owner11&draftSession=scratch%3Aowner11-results`,
       );
       const camLatest = await camLatestResponse.json();
       const wrongOwnerResponse = await fetch(
-        `${baseUrl}/api/mock-batch/${encodeURIComponent(camJob.data.jobId)}?owner=Hoody&draftSession=scratch%3Acam-results`,
+        `${baseUrl}/api/mock-batch/${encodeURIComponent(camJob.data.jobId)}?owner=Owner02&draftSession=scratch%3Aowner11-results`,
       );
 
       expect(camLatestResponse.status).toBe(200);
       expect(camLatest.jobId).toBe(camJob.data.jobId);
-      expect(camLatest.watchOwner).toBe("Cam");
-      expect(camLatest.draftSessionKey).toBe("scratch:cam-results");
+      expect(camLatest.watchOwner).toBe("Owner11");
+      expect(camLatest.draftSessionKey).toBe("scratch:owner11-results");
       expect(wrongOwnerResponse.status).toBe(404);
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -1591,7 +1591,7 @@ describe("live draft server", () => {
         interactiveMockDraft,
         mockBatchRunner,
         mockBatchResourceManager: manager,
-        mockBatchResourceScope: { accountId: "account-cam", seasonId: "season-2026" },
+        mockBatchResourceScope: { accountId: "account-owner11", seasonId: "season-2026" },
       });
       servers.push(app.server);
       const baseUrl = await listen(app.server);
@@ -1635,25 +1635,25 @@ describe("live draft server", () => {
         strategyKey: "three-rb",
         runs: 1,
       });
-      await waitForMockBatchJob(baseUrl, first.data.jobId, "Cam", "scratch:first");
+      await waitForMockBatchJob(baseUrl, first.data.jobId, "Owner11", "scratch:first");
       currentTime = new Date("2026-08-12T12:00:30.000Z");
       const second = await post(baseUrl, "/api/mock-batch", {
         draftSession: "scratch:second",
         strategyKey: "three-rb",
         runs: 1,
       });
-      await waitForMockBatchJob(baseUrl, second.data.jobId, "Cam", "scratch:second");
+      await waitForMockBatchJob(baseUrl, second.data.jobId, "Owner11", "scratch:second");
       expect(app.canDispose?.()).toBe(false);
 
       const firstAfterCountEviction = await fetch(
-        `${baseUrl}/api/mock-batch/${encodeURIComponent(first.data.jobId)}?owner=Cam&draftSession=scratch%3Afirst`,
+        `${baseUrl}/api/mock-batch/${encodeURIComponent(first.data.jobId)}?owner=Owner11&draftSession=scratch%3Afirst`,
       );
       expect(firstAfterCountEviction.status).toBe(404);
 
       currentTime = new Date("2026-08-12T12:02:00.000Z");
       expect(app.canDispose?.()).toBe(true);
       const secondAfterTtl = await fetch(
-        `${baseUrl}/api/mock-batch/${encodeURIComponent(second.data.jobId)}?owner=Cam&draftSession=scratch%3Asecond`,
+        `${baseUrl}/api/mock-batch/${encodeURIComponent(second.data.jobId)}?owner=Owner11&draftSession=scratch%3Asecond`,
       );
       expect(secondAfterTtl.status).toBe(404);
     } finally {
@@ -1683,7 +1683,7 @@ describe("live draft server", () => {
         draftSession: "scratch:exact-results",
         mode: "interactive-mock",
         strategyKey: "three-rb",
-        command: "Cam drafted Breece Hall for 42",
+        command: "Owner11 drafted Breece Hall for 42",
       });
       expect(sale.status).toBe(200);
 
@@ -1704,13 +1704,13 @@ describe("live draft server", () => {
         strategyKey: "three-rb",
       });
       const camTeam = published.data.mockBatchJob.result.runs[0].teams
-        .find((team: { owner: string }) => team.owner === "Cam");
+        .find((team: { owner: string }) => team.owner === "Owner11");
       expect(camTeam.players).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: "Breece Hall", price: 42 }),
       ]));
 
       const latest = await fetch(
-        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Aexact-results&owner=Cam`,
+        `${baseUrl}/api/mock-batch/latest?draftSession=scratch%3Aexact-results&owner=Owner11`,
       ).then(response => response.json());
       expect(latest.jobId).toBe(published.data.mockBatchJob.jobId);
       expect(latest.jobId).not.toBe(staleBatch.data.jobId);
@@ -1741,20 +1741,20 @@ describe("live draft server", () => {
       expect(completed.result.runs[0].label).toBe("Run 1: 3rb");
       expect(completed.result.runs[0].teams).toHaveLength(ownerOrder.length);
       expect(completed.result.runs[0].rankings).toHaveLength(ownerOrder.length);
-      expect(completed.result.runs[0].bestBuild.owner).toBe("Mello");
-      expect(completed.result.runs[0].worstBuild.owner).toBe("Beaton");
+      expect(completed.result.runs[0].bestBuild.owner).toBe("Owner14");
+      expect(completed.result.runs[0].worstBuild.owner).toBe("Owner01");
       expect(completed.result.runs[0].bestBuild.corePlayers).toHaveLength(3);
-      expect(completed.result.runs[0].camOutcome.owner).toBe("Cam");
+      expect(completed.result.runs[0].camOutcome.owner).toBe("Owner11");
       expect(completed.result.runs[0].camOutcome.rank).toBeGreaterThan(1);
       expect(completed.result.runs[0].camOutcome.headline).toContain("projected");
       expect(completed.result.runs[0].rankings[0].explanation).toContain("Projected 1st");
 
-      const cam = completed.result.runs[0].teams.find((team: { owner: string }) => team.owner === "Cam");
-      expect(cam.players).toHaveLength(16);
-      expect(cam.projectedRank).toBe(completed.result.runs[0].camOutcome.rank);
-      expect(cam.rankExplanation).toContain("Projected");
-      expect(cam.topStarter.name).toBe("Cam RB starter high");
-      expect(cam.starters.map((player: { slot: string }) => player.slot)).toEqual([
+      const owner11 = completed.result.runs[0].teams.find((team: { owner: string }) => team.owner === "Owner11");
+      expect(owner11.players).toHaveLength(16);
+      expect(owner11.projectedRank).toBe(completed.result.runs[0].camOutcome.rank);
+      expect(owner11.rankExplanation).toContain("Projected");
+      expect(owner11.topStarter.name).toBe("Owner11 RB starter high");
+      expect(owner11.starters.map((player: { slot: string }) => player.slot)).toEqual([
         "QB",
         "RB1",
         "RB2",
@@ -1765,9 +1765,9 @@ describe("live draft server", () => {
         "K",
         "DST",
       ]);
-      expect(cam.starters.find((player: { slot: string }) => player.slot === "RB1").name).toBe("Cam RB starter high");
-      expect(cam.starters.find((player: { slot: string }) => player.slot === "RB2").name).toBe("Cam RB flex");
-      expect(cam.starters.find((player: { slot: string }) => player.slot === "FLEX").name).toBe("Cam RB starter low");
+      expect(owner11.starters.find((player: { slot: string }) => player.slot === "RB1").name).toBe("Owner11 RB starter high");
+      expect(owner11.starters.find((player: { slot: string }) => player.slot === "RB2").name).toBe("Owner11 RB flex");
+      expect(owner11.starters.find((player: { slot: string }) => player.slot === "FLEX").name).toBe("Owner11 RB starter low");
 
       const latest = await fetch(`${baseUrl}/api/mock-batch/latest`).then(response => response.json());
       expect(latest.jobId).toBe(started.data.jobId);
@@ -1798,7 +1798,7 @@ describe("live draft server", () => {
         blueprint: expect.arrayContaining([
           expect.objectContaining({
             slot: "RB1",
-            targetNames: expect.arrayContaining(["Cam RB starter high"]),
+            targetNames: expect.arrayContaining(["Owner11 RB starter high"]),
           }),
         ]),
       }));
@@ -1807,7 +1807,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("accepts scripted mock targets and applies Cam max-bid caps to the batch job", async () => {
+  it("accepts scripted mock targets and applies Owner11 max-bid caps to the batch job", async () => {
     const directory = await tempSessionDirectory();
     let capturedOptions: RunMockBatchOptions | undefined;
     try {
@@ -1833,12 +1833,12 @@ describe("live draft server", () => {
       expect(capturedOptions?.runsPerScenario).toBe(2);
       expect(started.data.runsPerScenario).toBe(2);
       expect(started.data.runStrategyKeys).toEqual(["three-rb", "balanced"]);
-      expect(capturedOptions?.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Jadarian Price"]).toBe(20);
+      expect(capturedOptions?.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Owner11?.["Jadarian Price"]).toBe(20);
       expect(completed.result.script).toMatchObject({
         label: "Target Jadarian Price up to $20",
         targetOutcomes: [
           expect.objectContaining({
-            owner: "Cam",
+            owner: "Owner11",
             player: "Jadarian Price",
             maxBid: 20,
             runCount: 2,
@@ -1875,7 +1875,7 @@ describe("live draft server", () => {
     }
   });
 
-  it("accepts build-around mock scripts and runs each price point as a forced Cam start", async () => {
+  it("accepts build-around mock scripts and runs each price point as a forced Owner11 start", async () => {
     const directory = await tempSessionDirectory();
     const capturedOptions: RunMockBatchOptions[] = [];
     try {
@@ -1912,7 +1912,7 @@ describe("live draft server", () => {
       expect(completed.result.script).toMatchObject({
         label: "Build around Omarion Hampton at $46/$48/$50 / Target Zay Flowers up to $31",
         buildAround: {
-          owner: "Cam",
+          owner: "Owner11",
           player: "Omarion Hampton",
           prices: [46, 48, 50],
         },
@@ -1926,13 +1926,13 @@ describe("live draft server", () => {
         "Run 6: Hampton $50 / Balanced",
       ]);
       expect(capturedOptions.map(options => options.forcedSales)).toEqual([
-        [{ owner: "Cam", player: "Omarion Hampton", price: 46 }],
-        [{ owner: "Cam", player: "Omarion Hampton", price: 48 }],
-        [{ owner: "Cam", player: "Omarion Hampton", price: 50 }],
+        [{ owner: "Owner11", player: "Omarion Hampton", price: 46 }],
+        [{ owner: "Owner11", player: "Omarion Hampton", price: 48 }],
+        [{ owner: "Owner11", player: "Omarion Hampton", price: 50 }],
       ]);
       for (const options of capturedOptions) {
         expect(options.runsPerScenario).toBe(2);
-        expect(options.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Cam?.["Zay Flowers"]).toBe(31);
+        expect(options.auctionConfigOverrides?.ownerPlayerTargetMaxBids?.Owner11?.["Zay Flowers"]).toBe(31);
       }
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -2006,17 +2006,17 @@ describe("live draft server", () => {
       const baseUrl = await listen(app.server);
 
       const camLineupCommands = [
-        "Cam drafted Josh Allen for 1",
-        "Cam drafted Jahmyr Gibbs for 1",
-        "Cam drafted Ja'Marr Chase for 1",
-        "Cam drafted Amon-Ra St. Brown for 1",
-        "Cam drafted Sam LaPorta for 1",
-        "Cam drafted Jake Bates for 1",
-        "Cam drafted Steelers D/ST for 1",
-        "Cam drafted Kenneth Walker III for 1",
-        "Cam drafted Mike Evans for 1",
-        "Cam drafted Zay Flowers for 1",
-        "Cam drafted DeVonta Smith for 1",
+        "Owner11 drafted Josh Allen for 1",
+        "Owner11 drafted Jahmyr Gibbs for 1",
+        "Owner11 drafted Ja'Marr Chase for 1",
+        "Owner11 drafted Amon-Ra St. Brown for 1",
+        "Owner11 drafted Sam LaPorta for 1",
+        "Owner11 drafted Jake Bates for 1",
+        "Owner11 drafted Steelers D/ST for 1",
+        "Owner11 drafted Kenneth Walker III for 1",
+        "Owner11 drafted Mike Evans for 1",
+        "Owner11 drafted Zay Flowers for 1",
+        "Owner11 drafted DeVonta Smith for 1",
       ];
       for (const command of camLineupCommands) {
         const sale = await post(baseUrl, "/api/events", {
@@ -2043,21 +2043,21 @@ describe("live draft server", () => {
         readOnly: true,
       }));
       expect(data.team).toEqual(expect.objectContaining({
-        owner: "Cam",
+        owner: "Owner11",
         rosteredCount: expect.any(Number),
         rosteredValue: expect.any(Number),
       }));
       expect(data.team.players.map((player: { name: string }) => player.name)).toEqual(
-        expect.arrayContaining(["De'Von Achane", "Jahmyr Gibbs"]),
+        expect.arrayContaining(["Ashton Jeanty", "Jahmyr Gibbs"]),
       );
 
       const hoodyResponse = await fetch(
-        `${baseUrl}/api/my-expert?strategy=three-rb&mode=interactive-mock&draftSession=practice-3rb&week=5&owner=Hoody`,
+        `${baseUrl}/api/my-expert?strategy=three-rb&mode=interactive-mock&draftSession=practice-3rb&week=5&owner=Owner02`,
       );
       expect(hoodyResponse.status).toBe(200);
       const hoodyData = await hoodyResponse.json();
       expect(hoodyData.team).toEqual(expect.objectContaining({
-        owner: "Hoody",
+        owner: "Owner02",
       }));
       expect(data.summary).toEqual(expect.objectContaining({
         currentWeek: 5,
@@ -2184,7 +2184,7 @@ describe("live draft server", () => {
           message: "Found 1 Sleeper league.",
           leagues: [{
             leagueId: "123",
-            name: "Cam Sleeper League",
+            name: "Owner11 Sleeper League",
             status: "in_season",
             season,
             totalRosters: 12,
@@ -2193,15 +2193,15 @@ describe("live draft server", () => {
       });
       servers.push(sleeperApp.server);
       const sleeperBaseUrl = await listen(sleeperApp.server);
-      const sleeperResponse = await fetch(`${sleeperBaseUrl}/api/sync/sleeper/preview?identifier=cam&season=2026`);
+      const sleeperResponse = await fetch(`${sleeperBaseUrl}/api/sync/sleeper/preview?identifier=owner11&season=2026`);
       expect(sleeperResponse.status).toBe(200);
       await expect(sleeperResponse.json()).resolves.toEqual(expect.objectContaining({
         provider: "sleeper",
         readOnly: true,
-        identifier: "cam",
+        identifier: "owner11",
         season: "2026",
         message: "Found 1 Sleeper league.",
-        leagues: [expect.objectContaining({ leagueId: "123", name: "Cam Sleeper League" })],
+        leagues: [expect.objectContaining({ leagueId: "123", name: "Owner11 Sleeper League" })],
       }));
     } finally {
       restoreSyncEnv(envSnapshot);

@@ -12,21 +12,21 @@ describe("buildCurrentMockdLeagueSeason", () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
 
     expect(season.league).toEqual({
-      id: "league-214674",
-      externalLeagueId: "214674",
+      id: "league-100001",
+      externalLeagueId: "100001",
       name: "Mockd",
       provider: "mockd",
     });
-    expect(season.id).toBe("league-214674-season-2026");
+    expect(season.id).toBe("league-100001-season-2026");
     expect(season.seasonYear).toBe(2026);
     expect(season.setupStatus).toBe("draft");
     expect(season.teams).toHaveLength(14);
     expect(season.teams[0]).toEqual({
-      id: "league-214674-season-2026-team-01-beaton",
-      leagueSeasonId: "league-214674-season-2026",
-      ownerId: "owner-beaton",
-      ownerDisplayName: "Beaton",
-      displayName: "Beaton",
+      id: "league-100001-season-2026-team-01-owner01",
+      leagueSeasonId: "league-100001-season-2026",
+      ownerId: "owner-owner01",
+      ownerDisplayName: "Owner01",
+      displayName: "Owner01",
       draftOrderPosition: 1,
     });
     expect(season.teams.map(team => team.ownerDisplayName)).toEqual([...ownerOrder]);
@@ -76,8 +76,8 @@ describe("buildCurrentMockdLeagueSeason", () => {
       setupStatus: "published",
     });
 
-    expect(season2026.id).toBe("league-214674-season-2026");
-    expect(season2027.id).toBe("league-214674-season-2027");
+    expect(season2026.id).toBe("league-100001-season-2026");
+    expect(season2027.id).toBe("league-100001-season-2027");
     expect(season2026.draft).toEqual({
       scheduledAt: "2026-08-24T23:00:00.000Z",
       timezone: "America/New_York",

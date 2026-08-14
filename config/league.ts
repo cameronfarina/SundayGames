@@ -1,24 +1,45 @@
-export const ownerOrder = [
-  "Beaton",
-  "Hoody",
-  "PJ",
-  "Seth",
-  "Jakub",
-  "Tye",
-  "Chip",
-  "CJ",
-  "Kenny",
-  "Russ",
-  "Cam",
-  "Sam",
-  "Martins",
-  "Mello",
-] as const;
+export type Owner = string;
+export type Position = "QB" | "RB" | "WR" | "TE" | "K" | "DST";
 
-export type Owner = (typeof ownerOrder)[number];
+export const ownerOrder: readonly Owner[] = [
+  "Owner01",
+  "Owner02",
+  "Owner03",
+  "Owner04",
+  "Owner05",
+  "Owner06",
+  "Owner07",
+  "Owner08",
+  "Owner09",
+  "Owner10",
+  "Owner11",
+  "Owner12",
+  "Owner13",
+  "Owner14",
+];
 
-export const leagueConfig = {
-  leagueId: 214674,
+export const primaryOwner: Owner = ownerOrder[10] ?? "Owner11";
+
+interface LeagueConfig {
+  leagueId: number;
+  teams: number;
+  auctionBudget: number;
+  rosterSize: number;
+  scoring: {
+    passingYards: number;
+    passingTouchdown: number;
+    rushingYards: number;
+    rushingTouchdown: number;
+    receivingYards: number;
+    receivingTouchdown: number;
+    reception: number;
+  };
+  lineup: Record<Position | "FLEX" | "BENCH", number>;
+  rosterMaximums: Record<Position, number>;
+}
+
+export const leagueConfig: LeagueConfig = {
+  leagueId: 100001,
   teams: 14,
   auctionBudget: 200,
   rosterSize: 16,
@@ -49,8 +70,6 @@ export const leagueConfig = {
     K: 2,
     DST: 2,
   },
-} as const;
+};
 
-export type Position = "QB" | "RB" | "WR" | "TE" | "K" | "DST";
-
-export const positions = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
+export const positions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];

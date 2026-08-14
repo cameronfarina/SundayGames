@@ -124,8 +124,8 @@ const mockBatch = (
 describe("mock results report", () => {
   it("separates Week 1 scoring from season-strength projected finish", () => {
     const rosters = ownerOrder.map(owner => {
-      if (owner === "Martins") return rosterSummary(owner, 4, -3, 0);
-      if (owner === "Cam") return rosterSummary(owner, 0, 4, 8);
+      if (owner === "Owner13") return rosterSummary(owner, 4, -3, 0);
+      if (owner === "Owner11") return rosterSummary(owner, 0, 4, 8);
       return rosterSummary(owner);
     });
 
@@ -135,17 +135,17 @@ describe("mock results report", () => {
     if (!run) throw new Error("Expected one mock results run");
 
     expect(run.rankings[0]).toMatchObject({
-      owner: "Cam",
+      owner: "Owner11",
       rank: 1,
       week1Rank: expect.any(Number),
       seasonStrengthScore: expect.any(Number),
       projectedFinishScore: expect.any(Number),
     });
-    expect(run.rankings.find(ranking => ranking.owner === "Martins")?.week1Rank).toBe(1);
+    expect(run.rankings.find(ranking => ranking.owner === "Owner13")?.week1Rank).toBe(1);
     expect(run.rankings[0]?.explanation).toContain("season strength");
-    expect(run.bestBuild.owner).toBe("Cam");
+    expect(run.bestBuild.owner).toBe("Owner11");
     expect(run.bestBuild.headline).toContain("season-strength score");
-    expect(run.teams.find(team => team.owner === "Cam")).toMatchObject({
+    expect(run.teams.find(team => team.owner === "Owner11")).toMatchObject({
       projectedRank: 1,
       seasonStrengthScore: run.rankings[0]?.seasonStrengthScore,
       depthScore: expect.any(Number),
@@ -155,19 +155,19 @@ describe("mock results report", () => {
 
   it("builds the user outcome for the requested watch owner", () => {
     const rosters = ownerOrder.map(owner => rosterSummary(owner));
-    const report = buildMockResultsReport(mockBatch(rosters), "three-rb", [], undefined, [], "Hoody");
+    const report = buildMockResultsReport(mockBatch(rosters), "three-rb", [], undefined, [], "Owner02");
 
-    expect(report.watchOwner).toBe("Hoody");
-    expect(report.runs[0]?.camOutcome.owner).toBe("Hoody");
+    expect(report.watchOwner).toBe("Owner02");
+    expect(report.runs[0]?.camOutcome.owner).toBe("Owner02");
   });
 
   it("uses full-season projection for projected finish when it differs from Weeks 1-4", () => {
     const rosters = ownerOrder.map(owner => {
-      const summary = owner === "Martins"
+      const summary = owner === "Owner13"
         ? rosterSummary(owner, 0, 30, 0)
-        : rosterSummary(owner, 0, owner === "Cam" ? -10 : 0, 0);
+        : rosterSummary(owner, 0, owner === "Owner11" ? -10 : 0, 0);
 
-      if (owner === "Martins") {
+      if (owner === "Owner13") {
         return {
           ...summary,
           players: summary.players.map(current => ({
@@ -177,7 +177,7 @@ describe("mock results report", () => {
         };
       }
 
-      if (owner === "Cam") {
+      if (owner === "Owner11") {
         return {
           ...summary,
           players: summary.players.map(current => ({
@@ -195,26 +195,26 @@ describe("mock results report", () => {
     expect(run).toBeDefined();
     if (!run) throw new Error("Expected one mock results run");
 
-    const cam = run.teams.find(team => team.owner === "Cam");
-    const martins = run.teams.find(team => team.owner === "Martins");
+    const owner11 = run.teams.find(team => team.owner === "Owner11");
+    const martins = run.teams.find(team => team.owner === "Owner13");
 
-    expect(cam).toBeDefined();
+    expect(owner11).toBeDefined();
     expect(martins).toBeDefined();
-    expect(martins?.weeks1To4Score).toBeGreaterThan(cam?.weeks1To4Score ?? 0);
-    expect(cam?.starterSeasonScore).toBeGreaterThan(martins?.starterSeasonScore ?? 0);
-    expect(run.rankings[0]?.owner).toBe("Cam");
+    expect(martins?.weeks1To4Score).toBeGreaterThan(owner11?.weeks1To4Score ?? 0);
+    expect(owner11?.starterSeasonScore).toBeGreaterThan(martins?.starterSeasonScore ?? 0);
+    expect(run.rankings[0]?.owner).toBe("Owner11");
   });
 
   it("summarizes scripted target outcomes across mock results", () => {
     const rosters = ownerOrder.map(owner => {
       const summary = rosterSummary(owner);
-      if (owner !== "Cam") return summary;
+      if (owner !== "Owner11") return summary;
 
       return {
         ...summary,
         players: [
           {
-            ...player("Cam", "Target RB", "RB", 20, 11, 44),
+            ...player("Owner11", "Target RB", "RB", 20, 11, 44),
             name: "Jadarian Price",
           },
           ...summary.players.slice(1),
@@ -224,7 +224,7 @@ describe("mock results report", () => {
     const report = buildMockResultsReport(mockBatch(rosters), "three-rb", [], {
       raw: "target Jadarian Price max 20",
       label: "Target Jadarian Price up to $20",
-      targetMaxBids: [{ owner: "Cam", player: "Jadarian Price", maxBid: 20 }],
+      targetMaxBids: [{ owner: "Owner11", player: "Jadarian Price", maxBid: 20 }],
     });
 
     expect(report.script).toMatchObject({
@@ -232,7 +232,7 @@ describe("mock results report", () => {
       label: "Target Jadarian Price up to $20",
       targetOutcomes: [
         {
-          owner: "Cam",
+          owner: "Owner11",
           player: "Jadarian Price",
           maxBid: 20,
           runCount: 1,
@@ -249,15 +249,15 @@ describe("mock results report", () => {
   it("summarizes build-around outcomes by forced price point", () => {
     const runRosters = [46, 46, 50, 50].map((price, index) =>
       ownerOrder.map(owner => {
-        const summary = owner === "Cam"
+        const summary = owner === "Owner11"
           ? rosterSummary(
             owner,
             index === 0 ? 3 : index === 1 ? 2 : index === 2 ? 0 : -1,
             index === 0 ? 12 : index === 1 ? 10 : index === 2 ? 4 : 2,
             index === 0 ? 6 : index === 1 ? 4 : index === 2 ? 1 : 0,
           )
-          : rosterSummary(owner, owner === "Martins" ? 1 : 0, owner === "Martins" ? 5 : 0);
-        if (owner !== "Cam") return summary;
+          : rosterSummary(owner, owner === "Owner13" ? 1 : 0, owner === "Owner13" ? 5 : 0);
+        if (owner !== "Owner11") return summary;
 
         return {
           ...summary,
@@ -265,7 +265,7 @@ describe("mock results report", () => {
           budgetRemaining: summary.budgetRemaining - price + 46,
           players: [
             {
-              ...player("Cam", "Build RB", "RB", price, 18, 72),
+              ...player("Owner11", "Build RB", "RB", price, 18, 72),
               name: "Omarion Hampton",
             },
             ...summary.players.slice(1),
@@ -276,13 +276,13 @@ describe("mock results report", () => {
     const report = buildMockResultsReport(mockBatch(runRosters, 2), "three-rb", [], {
       raw: "Build around Omarion Hampton:46-50:4",
       label: "Build around Omarion Hampton at $46/$50",
-      buildAround: { owner: "Cam", player: "Omarion Hampton", prices: [46, 50] },
+      buildAround: { owner: "Owner11", player: "Omarion Hampton", prices: [46, 50] },
       targetMaxBids: [],
     });
 
     expect(report.script?.buildAroundOutcomes).toEqual([
       expect.objectContaining({
-        owner: "Cam",
+        owner: "Owner11",
         player: "Omarion Hampton",
         price: 46,
         runCount: 2,
@@ -296,7 +296,7 @@ describe("mock results report", () => {
         worstRunLabel: "Run 2: 3rb",
       }),
       expect.objectContaining({
-        owner: "Cam",
+        owner: "Owner11",
         player: "Omarion Hampton",
         price: 50,
         runCount: 2,

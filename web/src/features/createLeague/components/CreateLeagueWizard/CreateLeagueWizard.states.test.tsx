@@ -10,7 +10,7 @@ const snakeReview = {
   provider: "espn",
   confirmationRequired: true,
   review: {
-    externalLeagueId: "214674",
+    externalLeagueId: "100001",
     season: 2026,
     leagueName: null,
     teamCount: 2,
@@ -38,7 +38,7 @@ afterAll(() => { server.close(); });
 const reachReference = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByRole("textbox", { name: "League name" }), "Sunday Games");
   await user.click(screen.getByRole("button", { name: "Next" }));
-  await user.type(screen.getByRole("textbox", { name: "ESPN league ID or URL" }), "214674");
+  await user.type(screen.getByRole("textbox", { name: "ESPN league ID or URL" }), "100001");
 };
 
 describe("CreateLeagueWizard errors", () => {
@@ -48,7 +48,7 @@ describe("CreateLeagueWizard errors", () => {
       provider: "espn",
       confirmationRequired: true,
       reason: "private_or_unauthorized",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       season: 2026,
       confirmationMethods: ["screenshot", "manual"],
       message: "This ESPN league is private. Enter its settings manually.",
@@ -71,7 +71,7 @@ describe("CreateLeagueWizard errors", () => {
       await delay(40);
       return HttpResponse.json({
         kind: "manual-review-required", provider: "espn", confirmationRequired: true,
-        reason: "settings_need_review", externalLeagueId: "214674", season: 2026,
+        reason: "settings_need_review", externalLeagueId: "100001", season: 2026,
         confirmationMethods: ["screenshot", "manual"], message: "Enter settings manually.",
       });
     }));
@@ -108,7 +108,7 @@ describe("CreateLeagueWizard errors", () => {
         }, { status: 503 });
         return HttpResponse.json({
           kind: "manual-review-required", provider: "espn", confirmationRequired: true,
-          reason: "settings_need_review", externalLeagueId: "214674", season: 2026,
+          reason: "settings_need_review", externalLeagueId: "100001", season: 2026,
           confirmationMethods: ["screenshot", "manual"], message: "Enter settings manually.",
         });
       }),

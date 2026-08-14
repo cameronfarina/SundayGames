@@ -9,7 +9,7 @@ import type { Onboarding } from "../../../shared/api/onboarding/onboardingSchema
 import { AccountMenu } from "./AccountMenu";
 
 const cachedOnboarding: Onboarding = {
-  account: { email: "cameron.farina@example.com", id: "account-cam" },
+  account: { email: "example.user@example.com", id: "account-example" },
   leagues: [],
 };
 
@@ -18,7 +18,7 @@ const renderMenu = () => {
   queryClient.setQueryData(sessionQueryKey(), { private: "session" });
   queryClient.setQueryData(onboardingQueryOptions().queryKey, cachedOnboarding);
   const router = createMemoryRouter([
-    { path: "/practice", element: <AccountMenu email="cameron.farina@example.com" /> },
+    { path: "/practice", element: <AccountMenu email="example.user@example.com" /> },
     { path: "/login", element: <h1>Sign in</h1> },
   ], { initialEntries: ["/practice"] });
   render(

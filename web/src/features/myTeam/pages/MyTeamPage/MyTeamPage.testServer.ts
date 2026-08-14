@@ -8,9 +8,9 @@ export const assignedLeague = {
   seasonYear: 2026,
   membership: {
     role: "member",
-    ownerId: "cam",
-    teamId: "team-cam",
-    ownerDisplayName: "Cam",
+    ownerId: "owner11",
+    teamId: "team-owner11",
+    ownerDisplayName: "Owner11",
     teamDisplayName: "Short King",
   },
   canManageLeague: false,
@@ -23,7 +23,7 @@ export const assignedLeague = {
 };
 
 export const onboarding = (league: Record<string, unknown> = assignedLeague) => ({
-  account: { id: "account-cam", email: "cam@example.com" },
+  account: { id: "account-user", email: "user@example.com" },
   leagues: [league],
 });
 
@@ -34,9 +34,9 @@ export const season = (draftFormat = "auction", seasonId = "season-2026") => ({
     seasonYear: 2026,
     setupStatus: "published",
     teams: [{
-      id: "team-cam",
-      ownerId: "cam",
-      ownerDisplayName: "Cam",
+      id: "team-owner11",
+      ownerId: "owner11",
+      ownerDisplayName: "Owner11",
       displayName: "Short King",
       draftOrderPosition: 7,
     }],
@@ -46,7 +46,7 @@ export const season = (draftFormat = "auction", seasonId = "season-2026") => ({
         ? { budgetDollars: 200, minimumBidDollars: 1 }
         : undefined,
       snake: draftFormat === "snake"
-        ? { rounds: 16, order: ["cam"], reversal: "standard" }
+        ? { rounds: 16, order: ["owner11"], reversal: "standard" }
         : undefined,
       roster: { rosterSize: 16, lineupSlotCount: 9, lineup: { QB: 1 } },
     },
@@ -55,7 +55,7 @@ export const season = (draftFormat = "auction", seasonId = "season-2026") => ({
 });
 
 export const keepers = [{
-  teamId: "team-cam",
+  teamId: "team-owner11",
   playerId: "devon-achane",
   playerName: "De'Von Achane",
   position: "RB",

@@ -22,7 +22,7 @@ const row = (
   return {
     sourceRowNumber: 2,
     seasonYear: 2025,
-    ownerDisplayName: "Cam",
+    ownerDisplayName: "Owner11",
     playerName: "Ja'Marr Chase",
     playerId,
     position: "WR",
@@ -67,7 +67,7 @@ describe("platform historical imports", () => {
     });
 
     expect(batch).toMatchObject({
-      id: "historical-import-league-214674-2025-sha256-first-001",
+      id: "historical-import-league-100001-2025-sha256-first-001",
       leagueId: leagueSeason.leagueId,
       seasonYear: 2025,
       fileHash: "sha256:first",
@@ -89,7 +89,7 @@ describe("platform historical imports", () => {
         record: expect.objectContaining({
           leagueId: leagueSeason.leagueId,
           seasonYear: 2025,
-          ownerId: "owner-cam",
+          ownerId: "owner-owner11",
           playerId: "player-jamarr-chase",
           playerName: "Ja'Marr Chase",
           position: "WR",
@@ -274,7 +274,7 @@ describe("platform historical imports", () => {
         }),
         row({ sourceRowNumber: 5, priceDollars: -1 }),
         row({ sourceRowNumber: 6, playerName: "Amon-Ra St. Brown", playerId: "player-arsb" }),
-        row({ sourceRowNumber: 7, playerName: "Amon-Ra St. Brown", playerId: "player-arsb", ownerDisplayName: "Sam" }),
+        row({ sourceRowNumber: 7, playerName: "Amon-Ra St. Brown", playerId: "player-arsb", ownerDisplayName: "Owner12" }),
       ],
       now,
     });
@@ -318,7 +318,7 @@ describe("platform historical imports", () => {
         {
           sourceRowNumber: 2,
           seasonYear: 2025,
-          ownerDisplayName: "Cam",
+          ownerDisplayName: "Owner11",
           playerName: "Ja'Marr Chase",
           playerId: "player-jamarr-chase",
           position: "WR",
@@ -367,7 +367,7 @@ describe("platform historical imports", () => {
         leagueId: leagueSeason.leagueId,
         leagueSeasonId: leagueSeason.id,
         seasonYear: 2025,
-        ownerId: "owner-cam",
+        ownerId: "owner-owner11",
         playerId: "player-jamarr-chase",
       }),
     ]);

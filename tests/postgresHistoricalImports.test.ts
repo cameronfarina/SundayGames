@@ -392,7 +392,7 @@ const row = (
   return {
     sourceRowNumber: 2,
     seasonYear: 2025,
-    ownerDisplayName: "Cam",
+    ownerDisplayName: "Owner11",
     playerName: "Ja'Marr Chase",
     playerId,
     position: "WR",
@@ -416,7 +416,7 @@ describe("Postgres historical import repository", () => {
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       fileHash: "sha256:first",
-      uploadedByUserId: "acct_cam",
+      uploadedByUserId: "acct_owner11",
       rows: [row()],
       now,
     });
@@ -428,7 +428,7 @@ describe("Postgres historical import repository", () => {
 
     expect(preview).toMatchObject({
       status: "previewed",
-      uploadedByUserId: "acct_cam",
+      uploadedByUserId: "acct_owner11",
       rows: [expect.objectContaining({ status: "ready" })],
     });
     expect(committed).toMatchObject({
@@ -456,7 +456,7 @@ describe("Postgres historical import repository", () => {
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       fileHash: "sha256:first",
-      uploadedByUserId: "acct_cam",
+      uploadedByUserId: "acct_owner11",
       rows: [row()],
       now,
     });
@@ -470,7 +470,7 @@ describe("Postgres historical import repository", () => {
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       fileHash: "sha256:replacement",
-      uploadedByUserId: "acct_cam",
+      uploadedByUserId: "acct_owner11",
       replacementRequested: true,
       rows: [row({
         playerName: "Bijan Robinson",
@@ -511,7 +511,7 @@ describe("Postgres historical import repository", () => {
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
       fileHash,
-      uploadedByUserId: "acct_cam",
+      uploadedByUserId: "acct_owner11",
       rows: [row({ playerId: fileHash, playerResolution: { status: "resolved", playerId: fileHash } })],
       maxActivePreviewBatches: 2,
       previewTtlMs: 1_000,

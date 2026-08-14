@@ -27,7 +27,7 @@ describe("authenticated onboarding cache", () => {
     queryClient.setQueryData(sessionQueryKey(), {
       account: {
         createdAt: "2026-08-13T12:00:00.000Z",
-        email: "cam@example.com",
+        email: "user@example.com",
         id: "account-1",
         updatedAt: "2026-08-13T12:00:00.000Z",
       },

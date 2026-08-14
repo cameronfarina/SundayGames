@@ -20,7 +20,7 @@ describe("platform job orchestrator", () => {
     const first = enqueueSimulationRunExecutionJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       simulationRunId: "sim_cam_plan",
       runCount: 25,
@@ -30,7 +30,7 @@ describe("platform job orchestrator", () => {
     const second = enqueueSimulationRunExecutionJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       simulationRunId: "sim_cam_plan",
       runCount: 25,
@@ -49,33 +49,33 @@ describe("platform job orchestrator", () => {
     const simulationJob = enqueueSimulationRunExecutionJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       simulationRunId: "sim_cam_plan",
       modelRunId: "pricing-model-run-2026",
       keeperScenarioId: "keepers-expected",
       runCount: 25,
-      seedPrefix: "cam-balanced",
+      seedPrefix: "owner11-balanced",
       strategyKey: "balanced",
       now,
     });
     const duplicateSimulationJob = enqueueSimulationRunExecutionJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       simulationRunId: "sim_cam_plan",
       modelRunId: "pricing-model-run-2026",
       keeperScenarioId: "keepers-expected",
       runCount: 25,
-      seedPrefix: "cam-balanced",
+      seedPrefix: "owner11-balanced",
       strategyKey: "balanced",
       now: new Date(now.getTime() + 1_000),
     });
     const importJob = enqueueHistoricalImportParseJob({
       repository,
       userId: "user_commish",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2025",
       seasonYear: 2025,
       fileHash: "sha256:board-v1",
@@ -86,7 +86,7 @@ describe("platform job orchestrator", () => {
     const pricingJob = enqueuePricingRebuildJob({
       repository,
       userId: "user_commish",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       seasonYear: 2026,
       modelVersion: "auction-v1",
@@ -99,7 +99,7 @@ describe("platform job orchestrator", () => {
     const exportJob = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "csv",
@@ -117,7 +117,7 @@ describe("platform job orchestrator", () => {
         modelRunId: "pricing-model-run-2026",
         keeperScenarioId: "keepers-expected",
         runCount: 25,
-        seedPrefix: "cam-balanced",
+        seedPrefix: "owner11-balanced",
         strategyKey: "balanced",
       },
     });
@@ -147,7 +147,7 @@ describe("platform job orchestrator", () => {
     const job = enqueueDraftRoomExportJob({
       repository,
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       draftRoomId: "room_final",
       format: "xlsx",
@@ -200,7 +200,7 @@ describe("platform job orchestrator", () => {
     const job = enqueuePricingRebuildJob({
       repository,
       userId: "user_commish",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       seasonYear: 2026,
       modelVersion: "auction-v1",
@@ -223,7 +223,7 @@ describe("platform job orchestrator", () => {
 
           return {
             type: platformJobTypes.pricingRebuild,
-            modelRunId: "pricing-model-run-league-214674-2026",
+            modelRunId: "pricing-model-run-league-100001-2026",
             pricingSnapshotIds: ["pricing-snapshot-expected"],
             scenarioCount: 1,
             warningCount: 0,
@@ -253,7 +253,7 @@ describe("platform job orchestrator", () => {
       finishedAt: dispatchedAt,
       resultSummary: {
         type: platformJobTypes.pricingRebuild,
-        modelRunId: "pricing-model-run-league-214674-2026",
+        modelRunId: "pricing-model-run-league-100001-2026",
         pricingSnapshotIds: ["pricing-snapshot-expected"],
         scenarioCount: 1,
         warningCount: 0,
@@ -267,7 +267,7 @@ describe("platform job orchestrator", () => {
     const repository = new InMemoryJobQueue();
     const job = repository.submit({
       userId: "user_cam",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       kind: "simulation",
       inputJson: { type: "mystery-job", simulationRunId: "sim_unknown" },
@@ -300,7 +300,7 @@ describe("platform job orchestrator", () => {
     const job = enqueueHistoricalImportParseJob({
       repository,
       userId: "user_commish",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2025",
       seasonYear: 2025,
       fileHash: "sha256:secret-board",

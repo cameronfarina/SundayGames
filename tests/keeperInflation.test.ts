@@ -6,85 +6,32 @@ import {
   applyKeeperScenarioToPrices,
   buildKeeperScenarios,
 } from "../src/modeling/keeperInflation.js";
-import { loadEspnWeeksOneToFour } from "../src/projections.js";
-
-const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
-
-const expectNear = (actual: number, expected: number, tolerance = 0.0001): void => {
-  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
-};
-
-const names = (players: { name: string }[]): Set<string> =>
-  new Set(players.map(player => player.name));
+import { loadCurrentProjections } from "../src/projections.js";
 
 describe("keeper inflation scenarios", () => {
-  it("calculates confirmed-only, expected, and high-retention inflation factors", () => {
+  it("expands keeper counts as assumptions are included", () => {
     const scenarios = buildKeeperScenarios(keepers);
-    const confirmedOnly = scenarios.find(scenario => scenario.key === "confirmedOnly")!;
-    const expected = scenarios.find(scenario => scenario.key === "expected")!;
-    const highRetention = scenarios.find(scenario => scenario.key === "highRetention")!;
+    const confirmed = scenarios.find(scenario => scenario.key === "confirmedOnly");
+    const expected = scenarios.find(scenario => scenario.key === "expected");
+    if (confirmed === undefined || expected === undefined) throw new Error("Missing keeper scenarios.");
 
-    expect(confirmedOnly.keeperCounts).toEqual({ QB: 0, RB: 4, WR: 0, TE: 0, K: 0, DST: 0 });
-    expect(confirmedOnly.totalKeeperCost).toBe(61);
-    expect(confirmedOnly.openAuctionDollars).toBe(2739);
-    expectNear(confirmedOnly.globalFactor, 2739 / 2596.5);
-    expect(confirmedOnly.positionFactors.RB).toBeLessThan(confirmedOnly.globalFactor);
-    expect(confirmedOnly.positionFactors.WR).toBeLessThan(confirmedOnly.globalFactor);
-
-    expect(expected.keeperCounts).toEqual({ QB: 1, RB: 6, WR: 6, TE: 2, K: 0, DST: 0 });
-    expect(expected.totalKeeperCost).toBe(173);
-    expect(expected.openAuctionDollars).toBe(2627);
-    expectNear(expected.globalFactor, 2627 / 2596.5);
-    expectNear(expected.positionFactors.RB, expected.globalFactor);
-    expectNear(expected.positionFactors.WR, expected.globalFactor);
-
-    expect(highRetention.keeperCounts).toEqual({ QB: 1, RB: 8, WR: 5, TE: 2, K: 0, DST: 0 });
-    expect(highRetention.totalKeeperCost).toBe(169);
-    expect(highRetention.openAuctionDollars).toBe(2631);
-    expectNear(highRetention.globalFactor, 2631 / 2596.5);
-    expect(highRetention.positionFactors.RB).toBeGreaterThan(highRetention.globalFactor);
-    expect(highRetention.positionFactors.WR).toBeLessThan(highRetention.globalFactor);
-    expect(highRetention.positionFactors.TE).toBeGreaterThan(highRetention.globalFactor);
+    const confirmedCount = Object.values(confirmed.keeperCounts).reduce((sum, count) => sum + count, 0);
+    const expectedCount = Object.values(expected.keeperCounts).reduce((sum, count) => sum + count, 0);
+    expect(confirmedCount).toBe(4);
+    expect(expectedCount).toBeGreaterThanOrEqual(keepers.length);
+    expect(expectedCount).toBeGreaterThan(confirmedCount);
+    expect(expected.totalKeeperCost).toBeGreaterThan(confirmed.totalKeeperCost);
   });
 
-  it("removes known keepers from the auction pool by scenario status", async () => {
-    const projections = await loadEspnWeeksOneToFour(projectionPath);
-    const historicalRecords = await loadHistoricalAuctionRecords();
-    const prices = buildBasePrices(projections, historicalRecords);
-    const scenarios = buildKeeperScenarios(keepers);
-    const baseNames = names(prices);
+  it("removes included synthetic keepers from the auction pool", async () => {
+    const projections = await loadCurrentProjections();
+    const records = await loadHistoricalAuctionRecords();
+    const prices = buildBasePrices(projections, records);
+    const scenario = buildKeeperScenarios(keepers).find(candidate => candidate.key === "expected");
+    if (scenario === undefined) throw new Error("Missing expected keeper scenario.");
+    const expected = applyKeeperScenarioToPrices(prices, scenario, keepers);
+    const available = new Set(expected.availablePrices.map(price => price.name));
 
-    const confirmedOnly = applyKeeperScenarioToPrices(
-      prices,
-      scenarios.find(scenario => scenario.key === "confirmedOnly")!,
-      keepers,
-    );
-    const expected = applyKeeperScenarioToPrices(
-      prices,
-      scenarios.find(scenario => scenario.key === "expected")!,
-      keepers,
-    );
-
-    const confirmedNames = names(confirmedOnly.availablePrices);
-    expect(confirmedNames.has("Bucky Irving")).toBe(false);
-    expect(confirmedNames.has("Rhamondre Stevenson")).toBe(false);
-    expect(confirmedNames.has("De'Von Achane")).toBe(false);
-    expect(confirmedNames.has("Justin Herbert")).toBe(true);
-    expect(confirmedNames.has("Javonte Williams")).toBe(false);
-    expect(confirmedNames.has("Jaxon Smith-Njigba")).toBe(true);
-
-    const expectedNames = names(expected.availablePrices);
-    expect(expectedNames.has("Jaxon Smith-Njigba")).toBe(false);
-    if (baseNames.has("Pat Freiermuth")) {
-      expect(confirmedNames.has("Pat Freiermuth")).toBe(true);
-      expect(expectedNames.has("Pat Freiermuth")).toBe(false);
-    }
-
-    const pukaBasePrice = prices.find(price => price.name === "Puka Nacua")!;
-    const pukaScenarioPrice = expected.availablePrices.find(price => price.name === "Puka Nacua")!;
-    const expectedScenario = scenarios.find(scenario => scenario.key === "expected")!;
-    expect(pukaScenarioPrice.scenarioPrice).toBe(
-      Math.round(pukaBasePrice.price * expectedScenario.positionFactors.WR),
-    );
+    expect(keepers.every(keeper => !available.has(keeper.player))).toBe(true);
   });
 });

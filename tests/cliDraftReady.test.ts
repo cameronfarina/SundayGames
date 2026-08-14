@@ -13,7 +13,7 @@ describe("CLI draft readiness", () => {
         "--silent",
         "draft:ready",
         "--",
-        "--owner=Cam",
+        "--owner=Owner11",
         "--strategy=three-rb",
         "--scenario=expected",
         "--runs=4",
@@ -65,7 +65,7 @@ describe("CLI draft readiness", () => {
     expect(["pass", "warn"]).toContain(report.status);
     expect(report.recommendedExitCode).toBe(0);
     expect(report.options).toMatchObject({
-      owner: "Cam",
+      owner: "Owner11",
       strategyKey: "three-rb",
       strategyMode: "force",
       scenarioKey: "expected",
@@ -100,7 +100,7 @@ describe("CLI draft readiness", () => {
         "--silent",
         "draft:ready",
         "--",
-        "--owner=Cam",
+        "--owner=Owner11",
         "--strategy=balanced",
         "--scenario=expected",
         "--runs=3",

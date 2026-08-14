@@ -49,7 +49,7 @@ describe("leagueDraftReducer", () => {
       teamCount: 2,
       draftType: "auction",
       referenceMode: "imported",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
       scoring: { reception: 0.5 },
       roster: { QB: 1, BENCH: 7 },
     });

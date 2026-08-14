@@ -28,12 +28,12 @@ const historicalSale = (
 ): HistoricalSaleRecord => ({
   id: "sale-2025-bijan",
   batchId: "batch-2025",
-  leagueId: "league-214674",
+  leagueId: "league-100001",
   leagueSeasonId: "league-season-2025",
   seasonYear: 2025,
   rowNumber: 7,
-  ownerId: "owner-cam",
-  ownerDisplayName: "Cam",
+  ownerId: "owner-owner11",
+  ownerDisplayName: "Owner11",
   playerId: "player-bijan-robinson",
   playerName: "Bijan Robinson",
   position: "RB",
@@ -56,7 +56,7 @@ const historicalSaleWithoutPublicPrice = (
 describe("league-calibrated pricing rebuild", () => {
   it("blends exact player historical sales into baseline prices", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -88,7 +88,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("normalizes position inflation against matching player anchors", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -133,7 +133,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("applies historical sale-to-public ratios to the current player baseline", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -156,7 +156,7 @@ describe("league-calibrated pricing rebuild", () => {
     const saleWithoutPublicValue = historicalSale();
     delete saleWithoutPublicValue.publicPriceDollars;
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -204,7 +204,7 @@ describe("league-calibrated pricing rebuild", () => {
       }),
     ];
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -232,7 +232,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("weights sparse public values by their position coverage instead of replacing the sale curve", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v2",
       scenarioIds: ["balanced"],
@@ -274,7 +274,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("creates deterministic snapshots for multiple scenarios", () => {
     const firstSnapshots = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced", "upside"],
@@ -282,7 +282,7 @@ describe("league-calibrated pricing rebuild", () => {
       historicalSaleRecords: [historicalSale()],
     });
     const secondSnapshots = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced", "upside"],
@@ -290,7 +290,7 @@ describe("league-calibrated pricing rebuild", () => {
       historicalSaleRecords: [historicalSale()],
     });
     const differentlyNamedScenario = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["a label that must not move prices"],
@@ -322,7 +322,7 @@ describe("league-calibrated pricing rebuild", () => {
       currentMinimumBidDollars: number,
       currentTeamCount = 2,
     ) => createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["expected"],
@@ -361,7 +361,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("uses historical record identity and price in stable input hashes", () => {
     const firstSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -372,7 +372,7 @@ describe("league-calibrated pricing rebuild", () => {
       ],
     })[0];
     const reorderedSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -383,7 +383,7 @@ describe("league-calibrated pricing rebuild", () => {
       ],
     })[0];
     const repricedSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -394,7 +394,7 @@ describe("league-calibrated pricing rebuild", () => {
       ],
     })[0];
     const reidentifiedSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -405,7 +405,7 @@ describe("league-calibrated pricing rebuild", () => {
       ],
     })[0];
     const budgetContextSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -428,7 +428,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("preserves baseline prices and metadata when there is no usable history", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -465,7 +465,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("excludes unused and future historical records from calibration input identity", () => {
     const trustedSnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -473,7 +473,7 @@ describe("league-calibrated pricing rebuild", () => {
       historicalSaleRecords: [historicalSale()],
     })[0];
     const noisySnapshot = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: ["balanced"],
@@ -509,7 +509,7 @@ describe("league-calibrated pricing rebuild", () => {
 
   it("defaults to a balanced snapshot when no scenario ids are provided", () => {
     const snapshots = createLeagueCalibratedPricingSnapshots({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "league-calibration-v1",
       scenarioIds: [],

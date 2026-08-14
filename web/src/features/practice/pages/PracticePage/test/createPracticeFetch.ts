@@ -56,7 +56,7 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
         return response({ error: { code: "unavailable", message: "Try again." } }, 503);
       }
       return response({
-        account: { email: "cam@example.com", id: "user-1" },
+        account: { email: "user@example.com", id: "user-1" },
         leagues: options.hasLeague === false ? [] : [league(options.teamClaimed !== false)],
       });
     }

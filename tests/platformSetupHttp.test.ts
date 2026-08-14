@@ -45,42 +45,42 @@ const mockRunner: SimulationMockBatchRunner = ({
 
 const setupRegisteredSeason = async () => {
   const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-  await app.createAccount({ email: "cam@example.com", password: "cam password", now });
-  await app.createAccount({ email: "seth@example.com", password: "seth password", now });
-  const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
-  const seth = await app.login({ email: "seth@example.com", password: "seth password", now });
-  if (cam === null || seth === null) throw new Error("Expected fixture logins.");
+  await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+  await app.createAccount({ email: "owner04@example.com", password: "owner04 password", now });
+  const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+  const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password", now });
+  if (owner11 === null || owner04 === null) throw new Error("Expected fixture logins.");
 
-  const season = buildCurrentMockdLeagueSeason(["Cam", "Seth", "Beaton"], {
+  const season = buildCurrentMockdLeagueSeason(["Owner11", "Owner04", "Owner01"], {
     ...leagueConfig,
     teams: 3,
   }, {
     leagueName: "Setup Import League",
     setupStatus: "published",
   });
-  const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-  const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+  const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+  const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
   if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
   await app.registerLeagueSeason({
-    actorSessionToken: cam.sessionToken,
+    actorSessionToken: owner11.sessionToken,
     season,
     memberships: [
-      { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-      { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+      { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
     ],
     now,
   });
 
-  return { app, cam, seth, season };
+  return { app, owner11, owner04, season };
 };
 
 const makeSeasonReadyForLiveRoom = async (
   app: ReturnType<typeof createPlatformApp>,
-  cam: { sessionToken: string },
+  owner11: { sessionToken: string },
   season: ReturnType<typeof buildCurrentMockdLeagueSeason>,
 ) => {
-  const readySeason = buildCurrentMockdLeagueSeason(["Cam", "Seth", "Beaton", "Nick"], {
+  const readySeason = buildCurrentMockdLeagueSeason(["Owner11", "Owner04", "Owner01", "Nick"], {
     ...leagueConfig,
     teams: 4,
   }, {
@@ -98,7 +98,7 @@ const makeSeasonReadyForLiveRoom = async (
       : { ...membership, ownerId: readyTeam.ownerId, teamId: readyTeam.id };
   });
   await app.registerLeagueSeason({
-    actorSessionToken: cam.sessionToken,
+    actorSessionToken: owner11.sessionToken,
     season: readySeason,
     memberships,
     now,
@@ -153,15 +153,15 @@ class AsyncLeagueSetupRepository implements LeagueSetupRepository {
 
 describe("platform setup import HTTP helpers", () => {
   it("previews malformed rows and duplicate owners as blockers using the season team count", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
 
     const response = await previewLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        " cam ,Cam Two,cam-alt@example.com,member",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        " owner11 ,Owner11 Two,owner11-alt@example.com,member",
         "\"Broken,Broken Team,broken@example.com,member",
       ].join("\n"),
       now,
@@ -187,10 +187,10 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("keeps setup import preview available after the live draft room is created", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
-    const readySeason = await makeSeasonReadyForLiveRoom(app, cam, season);
+    const { app, owner11, season } = await setupRegisteredSeason();
+    const readySeason = await makeSeasonReadyForLiveRoom(app, owner11, season);
     await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: readySeason.id,
       roomId: "room-existing-preview",
       viewerPasswordHashRef: `account-membership:${season.id}`,
@@ -199,13 +199,13 @@ describe("platform setup import HTTP helpers", () => {
     });
 
     const response = await previewLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,member",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,member",
         "Nick,Nick's Team,nick@example.com,member",
       ].join("\n"),
       now,
@@ -220,16 +220,16 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("rejects setup import apply after the live draft room is created", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
-    const readySeason = await makeSeasonReadyForLiveRoom(app, cam, season);
+    const { app, owner11, season } = await setupRegisteredSeason();
+    const readySeason = await makeSeasonReadyForLiveRoom(app, owner11, season);
     const existingSeason = await app.getLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: readySeason.id,
       now,
     });
     const existingMemberships = await app.listLeagueMemberships(readySeason.leagueId);
     await app.createLiveDraftRoom({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: readySeason.id,
       roomId: "room-existing-setup-lock",
       viewerPasswordHashRef: `account-membership:${season.id}`,
@@ -238,13 +238,13 @@ describe("platform setup import HTTP helpers", () => {
     });
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: readySeason.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Renamed Club,cam@example.com,owner",
-        "Seth,Seth's Renamed Champs,seth@example.com,member",
-        "Beaton,Beaton's Renamed Team,beaton@example.com,member",
+        "Owner11,Owner11's Renamed Club,owner11@example.com,owner",
+        "Owner04,Owner04's Renamed Champs,owner04@example.com,member",
+        "Owner01,Owner01's Renamed Team,owner01@example.com,member",
       ].join("\n"),
       now,
     });
@@ -259,7 +259,7 @@ describe("platform setup import HTTP helpers", () => {
       },
     });
     expect(await app.getLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       now,
     })).toEqual(existingSeason);
@@ -267,16 +267,16 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("returns a stable blocked-import error instead of applying duplicate owners", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "cam,Cam Two,cam-alt@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,member",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "owner11,Owner11 Two,owner11-alt@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,member",
       ].join("\n"),
       now,
     });
@@ -294,20 +294,20 @@ describe("platform setup import HTTP helpers", () => {
         }),
       },
     });
-    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id, now })).toEqual(season);
+    expect(await app.getLeagueSeason({ actorSessionToken: owner11.sessionToken, seasonId: season.id, now })).toEqual(season);
   });
 
   it("returns a stable blocked-import error instead of applying malformed rows", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "\"Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "\"Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       now,
     });
@@ -328,23 +328,23 @@ describe("platform setup import HTTP helpers", () => {
         }),
       },
     });
-    expect(await app.getLeagueSeason({ actorSessionToken: cam.sessionToken, seasonId: season.id, now })).toEqual(season);
+    expect(await app.getLeagueSeason({ actorSessionToken: owner11.sessionToken, seasonId: season.id, now })).toEqual(season);
   });
 
   it("applies ready rows, keeps commissioner membership, maps known owner ids, and preserves invite emails", async () => {
-    const { app, cam, seth, season } = await setupRegisteredSeason();
+    const { app, owner11, owner04, season } = await setupRegisteredSeason();
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       knownUsers: [
-        { email: "seth@example.com", accountId: seth.account.id },
+        { email: "owner04@example.com", accountId: owner04.account.id },
       ],
       now,
     });
@@ -354,101 +354,101 @@ describe("platform setup import HTTP helpers", () => {
       season: expect.objectContaining({
         id: season.id,
         teams: [
-          expect.objectContaining({ ownerDisplayName: "Cam", displayName: "Cam's Club" }),
-          expect.objectContaining({ ownerDisplayName: "Seth", displayName: "Seth's Champs" }),
-          expect.objectContaining({ ownerDisplayName: "Beaton", displayName: "Beaton's Team" }),
+          expect.objectContaining({ ownerDisplayName: "Owner11", displayName: "Owner11's Club" }),
+          expect.objectContaining({ ownerDisplayName: "Owner04", displayName: "Owner04's Champs" }),
+          expect.objectContaining({ ownerDisplayName: "Owner01", displayName: "Owner01's Team" }),
         ],
       }),
       memberships: expect.arrayContaining([
         expect.objectContaining({
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
-          inviteEmail: "cam@example.com",
+          inviteEmail: "owner11@example.com",
         }),
         expect.objectContaining({
-          userId: seth.account.id,
+          userId: owner04.account.id,
           leagueId: season.leagueId,
           role: "member",
-          inviteEmail: "seth@example.com",
+          inviteEmail: "owner04@example.com",
         }),
       ]),
       pendingInvites: [
         expect.objectContaining({
-          email: "beaton@example.com",
+          email: "owner01@example.com",
           role: "admin",
         }),
       ],
     });
 
-    const updatedSeason = await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now });
+    const updatedSeason = await app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id, now });
     expect(updatedSeason.teams.map(team => team.displayName)).toEqual([
-      "Cam's Club",
-      "Seth's Champs",
-      "Beaton's Team",
+      "Owner11's Club",
+      "Owner04's Champs",
+      "Owner01's Team",
     ]);
-    expect(app.store.findMembership(cam.account.id, season.leagueId)).toMatchObject({
-      userId: cam.account.id,
+    expect(app.store.findMembership(owner11.account.id, season.leagueId)).toMatchObject({
+      userId: owner11.account.id,
       role: "owner",
-      inviteEmail: "cam@example.com",
+      inviteEmail: "owner11@example.com",
     });
-    expect(app.store.findMembership(seth.account.id, season.leagueId)).toMatchObject({
-      userId: seth.account.id,
+    expect(app.store.findMembership(owner04.account.id, season.leagueId)).toMatchObject({
+      userId: owner04.account.id,
       role: "member",
-      inviteEmail: "seth@example.com",
+      inviteEmail: "owner04@example.com",
     });
   });
 
   it("does not trust registered emails or client-provided account ids during setup import", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
-    await app.createAccount({ email: "beaton@example.com", password: "beaton password", now });
+    const { app, owner11, season } = await setupRegisteredSeason();
+    await app.createAccount({ email: "owner01@example.com", password: "owner01 password", now });
     await app.createAccount({ email: "outsider@example.com", password: "outsider password", now });
-    const beaton = await app.login({ email: "beaton@example.com", password: "beaton password", now });
+    const owner01 = await app.login({ email: "owner01@example.com", password: "owner01 password", now });
     const outsider = await app.login({ email: "outsider@example.com", password: "outsider password", now });
-    if (beaton === null || outsider === null) throw new Error("Expected fixture logins.");
+    if (owner01 === null || outsider === null) throw new Error("Expected fixture logins.");
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       knownUsers: [
-        { email: "beaton@example.com", accountId: outsider.account.id },
+        { email: "owner01@example.com", accountId: outsider.account.id },
       ],
       now,
     });
 
     expect(response.status).toBe(200);
-    expect(app.store.findMembership(beaton.account.id, season.leagueId)).toBeNull();
+    expect(app.store.findMembership(owner01.account.id, season.leagueId)).toBeNull();
     expect(app.store.findMembership(outsider.account.id, season.leagueId)).toBeNull();
-    expect(JSON.stringify(response.body)).not.toContain(beaton.account.id);
+    expect(JSON.stringify(response.body)).not.toContain(owner01.account.id);
     expect(JSON.stringify(response.body)).not.toContain(outsider.account.id);
     expect(response.body).toMatchObject({
       pendingInvites: [{
-        email: "beaton@example.com",
+        email: "owner01@example.com",
         role: "admin",
       }],
     });
   });
 
   it("keeps a registered non-member pending until the matching account accepts the invitation", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const invitationRepository = new InMemoryPlatformInvitationRepository();
     await app.createAccount({ email: "victim@example.com", password: "victim password", now });
     const victim = await app.login({ email: "victim@example.com", password: "victim password", now });
     if (victim === null) throw new Error("Expected victim fixture login.");
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
         "Victim,Victim's Team,victim@example.com,admin",
       ].join("\n"),
       knownUsers: [{ email: "victim@example.com", accountId: victim.account.id }],
@@ -491,47 +491,47 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("preserves already claimed member access when team setup is reapplied without known user rows", async () => {
-    const { app, cam, seth, season } = await setupRegisteredSeason();
+    const { app, owner11, owner04, season } = await setupRegisteredSeason();
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Renamed Team,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Renamed Team,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       now,
     });
 
     expect(response.status).toBe(200);
-    expect(app.store.findMembership(seth.account.id, season.leagueId)).toMatchObject({
-      userId: seth.account.id,
+    expect(app.store.findMembership(owner04.account.id, season.leagueId)).toMatchObject({
+      userId: owner04.account.id,
       role: "member",
-      inviteEmail: "seth@example.com",
-      ownerId: expect.stringContaining("seth"),
-      teamId: expect.stringContaining("seth"),
+      inviteEmail: "owner04@example.com",
+      ownerId: expect.stringContaining("owner04"),
+      teamId: expect.stringContaining("owner04"),
     });
 
-    const sethView = await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now });
-    expect(sethView.teams.find(team => team.ownerDisplayName === "Seth")).toMatchObject({
-      displayName: "Seth's Renamed Team",
+    const sethView = await app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id, now });
+    expect(sethView.teams.find(team => team.ownerDisplayName === "Owner04")).toMatchObject({
+      displayName: "Owner04's Renamed Team",
     });
   });
 
   it("issues actionable invitations for setup rows without registered accounts", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const invitationRepository = new InMemoryPlatformInvitationRepository();
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       invitationRepository,
       now,
@@ -540,7 +540,7 @@ describe("platform setup import HTTP helpers", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       invitations: [{
-        email: "beaton@example.com",
+        email: "owner01@example.com",
         status: "pending",
         acceptPath: expect.stringMatching(/^\/invite\?token=/),
         reissuePath: expect.stringMatching(/^\/invitations\/.+\/reissue$/),
@@ -549,28 +549,28 @@ describe("platform setup import HTTP helpers", () => {
     });
     expect(await invitationRepository.listForSeason(season.id)).toEqual([
       expect.objectContaining({
-        email: "beaton@example.com",
-        invitedByUserId: cam.account.id,
+        email: "owner01@example.com",
+        invitedByUserId: owner11.account.id,
         tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     ]);
   });
 
   it("reports invitation failures after preserving the applied league setup", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const invitationRepository = new InMemoryPlatformInvitationRepository();
     invitationRepository.savePending = () => {
       throw new Error("Email provider unavailable.");
     };
 
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,cam@example.com,owner",
-        "Seth,Seth's Champs,seth@example.com,member",
-        "Beaton,Beaton's Team,beaton@example.com,member",
+        "Owner11,Owner11's Club,owner11@example.com,owner",
+        "Owner04,Owner04's Champs,owner04@example.com,member",
+        "Owner01,Owner01's Team,owner01@example.com,member",
       ].join("\n"),
       invitationRepository,
       now,
@@ -582,7 +582,7 @@ describe("platform setup import HTTP helpers", () => {
         season: { id: season.id },
         invitations: [],
         invitationFailures: [{
-          email: "beaton@example.com",
+          email: "owner01@example.com",
           message: "Email provider unavailable.",
         }],
       },
@@ -596,41 +596,41 @@ describe("platform setup import HTTP helpers", () => {
       leagueSetupRepository,
       simulationRunner: mockRunner,
     });
-    await app.createAccount({ email: "cam@example.com", password: "cam password", now });
-    await app.createAccount({ email: "seth@example.com", password: "seth password", now });
-    const cam = await app.login({ email: "cam@example.com", password: "cam password", now });
-    const seth = await app.login({ email: "seth@example.com", password: "seth password", now });
-    if (cam === null || seth === null) throw new Error("Expected fixture logins.");
-    const season = buildCurrentMockdLeagueSeason(["Cam", "Seth", "Beaton"], {
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner04@example.com", password: "owner04 password", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password", now });
+    if (owner11 === null || owner04 === null) throw new Error("Expected fixture logins.");
+    const season = buildCurrentMockdLeagueSeason(["Owner11", "Owner04", "Owner01"], {
       ...leagueConfig,
       teams: 3,
     }, {
       leagueName: "Setup Import League",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     await leagueSetupRepository.registerLeagueSeason({
       season,
       memberships: [
-        { userId: cam.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
-        { userId: seth.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+        { userId: owner04.account.id, leagueId: season.leagueId, role: "member", ownerId: sethTeam.ownerId, teamId: sethTeam.id },
       ],
-      createdByUserId: cam.account.id,
+      createdByUserId: owner11.account.id,
       now,
     });
 
     expect(app.store.findLeagueSeason(season.id)).toBeNull();
     const response = await applyLeagueSetupImport(app, {
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       content: [
         "owner,team,email,role",
-        "Cam,Cam's Club,,owner",
-        "Seth,Seth's Renamed Team,,member",
-        "Beaton,Beaton's Team,beaton@example.com,admin",
+        "Owner11,Owner11's Club,,owner",
+        "Owner04,Owner04's Renamed Team,,member",
+        "Owner01,Owner01's Team,owner01@example.com,admin",
       ].join("\n"),
       now,
     });
@@ -639,39 +639,39 @@ describe("platform setup import HTTP helpers", () => {
     expect(response.body).toMatchObject({
       memberships: expect.arrayContaining([
         expect.objectContaining({
-          userId: seth.account.id,
+          userId: owner04.account.id,
           role: "member",
-          ownerId: expect.stringContaining("seth"),
-          teamId: expect.stringContaining("seth"),
+          ownerId: expect.stringContaining("owner04"),
+          teamId: expect.stringContaining("owner04"),
         }),
       ]),
       pendingInvites: [
         expect.objectContaining({
-          email: "beaton@example.com",
+          email: "owner01@example.com",
           role: "admin",
         }),
       ],
     });
-    const sethView = await app.getLeagueSeason({ actorSessionToken: seth.sessionToken, seasonId: season.id, now });
-    expect(sethView.teams.find(team => team.ownerDisplayName === "Seth")).toMatchObject({
-      displayName: "Seth's Renamed Team",
+    const sethView = await app.getLeagueSeason({ actorSessionToken: owner04.sessionToken, seasonId: season.id, now });
+    expect(sethView.teams.find(team => team.ownerDisplayName === "Owner04")).toMatchObject({
+      displayName: "Owner04's Renamed Team",
     });
   });
 
   it("routes season setup import preview through the platform HTTP handler", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const handle = createPlatformHttpHandler(app);
 
     const response = await handle({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/preview`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         rows: [
           "owner,team,email,role",
-          "Cam,Cam's Club,cam@example.com,owner",
-          "Seth,Seth's Champs,seth@example.com,member",
-          "Beaton,Beaton's Team,beaton@example.com,member",
+          "Owner11,Owner11's Club,owner11@example.com,owner",
+          "Owner04,Owner04's Champs,owner04@example.com,member",
+          "Owner01,Owner01's Team,owner01@example.com,member",
         ],
         now,
       },
@@ -682,20 +682,20 @@ describe("platform setup import HTTP helpers", () => {
       import: {
         status: "ready",
         records: [
-          expect.objectContaining({ ownerDisplayName: "Cam", teamDisplayName: "Cam's Club" }),
-          expect.objectContaining({ ownerDisplayName: "Seth", teamDisplayName: "Seth's Champs" }),
-          expect.objectContaining({ ownerDisplayName: "Beaton", teamDisplayName: "Beaton's Team" }),
+          expect.objectContaining({ ownerDisplayName: "Owner11", teamDisplayName: "Owner11's Club" }),
+          expect.objectContaining({ ownerDisplayName: "Owner04", teamDisplayName: "Owner04's Champs" }),
+          expect.objectContaining({ ownerDisplayName: "Owner01", teamDisplayName: "Owner01's Team" }),
         ],
       },
     });
   });
 
   it("lets only commissioners analyze a screenshot and returns a validated review model", async () => {
-    const { app, cam, seth, season } = await setupRegisteredSeason();
+    const { app, owner11, owner04, season } = await setupRegisteredSeason();
     const analyze = vi.fn(async () => ({
       leagueName: "The Sunday Games",
-      externalLeagueId: "214674",
-      teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+      externalLeagueId: "100001",
+      teams: ["Owner11", "Owner04", "Owner01"].map((manager, index) => ({
         draftOrderPosition: index + 1,
         abbreviation: manager.toUpperCase(),
         teamDisplayName: `${manager} Team`,
@@ -717,7 +717,7 @@ describe("platform setup import HTTP helpers", () => {
     const memberResponse = await handle({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
-      sessionToken: seth.sessionToken,
+      sessionToken: owner04.sessionToken,
       clientAddress: "203.0.113.8",
       body: { mimeType: "image/png", base64: "not-sent-to-stub" },
       now,
@@ -728,7 +728,7 @@ describe("platform setup import HTTP helpers", () => {
     const response = await handle({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       clientAddress: "203.0.113.9",
       body: { mimeType: "image/png", base64: "sent-to-stub" },
       now,
@@ -740,11 +740,11 @@ describe("platform setup import HTTP helpers", () => {
       import: {
         status: "ready",
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
+        externalLeagueId: "100001",
         records: [
-          expect.objectContaining({ abbreviation: "CAM", ownerDisplayName: "Cam" }),
-          expect.objectContaining({ abbreviation: "SETH", ownerDisplayName: "Seth" }),
-          expect.objectContaining({ abbreviation: "BEATON", ownerDisplayName: "Beaton" }),
+          expect.objectContaining({ abbreviation: "OWNER11", ownerDisplayName: "Owner11" }),
+          expect.objectContaining({ abbreviation: "OWNER04", ownerDisplayName: "Owner04" }),
+          expect.objectContaining({ abbreviation: "OWNER01", ownerDisplayName: "Owner01" }),
         ],
       },
       extraction: expect.objectContaining({ teams: expect.any(Array) }),
@@ -753,7 +753,7 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("rate limits screenshot analysis before incurring a second provider call", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const analyze = vi.fn(async () => ({
       leagueName: null,
       externalLeagueId: null,
@@ -770,7 +770,7 @@ describe("platform setup import HTTP helpers", () => {
     const request = {
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-analyze`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       clientAddress: "203.0.113.10",
       body: { mimeType: "image/png", base64: "sent-to-stub" },
       now,
@@ -788,17 +788,17 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("applies reviewed screenshot teams without creating invitations", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const handle = createPlatformHttpHandler(app);
     const response = await handle({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-apply`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         setupRevision: leagueSeasonSetupRevision(season),
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
-        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+        externalLeagueId: "100001",
+        teams: ["Owner11", "Owner04", "Owner01"].map((manager, index) => ({
           targetTeamId: season.teams[index]?.id,
           draftOrderPosition: index + 1,
           abbreviation: manager.toUpperCase(),
@@ -815,11 +815,11 @@ describe("platform setup import HTTP helpers", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       season: {
-        league: { name: "The Sunday Games", provider: "espn", externalLeagueId: "214674" },
+        league: { name: "The Sunday Games", provider: "espn", externalLeagueId: "100001" },
         teams: expect.arrayContaining([
           expect.objectContaining({
-            abbreviation: "BEATON",
-            managerDisplayNames: ["Beaton", "Matt Co-manager"],
+            abbreviation: "OWNER01",
+            managerDisplayNames: ["Owner01", "Matt Co-manager"],
           }),
         ]),
       },
@@ -829,20 +829,20 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("preserves account claims while explicitly mapped ESPN rows change order", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const membershipsBefore = await app.listLeagueMemberships(season.leagueId);
-    const importedManagers = ["Seth", "Cam", "Beaton"];
+    const importedManagers = ["Owner04", "Owner11", "Owner01"];
     const targetTeamIds = importedManagers.map(manager =>
       season.teams.find(team => team.ownerDisplayName === manager)?.id
     );
     const response = await createPlatformHttpHandler(app)({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-apply`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         setupRevision: leagueSeasonSetupRevision(season),
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
+        externalLeagueId: "100001",
         teams: importedManagers.map((manager, index) => ({
           targetTeamId: targetTeamIds[index],
           draftOrderPosition: index + 1,
@@ -860,16 +860,16 @@ describe("platform setup import HTTP helpers", () => {
     expect(response.status).toBe(200);
     await expect(app.listLeagueMemberships(season.leagueId)).resolves.toEqual(membershipsBefore);
     const appliedSeason = await app.getLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       now,
     });
-    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[0])?.ownerDisplayName).toBe("Seth");
-    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[1])?.ownerDisplayName).toBe("Cam");
+    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[0])?.ownerDisplayName).toBe("Owner04");
+    expect(appliedSeason.teams.find(team => team.id === targetTeamIds[1])?.ownerDisplayName).toBe("Owner11");
   });
 
   it("rejects a screenshot import that omits a stored team profile", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const sourceTeam = season.teams[2];
     if (sourceTeam === undefined) throw new Error("Expected source team fixture.");
     const malformedSeason = {
@@ -887,7 +887,7 @@ describe("platform setup import HTTP helpers", () => {
       ],
     };
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season: malformedSeason,
       memberships: await app.listLeagueMemberships(season.leagueId),
       now,
@@ -896,12 +896,12 @@ describe("platform setup import HTTP helpers", () => {
     const response = await createPlatformHttpHandler(app)({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-apply`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         setupRevision: leagueSeasonSetupRevision(malformedSeason),
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
-        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+        externalLeagueId: "100001",
+        teams: ["Owner11", "Owner04", "Owner01"].map((manager, index) => ({
           targetTeamId: season.teams[index]?.id,
           draftOrderPosition: index + 1,
           abbreviation: manager.toUpperCase(),
@@ -926,7 +926,7 @@ describe("platform setup import HTTP helpers", () => {
       },
     });
     const persisted = await app.getLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       now,
     });
@@ -934,17 +934,17 @@ describe("platform setup import HTTP helpers", () => {
   });
 
   it("rejects a screenshot review after league setup changed", async () => {
-    const { app, cam, season } = await setupRegisteredSeason();
+    const { app, owner11, season } = await setupRegisteredSeason();
     const handle = createPlatformHttpHandler(app);
     const response = await handle({
       method: "POST",
       path: `/seasons/${season.id}/setup-import/screenshot-apply`,
-      sessionToken: cam.sessionToken,
+      sessionToken: owner11.sessionToken,
       body: {
         setupRevision: "stale-review",
         leagueName: "The Sunday Games",
-        externalLeagueId: "214674",
-        teams: ["Cam", "Seth", "Beaton"].map((manager, index) => ({
+        externalLeagueId: "100001",
+        teams: ["Owner11", "Owner04", "Owner01"].map((manager, index) => ({
           targetTeamId: season.teams[index]?.id,
           draftOrderPosition: index + 1,
           abbreviation: manager.toUpperCase(),

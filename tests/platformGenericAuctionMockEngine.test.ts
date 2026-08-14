@@ -17,10 +17,10 @@ const baseConfig = (
   budgetDollars: 20,
   minimumBidDollars: 1,
   teams: [
-    { id: "team-a", name: "Cam" },
-    { id: "team-b", name: "Beaton" },
-    { id: "team-c", name: "Seth" },
-    { id: "team-d", name: "PJ" },
+    { id: "team-a", name: "Owner11" },
+    { id: "team-b", name: "Owner01" },
+    { id: "team-c", name: "Owner04" },
+    { id: "team-d", name: "Owner03" },
   ],
   rosterSlots: [
     { slot: "QB", count: 1, eligiblePositions: ["QB"] },
@@ -109,7 +109,7 @@ describe("generic auction mock engine", () => {
     });
     expect(state.teams[0]).toMatchObject({
       id: "team-a",
-      name: "Cam",
+      name: "Owner11",
       isHuman: true,
       budgetDollars: 20,
       spent: 0,
@@ -194,10 +194,10 @@ describe("generic auction mock engine", () => {
     const config = baseConfig({
       budgetDollars: 100,
       teams: [
-        { id: "team-a", name: "Cam" },
-        { id: "team-b", name: "Beaton", aiTendency: { bidMultiplier: 1.5 } },
-        { id: "team-c", name: "Seth", aiTendency: { bidMultiplier: 1.44 } },
-        { id: "team-d", name: "PJ", aiTendency: { bidMultiplier: 1.4 } },
+        { id: "team-a", name: "Owner11" },
+        { id: "team-b", name: "Owner01", aiTendency: { bidMultiplier: 1.5 } },
+        { id: "team-c", name: "Owner04", aiTendency: { bidMultiplier: 1.44 } },
+        { id: "team-d", name: "Owner03", aiTendency: { bidMultiplier: 1.4 } },
       ],
       rosterSlots: [{ slot: "RB", count: 1, eligiblePositions: ["RB"] }],
       positionMaximums: { RB: 1 },
@@ -261,14 +261,14 @@ describe("generic auction mock engine", () => {
   it("automatically counters a human bid when an AI ceiling is higher", () => {
     const config = baseConfig({
       teams: [
-        { id: "team-a", name: "Cam" },
+        { id: "team-a", name: "Owner11" },
         {
           id: "team-b",
           name: "WR Collector",
           aiTendency: { positionBidMultipliers: { WR: 2 } },
         },
-        { id: "team-c", name: "Seth" },
-        { id: "team-d", name: "PJ" },
+        { id: "team-c", name: "Owner04" },
+        { id: "team-d", name: "Owner03" },
       ],
     });
     const nominated = applyGenericAuctionMockCommand(start(config), {
@@ -330,10 +330,10 @@ describe("generic auction mock engine", () => {
 
   it("raises AI ceilings as a position becomes depleted", () => {
     const teams = [
-      { id: "team-a", name: "Cam" },
-      { id: "team-b", name: "Beaton" },
-      { id: "team-c", name: "Seth" },
-      { id: "team-d", name: "PJ" },
+      { id: "team-a", name: "Owner11" },
+      { id: "team-b", name: "Owner01" },
+      { id: "team-c", name: "Owner04" },
+      { id: "team-d", name: "Owner03" },
     ];
     const players = [
       { id: "target", name: "Target RB", position: "RB", expectedPrice: 50 },
@@ -422,14 +422,14 @@ describe("generic auction mock engine", () => {
   it("uses owner tendencies to produce deterministic AI bidding personalities", () => {
     const config = baseConfig({
       teams: [
-        { id: "team-a", name: "Cam" },
+        { id: "team-a", name: "Owner11" },
         {
           id: "team-b",
           name: "WR Collector",
           aiTendency: { positionBidMultipliers: { WR: 2 } },
         },
-        { id: "team-c", name: "Seth" },
-        { id: "team-d", name: "PJ" },
+        { id: "team-c", name: "Owner04" },
+        { id: "team-d", name: "Owner03" },
       ],
     });
     const nominated = applyGenericAuctionMockCommand(start(config), {
@@ -453,7 +453,7 @@ describe("generic auction mock engine", () => {
   it("centers competitive AI clearing prices around the expected market price", () => {
     const teams = Array.from({ length: 14 }, (_, index) => ({
       id: `team-${index + 1}`,
-      name: index === 0 ? "Cam" : `Opponent ${index}`,
+      name: index === 0 ? "Owner11" : `Opponent ${index}`,
     }));
     const config = baseConfig({
       teams,
@@ -492,10 +492,10 @@ describe("generic auction mock engine", () => {
   it("preserves the standing AI bidder when opponents have equal bid ceilings", () => {
     const config = baseConfig({
       teams: [
-        { id: "team-a", name: "Cam" },
-        { id: "team-c", name: "Seth" },
-        { id: "team-b", name: "Beaton" },
-        { id: "team-d", name: "PJ" },
+        { id: "team-a", name: "Owner11" },
+        { id: "team-c", name: "Owner04" },
+        { id: "team-b", name: "Owner01" },
+        { id: "team-d", name: "Owner03" },
       ],
     });
     const afterHumanSale = applyGenericAuctionMockCommand(start(config), {
@@ -860,6 +860,22 @@ describe("generic auction mock engine", () => {
           week1Projection: 0,
           starterEligible: false,
         },
+        {
+          id: "zero-backup-two",
+          name: "Zero Backup Two",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0,
+          starterEligible: false,
+        },
+        {
+          id: "zero-backup-three",
+          name: "Zero Backup Three",
+          position: "QB",
+          expectedPrice: 1,
+          week1Projection: 0,
+          starterEligible: false,
+        },
         ...Array.from({ length: 5 }, (_, index) => ({
           id: `depth-rb-${index + 1}`,
           name: `Depth RB ${index + 1}`,
@@ -879,7 +895,7 @@ describe("generic auction mock engine", () => {
     expect(maximumAutomatedAuctionBidFor(setup, team, target)).toBe(18);
   });
 
-  it("reranks paced AI bidders when the human cannot afford the next bid", () => {
+  it("reranks paced AI bidders and clears one dollar above the runner-up", () => {
     const config = baseConfig({
       humanTeamId: "team-b",
       teams: [
@@ -918,7 +934,7 @@ describe("generic auction mock engine", () => {
     expect(state.sales.find(sale => sale.playerId === "target")).toMatchObject({
       playerId: "target",
       teamId: "team-c",
-      price: 12,
+      price: 6,
     });
   });
 
@@ -1049,10 +1065,10 @@ describe("generic auction mock engine", () => {
       .toThrowError(expect.objectContaining({ code: "invalid_config" }));
     expect(() => createGenericAuctionMockState(baseConfig({
       teams: [
-        { id: "team-a", name: "Cam" },
+        { id: "team-a", name: "Owner11" },
         { id: "team-a", name: "Duplicate" },
-        { id: "team-c", name: "Seth" },
-        { id: "team-d", name: "PJ" },
+        { id: "team-c", name: "Owner04" },
+        { id: "team-d", name: "Owner03" },
       ],
     }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
     expect(() => createGenericAuctionMockState(baseConfig({

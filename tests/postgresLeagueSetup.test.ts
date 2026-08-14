@@ -604,7 +604,7 @@ const buildSeason = (options: { seasonYear?: number; leagueName?: string } = {})
     leagueConfig,
     {
       ...(options.seasonYear === undefined ? {} : { seasonYear: options.seasonYear }),
-      leagueName: options.leagueName ?? "League 214674",
+      leagueName: options.leagueName ?? "League 100001",
       setupStatus: "published",
       draft: {
         scheduledAt: "2026-08-30T18:00:00.000Z",
@@ -641,8 +641,8 @@ describe("Postgres league setup repository", () => {
     const firstSeason = buildSeason();
     await repository.registerLeagueSeason({
       season: firstSeason,
-      memberships: membershipsFor(firstSeason, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(firstSeason, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
     const secondLeagueId = `${firstSeason.leagueId}-second`;
@@ -660,8 +660,8 @@ describe("Postgres league setup repository", () => {
 
     await expect(repository.registerLeagueSeason({
       season: secondSeason,
-      memberships: [{ userId: "acct_cam", leagueId: secondLeagueId, role: "owner" }],
-      createdByUserId: "acct_cam",
+      memberships: [{ userId: "acct_owner11", leagueId: secondLeagueId, role: "owner" }],
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1),
     })).rejects.toThrow(new LeagueCreationLimitError(
       "active_league_quota_reached",
@@ -684,14 +684,14 @@ describe("Postgres league setup repository", () => {
     const firstSeason = buildSeason();
     await repository.registerLeagueSeason({
       season: firstSeason,
-      memberships: membershipsFor(firstSeason, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(firstSeason, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
 
     await expect(repository.archiveLeague({
       leagueId: firstSeason.leagueId,
-      archivedByUserId: "acct_cam",
+      archivedByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1),
     })).resolves.toBe(true);
     await expect(repository.isLeagueArchived(firstSeason.leagueId)).resolves.toBe(true);
@@ -711,8 +711,8 @@ describe("Postgres league setup repository", () => {
     };
     await expect(repository.registerLeagueSeason({
       season: secondSeason,
-      memberships: [{ userId: "acct_cam", leagueId: secondLeagueId, role: "owner" }],
-      createdByUserId: "acct_cam",
+      memberships: [{ userId: "acct_owner11", leagueId: secondLeagueId, role: "owner" }],
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 2),
     })).resolves.toEqual(secondSeason);
   });
@@ -721,12 +721,12 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const memberships = membershipsFor(season, ["Cam", "Seth"]);
+    const memberships = membershipsFor(season, ["Owner11", "Owner04"]);
 
     const registered = await repository.registerLeagueSeason({
       season,
       memberships,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
 
@@ -734,10 +734,10 @@ describe("Postgres league setup repository", () => {
     expect(client.transactionCount).toBe(1);
     expect(client.leagues.get(season.leagueId)).toMatchObject({
       id: season.leagueId,
-      name: "League 214674",
+      name: "League 100001",
       provider: "mockd",
       provider_league_id: String(leagueConfig.leagueId),
-      created_by_user_id: "acct_cam",
+      created_by_user_id: "acct_owner11",
     });
     expect(client.seasons.get(season.id)).toMatchObject({
       id: season.id,
@@ -755,8 +755,10 @@ describe("Postgres league setup repository", () => {
     await expect(repository.findLeagueSeason(season.id)).resolves.toEqual(season);
     await expect(repository.findLeagueSeasonForLeagueYear(season.leagueId, 2026)).resolves.toEqual(season);
     await expect(repository.hasLeagueSeasonForLeague(season.leagueId)).resolves.toBe(true);
-    await expect(repository.findMembership("acct_cam", season.leagueId)).resolves.toEqual(memberships[0]);
-    await expect(repository.membershipsForLeague(season.leagueId)).resolves.toEqual(memberships);
+    await expect(repository.findMembership("acct_owner11", season.leagueId)).resolves.toEqual(memberships[0]);
+    await expect(repository.membershipsForLeague(season.leagueId)).resolves.toEqual(
+      [...memberships].sort((left, right) => left.userId.localeCompare(right.userId)),
+    );
   });
 
   it("round trips snake format, scoring, order, and reversal without auction settings", async () => {
@@ -786,7 +788,7 @@ describe("Postgres league setup repository", () => {
     await repository.registerLeagueSeason({
       season: snakeSeason,
       memberships: [],
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
 
@@ -813,7 +815,7 @@ describe("Postgres league setup repository", () => {
     const registered = await repository.registerLeagueSeason({
       season: legacySeason,
       memberships: [],
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
 
@@ -829,14 +831,14 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season2026 = buildSeason();
-    const season2027 = buildSeason({ seasonYear: 2027, leagueName: "League 214674 2027" });
-    const camOnly = membershipsFor(season2026, ["Cam"]);
-    const sethOnly = membershipsFor(season2027, ["Seth"]);
+    const season2027 = buildSeason({ seasonYear: 2027, leagueName: "League 100001 2027" });
+    const camOnly = membershipsFor(season2026, ["Owner11"]);
+    const sethOnly = membershipsFor(season2027, ["Owner04"]);
 
     await repository.registerLeagueSeason({
       season: season2026,
       memberships: camOnly,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
     for (const team of season2026.teams) {
@@ -846,17 +848,17 @@ describe("Postgres league setup repository", () => {
       season: {
         ...season2026,
         teams: season2026.teams.map(team =>
-          team.ownerDisplayName === "Cam" ? { ...team, displayName: "Cam Rebranded" } : team
+          team.ownerDisplayName === "Owner11" ? { ...team, displayName: "Owner11 Rebranded" } : team
         ),
       },
       memberships: camOnly,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1_000),
     });
     await repository.registerLeagueSeason({
       season: season2027,
       memberships: sethOnly,
-      createdByUserId: "acct_seth",
+      createdByUserId: "acct_owner04",
       now: new Date(now.getTime() + 2_000),
     });
 
@@ -868,8 +870,8 @@ describe("Postgres league setup repository", () => {
       id: season2026.id,
       teams: expect.arrayContaining([
         expect.objectContaining({
-          ownerDisplayName: "Cam",
-          displayName: "Cam Rebranded",
+          ownerDisplayName: "Owner11",
+          displayName: "Owner11 Rebranded",
         }),
       ]),
     });
@@ -880,20 +882,20 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const memberships = membershipsFor(season, ["Cam"]);
-    await repository.registerLeagueSeason({ season, memberships, createdByUserId: "acct_cam", now });
+    const memberships = membershipsFor(season, ["Owner11"]);
+    await repository.registerLeagueSeason({ season, memberships, createdByUserId: "acct_owner11", now });
     const reviewedRevision = leagueSeasonSetupRevision(season);
     await repository.registerLeagueSeason({
       season: { ...season, league: { ...season.league, name: "Changed elsewhere" } },
       memberships,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1_000),
     });
 
     await expect(repository.registerLeagueSeason({
       season,
       memberships,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       expectedSetupRevision: reviewedRevision,
       now: new Date(now.getTime() + 2_000),
     })).rejects.toBeInstanceOf(LeagueSetupWriteConflictError);
@@ -907,19 +909,19 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const initialMemberships = membershipsFor(season, ["Cam"]);
+    const initialMemberships = membershipsFor(season, ["Owner11"]);
     await repository.registerLeagueSeason({
       season,
       memberships: initialMemberships,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    if (sethTeam === undefined) throw new Error("Expected Owner04 team.");
     client.memberships.set("membership-concurrent", {
       id: "membership-concurrent",
       league_id: season.leagueId,
-      user_id: "acct_seth",
+      user_id: "acct_owner04",
       role: "member",
       status: "active",
       created_at: new Date(now.getTime() + 500),
@@ -927,25 +929,25 @@ describe("Postgres league setup repository", () => {
     });
     client.teams.set(sethTeam.id, {
       ...client.teams.get(sethTeam.id)!,
-      owner_user_id: "acct_seth",
+      owner_user_id: "acct_owner04",
     });
 
     await repository.registerLeagueSeason({
       season: {
         ...season,
         teams: season.teams.map(team => team.id === sethTeam.id
-          ? { ...team, displayName: "Imported Seth Team", managerDisplayNames: ["Seth Manager"] }
+          ? { ...team, displayName: "Imported Owner04 Team", managerDisplayNames: ["Owner04 Manager"] }
           : team),
       },
       memberships: initialMemberships,
       membershipWriteMode: "preserve",
       expectedSetupRevision: leagueSeasonSetupRevision(season),
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1_000),
     });
 
-    expect([...client.memberships.values()].map(row => row.user_id).sort()).toEqual(["acct_cam", "acct_seth"]);
-    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
+    expect([...client.memberships.values()].map(row => row.user_id).sort()).toEqual(["acct_owner04", "acct_owner11"]);
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_owner04");
   });
 
   it("round trips imported abbreviations and co-manager identities", async () => {
@@ -954,14 +956,14 @@ describe("Postgres league setup repository", () => {
     const season = buildSeason();
     season.teams[0] = {
       ...season.teams[0]!,
-      abbreviation: "CAM",
-      managerDisplayNames: ["Cam Farina", "Co Manager"],
+      abbreviation: "OWN11",
+      managerDisplayNames: ["Owner11 Manager", "Co Manager"],
     };
 
     await repository.registerLeagueSeason({
       season,
-      memberships: membershipsFor(season, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
 
@@ -972,10 +974,10 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season2026 = buildSeason();
-    const season2027 = buildSeason({ seasonYear: 2027, leagueName: "League 214674 2027" });
-    const camClaimed = membershipsFor(season2026, ["Cam"]);
+    const season2027 = buildSeason({ seasonYear: 2027, leagueName: "League 100001 2027" });
+    const camClaimed = membershipsFor(season2026, ["Owner11"]);
     const camUnclaimed = [{
-      userId: "acct_cam",
+      userId: "acct_owner11",
       leagueId: season2027.leagueId,
       role: "owner" as const,
     }];
@@ -983,18 +985,18 @@ describe("Postgres league setup repository", () => {
     await repository.registerLeagueSeason({
       season: season2026,
       memberships: camClaimed,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
     await repository.registerLeagueSeason({
       season: season2027,
       memberships: camUnclaimed,
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now: new Date(now.getTime() + 1_000),
     });
 
     await expect(repository.membershipsForLeague(season2027.leagueId)).resolves.toEqual(camUnclaimed);
-    await expect(repository.findMembership("acct_cam", season2027.leagueId)).resolves.toEqual(camUnclaimed[0]);
+    await expect(repository.findMembership("acct_owner11", season2027.leagueId)).resolves.toEqual(camUnclaimed[0]);
   });
 
   it("returns null when a concurrent same-user team claim hits the unique claim guard", async () => {
@@ -1002,17 +1004,17 @@ describe("Postgres league setup repository", () => {
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
     const camMembership = {
-      userId: "acct_cam",
+      userId: "acct_owner11",
       leagueId: season.leagueId,
       role: "owner" as const,
     };
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam team.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 team.");
 
     await repository.registerLeagueSeason({
       season,
       memberships: [camMembership],
-      createdByUserId: "acct_cam",
+      createdByUserId: "acct_owner11",
       now,
     });
 
@@ -1021,7 +1023,7 @@ describe("Postgres league setup repository", () => {
     await expect(repository.claimLeagueSeasonTeam({
       seasonId: season.id,
       leagueId: season.leagueId,
-      userId: "acct_cam",
+      userId: "acct_owner11",
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
       now: new Date(now.getTime() + 1_000),
@@ -1032,72 +1034,72 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
     await repository.registerLeagueSeason({
       season,
-      memberships: [{ userId: "acct_cam", leagueId: season.leagueId, role: "owner" }],
-      createdByUserId: "acct_cam",
+      memberships: [{ userId: "acct_owner11", leagueId: season.leagueId, role: "owner" }],
+      createdByUserId: "acct_owner11",
       now,
     });
     await repository.claimLeagueSeasonTeam({
       seasonId: season.id,
       leagueId: season.leagueId,
-      userId: "acct_cam",
+      userId: "acct_owner11",
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
       now,
     });
     const unavailableTeam = client.teams.get(sethTeam.id);
     if (unavailableTeam === undefined) throw new Error("Expected target team row.");
-    client.teams.set(sethTeam.id, { ...unavailableTeam, owner_user_id: "acct_seth" });
+    client.teams.set(sethTeam.id, { ...unavailableTeam, owner_user_id: "acct_owner04" });
 
     await expect(repository.claimLeagueSeasonTeam({
       seasonId: season.id,
       leagueId: season.leagueId,
-      userId: "acct_cam",
+      userId: "acct_owner11",
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       now: new Date(now.getTime() + 1_000),
     })).resolves.toBeNull();
-    expect(client.teams.get(camTeam.id)?.owner_user_id).toBe("acct_cam");
-    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
+    expect(client.teams.get(camTeam.id)?.owner_user_id).toBe("acct_owner11");
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_owner04");
   });
 
   it("joins a league and claims its team in one transaction", async () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    if (sethTeam === undefined) throw new Error("Expected Owner04 team.");
     await repository.registerLeagueSeason({
       season,
-      memberships: membershipsFor(season, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
 
     await expect(repository.joinLeagueSeasonTeam({
       seasonId: season.id,
       leagueId: season.leagueId,
-      userId: "acct_seth",
+      userId: "acct_owner04",
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       role: "member",
       invitationTokenHash: "shared_token_hash",
       now: new Date(now.getTime() + 1_000),
     })).resolves.toEqual({
-      userId: "acct_seth",
+      userId: "acct_owner04",
       leagueId: season.leagueId,
       role: "member",
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
     });
-    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_seth");
+    expect(client.teams.get(sethTeam.id)?.owner_user_id).toBe("acct_owner04");
     expect([...client.memberships.values()]).toContainEqual(expect.objectContaining({
       league_id: season.leagueId,
-      user_id: "acct_seth",
+      user_id: "acct_owner04",
     }));
     expect(client.queries.slice(-4).every(query => query.inTransaction)).toBe(true);
     expect(client.queries.at(-4)?.text).toContain("FOR UPDATE");
@@ -1107,12 +1109,12 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    if (sethTeam === undefined) throw new Error("Expected Owner04 team.");
     await repository.registerLeagueSeason({
       season,
-      memberships: membershipsFor(season, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
     client.teams.set(sethTeam.id, {
@@ -1138,12 +1140,12 @@ describe("Postgres league setup repository", () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const season = buildSeason();
-    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Seth");
-    if (sethTeam === undefined) throw new Error("Expected Seth team.");
+    const sethTeam = season.teams.find(team => team.ownerDisplayName === "Owner04");
+    if (sethTeam === undefined) throw new Error("Expected Owner04 team.");
     await repository.registerLeagueSeason({
       season,
-      memberships: membershipsFor(season, ["Cam"]),
-      createdByUserId: "acct_cam",
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
       now,
     });
     client.invitationAvailable = false;
@@ -1151,7 +1153,7 @@ describe("Postgres league setup repository", () => {
     await expect(repository.joinLeagueSeasonTeam({
       seasonId: season.id,
       leagueId: season.leagueId,
-      userId: "acct_seth",
+      userId: "acct_owner04",
       ownerId: sethTeam.ownerId,
       teamId: sethTeam.id,
       role: "member",
@@ -1161,7 +1163,7 @@ describe("Postgres league setup repository", () => {
       code: "invitation_unavailable",
     } satisfies Partial<PlatformInvitationError>);
     expect(client.teams.get(sethTeam.id)?.owner_user_id).toBeNull();
-    expect([...client.memberships.values()].some(membership => membership.user_id === "acct_seth"))
+    expect([...client.memberships.values()].some(membership => membership.user_id === "acct_owner04"))
       .toBe(false);
   });
 });

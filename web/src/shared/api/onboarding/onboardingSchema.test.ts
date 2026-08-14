@@ -7,7 +7,7 @@ const league = {
   leagueName: "Sunday Games",
   liveDraft: { roomId: "room-1", status: "setup" },
   membership: {
-    ownerDisplayName: "Cam",
+    ownerDisplayName: "Owner11",
     ownerId: "owner-1",
     role: "owner",
     teamDisplayName: "Short King",
@@ -26,7 +26,7 @@ const league = {
 describe("onboarding schema", () => {
   it("accepts the complete authenticated league contract", () => {
     const result = onboardingSchema.parse({
-      account: { email: "cam@example.com", id: "account-1" },
+      account: { email: "user@example.com", id: "account-1" },
       leagues: [league, { ...league, liveDraft: null, membership: { role: "observer" } }],
     });
 

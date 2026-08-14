@@ -30,7 +30,7 @@ interface DelegatedRequest {
 const adapters: PlatformDraftToolsAdapter[] = [];
 const outerServers: Server[] = [];
 const temporaryDirectories: string[] = [];
-const seasonId = "league-214674-season-2026";
+const seasonId = "league-100001-season-2026";
 const authorizeEverySeason = async (): Promise<boolean> => true;
 
 const temporaryDirectory = async (): Promise<string> => {
@@ -110,7 +110,7 @@ describe("platform draft tools adapter", () => {
     const baseSessionDirectory = await temporaryDirectory();
     const delegatedRequests: DelegatedRequest[] = [];
     const createClassicServer = vi.fn(async () => recordingClassicServer(delegatedRequests));
-    const resolveAccount = vi.fn(async () => ({ id: "account-cam" }));
+    const resolveAccount = vi.fn(async () => ({ id: "account-owner11" }));
     const adapter = createPlatformDraftToolsAdapter({
       authorizeSeason: authorizeEverySeason,
       baseSessionDirectory,
@@ -120,16 +120,16 @@ describe("platform draft tools adapter", () => {
     const baseUrl = await listen(adapter);
 
     const paths = [
-      `/mock-results?seasonId=${seasonId}&owner=Cam`,
+      `/mock-results?seasonId=${seasonId}&owner=Owner11`,
       `/simulations?seasonId=${seasonId}&strategy=three-rb`,
-      `/strategy?seasonId=${seasonId}&owner=Cam`,
+      `/strategy?seasonId=${seasonId}&owner=Owner11`,
       `/my-expert?seasonId=${seasonId}&week=5`,
       `/player-news?seasonId=${seasonId}&category=Injury`,
     ];
 
     for (const path of paths) {
       const response = await fetch(`${baseUrl}${path}`, {
-        headers: { "x-test-account-id": "account-cam" },
+        headers: { "x-test-account-id": "account-owner11" },
       });
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: "platform fallback" });
@@ -142,7 +142,7 @@ describe("platform draft tools adapter", () => {
 
   it("leaves canonical board and mock draft routes to the platform shell", async () => {
     const baseSessionDirectory = await temporaryDirectory();
-    const resolveAccount = vi.fn(async () => ({ id: "account-cam" }));
+    const resolveAccount = vi.fn(async () => ({ id: "account-owner11" }));
     const createClassicServer = vi.fn(async () => recordingClassicServer([]));
     const adapter = createPlatformDraftToolsAdapter({
       authorizeSeason: authorizeEverySeason,
@@ -333,7 +333,7 @@ describe("platform draft tools adapter", () => {
       importMaxBodyBytes: 200,
       legacyMockBatchEnabled: true,
       maxBodyBytes: 100,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
     });
     const baseUrl = await listen(adapter);
 
@@ -353,7 +353,7 @@ describe("platform draft tools adapter", () => {
       authorizeSeason: authorizeEverySeason,
       baseSessionDirectory,
       createLiveDraftServer: createClassicServer,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
       resolveSeasonOptions,
     });
     const baseUrl = await listen(adapter);
@@ -448,7 +448,7 @@ describe("platform draft tools adapter", () => {
 
   it("does not authenticate or consume unrelated platform routes", async () => {
     const baseSessionDirectory = await temporaryDirectory();
-    const resolveAccount = vi.fn(async () => ({ id: "account-cam" }));
+    const resolveAccount = vi.fn(async () => ({ id: "account-owner11" }));
     const createClassicServer = vi.fn(async () => recordingClassicServer([]));
     const adapter = createPlatformDraftToolsAdapter({
       authorizeSeason: authorizeEverySeason,
@@ -496,7 +496,7 @@ describe("platform draft tools adapter", () => {
       authorizeSeason: authorizeEverySeason,
       baseSessionDirectory,
       createLiveDraftServer: createClassicServer,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
     });
     const factoryBaseUrl = await listen(factoryAdapter);
 
@@ -575,7 +575,7 @@ describe("platform draft tools adapter", () => {
       authorizeSeason,
       baseSessionDirectory,
       createLiveDraftServer: createClassicServer,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
     });
     const baseUrl = await listen(adapter);
 
@@ -644,7 +644,7 @@ describe("platform draft tools adapter", () => {
       idleTimeoutMs: 10,
       maxRetainedApps: 2,
       now: () => currentTime,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
     });
     const baseUrl = await listen(adapter);
 
@@ -680,7 +680,7 @@ describe("platform draft tools adapter", () => {
       baseSessionDirectory,
       createLiveDraftServer: createClassicServer,
       maxRetainedApps: 2,
-      resolveAccount: async () => ({ id: "account-cam" }),
+      resolveAccount: async () => ({ id: "account-owner11" }),
     });
     const baseUrl = await listen(adapter);
 

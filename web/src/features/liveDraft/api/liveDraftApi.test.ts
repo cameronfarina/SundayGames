@@ -48,7 +48,7 @@ describe("live draft API", () => {
 
     await expect(mutateLiveDraftRoom({
       action: "sales",
-      command: "Cam drafted Puka Nacua for 62",
+      command: "Owner11 drafted Puka Nacua for 62",
       expectedRevision: 2,
       fetcher,
       idempotencyKey: "sale-1",
@@ -58,7 +58,7 @@ describe("live draft API", () => {
       body: JSON.stringify({
         expectedRevision: 2,
         idempotencyKey: "sale-1",
-        command: "Cam drafted Puka Nacua for 62",
+        command: "Owner11 drafted Puka Nacua for 62",
       }),
       method: "POST",
     }));
@@ -72,7 +72,7 @@ describe("live draft API", () => {
       expectedRevision: 2,
       fetcher,
       idempotencyKey: "correct-1",
-      replacementSale: "Seth drafted Puka Nacua for 61",
+      replacementSale: "Owner04 drafted Puka Nacua for 61",
       roomId: "room-1",
       saleEventId: "sale-1",
     });
@@ -90,7 +90,7 @@ describe("live draft API", () => {
         expectedRevision: 2,
         idempotencyKey: "correct-1",
         saleEventId: "sale-1",
-        replacementSale: "Seth drafted Puka Nacua for 61",
+        replacementSale: "Owner04 drafted Puka Nacua for 61",
       }),
     }));
     expect(fetcher).toHaveBeenNthCalledWith(2, "/live-rooms/room-1/end", expect.objectContaining({

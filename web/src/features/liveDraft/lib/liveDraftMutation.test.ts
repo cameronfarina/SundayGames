@@ -18,11 +18,11 @@ describe("buildLiveDraftMutation", () => {
       .toEqual({ action: "sales", command: "cam puka 62", ...context });
     expect(buildLiveDraftMutation({
       action: "corrections",
-      replacementSale: "seth puka 61",
+      replacementSale: "owner04 puka 61",
       saleEventId: "sale-1",
     }, context)).toEqual({
       action: "corrections",
-      replacementSale: "seth puka 61",
+      replacementSale: "owner04 puka 61",
       saleEventId: "sale-1",
       ...context,
     });

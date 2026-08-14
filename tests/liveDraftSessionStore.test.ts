@@ -22,8 +22,8 @@ describe("live draft session store", () => {
       const store = new FileBackedLiveDraftSessionStore({ directory });
 
       await expect(store.load()).resolves.toEqual([]);
-      await expect(store.appendCommand("jakub drafted kittle for 28")).resolves.toEqual([
-        "jakub drafted kittle for 28",
+      await expect(store.appendCommand("owner05 drafted kittle for 28")).resolves.toEqual([
+        "owner05 drafted kittle for 28",
       ]);
 
       const current = await readJson<{ commands: string[]; commandCount: number }>(store.paths.currentPath);
@@ -32,7 +32,7 @@ describe("live draft session store", () => {
 
       expect(current).toMatchObject({
         commandCount: 1,
-        commands: ["jakub drafted kittle for 28"],
+        commands: ["owner05 drafted kittle for 28"],
       });
       expect(backup).toMatchObject(current);
       expect(logLines).toHaveLength(2);
@@ -40,21 +40,21 @@ describe("live draft session store", () => {
         sequence: 2,
         mutation: {
           type: "sale",
-          command: "jakub drafted kittle for 28",
+          command: "owner05 drafted kittle for 28",
         },
         commandCount: 1,
       });
 
       const reloadedStore = new FileBackedLiveDraftSessionStore({ directory });
-      await expect(reloadedStore.load()).resolves.toEqual(["jakub drafted kittle for 28"]);
+      await expect(reloadedStore.load()).resolves.toEqual(["owner05 drafted kittle for 28"]);
 
       await expect(reloadedStore.undo()).resolves.toEqual([]);
       await expect(reloadedStore.importCommands([
-        "cam drafted jahmyr gibbs for 80",
-        "jakub drafted george kittle for 28",
+        "owner11 drafted jahmyr gibbs for 80",
+        "owner05 drafted george kittle for 28",
       ])).resolves.toEqual([
-        "cam drafted jahmyr gibbs for 80",
-        "jakub drafted george kittle for 28",
+        "owner11 drafted jahmyr gibbs for 80",
+        "owner05 drafted george kittle for 28",
       ]);
       await expect(reloadedStore.reset()).resolves.toEqual([]);
 
@@ -70,8 +70,8 @@ describe("live draft session store", () => {
 
   it("round-trips command imports and exports as JSON and CSV", () => {
     const commands = [
-      "cam drafted jahmyr gibbs for 80",
-      "jakub drafted george kittle for 28",
+      "owner11 drafted jahmyr gibbs for 80",
+      "owner05 drafted george kittle for 28",
     ];
 
     expect(parseLiveDraftCommandImport(liveDraftCommandsJson(commands), "json")).toEqual(commands);
@@ -82,7 +82,7 @@ describe("live draft session store", () => {
       commandsJson: liveDraftCommandsJson(["fallback drafted player for 1"]),
     }), "json")).toEqual(commands);
     expect(liveDraftCommandsCsv(commands)).toBe(
-      "index,command\n1,cam drafted jahmyr gibbs for 80\n2,jakub drafted george kittle for 28\n",
+      "index,command\n1,owner11 drafted jahmyr gibbs for 80\n2,owner05 drafted george kittle for 28\n",
     );
     expect(parseLiveDraftCommandImport(liveDraftCommandsCsv(commands), "csv")).toEqual(commands);
   });
@@ -94,17 +94,17 @@ describe("live draft session store", () => {
       await store.load();
 
       const [firstResult, secondResult] = await Promise.all([
-        store.appendCommand("cam drafted jahmyr gibbs for 76"),
-        store.appendCommand("jakub drafted george kittle for 28"),
+        store.appendCommand("owner11 drafted jahmyr gibbs for 76"),
+        store.appendCommand("owner05 drafted george kittle for 28"),
       ]);
 
       expect([firstResult, secondResult]).toEqual([
-        ["cam drafted jahmyr gibbs for 76"],
-        ["cam drafted jahmyr gibbs for 76", "jakub drafted george kittle for 28"],
+        ["owner11 drafted jahmyr gibbs for 76"],
+        ["owner11 drafted jahmyr gibbs for 76", "owner05 drafted george kittle for 28"],
       ]);
       expect(store.currentCommands()).toEqual([
-        "cam drafted jahmyr gibbs for 76",
-        "jakub drafted george kittle for 28",
+        "owner11 drafted jahmyr gibbs for 76",
+        "owner05 drafted george kittle for 28",
       ]);
 
       const current = await readJson<{ commands: string[]; commandCount: number }>(store.paths.currentPath);
@@ -114,8 +114,8 @@ describe("live draft session store", () => {
       expect(current).toMatchObject({
         commandCount: 2,
         commands: [
-          "cam drafted jahmyr gibbs for 76",
-          "jakub drafted george kittle for 28",
+          "owner11 drafted jahmyr gibbs for 76",
+          "owner05 drafted george kittle for 28",
         ],
       });
       expect(backup).toMatchObject(current);
@@ -131,20 +131,20 @@ describe("live draft session store", () => {
     try {
       const store = new FileBackedLiveDraftSessionStore({ directory });
       await store.load();
-      await store.appendCommand("cam drafted jahmyr gibbs for 76");
-      await store.appendCommand("jakub drafted george kittle for 28");
+      await store.appendCommand("owner11 drafted jahmyr gibbs for 76");
+      await store.appendCommand("owner05 drafted george kittle for 28");
       await writeFile(store.paths.currentPath, "{ broken current", "utf8");
       await writeFile(store.paths.backupPath, "{ broken backup", "utf8");
 
       const reloadedStore = new FileBackedLiveDraftSessionStore({ directory });
 
       await expect(reloadedStore.load()).resolves.toEqual([
-        "cam drafted jahmyr gibbs for 76",
-        "jakub drafted george kittle for 28",
+        "owner11 drafted jahmyr gibbs for 76",
+        "owner05 drafted george kittle for 28",
       ]);
       expect(reloadedStore.currentCommands()).toEqual([
-        "cam drafted jahmyr gibbs for 76",
-        "jakub drafted george kittle for 28",
+        "owner11 drafted jahmyr gibbs for 76",
+        "owner05 drafted george kittle for 28",
       ]);
     } finally {
       await rm(directory, { force: true, recursive: true });

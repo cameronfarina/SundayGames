@@ -16,7 +16,7 @@ describe("simulation HTTP input", () => {
         playerName: "Jadarian Price",
         price: 15,
         priceMode: "ceiling",
-        auctionOwner: "Cam",
+        auctionOwner: "Owner11",
       }],
       softTargets: [{
         label: "Elite RB",
@@ -28,7 +28,7 @@ describe("simulation HTTP input", () => {
         playerName: "Jadarian Price",
         price: 15,
         priceMode: "ceiling",
-        auctionOwner: "Cam",
+        auctionOwner: "Owner11",
       }],
       softTargets: [{
         label: "Elite RB",

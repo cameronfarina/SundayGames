@@ -4,18 +4,18 @@ import { parseKeeperCommand } from "../src/platform/keeperCommandImport.js";
 describe("parseKeeperCommand", () => {
   it("previews a natural auction keeper command against injected catalogs", () => {
     const result = parseKeeperCommand({
-      command: "cam keeping achane 50",
+      command: "owner11 keeping achane 50",
       draftType: "auction",
       teams: [
         {
-          teamId: "team-cam",
-          teamName: "Cam's Heroes",
-          managerNames: ["Cam Farina"],
+          teamId: "team-owner11",
+          teamName: "Owner11's Heroes",
+          managerNames: ["Owner11 Manager"],
         },
         {
-          teamId: "team-beaton",
-          teamName: "Beaton FC",
-          managerNames: ["Jamie Beaton"],
+          teamId: "team-owner01",
+          teamName: "Owner01 FC",
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [
@@ -27,10 +27,10 @@ describe("parseKeeperCommand", () => {
     expect(result).toEqual({
       kind: "preview",
       confirmationRequired: true,
-      sourceCommand: "cam keeping achane 50",
+      sourceCommand: "owner11 keeping achane 50",
       team: {
-        id: "team-cam",
-        name: "Cam's Heroes",
+        id: "team-owner11",
+        name: "Owner11's Heroes",
       },
       player: {
         id: "player-achane",
@@ -45,13 +45,13 @@ describe("parseKeeperCommand", () => {
 
   it("previews the trailing number as a keeper round for a snake league", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping dart 2",
+      command: "owner01 keeping dart 2",
       draftType: "snake",
       teams: [
         {
-          teamId: "team-beaton",
+          teamId: "team-owner01",
           teamName: "Sunday Beaters",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [
@@ -62,9 +62,9 @@ describe("parseKeeperCommand", () => {
     expect(result).toEqual({
       kind: "preview",
       confirmationRequired: true,
-      sourceCommand: "beaton keeping dart 2",
+      sourceCommand: "owner01 keeping dart 2",
       team: {
-        id: "team-beaton",
+        id: "team-owner01",
         name: "Sunday Beaters",
       },
       player: {
@@ -80,13 +80,13 @@ describe("parseKeeperCommand", () => {
 
   it("returns every candidate when a player mention is ambiguous", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping dart 2",
+      command: "owner01 keeping dart 2",
       draftType: "snake",
       teams: [
         {
-          teamId: "team-beaton",
+          teamId: "team-owner01",
           teamName: "Sunday Beaters",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [
@@ -108,18 +108,18 @@ describe("parseKeeperCommand", () => {
 
   it("returns every team when a manager mention is ambiguous", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping dart 2",
+      command: "owner01 keeping dart 2",
       draftType: "snake",
       teams: [
         {
           teamId: "team-jamie",
           teamName: "Jamie's Team",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
         {
           teamId: "team-alex",
           teamName: "Alex's Team",
-          managerNames: ["Alex Beaton"],
+          managerNames: ["Alex Owner01"],
         },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
@@ -129,8 +129,8 @@ describe("parseKeeperCommand", () => {
       kind: "error",
       error: {
         code: "ambiguous_team",
-        message: '"beaton" matched multiple teams or managers.',
-        mention: "beaton",
+        message: '"owner01" matched multiple teams or managers.',
+        mention: "owner01",
         candidates: ["Jamie's Team", "Alex's Team"],
       },
     });
@@ -138,18 +138,18 @@ describe("parseKeeperCommand", () => {
 
   it("matches an unambiguous manager-name prefix", () => {
     const result = parseKeeperCommand({
-      command: "ken keeping dart 2",
+      command: "mar keeping dart 2",
       draftType: "snake",
       teams: [
         {
-          teamId: "team-kenny",
+          teamId: "team-maren",
           teamName: "Rock Out",
-          managerNames: ["Kenny Rubino"],
+          managerNames: ["Maren Rubino"],
         },
         {
-          teamId: "team-cam",
+          teamId: "team-owner11",
           teamName: "Short King",
-          managerNames: ["Cam Farina"],
+          managerNames: ["Owner11 Manager"],
         },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
@@ -157,17 +157,17 @@ describe("parseKeeperCommand", () => {
 
     expect(result).toMatchObject({
       kind: "preview",
-      team: { id: "team-kenny", name: "Rock Out" },
+      team: { id: "team-maren", name: "Rock Out" },
     });
   });
 
   it("keeps a shared manager-name prefix ambiguous", () => {
     const result = parseKeeperCommand({
-      command: "ken keeping dart 2",
+      command: "mar keeping dart 2",
       draftType: "snake",
       teams: [
-        { teamId: "team-kenny", teamName: "Rock Out", managerNames: ["Kenny Rubino"] },
-        { teamId: "team-kent", teamName: "Kent Team", managerNames: ["Kent Smith"] },
+        { teamId: "team-maren", teamName: "Rock Out", managerNames: ["Maren Rubino"] },
+        { teamId: "team-marcus", teamName: "Marcus Team", managerNames: ["Marcus Smith"] },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
     });
@@ -176,19 +176,19 @@ describe("parseKeeperCommand", () => {
       kind: "error",
       error: {
         code: "ambiguous_team",
-        message: '"ken" matched multiple teams or managers.',
-        mention: "ken",
-        candidates: ["Rock Out", "Kent Team"],
+        message: '"mar" matched multiple teams or managers.',
+        mention: "mar",
+        candidates: ["Rock Out", "Marcus Team"],
       },
     });
   });
 
   it("matches a player by a unique first name", () => {
     const result = parseKeeperCommand({
-      command: "sam keeping jameson 5",
+      command: "owner12 keeping jameson 5",
       draftType: "auction",
       teams: [
-        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+        { teamId: "team-owner12", teamName: "Team 12", managerNames: ["Owner12 Manager"] },
       ],
       players: [
         { playerId: "player-jameson-williams", name: "Jameson Williams" },
@@ -204,10 +204,10 @@ describe("parseKeeperCommand", () => {
 
   it("matches a player by a unique first-name prefix", () => {
     const result = parseKeeperCommand({
-      command: "juice keeping rhamond 3",
+      command: "owner13 keeping rhamond 3",
       draftType: "auction",
       teams: [
-        { teamId: "team-juice", teamName: "Old Dogs", managerNames: ["Juice"] },
+        { teamId: "team-owner13", teamName: "Team 13", managerNames: ["Owner13 Manager"] },
       ],
       players: [
         { playerId: "player-rhamondre-stevenson", name: "Rhamondre Stevenson" },
@@ -223,10 +223,10 @@ describe("parseKeeperCommand", () => {
 
   it("keeps a shared player first name ambiguous", () => {
     const result = parseKeeperCommand({
-      command: "sam keeping josh 5",
+      command: "owner12 keeping josh 5",
       draftType: "auction",
       teams: [
-        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+        { teamId: "team-owner12", teamName: "Team 12", managerNames: ["Owner12 Manager"] },
       ],
       players: [
         { playerId: "player-josh-allen", name: "Josh Allen" },
@@ -247,10 +247,10 @@ describe("parseKeeperCommand", () => {
 
   it("prefers an exact player first name over a longer player's prefix", () => {
     const result = parseKeeperCommand({
-      command: "sam keeping james 5",
+      command: "owner12 keeping james 5",
       draftType: "auction",
       teams: [
-        { teamId: "team-sam", teamName: "Massage Envy", managerNames: ["Sam LaPlante"] },
+        { teamId: "team-owner12", teamName: "Team 12", managerNames: ["Owner12 Manager"] },
       ],
       players: [
         { playerId: "player-james-cook", name: "James Cook" },
@@ -270,9 +270,9 @@ describe("parseKeeperCommand", () => {
       draftType: "snake",
       teams: [
         {
-          teamId: "team-beaton",
+          teamId: "team-owner01",
           teamName: "Sunday Beaters",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
@@ -290,13 +290,13 @@ describe("parseKeeperCommand", () => {
 
   it("returns an explicit unknown-player error", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping missing 2",
+      command: "owner01 keeping missing 2",
       draftType: "snake",
       teams: [
         {
-          teamId: "team-beaton",
+          teamId: "team-owner01",
           teamName: "Sunday Beaters",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
@@ -314,13 +314,13 @@ describe("parseKeeperCommand", () => {
 
   it("rejects zero as a snake keeper round", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping dart 0",
+      command: "owner01 keeping dart 0",
       draftType: "snake",
       teams: [
         {
-          teamId: "team-beaton",
+          teamId: "team-owner01",
           teamName: "Sunday Beaters",
-          managerNames: ["Jamie Beaton"],
+          managerNames: ["Jamie Owner01"],
         },
       ],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
@@ -338,13 +338,13 @@ describe("parseKeeperCommand", () => {
 
   it("rejects auction costs below the league minimum bid", () => {
     const result = parseKeeperCommand({
-      command: "cam keeping achane 2",
+      command: "owner11 keeping achane 2",
       draftType: "auction",
       auctionMinimumBidDollars: 3,
       teams: [{
-        teamId: "team-cam",
-        teamName: "Cam's Heroes",
-        managerNames: ["Cam Farina"],
+        teamId: "team-owner11",
+        teamName: "Owner11's Heroes",
+        managerNames: ["Owner11 Manager"],
       }],
       players: [{ playerId: "player-achane", name: "De'Von Achane" }],
     });
@@ -361,13 +361,13 @@ describe("parseKeeperCommand", () => {
 
   it("rejects snake keeper rounds beyond the configured draft", () => {
     const result = parseKeeperCommand({
-      command: "beaton keeping dart 3",
+      command: "owner01 keeping dart 3",
       draftType: "snake",
       snakeRoundCount: 2,
       teams: [{
-        teamId: "team-beaton",
+        teamId: "team-owner01",
         teamName: "Sunday Beaters",
-        managerNames: ["Jamie Beaton"],
+        managerNames: ["Jamie Owner01"],
       }],
       players: [{ playerId: "player-dart", name: "Jaxson Dart" }],
     });

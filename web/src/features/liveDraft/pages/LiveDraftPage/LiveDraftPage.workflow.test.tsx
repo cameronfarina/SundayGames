@@ -28,7 +28,7 @@ describe("LiveDraftPage commissioner workflow", () => {
     useRoomResponse();
     liveDraftServer.use(http.post("/live-rooms/:roomId/sales", async ({ request }) => {
       expect(await request.json()).toEqual(expect.objectContaining({
-        command: "Cam drafted Puka Nacua for 62",
+        command: "Owner11 drafted Puka Nacua for 62",
         expectedRevision: 2,
       }));
       return HttpResponse.json({ room: { ...liveRoom, revision: 3 } });
@@ -37,7 +37,7 @@ describe("LiveDraftPage commissioner workflow", () => {
 
     await user.click(await screen.findByRole("button", { name: "Use Puka Nacua in sale command" }));
     const input = screen.getByRole("textbox", { name: "Sale command" });
-    expect(input).toHaveValue("Cam drafted Puka Nacua for ");
+    expect(input).toHaveValue("Owner11 drafted Puka Nacua for ");
     await user.type(input, "62{Enter}");
     expect(await screen.findByText("Draft room updated.")).toBeVisible();
     expect(input).toHaveValue("");

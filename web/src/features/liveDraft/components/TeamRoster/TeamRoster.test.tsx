@@ -31,7 +31,7 @@ describe("TeamRoster", () => {
     expect(screen.getByText("Open")).toBeVisible();
 
     await user.click(screen.getByRole("combobox", { name: "View team" }));
-    await user.click(screen.getByRole("option", { name: "2. Sentinels · Seth" }));
+    await user.click(screen.getByRole("option", { name: "2. Sentinels · Owner04" }));
     expect(onTeamChange).toHaveBeenCalledWith("team-2");
   });
 

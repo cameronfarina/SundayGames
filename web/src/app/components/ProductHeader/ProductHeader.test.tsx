@@ -55,13 +55,13 @@ const renderHeader = (leagues: Onboarding["leagues"], initialEntry: string) => {
   queryClient.setQueryData(sessionQueryKey(), {
     account: {
       createdAt: "2026-08-13T12:00:00.000Z",
-      email: "cameron.farina@example.com",
-      id: "account-cam",
+      email: "example.user@example.com",
+      id: "account-example",
       updatedAt: "2026-08-13T12:00:00.000Z",
     },
   });
   queryClient.setQueryData(onboardingQueryOptions().queryKey, {
-    account: { email: "cameron.farina@example.com", id: "account-cam" },
+    account: { email: "example.user@example.com", id: "account-example" },
     leagues,
   });
 

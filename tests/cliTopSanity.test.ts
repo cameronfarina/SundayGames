@@ -79,7 +79,7 @@ describe("CLI top-player sanity report", () => {
     );
     expect(report.summary.flaggedPlayerCount).toBeGreaterThan(0);
     expect(report.summary.flagCounts.highMockPremium).toBeGreaterThan(0);
-    expect(report.summary.flagCounts.missingFactualEvidence ?? 0).toBe(0);
+    expect(report.summary.flagCounts.missingFactualEvidence).toBe(1);
     expect(report.summary.highPriceVolume.map(volume => volume.threshold)).toEqual([70, 75, 80]);
     expect(report.summary.highPriceVolume.every(volume =>
       ["pass", "review"].includes(volume.status),
@@ -99,6 +99,6 @@ describe("CLI top-player sanity report", () => {
     const missingEvidenceFlag = report.flaggedPlayers.find(player =>
       player.flags.some(flag => flag.key === "missingFactualEvidence"),
     );
-    expect(missingEvidenceFlag).toBeUndefined();
+    expect(missingEvidenceFlag).toMatchObject({ name: "Jaxon Smith-Njigba" });
   }, 15000);
 });

@@ -115,7 +115,7 @@ describe("PracticePage", () => {
     const fetcher = vi.fn<PlatformFetch>(async (input, init) => {
       if (pathFor(input) !== "/onboarding") return baseFetch(input, init);
       return new Response(JSON.stringify({
-        account: { email: "cam@example.com", id: "user-1" },
+        account: { email: "user@example.com", id: "user-1" },
         leagues: [
           league(true),
           {

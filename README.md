@@ -1,6 +1,6 @@
 # Mockd
 
-Private fantasy-football auction model for ESPN league **214674**.
+Fantasy-football auction modeling and draft-room application.
 
 ## Current state
 
@@ -38,7 +38,7 @@ This repository captures the reusable foundation behind the analysis previously 
 
 ## Important source-of-truth rules
 
-1. The manually pasted 2023–2025 boards from league 214674 are authoritative for historical bids, owners, and keeper designations.
+1. Synthetic 2023–2025 boards provide safe local defaults; ignored private runtime data can replace them for local analysis.
 2. The old JSON exports for league 278452 must not be used as historical draft data for this project.
 3. Excel files in `output/` are generated artifacts, not the long-term source of truth.
 4. Keeper declarations in `config/keepers.ts` should be updated as they arrive.
@@ -54,7 +54,7 @@ npm run dev
 and hot module replacement at `http://127.0.0.1:4319/login`. The command prints
 a unique frontend runtime ID so a stale process is immediately visible. API,
 cookie, and event-stream traffic is proxied to the supervised local platform
-process; stopping the command stops both servers. Sign in with `cam@mockd.local` and
+process; stopping the command stops both servers. Sign in with `commissioner@mockd.local` and
 `mockd local e2e password`; League, Board, Mock drafts, Simulations, and Live
 draft all run behind that one authenticated origin and survive a
 normal browser refresh. Use `MOCKD_PLATFORM_DATA_FILE` or

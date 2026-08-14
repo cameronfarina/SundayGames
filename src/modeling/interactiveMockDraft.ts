@@ -1,5 +1,5 @@
 import { keepers as defaultKeepers, type KeeperDeclaration } from "../../config/keepers.js";
-import { leagueConfig, ownerOrder, type Owner, type Position } from "../../config/league.js";
+import { leagueConfig, ownerOrder, primaryOwner, type Owner, type Position } from "../../config/league.js";
 import type { DraftRoomRanking } from "../data/draftRoomRankings.js";
 import { normalizePlayerName } from "../data/normalizePlayerName.js";
 import type { HistoricalAuctionRecord } from "../data/parseHistoricalBoards.js";
@@ -180,7 +180,7 @@ interface PreparedInteractiveMockDraft {
 }
 
 const defaultScenarioKey: KeeperScenarioKey = "expected";
-const defaultWatchOwner: Owner = "Cam";
+const defaultWatchOwner: Owner = primaryOwner;
 const defaultSeed = "live-ui";
 const replacementDepthBuffer = 160;
 const topTargetLimit = 500;

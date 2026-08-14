@@ -67,7 +67,7 @@ export const DraftCommandPanel = ({
               id="live-sale-command"
               label="Sale command"
               onChange={event => { onCommandChange(event.currentTarget.value); }}
-              placeholder="Cam drafted Puka Nacua for 62"
+              placeholder="Owner11 drafted Puka Nacua for 62"
               value={command}
             />
             <ProgressButton busy={busy} disabled={!live} percent={busy ? 60 : 0} type="submit">

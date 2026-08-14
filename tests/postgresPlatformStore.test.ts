@@ -85,8 +85,8 @@ describe("Postgres platform store", () => {
     const postgresStore = await PostgresPlatformStore.load(client, { now: () => now });
     const job = postgresStore.store.jobs.submit({
       userId: "user_cam",
-      leagueId: "league_214674",
-      seasonId: "league_214674-season-2026",
+      leagueId: "league_100001",
+      seasonId: "league_100001-season-2026",
       kind: "simulation",
       idempotencyKey: "job-json-date",
       inputJson: {
@@ -120,8 +120,8 @@ describe("Postgres platform store", () => {
 
     firstWriter.store.jobs.submit({
       userId: "user_cam",
-      leagueId: "league_214674",
-      seasonId: "league_214674-season-2026",
+      leagueId: "league_100001",
+      seasonId: "league_100001-season-2026",
       kind: "simulation",
       idempotencyKey: "first",
       inputJson: null,
@@ -129,8 +129,8 @@ describe("Postgres platform store", () => {
     });
     staleWriter.store.jobs.submit({
       userId: "user_cam",
-      leagueId: "league_214674",
-      seasonId: "league_214674-season-2026",
+      leagueId: "league_100001",
+      seasonId: "league_100001-season-2026",
       kind: "simulation",
       idempotencyKey: "stale",
       inputJson: null,

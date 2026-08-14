@@ -15,7 +15,7 @@ import {
   type SnakeDraftState,
 } from "../src/platform/snakeDraftEngine.js";
 
-const teamConfigs = ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
+const teamConfigs = ["Owner11", "Owner12", "Matt", "Nick"].map((name, index) => ({
   id: `team-${index + 1}`,
   name,
 }));

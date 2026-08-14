@@ -9,7 +9,7 @@ import { onboardingSchema } from "../../../shared/api/onboarding/onboardingSchem
 import { leagueSeasonSchema } from "../api/leagueSchemas";
 
 const onboarding = onboardingSchema.parse({
-  account: { id: "user-1", email: "cam@example.com" },
+  account: { id: "user-1", email: "user@example.com" },
   leagues: [
     {
       leagueId: "league-1",
@@ -30,7 +30,7 @@ const onboarding = onboardingSchema.parse({
 
 const seasonInput = {
   id: "season-1",
-  league: { id: "league-1", externalLeagueId: "214674", name: "Sunday Games", provider: "espn" },
+  league: { id: "league-1", externalLeagueId: "100001", name: "Sunday Games", provider: "espn" },
   leagueId: "league-1",
   seasonYear: 2026,
   teams: [],

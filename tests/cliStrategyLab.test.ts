@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 
 describe("CLI strategy lab", () => {
-  it("prints strategy-lab JSON for forced Cam draft experiments", async () => {
+  it("prints strategy-lab JSON for forced Owner11 draft experiments", async () => {
     const { stdout } = await execFileAsync(
       "npm",
       [
@@ -80,13 +80,13 @@ describe("CLI strategy lab", () => {
       },
     );
 
-    expect(stdout).toContain("# Cam Strategy Lab");
+    expect(stdout).toContain("# Primary Team Strategy Lab");
     expect(stdout).toContain("## Leaderboard");
     expect(stdout).toContain("| Puka $75 |");
     expect(stdout).toContain("Budget after forced start");
   }, 30000);
 
-  it("can run a custom forced Cam path instead of the default lab scenarios", async () => {
+  it("can run a custom forced Owner11 path instead of the default lab scenarios", async () => {
     const { stdout } = await execFileAsync(
       "npm",
       [
@@ -128,8 +128,8 @@ describe("CLI strategy lab", () => {
       label: "Puka plus Walker",
       strategyKey: "three-rb",
       forcedSales: [
-        { owner: "Cam", player: "Puka Nacua", price: 75 },
-        { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+        { owner: "Owner11", player: "Puka Nacua", price: 75 },
+        { owner: "Owner11", player: "Kenneth Walker III", price: 36 },
       ],
       camForcedStart: {
         budgetRemaining: 39,
@@ -138,7 +138,7 @@ describe("CLI strategy lab", () => {
     });
   }, 30000);
 
-  it("accepts repeated force flags for multi-player Cam strategy paths", async () => {
+  it("accepts repeated force flags for multi-player Owner11 strategy paths", async () => {
     const { stdout } = await execFileAsync(
       "npm",
       [
@@ -173,8 +173,8 @@ describe("CLI strategy lab", () => {
     };
 
     expect(report.scenarios[0]?.forcedSales).toEqual([
-      { owner: "Cam", player: "Puka Nacua", price: 75 },
-      { owner: "Cam", player: "Kenneth Walker III", price: 36 },
+      { owner: "Owner11", player: "Puka Nacua", price: 75 },
+      { owner: "Owner11", player: "Kenneth Walker III", price: 36 },
     ]);
     expect(report.scenarios[0]?.camForcedStart).toMatchObject({
       budgetRemaining: 39,
@@ -182,7 +182,7 @@ describe("CLI strategy lab", () => {
     });
   }, 30000);
 
-  it("can run a custom capped-target Cam path without forcing the target", async () => {
+  it("can run a custom capped-target Owner11 path without forcing the target", async () => {
     const { stdout } = await execFileAsync(
       "npm",
       [
@@ -220,7 +220,7 @@ describe("CLI strategy lab", () => {
 
     expect(report.scenarios[0]?.forcedSales).toEqual([]);
     expect(report.scenarios[0]?.targetMaxBids).toEqual([
-      { owner: "Cam", player: "Puka Nacua", maxBid: 1 },
+      { owner: "Owner11", player: "Puka Nacua", maxBid: 1 },
     ]);
     expect(report.scenarios[0]?.targetOutcomes).toEqual([
       expect.objectContaining({
@@ -291,9 +291,9 @@ describe("CLI strategy lab", () => {
       "Build around Omarion Hampton $50",
     ]);
     expect(report.scenarios.map(scenario => scenario.forcedSales)).toEqual([
-      [{ owner: "Cam", player: "Omarion Hampton", price: 46 }],
-      [{ owner: "Cam", player: "Omarion Hampton", price: 48 }],
-      [{ owner: "Cam", player: "Omarion Hampton", price: 50 }],
+      [{ owner: "Owner11", player: "Omarion Hampton", price: 46 }],
+      [{ owner: "Owner11", player: "Omarion Hampton", price: 48 }],
+      [{ owner: "Owner11", player: "Omarion Hampton", price: 50 }],
     ]);
     expect(report.scenarios.every(scenario =>
       scenario.targetMaxBids.some(target => target.player === "Zay Flowers" && target.maxBid === 31),

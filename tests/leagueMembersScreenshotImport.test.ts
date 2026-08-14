@@ -9,13 +9,13 @@ import {
 
 const validImport = {
   leagueName: "The Sunday Games",
-  externalLeagueId: "214674",
+  externalLeagueId: "100001",
   teams: [
     {
       draftOrderPosition: 1,
-      abbreviation: "SETH",
+      abbreviation: "OWN04",
       teamDisplayName: "Washington Sentinels",
-      managerDisplayNames: ["Seth Fortier"],
+      managerDisplayNames: ["Owner04 Fortier"],
       confidence: "high" as const,
       issues: [],
       confirmed: false,
@@ -42,9 +42,9 @@ describe("league members screenshot imports", () => {
       {
         sourceRowNumber: 1,
         draftOrderPosition: 1,
-        abbreviation: "SETH",
-        ownerDisplayName: "Seth Fortier",
-        managerDisplayNames: ["Seth Fortier"],
+        abbreviation: "OWN04",
+        ownerDisplayName: "Owner04 Fortier",
+        managerDisplayNames: ["Owner04 Fortier"],
         teamDisplayName: "Washington Sentinels",
         role: "member",
       },
@@ -116,7 +116,7 @@ describe("league members screenshot imports", () => {
   });
 
   it("suggests only unambiguous existing profiles and requires a unique profile for every row", () => {
-    const season = buildCurrentMockdLeagueSeason(["Seth", "Cam"], {
+    const season = buildCurrentMockdLeagueSeason(["Owner04", "Owner11"], {
       ...leagueConfig,
       teams: 2,
     });
@@ -124,7 +124,7 @@ describe("league members screenshot imports", () => {
       ...validImport,
       teams: [
         validImport.teams[0]!,
-        { ...validImport.teams[1]!, managerDisplayNames: ["Mackie Farina"] },
+        { ...validImport.teams[1]!, managerDisplayNames: ["Example Manager"] },
       ],
     }, season);
 
@@ -167,17 +167,17 @@ describe("league members screenshot imports", () => {
       id: season.league.id,
       name: "The Sunday Games",
       provider: "espn",
-      externalLeagueId: "214674",
+      externalLeagueId: "100001",
     });
     expect(applied.season.settings).toEqual(season.settings);
     expect(applied.season.teams.map(team => team.id)).toEqual(season.teams.map(team => team.id));
     expect(applied.season.teams.map(team => team.ownerId)).toEqual(season.teams.map(team => team.ownerId));
     expect(applied.season.teams).toEqual([
       expect.objectContaining({
-        abbreviation: "SETH",
+        abbreviation: "OWN04",
         draftOrderPosition: 1,
-        ownerDisplayName: "Seth Fortier",
-        managerDisplayNames: ["Seth Fortier"],
+        ownerDisplayName: "Owner04 Fortier",
+        managerDisplayNames: ["Owner04 Fortier"],
         displayName: "Washington Sentinels",
       }),
       expect.objectContaining({
@@ -217,7 +217,7 @@ describe("league members screenshot imports", () => {
       {
         id: season.teams[1]!.id,
         ownerId: season.teams[1]!.ownerId,
-        manager: "Seth Fortier",
+        manager: "Owner04 Fortier",
       },
       {
         id: season.teams[0]!.id,

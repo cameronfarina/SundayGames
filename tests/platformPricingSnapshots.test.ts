@@ -80,7 +80,7 @@ describe("pricing snapshot contracts", () => {
     const inputHash = hashPricingSnapshotInputs({ season: 2026, settings: { teams: 14 } });
 
     const firstId = generatePricingModelRunId({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       inputHash,
@@ -89,7 +89,7 @@ describe("pricing snapshot contracts", () => {
       inputHash,
       modelVersion: "auction-v1",
       seasonYear: 2026,
-      leagueId: "league-214674",
+      leagueId: "league-100001",
     });
 
     expect(secondId).toBe(firstId);
@@ -97,7 +97,7 @@ describe("pricing snapshot contracts", () => {
 
   it("creates a snapshot that preserves distinct market scenario live personal and max prices", () => {
     const snapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "expected",
@@ -133,7 +133,7 @@ describe("pricing snapshot contracts", () => {
   it("refuses to overwrite an existing model run id with a different payload", () => {
     const repository = createInMemoryPricingSnapshotRepository();
     const snapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "expected",
@@ -167,7 +167,7 @@ describe("pricing snapshot contracts", () => {
       hash: hashPricingSnapshotInputs({ season: 2026 }),
     };
     const expectedSnapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "expected",
@@ -175,7 +175,7 @@ describe("pricing snapshot contracts", () => {
       prices: sourcePrices,
     });
     const highRetentionSnapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "highRetention",
@@ -199,7 +199,7 @@ describe("pricing snapshot contracts", () => {
   it("returns only the latest matching snapshot without cloning older large snapshots", () => {
     const repository = createInMemoryPricingSnapshotRepository();
     const olderSnapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "expected",
@@ -216,7 +216,7 @@ describe("pricing snapshot contracts", () => {
       createdAt: "2026-08-01T12:00:00.000Z",
     });
     const latestSnapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v2",
       scenarioId: "expected",
@@ -232,7 +232,7 @@ describe("pricing snapshot contracts", () => {
     const structuredCloneSpy = vi.spyOn(globalThis, "structuredClone");
 
     const result = repository.findLatest({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: "2026",
       scenarioId: "expected",
     });
@@ -244,7 +244,7 @@ describe("pricing snapshot contracts", () => {
 
   it("creates strategy overlays with derived personal values without mutating market prices", () => {
     const snapshot = createPricingSnapshot({
-      leagueId: "league-214674",
+      leagueId: "league-100001",
       seasonYear: 2026,
       modelVersion: "auction-v1",
       scenarioId: "expected",

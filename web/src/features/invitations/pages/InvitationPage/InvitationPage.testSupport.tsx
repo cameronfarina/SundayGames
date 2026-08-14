@@ -23,7 +23,7 @@ export const invitationDetails = {
       id: "team-1",
       ownerId: "owner-1",
       name: "Short King",
-      managerNames: ["Cam"],
+      managerNames: ["Owner11"],
       status: "available",
     },
     {
@@ -40,12 +40,12 @@ export const useInvitationApi = (signedIn: boolean) => {
   invitationServer.use(
     http.get("/invitations/details", () => HttpResponse.json(invitationDetails)),
     http.get("/session", () => signedIn
-      ? HttpResponse.json({ account: { id: "user-1", email: "cam@example.com" } })
+      ? HttpResponse.json({ account: { id: "user-1", email: "user@example.com" } })
       : HttpResponse.json({
           error: { code: "authentication_required", message: "Sign in." },
         }, { status: 401 })),
     http.get("/onboarding", () => HttpResponse.json({
-      account: { id: "user-1", email: "cam@example.com" },
+      account: { id: "user-1", email: "user@example.com" },
       leagues: [],
     })),
   );

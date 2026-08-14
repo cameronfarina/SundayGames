@@ -16,7 +16,7 @@ Import 2023-2025 board CSVs and convert them into normalized auction records.
 
 ### Behavior
 
-Roster row `1` is keeper data. Rows `2-16` are auction buys, with Seth's missing 2023 slot filled as a $1 DST placeholder.
+Roster row `1` is keeper data. Rows `2-16` are auction buys, with Owner04's missing 2023 slot filled as a $1 DST placeholder.
 
 ### Acceptance Criteria
 

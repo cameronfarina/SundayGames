@@ -17,9 +17,9 @@ import {
 import { createLiveDraftRoomEventStream } from "../src/platform/liveDraftRoomEventStream.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const commissioner = { userId: "user_commish", leagueId: "league-214674", role: "admin" } as const;
-const member = { userId: "user_seth", leagueId: "league-214674", role: "member" } as const;
-const observer = { userId: "user_observer", leagueId: "league-214674", role: "observer" } as const;
+const commissioner = { userId: "user_commish", leagueId: "league-100001", role: "admin" } as const;
+const member = { userId: "user_seth", leagueId: "league-100001", role: "member" } as const;
+const observer = { userId: "user_observer", leagueId: "league-100001", role: "observer" } as const;
 
 const playerCatalog = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73, teamAbbreviation: "LAR", byeWeek: 8 },
@@ -36,8 +36,8 @@ const publishedSeason = (): LeagueSeason =>
 
 const createRoom = (repository = new InMemoryLiveDraftRoomRepository()): LiveDraftRoom => {
   const season = publishedSeason();
-  const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-  if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+  const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+  if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
 
   return repository.createRoom({
     season,
@@ -73,7 +73,7 @@ const buildLiveRoom = (): LiveDraftRoom => {
     actor: commissioner,
     expectedRevision: 2,
     idempotencyKey: "sale:puka:62",
-    sale: "cam puka 62",
+    sale: "owner11 puka 62",
     now: new Date(now.getTime() + 2_000),
   });
 
@@ -145,8 +145,8 @@ describe("live draft room stream contract", () => {
 
   it("builds role-aware snapshots with selected/viewed teams, shared room state, and export readiness", () => {
     const room = buildLiveRoom();
-    const camTeam = room.projection.teams.find(team => team.ownerDisplayName === "Cam");
-    const sethTeam = room.projection.teams.find(team => team.ownerDisplayName === "Seth");
+    const camTeam = room.projection.teams.find(team => team.ownerDisplayName === "Owner11");
+    const sethTeam = room.projection.teams.find(team => team.ownerDisplayName === "Owner04");
     if (camTeam === undefined || sethTeam === undefined) throw new Error("Expected fixture teams.");
 
     const commissionerModel = buildLiveDraftRoomReadModel({
@@ -189,8 +189,8 @@ describe("live draft room stream contract", () => {
 
     expect(memberModel).toMatchObject({
       roomId: "room_sunday",
-      leagueId: "league-214674",
-      seasonId: "league-214674-season-2026",
+      leagueId: "league-100001",
+      seasonId: "league-100001-season-2026",
       status: "ended",
       revision: 4,
       board: expect.arrayContaining([
@@ -200,19 +200,19 @@ describe("live draft room stream contract", () => {
         expect.objectContaining({
           revision: 3,
           playerName: "Puka Nacua",
-          ownerDisplayName: "Cam",
+          ownerDisplayName: "Owner11",
           price: 62,
         }),
       ],
       exportReadiness: {
         status: "blocked",
         blockers: expect.arrayContaining([
-          "Beaton has 16 open roster slots.",
-          "Cam has 14 open roster slots.",
+          "Owner01 has 16 open roster slots.",
+          "Owner11 has 14 open roster slots.",
         ]),
       },
     });
-    expect(memberModel.teamSummaries.find(team => team.ownerDisplayName === "Cam")).toMatchObject({
+    expect(memberModel.teamSummaries.find(team => team.ownerDisplayName === "Owner11")).toMatchObject({
       spent: 112,
       budgetRemaining: 88,
       rosterSlotsRemaining: 14,
@@ -232,7 +232,7 @@ describe("live draft room stream contract", () => {
 
     const snapshot = buildLiveDraftRoomSnapshotEvent({
       room,
-      actor: actorWithTeam(member, "league-214674-team-02"),
+      actor: actorWithTeam(member, "league-100001-team-02"),
     });
     const serialized = JSON.stringify(snapshot);
 
@@ -287,8 +287,8 @@ describe("live draft room stream contract", () => {
   it("streams keeper synchronization as a fresh room snapshot", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const created = createRoom(repository);
-    const camTeam = created.season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam fixture team.");
+    const camTeam = created.season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
     const synchronized = repository.synchronizeInitialRostersForSeason({
       seasonId: created.seasonId,
       actor: commissioner,
@@ -357,7 +357,7 @@ describe("live draft room stream contract", () => {
       actor: commissioner,
       expectedRevision: 2,
       idempotencyKey: "sale:correction-room",
-      sale: "cam puka 62",
+      sale: "owner11 puka 62",
       now: new Date(now.getTime() + 2_000),
     });
     const originalSale = sold.projection.sales[0];
@@ -368,7 +368,7 @@ describe("live draft room stream contract", () => {
       expectedRevision: 3,
       idempotencyKey: "correct:correction-room",
       saleEventId: originalSale.saleEventId,
-      replacementSale: "seth puka 41",
+      replacementSale: "owner04 puka 41",
       now: new Date(now.getTime() + 3_000),
     });
     const paused = repository.pauseRoom({
@@ -389,7 +389,7 @@ describe("live draft room stream contract", () => {
     expect(buildLiveDraftRoomReadModel({ room: corrected, actor: commissioner }).salesLog).toEqual([
       expect.objectContaining({
         revision: 4,
-        ownerDisplayName: "Seth",
+        ownerDisplayName: "Owner04",
         playerName: "Puka Nacua",
         price: 41,
       }),
@@ -531,7 +531,7 @@ describe("live draft room stream contract", () => {
     actor: commissioner,
     expectedRevision: 2,
     idempotencyKey: "sale:puka:62",
-    sale: "cam puka 62",
+    sale: "owner11 puka 62",
     now: new Date(now.getTime() + 2_000),
   });
     const room = repository.undoLastSale({

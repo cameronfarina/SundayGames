@@ -19,7 +19,7 @@ describe("DraftCommandPanel", () => {
     const onLogSale = vi.fn();
     render(<DraftCommandPanel
       {...handlers}
-      command="Cam drafted Puka Nacua for 62"
+      command="Owner11 drafted Puka Nacua for 62"
       onLogSale={onLogSale}
       room={liveRoom}
     />);

@@ -20,13 +20,13 @@ const leagueTokenSecret = "test-invitation-secret-at-least-32-characters";
 const invitationInput = {
   leagueId: "league_1",
   seasonId: "season_2026",
-  email: "seth@example.com",
+  email: "owner04@example.com",
   role: "member" as const,
-  ownerId: "seth",
+  ownerId: "owner04",
   teamId: "team_seth",
-  ownerDisplayName: "Seth",
-  teamDisplayName: "Seth's Team",
-  invitedByUserId: "acct_cam",
+  ownerDisplayName: "Owner04",
+  teamDisplayName: "Owner04's Team",
+  invitedByUserId: "acct_owner11",
   now,
   expiresAt,
 };
@@ -37,7 +37,7 @@ describe("platform invitations", () => {
     const issued = await issuePlatformLeagueInvitation(repository, {
       leagueId: "league_1",
       seasonId: "season_2026",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now,
       expiresAt,
     }, {
@@ -62,17 +62,17 @@ describe("platform invitations", () => {
 
     const firstJoin = await joinPlatformLeagueInvitation(repository, {
       token,
-      account: { id: "acct_seth", email: "seth@example.com" },
+      account: { id: "acct_owner04", email: "owner04@example.com" },
       now: new Date("2026-08-11T12:00:00.000Z"),
     });
     const secondJoin = await joinPlatformLeagueInvitation(repository, {
       token,
-      account: { id: "acct_hoody", email: "hoody@example.com" },
+      account: { id: "acct_hoody", email: "owner02@example.com" },
       now: new Date("2026-08-11T12:01:00.000Z"),
     });
 
     expect(firstJoin.membership).toEqual({
-      userId: "acct_seth",
+      userId: "acct_owner04",
       leagueId: "league_1",
       role: "member",
     });
@@ -95,7 +95,7 @@ describe("platform invitations", () => {
     const input = {
       leagueId: "league_1",
       seasonId: "season_2026",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now,
       expiresAt,
     };
@@ -127,7 +127,7 @@ describe("platform invitations", () => {
     expect(issued).toMatchObject({
       id: "invite_1",
       status: "pending",
-      email: "seth@example.com",
+      email: "owner04@example.com",
       acceptPath: "/invite?token=raw+invite+token",
       reissuePath: "/invitations/invite_1/reissue",
       revokePath: "/invitations/invite_1/revoke",
@@ -148,19 +148,19 @@ describe("platform invitations", () => {
 
     const accepted = await acceptPlatformInvitation(repository, {
       token: "raw invite token",
-      account: { id: "acct_seth", email: "SETH@example.com" },
+      account: { id: "acct_owner04", email: "OWNER04@example.com" },
       now: new Date("2026-08-11T12:00:00.000Z"),
     });
 
     expect(accepted).toMatchObject({
       invitation: { id: "invite_1", status: "accepted" },
       membership: {
-        userId: "acct_seth",
+        userId: "acct_owner04",
         leagueId: "league_1",
         role: "member",
-        ownerId: "seth",
+        ownerId: "owner04",
         teamId: "team_seth",
-        inviteEmail: "seth@example.com",
+        inviteEmail: "owner04@example.com",
       },
     });
   });
@@ -189,7 +189,7 @@ describe("platform invitations", () => {
     expect((mismatchError as Error).message).not.toContain(invitationInput.email);
     await expect(acceptPlatformInvitation(repository, {
       token: "raw invite token",
-      account: { id: "acct_seth", email: "seth@example.com" },
+      account: { id: "acct_owner04", email: "owner04@example.com" },
       now: new Date("2026-08-18T12:00:00.000Z"),
     })).rejects.toThrow(new PlatformInvitationError(
       "invitation_expired",
@@ -207,7 +207,7 @@ describe("platform invitations", () => {
 
     const replacement = await reissuePlatformInvitation(repository, {
       invitationId: "invite_1",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now: new Date("2026-08-11T12:00:00.000Z"),
       expiresAt: new Date("2026-08-18T12:00:00.000Z"),
     }, {
@@ -239,7 +239,7 @@ describe("platform invitations", () => {
     });
     const replacementInput = {
       invitationId: "invite_1",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now: new Date("2026-08-11T12:00:00.000Z"),
       expiresAt: new Date("2026-08-18T12:00:00.000Z"),
     };
@@ -266,7 +266,7 @@ describe("platform invitations", () => {
     const issued = await issuePlatformLeagueInvitation(repository, {
       leagueId: "league_1",
       seasonId: "season_2026",
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now,
       expiresAt,
     }, {
@@ -275,7 +275,7 @@ describe("platform invitations", () => {
     });
     const replacementInput = {
       invitationId: issued.id,
-      invitedByUserId: "acct_cam",
+      invitedByUserId: "acct_owner11",
       now: new Date("2026-08-11T12:00:00.000Z"),
       expiresAt: new Date("2026-09-11T12:00:00.000Z"),
     };

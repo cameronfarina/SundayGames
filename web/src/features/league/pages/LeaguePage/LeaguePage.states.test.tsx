@@ -23,7 +23,7 @@ afterAll(() => {
 
 describe("LeaguePage states", () => {
   it("gives accounts without a league clear next steps", async () => {
-    useLeagueApi({ account: { id: "user-1", email: "cam@example.com" }, leagues: [] });
+    useLeagueApi({ account: { id: "user-1", email: "user@example.com" }, leagues: [] });
     renderLeaguePage();
 
     expect(await screen.findByRole("heading", { name: "Your leagues" })).toBeVisible();

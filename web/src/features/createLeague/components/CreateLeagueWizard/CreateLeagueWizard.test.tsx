@@ -69,7 +69,7 @@ describe("CreateLeagueWizard", () => {
     const teamTwo = within(screen.getByRole("group", { name: "Team 2" }));
     await user.type(teamOne.getByRole("textbox", { name: "Team name" }), "Short King");
     await user.type(teamOne.getByRole("textbox", { name: "Managers" }), "Cam, Mackie");
-    await user.type(teamOne.getByRole("textbox", { name: "Abbreviation" }), "CAM");
+    await user.type(teamOne.getByRole("textbox", { name: "Abbreviation" }), "OWN11");
     expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
     await user.type(teamTwo.getByRole("textbox", { name: "Team name" }), "Dart Vader");
     await user.click(screen.getByRole("button", { name: "Finish" }));
@@ -81,7 +81,7 @@ describe("CreateLeagueWizard", () => {
       provider: "mockd",
       expectedTeamCount: 2,
       teams: [
-        { displayName: "Short King", managerNames: ["Cam", "Mackie"], abbreviation: "CAM" },
+        { displayName: "Short King", managerNames: ["Owner11", "Mackie"], abbreviation: "OWN11" },
         { displayName: "Dart Vader" },
       ],
     } });
@@ -96,7 +96,7 @@ describe("CreateLeagueWizard", () => {
     const user = userEvent.setup();
     renderCreateLeagueWizard();
     await completeBasics(user);
-    await user.type(screen.getByRole("textbox", { name: "ESPN league ID or URL" }), "214674");
+    await user.type(screen.getByRole("textbox", { name: "ESPN league ID or URL" }), "100001");
     await user.click(screen.getByRole("button", { name: "Review ESPN settings" }));
 
     const review = await screen.findByRole("region", { name: "Imported ESPN settings" });

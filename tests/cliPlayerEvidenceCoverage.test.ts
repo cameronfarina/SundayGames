@@ -46,10 +46,10 @@ describe("CLI player evidence coverage", () => {
     };
 
     expect(audit.summary.playerCount).toBeGreaterThan(0);
-    expect(audit.summary.status).toBe("pass");
-    expect(audit.summary.highPriorityMissingCount).toBe(0);
+    expect(audit.summary.status).toBe("fail");
+    expect(audit.summary.highPriorityMissingCount).toBe(1);
     expect(audit.gates.summary).toMatchObject({
-      status: "pass",
+      status: "fail",
       gateCount: 4,
     });
     expect(audit.gates.items.map(gate => gate.key)).toEqual([
@@ -59,7 +59,10 @@ describe("CLI player evidence coverage", () => {
       "evidence-provenance-rate",
     ]);
     expect(audit.summary.provenanceCompleteEvidenceRate).toBe(1);
-    expect(audit.missingPlayers).toEqual([]);
+    expect(audit.missingPlayers.map(player => player.player)).toEqual([
+      "Jaxon Smith-Njigba",
+      "Bucky Irving",
+    ]);
   }, 15000);
 
   it("keeps downstream coverage audits raw when default evidence is disabled", async () => {

@@ -92,10 +92,10 @@ describe("platform Node HTTP JSON media types", () => {
     const response = await fetch(`${origin}/sessions`, {
       method: "POST",
       headers: { "content-type": contentType },
-      body: JSON.stringify({ email: "cam@example.com" }),
+      body: JSON.stringify({ email: "owner11@example.com" }),
     });
     expect(response.status).toBe(200);
-    expect(seenBodies).toEqual([{ email: "cam@example.com" }]);
+    expect(seenBodies).toEqual([{ email: "owner11@example.com" }]);
   });
 
   it("keeps JSON-wrapped screenshot and spreadsheet uploads functional", async () => {

@@ -53,10 +53,10 @@ describe("FinalActions", () => {
         canMutateRoom: false,
         role: "observer",
         status: "ended",
-        exportReadiness: { status: "blocked", blockers: ["Cam has 1 open roster slot."] },
+        exportReadiness: { status: "blocked", blockers: ["Owner11 has 1 open roster slot."] },
       }}
     /></MemoryRouter>);
-    expect(screen.getByText("Cam has 1 open roster slot.")).toBeVisible();
+    expect(screen.getByText("Owner11 has 1 open roster slot.")).toBeVisible();
     expect(screen.queryByRole("link", { name: "View My Team" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Prepare final CSV" })).not.toBeInTheDocument();
   });

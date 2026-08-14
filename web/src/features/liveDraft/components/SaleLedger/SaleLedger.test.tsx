@@ -17,13 +17,13 @@ describe("SaleLedger", () => {
     expect(screen.getByText("De'Von Achane")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Correct sale of De'Von Achane" }));
     const command = screen.getByRole("textbox", { name: "Correct sale" });
-    expect(command).toHaveValue("Cam drafted De'Von Achane for 50");
+    expect(command).toHaveValue("Owner11 drafted De'Von Achane for 50");
     await user.clear(command);
-    await user.type(command, "Seth drafted De'Von Achane for 49");
+    await user.type(command, "Owner04 drafted De'Von Achane for 49");
     await user.click(screen.getByRole("button", { name: "Apply correction" }));
     expect(onCorrect).toHaveBeenCalledExactlyOnceWith(
       "sale-1",
-      "Seth drafted De'Von Achane for 49",
+      "Owner04 drafted De'Von Achane for 49",
     );
 
     await user.click(screen.getByRole("button", { name: "Correct sale of De'Von Achane" }));

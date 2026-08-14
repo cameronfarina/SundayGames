@@ -19,7 +19,7 @@ const draftExportResult: DraftExportResult = {
 
 const artifactInput = {
   draftExport: draftExportResult,
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   roomId: "room_final",
   sourceRevision: 7,
@@ -33,14 +33,14 @@ describe("platform export artifacts", () => {
     expect(Buffer.isBuffer(content)).toBe(true);
     expect(content.toString("utf8")).toBe(draftExportResult.csv);
     expect(artifact).toEqual({
-      id: "draft-room-export:league_214674:season_2026:room_final:rev7:csv",
-      leagueId: "league_214674",
+      id: "draft-room-export:league_100001:season_2026:room_final:rev7:csv",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       roomId: "room_final",
       format: "csv",
       sourceRevision: 7,
       createdAt,
-      storageKey: "exports/league_214674/season_2026/room_final/rev7.csv",
+      storageKey: "exports/league_100001/season_2026/room_final/rev7.csv",
       sha256: "f213e24300b0bd03d1b0e0302472b5bed1aef6e42bbe08533efe4a01cdcc8d55",
       byteLength: 39,
       contentType: "text/csv; charset=utf-8",

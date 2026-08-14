@@ -73,20 +73,20 @@ describe("platform job handlers", () => {
     const persist = vi.fn(() => {
       progressEvents.push("persist");
     });
-    const cam = await signUpAndLogin(app, "cam@example.com", "cam password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 214674",
+      leagueName: "League 100001",
       setupStatus: "published",
     });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Cam");
-    if (camTeam === undefined) throw new Error("Expected Cam team fixture.");
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected Owner11 team fixture.");
 
     await app.registerLeagueSeason({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       season,
       memberships: [
         {
-          userId: cam.account.id,
+          userId: owner11.account.id,
           leagueId: season.leagueId,
           role: "owner",
           ownerId: camTeam.ownerId,
@@ -96,17 +96,17 @@ describe("platform job handlers", () => {
       now,
     });
     const simulation = await app.createSimulationRun({
-      actorSessionToken: cam.sessionToken,
+      actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonId: season.id,
       ownerId: camTeam.ownerId,
       teamId: camTeam.id,
       count: 12,
-      seedPrefix: "cam-balanced",
-      idempotencyKey: "cam-balanced",
+      seedPrefix: "owner11-balanced",
+      idempotencyKey: "owner11-balanced",
       strategy: {
         hardLocks: [
-          { playerName: "Puka Nacua", price: 62, auctionOwner: "Cam" },
+          { playerName: "Puka Nacua", price: 62, auctionOwner: "Owner11" },
         ],
       },
       now,
@@ -114,22 +114,22 @@ describe("platform job handlers", () => {
     const workerExecution = vi.spyOn(app, "executeSimulationRunForWorker");
     const job = enqueueSimulationRunExecutionJob({
       repository,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       simulationRunId: simulation.id,
       runCount: 12,
-      seedPrefix: "cam-balanced",
+      seedPrefix: "owner11-balanced",
       now,
     });
     const duplicateJob = enqueueSimulationRunExecutionJob({
       repository,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       simulationRunId: simulation.id,
       runCount: 12,
-      seedPrefix: "cam-balanced",
+      seedPrefix: "owner11-balanced",
       now: new Date(now.getTime() + 500),
     });
 
@@ -146,7 +146,7 @@ describe("platform job handlers", () => {
     expect(completedJob).toBe(job);
     expect(workerExecution).toHaveBeenCalledWith({
       runId: simulation.id,
-      userId: cam.account.id,
+      userId: owner11.account.id,
       leagueId: season.leagueId,
       seasonId: season.id,
       now: dispatchedAt,
@@ -155,8 +155,8 @@ describe("platform job handlers", () => {
     expect(runnerCalls).toEqual([
       expect.objectContaining({
         runsPerScenario: 12,
-        seedPrefix: "cam-balanced",
-        forcedSales: [{ owner: "Cam", player: "Puka Nacua", price: 62 }],
+        seedPrefix: "owner11-balanced",
+        forcedSales: [{ owner: "Owner11", player: "Puka Nacua", price: 62 }],
       }),
     ]);
     expect(updateProgress).toHaveBeenCalledTimes(2);
@@ -207,7 +207,7 @@ describe("platform job handlers", () => {
     const job = enqueuePricingRebuildJob({
       repository,
       userId: "user_commish",
-      leagueId: "league_214674",
+      leagueId: "league_100001",
       seasonId: "season_2026",
       seasonYear: 2026,
       modelVersion: "auction-v1",

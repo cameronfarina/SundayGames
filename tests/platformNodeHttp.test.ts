@@ -319,7 +319,7 @@ describe("platform Node HTTP adapter", () => {
     const response = await jsonFetch(baseUrl, "/accounts?source=test", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
 
     expect(response).toEqual({
@@ -329,7 +329,7 @@ describe("platform Node HTTP adapter", () => {
       body: {
         method: "POST",
         path: "/accounts?source=test",
-        body: { email: "cam@example.com", password: "secure password" },
+        body: { email: "owner11@example.com", password: "secure password" },
       },
     });
     expect(seenRequests).toHaveLength(1);
@@ -457,7 +457,7 @@ describe("platform Node HTTP adapter", () => {
         "x-forwarded-for": "198.51.100.19",
         "x-real-ip": "198.51.100.20",
       },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
 
     expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
@@ -479,7 +479,7 @@ describe("platform Node HTTP adapter", () => {
         forwarded: "for=198.51.100.18;proto=https",
         "x-forwarded-for": "198.51.100.19, 10.0.0.8",
       },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
 
     expect(seenRequests[0]?.clientAddress).toBe("198.51.100.17");
@@ -501,7 +501,7 @@ describe("platform Node HTTP adapter", () => {
         forwarded: "for=attacker-controlled-value",
         "x-forwarded-for": "198.51.100.19",
       },
-      body: JSON.stringify({ email: "cam@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
     });
 
     expect(seenRequests[0]?.clientAddress).toBe("127.0.0.1");
@@ -810,7 +810,7 @@ describe("platform Node HTTP adapter", () => {
     const response = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "cam@example.com" }),
+      body: JSON.stringify({ email: "owner11@example.com" }),
     });
 
     expect(callCount).toBe(0);

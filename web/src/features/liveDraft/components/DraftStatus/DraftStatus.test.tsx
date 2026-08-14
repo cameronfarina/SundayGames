@@ -10,7 +10,7 @@ describe("DraftStatus", () => {
     expect(screen.getByText("Revision 2")).toBeVisible();
     expect(screen.getByText("Connected")).toBeVisible();
     expect(screen.getByText("1 sale · 1 of 4 spots filled")).toBeVisible();
-    expect(screen.getByText("De'Von Achane to Cam for $50")).toBeVisible();
+    expect(screen.getByText("De'Von Achane to Owner11 for $50")).toBeVisible();
   });
 
   it("shows a useful empty latest-sale state", () => {

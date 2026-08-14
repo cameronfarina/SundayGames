@@ -19,12 +19,12 @@ const now = new Date("2026-08-09T16:00:00.000Z");
 
 const baseRequestInput = {
   userId: "user_cam",
-  leagueId: "league_214674",
+  leagueId: "league_100001",
   seasonId: "season_2026",
   ownerId: "owner_cam",
   teamId: "team_cam",
   count: 25,
-  seedPrefix: "cam-balanced-rb3",
+  seedPrefix: "owner11-balanced-rb3",
   idempotencyKey: "balanced-rb3",
   strategy: {
     hardLocks: [
@@ -32,7 +32,7 @@ const baseRequestInput = {
         playerName: "Jadarian Price",
         price: 13,
         priceMode: "exact",
-        auctionOwner: "Cam",
+        auctionOwner: "Owner11",
       },
     ],
     softTargets: [
@@ -536,12 +536,12 @@ describe("Postgres simulation repository", () => {
       id: expect.stringMatching(/^sim_/),
       request: {
         userId: "user_cam",
-        leagueId: "league_214674",
+        leagueId: "league_100001",
         seasonId: "season_2026",
         ownerId: "owner_cam",
         teamId: "team_cam",
         count: 25,
-        seedPrefix: "cam-balanced-rb3",
+        seedPrefix: "owner11-balanced-rb3",
         idempotencyKey: "balanced-rb3",
         createdAt: now,
         privacyOwnerUserId: "user_cam",
@@ -584,13 +584,13 @@ describe("Postgres simulation repository", () => {
             playerName: "Jadarian Price",
             price: 13,
             priceMode: "exact",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
           {
             playerName: "Kenneth Walker III",
             price: 30,
             priceMode: "ceiling",
-            auctionOwner: "Cam",
+            auctionOwner: "Owner11",
           },
         ],
         softTargets: baseRequestInput.strategy.softTargets,
@@ -612,10 +612,10 @@ describe("Postgres simulation repository", () => {
     expect(runnerCalls).toEqual([
       expect.objectContaining({
         runsPerScenario: 25,
-        seedPrefix: "cam-balanced-rb3",
+        seedPrefix: "owner11-balanced-rb3",
         forcedSales: [
-          { owner: "Cam", player: "Jadarian Price", price: 13 },
-          { owner: "Cam", player: "Kenneth Walker III", price: 30 },
+          { owner: "Owner11", player: "Jadarian Price", price: 13 },
+          { owner: "Owner11", player: "Kenneth Walker III", price: 30 },
         ],
       }),
     ]);
@@ -624,7 +624,7 @@ describe("Postgres simulation repository", () => {
       runId: run.id,
       requestId: run.request.id,
       runCount: 25,
-      seedPrefix: "cam-balanced-rb3",
+      seedPrefix: "owner11-balanced-rb3",
       hardLockCount: 2,
       softTargetCount: 1,
       summary: {

@@ -13,7 +13,7 @@ const season: LeagueSeason = {
   league: { id: "league-1", externalLeagueId: "1", name: "Sunday", provider: "espn" },
   seasonYear: 2026,
   setupStatus: "published",
-  teams: ["Cam", "Sam", "Matt", "Nick"].map((name, index) => ({
+  teams: ["Owner11", "Owner12", "Matt", "Nick"].map((name, index) => ({
     id: `team-${index + 1}`,
     leagueSeasonId: "auction-season-2026",
     ownerId: `owner-${index + 1}`,
@@ -81,7 +81,7 @@ describe("season auction mock adapter", () => {
       playerHumanValues: { "player 1": 71 },
     });
 
-    expect(config.teams.map(team => team.name)).toEqual(["Cam Team", "Sam Team", "Matt Team", "Nick Team"]);
+    expect(config.teams.map(team => team.name)).toEqual(["Owner11 Team", "Owner12 Team", "Matt Team", "Nick Team"]);
     expect(config.budgetDollars).toBe(200);
     expect(config.rosterSlots).toEqual([{ slot: "BENCH", count: 2, eligiblePositions: ["QB", "RB", "WR", "TE", "K", "DST"] }]);
     expect(config.keepers).toEqual([{ teamId: "team-2", playerId: "player 2", price: 25 }]);

@@ -22,7 +22,7 @@ test("available team screenshot analysis supports drag and drop before manual en
       json: {
         import: {
           leagueName: "Screenshot League",
-          externalLeagueId: "214674",
+          externalLeagueId: "100001",
           teams: Array.from({ length: 4 }, (_, index) => ({
             draftOrderPosition: index + 1,
             abbreviation: `T${index + 1}`,

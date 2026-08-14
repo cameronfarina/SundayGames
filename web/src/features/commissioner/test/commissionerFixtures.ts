@@ -3,12 +3,12 @@ import { onboardingLeagueSchema } from "../../../shared/api/onboarding/onboardin
 
 export const auctionSeason = seasonSchema.parse({
   id: "season-1",
-  league: { id: "league-1", externalLeagueId: "214674", name: "Sunday Games", provider: "mockd" },
+  league: { id: "league-1", externalLeagueId: "100001", name: "Sunday Games", provider: "mockd" },
   leagueId: "league-1",
   seasonYear: 2026,
   teams: [{
-    id: "team-1", leagueSeasonId: "season-1", ownerId: "owner-cam",
-    ownerDisplayName: "Cam", managerDisplayNames: ["Cameron"], abbreviation: "CAM",
+    id: "team-1", leagueSeasonId: "season-1", ownerId: "owner-owner11",
+    ownerDisplayName: "Owner11", managerDisplayNames: ["Example Manager"], abbreviation: "OWN11",
     displayName: "Short King", draftOrderPosition: 1,
   }],
   settings: {

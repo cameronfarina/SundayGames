@@ -57,10 +57,10 @@ describe("LiveDraftWorkspace actions", () => {
     await user.click(screen.getByRole("button", { name: "Correct sale of De'Von Achane" }));
     const command = screen.getByRole("textbox", { name: "Correct sale" });
     await user.clear(command);
-    await user.type(command, "Seth drafted De'Von Achane for 49{Enter}");
+    await user.type(command, "Owner04 drafted De'Von Achane for 49{Enter}");
     await waitFor(() => { expect(onAction).toHaveBeenCalledWith({
       action: "corrections",
-      replacementSale: "Seth drafted De'Von Achane for 49",
+      replacementSale: "Owner04 drafted De'Von Achane for 49",
       saleEventId: "sale-1",
     }); });
   });

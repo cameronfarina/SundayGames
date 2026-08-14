@@ -8,14 +8,14 @@ import { loadEspnWeeksOneToFour } from "../src/projections.js";
 const projectionPath = "data/raw/espn-projections-2026-weeks-1-4.json";
 
 describe("live draft strategy values", () => {
-  it("changes Cam's personal value and tags without changing market anchors", async () => {
+  it("changes Owner11's personal value and tags without changing market anchors", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const balanced = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "balanced",
     });
@@ -23,7 +23,7 @@ describe("live draft strategy values", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "three-rb",
     });
@@ -31,7 +31,7 @@ describe("live draft strategy values", () => {
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "wr-heavy",
     });
@@ -55,14 +55,14 @@ describe("live draft strategy values", () => {
     expect(wrHeavyLondon?.personalValue).toBeGreaterThan(balancedLondon?.personalValue ?? 0);
   });
 
-  it("keeps Cam's uncapped strategy value separate from path max discipline", async () => {
+  it("keeps Owner11's uncapped strategy value separate from path max discipline", async () => {
     const projections = await loadEspnWeeksOneToFour(projectionPath);
     const historicalRecords = await loadHistoricalAuctionRecords();
     const state = buildLiveDraftState({
       projections,
       historicalRecords,
       keepers,
-      watchOwner: "Cam",
+      watchOwner: "Owner11",
       scenarioKey: "expected",
       strategyKey: "three-rb",
     });

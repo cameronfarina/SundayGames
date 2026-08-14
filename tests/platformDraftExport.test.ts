@@ -8,7 +8,7 @@ import {
 const exportedAt = new Date("2026-08-09T14:30:00.000Z");
 
 const baseState = {
-  leagueName: "League 214674",
+  leagueName: "League 100001",
   seasonYear: 2026,
   draftRoomId: "room_abc",
   exportedAt,
@@ -17,8 +17,8 @@ const baseState = {
   teams: [
     {
       teamId: "team_cam",
-      teamName: "Cam's Team",
-      ownerName: "Cam",
+      teamName: "Owner11's Team",
+      ownerName: "Owner11",
       draftOrderPosition: 2,
       slots: [
         {
@@ -41,8 +41,8 @@ const baseState = {
     },
     {
       teamId: "team_seth",
-      teamName: "Seth's Team",
-      ownerName: "Seth",
+      teamName: "Owner04's Team",
+      ownerName: "Owner04",
       draftOrderPosition: 1,
       slots: [
         {
@@ -72,13 +72,13 @@ describe("draft export generator", () => {
 
     expect(exportResult.sheetName).toBe("Draft Results");
     expect(exportResult.table.every(row => row.length === 6)).toBe(true);
-    expect(exportResult.table[0]).toEqual(["League", "League 214674", "", "", "", ""]);
+    expect(exportResult.table[0]).toEqual(["League", "League 100001", "", "", "", ""]);
     expect(exportResult.table[1]).toEqual(["Season", 2026, "", "", "", ""]);
     expect(exportResult.table[2]).toEqual(["Draft room id", "room_abc", "", "", "", ""]);
     expect(exportResult.table[3]).toEqual(["Exported at", "2026-08-09T14:30:00.000Z", "", "", "", ""]);
     expect(exportResult.table[4]).toEqual(["Status", "in_progress", "Revision", 7, "", ""]);
-    expect(exportResult.table[5]).toEqual(["Seth's Team", "", "", "Cam's Team", "", ""]);
-    expect(exportResult.table[6]).toEqual(["Seth", "", "", "Cam", "", ""]);
+    expect(exportResult.table[5]).toEqual(["Owner04's Team", "", "", "Owner11's Team", "", ""]);
+    expect(exportResult.table[6]).toEqual(["Owner04", "", "", "Owner11", "", ""]);
     expect(exportResult.table[7]).toEqual(["Slot", "Player", "Price", "Slot", "Player", "Price"]);
 
     const rosterRows = exportResult.table.slice(8);
@@ -134,7 +134,7 @@ describe("draft export generator", () => {
         {
           teamId: "team_quote",
           teamName: "Team, One",
-          ownerName: "Cam \"The Commish\"",
+          ownerName: "Owner11 \"The Commish\"",
           slots: [
             {
               slot: "WR1",
@@ -151,7 +151,7 @@ describe("draft export generator", () => {
     expect(exportResult.table.find(row => row[0] === "WR1")?.[2]).toBe(28);
     expect(exportResult.csv).toContain("\"League, Home\"");
     expect(exportResult.csv).toContain("\"Team, One\"");
-    expect(exportResult.csv).toContain("\"Cam \"\"The Commish\"\"\"");
+    expect(exportResult.csv).toContain("\"Owner11 \"\"The Commish\"\"\"");
     expect(exportResult.csv).toContain("WR1,\"Amon-Ra \"\"Sun God\"\", St. Brown\",28");
   });
 
@@ -200,8 +200,8 @@ describe("draft export generator", () => {
         teams: [
           {
             teamId: "team_cam",
-            teamName: "Cam's Team",
-            ownerName: "Cam",
+            teamName: "Owner11's Team",
+            ownerName: "Owner11",
             slots: [
               {
                 slot: "WR1",
@@ -214,8 +214,8 @@ describe("draft export generator", () => {
           },
           {
             teamId: "team_seth",
-            teamName: "Seth's Team",
-            ownerName: "Seth",
+            teamName: "Owner04's Team",
+            ownerName: "Owner04",
             slots: [
               {
                 slot: "WR2",
@@ -230,7 +230,7 @@ describe("draft export generator", () => {
       }),
     ).toThrow(new DraftExportError(
       "duplicate_player",
-      "Puka Nacua appears on both Cam's Team WR1 and Seth's Team WR2.",
+      "puka nacua appears on both Owner04's Team WR2 and Owner11's Team WR1.",
     ));
   });
 
@@ -241,8 +241,8 @@ describe("draft export generator", () => {
         teams: [
           {
             teamId: "team_cam",
-            teamName: "Cam's Team",
-            ownerName: "Cam",
+            teamName: "Owner11's Team",
+            ownerName: "Owner11",
             slots: [
               {
                 slot: "RB1",
@@ -257,7 +257,7 @@ describe("draft export generator", () => {
       }),
     ).toThrow(new DraftExportError(
       "invalid_price",
-      "De'Von Achane on Cam's Team RB1 has an invalid price.",
+      "De'Von Achane on Owner11's Team RB1 has an invalid price.",
     ));
   });
 

@@ -170,8 +170,8 @@ describeWithPostgres("production Postgres composition", () => {
         seasonYear: 2026,
         expectedTeamCount: 4,
         teams: [
-          { externalTeamId: "cam", displayName: "Cam's Team", managerNames: ["Cam"] },
-          { externalTeamId: "seth", displayName: "Seth's Team", managerNames: ["Seth"] },
+          { externalTeamId: "owner11", displayName: "Owner11's Team", managerNames: ["Owner11"] },
+          { externalTeamId: "owner04", displayName: "Owner04's Team", managerNames: ["Owner04"] },
           { externalTeamId: "alex", displayName: "Alex's Team", managerNames: ["Alex"] },
           { externalTeamId: "blair", displayName: "Blair's Team", managerNames: ["Blair"] },
         ],
@@ -197,7 +197,7 @@ describeWithPostgres("production Postgres composition", () => {
     const teams = arrayValue(season.teams, "season teams").map((team, index) =>
       recordValue(team, `team ${index + 1}`)
     );
-    const camTeam = teams.find(team => team.displayName === "Cam's Team");
+    const camTeam = teams.find(team => team.displayName === "Owner11's Team");
     if (camTeam === undefined) throw new Error("Expected the commissioner team.");
     const camTeamId = stringValue(camTeam.id, "commissioner team id");
     const camOwnerId = stringValue(camTeam.ownerId, "commissioner owner id");
@@ -211,7 +211,7 @@ describeWithPostgres("production Postgres composition", () => {
     });
 
     const keeperSaved = await postJson(baseUrl, `/seasons/${seasonId}/keepers/apply`, {
-      command: "Cam keeping De'Von Achane 50",
+      command: "Owner11 keeping De'Von Achane 50",
       confirmed: true,
     }, cookie);
     expect(keeperSaved).toMatchObject({
@@ -243,7 +243,7 @@ describeWithPostgres("production Postgres composition", () => {
     await expect(postJson(baseUrl, `/live-rooms/${roomId}/sales`, {
       expectedRevision: 2,
       idempotencyKey: "production-smoke:puka:62",
-      sale: "Cam Puka 62",
+      sale: "Owner11 Puka 62",
     }, cookie)).resolves.toMatchObject({
       status: 200,
       body: {
@@ -285,7 +285,7 @@ describeWithPostgres("production Postgres composition", () => {
             role: "owner",
             ownerId: camOwnerId,
             teamId: camTeamId,
-            teamDisplayName: "Cam's Team",
+            teamDisplayName: "Owner11's Team",
           }),
           readiness: { leagueSetup: "ready", teamClaim: "ready", liveDraft: "ready" },
           liveDraft: { roomId, status: "live" },

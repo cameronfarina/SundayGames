@@ -521,30 +521,30 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
 
     const account = await auth.createUser({
-      email: " Cam@Example.com ",
+      email: " Owner11@Example.com ",
       password: "correct horse battery staple",
       now,
     });
 
     expect(account).toEqual({
       id: expect.stringMatching(/^acct_/),
-      email: "cam@example.com",
+      email: "owner11@example.com",
       emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     });
     expect(expectAccount(await repository.findAccountById(account.id))).toEqual(account);
-    expect((await repository.findAccountCredentialByEmail("cam@example.com"))?.account).toEqual(account);
+    expect((await repository.findAccountCredentialByEmail("owner11@example.com"))?.account).toEqual(account);
     expect([...client.accounts.values()][0]).toMatchObject({
-      email: "cam@example.com",
-      email_normalized: "cam@example.com",
+      email: "owner11@example.com",
+      email_normalized: "owner11@example.com",
       email_verified_at: now,
       password_hash: expect.stringMatching(/^scrypt\$/),
     });
     expect(JSON.stringify([...client.accounts.values()])).not.toContain("correct horse battery staple");
 
     await expect(auth.createUser({
-      email: "CAM@example.com",
+      email: "OWNER11@example.com",
       password: "second secure password",
       now: new Date(now.getTime() + 1_000),
     })).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));

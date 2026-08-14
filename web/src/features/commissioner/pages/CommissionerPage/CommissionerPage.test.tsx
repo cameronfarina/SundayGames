@@ -7,7 +7,7 @@ import { requestPath } from "../../test/commissionerFixtures";
 import { CommissionerPage } from "./CommissionerPage";
 
 const onboarding = {
-  account: { id: "account-cam", email: "cam@example.com" },
+  account: { id: "account-user", email: "user@example.com" },
   leagues: [{
     leagueId: "league-1",
     leagueName: "Sunday Games",
@@ -28,7 +28,7 @@ const season = {
   id: "season-1",
   league: {
     id: "league-1",
-    externalLeagueId: "214674",
+    externalLeagueId: "100001",
     name: "Sunday Games",
     provider: "mockd",
   },
@@ -37,10 +37,10 @@ const season = {
   teams: [{
     id: "team-1",
     leagueSeasonId: "season-1",
-    ownerId: "owner-cam",
-    ownerDisplayName: "Cam",
-    managerDisplayNames: ["Cameron"],
-    abbreviation: "CAM",
+    ownerId: "owner-owner11",
+    ownerDisplayName: "Owner11",
+    managerDisplayNames: ["Example Manager"],
+    abbreviation: "OWN11",
     displayName: "Short King",
     draftOrderPosition: 1,
   }],

@@ -58,12 +58,12 @@ describe("node Postgres client adapter", () => {
     const pool = new FakePool();
     const client = new NodePostgresClient(pool);
 
-    await expect(client.query("SELECT $1::text AS id", ["cam"])).resolves.toEqual({
+    await expect(client.query("SELECT $1::text AS id", ["owner11"])).resolves.toEqual({
       rows: [{ id: "row_1" }],
       rowCount: 1,
     });
     expect(pool.queries).toEqual([
-      { text: "SELECT $1::text AS id", values: ["cam"] },
+      { text: "SELECT $1::text AS id", values: ["owner11"] },
     ]);
 
     await client.close();

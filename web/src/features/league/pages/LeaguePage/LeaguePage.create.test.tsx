@@ -11,7 +11,7 @@ import {
   useLeagueApi,
 } from "./LeaguePage.testSupport";
 
-const emptyOnboarding = { account: { id: "user-1", email: "cam@example.com" }, leagues: [] };
+const emptyOnboarding = { account: { id: "user-1", email: "user@example.com" }, leagues: [] };
 
 beforeAll(() => { leagueServer.listen({ onUnhandledRequest: "error" }); });
 afterEach(() => {

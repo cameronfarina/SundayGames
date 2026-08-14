@@ -182,7 +182,7 @@ describe("CLI player audit report", () => {
         "--silent",
         "audit",
         "--",
-        "--player=Jaxon Smith-Njigba",
+        "--player=Justin Jefferson",
         "--scenario=expected",
         "--runs=1",
         "--seed-prefix=keeper-audit-test",
@@ -217,7 +217,7 @@ describe("CLI player audit report", () => {
     expect(result.scenario).toMatchObject({
       available: false,
       scenarioPrice: 0,
-      unavailableReason: "Seth assumed keeper at $42",
+      unavailableReason: "Owner04 assumed keeper at $42",
     });
     expect(result.mockSale.draftedCount).toBe(0);
     expect(result.waterfall.steps.map(step => step.key)).toContain("keeper-removal");
