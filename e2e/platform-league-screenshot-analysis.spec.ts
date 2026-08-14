@@ -1,15 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { expectAuthenticatedAccount } from "./support/auth.js";
-
-const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
-
-const signUp = async (page: import("@playwright/test").Page, email: string): Promise<void> => {
-  await page.goto("/signup");
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expectAuthenticatedAccount(page, email);
-};
+import { signUp } from "./support/auth.js";
+import { objectRecord } from "./support/json.js";
 
 test("available team screenshot analysis supports drag and drop before manual entry", async ({ page }) => {
 
@@ -75,11 +66,10 @@ test("available team screenshot analysis supports drag and drop before manual en
   const createRequest = page.waitForRequest(request =>
     request.method() === "POST" && new URL(request.url()).pathname === "/leagues");
   await setupDialog.getByRole("button", { name: "Finish" }).click();
-  const createBody = (await createRequest).postDataJSON() as {
-    setup: { provider: string; externalLeagueId: string; leagueName: string };
-  };
-  expect(createBody.setup).toMatchObject({ provider: "mockd", leagueName: "League setup E2E" });
-  expect(createBody.setup.externalLeagueId).toMatch(/^mockd-/u);
+  const createBody = objectRecord((await createRequest).postDataJSON(), "league request");
+  const setup = objectRecord(createBody.setup, "league setup");
+  expect(setup).toMatchObject({ provider: "mockd", leagueName: "League setup E2E" });
+  expect(setup.externalLeagueId).toMatch(/^mockd-/u);
   await expect(page).toHaveURL(/\/league\?seasonId=/u);
   await expect(page.getByRole("heading", { name: "League setup E2E" })).toBeVisible();
 });
@@ -145,11 +135,10 @@ test("a stale screenshot response cannot replace a newer analysis", async ({ pag
   const createRequest = page.waitForRequest(request =>
     request.method() === "POST" && new URL(request.url()).pathname === "/leagues");
   await setupDialog.getByRole("button", { name: "Finish" }).click();
-  const createBody = (await createRequest).postDataJSON() as {
-    setup: { provider: string; externalLeagueId: string };
-  };
-  expect(createBody.setup.provider).toBe("mockd");
-  expect(createBody.setup.externalLeagueId).toMatch(/^mockd-/u);
+  const createBody = objectRecord((await createRequest).postDataJSON(), "league request");
+  const setup = objectRecord(createBody.setup, "league setup");
+  expect(setup.provider).toBe("mockd");
+  expect(setup.externalLeagueId).toMatch(/^mockd-/u);
   await expect(page).toHaveURL(/\/league\?seasonId=/u);
 });
 

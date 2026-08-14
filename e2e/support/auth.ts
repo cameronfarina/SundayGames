@@ -11,6 +11,7 @@ const accountSchema = z.object({
 });
 
 const sessionSchema = z.object({ account: accountSchema });
+const defaultPassword = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
 
 export const accountMenuButton = (page: Page): Locator =>
   page.getByRole("button", { name: "Account menu" });
@@ -41,6 +42,18 @@ export const expectAuthenticatedAccount = async (
 ): Promise<AccountRecord> => {
   await expect(accountMenuButton(page), failureMessage).toBeVisible();
   return await expectAuthenticatedSession(page, email, failureMessage);
+};
+
+export const signUp = async (
+  page: Page,
+  email: string,
+  password = defaultPassword,
+): Promise<void> => {
+  await page.goto("/signup");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expectAuthenticatedAccount(page, email);
 };
 
 export const signOutThroughAccountMenu = async (page: Page): Promise<void> => {
