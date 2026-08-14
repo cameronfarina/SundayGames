@@ -39,7 +39,7 @@ describe("normalized email auth rate limiter", () => {
     });
   });
 
-  it("evicts the oldest tracked email when its bounded capacity is full", () => {
+  it("keeps a blocked email protected when capacity is full", () => {
     const limiter = createNormalizedEmailRateLimiter({
       maxAttempts: 1,
       windowMs: 60_000,
@@ -48,10 +48,16 @@ describe("normalized email auth rate limiter", () => {
 
     expect(limiter.consume("oldest@example.com", now).allowed).toBe(true);
     expect(limiter.consume("newer@example.com", now).allowed).toBe(true);
-    expect(limiter.consume("newest@example.com", now).allowed).toBe(true);
-
-    expect(limiter.consume("newest@example.com", now).allowed).toBe(false);
-    expect(limiter.consume("oldest@example.com", now).allowed).toBe(true);
+    expect(limiter.consume("newest@example.com", now)).toEqual({
+      allowed: false,
+      remainingAttempts: 0,
+      retryAfterMs: 60_000,
+    });
+    expect(limiter.consume("oldest@example.com", now)).toEqual({
+      allowed: false,
+      remainingAttempts: 0,
+      retryAfterMs: 60_000,
+    });
   });
 
   it("resets attempts at the exact end of a fixed window", () => {
@@ -75,20 +81,28 @@ describe("normalized email auth rate limiter", () => {
     });
   });
 
-  it("treats a reset window as newer for deterministic eviction", () => {
+  it("reclaims expired entries before rejecting a new email", () => {
     const limiter = createNormalizedEmailRateLimiter({
       maxAttempts: 1,
       windowMs: 1_000,
       maxTrackedEmails: 2,
     });
 
-    expect(limiter.consume("reset@example.com", now).allowed).toBe(true);
-    expect(limiter.consume("older-window@example.com", new Date(now.getTime() + 500)).allowed).toBe(true);
-    expect(limiter.consume("reset@example.com", new Date(now.getTime() + 1_000)).allowed).toBe(true);
-    expect(limiter.consume("new@example.com", new Date(now.getTime() + 1_000)).allowed).toBe(true);
+    expect(limiter.consume("expires-first@example.com", now).allowed).toBe(true);
+    expect(limiter.consume("still-active@example.com", new Date(now.getTime() + 500)).allowed).toBe(true);
 
-    expect(limiter.consume("reset@example.com", new Date(now.getTime() + 1_000)).allowed).toBe(false);
-    expect(limiter.consume("older-window@example.com", new Date(now.getTime() + 1_000)).allowed).toBe(true);
+    const afterFirstWindow = new Date(now.getTime() + 1_000);
+    expect(limiter.consume("new@example.com", afterFirstWindow)).toEqual({
+      allowed: true,
+      remainingAttempts: 0,
+      retryAfterMs: 0,
+    });
+
+    expect(limiter.consume("still-active@example.com", afterFirstWindow)).toEqual({
+      allowed: false,
+      remainingAttempts: 0,
+      retryAfterMs: 500,
+    });
   });
 
   it("can bound all auth attempts from one client address", () => {

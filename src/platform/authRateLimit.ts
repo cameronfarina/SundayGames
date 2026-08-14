@@ -46,15 +46,15 @@ const createBoundedRateLimiter = (
         throw new RangeError("now must be a valid date.");
       }
 
+      purgeExpiredWindows(attemptsByEmail, nowMs);
       const currentWindow = attemptsByEmail.get(normalizedEmail);
-      if (currentWindow === undefined || currentWindow.resetAtMs <= nowMs) {
-        if (currentWindow !== undefined) {
-          attemptsByEmail.delete(normalizedEmail);
-        } else if (attemptsByEmail.size >= options.maxTrackedEmails) {
-          const oldestEmail = attemptsByEmail.keys().next().value;
-          if (oldestEmail !== undefined) {
-            attemptsByEmail.delete(oldestEmail);
-          }
+      if (currentWindow === undefined) {
+        if (attemptsByEmail.size >= options.maxTrackedEmails) {
+          return {
+            allowed: false,
+            remainingAttempts: 0,
+            retryAfterMs: earliestRetryAfterMs(attemptsByEmail, nowMs),
+          };
         }
 
         attemptsByEmail.set(normalizedEmail, {
@@ -89,6 +89,24 @@ const createBoundedRateLimiter = (
       attemptsByEmail.delete(normalizeKey(email));
     },
   };
+};
+
+const purgeExpiredWindows = (attemptsByKey: Map<string, AttemptWindow>, nowMs: number): void => {
+  for (const [key, window] of attemptsByKey) {
+    if (window.resetAtMs <= nowMs) {
+      attemptsByKey.delete(key);
+    }
+  }
+};
+
+const earliestRetryAfterMs = (attemptsByKey: Map<string, AttemptWindow>, nowMs: number): number => {
+  let retryAfterMs = Number.POSITIVE_INFINITY;
+
+  for (const window of attemptsByKey.values()) {
+    retryAfterMs = Math.min(retryAfterMs, window.resetAtMs - nowMs);
+  }
+
+  return Number.isFinite(retryAfterMs) ? retryAfterMs : 0;
 };
 
 export const createNormalizedEmailRateLimiter = (
