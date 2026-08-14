@@ -81,7 +81,7 @@ describe("LeagueSetupSection", () => {
       <LeagueSetupSection season={reordered} />
     </QueryClientProvider>);
     expect(screen.getByLabelText("Teams and managers")).toHaveValue(
-      "owner,team,role\nCam,Short King,member\nAlex,Second Team,member",
+      "owner,team,role\nOwner11,Short King,member\nAlex,Second Team,member",
     );
   });
 

@@ -87,20 +87,20 @@ describe("CommissionerPage season state", () => {
 
     await router.navigate("/commissioner?seasonId=season-b");
     expect(await screen.findByText("Beta · 2027")).toBeVisible();
-    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nCam,Beta,member");
+    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nOwner11,Beta,member");
     expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
     expect(previewRequests).toEqual([{
-      body: JSON.stringify({ content: "owner,team,role\nCam,Beta,member" }),
+      body: JSON.stringify({ content: "owner,team,role\nOwner11,Beta,member" }),
       path: "/seasons/season-b/setup-import/preview",
     }]);
 
     await router.navigate("/commissioner?seasonId=season-a");
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
-    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nCam,Alpha,member");
+    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nOwner11,Alpha,member");
     expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");

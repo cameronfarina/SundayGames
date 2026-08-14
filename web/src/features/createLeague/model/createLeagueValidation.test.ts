@@ -80,17 +80,17 @@ describe("create league validation", () => {
     let draft = completedDraft();
     draft = leagueDraftReducer(draft, { type: "set-draft-type", value: "snake" });
     draft = leagueDraftReducer(draft, {
-      type: "set-team-field", index: 0, field: "managerNames", value: "Cam, Mackie",
+      type: "set-team-field", index: 0, field: "managerNames", value: "Owner11, Manager11",
     });
     draft = leagueDraftReducer(draft, {
-      type: "set-team-field", index: 0, field: "abbreviation", value: " CAM ",
+      type: "set-team-field", index: 0, field: "abbreviation", value: " OWN11 ",
     });
 
     const setup = createLeagueSetup(draft);
     expect(setup.teams[0]).toEqual({
         externalTeamId: "1",
         displayName: "Short King",
-        managerNames: ["Owner11", "Mackie"],
+        managerNames: ["Owner11", "Manager11"],
         abbreviation: "OWN11",
     });
     expect(setup).toMatchObject({

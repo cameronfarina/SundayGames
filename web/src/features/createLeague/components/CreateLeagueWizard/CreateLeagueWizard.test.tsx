@@ -68,7 +68,7 @@ describe("CreateLeagueWizard", () => {
     const teamOne = within(screen.getByRole("group", { name: "Team 1" }));
     const teamTwo = within(screen.getByRole("group", { name: "Team 2" }));
     await user.type(teamOne.getByRole("textbox", { name: "Team name" }), "Short King");
-    await user.type(teamOne.getByRole("textbox", { name: "Managers" }), "Cam, Mackie");
+    await user.type(teamOne.getByRole("textbox", { name: "Managers" }), "Owner11, Manager11");
     await user.type(teamOne.getByRole("textbox", { name: "Abbreviation" }), "OWN11");
     expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
     await user.type(teamTwo.getByRole("textbox", { name: "Team name" }), "Dart Vader");
@@ -81,7 +81,7 @@ describe("CreateLeagueWizard", () => {
       provider: "mockd",
       expectedTeamCount: 2,
       teams: [
-        { displayName: "Short King", managerNames: ["Owner11", "Mackie"], abbreviation: "OWN11" },
+        { displayName: "Short King", managerNames: ["Owner11", "Manager11"], abbreviation: "OWN11" },
         { displayName: "Dart Vader" },
       ],
     } });

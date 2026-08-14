@@ -66,7 +66,6 @@ describe("AuthForm", () => {
       method: "POST",
     }));
   });
-
   it("uses Practice for an unsafe return path and exposes password-change context", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(loginBody)));
     const path = "/login?passwordChanged=1&returnTo=https%3A%2F%2Fevil.example";

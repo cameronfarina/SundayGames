@@ -109,7 +109,7 @@ describe("ProductHeader", () => {
     expect(screen.getByRole("link", { name: "My team" })).toBeVisible();
     expect(screen.getByText("No active league")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Commissioner" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("CF");
+    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("EU");
   });
 
   it("falls back to the first league when a saved season is no longer available", async () => {
