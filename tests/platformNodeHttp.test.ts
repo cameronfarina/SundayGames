@@ -345,8 +345,9 @@ describe("platform Node HTTP adapter", () => {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-store, no-transform",
+        "Cache-Control": "private, no-store, no-transform",
         "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
       },
       body: (async function* () {
         yield "event: progress\ndata: {\"completed\":1,\"total\":2}\n\n";
@@ -358,8 +359,9 @@ describe("platform Node HTTP adapter", () => {
     const response = await fetch(`${baseUrl}/season-simulations`, { method: "POST" });
     expect(response.headers.get("content-length")).toBeNull();
     expect(response.headers.get("content-encoding")).toBeNull();
-    expect(response.headers.get("cache-control")).toBe("no-store, no-transform");
+    expect(response.headers.get("cache-control")).toBe("private, no-store, no-transform");
     expect(response.headers.get("connection")).toBe("keep-alive");
+    expect(response.headers.get("x-accel-buffering")).toBe("no");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     const reader = response.body?.getReader();
     if (reader === undefined) throw new Error("Expected a streamed response body.");

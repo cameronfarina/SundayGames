@@ -2573,7 +2573,9 @@ describe("platform HTTP contract", () => {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
+        "Cache-Control": "private, no-store, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
       },
     });
     const stream = streamedSimulationResponse.body;
