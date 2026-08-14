@@ -1,3 +1,5 @@
+import { competitiveAuctionBidFor } from "./auctionPriceFormation.js";
+
 export type GenericAuctionMockStatus = "setup" | "active" | "completed";
 
 export type GenericAuctionMockPhase =
@@ -1438,50 +1440,40 @@ const progressCurrentNomination = (
   let nextNomination = nomination;
 
   if (nomination.highestBidderTeamId === humanTeam.id) {
-    const challenger = aiMaximums.find(entry => entry.maximum >= nomination.currentPrice + 1);
-    if (challenger === undefined) {
+    const competitiveBid = competitiveAuctionBidFor({
+      currentPrice: nomination.currentPrice,
+      highestBidderTeamId: nomination.highestBidderTeamId,
+      maximums: aiMaximums,
+    });
+    if (competitiveBid === undefined) {
       return { state: settleNomination(state), waitingForHuman: false };
     }
-
-    const secondMaximum = aiMaximums
-      .filter(entry => entry.team.id !== challenger.team.id)
-      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
-    const counterPrice = Math.min(
-      challenger.maximum,
-      Math.max(nomination.currentPrice + 1, secondMaximum + 1),
-    );
     nextNomination = nominationFor({
       state,
       player,
       nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
-      highestBidderTeam: challenger.team,
-      currentPrice: counterPrice,
+      highestBidderTeam: competitiveBid.team,
+      currentPrice: competitiveBid.price,
       humanPassed: nomination.humanPassed,
     });
   } else {
-    const leader = aiMaximums[0];
-    if (leader === undefined) {
+    const competitiveBid = competitiveAuctionBidFor({
+      currentPrice: nomination.currentPrice,
+      highestBidderTeamId: nomination.highestBidderTeamId,
+      maximums: aiMaximums,
+    });
+    if (competitiveBid === undefined) {
       throw new GenericAuctionMockError(
         "no_eligible_player",
         `No AI team can retain the current bid for ${player.name}.`,
       );
     }
-    const secondMaximum = aiMaximums
-      .slice(1)
-      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
-    const requiredPrice = leader.team.id === nomination.highestBidderTeamId
-      ? nomination.currentPrice
-      : nomination.currentPrice + 1;
-    const competitivePrice = Math.min(
-      leader.maximum,
-      Math.max(requiredPrice, secondMaximum + 1),
-    );
     nextNomination = nominationFor({
       state,
       player,
       nominatedByTeam: teamFor(state, nomination.nominatedByTeamId),
-      highestBidderTeam: leader.team,
-      currentPrice: competitivePrice,
+      highestBidderTeam: competitiveBid.team,
+      currentPrice: competitiveBid.price,
       humanPassed: nomination.humanPassed,
     });
   }
@@ -1491,36 +1483,23 @@ const progressCurrentNomination = (
   if (!humanCanBuy && nextNomination.highestBidderTeamId !== humanTeam.id) {
     const pacedMaximums = aiMaximumsFor(state, nextNomination, true);
     activeMaximums = pacedMaximums;
-    const pacedLeader = pacedMaximums[0];
-    if (pacedLeader === undefined) {
+    const competitiveBid = competitiveAuctionBidFor({
+      currentPrice: nextNomination.currentPrice,
+      highestBidderTeamId: nextNomination.highestBidderTeamId,
+      maximums: pacedMaximums,
+    });
+    if (competitiveBid === undefined) {
       throw new GenericAuctionMockError(
         "no_eligible_player",
         `No AI team can retain the current bid for ${player.name}.`,
       );
     }
-    const secondMaximum = pacedMaximums
-      .slice(1)
-      .reduce((maximum, entry) => Math.max(maximum, entry.maximum), 0);
-    const requiredPrice = pacedLeader.team.id === nextNomination.highestBidderTeamId
-      ? nextNomination.currentPrice
-      : nextNomination.currentPrice + 1;
-    const competitivePrice = Math.min(
-      pacedLeader.maximum,
-      Math.max(requiredPrice, secondMaximum + 1),
-    );
     nextNomination = nominationFor({
       state,
       player,
       nominatedByTeam: teamFor(state, nextNomination.nominatedByTeamId),
-      highestBidderTeam: pacedLeader.team,
-      currentPrice: Math.min(
-        pacedLeader.maximum,
-        pacedLeader.team.maxBid,
-        Math.max(
-          competitivePrice,
-          aiSpendPacingBidFor(state, pacedLeader.team, player, true),
-        ),
-      ),
+      highestBidderTeam: competitiveBid.team,
+      currentPrice: competitiveBid.price,
       humanPassed: nextNomination.humanPassed,
     });
   }

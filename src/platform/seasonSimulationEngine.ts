@@ -837,23 +837,11 @@ const runAuctionSimulation = (input: {
       if (humanTeam === undefined) {
         throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
       }
-      const willingness = auctionWillingnessFor(
-        state,
-        humanTeam,
-        player,
-        input.targetsByPlayerId,
-        input.pairPlayerId,
-        input.strategy,
-        input.preferences,
-      );
-      const openingBid = humanTeam.rosterSlotsRemaining === 1
-        ? Math.max(state.configuration.minimumBidDollars, willingness)
-        : state.configuration.minimumBidDollars;
       state = applyGenericAuctionMockCommand(state, {
         type: "nominate",
         expectedRevision: state.session.revision,
         playerId: player.id,
-        openingBid,
+        openingBid: state.configuration.minimumBidDollars,
       });
       continue;
     }
@@ -877,11 +865,8 @@ const runAuctionSimulation = (input: {
       input.strategy,
       input.preferences,
     );
-    const bidPrice = humanTeam.rosterSlotsRemaining === 1
-      ? willingness
-      : nomination.nextBid;
     state = applyGenericAuctionMockCommand(state, nomination.nextBid <= willingness
-      ? { type: "buy", expectedRevision: state.session.revision, price: bidPrice }
+      ? { type: "buy", expectedRevision: state.session.revision, price: nomination.nextBid }
       : { type: "pass", expectedRevision: state.session.revision });
   }
 
