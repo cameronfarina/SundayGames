@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   acceptedHistoricalFiles,
   duplicateHistoricalYears,
+  historicalYear,
+  historicalYearError,
   historicalQueueReducer,
 } from "./historicalFileQueue";
 
@@ -13,7 +15,7 @@ describe("historical file queue", () => {
     const state = historicalQueueReducer([], { type: "add", files, currentYear: 2026 });
 
     expect(acceptedHistoricalFiles(files)).toHaveLength(2);
-    expect(state.map(item => item.seasonYear)).toEqual([2024, 2024]);
+    expect(state.map(item => item.seasonYear)).toEqual(["2024", "2024"]);
     expect(duplicateHistoricalYears(state)).toBe(true);
     expect(historicalQueueReducer(state, { type: "add", files, currentYear: 2026 })).toEqual(state);
   });
@@ -21,14 +23,14 @@ describe("historical file queue", () => {
   it("updates years, mappings, results, and removal without mutating the queue", () => {
     const initial = historicalQueueReducer([], { type: "add", files: [file("draft.csv")], currentYear: 2026 });
     const id = initial[0]?.id ?? "missing";
-    const dated = historicalQueueReducer(initial, { type: "year", id, seasonYear: 2023 });
+    const dated = historicalQueueReducer(initial, { type: "year", id, seasonYear: "2023" });
     const mapped = historicalQueueReducer(dated, { type: "mapping", id, label: "Old Cam", teamId: "team-1" });
     const failed = historicalQueueReducer(mapped, {
       type: "result", id, status: "error", message: "Missing player", ownerNeeds: ["Old Cam"],
     });
 
     expect(mapped[0]?.ownerMappings).toEqual({ "Old Cam": "team-1" });
-    expect(failed[0]).toMatchObject({ seasonYear: 2023, status: "error", ownerNeeds: ["Old Cam"] });
+    expect(failed[0]).toMatchObject({ seasonYear: "2023", status: "error", ownerNeeds: ["Old Cam"] });
     expect(historicalQueueReducer(failed, { type: "remove", id })).toEqual([]);
     expect(duplicateHistoricalYears(failed)).toBe(false);
   });
@@ -36,5 +38,16 @@ describe("historical file queue", () => {
   it("rejects oversized files", () => {
     const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "draft.xlsx");
     expect(acceptedHistoricalFiles([oversized])).toEqual([]);
+  });
+
+  it("accepts only whole historical years from 2000 through 2100", () => {
+    expect(historicalYear("2000")).toBe(2000);
+    expect(historicalYear("2100")).toBe(2100);
+    expect(historicalYear("2024.5")).toBeUndefined();
+    expect(historicalYear("1999")).toBeUndefined();
+    expect(historicalYear("2101")).toBeUndefined();
+    expect(historicalYear("")).toBeUndefined();
+    expect(historicalYearError("2024")).toBeUndefined();
+    expect(historicalYearError("")).toBe("Enter a whole year from 2000 to 2100.");
   });
 });

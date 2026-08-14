@@ -7,20 +7,20 @@ import { errorMessage } from "../../model/errorMessage";
 import { fileBase64 } from "../../model/fileBase64";
 import {
   duplicateHistoricalYears,
+  hasInvalidHistoricalYears,
+  historicalYear,
   historicalQueueReducer,
   type HistoricalFileItem,
 } from "../../model/historicalFileQueue";
 import { HistoricalFileRow } from "./HistoricalFileRow.js";
 
 interface HistoricalImportSectionProps { readonly season: CommissionerSeason }
-
 interface ImportOutcome {
   readonly id: string;
   readonly message: string;
   readonly ownerNeeds?: readonly string[];
   readonly status: HistoricalFileItem["status"];
 }
-
 interface ImportProgress { readonly completed: number; readonly total: number }
 
 const ownerNeedsFor = (item: HistoricalFileItem, rows: readonly {
@@ -42,6 +42,9 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   const [progress, setProgress] = useState<ImportProgress>({ completed: 0, total: 0 });
   const fileInput = useRef<HTMLInputElement>(null);
   const importOne = async (item: HistoricalFileItem): Promise<ImportOutcome> => {
+    const seasonYear = historicalYear(item.seasonYear);
+    if (seasonYear === undefined)
+      return { id: item.id, message: "Enter a valid draft year.", status: "error" };
     try {
       const preview = await commissionerApi.previewHistory({
         base64: await fileBase64(item.file),
@@ -53,7 +56,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
         })),
         replacementRequested: replace,
         seasonId: season.id,
-        seasonYear: item.seasonYear,
+        seasonYear,
       });
       const ownerNeeds = ownerNeedsFor(item, preview.batch.rows);
       if (preview.batch.status === "blocked") {
@@ -68,7 +71,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
       const committed = await commissionerApi.commitHistory(
         preview.batch.id,
         season.id,
-        item.seasonYear,
+        seasonYear,
       );
       return {
         id: item.id,
@@ -97,6 +100,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   };
   const pending = items.filter(item => item.status !== "imported");
   const duplicateYears = duplicateHistoricalYears(items);
+  const invalidYears = hasInvalidHistoricalYears(items);
   const mappingIncomplete = pending.some(item => item.ownerNeeds.some(label => !item.ownerMappings[label]));
   const unavailable = season.settings.draftFormat === "snake";
   const percent = progress.total === 0 ? 0 : (progress.completed / progress.total) * 100;
@@ -133,7 +137,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
         {duplicateYears ? <p role="alert">Choose a different draft year for each pending file.</p> : null}
         <ProgressButton
           busy={importFiles.isPending}
-          disabled={pending.length === 0 || duplicateYears || mappingIncomplete}
+          disabled={pending.length === 0 || duplicateYears || invalidYears || mappingIncomplete}
           onClick={startImport}
           percent={percent}
         >

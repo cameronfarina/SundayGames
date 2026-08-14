@@ -1,9 +1,10 @@
 import type { Dispatch } from "react";
 import { Button, NumberField, Select } from "../../../../shared/ui/index.js";
 import type { CommissionerSeason } from "../../api/seasonSchemas.js";
-import type {
-  HistoricalFileItem,
-  HistoricalQueueAction,
+import {
+  historicalYearError,
+  type HistoricalFileItem,
+  type HistoricalQueueAction,
 } from "../../model/historicalFileQueue.js";
 
 interface HistoricalFileRowProps {
@@ -15,8 +16,10 @@ interface HistoricalFileRowProps {
 const mappingId = (itemId: string, label: string): string =>
   `${itemId}-mapping-${label.replaceAll(" ", "-")}`;
 
-export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowProps) => (
-  <div className="history-file">
+export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowProps) => {
+  const yearError = historicalYearError(item.seasonYear);
+  const errorProps = yearError === undefined ? {} : { error: yearError };
+  return <div className="history-file">
     <span className="history-file__summary">
       <strong>{item.file.name}</strong>
       <small>{item.message}</small>
@@ -27,9 +30,11 @@ export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowPr
       label="Draft year"
       max={2100}
       min={2000}
+      {...errorProps}
       onChange={event => {
-        dispatch({ id: item.id, seasonYear: event.target.valueAsNumber, type: "year" });
+        dispatch({ id: item.id, seasonYear: event.target.value, type: "year" });
       }}
+      step={1}
       value={item.seasonYear}
     />
     <Button
@@ -53,5 +58,5 @@ export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowPr
         />
       </div>
     ))}
-  </div>
-);
+  </div>;
+};

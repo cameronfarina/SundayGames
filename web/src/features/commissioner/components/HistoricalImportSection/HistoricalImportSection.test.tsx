@@ -145,4 +145,5 @@ describe("HistoricalImportSection", () => {
     expect(await screen.findByRole("progressbar", { name: "50% complete" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Importing 1 of 2 files" })).toBeDisabled();
   });
+
 });
