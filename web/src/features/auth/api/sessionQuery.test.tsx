@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
-import { useSessionQuery } from "./sessionQuery";
+import { sessionQueryKey, sessionQueryOptions, useSessionQuery } from "./sessionQuery";
 
 const Wrapper = ({ children }: PropsWithChildren) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -12,6 +12,13 @@ const Wrapper = ({ children }: PropsWithChildren) => (
 );
 
 describe("useSessionQuery", () => {
+  it("uses the protected-loader cache key for every fetch implementation", () => {
+    const fetcher = vi.fn<PlatformFetch>();
+
+    expect(sessionQueryOptions(fetcher).queryKey).toEqual(sessionQueryKey(fetcher));
+    expect(sessionQueryOptions().queryKey).toEqual(sessionQueryKey());
+  });
+
   it("loads the signed-in account through the shared query contract", async () => {
     const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(new Response(JSON.stringify({
       account: {

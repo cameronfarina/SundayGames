@@ -3,14 +3,20 @@ import { Navigate, type RouteObject } from "react-router-dom";
 import { authRoutes } from "../../features/auth/routes/authRoutes";
 import { createProtectedLoader } from "../../features/auth/routes/protectedLoader";
 import { AppLayout } from "../layouts/AppLayout/AppLayout";
+import { PublicLayout } from "../layouts/PublicLayout/PublicLayout";
 import { RouteErrorPage } from "./RouteErrorPage/RouteErrorPage";
 
 export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
-  ...authRoutes,
   {
-    path: "invite",
-    lazy: () => import("../../features/invitations/routes/invitationRoute"),
+    element: <PublicLayout />,
     errorElement: <RouteErrorPage />,
+    children: [
+      ...authRoutes,
+      {
+        path: "invite",
+        lazy: () => import("../../features/invitations/routes/invitationRoute"),
+      },
+    ],
   },
   {
     element: <AppLayout />,
