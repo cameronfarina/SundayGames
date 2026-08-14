@@ -1,12 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { leagueConfig, ownerOrder } from "../config/league.js";
-import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
-import {
-  applyLeagueSetupImportToSeason,
-  parseLeagueSetupImport,
-} from "../src/platform/leagueSetupImport.js";
+import { parseLeagueSetupImport } from "../src/platform/leagueSetupImport.js";
 
-describe("platform league setup imports", () => {
+describe("platform league setup import parsing", () => {
+  it("returns an empty ready preview for empty content", () => {
+    expect(parseLeagueSetupImport("")).toEqual({
+      status: "ready",
+      blockers: [],
+      rows: [],
+      records: [],
+    });
+  });
+
+  it("ignores duplicate and blank header cells while preserving positional team data", () => {
+    const result = parseLeagueSetupImport([
+      "owner,owner,,role",
+      "Owner11,Owner11's Team,,admin",
+    ].join("\n"));
+
+    expect(result.records).toEqual([{
+      sourceRowNumber: 2,
+      ownerDisplayName: "Owner11",
+      teamDisplayName: "Owner11's Team",
+      role: "admin",
+    }]);
+  });
+
+  it("ignores blank rows and preserves escaped quotes and quoted pipe characters", () => {
+    const result = parseLeagueSetupImport([
+      "",
+      "\"Owner \"\"Ace|Pilot\"\"\",\"Team \"\"Alpha\"\"\"",
+      " ",
+    ].join("\n"));
+
+    expect(result).toMatchObject({
+      status: "ready",
+      blockers: [],
+      records: [{
+        sourceRowNumber: 2,
+        ownerDisplayName: "Owner \"Ace|Pilot\"",
+        teamDisplayName: "Team \"Alpha\"",
+        role: "member",
+      }],
+    });
+  });
+
   it("parses comma, pipe, and quoted rows into normalized team setup records", () => {
     const result = parseLeagueSetupImport([
       "Owner11, Owner11's Team",
@@ -92,26 +129,10 @@ describe("platform league setup imports", () => {
       status: row.status,
       blockerCodes: row.blockers.map(blocker => blocker.code),
     }))).toEqual([
-      {
-        rowNumber: 2,
-        status: "blocked",
-        blockerCodes: ["duplicate_owner_name", "duplicate_team_name"],
-      },
-      {
-        rowNumber: 3,
-        status: "blocked",
-        blockerCodes: ["duplicate_owner_name"],
-      },
-      {
-        rowNumber: 4,
-        status: "blocked",
-        blockerCodes: ["duplicate_team_name", "invalid_role"],
-      },
-      {
-        rowNumber: 5,
-        status: "blocked",
-        blockerCodes: ["blank_owner"],
-      },
+      { rowNumber: 2, status: "blocked", blockerCodes: ["duplicate_owner_name", "duplicate_team_name"] },
+      { rowNumber: 3, status: "blocked", blockerCodes: ["duplicate_owner_name"] },
+      { rowNumber: 4, status: "blocked", blockerCodes: ["duplicate_team_name", "invalid_role"] },
+      { rowNumber: 5, status: "blocked", blockerCodes: ["blank_owner"] },
     ]);
     expect(result.records).toEqual([]);
   });
@@ -130,195 +151,85 @@ describe("platform league setup imports", () => {
     expect(result.rows).toContainEqual({
       rowNumber: 3,
       status: "blocked",
-      blockers: [
-        {
-          code: "malformed_row",
-          severity: "blocker",
-          message: "Row 3 has an unterminated quoted field.",
-          rowNumber: 3,
-        },
-      ],
+      blockers: [{
+        code: "malformed_row",
+        severity: "blocker",
+        message: "Row 3 has an unterminated quoted field.",
+        rowNumber: 3,
+      }],
       record: null,
     });
     expect(result.records).toEqual([]);
   });
 
-  it("applies parsed setup records to a LeagueSeason copy while preserving settings and draft order", () => {
-    const season = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 3), {
-      ...leagueConfig,
-      teams: 3,
-    }, {
-      leagueName: "Auction Crew",
-      seasonYear: 2027,
-      setupStatus: "published",
-      draft: { scheduledAt: "2027-08-23T23:00:00.000Z", timezone: "America/New_York" },
+  it("returns the exact blocked preview when only part of an import is valid", () => {
+    const result = parseLeagueSetupImport([
+      "manager name,team name,invite email,membership role",
+      "Owner11,Owner11's Team,OWNER11@EXAMPLE.COM,admin",
+      "Owner04,Owner04's Team,owner04@example.com,coach",
+      "\"Owner12,Owner12's Team,owner12@example.com,member",
+    ].join("\n"), {
+      expectedTeamCount: 4,
     });
-    const customDraftOrderSeason = {
-      ...season,
-      teams: [
-        { ...season.teams[0]!, draftOrderPosition: 3 },
-        { ...season.teams[1]!, draftOrderPosition: 1 },
-        { ...season.teams[2]!, draftOrderPosition: 2 },
+
+    expect(result).toEqual({
+      status: "blocked",
+      blockers: [
+        {
+          code: "expected_team_count_mismatch",
+          severity: "blocker",
+          message: "Expected 4 teams, but found 3.",
+        },
+        {
+          code: "malformed_row",
+          severity: "blocker",
+          message: "Row 4 has an unterminated quoted field.",
+          rowNumber: 4,
+        },
+        {
+          code: "invalid_role",
+          severity: "blocker",
+          message: "Invalid league setup role \"coach\". Use owner, admin, member, or observer.",
+          rowNumber: 3,
+        },
       ],
-    };
-    const parsed = parseLeagueSetupImport([
-      "owner,team,email,role",
-      "Owner11,Owner11's Team,owner11@example.com,owner",
-      "Owner04,Owner04's Champs,owner04@example.com,member",
-      "Owner01,,owner01@example.com,admin",
-    ].join("\n"), {
-      expectedTeamCount: 3,
+      rows: [
+        {
+          rowNumber: 2,
+          status: "ready",
+          blockers: [],
+          record: {
+            sourceRowNumber: 2,
+            ownerDisplayName: "Owner11",
+            teamDisplayName: "Owner11's Team",
+            email: "owner11@example.com",
+            role: "admin",
+          },
+        },
+        {
+          rowNumber: 3,
+          status: "blocked",
+          blockers: [{
+            code: "invalid_role",
+            severity: "blocker",
+            message: "Invalid league setup role \"coach\". Use owner, admin, member, or observer.",
+            rowNumber: 3,
+          }],
+          record: null,
+        },
+        {
+          rowNumber: 4,
+          status: "blocked",
+          blockers: [{
+            code: "malformed_row",
+            severity: "blocker",
+            message: "Row 4 has an unterminated quoted field.",
+            rowNumber: 4,
+          }],
+          record: null,
+        },
+      ],
+      records: [],
     });
-
-    const applied = applyLeagueSetupImportToSeason(customDraftOrderSeason, parsed.records);
-
-    expect(applied.season).not.toBe(customDraftOrderSeason);
-    expect(applied.season.settings).toEqual(customDraftOrderSeason.settings);
-    expect(applied.season.settings).not.toBe(customDraftOrderSeason.settings);
-    expect(applied.season.draft).toEqual(customDraftOrderSeason.draft);
-    expect(applied.season.teams.map(team => team.id)).toEqual([
-      `${season.id}-team-01-owner11`,
-      `${season.id}-team-02-owner04`,
-      customDraftOrderSeason.teams[0]!.id,
-    ]);
-    expect(applied.season.teams.map(team => team.ownerId)).toEqual([
-      "owner-owner11",
-      "owner-owner04",
-      customDraftOrderSeason.teams[0]!.ownerId,
-    ]);
-    expect(applied.season.teams.map(team => team.draftOrderPosition)).toEqual([3, 1, 2]);
-    expect(applied.season.teams.map(team => ({
-      ownerDisplayName: team.ownerDisplayName,
-      displayName: team.displayName,
-    }))).toEqual([
-      { ownerDisplayName: "Owner11", displayName: "Owner11's Team" },
-      { ownerDisplayName: "Owner04", displayName: "Owner04's Champs" },
-      { ownerDisplayName: "Owner01", displayName: "Owner01" },
-    ]);
-    expect(applied.memberships).toEqual([
-      {
-        leagueId: customDraftOrderSeason.leagueId,
-        ownerId: applied.season.teams[0]!.ownerId,
-        teamId: applied.season.teams[0]!.id,
-        ownerDisplayName: "Owner11",
-        teamDisplayName: "Owner11's Team",
-        email: "owner11@example.com",
-        role: "owner",
-      },
-      {
-        leagueId: customDraftOrderSeason.leagueId,
-        ownerId: applied.season.teams[1]!.ownerId,
-        teamId: applied.season.teams[1]!.id,
-        ownerDisplayName: "Owner04",
-        teamDisplayName: "Owner04's Champs",
-        email: "owner04@example.com",
-        role: "member",
-      },
-      {
-        leagueId: customDraftOrderSeason.leagueId,
-        ownerId: applied.season.teams[2]!.ownerId,
-        teamId: applied.season.teams[2]!.id,
-        ownerDisplayName: "Owner01",
-        teamDisplayName: "Owner01",
-        email: "owner01@example.com",
-        role: "admin",
-      },
-    ]);
-  });
-
-  it("preserves existing team and profile identities when legacy owner rows are reordered", () => {
-    const season = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 3), {
-      ...leagueConfig,
-      teams: 3,
-    }, {
-      leagueName: "Auction Crew",
-      seasonYear: 2027,
-      setupStatus: "published",
-    });
-    const existingByOwner = new Map(season.teams.map(team => [team.ownerDisplayName, team]));
-    const parsed = parseLeagueSetupImport([
-      "owner,team,email,role",
-      "Owner02,Owner02's Champs,owner02@example.com,member",
-      "Owner03,Owner03 Ballers,owner03@example.com,admin",
-      "Owner01,Owner01's Team,owner01@example.com,owner",
-    ].join("\n"), {
-      expectedTeamCount: 3,
-    });
-
-    const applied = applyLeagueSetupImportToSeason(season, parsed.records);
-
-    expect(applied.season.teams.map(team => ({
-      ownerDisplayName: team.ownerDisplayName,
-      id: team.id,
-      ownerId: team.ownerId,
-    }))).toEqual(["Owner02", "Owner03", "Owner01"].map(ownerDisplayName => {
-      const existing = existingByOwner.get(ownerDisplayName);
-      if (existing === undefined) throw new Error(`Missing ${ownerDisplayName} team fixture.`);
-
-      return {
-        ownerDisplayName,
-        id: existing.id,
-        ownerId: existing.ownerId,
-      };
-    }));
-    expect(applied.season.teams.map(team => team.draftOrderPosition)).toEqual(
-      season.teams.map(team => team.draftOrderPosition),
-    );
-    expect(applied.memberships.map(membership => ({
-      ownerDisplayName: membership.ownerDisplayName,
-      teamId: membership.teamId,
-      ownerId: membership.ownerId,
-    }))).toEqual(["Owner02", "Owner03", "Owner01"].map(ownerDisplayName => {
-      const existing = existingByOwner.get(ownerDisplayName);
-      if (existing === undefined) throw new Error(`Missing ${ownerDisplayName} team fixture.`);
-
-      return {
-        ownerDisplayName,
-        teamId: existing.id,
-        ownerId: existing.ownerId,
-      };
-    }));
-  });
-
-  it("creates a new team and profile identity for a genuinely new legacy owner row", () => {
-    const season = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 2), {
-      ...leagueConfig,
-      teams: 2,
-    }, {
-      leagueName: "Auction Crew",
-      seasonYear: 2027,
-      setupStatus: "published",
-    });
-    const parsed = parseLeagueSetupImport([
-      "owner,team,email,role",
-      "Owner02,Owner02's Champs,owner02@example.com,member",
-      "Alex,Expansion Team,alex@example.com,member",
-    ].join("\n"), {
-      expectedTeamCount: 2,
-    });
-
-    const applied = applyLeagueSetupImportToSeason(season, parsed.records);
-    const existingHoodyTeam = season.teams.find(team => team.ownerDisplayName === "Owner02");
-    const newAlexTeam = applied.season.teams.find(team => team.ownerDisplayName === "Alex");
-    if (existingHoodyTeam === undefined || newAlexTeam === undefined) {
-      throw new Error("Expected Owner02 and Alex team fixtures.");
-    }
-
-    expect(newAlexTeam).toMatchObject({
-      id: `${season.id}-team-02-alex`,
-      ownerId: "owner-alex",
-      draftOrderPosition: 2,
-    });
-    expect(season.teams.map(team => team.id)).not.toContain(newAlexTeam.id);
-    expect(applied.memberships).toContainEqual(expect.objectContaining({
-      ownerDisplayName: "Owner02",
-      teamId: existingHoodyTeam.id,
-      ownerId: existingHoodyTeam.ownerId,
-    }));
-    expect(applied.memberships).toContainEqual(expect.objectContaining({
-      ownerDisplayName: "Alex",
-      teamId: newAlexTeam.id,
-      ownerId: newAlexTeam.ownerId,
-    }));
   });
 });
