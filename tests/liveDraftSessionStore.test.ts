@@ -12,8 +12,17 @@ import {
 const tempSessionDirectory = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "mockd-live-draft-"));
 
-const readJson = async <T>(path: string): Promise<T> =>
-  JSON.parse(await readFile(path, "utf8")) as T;
+const readJsonObject = async (path: string): Promise<object> => {
+  const value: unknown = JSON.parse(await readFile(path, "utf8"));
+  if (typeof value !== "object" || value === null) throw new Error("Expected a JSON object.");
+  return value;
+};
+
+const sequenceFromLine = (line: string): number | undefined => {
+  const value: unknown = JSON.parse(line);
+  if (typeof value !== "object" || value === null || !("sequence" in value)) return undefined;
+  return typeof value.sequence === "number" ? value.sequence : undefined;
+};
 
 describe("live draft session store", () => {
   it("persists mutations to current, backup, and append-only audit files", async () => {
@@ -26,8 +35,8 @@ describe("live draft session store", () => {
         "owner05 drafted kittle for 28",
       ]);
 
-      const current = await readJson<{ commands: string[]; commandCount: number }>(store.paths.currentPath);
-      const backup = await readJson<{ commands: string[]; commandCount: number }>(store.paths.backupPath);
+      const current = await readJsonObject(store.paths.currentPath);
+      const backup = await readJsonObject(store.paths.backupPath);
       const logLines = (await readFile(store.paths.logPath, "utf8")).trim().split("\n");
 
       expect(current).toMatchObject({
@@ -58,9 +67,7 @@ describe("live draft session store", () => {
       ]);
       await expect(reloadedStore.reset()).resolves.toEqual([]);
 
-      const finalSnapshot = await readJson<{ commands: string[]; commandCount: number }>(
-        reloadedStore.paths.currentPath,
-      );
+      const finalSnapshot = await readJsonObject(reloadedStore.paths.currentPath);
       expect(finalSnapshot).toMatchObject({ commandCount: 0, commands: [] });
       expect((await readFile(reloadedStore.paths.logPath, "utf8")).trim().split("\n")).toHaveLength(5);
     } finally {
@@ -107,8 +114,8 @@ describe("live draft session store", () => {
         "owner05 drafted george kittle for 28",
       ]);
 
-      const current = await readJson<{ commands: string[]; commandCount: number }>(store.paths.currentPath);
-      const backup = await readJson<{ commands: string[]; commandCount: number }>(store.paths.backupPath);
+      const current = await readJsonObject(store.paths.currentPath);
+      const backup = await readJsonObject(store.paths.backupPath);
       const logLines = (await readFile(store.paths.logPath, "utf8")).trim().split("\n");
 
       expect(current).toMatchObject({
@@ -120,7 +127,7 @@ describe("live draft session store", () => {
       });
       expect(backup).toMatchObject(current);
       expect(logLines).toHaveLength(3);
-      expect(logLines.map(line => JSON.parse(line) as { sequence: number }).map(line => line.sequence)).toEqual([1, 2, 3]);
+      expect(logLines.map(sequenceFromLine)).toEqual([1, 2, 3]);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
