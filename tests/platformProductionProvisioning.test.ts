@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { hashPassword } from "../src/platform/auth.js";
 import {
   executeProductionProvisioning,
   parseProductionProvisioningDocument,
@@ -106,6 +107,18 @@ const validDocument = {
   ],
 } as const;
 
+const currentPasswordHash = hashPassword("a sufficiently long production password");
+const canonicalSalt = Buffer.alloc(16, 1).toString("base64url");
+const canonicalDerivedKey = Buffer.alloc(64, 2).toString("base64url");
+const legacyPasswordHash = [
+  "scrypt",
+  "16384",
+  "8",
+  "1",
+  canonicalSalt,
+  canonicalDerivedKey,
+].join("$");
+
 describe("production provisioning document", () => {
   it("parses a complete versioned production document", () => {
     const document = parseProductionProvisioningDocument(JSON.stringify(validDocument));
@@ -170,8 +183,7 @@ describe("production provisioning execution", () => {
       document,
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
       now: new Date("2026-08-10T16:00:00.000Z"),
     });
@@ -188,6 +200,37 @@ describe("production provisioning execution", () => {
     expect(result.inputDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(result.auditEventId).toBe(`production-provisioning:mockd-2026-launch:${result.inputDigest}`);
     expect(applyCount).toBe(0);
+  });
+
+  it("accepts supported legacy hashes and rejects malformed or unsupported hashes", async () => {
+    const document = parseProductionProvisioningDocument(JSON.stringify(validDocument));
+    let inspectionCount = 0;
+    const repository: ProductionProvisioningRepository = {
+      inspect: async () => {
+        inspectionCount += 1;
+        return { changes: [], conflicts: [], auditRecorded: false };
+      },
+      apply: async () => undefined,
+      verify: async () => [],
+    };
+    const executeWithHash = async (passwordHash: string) => await executeProductionProvisioning({
+      mode: "dry-run",
+      document,
+      repository,
+      env: { MOCKD_PROVISION_CAM_PASSWORD_HASH: passwordHash },
+    });
+
+    await expect(executeWithHash(legacyPasswordHash)).resolves.toMatchObject({ status: "planned" });
+    await expect(executeWithHash([
+      "scrypt", "65536", "8", "3", canonicalSalt, canonicalDerivedKey,
+    ].join("$"))).rejects.toThrow(/supported canonical Mockd scrypt password hash/i);
+    await expect(executeWithHash([
+      "scrypt", "32768", "8", "3", "short-salt", canonicalDerivedKey,
+    ].join("$"))).rejects.toThrow(/supported canonical Mockd scrypt password hash/i);
+    await expect(executeWithHash([
+      "scrypt", "32768", "8", "3", canonicalSalt, "short-key",
+    ].join("$"))).rejects.toThrow(/supported canonical Mockd scrypt password hash/i);
+    expect(inspectionCount).toBe(1);
   });
 
   it("applies once and skips writes when the same audited input is rerun", async () => {
@@ -215,8 +258,7 @@ describe("production provisioning execution", () => {
       document,
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
       now: new Date("2026-08-10T16:00:00.000Z"),
     };
@@ -258,8 +300,7 @@ describe("production provisioning execution", () => {
       document,
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
     });
 
@@ -288,8 +329,7 @@ describe("production provisioning execution", () => {
       document,
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
     })).rejects.toThrow(/audit receipt exists.*state differs/i);
     expect(applyCount).toBe(0);
@@ -392,8 +432,7 @@ describe("Postgres production provisioning repository", () => {
       document: parseProductionProvisioningDocument(JSON.stringify(validDocument)),
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
     });
 
@@ -419,8 +458,7 @@ describe("Postgres production provisioning repository", () => {
       document: parseProductionProvisioningDocument(JSON.stringify(validDocument)),
       repository,
       env: {
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
       now: new Date("2026-08-10T16:00:00.000Z"),
     };
@@ -472,8 +510,7 @@ describe("production provisioning CLI", () => {
       argv: ["/secure/mockd-production-2026.json", "--verify"],
       env: {
         DATABASE_URL: "postgresql://production.example/mockd",
-        MOCKD_PROVISION_CAM_PASSWORD_HASH:
-          "scrypt$16384$8$1$production-salt$production-derived-key",
+        MOCKD_PROVISION_CAM_PASSWORD_HASH: currentPasswordHash,
       },
       dependencies: {
         readInputFile: async path => {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { keepers } from "../config/keepers.js";
 import { ownerOrder, type Owner } from "../config/league.js";
+import { hashPassword } from "../src/platform/auth.js";
 import {
   generateProductionProvisioningDocument,
   type ProductionOwnerAccountMapping,
@@ -40,9 +41,10 @@ const provisioningInput = {
     .map(keeper => ({ owner: keeper.owner, player: keeper.player })),
 };
 
+const provisioningPasswordHash = hashPassword("a sufficiently long production password");
 const provisioningEnv = Object.fromEntries(ownerOrder.map(owner => [
   passwordHashEnvFor(owner),
-  "scrypt$16384$8$1$production-salt$production-derived-key",
+  provisioningPasswordHash,
 ]));
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
