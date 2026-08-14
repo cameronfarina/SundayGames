@@ -4,6 +4,9 @@ import {
   authorizePrivatePrepArtifactRead,
   authorizeSharedLeagueResourceRead,
   authorizeSharedLeagueSetupMutation,
+  type LeagueMembership,
+  type PrivatePrepArtifact,
+  type SharedLeagueResource,
 } from "../src/platform/workspacePrivacy.js";
 
 const user = { id: "user_cam" };
@@ -14,20 +17,20 @@ const outsider = { id: "user_outsider" };
 const leagueId = "league_home";
 const otherLeagueId = "league_away";
 
-const sharedLeagueResource = {
+const sharedLeagueResource: SharedLeagueResource & { id: string } = {
   id: "league-settings",
   leagueId,
   workspace: "shared",
   type: "league-settings",
-} as const;
+};
 
-const privatePrepArtifact = {
+const privatePrepArtifact: PrivatePrepArtifact & { id: string } = {
   id: "draft-plan",
   leagueId,
   ownerUserId: user.id,
   workspace: "private-prep",
   type: "draft-plan",
-} as const;
+};
 
 describe("workspace privacy authorization", () => {
   it("allows league members to read shared league resources in their league", () => {
@@ -76,17 +79,19 @@ describe("workspace privacy authorization", () => {
   });
 
   it("allows users to read and mutate their own private prep artifacts", () => {
-    const memberships = [{ userId: user.id, leagueId, role: "member" }] as const;
+    const memberships: readonly LeagueMembership[] = [
+      { userId: user.id, leagueId, role: "member" },
+    ];
 
     expect(authorizePrivatePrepArtifactRead(user, privatePrepArtifact, memberships)).toEqual({ allowed: true });
     expect(authorizePrivatePrepArtifactMutation(user, privatePrepArtifact, memberships)).toEqual({ allowed: true });
   });
 
   it("denies same-league admins and members access to another user's private prep artifact", () => {
-    const memberships = [
+    const memberships: readonly LeagueMembership[] = [
       { userId: admin.id, leagueId, role: "admin" },
       { userId: rival.id, leagueId, role: "member" },
-    ] as const;
+    ];
 
     expect(authorizePrivatePrepArtifactRead(admin, privatePrepArtifact, memberships)).toEqual({
       allowed: false,
