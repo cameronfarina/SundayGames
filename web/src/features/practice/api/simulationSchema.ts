@@ -1,12 +1,30 @@
 import { z } from "zod";
 
+const positionSchema = z.enum(["QB", "RB", "WR", "TE"]);
+const targetConstraintSchema = z.object({
+  maxAuctionPrice: z.number().nonnegative().optional(),
+  maxSnakeOverallPick: z.number().int().positive().optional(),
+  maxSnakeRound: z.number().int().positive().optional(),
+  playerName: z.string(),
+});
+const preferredPositionSchema = z.object({
+  maxAuctionPrice: z.number().nonnegative().optional(),
+  position: positionSchema,
+  targetCount: z.number().int().positive().optional(),
+  tier: z.literal("elite"),
+});
 const strategySchema = z.object({
-  preferredPositions: z.array(z.object({
-    count: z.number().int().positive(),
-    position: z.string(),
-  })).default([]),
+  pairWithPlayerName: z.string().optional(),
+  positionCaps: z.array(z.object({
+    excludeNamedTargets: z.boolean(),
+    maxAuctionPrice: z.number().nonnegative(),
+    position: positionSchema,
+  })).optional(),
+  preferredPositions: z.array(preferredPositionSchema).default([]),
   rawInput: z.string(),
   summary: z.string(),
+  target: targetConstraintSchema.optional(),
+  targets: z.array(targetConstraintSchema).optional(),
   warnings: z.array(z.string()),
 });
 
@@ -42,6 +60,8 @@ const targetOutcomeSchema = z.object({
   playerName: z.string(),
   reason: z.enum([
     "ambiguous_player_name",
+    "insufficient_auction_budget",
+    "insufficient_roster_slots",
     "player_not_found",
     "retained_by_other_team",
     "retained_by_your_team_above_max_price",
@@ -61,6 +81,22 @@ export const simulationSummarySchema = z.object({
     position: z.string(),
     rate: z.number().min(0).max(1),
   })),
+  preferenceOutcomes: z.array(z.object({
+    feasible: z.boolean(),
+    hitCount: z.number().int().nonnegative(),
+    hitRate: z.number().min(0).max(1),
+    message: z.string(),
+    position: positionSchema,
+    rule: z.object({
+      basis: z.enum(["auction_expected_value", "snake_catalog_rank"]),
+      minimumExpectedValue: z.number().optional(),
+      positionRankMaximum: z.number().int().positive(),
+      qualifyingPlayerIds: z.array(z.string()),
+    }),
+    status: z.enum(["hit", "miss", "infeasible"]),
+    targetCount: z.number().int().positive(),
+    tier: z.literal("elite"),
+  })).optional(),
   positionCounts: z.record(z.string(), z.object({ perRun: z.number(), total: z.number() })),
   runCount: z.number().int().positive(),
   seedPrefix: z.string(),

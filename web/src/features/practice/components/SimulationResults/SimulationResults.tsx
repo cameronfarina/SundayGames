@@ -21,6 +21,8 @@ type TargetOutcome = Exclude<PracticeSimulationSummary["targetOutcome"], undefin
 
 const targetReasonFallbacks: Record<Exclude<TargetOutcome["reason"], undefined>, string> = {
   ambiguous_player_name: "The player name matches multiple players.",
+  insufficient_auction_budget: "Your remaining budget cannot support this target.",
+  insufficient_roster_slots: "Your remaining roster slots cannot support this target.",
   player_not_found: "The player was not found in the player catalog.",
   retained_by_other_team: "The player is retained by another team.",
   retained_by_your_team_above_max_price: "Your keeper price is above the target cap.",

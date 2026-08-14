@@ -9,10 +9,31 @@ const summary = {
   completedCount: 1,
   draftFormat: "auction",
   playerExposure: [],
+  preferenceOutcomes: [{
+    feasible: true,
+    hitCount: 1,
+    hitRate: 1,
+    message: "Elite RB preference hit in 1/1 runs.",
+    position: "RB",
+    rule: {
+      basis: "auction_expected_value",
+      minimumExpectedValue: 52,
+      positionRankMaximum: 4,
+      qualifyingPlayerIds: ["jahmyr gibbs"],
+    },
+    status: "hit",
+    targetCount: 1,
+    tier: "elite",
+  }],
   positionCounts: {},
   runCount: 1,
   seedPrefix: "stream-test",
-  strategy: { preferredPositions: [], rawInput: "", summary: "Balanced", warnings: [] },
+  strategy: {
+    preferredPositions: [{ position: "RB", tier: "elite" }],
+    rawInput: "Target an elite RB",
+    summary: "Prioritize elite RB.",
+    warnings: [],
+  },
 };
 
 const chunkedResponse = (...chunks: string[]): Response => {
