@@ -1,0 +1,17 @@
+.invite-page { display: grid; gap: 1.5rem; margin: 0 auto; max-width: 64rem; }
+.invite-header { border-bottom: 1px solid var(--color-border); padding-bottom: 1.5rem; }
+.invite-header h1, .invite-auth h2, .invite-state h1 { margin: 0; }
+.invite-header > p:last-child, .invite-auth p { color: var(--color-text-muted); }
+.invite-eyebrow { color: var(--color-accent); font-size: .75rem; font-weight: 800; margin: 0 0 .5rem; text-transform: uppercase; }
+.invite-auth { align-items: center; background: var(--color-surface); border-left: .25rem solid var(--color-accent); display: flex; justify-content: space-between; padding: 1rem; }
+.invite-actions { display: flex; gap: .75rem; }
+.invite-button { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: .375rem; color: var(--color-text); cursor: pointer; display: inline-flex; font-weight: 750; padding: .75rem 1rem; text-decoration: none; }
+.invite-button:hover { border-color: var(--color-accent); }
+.invite-button:disabled { cursor: not-allowed; opacity: .55; }
+.invite-button--primary { background: var(--color-accent); border-color: var(--color-accent); color: #06110e; }
+.invite-team-list { display: grid; gap: 1px; list-style: none; margin: 0; padding: 0; }
+.invite-team { align-items: center; background: var(--color-surface); display: flex; justify-content: space-between; min-height: 4.5rem; padding: .875rem 1rem; }
+.invite-team span, .invite-team small { display: block; }
+.invite-team small, .invite-team__status { color: var(--color-text-muted); margin-top: .25rem; }
+.invite-state { display: grid; gap: 1rem; }
+@media (max-width: 36rem) { .invite-auth, .invite-team { align-items: stretch; display: grid; gap: 1rem; } .invite-actions { display: grid; } }

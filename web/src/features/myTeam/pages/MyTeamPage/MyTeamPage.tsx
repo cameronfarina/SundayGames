@@ -9,10 +9,10 @@ export const MyTeamPage = () => {
   const league = state.kind === "pre-draft" || state.kind === "post-draft" ? state.league : undefined;
 
   return (
-    <main className="my-team-page" id="main-content">
+    <section aria-labelledby="my-team-title" className="my-team-page">
       <header className="my-team-header">
         <p className="my-team-eyebrow">My team</p>
-        <h1>{league?.membership.teamDisplayName ?? "My team"}</h1>
+        <h1 id="my-team-title">{league?.membership.teamDisplayName ?? "My team"}</h1>
         <p>Keepers and draft-day budget before the draft. Private roster analysis after it ends.</p>
       </header>
       {state.kind === "loading" && <p className="my-team-status" role="status">Loading your team...</p>}
@@ -28,6 +28,6 @@ export const MyTeamPage = () => {
         />
       )}
       {state.kind === "post-draft" && <PostDraftTeamView team={state.team} />}
-    </main>
+    </section>
   );
 };
