@@ -1,0 +1,66 @@
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import type { SyntheticEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { resetPassword } from "../../api/authApi";
+import { authErrorMessage } from "../../model/authErrorMessage";
+import "../AuthForm/AuthForm.css";
+
+interface ResetPasswordFormProps { readonly token: string }
+
+export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const navigate = useNavigate();
+  const reset = useMutation({
+    mutationFn: () => resetPassword({
+      newPassword: password,
+      newPasswordConfirmation: confirmation,
+      token,
+    }),
+    onSuccess: () => { void navigate("/login?passwordChanged=1", { replace: true }); },
+  });
+  const submit = (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    reset.mutate();
+  };
+
+  return (
+    <form className="auth-form" onSubmit={submit}>
+      <div className="auth-form__field">
+        <label htmlFor="new-password">New password</label>
+        <input
+          autoComplete="new-password"
+          disabled={reset.isPending}
+          id="new-password"
+          minLength={8}
+          onChange={event => { setPassword(event.currentTarget.value); }}
+          required
+          type="password"
+          value={password}
+        />
+      </div>
+      <div className="auth-form__field">
+        <label htmlFor="confirm-password">Confirm new password</label>
+        <input
+          autoComplete="new-password"
+          disabled={reset.isPending}
+          id="confirm-password"
+          minLength={8}
+          onChange={event => { setConfirmation(event.currentTarget.value); }}
+          required
+          type="password"
+          value={confirmation}
+        />
+      </div>
+      {reset.error !== null && (
+        <p className="auth-form__message auth-form__error" role="alert">
+          {authErrorMessage(reset.error)}
+        </p>
+      )}
+      <button className="auth-form__submit" disabled={reset.isPending} type="submit">
+        {reset.isPending ? "Updating password..." : "Update password"}
+      </button>
+    </form>
+  );
+};
