@@ -190,11 +190,12 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    for (const [accountId, requestSeasonId] of [
+    const accountSeasonPairs: ReadonlyArray<readonly [string, string]> = [
       ["account-a", "season-a"],
       ["account-a", "season-b"],
       ["account-b", "season-a"],
-    ] as const) {
+    ];
+    for (const [accountId, requestSeasonId] of accountSeasonPairs) {
       const response = await fetch(
         `${baseUrl}/api/events?seasonId=${requestSeasonId}&draftSession=practice`,
         {
@@ -243,6 +244,56 @@ describe("platform draft tools adapter", () => {
     ]));
   });
 
+  it.each(["auction", "snake"])(
+    "preserves the %s draft format query and request body exactly",
+    async draftFormat => {
+      const baseSessionDirectory = await temporaryDirectory();
+      const delegatedRequests: DelegatedRequest[] = [];
+      const adapter = createPlatformDraftToolsAdapter({
+        authorizeSeason: authorizeEverySeason,
+        baseSessionDirectory,
+        createLiveDraftServer: async () => recordingClassicServer(delegatedRequests),
+        resolveAccount: async () => ({ id: "account-owner11" }),
+      });
+      const baseUrl = await listen(adapter);
+      const body = JSON.stringify({ draftFormat, operation: "start" });
+
+      const response = await fetch(
+        `${baseUrl}/api/mock-drafts?seasonId=${seasonId}&draftFormat=${draftFormat}`,
+        {
+          body,
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(delegatedRequests).toEqual([{
+        body,
+        method: "POST",
+        url: `/api/mock-drafts?seasonId=${seasonId}&draftFormat=${draftFormat}`,
+      }]);
+    },
+  );
+
+  it.each([
+    ["idleTimeoutMs", 0],
+    ["importMaxBodyBytes", -1],
+    ["maxBodyBytes", 1.5],
+    ["maxRetainedApps", Number.MAX_SAFE_INTEGER + 1],
+  ])("rejects an invalid %s option before handling requests", (optionName, value) => {
+    const baseOptions = {
+      authorizeSeason: authorizeEverySeason,
+      baseSessionDirectory: "/tmp/mockd-platform-draft-tools",
+      resolveAccount: async () => ({ id: "account-owner11" }),
+    };
+
+    expect(() => createPlatformDraftToolsAdapter({
+      ...baseOptions,
+      [optionName]: value,
+    })).toThrow(`${optionName} must be a positive integer.`);
+  });
+
   it("resolves season options before creating every account and season app", async () => {
     const baseSessionDirectory = await temporaryDirectory();
     const seasonOptions = new Map<string, CreateLiveDraftServerOptions>([
@@ -282,11 +333,12 @@ describe("platform draft tools adapter", () => {
     });
     const baseUrl = await listen(adapter);
 
-    for (const [accountId, requestSeasonId] of [
+    const accountSeasonPairs: ReadonlyArray<readonly [string, string]> = [
       ["account-a", "season-a"],
       ["account-b", "season-a"],
       ["account-a", "season-b"],
-    ] as const) {
+    ];
+    for (const [accountId, requestSeasonId] of accountSeasonPairs) {
       const response = await fetch(`${baseUrl}/api/state?seasonId=${requestSeasonId}`, {
         headers: { "x-test-account-id": accountId },
       });
