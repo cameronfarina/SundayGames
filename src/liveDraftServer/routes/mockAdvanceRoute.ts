@@ -1,4 +1,3 @@
-import { loadInteractiveMockDraftModule } from "../interactiveMockModule.js";
 import { parseJsonBody, sendJson } from "../http.js";
 import {
   nominatedPlayerFromValue,
@@ -7,17 +6,13 @@ import {
 } from "../mockInput.js";
 import {
   mockAuctionFromValue,
-  mockAuctionOpeningBidFromValue,
-  mockAuctionPlayerFromValue,
-  mockDraftFromInteractiveMockAction,
   mockDraftRequestFor,
-  mockDraftWithClientAuction,
   mockSpeedActions,
-  optionalCommandFromInteractiveMockAction,
 } from "../mockState.js";
 import { strategyKeyFromBody } from "../routeHelpers.js";
 import type { RouteHandler } from "../runtimeContracts.js";
 import { draftNightLockFor, watchOwnerFromBody } from "../sessionInput.js";
+import { advanceMockDraft } from "./mockAdvanceMutation.js";
 
 export const handleMockAdvanceRoute: RouteHandler = async ({ request, response, url, context }) => {
   if (request.method !== "POST" || url.pathname !== "/api/mock/advance") return false;
@@ -86,67 +81,17 @@ export const handleMockAdvanceRoute: RouteHandler = async ({ request, response, 
     return true;
   }
 
-  const result = await context.stores.runQueuedMutation(
+  const result = await advanceMockDraft({
+    action,
+    context,
     draftSessionKey,
-    "interactive-mock",
-    async () => {
-      const module = await loadInteractiveMockDraftModule(context.options.interactiveMockDraft);
-      const store = await context.stores.storeFor(draftSessionKey, "interactive-mock");
-      const restoredPlayer = nominatedPlayer ?? mockAuctionPlayerFromValue(mockAuction);
-      const restoredPrice = nominatedPrice ?? mockAuctionOpeningBidFromValue(mockAuction);
-      const mockDraft = mockDraftWithClientAuction(
-        await context.interactive.mockDraftFor({
-          ...mockDraftRequestFor(strategyKey, seed, restoredPlayer, restoredPrice),
-          draftSessionKey,
-          watchOwner,
-        }),
-        mockAuction,
-      );
-      const actionResult = module.resolveInteractiveMockDraftAction(mockDraft, action);
-      const unresolved = mockDraftFromInteractiveMockAction(actionResult);
-      const command = optionalCommandFromInteractiveMockAction(actionResult);
-      if (!command) {
-        return {
-          status: 200,
-          body: {
-            ...await context.state.stateFor({ draftSessionKey, mode: "interactive-mock", strategyKey, watchOwner }),
-            mockDraft: unresolved ?? mockDraft,
-          },
-        };
-      }
-      const trialCommands = [...store.currentCommands(), command];
-      const trialState = await context.state.stateFor({
-        draftSessionKey,
-        mode: "interactive-mock",
-        commands: trialCommands,
-        strategyKey,
-        watchOwner,
-      });
-      const commandError = trialState.errors.find(error => error.input === command);
-      if (commandError) {
-        return {
-          status: 422,
-          body: {
-            ...await context.interactive.stateWithMockDraft({
-              ...mockDraftRequestFor(strategyKey, seed, nominatedPlayer, nominatedPrice),
-              draftSessionKey,
-              watchOwner,
-            }),
-            errors: [commandError],
-          },
-        };
-      }
-      await store.appendCommand(command);
-      return {
-        status: 200,
-        body: await context.interactive.stateWithMockDraft({
-          ...mockDraftRequestFor(strategyKey, seed),
-          draftSessionKey,
-          watchOwner,
-        }),
-      };
-    },
-  );
+    mockAuction,
+    nominatedPlayer,
+    nominatedPrice,
+    seed,
+    strategyKey,
+    watchOwner,
+  });
   sendJson(response, result.status, result.body);
   return true;
 };
