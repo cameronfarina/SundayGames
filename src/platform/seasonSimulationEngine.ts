@@ -1143,6 +1143,15 @@ const aggregateRuns = (input: {
   };
 };
 
+const hasContiguousTokenPrefixMatch = (
+  catalogId: string,
+  queryTokens: readonly string[],
+): boolean => catalogId.split(" ").some((_, startIndex, catalogTokens) =>
+  queryTokens.every((queryToken, queryIndex) =>
+    catalogTokens[startIndex + queryIndex]?.startsWith(queryToken) === true
+  )
+);
+
 const resolvedStrategy = (
   strategy: ParsedSeasonSimulationStrategy,
   setup: LiveDraftRoomSetup,
@@ -1172,6 +1181,7 @@ const resolvedStrategy = (
       id.startsWith(`${query} `)
       || id.endsWith(` ${query}`)
       || id.includes(` ${query} `)
+      || hasContiguousTokenPrefixMatch(id, queryTokens)
       || (
         id.split(" ").length === queryTokens.length
         && id.split(" ").every((token, index) =>
