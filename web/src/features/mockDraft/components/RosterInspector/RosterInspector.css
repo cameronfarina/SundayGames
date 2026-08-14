@@ -1,0 +1,70 @@
+.roster-inspector {
+  min-width: 0;
+}
+
+.roster-inspector__facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 1rem 0 0;
+}
+
+.roster-inspector__facts div {
+  border: 1px solid var(--color-border);
+  padding: 0.7rem;
+}
+
+.roster-inspector__facts dt {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.roster-inspector__facts dd {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin: 0.25rem 0 0;
+}
+
+.roster-inspector__slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster-inspector__slots li {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  border-left: 3px solid var(--position-color, transparent);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(4rem, 0.5fr) 1.5fr;
+  min-height: 4rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.roster-inspector__slot {
+  color: var(--position-color, var(--color-text-muted));
+  font-weight: 800;
+}
+
+.roster-inspector__player {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+
+.roster-inspector__player small {
+  color: var(--color-text-muted);
+}
+
+.roster-inspector__keeper {
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  color: var(--color-accent);
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.3rem;
+  text-transform: uppercase;
+}

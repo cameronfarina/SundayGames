@@ -1,0 +1,63 @@
+.mock-draft-page {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0 auto;
+  max-width: 118rem;
+  padding: 1.5rem clamp(1rem, 3vw, 3rem) 3rem;
+}
+
+.mock-draft-page--launch {
+  align-content: start;
+  max-width: 52rem;
+}
+
+.mock-draft-page__header {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.mock-draft-page__header h1,
+.mock-draft-page__header p,
+.mock-draft-page--launch h1,
+.mock-draft-page--launch p {
+  margin: 0.25rem 0 0;
+}
+
+.mock-draft-page__header p,
+.mock-draft-page--launch p {
+  color: var(--color-text-muted);
+}
+
+.mock-draft-page__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mock-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: end;
+}
+
+.mock-draft-page__workspace {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 2.5fr) minmax(19rem, 1fr);
+}
+
+@media (max-width: 960px) {
+  .mock-draft-page__header,
+  .mock-draft-page__workspace {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .mock-draft-actions {
+    justify-content: start;
+  }
+}

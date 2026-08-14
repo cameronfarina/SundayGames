@@ -1,0 +1,25 @@
+.mock-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(7rem, 1fr));
+  margin: 0;
+  overflow-x: auto;
+}
+
+.mock-summary div {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  min-width: 7rem;
+  padding: 0.85rem;
+}
+
+.mock-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mock-summary dd {
+  font-weight: 800;
+  margin: 0.25rem 0 0;
+}
