@@ -38,6 +38,7 @@ describe("EmailVerificationForm", () => {
   it("establishes the mailbox-proven password and returns to login", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ verified: true })));
     const router = mountForm();
+    expect(screen.getByLabelText("Choose password")).toHaveAttribute("minlength", "15");
     await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
     await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");
     await waitFor(() => { expect(router.state.location.pathname).toBe("/login"); });

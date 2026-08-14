@@ -39,6 +39,7 @@ describe("PasswordChangeForm", () => {
       return jsonResponse({ ok: true });
     }));
     const navigation = mountForm();
+    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "15");
     await fillForm();
     await userEvent.type(screen.getByLabelText("Confirm new password"), "{Enter}");
     expect(screen.getByRole("button", { name: "Updating password..." })).toBeDisabled();

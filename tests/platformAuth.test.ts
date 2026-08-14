@@ -127,7 +127,7 @@ describe("platform auth foundation", () => {
       now,
     })).rejects.toThrow(new AuthError(
       "invalid_password",
-      "Password must be at least 8 characters.",
+      "Password must be at least 15 characters.",
     ));
   });
 
@@ -136,15 +136,19 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "coach@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     });
 
-    await expect(auth.login({ email: "coach@mockd.app", password: "wrong password", now })).resolves.toBeNull();
+    await expect(auth.login({
+      email: "coach@mockd.app",
+      password: "wrong password phrase",
+      now,
+    })).resolves.toBeNull();
 
     const login = expectLoginResult(await auth.login({
       email: " COACH@MOCKD.APP ",
-      password: "valid password",
+      password: "valid password phrase",
       now,
       sessionTtlMs: 60_000,
     }));
@@ -231,12 +235,12 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
     const account = await auth.createUser({
       email: "session@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     });
     const login = expectLoginResult(await auth.login({
       email: "session@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
       sessionTtlMs: 1_000,
     }));
@@ -252,12 +256,12 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
     await auth.createUser({
       email: "logout@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     });
     const login = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now,
     }));
 
@@ -266,7 +270,7 @@ describe("platform auth foundation", () => {
 
     const secondLogin = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
-      password: "valid password",
+      password: "valid password phrase",
       now: new Date(now.getTime() + 3),
     }));
 

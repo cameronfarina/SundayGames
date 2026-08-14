@@ -53,6 +53,7 @@ describe("AuthForm", () => {
     vi.stubGlobal("fetch", fetcher);
     const path = "/login?returnTo=%2Fleague%3FseasonId%3Dseason-1";
     const { queryClient, router: navigation } = mountRoute(path);
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "15");
     await enterCredentials();
     await userEvent.type(screen.getByLabelText("Password"), "{Enter}");
     await waitFor(() => {

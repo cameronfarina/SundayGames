@@ -58,6 +58,7 @@ describe("authentication recovery", () => {
       return jsonResponse({ reset: true });
     }));
     const navigation = mountRoute("/reset-password?token=reset-token");
+    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "15");
     await userEvent.type(screen.getByLabelText("New password"), "replacement password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");
     expect(screen.getByRole("button", { name: "Updating password..." })).toBeDisabled();

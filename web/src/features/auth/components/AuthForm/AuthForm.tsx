@@ -8,6 +8,7 @@ import { createAccount } from "../../api/signupApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
+import { minimumPasswordCharacters } from "../../model/passwordPolicy";
 import "./AuthForm.css";
 
 type AuthFormProps = { readonly mode: "login" } | {
@@ -91,7 +92,7 @@ export const AuthForm = (props: AuthFormProps) => {
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             disabled={authentication.isPending}
             id="auth-password"
-            minLength={8}
+            minLength={minimumPasswordCharacters}
             name="password"
             onChange={event => { setPassword(event.currentTarget.value); }}
             required

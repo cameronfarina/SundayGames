@@ -26,7 +26,7 @@ export const normalizeEmail = (email: string): string => {
 export const validatePassword = (password: string): void => {
   const issue = passwordValidationIssue(password);
   if (issue === "too_short") {
-    throw new AuthError("invalid_password", "Password must be at least 8 characters.");
+    throw new AuthError("invalid_password", "Password must be at least 15 characters.");
   }
   if (issue === "too_long") {
     throw new AuthError("invalid_password", "Password must be no more than 1024 UTF-8 bytes.");

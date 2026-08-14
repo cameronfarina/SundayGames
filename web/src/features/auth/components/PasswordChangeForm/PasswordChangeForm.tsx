@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { changePassword } from "../../api/authApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
+import { minimumPasswordCharacters } from "../../model/passwordPolicy";
 import "../AuthForm/AuthForm.css";
 
 export const PasswordChangeForm = () => {
@@ -49,7 +50,7 @@ export const PasswordChangeForm = () => {
           autoComplete="new-password"
           disabled={change.isPending}
           id="changed-password"
-          minLength={8}
+          minLength={minimumPasswordCharacters}
           onChange={event => { setNewPassword(event.currentTarget.value); }}
           required
           type="password"
@@ -62,7 +63,7 @@ export const PasswordChangeForm = () => {
           autoComplete="new-password"
           disabled={change.isPending}
           id="changed-password-confirmation"
-          minLength={8}
+          minLength={minimumPasswordCharacters}
           onChange={event => { setConfirmation(event.currentTarget.value); }}
           required
           type="password"
