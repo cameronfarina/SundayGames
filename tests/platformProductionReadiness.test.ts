@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkPlatformProductionReadinessFromEnv,
+  type PlatformDatabaseReadinessProbe,
   probeWritableDraftToolsDirectory,
 } from "../src/platform/checkPlatformProductionReadiness.js";
 
@@ -32,7 +33,9 @@ describe("platform production readiness check", () => {
   });
 
   it("requires a successful Postgres connectivity probe", async () => {
-    const probeDatabase = vi.fn(async () => ({ status: "unreachable" as const }));
+    const probeDatabase = vi.fn<PlatformDatabaseReadinessProbe>(
+      async () => ({ status: "unreachable" }),
+    );
     const probeDraftStorage = vi.fn(async () => undefined);
 
     const report = await checkPlatformProductionReadinessFromEnv(productionEnv, {
@@ -55,8 +58,8 @@ describe("platform production readiness check", () => {
   });
 
   it("requires every platform migration to be applied", async () => {
-    const probeDatabase = vi.fn(async () => ({
-      status: "migrations_missing" as const,
+    const probeDatabase = vi.fn<PlatformDatabaseReadinessProbe>(async () => ({
+      status: "migrations_missing",
       missingMigrationIds: ["platform-invitations-v3"],
     }));
 
@@ -90,7 +93,9 @@ describe("platform production readiness check", () => {
   });
 
   it("reports successful live dependency probes", async () => {
-    const probeDatabase = vi.fn(async () => ({ status: "ready" as const }));
+    const probeDatabase = vi.fn<PlatformDatabaseReadinessProbe>(
+      async () => ({ status: "ready" }),
+    );
 
     const report = await checkPlatformProductionReadinessFromEnv(productionEnv, {
       probeDatabase,
@@ -116,7 +121,9 @@ describe("platform production readiness check", () => {
   });
 
   it("does not probe when static production configuration already fails", async () => {
-    const probeDatabase = vi.fn(async () => ({ status: "ready" as const }));
+    const probeDatabase = vi.fn<PlatformDatabaseReadinessProbe>(
+      async () => ({ status: "ready" }),
+    );
     const probeDraftStorage = vi.fn(async () => undefined);
 
     const report = await checkPlatformProductionReadinessFromEnv({
