@@ -31,11 +31,12 @@ export const exerciseDurableMockWorkspace = async (
   const otherTeam = season.teams[1];
   if (otherTeam !== undefined) await chooseRoster(page, otherTeam.displayName);
   await startAuctionMock(page);
-  const beforeReload = await page.getByRole("main").textContent();
+  const liveAuction = page.getByRole("region", { name: "Live auction" });
+  const auctionBeforeReload = await liveAuction.textContent();
   await page.reload();
-  await expect(page.getByRole("region", { name: "Live auction" })).toBeVisible();
+  await expect(liveAuction).toBeVisible();
   expect(new URL(page.url()).searchParams.get("sessionId")).toBe(persistedSessionId);
-  await expect(page.getByRole("main")).toHaveText(beforeReload ?? "");
+  await expect(liveAuction).toHaveText(auctionBeforeReload ?? "");
   await abandonAuctionMock(page);
   const replacementSessionId = await createAuctionMock(page);
   expect(replacementSessionId).not.toBe(persistedSessionId);

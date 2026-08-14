@@ -4,9 +4,12 @@ export const availablePlayersTable = (page: Page): Locator =>
   page.getByRole("table", { name: "Available players" });
 
 export const createAuctionMock = async (page: Page): Promise<string> => {
-  await page.getByRole("link", { name: "Start auction mock" }).click();
+  const createButton = page.getByRole("button", { name: "Create auction mock" });
+  if (await createButton.count() === 0) {
+    await page.getByRole("link", { name: "Start auction mock" }).click();
+  }
   await expect(page.getByRole("heading", { name: "Auction mock draft" })).toBeVisible();
-  await page.getByRole("button", { name: "Create auction mock" }).click();
+  await createButton.click();
   await expect(page.getByRole("button", { name: "Start draft" })).toBeEnabled();
   const sessionId = new URL(page.url()).searchParams.get("sessionId");
   if (sessionId === null) throw new Error("Expected the auction mock URL to include sessionId.");
