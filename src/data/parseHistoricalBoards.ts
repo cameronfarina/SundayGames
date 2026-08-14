@@ -23,16 +23,28 @@ export interface HistoricalAuctionRecord {
   source: string;
 }
 
-export const historicalBoardFiles = [
-  { season: 2023, path: "data/raw/2023-board.csv" },
-  { season: 2024, path: "data/raw/2024-board.csv" },
-  { season: 2025, path: "data/raw/2025-board.csv" },
-] as const satisfies HistoricalBoardFile[];
+const historicalSeasons = [2023, 2024, 2025];
+
+export const historicalBoardFiles: HistoricalBoardFile[] = historicalSeasons.map(season => ({
+  season,
+  path: `data/fixtures/historical/auction-${season}.synthetic.csv`,
+}));
+
+export const historicalBoardFilesForEnvironment = (
+  env: NodeJS.ProcessEnv = process.env,
+): HistoricalBoardFile[] => {
+  const privateDirectory = env.MOCKD_HISTORICAL_BOARD_DIRECTORY?.trim();
+  if (!privateDirectory) return historicalBoardFiles;
+
+  return historicalSeasons.map(season => ({
+    season,
+    path: path.join(privateDirectory, `${season}-board.csv`),
+  }));
+};
 
 const positionValues = ["QB", "RB", "WR", "TE", "K", "DST"] as const satisfies readonly Position[];
 
-const seth2023WaiverPlaceholder = {
-  owner: "Seth",
+const missing2023WaiverPlaceholder = {
   rosterRow: 16,
   originalPlayerName: "Seattle Seahawks",
   normalizedPlayerName: "Seattle Seahawks",
@@ -118,9 +130,14 @@ const normalizePosition = (value: string | undefined): Position | undefined => {
   return position;
 };
 
-const ownerFromHeader = (value: string): Owner => {
-  const owner = ownerOrder.find(candidate => candidate === value);
-  if (!owner) throw new Error(`Unknown historical board owner: ${value}`);
+const ownerFromHeader = (value: string, ownerPosition: number): Owner => {
+  const owner = ownerOrder[ownerPosition];
+  if (!owner) throw new Error(`Historical board has an unexpected owner column: ${value}`);
+
+  const syntheticOwner = `Owner ${String(ownerPosition + 1).padStart(2, "0")}`;
+  if (value !== owner && value !== syntheticOwner) {
+    throw new Error(`Unknown historical board owner: ${value}`);
+  }
 
   return owner;
 };
@@ -146,7 +163,10 @@ export const parseHistoricalBoardCsv = (
   const ownerColumns = header
     .map((cell, index) => ({ owner: cleanCell(cell), index }))
     .filter(entry => entry.index > 0 && entry.owner)
-    .map(entry => ({ owner: ownerFromHeader(entry.owner), index: entry.index }));
+    .map((entry, ownerPosition) => ({
+      owner: ownerFromHeader(entry.owner, ownerPosition),
+      index: entry.index,
+    }));
 
   if (ownerColumns.length !== ownerOrder.length) {
     throw new Error(`Historical board ${board.path} has ${ownerColumns.length} owners; expected ${ownerOrder.length}.`);
@@ -189,17 +209,24 @@ export const parseHistoricalBoardCsv = (
     });
   });
 
-  if (
-    board.season === 2023 &&
-    !records.some(record => record.owner === "Seth" && record.rosterRow === seth2023WaiverPlaceholder.rosterRow)
-  ) {
+  if (board.season === 2023) {
+    const ownersMissingFinalSlot = ownerOrder.filter(owner =>
+      !records.some(record => record.owner === owner && record.rosterRow === missing2023WaiverPlaceholder.rosterRow));
+    if (ownersMissingFinalSlot.length > 1) {
+      throw new Error(`Historical board ${board.path} is missing multiple final roster slots.`);
+    }
+
+    const missingOwner = ownersMissingFinalSlot[0];
+    if (!missingOwner) return sortHistoricalRecords(records);
+
     const selectedNames = new Set(records.map(record => record.normalizedPlayerName));
-    if (selectedNames.has(seth2023WaiverPlaceholder.normalizedPlayerName)) {
-      throw new Error(`${seth2023WaiverPlaceholder.originalPlayerName} was already selected in 2023.`);
+    if (selectedNames.has(missing2023WaiverPlaceholder.normalizedPlayerName)) {
+      throw new Error(`${missing2023WaiverPlaceholder.originalPlayerName} was already selected in 2023.`);
     }
 
     records.push({
-      ...seth2023WaiverPlaceholder,
+      ...missing2023WaiverPlaceholder,
+      owner: missingOwner,
       season: board.season,
       source: path.basename(board.path),
     });
@@ -209,7 +236,7 @@ export const parseHistoricalBoardCsv = (
 };
 
 export const loadHistoricalAuctionRecords = async (
-  boards: readonly HistoricalBoardFile[] = historicalBoardFiles,
+  boards: readonly HistoricalBoardFile[] = historicalBoardFilesForEnvironment(),
 ): Promise<HistoricalAuctionRecord[]> => {
   const records = await Promise.all(
     boards.map(async board => parseHistoricalBoardCsv(await fs.readFile(board.path, "utf8"), board)),

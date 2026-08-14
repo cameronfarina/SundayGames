@@ -4,10 +4,12 @@ dist/
 .DS_Store
 coverage/
 .mockd/
+.mockd/private-source-data/
 .playwright-cli/
 .playwright-mcp/
 test-results/
 data/live-draft/
+data/private/
 data/processed/mock-prep/
 output/*.tmp.xlsx
 player-news-*.png

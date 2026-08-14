@@ -27,7 +27,19 @@ describe("production container artifacts", () => {
     expect(runtimeStage).toContain(
       "COPY --from=build --chown=node:node /app/dist/web ./dist/web",
     );
-    expect(runtimeStage).toContain("COPY --chown=node:node data/raw ./data/raw");
+    expect(runtimeStage).not.toContain("COPY --chown=node:node data/raw ./data/raw");
+    expect(runtimeStage).toContain(
+      "COPY --chown=node:node data/raw/espn-projections-2026-weeks-1-4.json ./data/raw/espn-projections-2026-weeks-1-4.json",
+    );
+    expect(runtimeStage).toContain(
+      "COPY --chown=node:node data/raw/player-evidence-2026-initial.csv ./data/raw/player-evidence-2026-initial.csv",
+    );
+    expect(runtimeStage).toContain(
+      "COPY --chown=node:node data/raw/season-long-projections-2026.json ./data/raw/season-long-projections-2026.json",
+    );
+    expect(runtimeStage).toContain(
+      "COPY --chown=node:node data/raw/fantasy-draft-rankings-2026 ./data/raw/fantasy-draft-rankings-2026",
+    );
   });
 
   it("runs as a non-root user with writable persistent draft storage", async () => {
@@ -79,6 +91,11 @@ describe("production container artifacts", () => {
       "test-results",
       "*.log",
       "output",
+      ".mockd",
+      "data/private",
+      "data/fixtures",
+      "data/raw/*-board.csv",
+      "data/processed",
     ];
 
     expect(requiredPatterns.filter(pattern => !patterns.has(pattern))).toEqual([]);

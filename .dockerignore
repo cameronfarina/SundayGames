@@ -15,6 +15,10 @@ e2e
 scripts
 tests
 output
+.mockd
+data/private
+data/fixtures
+data/raw/*-board.csv
 data/processed
 data/live-draft
 data/platform-draft-tools

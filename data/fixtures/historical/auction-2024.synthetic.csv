@@ -1,0 +1,46 @@
+Team,Owner 01,,,Owner 02,,,Owner 03,,,Owner 04,,,Owner 05,,,Owner 06,,,Owner 07,,,Owner 08,,,Owner 09,,,Owner 10,,,Owner 11,,,Owner 12,,,Owner 13,,,Owner 14,,
+Money Left,$0 ,,,$2 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,,$0 ,,
+Max Bid,$1 ,,,$3 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,,$1 ,,
+1,$20 ,RB,Rachaad White,$3 ,RB,Tyjae Spears,$6 ,WR,Chris Olave,$7 ,RB,Kyren Williams,$3 ,RB,Raheem Mostert,$3 ,QB,Anthony Richardson,$40 ,RB,Breece Hall,$7 ,WR,Jayden Reed,$24 ,RB,Isiah Pacheco,$7 ,WR,Puka Nacua,$54 ,RB,Jonathan Taylor,$33 ,WR,Amon-Ra St. Brown,$8 ,WR,Drake London,$4 ,WR,Michael Pittman Jr.
+2,$81 ,RB,Christian McCaffrey,$60 ,WR,Marvin Harrison Jr.,$74 ,WR,Tyreek Hill,$56 ,RB,Travis Etienne Jr.,$20 ,TE,George Kittle,$24 ,TE,Mark Andrews,$51 ,RB,Derrick Henry,$61 ,WR,Garrett Wilson,$40 ,WR,DJ Moore,$31 ,QB,Josh Allen,$54 ,WR,A.J. Brown,$30 ,WR,Cooper Kupp,$77 ,RB,Bijan Robinson,$63 ,WR,Ja'Marr Chase
+3,$30 ,QB,Jalen Hurts,$40 ,WR,DK Metcalf,$70 ,WR,Justin Jefferson,$34 ,WR,Jaylen Waddle,$30 ,TE,Travis Kelce,$63 ,RB,Saquon Barkley,$40 ,RB,James Cook,$28 ,WR,Nico Collins,$47 ,RB,Joe Mixon,$69 ,RB,Jahmyr Gibbs,$25 ,WR,Stefon Diggs,$48 ,RB,De'Von Achane,$27 ,WR,Rashee Rice,$78 ,WR,CeeDee Lamb
+4,$32 ,WR,DeVonta Smith,$47 ,RB,Alvin Kamara,$13 ,QB,Jayden Daniels,$39 ,WR,Malik Nabers,$24 ,QB,Patrick Mahomes II,$14 ,RB,Jonathon Brooks,$3 ,K,Harrison Butker,$43 ,WR,Mike Evans,$44 ,WR,Deebo Samuel Sr.,$23 ,WR,Zay Flowers,$23 ,RB,Rhamondre Stevenson,$26 ,TE,Sam LaPorta,$38 ,RB,Kenneth Walker III,$17 ,RB,Austin Ekeler
+5,$14 ,WR,Calvin Ridley,$1 ,K,Younghoe Koo,$8 ,TE,Kyle Pitts,$23 ,WR,Terry McLaurin,$36 ,WR,Davante Adams,$29 ,WR,Brandon Aiyuk,$4 ,DEF,Cleveland Browns,$11 ,RB,Chase Brown,$15 ,WR,Tank Dell,$46 ,RB,Josh Jacobs,$25 ,WR,Tee Higgins,$20 ,RB,James Conner,$1 ,DEF,Houston Texans,$9 ,RB,Nick Chubb
+6,$4 ,TE,David Njoku,$15 ,TE,Dalton Kincaid,$16 ,RB,Javonte Williams,$3 ,RB,Jordan Mason,$19 ,RB,David Montgomery,$14 ,RB,D'Andre Swift,$20 ,QB,Lamar Jackson,$23 ,RB,Aaron Jones,$3 ,QB,Trevor Lawrence,$3 ,DEF,Baltimore Ravens,$6 ,WR,Keon Coleman,$15 ,QB,Kyler Murray,$13 ,WR,Xavier Worthy,$19 ,RB,Zamir White
+7,$7 ,WR,Christian Watson,$12 ,RB,Brian Robinson Jr.,$3 ,RB,Gus Edwards,$8 ,QB,Dak Prescott,$21 ,RB,Najee Harris,$14 ,WR,Chris Godwin,$21 ,WR,Amari Cooper,$12 ,QB,C.J. Stroud,$2 ,K,Justin Tucker,$8 ,RB,Devin Singletary,$2 ,QB,Justin Herbert,$8 ,WR,Christian Kirk,$2 ,QB,Kirk Cousins,$1 ,K,Ka'imi Fairbairn
+8,$4 ,WR,Gabe Davis,$3 ,QB,Jared Goff,$1 ,QB,Tua Tagovailoa,$14 ,TE,Trey McBride,$2 ,K,Brandon Aubrey,$6 ,RB,Blake Corum,$8 ,WR,DeAndre Hopkins,$2 ,DEF,San Francisco 49ers,$5 ,QB,Joe Burrow,$1 ,K,Jason Sanders,$3 ,RB,Braelon Allen,$3 ,WR,Rome Odunze,$3 ,QB,Jordan Love,$1 ,QB,Bo Nix
+9,$1 ,RB,Will Shipley,$5 ,WR,Joshua Palmer,$1 ,RB,Khalil Herbert,$1 ,DEF,Dallas Cowboys,$3 ,DEF,New York Jets,$9 ,WR,Diontae Johnson,$3 ,TE,Dallas Goedert,$1 ,K,Jake Elliott,$2 ,DEF,Pittsburgh Steelers,$1 ,WR,Xavier Legette,$1 ,TE,Dalton Schultz,$4 ,RB,Rico Dowdle,$5 ,WR,Jaxon Smith-Njigba,$1 ,TE,Luke Musgrave
+10,$1 ,K,Cameron Dicker,$2 ,RB,Tyler Allgeier,$2 ,WR,Romeo Doubs,$9 ,RB,Jerome Ford,$14 ,WR,George Pickens,$9 ,RB,Tony Pollard,$2 ,WR,Jakobi Meyers,$4 ,RB,Chuba Hubbard,$6 ,TE,Brock Bowers,$2 ,WR,Brandin Cooks,$1 ,WR,Tyler Lockett,$4 ,WR,Hollywood Brown,$1 ,RB,Zach Charbonnet,$1 ,RB,Tyrone Tracy Jr.
+11,$1 ,DEF,Chicago Bears,$1 ,WR,Adam Thielen,$1 ,DEF,New England Patriots,$1 ,K,Tyler Bass,$4 ,RB,Ezekiel Elliott,$9 ,RB,Zack Moss,$1 ,RB,Clyde Edwards-Helaire,$3 ,WR,Ladd McConkey,$2 ,WR,Khalil Shakir,$1 ,TE,Pat Freiermuth,$1 ,WR,Rashid Shaheed,$2 ,RB,Trey Benson,$3 ,TE,Jake Ferguson,$1 ,WR,Ja'Lynn Polk
+12,$1 ,RB,Jeff Wilson Jr.,$3 ,WR,Courtland Sutton,$1 ,RB,Emanuel Wilson,$1 ,WR,Ricky Pearsall,$10 ,WR,Keenan Allen,$1 ,WR,Dontayvion Wicks,$1 ,WR,Zay Jones,$1 ,TE,T.J. Hockenson,$2 ,RB,Tank Bigsby,$2 ,RB,Antonio Gibson,$1 ,DEF,Miami Dolphins,$1 ,RB,MarShawn Lloyd,$3 ,RB,Ty Chandler,$1 ,QB,Baker Mayfield
+13,$1 ,QB,Daniel Jones,$2 ,QB,Caleb Williams,$1 ,K,Greg Zuerlein,$1 ,WR,Adonai Mitchell,$8 ,RB,Jaylen Warren,$1 ,K,Evan McPherson,$2 ,WR,Curtis Samuel,$1 ,TE,Noah Fant,$3 ,RB,Jaleel McLaughlin,$3 ,RB,Kimani Vidal,$1 ,K,Cairo Santos,$3 ,WR,Jameson Williams,$6 ,WR,Brian Thomas Jr.,$1 ,RB,Justice Hill
+14,$1 ,RB,Jerick McKinnon,$2 ,WR,DeMario Douglas,$1 ,WR,Jalin Hyatt,$1 ,RB,Alexander Mattison,$2 ,WR,Jerry Jeudy,$1 ,DEF,Seattle Seahawks,$2 ,WR,Jahan Dotson,$1 ,RB,Keaton Mitchell,$3 ,WR,Jordan Addison,$1 ,WR,Darnell Mooney,$1 ,RB,Kendre Miller,$1 ,DEF,Kansas City Chiefs,$7 ,RB,J.K. Dobbins,$1 ,DEF,Buffalo Bills
+15,$1 ,RB,Kareem Hunt,$1 ,RB,Ray Davis,$1 ,TE,Dawson Knox,$1 ,WR,Van Jefferson,$2 ,WR,Mike Williams,$2 ,QB,Brock Purdy,$1 ,QB,Matthew Stafford,$1 ,WR,Odell Beckham Jr.,$1 ,TE,Cole Kmet,$1 ,RB,Jaylen Wright,$1 ,TE,Taysom Hill,$1 ,K,Matt Gay,$4 ,TE,Evan Engram,$1 ,WR,DJ Chark Jr.
+16,$1 ,DEF,Washington Commanders,$1 ,DEF,Cincinnati Bengals,$1 ,RB,Ty Johnson,$1 ,QB,Aaron Rodgers,$2 ,RB,Jamaal Williams,$1 ,WR,Josh Downs,$1 ,RB,Trey Sermon,$1 ,RB,Deuce Vaughn,$1 ,RB,Dameon Pierce,$1 ,WR,Michael Wilson,$1 ,QB,Deshaun Watson,$1 ,QB,Drake Maye,$2 ,RB,Bucky Irving,$1 ,TE,Isaiah Likely
+Spent,$200,,,$198,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,
+Budget,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,,$200,,
+Available,$0,,,$2,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,,$0,,
+Slots,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0,Selected,Available,0
+QB,2,3,,2,3,,2,3,,2,3,,1,3,,2,3,,2,3,,1,3,,2,3,,1,3,,2,3,,2,3,,2,3,,2,3,
+RB,6,6,,5,6,,5,6,,5,6,,6,6,,6,6,,5,6,,5,6,,5,6,,6,6,,4,6,,5,6,,6,6,,5,6,
+WR,4,6,,6,6,,5,6,,6,6,,5,6,,5,6,,6,6,,6,6,,5,6,,6,6,,6,6,,6,6,,5,6,,5,6,
+TE,1,2,,1,2,,2,2,,1,2,,2,2,,1,2,,1,2,,2,2,,2,2,,1,2,,2,2,,1,2,,2,2,,2,2,
+DEF,2,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,
+K,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,1,2,,0,2,,1,2,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CHECK1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CHECK2,Remaining,Max Bid,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 01,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 02,$2,$3 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 03,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 04,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 05,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 06,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 07,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 08,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 09,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 10,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 11,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 12,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 13,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Owner 14,$0,$1 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

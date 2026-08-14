@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify public data policy
+        run: npm run guard:data
+
       - name: Verify React frontend architecture and behavior
         run: npm run verify:web
 

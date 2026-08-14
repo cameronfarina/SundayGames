@@ -36,7 +36,10 @@ COPY --from=build --chown=node:node /app/dist/src ./dist/src
 COPY --from=build --chown=node:node /app/dist/config ./dist/config
 COPY --from=build --chown=node:node /app/dist/web ./dist/web
 COPY --chown=node:node package.json package-lock.json ./
-COPY --chown=node:node data/raw ./data/raw
+COPY --chown=node:node data/raw/espn-projections-2026-weeks-1-4.json ./data/raw/espn-projections-2026-weeks-1-4.json
+COPY --chown=node:node data/raw/player-evidence-2026-initial.csv ./data/raw/player-evidence-2026-initial.csv
+COPY --chown=node:node data/raw/season-long-projections-2026.json ./data/raw/season-long-projections-2026.json
+COPY --chown=node:node data/raw/fantasy-draft-rankings-2026 ./data/raw/fantasy-draft-rankings-2026
 
 RUN install -d -o node -g node /var/lib/mockd/draft-tools
 

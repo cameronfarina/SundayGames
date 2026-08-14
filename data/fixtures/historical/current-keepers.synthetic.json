@@ -1,0 +1,18 @@
+[
+  {
+    "owner": "Owner 01",
+    "player": "Example Running Back",
+    "position": "RB",
+    "priorCost": 4,
+    "newCost": 5,
+    "status": "confirmed"
+  },
+  {
+    "owner": "Owner 02",
+    "player": "Example Wide Receiver",
+    "position": "WR",
+    "priorCost": 9,
+    "newCost": 11,
+    "status": "assumed"
+  }
+]

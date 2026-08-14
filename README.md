@@ -183,13 +183,24 @@ claimed teams and existing league members cannot receive another invitation.
 
 ## Historical Data
 
-The manually exported draft boards are committed as source inputs:
+The repository defaults to synthetic historical boards under
+`data/fixtures/historical`. They retain league-wide prices, positions, player
+pool, roster shape, season spend totals, and deterministic model calibration,
+but replace manager identifiers with generic owners. They are test and
+development inputs, not an identity-bearing league export.
 
-```text
-data/raw/2023-board.csv
-data/raw/2024-board.csv
-data/raw/2025-board.csv
+Private exports belong outside the repository. To run local calibration with
+private boards, place `2023-board.csv`, `2024-board.csv`, and `2025-board.csv`
+in an ignored directory and opt in explicitly:
+
+```bash
+MOCKD_HISTORICAL_BOARD_DIRECTORY="$PWD/.mockd/private-source-data" npm run profiles
 ```
+
+The production image does not include synthetic or private historical boards.
+It copies only the approved public projection, evidence, and ranking inputs.
+`npm run guard:data` enforces these repository and image-input boundaries in
+CI.
 
 The TypeScript parser converts each wide draft-board CSV into normalized records with this schema:
 
@@ -197,7 +208,13 @@ The TypeScript parser converts each wide draft-board CSV into normalized records
 season,owner,rosterRow,originalPlayerName,normalizedPlayerName,position,price,isKeeper,acquisitionType,source
 ```
 
-Keeper rows come from roster row `1` for each owner. `DEF` is normalized to `DST`. Seth's missing 2023 sixteenth slot is represented as a $1 Seattle Seahawks post-draft waiver DST placeholder.
+Keeper rows come from roster row `1` for each owner. `DEF` is normalized to
+`DST`. A missing 2023 sixteenth slot is represented as a $1 post-draft waiver
+DST placeholder so season-level economics remain complete.
+
+Removing private files from the current branch does not remove them from prior
+Git commits. Purging public Git history and rotating repository visibility are
+separate, explicit administrative operations.
 
 ## Owner Profiles
 
@@ -215,9 +232,15 @@ Run:
 npm run profiles
 ```
 
-The profile output includes each owner's weighted open-auction spend by QB/RB/WR/TE, roster-count tendencies by position, normal K/DST spending, top-two concentration, $1 player tendency, average keeper cost, and derived profile label. Known execution-error bids, such as Tye's 2025 $29 kicker budget dump, are excluded from normal K/DST calibration while remaining part of the raw historical board.
+The profile output includes each owner's weighted open-auction spend by
+QB/RB/WR/TE, roster-count tendencies by position, normal K/DST spending,
+top-two concentration, $1 player tendency, average keeper cost, and derived
+profile label. Known execution-error bids are excluded from normal K/DST
+calibration while remaining part of the private source dataset.
 
-The same profile data now derives auction behavior knobs used by mocks: position demand multipliers, price aggression, scarcity chasing, anchor-buy aggression, depth-buy discipline, and replacement-level patience. High top-two concentration nudges an owner toward stronger anchor bids without blindly inflating depth bids; high $1-player tendency still nudges that owner toward more back-end patience.
+The same profile data derives auction behavior knobs used by mocks: position
+demand multipliers, price aggression, scarcity chasing, anchor-buy aggression,
+depth-buy discipline, and replacement-level patience.
 
 ## Projection, Pricing, And Inflation
 

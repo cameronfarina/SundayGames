@@ -13,6 +13,7 @@
     "budget:web": "tsx scripts/check-web-bundle-budget.ts",
     "dev": "tsx scripts/start-local-preview.ts",
     "guard:web": "tsx scripts/frontend-architecture-guard.ts",
+    "guard:data": "tsx scripts/check-public-data-policy.ts",
     "lint:web": "eslint web",
     "test:web": "vitest run --config web/vitest.config.ts",
     "test:web:coverage": "vitest run --config web/vitest.config.ts --coverage",
