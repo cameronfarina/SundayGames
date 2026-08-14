@@ -108,6 +108,23 @@ class FakePostgresJobClient implements PostgresTransactionalQueryClient {
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
 
+    if (normalizedSql.startsWith("DELETE FROM jobs WHERE id IN")) {
+      const userId = values[0];
+      const retentionLimit = values[1];
+      if (typeof userId !== "string" || typeof retentionLimit !== "number") {
+        throw new Error("Expected a user ID and retention limit.");
+      }
+      const terminalRows = [...this.rows.values()]
+        .filter(row => row.user_id === userId && ["completed", "failed", "canceled"].includes(row.status))
+        .sort((left, right) => {
+          const createdAtOrder = right.created_at.getTime() - left.created_at.getTime();
+
+          return createdAtOrder === 0 ? right.id.localeCompare(left.id) : createdAtOrder;
+        });
+      for (const row of terminalRows.slice(retentionLimit)) this.rows.delete(row.id);
+      return { rows: [], rowCount: 0 };
+    }
+
     if (normalizedSql.startsWith("INSERT INTO jobs")) {
       const row = this.#rowFromInsert(values);
       const existing = this.#findByIdempotency(
@@ -624,7 +641,7 @@ describe("Postgres job queue", () => {
       startedAt: claimedAt,
       updatedAt: claimedAt,
     });
-    expect(client.transactionCount).toBe(1);
+    expect(client.transactionCount).toBe(3);
     const claimQuery = client.queries.find(query => normalizeSql(query.text) === normalizeSql(claimNextJobSql));
     expect(claimQuery).toMatchObject({ inTransaction: true });
     expect(claimQuery?.text).toContain("FOR UPDATE SKIP LOCKED");
@@ -1166,9 +1183,9 @@ describe("Postgres job queue", () => {
       workerId: "worker_a",
       now: new Date(now.getTime() + 1_000),
     })).rejects.toThrow("claim query failed");
-    expect(client.transactionCount).toBe(1);
+    expect(client.transactionCount).toBe(2);
     expect(client.rollbackCount).toBe(1);
-    expect(client.commitCount).toBe(0);
+    expect(client.commitCount).toBe(1);
   });
 
   it("dispatches platform jobs through the Postgres adapter", async () => {

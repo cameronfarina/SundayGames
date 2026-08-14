@@ -1,4 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
+import {
+  simulationRerunIdempotencyKey,
+  simulationRunIdForJob,
+} from "./jobRerunPolicy.js";
+import {
+  jobHistoryPageFor,
+  maximumRetainedTerminalJobsPerUser,
+  normalizedJobHistoryLimit,
+  parseJobHistoryCursor,
+  type JobHistoryPage,
+  type ListJobsForUserInput,
+} from "./jobHistory.js";
 
 export type JobKind = "import" | "model_run" | "simulation" | "export";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "canceled";
@@ -6,9 +18,11 @@ export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancele
 export type JobErrorCode =
   | "idempotency_conflict"
   | "idempotency_key_required"
+  | "invalid_job_cursor"
   | "job_not_found"
   | "job_owner_required"
   | "job_not_running"
+  | "job_already_active"
   | "job_lock_mismatch"
   | "job_not_claimable"
   | "job_not_terminal";
@@ -142,6 +156,7 @@ export interface JobRepository {
   cancelJob(input: CancelJobInput): MaybePromise<JobRecord>;
   cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): MaybePromise<JobRecord>;
   rerunJob(input: RerunJobInput): MaybePromise<JobRecord>;
+  listPageForUser(input: ListJobsForUserInput): MaybePromise<JobHistoryPage>;
   listForUser(userId: string): MaybePromise<JobRecord[]>;
   fetchForUser(jobId: string, userId: string): MaybePromise<JobRecord | null>;
 }
@@ -322,6 +337,7 @@ export class InMemoryJobQueue implements JobRepository {
     job.finishedAt = now;
     job.updatedAt = now;
     this.#clearLock(job);
+    this.#pruneTerminalHistory(job.userId);
 
     return job;
   }
@@ -335,6 +351,7 @@ export class InMemoryJobQueue implements JobRepository {
       job.finishedAt = now;
       job.updatedAt = now;
       this.#clearLock(job);
+      this.#pruneTerminalHistory(job.userId);
 
       return job;
     }
@@ -351,6 +368,7 @@ export class InMemoryJobQueue implements JobRepository {
 
     job.status = "failed";
     job.finishedAt = now;
+    this.#pruneTerminalHistory(job.userId);
 
     return job;
   }
@@ -364,6 +382,7 @@ export class InMemoryJobQueue implements JobRepository {
       job.cancellationRequestedAt = now;
       job.finishedAt = now;
       job.updatedAt = now;
+      this.#pruneTerminalHistory(job.userId);
       return job;
     }
 
@@ -388,6 +407,7 @@ export class InMemoryJobQueue implements JobRepository {
     job.finishedAt = now;
     job.updatedAt = now;
     this.#clearLock(job);
+    this.#pruneTerminalHistory(job.userId);
 
     return job;
   }
@@ -404,6 +424,11 @@ export class InMemoryJobQueue implements JobRepository {
       throw new JobError("idempotency_key_required", "Rerun jobs require an idempotency key.");
     }
 
+    const simulationRunId = simulationRunIdForJob(originalJob);
+    if (simulationRunId !== undefined) {
+      return this.#rerunSimulationJob(originalJob, simulationRunId, input.now ?? new Date());
+    }
+
     return this.submit({
       userId: originalJob.userId,
       leagueId: originalJob.leagueId,
@@ -418,6 +443,26 @@ export class InMemoryJobQueue implements JobRepository {
 
   listForUser(userId: string): JobRecord[] {
     return [...this.#jobsById.values()].filter(job => job.userId === userId);
+  }
+
+  listPageForUser(input: ListJobsForUserInput): JobHistoryPage {
+    const cursor = input.cursor === undefined ? undefined : parseJobHistoryCursor(input.cursor);
+    if (cursor === null) {
+      throw new JobError("invalid_job_cursor", "Job history cursor is invalid.");
+    }
+    const records = [...this.#jobsById.values()]
+      .filter(job => job.userId === input.userId)
+      .filter(job => cursor === undefined ||
+        job.createdAt.getTime() < cursor.createdAt.getTime() ||
+        (job.createdAt.getTime() === cursor.createdAt.getTime() && job.id < cursor.id))
+      .sort((left, right) => {
+        const createdAtOrder = right.createdAt.getTime() - left.createdAt.getTime();
+
+        return createdAtOrder === 0 ? right.id.localeCompare(left.id) : createdAtOrder;
+      });
+    const limit = normalizedJobHistoryLimit(input.limit);
+
+    return jobHistoryPageFor(records.slice(0, limit + 1), limit);
   }
 
   fetchForUser(jobId: string, userId: string): JobRecord | null {
@@ -454,6 +499,74 @@ export class InMemoryJobQueue implements JobRepository {
       ),
       job.id,
     );
+  }
+
+  #pruneTerminalHistory(userId: string): void {
+    const terminalJobs = [...this.#jobsById.values()]
+      .filter(job => job.userId === userId && isTerminalJob(job))
+      .sort((left, right) => {
+        const createdAtOrder = right.createdAt.getTime() - left.createdAt.getTime();
+
+        return createdAtOrder === 0 ? right.id.localeCompare(left.id) : createdAtOrder;
+      });
+
+    for (const job of terminalJobs.slice(maximumRetainedTerminalJobsPerUser)) {
+      this.#jobsById.delete(job.id);
+      this.#jobIdsByIdempotencyKey.delete(idempotencyIndexKey(
+        job.userId,
+        job.leagueId,
+        job.seasonId,
+        job.idempotencyKey,
+      ));
+    }
+  }
+
+  #rerunSimulationJob(originalJob: JobRecord, simulationRunId: string, now: Date): JobRecord {
+    const idempotencyKey = simulationRerunIdempotencyKey(simulationRunId);
+    const indexKey = idempotencyIndexKey(
+      originalJob.userId,
+      originalJob.leagueId,
+      originalJob.seasonId,
+      idempotencyKey,
+    );
+    const existingId = this.#jobIdsByIdempotencyKey.get(indexKey);
+    const existing = existingId === undefined ? undefined : this.#jobsById.get(existingId);
+
+    if (existing !== undefined) {
+      if (!isTerminalJob(existing)) {
+        throw new JobError(
+          "job_already_active",
+          "A rerun is already queued or running for this simulation.",
+        );
+      }
+
+      existing.status = "queued";
+      existing.progress = { completed: 0, total: 1, message: "Queued" };
+      existing.attempts = 0;
+      existing.workerId = undefined;
+      existing.lockedAt = undefined;
+      existing.heartbeatAt = undefined;
+      existing.lockExpiresAt = undefined;
+      existing.startedAt = undefined;
+      existing.finishedAt = undefined;
+      existing.cancellationRequestedAt = undefined;
+      existing.resultSummary = undefined;
+      existing.sanitizedError = undefined;
+      existing.createdAt = now;
+      existing.updatedAt = now;
+      return existing;
+    }
+
+    return this.submit({
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      inputJson: originalJob.inputJson,
+      idempotencyKey,
+      maxAttempts: originalJob.maxAttempts,
+      now,
+    });
   }
 
   #findJobForUser(jobId: string, userId: string): JobRecord {

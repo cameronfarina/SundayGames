@@ -24,6 +24,18 @@ import {
   type SubmitJobInput,
   type UpdateJobProgressInput,
 } from "./jobs.js";
+import {
+  simulationRerunIdempotencyKey,
+  simulationRunIdForJob,
+} from "./jobRerunPolicy.js";
+import {
+  jobHistoryPageFor,
+  maximumRetainedTerminalJobsPerUser,
+  normalizedJobHistoryLimit,
+  parseJobHistoryCursor,
+  type JobHistoryPage,
+  type ListJobsForUserInput,
+} from "./jobHistory.js";
 import type {
   PostgresQueryClient,
   PostgresQueryResult,
@@ -62,6 +74,33 @@ interface JobRow {
 const queuedProgress: JobProgress = { completed: 0, total: 1, message: "Queued" };
 const completedProgress: JobProgress = { completed: 1, total: 1, message: "Completed" };
 const cancelStatusRaceRetryLimit = 3;
+
+const simulationRerunSql = `
+INSERT INTO jobs (
+  id, user_id, league_id, league_season_id, kind, status, idempotency_key,
+  input_hash, input_json, progress_json, attempt_count, max_attempts,
+  available_at, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, 'queued', $6, $7, $8::jsonb, $9::jsonb, 0, $10, $11, $11, $11)
+ON CONFLICT ON CONSTRAINT jobs_user_league_season_idempotency_key DO UPDATE
+SET status = 'queued',
+    progress_json = EXCLUDED.progress_json,
+    attempt_count = 0,
+    available_at = EXCLUDED.available_at,
+    locked_by = NULL,
+    locked_at = NULL,
+    heartbeat_at = NULL,
+    lock_expires_at = NULL,
+    started_at = NULL,
+    finished_at = NULL,
+    cancellation_requested_at = NULL,
+    result_summary_json = NULL,
+    sanitized_error_json = NULL,
+    error_summary = NULL,
+    created_at = EXCLUDED.created_at,
+    updated_at = EXCLUDED.updated_at
+WHERE jobs.status IN ('completed', 'failed', 'canceled')
+RETURNING jobs.*;
+`.trim();
 
 const firstRow = <TRow>(result: PostgresQueryResult<TRow>): TRow | undefined => result.rows[0];
 
@@ -189,9 +228,16 @@ export class PostgresJobQueue implements JobRepository {
   }
 
   async submit(input: SubmitJobInput): Promise<JobRecord> {
+    return await this.#client.transaction(async transactionClient => {
+      await this.#pruneTerminalHistory(input.userId, transactionClient);
+      return await this.#submit(input, transactionClient);
+    });
+  }
+
+  async #submit(input: SubmitJobInput, client: PostgresQueryClient): Promise<JobRecord> {
     const now = input.now ?? new Date();
     const inputHash = hashJobInput(input.inputJson);
-    const result = await this.#client.query<JobRow>(
+    const result = await client.query<JobRow>(
       `
 INSERT INTO jobs (
   id,
@@ -230,7 +276,7 @@ RETURNING *;
     const inserted = firstRow(result);
     if (inserted !== undefined) return jobFromRow(inserted);
 
-    const existing = await this.#findByIdempotencyKey(input);
+    const existing = await this.#findByIdempotencyKey(input, client);
     if (existing === null) {
       throw new Error("Postgres job idempotency conflict did not return an existing row.");
     }
@@ -481,6 +527,11 @@ RETURNING *;
       throw new JobError("idempotency_key_required", "Rerun jobs require an idempotency key.");
     }
 
+    const simulationRunId = simulationRunIdForJob(originalJob);
+    if (simulationRunId !== undefined) {
+      return await this.#rerunSimulationJob(originalJob, simulationRunId, input.now ?? new Date());
+    }
+
     return await this.submit({
       userId: originalJob.userId,
       leagueId: originalJob.leagueId,
@@ -493,6 +544,53 @@ RETURNING *;
     });
   }
 
+  async #rerunSimulationJob(
+    originalJob: JobRecord,
+    simulationRunId: string,
+    now: Date,
+  ): Promise<JobRecord> {
+    const idempotencyKey = simulationRerunIdempotencyKey(simulationRunId);
+    const lookupInput: SubmitJobInput = {
+      userId: originalJob.userId,
+      leagueId: originalJob.leagueId,
+      seasonId: originalJob.seasonId,
+      kind: originalJob.kind,
+      inputJson: originalJob.inputJson,
+      idempotencyKey,
+      maxAttempts: originalJob.maxAttempts,
+      now,
+    };
+
+    return await this.#client.transaction(async transactionClient => {
+      await this.#pruneTerminalHistory(originalJob.userId, transactionClient);
+      const result = await transactionClient.query<JobRow>(simulationRerunSql, [
+        createJobId(),
+        originalJob.userId,
+        originalJob.leagueId,
+        originalJob.seasonId,
+        originalJob.kind,
+        idempotencyKey,
+        originalJob.inputHash,
+        jsonbParameter(originalJob.inputJson),
+        jsonbParameter(queuedProgress),
+        originalJob.maxAttempts,
+        now,
+      ]);
+      const row = firstRow(result);
+      if (row !== undefined) return jobFromRow(row);
+
+      const activeJob = await this.#findByIdempotencyKey(lookupInput, transactionClient);
+      if (activeJob !== null && !isTerminalJob(activeJob)) {
+        throw new JobError(
+          "job_already_active",
+          "A rerun is already queued or running for this simulation.",
+        );
+      }
+
+      throw new Error("Postgres simulation rerun conflict did not return an active job.");
+    });
+  }
+
   async listForUser(userId: string): Promise<JobRecord[]> {
     const result = await this.#client.query<JobRow>(
       "SELECT * FROM jobs WHERE user_id = $1 ORDER BY created_at ASC, id ASC",
@@ -500,6 +598,33 @@ RETURNING *;
     );
 
     return result.rows.map(jobFromRow);
+  }
+
+  async listPageForUser(input: ListJobsForUserInput): Promise<JobHistoryPage> {
+    const cursor = input.cursor === undefined ? undefined : parseJobHistoryCursor(input.cursor);
+    if (cursor === null) {
+      throw new JobError("invalid_job_cursor", "Job history cursor is invalid.");
+    }
+    const limit = normalizedJobHistoryLimit(input.limit);
+    return await this.#client.transaction(async transactionClient => {
+      await this.#pruneTerminalHistory(input.userId, transactionClient);
+      const result = await transactionClient.query<JobRow>(`
+SELECT *
+FROM jobs
+WHERE user_id = $1
+  AND (
+    $2::timestamptz IS NULL
+    OR created_at < $2
+    OR (created_at = $2 AND id < $3)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $4;
+`.trim(),
+        [input.userId, cursor?.createdAt ?? null, cursor?.id ?? null, limit + 1],
+      );
+
+      return jobHistoryPageFor(result.rows.map(jobFromRow), limit);
+    });
   }
 
   async fetchForUser(jobId: string, userId: string): Promise<JobRecord | null> {
@@ -512,8 +637,11 @@ RETURNING *;
     return row === undefined ? null : jobFromRow(row);
   }
 
-  async #findByIdempotencyKey(input: SubmitJobInput): Promise<JobRecord | null> {
-    const result = await this.#client.query<JobRow>(
+  async #findByIdempotencyKey(
+    input: SubmitJobInput,
+    client: PostgresQueryClient = this.#client,
+  ): Promise<JobRecord | null> {
+    const result = await client.query<JobRow>(
       `
 SELECT *
 FROM jobs
@@ -534,6 +662,23 @@ WHERE user_id = $1
     const row = firstRow(result);
 
     return row === undefined ? null : jobFromRow(row);
+  }
+
+  async #pruneTerminalHistory(userId: string, client: PostgresQueryClient): Promise<void> {
+    await client.query(
+      `
+DELETE FROM jobs
+WHERE id IN (
+  SELECT id
+  FROM jobs
+  WHERE user_id = $1
+    AND status IN ('completed', 'failed', 'canceled')
+  ORDER BY created_at DESC, id DESC
+  OFFSET $2
+);
+`.trim(),
+      [userId, maximumRetainedTerminalJobsPerUser],
+    );
   }
 
   async #requireJobOwnedBy(jobId: string, userId: string): Promise<JobRecord> {

@@ -19,6 +19,7 @@ import {
   type SubmitJobInput,
   type UpdateJobProgressInput,
 } from "../src/platform/jobs.js";
+import type { JobHistoryPage, ListJobsForUserInput } from "../src/platform/jobHistory.js";
 import {
   buildCurrentMockdLeagueSeason,
   defaultScoringSettings,
@@ -1025,6 +1026,10 @@ class AsyncJobRepository implements JobRepository {
 
   async listForUser(userId: string): Promise<JobRecord[]> {
     return this.inner.listForUser(userId);
+  }
+
+  async listPageForUser(input: ListJobsForUserInput): Promise<JobHistoryPage> {
+    return this.inner.listPageForUser(input);
   }
 
   async fetchForUser(jobId: string, userId: string): Promise<JobRecord | null> {

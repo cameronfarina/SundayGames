@@ -120,6 +120,11 @@ jobs:
           MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
         run: npm test -- tests/postgresProductionProvisioning.integration.test.ts
 
+      - name: Run Postgres simulation rerun admission regression
+        env:
+          MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
+        run: npm test -- tests/postgresJobRerun.integration.test.ts
+
       - name: Run mutating production Postgres smoke
         env:
           MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd

@@ -785,6 +785,7 @@ const jobErrorStatus = (code: JobError["code"]): number => {
     case "job_not_found":
       return 404;
     case "idempotency_key_required":
+    case "invalid_job_cursor":
       return 400;
     case "idempotency_conflict":
       return 409;
@@ -792,6 +793,7 @@ const jobErrorStatus = (code: JobError["code"]): number => {
     case "job_owner_required":
       return 403;
     case "job_not_claimable":
+    case "job_already_active":
     case "job_not_running":
     case "job_not_terminal":
       return 409;
@@ -2073,12 +2075,14 @@ const routeJobs = async (
   if (request.segments.length === 1) {
     if (request.method !== "GET") return methodNotAllowed();
 
-    const jobs = await app.listJobs({
+    const page = await app.listJobs({
       actorSessionToken: request.sessionToken,
+      cursor: optionalString(request.query.cursor),
+      limit: optionalNumber(request.query.limit),
       now: request.now,
     });
 
-    return { status: 200, body: { jobs } };
+    return { status: 200, body: page };
   }
 
   if (request.segments.length === 3 && action === "cancel") {

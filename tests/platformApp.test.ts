@@ -14,6 +14,7 @@ import {
   PlatformAppError,
   createPlatformApp,
 } from "../src/platform/platformApp.js";
+import { JobError } from "../src/platform/jobs.js";
 import {
   LeagueCreationLimitError,
   type LeagueCreationLimits,
@@ -739,8 +740,14 @@ describe("platform app service", () => {
       kind: "simulation",
       status: "queued",
     });
-    await expect(app.listJobs({ actorSessionToken: cam.sessionToken })).resolves.toEqual([simulationJob]);
-    await expect(app.listJobs({ actorSessionToken: seth.sessionToken })).resolves.toEqual([]);
+    await expect(app.listJobs({ actorSessionToken: cam.sessionToken })).resolves.toMatchObject({
+      jobs: [expect.objectContaining({ id: simulationJob.id, kind: "simulation" })],
+      nextCursor: undefined,
+    });
+    await expect(app.listJobs({ actorSessionToken: seth.sessionToken })).resolves.toEqual({
+      jobs: [],
+      nextCursor: undefined,
+    });
     await expect(app.cancelJob({
       actorSessionToken: seth.sessionToken,
       jobId: simulationJob.id,
@@ -770,22 +777,24 @@ describe("platform app service", () => {
       idempotencyKey: "rerun-cam-puka-plan",
       now: new Date(now.getTime() + 800),
     });
-    const rerunAgain = await app.rerunJob({
+    await expect(app.rerunJob({
       actorSessionToken: cam.sessionToken,
       jobId: simulationJob.id,
-      idempotencyKey: "rerun-cam-puka-plan",
+      idempotencyKey: "different-active-key",
       now: new Date(now.getTime() + 850),
-    });
+    })).rejects.toThrow(new JobError(
+      "job_already_active",
+      "A rerun is already queued or running for this simulation.",
+    ));
 
     expect(rerunJob).toMatchObject({
       id: expect.stringMatching(/^job_/),
       status: "queued",
       kind: "simulation",
       inputJson: simulationJob.inputJson,
-      idempotencyKey: `rerun:${simulationJob.id}:rerun-cam-puka-plan`,
+      idempotencyKey: `simulation-rerun:${simulation.id}`,
     });
     expect(rerunJob.id).not.toBe(simulationJob.id);
-    expect(rerunAgain).toEqual(rerunJob);
     await expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
@@ -799,6 +808,11 @@ describe("platform app service", () => {
       runId: simulation.id,
       now: new Date(now.getTime() + 860),
     });
+    await app.cancelJob({
+      actorSessionToken: cam.sessionToken,
+      jobId: rerunJob.id,
+      now: new Date(now.getTime() + 865),
+    });
     const rerunAfterCompletion = await app.rerunJob({
       actorSessionToken: cam.sessionToken,
       jobId: simulationJob.id,
@@ -806,14 +820,19 @@ describe("platform app service", () => {
       now: new Date(now.getTime() + 870),
     });
     expect(completedRerunSimulation.status).toBe("completed");
-    expect(rerunAfterCompletion).toEqual(rerunJob);
+    expect(rerunAfterCompletion.id).toBe(rerunJob.id);
     await expect(app.getSimulationRun({
       actorSessionToken: cam.sessionToken,
       runId: simulation.id,
     })).resolves.toMatchObject({
       id: simulation.id,
-      status: "completed",
-      result: expect.objectContaining({ runCount: 25 }),
+      status: "requested",
+      result: undefined,
+    });
+    await app.executeSimulationRun({
+      actorSessionToken: cam.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 872),
     });
     await expect(app.rerunJob({
       actorSessionToken: seth.sessionToken,

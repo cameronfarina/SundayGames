@@ -43,10 +43,10 @@ import {
 import type { HistoricalPlayerMapping } from "./platformHistoricalImportWorkflow.js";
 import {
   InMemoryJobQueue,
-  jobRerunIdempotencyKeyFor,
   type JobRecord,
   type JobRepository,
 } from "./jobs.js";
+import type { JobHistoryPage } from "./jobHistory.js";
 import type { LeagueSeason } from "./leagueSeason.js";
 import {
   assertLeagueCreationAllowed,
@@ -291,6 +291,8 @@ export interface GetPlatformSimulationRunInput {
 
 export interface ListPlatformJobsInput {
   actorSessionToken: string;
+  cursor?: string | undefined;
+  limit?: number | undefined;
   now?: Date | undefined;
 }
 
@@ -1607,10 +1609,14 @@ export const createPlatformApp = ({
       return cloneForRead(job);
     },
 
-    listJobs: async (input: ListPlatformJobsInput): Promise<readonly JobRecord[]> => {
+    listJobs: async (input: ListPlatformJobsInput): Promise<JobHistoryPage> => {
       const account = await requireAccount(input.actorSessionToken, input.now);
 
-      return (await jobs.listForUser(account.id)).map(job => cloneForRead(job));
+      return cloneForRead(await jobs.listPageForUser({
+        userId: account.id,
+        cursor: input.cursor,
+        limit: input.limit,
+      }));
     },
 
     getJob: async (input: GetPlatformJobInput): Promise<JobRecord> => {
@@ -1655,12 +1661,6 @@ export const createPlatformApp = ({
         throw new PlatformAppError("private_resource", "This job belongs to another user.");
       }
 
-      const rerunIdempotencyKey = jobRerunIdempotencyKeyFor(job.id, input.idempotencyKey.trim());
-      const existingRerunJob = (await jobs.listForUser(account.id)).find(candidateJob =>
-        candidateJob.leagueId === job.leagueId &&
-        candidateJob.seasonId === job.seasonId &&
-        candidateJob.idempotencyKey === rerunIdempotencyKey
-      );
       const rerunJob = await jobs.rerunJob({
         jobId: input.jobId,
         userId: account.id,
@@ -1668,7 +1668,7 @@ export const createPlatformApp = ({
         now: input.now,
       });
       const simulationRunId = simulationRunIdForJob(rerunJob);
-      if (existingRerunJob === undefined && rerunJob.status === "queued" && simulationRunId !== null) {
+      if (rerunJob.status === "queued" && simulationRunId !== null) {
         await simulations.resetForRerun(simulationRunId);
       }
 

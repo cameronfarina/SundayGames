@@ -4366,6 +4366,14 @@ describe("platform HTTP contract", () => {
     expect(listedJobs.body).toMatchObject({
       jobs: [expect.objectContaining({ kind: "simulation" })],
     });
+    await expect(handle({
+      method: "GET",
+      path: "/jobs?cursor=not-a-cursor",
+      sessionToken: cam.sessionToken,
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_job_cursor" } },
+    });
     const enqueuedJob = expectBodyRecord(enqueuedSimulationJob.body).job;
     if (!isRecord(enqueuedJob)) throw new Error("Expected job response.");
     const enqueuedJobId = expectString(enqueuedJob.id);
@@ -4421,11 +4429,30 @@ describe("platform HTTP contract", () => {
         job: expect.objectContaining({
           id: rerunJobId,
           status: "queued",
-          idempotencyKey: `rerun:${enqueuedJobId}:rerun-cam-puka-plan`,
+          idempotencyKey: `simulation-rerun:${simulationId}`,
         }),
       },
     });
     expect(rerunJobId).not.toBe(enqueuedJobId);
+
+    const duplicateRerun = await handle({
+      method: "POST",
+      path: `/jobs/${enqueuedJobId}/rerun`,
+      sessionToken: cam.sessionToken,
+      body: {
+        idempotencyKey: "different-client-key",
+        now: new Date(now.getTime() + 960).toISOString(),
+      },
+    });
+    expect(duplicateRerun).toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "job_already_active",
+          message: "A rerun is already queued or running for this simulation.",
+        },
+      },
+    });
 
     const listedSimulations = await handle({
       method: "GET",
