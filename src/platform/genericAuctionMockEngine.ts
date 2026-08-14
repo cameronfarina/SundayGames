@@ -1,4 +1,5 @@
 import { competitiveAuctionBidFor } from "./auctionPriceFormation.js";
+import { auctionCatalogCanFillOpenRosters } from "./auctionCatalogFeasibility.js";
 
 export type GenericAuctionMockStatus = "setup" | "active" | "completed";
 
@@ -406,13 +407,6 @@ const assertConfiguration = (config: GenericAuctionMockConfig): void => {
     throw new GenericAuctionMockError(
       "invalid_config",
       "Every roster and player position must have an explicit position maximum.",
-    );
-  }
-
-  if (config.players.length < config.teams.length * rosterCapacity) {
-    throw new GenericAuctionMockError(
-      "invalid_config",
-      "The player catalog cannot fill every team's roster.",
     );
   }
 
@@ -1671,8 +1665,7 @@ export const createGenericAuctionMockState = (
 ): GenericAuctionMockState => {
   assertConfiguration(config);
   const rosterCapacity = rosterCapacityFor(config);
-
-  return applyKeepers({
+  const preparedState = applyKeepers({
     configuration: config,
     nextNominatorIndex: 0,
     decisionHistory: [],
@@ -1713,6 +1706,19 @@ export const createGenericAuctionMockState = (
     sales: [],
     auctionEvents: [],
   });
+
+  if (!auctionCatalogCanFillOpenRosters({
+    players: preparedState.board.players,
+    teams: preparedState.teams,
+    positionMaximums: config.positionMaximums,
+  })) {
+    throw new GenericAuctionMockError(
+      "invalid_config",
+      "The player catalog cannot fill every team's remaining roster slots.",
+    );
+  }
+
+  return preparedState;
 };
 
 export const applyGenericAuctionMockCommand = (
