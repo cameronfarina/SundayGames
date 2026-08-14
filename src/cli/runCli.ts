@@ -1,0 +1,58 @@
+import { CliArguments } from "./arguments.js";
+import { runAuditCommand } from "./commands/auditCommand.js";
+import { runBacktestCommand } from "./commands/backtestCommand.js";
+import { runCalibrationCommand } from "./commands/calibrationCommand.js";
+import { runDraftReadyCommand } from "./commands/draftReadyCommand.js";
+import { runEvidenceAdaptCommand } from "./commands/evidenceAdaptCommand.js";
+import { runEvidenceCoverageCommand } from "./commands/evidenceCoverageCommand.js";
+import { runEvidenceQueueCommand } from "./commands/evidenceQueueCommand.js";
+import { runEvidenceTemplateCommand } from "./commands/evidenceTemplateCommand.js";
+import { runKeepersCommand } from "./commands/keepersCommand.js";
+import { runMockCommand } from "./commands/mockCommand.js";
+import { runMocksCommand } from "./commands/mocksCommand.js";
+import { runOutlierQueueCommand } from "./commands/outlierQueueCommand.js";
+import { runOutputsCommand } from "./commands/outputsCommand.js";
+import { runPricesCommand } from "./commands/pricesCommand.js";
+import { runProfilesCommand } from "./commands/profilesCommand.js";
+import { runQaCommand } from "./commands/qaCommand.js";
+import { runRankingsCommand } from "./commands/rankingsCommand.js";
+import { runSanityCommand } from "./commands/sanityCommand.js";
+import { runScenarioSensitivityCommand } from "./commands/scenarioSensitivityCommand.js";
+import { runScenariosCommand } from "./commands/scenariosCommand.js";
+import { runSmokeCommand } from "./commands/smokeCommand.js";
+import { runStrategyLabCommand } from "./commands/strategyLabCommand.js";
+import { runTeamsCommand } from "./commands/teamsCommand.js";
+import { runValidateCommand } from "./commands/validateCommand.js";
+import { cliUsage } from "./usage.js";
+
+export const runCli = async (values: readonly string[]): Promise<number | undefined> => {
+  const arguments_ = new CliArguments(values);
+  switch (arguments_.command) {
+    case "keepers": runKeepersCommand(); break;
+    case "profiles": await runProfilesCommand(); break;
+    case "rankings": await runRankingsCommand(); break;
+    case "prices": await runPricesCommand(arguments_); break;
+    case "scenarios": await runScenariosCommand(arguments_); break;
+    case "scenarios-sensitivity": await runScenarioSensitivityCommand(arguments_); break;
+    case "validate": await runValidateCommand(); break;
+    case "audit": await runAuditCommand(arguments_); break;
+    case "sanity": await runSanityCommand(arguments_); break;
+    case "evidence-queue": await runEvidenceQueueCommand(arguments_); break;
+    case "outliers-queue": await runOutlierQueueCommand(arguments_); break;
+    case "evidence-template": await runEvidenceTemplateCommand(arguments_); break;
+    case "evidence-adapt": await runEvidenceAdaptCommand(arguments_); break;
+    case "evidence-coverage": await runEvidenceCoverageCommand(arguments_); break;
+    case "mock": await runMockCommand(arguments_); break;
+    case "mocks": await runMocksCommand(arguments_); break;
+    case "strategy-lab": await runStrategyLabCommand(arguments_); break;
+    case "teams": await runTeamsCommand(arguments_); break;
+    case "draft-ready": return runDraftReadyCommand(arguments_);
+    case "smoke": await runSmokeCommand(arguments_); break;
+    case "calibration": await runCalibrationCommand(arguments_); break;
+    case "backtest": await runBacktestCommand(); break;
+    case "qa": return runQaCommand(arguments_);
+    case "outputs": await runOutputsCommand(arguments_); break;
+    default: console.log(cliUsage);
+  }
+  return undefined;
+};
