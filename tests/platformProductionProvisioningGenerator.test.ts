@@ -4,6 +4,7 @@ import { ownerOrder, type Owner } from "../config/league.js";
 import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import {
   generateProductionProvisioningDocument,
+  parseProductionOwnerAccountMappingDocument,
   type ProductionOwnerAccountMapping,
 } from "../src/platform/generateProductionProvisioning.js";
 import { parseProductionProvisioningDocument } from "../src/platform/productionProvisioning.js";
@@ -28,31 +29,23 @@ const completeInput = () => ({
 describe("production provisioning document generator", () => {
   it("generates the configured production league, complete catalog, and explicitly selected keepers", async () => {
     const content = await generateProductionProvisioningDocument(completeInput());
-    const raw = JSON.parse(content) as {
-      accounts: Array<Record<string, unknown>>;
-      catalog: Array<{ playerId: string; name: string }>;
-      initialRosters: Array<{ playerId: string }>;
-      keepers: Array<{ playerId: string }>;
-      memberships: Array<Record<string, unknown>>;
-      season: { teams: Array<Record<string, unknown>> };
-    };
     const currentCatalog = await loadCurrentPlayerCatalog();
     const selectedKeepers = keepers.filter(keeper => keeper.status === "confirmed");
     const document = parseProductionProvisioningDocument(content);
 
-    expect(raw.accounts).toHaveLength(ownerOrder.length);
-    expect(raw.memberships).toHaveLength(ownerOrder.length);
-    expect(raw.season.teams).toHaveLength(ownerOrder.length);
-    expect(raw.catalog.map(player => player.name)).toEqual(currentCatalog.map(player => player.name));
-    expect(raw.catalog).toHaveLength(currentCatalog.length);
-    expect(raw.keepers).toHaveLength(selectedKeepers.length);
-    expect(raw.initialRosters).toHaveLength(selectedKeepers.length);
+    expect(document.accounts).toHaveLength(ownerOrder.length);
+    expect(document.memberships).toHaveLength(ownerOrder.length);
+    expect(document.season.teams).toHaveLength(ownerOrder.length);
+    expect(document.catalog.map(player => player.name)).toEqual(currentCatalog.map(player => player.name));
+    expect(document.catalog).toHaveLength(currentCatalog.length);
+    expect(document.keepers).toHaveLength(selectedKeepers.length);
+    expect(document.initialRosters).toHaveLength(selectedKeepers.length);
     expect(document.initialRosters.map(player => player.playerName)).toEqual(
       selectedKeepers.map(keeper => keeper.player),
     );
-    expect(new Set(raw.catalog.map(player => player.playerId)).size).toBe(raw.catalog.length);
-    expect(new Set(raw.keepers.map(keeper => keeper.playerId))).toEqual(
-      new Set(raw.initialRosters.map(player => player.playerId)),
+    expect(new Set(document.catalog.map(player => player.playerId)).size).toBe(document.catalog.length);
+    expect(new Set(document.keepers.map(keeper => keeper.playerId))).toEqual(
+      new Set(document.initialRosters.map(player => player.playerId)),
     );
   });
 
@@ -133,14 +126,12 @@ describe("production provisioning document generator", () => {
 
   it("includes environment variable references without accepting password hashes", async () => {
     const content = await generateProductionProvisioningDocument(completeInput());
-    const raw = JSON.parse(content) as {
-      accounts: Array<{ passwordHashEnv: string; passwordHash?: string }>;
-    };
+    const document = parseProductionProvisioningDocument(content);
 
-    expect(raw.accounts.map(account => account.passwordHashEnv)).toEqual(
+    expect(document.accounts.map(account => account.passwordHashEnv)).toEqual(
       ownerOrder.map(passwordHashEnvFor),
     );
-    expect(raw.accounts.every(account => account.passwordHash === undefined)).toBe(true);
+    expect(content).not.toContain('"passwordHash":');
 
     const inputWithSecret = completeInput();
     await expect(generateProductionProvisioningDocument({
@@ -149,6 +140,35 @@ describe("production provisioning document generator", () => {
         ? { ...mapping, passwordHash: "must-not-be-accepted" }
         : mapping),
     })).rejects.toThrow(/unexpected field.*passwordHash/i);
+  });
+
+  it("parses, normalizes, and canonically orders an owner mapping document", () => {
+    const input = completeInput();
+    const parsed = parseProductionOwnerAccountMappingDocument(JSON.stringify({
+      ...input,
+      owners: [...input.owners].reverse().map(mapping => ({
+        ...mapping,
+        email: mapping.email.toUpperCase(),
+      })),
+      selectedKeepers: [...input.selectedKeepers].reverse(),
+    }));
+
+    expect(parsed.owners.map(mapping => mapping.owner)).toEqual(ownerOrder);
+    expect(parsed.owners.map(mapping => mapping.email)).toEqual(ownerOrder.map(owner =>
+      `${owner.toLowerCase()}@example.com`
+    ));
+    expect(parsed.selectedKeepers).toEqual(input.selectedKeepers);
+  });
+
+  it("rejects malformed mapping JSON without echoing its content", () => {
+    const secret = "do-not-echo-this-secret";
+    expect(() => parseProductionOwnerAccountMappingDocument(`{${secret}`))
+      .toThrow("Invalid production owner/account mapping at $: expected valid JSON.");
+    try {
+      parseProductionOwnerAccountMappingDocument(`{${secret}`);
+    } catch (error) {
+      expect(String(error)).not.toContain(secret);
+    }
   });
 
   it("rejects missing and unknown configured owners", async () => {
