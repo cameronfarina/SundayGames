@@ -1,13 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { LiveDraftWorkspace, type WorkspaceProps } from "./LiveDraftWorkspace";
-import {
-  liveDraftExportSchema,
-  liveDraftRoomSchema,
-  type LiveDraftExport,
-} from "../../api/liveDraftSchemas";
+import { renderLiveDraftWorkspace } from "./LiveDraftWorkspace.testSupport";
+import { liveDraftExportSchema, liveDraftRoomSchema, type LiveDraftExport } from "../../api/liveDraftSchemas";
 import { liveRoom } from "../../test/liveDraftFixtures";
 
 const endedRoom = liveDraftRoomSchema.parse({
@@ -38,7 +35,7 @@ describe("LiveDraftWorkspace failures", () => {
   it("refreshes after a stale room mutation", async () => {
     const user = userEvent.setup();
     const onRefresh = vi.fn(() => Promise.resolve());
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy={false}
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
@@ -58,7 +55,7 @@ describe("LiveDraftWorkspace failures", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const onAction = vi.fn(() => Promise.reject(new Error("Action failed")));
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy={false}
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
@@ -85,7 +82,7 @@ describe("LiveDraftWorkspace failures", () => {
     const onAction = vi.fn(() => Promise.reject(new PlatformApiError({
       code: "draft_incomplete", message: "Open slots", status: 409,
     })));
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy={false}
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
@@ -104,7 +101,7 @@ describe("LiveDraftWorkspace failures", () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onAction = vi.fn(() => Promise.reject(new Error("Room request failed")));
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy={false}
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
@@ -134,7 +131,7 @@ describe("LiveDraftWorkspace failures", () => {
       onRefresh: vi.fn(() => Promise.resolve()),
       room: endedRoom,
     };
-    const { rerender } = render(<LiveDraftWorkspace {...props} />);
+    const { rerender } = renderLiveDraftWorkspace(<LiveDraftWorkspace {...props} />);
 
     await user.click(screen.getByRole("button", { name: "Prepare final CSV" }));
     expect(await screen.findByText("Export failed")).toBeVisible();

@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveDraftWorkspace, type WorkspaceProps } from "./LiveDraftWorkspace";
+import { renderLiveDraftWorkspace } from "./LiveDraftWorkspace.testSupport";
 import { liveDraftRoomSchema } from "../../api/liveDraftSchemas";
 import { liveRoom } from "../../test/liveDraftFixtures";
 
@@ -26,7 +27,9 @@ describe("LiveDraftWorkspace actions", () => {
       onAction,
       onRefresh: vi.fn(() => Promise.resolve()),
     };
-    const { rerender } = render(<LiveDraftWorkspace {...props} room={liveRoom} />);
+    const { rerender } = renderLiveDraftWorkspace(
+      <LiveDraftWorkspace {...props} room={liveRoom} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Pause draft" }));
     await waitFor(() => { expect(onAction).toHaveBeenCalledWith({ action: "pause" }); });
@@ -42,7 +45,7 @@ describe("LiveDraftWorkspace actions", () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onAction = vi.fn(() => Promise.resolve(liveRoom));
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy={false}
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
@@ -64,7 +67,7 @@ describe("LiveDraftWorkspace actions", () => {
 
   it("prefills a player without an owner when no teams are available", async () => {
     const user = userEvent.setup();
-    render(<LiveDraftWorkspace
+    renderLiveDraftWorkspace(<LiveDraftWorkspace
       busy
       connection="connected"
       createExport={vi.fn(() => Promise.reject(new Error("not used")))}
