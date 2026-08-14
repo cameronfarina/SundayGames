@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HistoricalImportSection } from "../../components/HistoricalImportSection/HistoricalImportSection";
 import { InvitationSection } from "../../components/InvitationSection/InvitationSection";
@@ -44,11 +45,13 @@ export function CommissionerPage() {
         <a href="#draft-history">Draft history</a><a href="#league-invite">Invite</a>
         <a href="#live-room">Live room</a>
       </nav>
-      <LeagueSetupSection season={season} />
-      <KeeperSection keepers={workspace.keepers.data.keepers} season={season} />
-      <HistoricalImportSection season={season} />
-      <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
-      <LiveRoomSection league={workspace.selectedLeague} season={season} />
+      <Fragment key={season.id}>
+        <LeagueSetupSection season={season} />
+        <KeeperSection keepers={workspace.keepers.data.keepers} season={season} />
+        <HistoricalImportSection season={season} />
+        <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
+        <LiveRoomSection league={workspace.selectedLeague} season={season} />
+      </Fragment>
     </section>
   );
 }
