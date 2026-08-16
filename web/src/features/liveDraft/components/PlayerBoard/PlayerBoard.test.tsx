@@ -50,6 +50,42 @@ describe("PlayerBoard", () => {
     ]);
   });
 
+  it("breaks market ties by Mockd value and player name", () => {
+    render(<PlayerBoard
+      canManage={false}
+      onUsePlayer={vi.fn()}
+      players={[
+        {
+          expectedPrice: 10,
+          name: "Zeta Player",
+          normalizedPlayerName: "zeta player",
+          position: "RB",
+        },
+        {
+          expectedPrice: 12,
+          marketPrice: 10,
+          name: "Beta Player",
+          normalizedPlayerName: "beta player",
+          position: "WR",
+        },
+        {
+          expectedPrice: 12,
+          marketPrice: 10,
+          name: "Alpha Player",
+          normalizedPlayerName: "alpha player",
+          position: "WR",
+        },
+      ]}
+      roomIsLive
+    />);
+
+    expect(screen.getAllByRole("rowheader").map(cell => cell.textContent)).toEqual([
+      "Alpha Player",
+      "Beta Player",
+      "Zeta Player",
+    ]);
+  });
+
   it("shows searchable market and Mockd values with player context", async () => {
     const user = userEvent.setup();
     const onUsePlayer = vi.fn();
