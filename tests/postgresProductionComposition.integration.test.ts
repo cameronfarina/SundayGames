@@ -265,7 +265,7 @@ describeWithPostgres("production Postgres composition", () => {
     const restartedBaseUrl = runtime.server.url;
     const restartedLogin = await postJson(restartedBaseUrl, "/sessions", {
       email: "commissioner@example.com",
-      password: "secure password",
+      password: "mailbox proven password",
     });
     expect(restartedLogin).toMatchObject({
       status: 200,
