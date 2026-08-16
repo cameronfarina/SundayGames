@@ -55,7 +55,7 @@ export const prepareSeasonSimulation = async (
         scenarioId: "expected",
         now: request.now,
       }) : [];
-  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows);
+  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows, context.setup.playerCatalog);
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
     season: context.season,

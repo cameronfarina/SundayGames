@@ -4,7 +4,10 @@ import {
   parseLiveDraftStrategyKey,
 } from "../../../../modeling/liveDraftStrategies.js";
 import type { ExplicitLeagueSeason } from "../../../leagueSeason.js";
-import type { LiveDraftRoomInitialRosterPlayer } from "../../../liveDraftRooms.js";
+import type {
+  LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPlayerCatalogEntry,
+} from "../../../liveDraftRooms.js";
 import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import type { PlatformApp, PlatformHttpResponse } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
@@ -17,6 +20,7 @@ export const auctionCatalogResponse = async (
   season: ExplicitLeagueSeason,
   accountId: string,
   players: readonly BaselinePlayer[],
+  publishedCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
   keepers: readonly LiveDraftRoomInitialRosterPlayer[],
   keeperByPlayer: ReadonlyMap<string, LiveDraftRoomInitialRosterPlayer>,
   baselineMetadata: BaselineMetadata,
@@ -35,7 +39,7 @@ export const auctionCatalogResponse = async (
   const strategy = liveDraftStrategies[strategyKey];
   const membership = (await app.listLeagueMemberships(season.leagueId))
     .find(candidate => candidate.userId === accountId);
-  const snapshotValues = snapshotPlayerValues(latest?.rows);
+  const snapshotValues = snapshotPlayerValues(latest?.rows, publishedCatalog);
   const values = buildSeasonPlayerValues({
     season,
     playerCatalog: players,
@@ -49,7 +53,7 @@ export const auctionCatalogResponse = async (
     status: 200,
     body: {
       draftFormat: "auction",
-      personalized: latest !== undefined,
+      personalized: latest !== undefined || publishedCatalog.length > 0,
       ...baselineMetadata,
       strategyKey,
       strategyLabel: strategy.label,

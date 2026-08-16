@@ -32,17 +32,21 @@ export interface SnapshotPlayerValues {
   personalValues: ReadonlyMap<string, number>;
 }
 
+const playerValueEntry = (playerName: string, value: number): readonly [string, number] =>
+  [canonicalPlayerIdentityKey(playerName), value];
+
 export const snapshotPlayerValues = (
   rows: readonly PlayerPriceSnapshotRow[] = [],
+  fallbackCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [],
 ): SnapshotPlayerValues => ({
-  leaguePrices: new Map(rows.map(row => [
-    canonicalPlayerIdentityKey(row.playerName),
-    Math.max(1, Math.round(row.scenarioPrice)),
-  ])),
-  personalValues: new Map(rows.map(row => [
-    canonicalPlayerIdentityKey(row.playerName),
-    Math.max(1, Math.round(row.personalValue)),
-  ])),
+  leaguePrices: new Map([
+    ...fallbackCatalog.map(player => playerValueEntry(player.name, player.expectedPrice)),
+    ...rows.map(row => playerValueEntry(row.playerName, Math.max(1, Math.round(row.scenarioPrice)))),
+  ]),
+  personalValues: new Map([
+    ...fallbackCatalog.map(player => playerValueEntry(player.name, player.expectedPrice)),
+    ...rows.map(row => playerValueEntry(row.playerName, Math.max(1, Math.round(row.personalValue)))),
+  ]),
 });
 
 const flexPositions: readonly ("RB" | "WR" | "TE")[] = ["RB", "WR", "TE"];

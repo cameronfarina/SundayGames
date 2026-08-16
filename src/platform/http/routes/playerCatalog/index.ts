@@ -60,6 +60,7 @@ export const routePlayerCatalog = async (
     season,
     account.id,
     players,
+    setup?.playerCatalog ?? [],
     keepers,
     keeperByPlayer,
     baselineMetadata,

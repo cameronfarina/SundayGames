@@ -20,7 +20,7 @@ export const seasonMockConfigurationSnapshotFor = async (
         scenarioId: "expected",
         now: request.now,
       }) : [];
-  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows);
+  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows, context.setup.playerCatalog);
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
     season: context.season,
     playerCatalog: context.setup.playerCatalog,
