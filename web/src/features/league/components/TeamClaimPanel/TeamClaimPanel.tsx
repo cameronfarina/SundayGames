@@ -19,10 +19,9 @@ export function TeamClaimPanel({ canManageLeague, seasonId, teams }: TeamClaimPa
     ? "Select a team"
     : `Confirm ${selectedTeam.displayName}`;
 
-  const confirmTeam = () => {
-    if (selectedTeam === undefined) return;
+  const confirmTeam = (team: FantasyTeam) => {
     claim.mutate(
-      { seasonId, ownerId: selectedTeam.ownerId, teamId: selectedTeam.id },
+      { seasonId, ownerId: team.ownerId, teamId: team.id },
       {
         onSuccess: () => {
           if (canManageLeague) void navigate(keepersPath);
@@ -62,7 +61,9 @@ export function TeamClaimPanel({ canManageLeague, seasonId, teams }: TeamClaimPa
             className="league-button league-button--primary"
             disabled={selectedTeam === undefined || claim.isPending}
             type="button"
-            onClick={confirmTeam}
+            onClick={selectedTeam === undefined ? undefined : () => {
+              confirmTeam(selectedTeam);
+            }}
           >
             {claim.isPending ? "Claiming team..." : buttonLabel}
           </button>
