@@ -7,6 +7,7 @@ import type {
   ExecutePlatformSimulationRunInput,
   GetPlatformSimulationRunInput,
   ListPlatformSimulationRunsInput,
+  SetPlatformSimulationOutcomeFavoriteInput,
 } from "../contracts/simulation.js";
 import type { PlatformAppContext } from "../context.js";
 import { PlatformAppError } from "../errors.js";
@@ -117,5 +118,21 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
     }
     await context.requirePrivateTeamContext(account, run.request);
     return cloneForRead(run);
+  },
+
+  setSimulationOutcomeFavorite: async (
+    input: SetPlatformSimulationOutcomeFavoriteInput,
+  ): Promise<SimulationRun> => {
+    const account = await context.requireAccount(input.actorSessionToken, input.now);
+    const run = await context.simulations.fetchForUser(input.runId, account.id);
+    if (run === null) {
+      throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+    }
+    await context.requirePrivateTeamContext(account, run.request);
+    return cloneForRead(await context.simulations.setOutcomeFavorite(
+      run.id,
+      input.runNumber,
+      input.favorite,
+    ));
   },
 });

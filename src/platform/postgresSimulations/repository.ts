@@ -11,6 +11,7 @@ import { createRequest } from "./createRequest.js";
 import { fetchForUser, listForUser, listHistoryForUserSeason } from "./history.js";
 import { findRequired } from "./lookups.js";
 import { markCanceled, resetForRerun } from "./resetCancel.js";
+import { setOutcomeFavorite } from "./outcomeFavorites.js";
 import type { SimulationRepositoryContext } from "./types.js";
 
 export class PostgresSimulationRepository implements SimulationRepository {
@@ -60,5 +61,13 @@ export class PostgresSimulationRepository implements SimulationRepository {
 
   async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
     return await complete(this.#context, runId, result);
+  }
+
+  async setOutcomeFavorite(
+    runId: string,
+    runNumber: number,
+    favorite: boolean,
+  ): Promise<SimulationRun> {
+    return await setOutcomeFavorite(this.#context, runId, runNumber, favorite);
   }
 }

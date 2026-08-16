@@ -19,23 +19,29 @@ export const readSeasonSimulation = async (
     return {
       status: 200,
       body: {
-        history: runs
-          .filter(run => run.request.seasonId === seasonId && run.result?.seasonSimulation !== undefined)
-          .map(run => ({
+        history: runs.flatMap(run => {
+          const result = run.result;
+          if (run.request.seasonId !== seasonId || result?.seasonSimulation === undefined) return [];
+          return [{
             id: run.id,
             createdAt: run.createdAt,
             completedAt: run.completedAt,
-            note: run.result?.note,
-            strategyText: run.result?.strategyText,
+            note: result.note,
+            strategyText: result.strategyText,
             simulation: {
-              draftFormat: run.result?.seasonSimulation?.draftFormat,
-              runCount: run.result?.seasonSimulation?.runCount,
-              completedCount: run.result?.seasonSimulation?.completedCount,
-              strategy: run.result?.seasonSimulation?.strategy,
-              targetOutcomes: run.result?.seasonSimulation?.targetOutcomes,
-              targetOutcome: run.result?.seasonSimulation?.targetOutcome,
+              draftFormat: result.seasonSimulation.draftFormat,
+              runCount: result.seasonSimulation.runCount,
+              completedCount: result.seasonSimulation.completedCount,
+              strategy: result.seasonSimulation.strategy,
+              targetOutcomes: result.seasonSimulation.targetOutcomes,
+              targetOutcome: result.seasonSimulation.targetOutcome,
+              outcomes: summarizeSeasonSimulation(
+                result.seasonSimulation,
+                result.favoriteRunNumbers,
+              ).outcomes,
             },
-          })),
+          }];
+        }),
       },
     };
   }
@@ -49,7 +55,10 @@ export const readSeasonSimulation = async (
     return {
       status: 200,
       body: {
-        summary: summarizeSeasonSimulation(run.result.seasonSimulation),
+        summary: summarizeSeasonSimulation(
+          run.result.seasonSimulation,
+          run.result.favoriteRunNumbers,
+        ),
         note: run.result.note,
         historyId: run.id,
       },

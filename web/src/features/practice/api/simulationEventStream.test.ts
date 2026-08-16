@@ -8,6 +8,7 @@ import {
 const summary = {
   completedCount: 1,
   draftFormat: "auction",
+  outcomes: [],
   playerExposure: [],
   preferenceOutcomes: [{
     feasible: true,

@@ -48,4 +48,12 @@ export class AsyncSimulationRepository implements SimulationRepository {
   async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
     return this.inner.complete(runId, result);
   }
+
+  async setOutcomeFavorite(
+    runId: string,
+    runNumber: number,
+    favorite: boolean,
+  ): Promise<SimulationRun> {
+    return this.inner.setOutcomeFavorite(runId, runNumber, favorite);
+  }
 }

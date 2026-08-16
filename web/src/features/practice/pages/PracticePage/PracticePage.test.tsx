@@ -95,17 +95,31 @@ describe("PracticePage", () => {
     await user.click(screen.getByRole("button", { name: "Run simulations" }));
     expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Short King" })).toBeInTheDocument();
-    expect(requestCount(fetcher, "/season-simulations/history-new")).toBe(0);
+    expect(requestCount(fetcher, "/season-simulations/history-new")).toBe(1);
     expect(requestCount(fetcher, "/season-simulations/history-new/runs/1")).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Save Run 1 to My Team" }));
     await user.click(screen.getByRole("button", { name: /Open 1-run simulation/u }));
     expect(await screen.findByText("Saved run", { selector: ".simulation-results__note p" })).toBeInTheDocument();
     expect(screen.getByTestId("practice-location")).toHaveTextContent("runId=history-1");
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/1")).toBe(1);
-    await user.click(screen.getByRole("combobox", { name: "Simulation run" }));
-    await user.click(screen.getByRole("option", { name: "Run 2" }));
-    expect(await screen.findByText("Run 2", { selector: ".practice-select__trigger span" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Simulation outcome" }));
+    await user.click(screen.getByRole("option", { name: "#2 Run 2 · 99.2 pts" }));
+    expect(await screen.findByText("#2 Run 2 · 99.2 pts", { selector: ".practice-select__trigger span" })).toBeInTheDocument();
     expect(screen.getByTestId("practice-location")).toHaveTextContent("simulationRun=2");
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);
+    view.unmount();
+  });
+
+  it("opens the first run when an older simulation response has no outcome summaries", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPracticeFetch({ emptyOutcomes: true }));
+    const view = render(<PracticePage />, { wrapper: providers() });
+
+    await screen.findByRole("button", { name: "Run simulations" });
+    await user.click(screen.getByRole("button", { name: "Run simulations" }));
+
+    expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
+    expect(screen.getByTestId("practice-location")).toHaveTextContent("simulationRun=1");
     view.unmount();
   });
 

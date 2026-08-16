@@ -11,6 +11,7 @@ const history: readonly SimulationHistoryItem[] = [{
   simulation: {
     completedCount: 25,
     draftFormat: "auction",
+    outcomes: [{ favorite: false, rank: 1, runNumber: 8, userWeek1Points: 121.4 }],
     runCount: 25,
     strategy: { preferredPositions: [], rawInput: "", summary: "Balanced", warnings: [] },
   },
@@ -20,6 +21,7 @@ const history: readonly SimulationHistoryItem[] = [{
   simulation: {
     completedCount: 10,
     draftFormat: "snake",
+    outcomes: [],
     runCount: 10,
     strategy: { preferredPositions: [], rawInput: "", summary: "WR heavy", warnings: [] },
   },
@@ -28,6 +30,7 @@ const history: readonly SimulationHistoryItem[] = [{
   simulation: {
     completedCount: 5,
     draftFormat: "auction",
+    outcomes: [],
     runCount: 5,
     strategy: { preferredPositions: [], rawInput: "", summary: "Hero RB", warnings: [] },
   },
@@ -63,7 +66,7 @@ describe("SimulationWorkspace", () => {
       strategy: "Do not spend over $25 on another WR",
     });
     await user.click(screen.getByRole("button", { name: /Open 25-run simulation/u }));
-    expect(onOpenHistory).toHaveBeenCalledWith("run-1");
+    expect(onOpenHistory).toHaveBeenCalledWith("run-1", 8);
     expect(screen.getAllByText("No label")).toHaveLength(2);
     expect(screen.getByRole("button", { name: /Open 10-run simulation from 2026-08-12/u })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Open 5-run simulation from saved history/u })).toBeInTheDocument();

@@ -8,7 +8,12 @@ import {
 } from "./practiceContextSchema";
 import { simulationHistoryItemSchema } from "./simulationSchema";
 
-export { loadSimulation, loadSimulationRun, runSimulations } from "./simulationApi";
+export {
+  loadSimulation,
+  loadSimulationRun,
+  runSimulations,
+  setSimulationOutcomeFavorite,
+} from "./simulationApi";
 
 interface RequestContext {
   readonly fetcher?: PlatformFetch;

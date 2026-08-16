@@ -4,13 +4,15 @@ import type {
   PracticeSimulationRun,
   PracticeSimulationSummary,
 } from "../../api/simulationSchema";
-import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
+import { OutcomePicker } from "./OutcomePicker";
 import { TeamCard } from "./TeamCard";
 import "./SimulationResults.css";
 
 interface SimulationResultsProps {
   readonly note: string | undefined;
+  readonly onFavoriteChange: (favorite: boolean) => void;
   readonly onRunChange: (runNumber: number) => void;
+  readonly pendingFavorite: boolean;
   readonly pendingRun: boolean;
   readonly run: PracticeSimulationRun | undefined;
   readonly selectedRunNumber: number;
@@ -70,10 +72,6 @@ const targetOutcomes = (summary: PracticeSimulationSummary) => {
 
 export function SimulationResults(props: SimulationResultsProps) {
   const outcomes = targetOutcomes(props.summary);
-  const runOptions = Array.from({ length: props.summary.runCount }, (_, index) => ({
-    label: `Run ${String(index + 1)}`,
-    value: String(index + 1),
-  }));
   const teams = props.run === undefined
     ? []
     : [...props.run.teams].sort((left, right) => Number(right.isUserTeam) - Number(left.isUserTeam));
@@ -82,12 +80,13 @@ export function SimulationResults(props: SimulationResultsProps) {
     <section aria-labelledby="simulation-results-title" className="simulation-results">
       <div className="simulation-results__heading">
         <div><p className="practice-eyebrow">Results</p><h2 id="simulation-results-title">League outcomes</h2></div>
-        {runOptions.length > 0 && <PracticeSelect
-          label="Simulation run"
-          onValueChange={value => { props.onRunChange(Number(value)); }}
-          options={runOptions}
-          value={String(props.selectedRunNumber)}
-        />}
+        <OutcomePicker
+          onFavoriteChange={props.onFavoriteChange}
+          onRunChange={props.onRunChange}
+          pendingFavorite={props.pendingFavorite}
+          selectedRunNumber={props.selectedRunNumber}
+          summary={props.summary}
+        />
       </div>
       <p className="simulation-results__summary">{props.summary.strategy.summary}</p>
       {props.summary.strategy.warnings.length > 0 && <ul className="simulation-results__warnings">

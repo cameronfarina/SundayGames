@@ -20,7 +20,7 @@ export const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
   ["/simulations", "/practice"],
   ["/strategy", "/mock-drafts"],
   ["/my-expert", "/my-team"],
-  ["/player-news", "/practice"],
+  ["/player-news", "/my-team"],
   ["/setup", "/commissioner"],
 ]);
 

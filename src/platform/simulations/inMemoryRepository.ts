@@ -6,6 +6,7 @@ import {
 } from "./inMemoryHistory.js";
 import { InMemorySimulationState } from "./inMemoryState.js";
 import { canReadSimulationRun } from "./privacy.js";
+import { resultWithOutcomeFavorite } from "./outcomeFavorites.js";
 import type { SimulationRepository } from "./repositoryContracts.js";
 import type {
   CreateSimulationRequestInput,
@@ -83,6 +84,12 @@ export class InMemorySimulationRepository implements SimulationRepository {
     run.status = "completed";
     run.completedAt = result.completedAt;
     run.result = result;
+    return run;
+  }
+
+  setOutcomeFavorite(runId: string, runNumber: number, favorite: boolean): SimulationRun {
+    const run = this.find(runId);
+    run.result = resultWithOutcomeFavorite(run.result, runNumber, favorite);
     return run;
   }
 

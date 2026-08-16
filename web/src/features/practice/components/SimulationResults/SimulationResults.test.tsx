@@ -17,7 +17,9 @@ describe("SimulationResults", () => {
   it("shows summary, exposure, warnings, and every team in a selected run", () => {
     const view = render(<SimulationResults
       note="Compare builds"
+      onFavoriteChange={vi.fn()}
       onRunChange={vi.fn()}
+      pendingFavorite={false}
       pendingRun={false}
       run={firstRun}
       selectedRunNumber={1}
@@ -40,18 +42,22 @@ describe("SimulationResults", () => {
     const onRunChange = vi.fn();
     const { rerender, unmount } = render(<SimulationResults
       note=""
+      onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
+      pendingFavorite={false}
       pendingRun={false}
       run={firstRun}
       selectedRunNumber={1}
       summary={summary}
     />);
-    await user.click(screen.getByRole("combobox", { name: "Simulation run" }));
-    await user.click(screen.getByRole("option", { name: "Run 2" }));
+    await user.click(screen.getByRole("combobox", { name: "Simulation outcome" }));
+    await user.click(screen.getByRole("option", { name: "#2 Run 2 · 99.2 pts" }));
     expect(onRunChange).toHaveBeenCalledWith(2);
     rerender(<SimulationResults
       note=""
+      onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
+      pendingFavorite={false}
       pendingRun
       run={undefined}
       selectedRunNumber={2}
@@ -60,7 +66,9 @@ describe("SimulationResults", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading Run 2");
     rerender(<SimulationResults
       note=""
+      onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
+      pendingFavorite={false}
       pendingRun={false}
       run={secondRun}
       selectedRunNumber={2}
@@ -70,8 +78,28 @@ describe("SimulationResults", () => {
     expect(screen.queryByRole("heading", { name: "Sentinels" })).not.toBeInTheDocument();
     unmount();
   });
+  it("saves the selected ranked outcome to My Team", async () => {
+    const user = userEvent.setup();
+    const onFavoriteChange = vi.fn();
+    const view = render(<SimulationResults
+      note=""
+      onFavoriteChange={onFavoriteChange}
+      onRunChange={vi.fn()}
+      pendingFavorite={false}
+      pendingRun={false}
+      run={firstRun}
+      selectedRunNumber={1}
+      summary={summary}
+    />);
+
+    expect(screen.getByRole("combobox", { name: "Simulation outcome" }))
+      .toHaveTextContent("#1 Run 1 · 106.5 pts");
+    await user.click(screen.getByRole("button", { name: "Save Run 1 to My Team" }));
+    expect(onFavoriteChange).toHaveBeenCalledWith(true);
+    view.unmount();
+  });
   it("renders a legacy singular target outcome and missing roster results", () => {
-    const view = render(<SimulationResults note={undefined} onRunChange={vi.fn()} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
+    const view = render(<SimulationResults note={undefined} onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
       ...summary,
       draftFormat: "snake",
       strategy: { ...summary.strategy, warnings: [] },
@@ -89,7 +117,7 @@ describe("SimulationResults", () => {
   });
 
   it("handles simulation results without any target outcome", () => {
-    const view = render(<SimulationResults note="" onRunChange={vi.fn()} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
+    const view = render(<SimulationResults note="" onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
       ...summary,
       targetOutcome: undefined,
       targetOutcomes: undefined,

@@ -26,7 +26,31 @@ SELECT
   sr.summary_json,
   CASE
     WHEN sr.result_set_json ? 'seasonSimulation'
-      THEN jsonb_set(sr.result_set_json, '{seasonSimulation,runs}', '[]'::jsonb, false)
+      THEN jsonb_set(
+        sr.result_set_json,
+        '{seasonSimulation,runs}',
+        COALESCE((
+          SELECT jsonb_agg(jsonb_set(
+            simulation_run.value,
+            '{teams}',
+            COALESCE((
+              SELECT jsonb_agg(jsonb_set(
+                simulation_team.value,
+                '{roster}',
+                '[]'::jsonb,
+                false
+              ))
+              FROM jsonb_array_elements(simulation_run.value->'teams') AS simulation_team(value)
+              WHERE simulation_team.value @> '{"isUserTeam":true}'::jsonb
+            ), '[]'::jsonb),
+            false
+          ) ORDER BY (simulation_run.value->>'runNumber')::integer)
+          FROM jsonb_array_elements(
+            sr.result_set_json #> '{seasonSimulation,runs}'
+          ) AS simulation_run(value)
+        ), '[]'::jsonb),
+        false
+      )
     ELSE sr.result_set_json
   END AS result_set_json,
   sr.created_at AS result_created_at

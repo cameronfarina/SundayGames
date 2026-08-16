@@ -102,6 +102,7 @@ describe("Postgres simulation run codec", () => {
         runId: "sim_1",
         requestId: "simreq_1",
         completedAt: new Date("2026-08-09T16:00:02.000Z"),
+        favoriteRunNumbers: [],
         runCount: 25,
         seedPrefix: "balanced",
         hardLockCount: 1,

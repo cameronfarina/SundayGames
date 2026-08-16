@@ -2,6 +2,7 @@ import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
 import {
   simulationRunResponseSchema,
+  simulationOutcomeResponseSchema,
   simulationResponseSchema,
   type SimulationProgress,
 } from "./simulationSchema";
@@ -44,6 +45,23 @@ export const loadSimulationRun = async (request: LoadSimulationRunRequest) =>
     path: `/season-simulations/${encodeURIComponent(request.historyId)}/runs/${String(request.runNumber)}`,
     responseSchema: simulationRunResponseSchema,
   });
+
+interface FavoriteSimulationOutcomeRequest extends LoadSimulationRunRequest {
+  readonly favorite: boolean;
+}
+
+export const setSimulationOutcomeFavorite = async (
+  request: FavoriteSimulationOutcomeRequest,
+) => await requestPlatformJson({
+  ...fetcherExtra(request),
+  init: {
+    body: JSON.stringify({ favorite: request.favorite }),
+    headers: { "content-type": "application/json" },
+    method: "PATCH",
+  },
+  path: `/season-simulations/${encodeURIComponent(request.historyId)}/runs/${String(request.runNumber)}`,
+  responseSchema: simulationOutcomeResponseSchema,
+});
 
 interface RunSimulationRequest extends RequestContext {
   readonly count: number;

@@ -115,7 +115,7 @@ describe("PracticePage states", () => {
       wrapper: providersFor("/practice?seasonId=season-1&runId=history-1&simulationRun=invalid"),
     });
 
-    expect(await screen.findByRole("combobox", { name: "Simulation run" })).toHaveTextContent("Run 1");
+    expect(await screen.findByRole("combobox", { name: "Simulation outcome" })).toHaveTextContent("Run 1");
     expect(await screen.findByRole("heading", { name: "Short King" })).toBeInTheDocument();
     view.unmount();
   });

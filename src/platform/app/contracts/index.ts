@@ -60,6 +60,7 @@ export type {
   ListPlatformJobsInput,
   ListPlatformSimulationRunsInput,
   RerunPlatformJobInput,
+  SetPlatformSimulationOutcomeFavoriteInput,
 } from "./simulation.js";
 export type {
   InMemoryPlatformStoreOptions,

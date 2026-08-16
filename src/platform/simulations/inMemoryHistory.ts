@@ -35,6 +35,14 @@ export const listInMemorySimulationHistoryForSeason = (
       ? run.result
       : {
           ...run.result,
-          seasonSimulation: { ...run.result.seasonSimulation, runs: [] },
+          seasonSimulation: {
+            ...run.result.seasonSimulation,
+            runs: run.result.seasonSimulation.runs.map(simulationRun => ({
+              ...simulationRun,
+              teams: simulationRun.teams
+                .filter(team => team.isUserTeam)
+                .map(team => ({ ...team, roster: [] })),
+            })),
+          },
         },
   }));

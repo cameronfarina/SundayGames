@@ -17,6 +17,10 @@ const roster: PracticeSimulationRun["teams"][number]["roster"] = [{
 export const summary: PracticeSimulationSummary = {
   completedCount: 2,
   draftFormat: "auction",
+  outcomes: [
+    { favorite: false, rank: 1, runNumber: 1, userWeek1Points: 106.5 },
+    { favorite: false, rank: 2, runNumber: 2, userWeek1Points: 99.2 },
+  ],
   playerExposure: [
     { averagePrice: 15, count: 1, playerId: "price", playerName: "Jadarian Price", position: "RB", rate: 0.5 },
     { averagePick: 8, count: 1, playerId: "goff", playerName: "Jared Goff", position: "QB", rate: 0.5 },

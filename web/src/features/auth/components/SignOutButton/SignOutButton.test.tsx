@@ -35,13 +35,13 @@ afterEach(() => {
 
 describe("SignOutButton", () => {
   it("clears cached private data and returns to login", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => {
-      await new Promise(resolve => setTimeout(resolve, 25));
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    }));
+    let finishLogout = (response: Response): void => { void response; };
+    const logoutResponse = new Promise<Response>(resolve => { finishLogout = resolve; });
+    vi.stubGlobal("fetch", vi.fn(() => logoutResponse));
     const { queryClient, router: navigation } = renderButton();
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(screen.getByRole("button", { name: "Signing out..." })).toBeDisabled();
+    finishLogout(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     await waitFor(() => {
       expect(navigation.state.location.pathname).toBe("/login");
     });

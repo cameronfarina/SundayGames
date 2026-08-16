@@ -129,6 +129,9 @@ describe("platform store snapshot domain validation", () => {
   it("rejects invalid simulation result discriminators", () => {
     const run = persistedSimulationRun();
     expectInvalid({ simulationRuns: [{ ...run, status: "invalid" }] }, "simulationRuns[0].status");
+    expectInvalid({
+      simulationRuns: [{ ...run, result: { ...run.result, favoriteRunNumbers: [1.5] } }],
+    }, "favoriteRunNumbers[0]");
     expectInvalid(seasonSimulationSnapshot(season => ({
       ...season,
       draftFormat: "invalid",

@@ -11,7 +11,7 @@ interface RunRequest {
 
 interface SimulationWorkspaceProps {
   readonly history: readonly SimulationHistoryItem[];
-  readonly onOpenHistory: (historyId: string) => void;
+  readonly onOpenHistory: (historyId: string, runNumber: number) => void;
   readonly onRun: (request: RunRequest) => void;
   readonly pending: boolean;
   readonly progress: SimulationProgress | undefined;
@@ -70,7 +70,9 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
               <div><strong>{item.simulation.strategy.summary}</strong><span>{item.note ?? "No label"}</span></div>
               <button
                 aria-label={`Open ${String(item.simulation.runCount)}-run simulation from ${item.completedAt ?? item.createdAt ?? "saved history"}`}
-                onClick={() => { props.onOpenHistory(item.id); }}
+                onClick={() => {
+                  props.onOpenHistory(item.id, item.simulation.outcomes[0]?.runNumber ?? 1);
+                }}
                 type="button"
               >Open</button>
             </li>)}</ol>}

@@ -51,6 +51,7 @@ export interface SimulationResult {
   seasonSimulation?: SeasonSimulationResult | undefined;
   strategyText?: string | undefined;
   note?: string | undefined;
+  favoriteRunNumbers?: readonly number[] | undefined;
 }
 
 export interface SimulationRun {

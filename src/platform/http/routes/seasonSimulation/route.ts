@@ -1,13 +1,14 @@
 import { SeasonSimulationError, maximumSeasonSimulationRunCount } from "../../../seasonSimulationEngine.js";
 import { errorResponseFor } from "../../errors/errorResponse.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
-import { headerValue, optionalNumber } from "../../request/values.js";
+import { headerValue, optionalBoolean, optionalNumber } from "../../request/values.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { methodNotAllowed, notFound } from "../../responses.js";
 import { asyncTextStream, eventStreamChunk } from "../../stream.js";
 import { executeAndStoreSeasonSimulation } from "./execute.js";
 import { prepareSeasonSimulation } from "./prepare.js";
 import { readSeasonSimulation } from "./reads.js";
+import { updateSeasonSimulationOutcome } from "./updateOutcome.js";
 
 export const routeSeasonSimulations = async (
   app: PlatformApp,
@@ -19,6 +20,16 @@ export const routeSeasonSimulations = async (
     && request.segments[2] === "runs";
   if (request.method === "GET" && (request.segments.length <= 2 || isRunRead)) {
     return await readSeasonSimulation(app, request);
+  }
+  const isOutcomeUpdate = request.method === "PATCH"
+    && request.segments.length === 4
+    && request.segments[2] === "runs";
+  if (isOutcomeUpdate) {
+    return await updateSeasonSimulationOutcome(
+      app,
+      request,
+      optionalBoolean(request.body.favorite),
+    );
   }
   if (request.segments.length !== 1 || request.method !== "POST") {
     return request.segments.length === 1 ? methodNotAllowed() : notFound();

@@ -26,6 +26,10 @@
   color: var(--color-text-muted);
 }
 
+.my-team-header > p:last-child {
+  max-width: 48rem;
+}
+
 .my-team-eyebrow {
   margin: 0 0 var(--space-2);
   color: var(--color-accent);

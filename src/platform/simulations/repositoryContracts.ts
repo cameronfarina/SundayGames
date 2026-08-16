@@ -22,6 +22,11 @@ export interface SimulationRepository {
   markCanceled(runId: string): MaybePromise<SimulationRun>;
   resetForRerun(runId: string): MaybePromise<SimulationRun>;
   complete(runId: string, result: SimulationResult): MaybePromise<SimulationRun>;
+  setOutcomeFavorite(
+    runId: string,
+    runNumber: number,
+    favorite: boolean,
+  ): MaybePromise<SimulationRun>;
 }
 
 export interface ExecuteSimulationRunInput {

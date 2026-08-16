@@ -8,6 +8,7 @@ import type {
   PostgresTransactionalQueryClient,
 } from "../src/platform/postgresJobQueue.js";
 import { PostgresSimulationRepository } from "../src/platform/postgresSimulations.js";
+import { isRecord } from "../src/platform/postgresSimulations/json.js";
 import { maximumRetainedSimulationRunsPerUser } from "../src/platform/simulationLimits.js";
 import {
   SimulationError,
@@ -271,14 +272,25 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
         .map(row => {
           const joined = this.#joinedRow(row);
           if (
-            typeof joined.result_set_json === "object"
-            && joined.result_set_json !== null
+            isRecord(joined.result_set_json)
             && "seasonSimulation" in joined.result_set_json
           ) {
-            const result = cloneJson(joined.result_set_json) as Record<string, unknown>;
-            const simulation = result.seasonSimulation as Record<string, unknown>;
-            result.seasonSimulation = { ...simulation, runs: [] };
-            joined.result_set_json = result;
+            const result = cloneJson(joined.result_set_json);
+            const simulation = result.seasonSimulation;
+            if (isRecord(simulation)) {
+              const runs = Array.isArray(simulation.runs) ? simulation.runs : [];
+              result.seasonSimulation = {
+                ...simulation,
+                runs: runs.filter(isRecord).map(simulationRun => ({
+                  ...simulationRun,
+                  teams: (Array.isArray(simulationRun.teams) ? simulationRun.teams : [])
+                    .filter(isRecord)
+                    .filter(team => team.isUserTeam === true)
+                    .map(team => ({ ...team, roster: [] })),
+                })),
+              };
+              joined.result_set_json = result;
+            }
           }
           return joined as TRow;
         });
@@ -554,7 +566,7 @@ describe("Postgres simulation repository", () => {
     await expect(repository.listHistoryForUserSeason("user_cam", "season_2026", 25))
       .resolves.toEqual([firstRun]);
     expect(client.queries.at(-1)).toMatchObject({ values: ["user_cam", "season_2026", 25] });
-    expect(client.queries.at(-1)?.text).toContain("jsonb_set");
+    expect(client.queries.at(-1)?.text).toContain("jsonb_array_elements");
   });
 
   it("rejects an idempotency key reused with different simulation input", async () => {

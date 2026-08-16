@@ -4,6 +4,10 @@ import { simulationSummarySchema } from "./simulationSchema";
 const summary = {
   completedCount: 2,
   draftFormat: "auction",
+  outcomes: [
+    { favorite: false, rank: 1, runNumber: 2, userWeek1Points: 112.5 },
+    { favorite: true, rank: 2, runNumber: 1, userWeek1Points: 108.1 },
+  ],
   playerExposure: [],
   positionCounts: {},
   runCount: 2,
@@ -17,6 +21,10 @@ const summary = {
 };
 
 describe("simulationSummarySchema", () => {
+  it("preserves ranked and saved outcomes", () => {
+    expect(simulationSummarySchema.parse(summary).outcomes).toEqual(summary.outcomes);
+  });
+
   it("preserves current backend details for infeasible keeper targets", () => {
     const targetOutcomes = [{
       feasible: false,

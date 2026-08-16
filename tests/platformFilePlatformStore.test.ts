@@ -412,6 +412,14 @@ describe("file-backed platform store", () => {
       runId: simulation.id,
       now: new Date(now.getTime() + 1_000),
     });
+    const storedSimulation = fileStore.store.simulations.find(simulation.id);
+    if (storedSimulation.result === undefined) throw new Error("Expected completed simulation result.");
+    storedSimulation.result.favoriteRunNumbers = [1];
+    const favoritedSimulation = await app.getSimulationRun({
+      actorSessionToken: owner11.sessionToken,
+      runId: simulation.id,
+      now: new Date(now.getTime() + 1_500),
+    });
     const mockSession = await app.createMockDraftSession({
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
@@ -440,7 +448,8 @@ describe("file-backed platform store", () => {
       actorSessionToken: owner11.sessionToken,
       runId: simulation.id,
       now,
-    })).resolves.toEqual(completedSimulation);
+    })).resolves.toEqual(favoritedSimulation);
+    expect(completedSimulation.result?.favoriteRunNumbers).toBeUndefined();
     expect(await loadedApp.listMockDraftSessions({
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,

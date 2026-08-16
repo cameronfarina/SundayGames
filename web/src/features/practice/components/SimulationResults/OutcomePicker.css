@@ -1,0 +1,21 @@
+.simulation-results__outcome-picker {
+  align-items: end;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.simulation-results__favorite {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  color: var(--color-warning);
+  display: inline-flex;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+
+.simulation-results__favorite:hover:not(:disabled) {
+  border-color: var(--color-warning);
+}

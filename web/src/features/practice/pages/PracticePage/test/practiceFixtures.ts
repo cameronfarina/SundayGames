@@ -23,6 +23,10 @@ export const target = {
 export const simulationSummaryFixture = {
   completedCount: 1,
   draftFormat: "auction",
+  outcomes: [
+    { favorite: false, rank: 1, runNumber: 1, userWeek1Points: 106.5 },
+    { favorite: false, rank: 2, runNumber: 2, userWeek1Points: 99.2 },
+  ],
   playerExposure: [],
   positionCounts: {},
   runCount: 1,

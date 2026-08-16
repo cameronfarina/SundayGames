@@ -1,32 +1,5 @@
 import { z } from "zod";
-
-const positionSchema = z.enum(["QB", "RB", "WR", "TE"]);
-const targetConstraintSchema = z.object({
-  maxAuctionPrice: z.number().nonnegative().optional(),
-  maxSnakeOverallPick: z.number().int().positive().optional(),
-  maxSnakeRound: z.number().int().positive().optional(),
-  playerName: z.string(),
-});
-const preferredPositionSchema = z.object({
-  maxAuctionPrice: z.number().nonnegative().optional(),
-  position: positionSchema,
-  targetCount: z.number().int().positive().optional(),
-  tier: z.literal("elite"),
-});
-const strategySchema = z.object({
-  pairWithPlayerName: z.string().optional(),
-  positionCaps: z.array(z.object({
-    excludeNamedTargets: z.boolean(),
-    maxAuctionPrice: z.number().nonnegative(),
-    position: positionSchema,
-  })).optional(),
-  preferredPositions: z.array(preferredPositionSchema).default([]),
-  rawInput: z.string(),
-  summary: z.string(),
-  target: targetConstraintSchema.optional(),
-  targets: z.array(targetConstraintSchema).optional(),
-  warnings: z.array(z.string()),
-});
+import { positionSchema, strategySchema, targetOutcomeSchema } from "./simulationStrategySchema";
 
 const rosterPlayerSchema = z.object({
   overallPick: z.number().int().positive().optional(),
@@ -51,27 +24,17 @@ const teamSchema = z.object({
   week1Points: z.number(),
 });
 
-const targetOutcomeSchema = z.object({
-  feasible: z.boolean().optional(),
-  hitCount: z.number().int().nonnegative(),
-  hitRate: z.number().min(0).max(1),
-  message: z.string().optional(),
-  playerId: z.string(),
-  playerName: z.string(),
-  reason: z.enum([
-    "ambiguous_player_name",
-    "insufficient_auction_budget",
-    "insufficient_roster_slots",
-    "player_not_found",
-    "retained_by_other_team",
-    "retained_by_your_team_above_max_price",
-  ]).optional(),
-  status: z.enum(["hit", "miss", "infeasible"]).optional(),
+export const simulationOutcomeSchema = z.object({
+  favorite: z.boolean(),
+  rank: z.number().int().positive(),
+  runNumber: z.number().int().positive(),
+  userWeek1Points: z.number(),
 });
 
 export const simulationSummarySchema = z.object({
   completedCount: z.number().int().nonnegative(),
   draftFormat: z.enum(["auction", "snake"]),
+  outcomes: z.array(simulationOutcomeSchema).default([]),
   playerExposure: z.array(z.object({
     averagePick: z.number().optional(),
     averagePrice: z.number().optional(),
@@ -120,6 +83,7 @@ export const simulationHistoryItemSchema = z.object({
   simulation: simulationSummarySchema.pick({
     completedCount: true,
     draftFormat: true,
+    outcomes: true,
     runCount: true,
     strategy: true,
     targetOutcome: true,
@@ -137,6 +101,11 @@ export const simulationResponseSchema = z.object({
 export const simulationRunResponseSchema = z.object({
   historyId: z.string(),
   run: simulationRunSchema,
+});
+
+export const simulationOutcomeResponseSchema = z.object({
+  historyId: z.string(),
+  outcome: simulationOutcomeSchema,
 });
 
 export const simulationProgressSchema = z.object({

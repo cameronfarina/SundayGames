@@ -15,6 +15,7 @@ interface PracticeFetchOptions {
   readonly catalogError?: boolean;
   readonly contextError?: boolean;
   readonly detailError?: boolean;
+  readonly emptyOutcomes?: boolean;
   readonly hasLeague?: boolean;
   readonly historyError?: boolean;
   readonly runCount?: number;
@@ -42,6 +43,7 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
   const simulationSummary = {
     ...simulationSummaryFixture,
     completedCount: options.runCount ?? simulationSummaryFixture.completedCount,
+    outcomes: options.emptyOutcomes === true ? [] : simulationSummaryFixture.outcomes,
     runCount: options.runCount ?? simulationSummaryFixture.runCount,
   };
   return async (input, init) => {
@@ -111,6 +113,12 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
         'event: progress\ndata: {"completed":1,"total":1}\n\n',
         `event: result\ndata: ${JSON.stringify(result)}\n\n`,
       ].join(""), { headers: { "content-type": "text/event-stream" }, status: 200 });
+    }
+    if (/^\/season-simulations\/history-(?:1|new)\/runs\/[12]$/u.test(url.pathname) && method === "PATCH") {
+      return response({
+        historyId: "history-new",
+        outcome: { favorite: true, rank: 1, runNumber: 1, userWeek1Points: 106.5 },
+      });
     }
     if (url.pathname === "/season-simulations/history-1" || url.pathname === "/season-simulations/history-new") {
       if (options.detailError === true) {

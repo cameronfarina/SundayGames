@@ -44,7 +44,18 @@ const seasonResult = (): SeasonSimulationResult => ({
   },
   playerExposure: [],
   positionCounts: {},
-  runs: [{ runNumber: 1, label: "Run 1", seed: "balanced-1", teams: [] }],
+  runs: [{
+    runNumber: 1,
+    label: "Run 1",
+    seed: "balanced-1",
+    teams: [{
+      teamId: "team_cam",
+      teamName: "Short King",
+      isUserTeam: true,
+      roster: [],
+      week1Points: 111.8,
+    }],
+  }],
 });
 
 describe("simulation repository characterization", () => {
@@ -73,7 +84,7 @@ describe("simulation repository characterization", () => {
     expect(history[0]?.result?.seasonSimulation).toMatchObject({
       runCount: 25,
       completedCount: 25,
-      runs: [],
+      runs: [{ teams: [{ isUserTeam: true, roster: [] }] }],
     });
     expect(repository.fetchForUser(run.id, "cam")?.result?.seasonSimulation?.runs).toHaveLength(1);
   });

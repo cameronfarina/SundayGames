@@ -11,6 +11,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 const summary = {
   completedCount: 2,
   draftFormat: "auction",
+  outcomes: [],
   playerExposure: [],
   positionCounts: {},
   runCount: 2,

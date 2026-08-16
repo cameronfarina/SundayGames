@@ -91,6 +91,10 @@ it("runs private league-aware simulations for a claimed team", async () => {
     const summary = expectBodyRecord(expectBodyRecord(simulationResponse.body).summary);
     const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
     expect(summary).not.toHaveProperty("runs");
+    expect(summary.outcomes).toEqual([
+      expect.objectContaining({ favorite: false, rank: 1, runNumber: 1 }),
+      expect.objectContaining({ favorite: false, rank: 2, runNumber: 2 }),
+    ]);
     const newerSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
@@ -147,6 +151,42 @@ it("runs private league-aware simulations for a claimed team", async () => {
         },
       },
     });
+    await expect(handle({
+      method: "PATCH",
+      path: `/season-simulations/${historyId}/runs/1`,
+      sessionToken: owner11.sessionToken,
+      body: { favorite: true },
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        historyId,
+        outcome: expect.objectContaining({ favorite: true, runNumber: 1 }),
+      },
+    });
+    await expect(handle({
+      method: "GET",
+      path: "/season-simulations",
+      query: { seasonId: season.id },
+      sessionToken: owner11.sessionToken,
+    })).resolves.toMatchObject({
+      status: 200,
+      body: {
+        history: expect.arrayContaining([expect.objectContaining({
+          id: historyId,
+          simulation: expect.objectContaining({
+            outcomes: expect.arrayContaining([
+              expect.objectContaining({ favorite: true, runNumber: 1 }),
+            ]),
+          }),
+        })]),
+      },
+    });
+    await expect(handle({
+      method: "PATCH",
+      path: `/season-simulations/${historyId}/runs/1`,
+      sessionToken: outsider.sessionToken,
+      body: { favorite: true },
+    })).resolves.toMatchObject({ status: 403, body: { error: { code: "private_resource" } } });
     await expect(handle({
       method: "GET",
       path: `/season-simulations/${historyId}`,

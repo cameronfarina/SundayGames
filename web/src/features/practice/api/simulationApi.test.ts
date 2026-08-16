@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
-import { loadSimulation, loadSimulationRun, runSimulations } from "./simulationApi";
+import {
+  loadSimulation,
+  loadSimulationRun,
+  runSimulations,
+  setSimulationOutcomeFavorite,
+} from "./simulationApi";
 
 const summary = {
   completedCount: 2,
   draftFormat: "auction",
+  outcomes: [],
   playerExposure: [],
   positionCounts: {},
   runCount: 2,
@@ -33,6 +39,25 @@ describe("simulation API", () => {
       "/season-simulations/history%20%2F%201",
       "/season-simulations/history%20%2F%201/runs/2",
     ]);
+  });
+
+  it("saves an outcome to My Team", async () => {
+    const outcome = { favorite: true, rank: 1, runNumber: 2, userWeek1Points: 112.5 };
+    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(response({
+      historyId: "history / 1",
+      outcome,
+    }));
+
+    await expect(setSimulationOutcomeFavorite({
+      favorite: true,
+      fetcher,
+      historyId: "history / 1",
+      runNumber: 2,
+    })).resolves.toEqual({ historyId: "history / 1", outcome });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/season-simulations/history%20%2F%201/runs/2",
+      expect.objectContaining({ method: "PATCH" }),
+    );
   });
 
   it("streams determinate progress before returning a compact result", async () => {

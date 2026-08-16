@@ -5,7 +5,7 @@ const frontendRuntimePath = "/__mockd/frontend-runtime";
 const defaultPlatformTarget = "http://127.0.0.1:4320";
 const defaultWebPort = 4319;
 const apiRoots: readonly string[] = [
-  "accounts", "email-verifications", "healthz", "historical-imports",
+  "accounts", "api", "email-verifications", "healthz", "historical-imports",
   "invitations", "league-imports", "leagues", "live-rooms", "onboarding",
   "password-resets", "player-catalog", "practice-shortlist", "readyz",
   "season-mock-drafts", "season-simulations", "seasons", "session", "sessions",

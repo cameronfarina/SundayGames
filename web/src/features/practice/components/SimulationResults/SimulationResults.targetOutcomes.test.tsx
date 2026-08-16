@@ -8,7 +8,9 @@ const renderTargetOutcomes = (
   targetOutcomes: PracticeSimulationSummary["targetOutcomes"],
 ) => render(<SimulationResults
   note={undefined}
+  onFavoriteChange={vi.fn()}
   onRunChange={vi.fn()}
+  pendingFavorite={false}
   pendingRun={false}
   run={undefined}
   selectedRunNumber={1}

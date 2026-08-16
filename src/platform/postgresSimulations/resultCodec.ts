@@ -20,6 +20,14 @@ const forcedSalesFromDb = (value: unknown): ForcedAuctionSale[] => {
   });
 };
 
+const favoriteRunNumbersFromDb = (value: unknown): number[] =>
+  Array.isArray(value)
+    ? value.flatMap(candidate =>
+      typeof candidate === "number" && Number.isInteger(candidate) && candidate > 0
+        ? [candidate]
+        : [])
+    : [];
+
 const completedAtFrom = (
   value: unknown,
   row: SimulationRunRow,
@@ -57,5 +65,6 @@ export const resultFromRow = (
       ? { strategyText: resultJson.strategyText }
       : {}),
     ...(typeof resultJson.note === "string" ? { note: resultJson.note } : {}),
+    favoriteRunNumbers: favoriteRunNumbersFromDb(resultJson.favoriteRunNumbers),
   };
 };

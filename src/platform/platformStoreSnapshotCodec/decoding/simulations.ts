@@ -77,6 +77,11 @@ const forcedSaleValue = (value: unknown, path: string): ForcedAuctionSale => {
 
 const resultValue = (value: unknown, path: string): SimulationResult => {
   const record = recordValue(value, path);
+  const favoriteRunNumbers = optionalValue(
+    record.favoriteRunNumbers,
+    `${path}.favoriteRunNumbers`,
+    (candidate, candidatePath) => arrayValue(candidate, candidatePath, integerValue),
+  );
   return {
     runId: stringValue(record.runId, `${path}.runId`),
     requestId: stringValue(record.requestId, `${path}.requestId`),
@@ -90,6 +95,7 @@ const resultValue = (value: unknown, path: string): SimulationResult => {
     seasonSimulation: optionalValue(record.seasonSimulation, `${path}.seasonSimulation`, seasonResultValue),
     strategyText: optionalString(record.strategyText, `${path}.strategyText`),
     note: optionalString(record.note, `${path}.note`),
+    ...(favoriteRunNumbers === undefined ? {} : { favoriteRunNumbers }),
   };
 };
 

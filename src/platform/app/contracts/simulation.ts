@@ -55,6 +55,11 @@ export interface GetPlatformSimulationRunInput {
   now?: Date | undefined;
 }
 
+export interface SetPlatformSimulationOutcomeFavoriteInput extends GetPlatformSimulationRunInput {
+  favorite: boolean;
+  runNumber: number;
+}
+
 export interface ListPlatformJobsInput {
   actorSessionToken: string;
   cursor?: string | undefined;
@@ -81,6 +86,9 @@ export interface SimulationOperations {
   executeSimulationRunForWorker(input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun>;
   listSimulationRuns(input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]>;
   getSimulationRun(input: GetPlatformSimulationRunInput): Promise<SimulationRun>;
+  setSimulationOutcomeFavorite(
+    input: SetPlatformSimulationOutcomeFavoriteInput,
+  ): Promise<SimulationRun>;
   enqueueSimulationRunExecutionJob(input: EnqueuePlatformSimulationRunJobInput): Promise<JobRecord>;
   listJobs(input: ListPlatformJobsInput): Promise<JobHistoryPage>;
   getJob(input: GetPlatformJobInput): Promise<JobRecord>;
