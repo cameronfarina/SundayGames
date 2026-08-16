@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Button, IconButton, TextField } from "../../../../shared/ui";
+import { useIncrementalRows } from "../../../../shared/hooks/useIncrementalRows";
 import type { LiveDraftBoardPlayer } from "../../api/liveDraftSchemas";
 import {
   filterBoard,
@@ -27,13 +28,20 @@ export const PlayerBoard = ({
 }: PlayerBoardProps) => {
   const [position, setPosition] = useState<LiveDraftPositionFilter>("ALL");
   const [search, setSearch] = useState("");
-  const visiblePlayers = filterBoard(players, search, position);
+  const matchingPlayers = filterBoard(players, search, position);
+  const { revealMore, revealRowCount, visibleRowCount } = useIncrementalRows(
+    matchingPlayers.length,
+    [players, position, search],
+  );
+  const visiblePlayers = matchingPlayers.slice(0, visibleRowCount);
 
   return (
     <section aria-labelledby="live-draft-board-title" className="live-panel player-board">
       <header className="live-panel__header">
         <h2 id="live-draft-board-title">Available players</h2>
-        <span>{visiblePlayers.length} available / {players.length} loaded</span>
+        <span aria-live="polite">
+          {visiblePlayers.length} shown / {matchingPlayers.length} matching / {players.length} loaded
+        </span>
       </header>
       <div aria-label="Filter available players by position" className="player-board__filters">
         {positionFilters.map(filter => (
@@ -86,7 +94,12 @@ export const PlayerBoard = ({
           </tbody>
         </table>
       </div>
-      {visiblePlayers.length === 0 && <p className="live-empty">No available players match these filters.</p>}
+      {revealRowCount > 0 && <div className="player-board__reveal">
+        <Button onClick={revealMore} variant="secondary">
+          Load {revealRowCount} more players
+        </Button>
+      </div>}
+      {matchingPlayers.length === 0 && <p className="live-empty">No available players match these filters.</p>}
     </section>
   );
 };

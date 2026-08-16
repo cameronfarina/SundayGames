@@ -1,8 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PlayerBoard } from "./PlayerBoard";
+import type { LiveDraftBoardPlayer } from "../../api/liveDraftSchemas";
 import { liveRoom } from "../../test/liveDraftFixtures";
+
+const paginatedPlayers: readonly LiveDraftBoardPlayer[] = Array.from(
+  { length: 55 },
+  (_, index) => ({
+    expectedPrice: 55 - index,
+    name: `Player ${String(index + 1)}`,
+    normalizedPlayerName: `player ${String(index + 1)}`,
+    position: index === 54 ? "WR" : "RB",
+    teamAbbreviation: "TST",
+  }),
+);
 
 describe("PlayerBoard", () => {
   it("orders available players by displayed market value", () => {
@@ -113,6 +125,34 @@ describe("PlayerBoard", () => {
     await user.click(screen.getByRole("button", { name: "All" }));
     await user.type(screen.getByRole("searchbox", { name: "Search available players" }), "missing");
     expect(screen.getByText("No available players match these filters.")).toBeVisible();
+  });
+
+  it("paginates rows while searching and filtering the full player set", async () => {
+    const user = userEvent.setup();
+    render(<PlayerBoard
+      canManage={false}
+      onUsePlayer={vi.fn()}
+      players={paginatedPlayers}
+      roomIsLive
+    />);
+
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("row")).toHaveLength(51);
+    expect(screen.getByText("50 shown / 55 matching / 55 loaded")).toBeVisible();
+    expect(screen.queryByText("Player 55")).not.toBeInTheDocument();
+
+    const search = screen.getByRole("searchbox", { name: "Search available players" });
+    await user.type(search, "Player 55");
+    expect(screen.getByText("Player 55")).toBeVisible();
+    expect(screen.getByText("1 shown / 1 matching / 55 loaded")).toBeVisible();
+
+    await user.clear(search);
+    await user.click(screen.getByRole("button", { name: "Load 5 more players" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(56);
+
+    await user.click(screen.getByRole("button", { name: "RB" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(51);
+    expect(screen.getByText("50 shown / 54 matching / 55 loaded")).toBeVisible();
   });
 
   it("hides commissioner actions from members", () => {

@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useReducer } from "react";
 import { Check, Star } from "lucide-react";
 import { IconButton } from "../../../../shared/ui";
+import { useIncrementalRows } from "../../../../shared/hooks/useIncrementalRows";
 import type { PlayerCatalog, PracticePlayer } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import {
@@ -13,7 +14,6 @@ import {
   type PlayerSort,
 } from "../../model/playerBoard";
 import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
-import { useIncrementalRows } from "./hooks/useIncrementalRows";
 import "./PlayerBoard.css";
 import "./PlayerBoardTable.css";
 import "./PlayerBoardResponsive.css";
