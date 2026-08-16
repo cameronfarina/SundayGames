@@ -9,6 +9,7 @@ import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
 import { minimumPasswordCharacters } from "../../model/passwordPolicy";
+import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "./AuthForm.css";
 
 type AuthFormProps = { readonly mode: "login" } | {
@@ -69,6 +70,7 @@ export const AuthForm = (props: AuthFormProps) => {
   const verificationLink = error instanceof PlatformApiError && error.code === "email_unverified"
     ? `/verify-email?email=${encodeURIComponent(email)}&returnTo=${encodeURIComponent(returnTo)}`
     : undefined;
+  const passwordGuidanceId = mode === "signup" ? "auth-password-guidance" : undefined;
 
   return (
     <form className="auth-form" onSubmit={submit}>
@@ -89,6 +91,7 @@ export const AuthForm = (props: AuthFormProps) => {
         <div className="auth-form__field">
           <label htmlFor="auth-password">Password</label>
           <input
+            aria-describedby={passwordGuidanceId}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             disabled={authentication.isPending}
             id="auth-password"
@@ -99,6 +102,7 @@ export const AuthForm = (props: AuthFormProps) => {
             type="password"
             value={password}
           />
+          {passwordGuidanceId !== undefined && <PasswordGuidance id={passwordGuidanceId} />}
         </div>
       )}
       {notice !== undefined && <p className="auth-form__message" role="status">{notice}</p>}

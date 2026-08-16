@@ -59,6 +59,9 @@ describe("authentication recovery", () => {
     }));
     const navigation = mountRoute("/reset-password?token=reset-token");
     expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "15");
+    expect(screen.getByText(
+      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+    )).toBeVisible();
     await userEvent.type(screen.getByLabelText("New password"), "replacement password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");
     expect(screen.getByRole("button", { name: "Updating password..." })).toBeDisabled();

@@ -39,7 +39,16 @@ describe("PasswordChangeForm", () => {
       return jsonResponse({ ok: true });
     }));
     const navigation = mountForm();
-    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "15");
+    const currentPassword = screen.getByLabelText("Current password");
+    const newPassword = screen.getByLabelText("New password");
+    expect(newPassword).toHaveAttribute("minlength", "15");
+    expect(screen.getByText(
+      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+    )).toBeVisible();
+    expect(newPassword).toHaveAccessibleDescription(
+      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+    );
+    expect(currentPassword).not.toHaveAccessibleDescription();
     await fillForm();
     await userEvent.type(screen.getByLabelText("Confirm new password"), "{Enter}");
     expect(screen.getByRole("button", { name: "Updating password..." })).toBeDisabled();

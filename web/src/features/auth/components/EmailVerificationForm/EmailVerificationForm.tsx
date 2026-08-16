@@ -6,6 +6,7 @@ import { verifyEmail } from "../../api/authApi";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { minimumPasswordCharacters } from "../../model/passwordPolicy";
 import { EmailRequestForm } from "../EmailRequestForm/EmailRequestForm";
+import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "../AuthForm/AuthForm.css";
 
 interface EmailVerificationFormProps {
@@ -19,6 +20,7 @@ export const EmailVerificationForm = ({
   returnTo,
   token,
 }: EmailVerificationFormProps) => {
+  const passwordGuidanceId = "verification-password-guidance";
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const navigate = useNavigate();
@@ -44,6 +46,7 @@ export const EmailVerificationForm = ({
         <div className="auth-form__field">
           <label htmlFor="verification-password">Choose password</label>
           <input
+            aria-describedby={passwordGuidanceId}
             autoComplete="new-password"
             disabled={verification.isPending}
             id="verification-password"
@@ -53,10 +56,12 @@ export const EmailVerificationForm = ({
             type="password"
             value={password}
           />
+          <PasswordGuidance id={passwordGuidanceId} />
         </div>
         <div className="auth-form__field">
           <label htmlFor="verification-confirmation">Confirm password</label>
           <input
+            aria-describedby={passwordGuidanceId}
             autoComplete="new-password"
             disabled={verification.isPending}
             id="verification-confirmation"

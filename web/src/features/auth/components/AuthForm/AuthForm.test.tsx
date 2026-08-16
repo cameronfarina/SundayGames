@@ -105,6 +105,7 @@ describe("AuthForm", () => {
     vi.stubGlobal("fetch", fetcher);
     const signupPath = "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1";
     const { queryClient, router: navigation } = mountRoute(signupPath);
+    expect(await screen.findByText("Use at least 15 characters. A passphrase of 4 memorable words works well.")).toBeVisible();
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(screen.getByRole("button", { name: "Creating account..." })).toBeDisabled();
@@ -123,7 +124,6 @@ describe("AuthForm", () => {
       3, "/sessions", expect.objectContaining({ method: "POST" }),
     );
   });
-
   it("collects only email for verification signup and preserves invitation return", async () => {
     const fetcher = vi.fn<PlatformFetch>()
       .mockResolvedValueOnce(jsonResponse({ passwordRequired: false }))

@@ -6,9 +6,11 @@ import { changePassword } from "../../api/authApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { minimumPasswordCharacters } from "../../model/passwordPolicy";
+import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "../AuthForm/AuthForm.css";
 
 export const PasswordChangeForm = () => {
+  const passwordGuidanceId = "changed-password-guidance";
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -47,6 +49,7 @@ export const PasswordChangeForm = () => {
       <div className="auth-form__field">
         <label htmlFor="changed-password">New password</label>
         <input
+          aria-describedby={passwordGuidanceId}
           autoComplete="new-password"
           disabled={change.isPending}
           id="changed-password"
@@ -56,10 +59,12 @@ export const PasswordChangeForm = () => {
           type="password"
           value={newPassword}
         />
+        <PasswordGuidance id={passwordGuidanceId} />
       </div>
       <div className="auth-form__field">
         <label htmlFor="changed-password-confirmation">Confirm new password</label>
         <input
+          aria-describedby={passwordGuidanceId}
           autoComplete="new-password"
           disabled={change.isPending}
           id="changed-password-confirmation"

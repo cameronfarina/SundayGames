@@ -6,11 +6,13 @@ import { resetPassword } from "../../api/authApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { minimumPasswordCharacters } from "../../model/passwordPolicy";
+import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "../AuthForm/AuthForm.css";
 
 interface ResetPasswordFormProps { readonly token: string }
 
 export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
+  const passwordGuidanceId = "reset-password-guidance";
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const navigate = useNavigate();
@@ -36,6 +38,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
       <div className="auth-form__field">
         <label htmlFor="new-password">New password</label>
         <input
+          aria-describedby={passwordGuidanceId}
           autoComplete="new-password"
           disabled={reset.isPending}
           id="new-password"
@@ -45,10 +48,12 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
           type="password"
           value={password}
         />
+        <PasswordGuidance id={passwordGuidanceId} />
       </div>
       <div className="auth-form__field">
         <label htmlFor="confirm-password">Confirm new password</label>
         <input
+          aria-describedby={passwordGuidanceId}
           autoComplete="new-password"
           disabled={reset.isPending}
           id="confirm-password"
