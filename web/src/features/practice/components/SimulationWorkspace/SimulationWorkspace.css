@@ -57,7 +57,7 @@
 .simulation-workspace__fields {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: minmax(8rem, 0.3fr) minmax(15rem, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .simulation-workspace form > button {
@@ -107,7 +107,7 @@
 }
 
 .simulation-history li {
-  align-items: center;
+  align-items: start;
   border: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
@@ -117,6 +117,12 @@
 .simulation-history li div {
   display: grid;
   gap: 0.2rem;
+  min-width: 0;
+}
+
+.simulation-history li strong,
+.simulation-history li span {
+  overflow-wrap: anywhere;
 }
 
 .simulation-history button {

@@ -62,7 +62,18 @@
 .practice-page__workspace {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(18rem, 0.4fr) minmax(24rem, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
+}
+
+.practice-page__main,
+.practice-page__sidebar {
+  min-width: 0;
+}
+
+.practice-page__sidebar {
+  align-content: start;
+  display: grid;
+  gap: 1.5rem;
 }
 
 .practice-page__error {
@@ -79,7 +90,7 @@
   margin: 0;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .practice-page__workspace {
     grid-template-columns: 1fr;
   }

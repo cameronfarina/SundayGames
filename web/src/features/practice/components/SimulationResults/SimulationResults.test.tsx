@@ -17,6 +17,7 @@ describe("SimulationResults", () => {
   it("shows summary, exposure, warnings, and every team in a selected run", () => {
     const view = render(<SimulationResults
       note="Compare builds"
+      onExit={vi.fn()}
       onFavoriteChange={vi.fn()}
       onRunChange={vi.fn()}
       pendingFavorite={false}
@@ -42,6 +43,7 @@ describe("SimulationResults", () => {
     const onRunChange = vi.fn();
     const { rerender, unmount } = render(<SimulationResults
       note=""
+      onExit={vi.fn()}
       onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
       pendingFavorite={false}
@@ -55,6 +57,7 @@ describe("SimulationResults", () => {
     expect(onRunChange).toHaveBeenCalledWith(2);
     rerender(<SimulationResults
       note=""
+      onExit={vi.fn()}
       onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
       pendingFavorite={false}
@@ -66,6 +69,7 @@ describe("SimulationResults", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading Run 2");
     rerender(<SimulationResults
       note=""
+      onExit={vi.fn()}
       onFavoriteChange={vi.fn()}
       onRunChange={onRunChange}
       pendingFavorite={false}
@@ -83,6 +87,7 @@ describe("SimulationResults", () => {
     const onFavoriteChange = vi.fn();
     const view = render(<SimulationResults
       note=""
+      onExit={vi.fn()}
       onFavoriteChange={onFavoriteChange}
       onRunChange={vi.fn()}
       pendingFavorite={false}
@@ -99,7 +104,7 @@ describe("SimulationResults", () => {
     view.unmount();
   });
   it("renders a legacy singular target outcome and missing roster results", () => {
-    const view = render(<SimulationResults note={undefined} onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
+    const view = render(<SimulationResults note={undefined} onExit={vi.fn()} onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
       ...summary,
       draftFormat: "snake",
       strategy: { ...summary.strategy, warnings: [] },
@@ -117,7 +122,7 @@ describe("SimulationResults", () => {
   });
 
   it("handles simulation results without any target outcome", () => {
-    const view = render(<SimulationResults note="" onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
+    const view = render(<SimulationResults note="" onExit={vi.fn()} onFavoriteChange={vi.fn()} onRunChange={vi.fn()} pendingFavorite={false} pendingRun={false} run={undefined} selectedRunNumber={1} summary={{
       ...summary,
       targetOutcome: undefined,
       targetOutcomes: undefined,

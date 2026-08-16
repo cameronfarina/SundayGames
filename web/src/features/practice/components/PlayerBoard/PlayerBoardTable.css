@@ -1,13 +1,8 @@
 .player-board__table-wrap {
-  display: contents;
-}
-
-@media (max-width: 800px) {
-  .player-board__table-wrap {
-    display: block;
-    overflow-x: auto;
-    overflow-y: clip;
-  }
+  display: block;
+  overflow-x: auto;
+  overflow-y: clip;
+  overscroll-behavior-inline: contain;
 }
 
 .player-board__reveal {
@@ -23,15 +18,15 @@
 }
 
 .player-board__target-column {
-  width: 5rem;
+  width: 4rem;
 }
 
 .player-board__rank-column {
-  width: 4.5rem;
+  width: 3.5rem;
 }
 
 .player-board__player-column {
-  width: 20rem;
+  width: 14rem;
 }
 
 .player-board th,

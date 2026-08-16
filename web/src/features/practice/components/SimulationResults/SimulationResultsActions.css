@@ -1,0 +1,30 @@
+.simulation-results__actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.simulation-results__exit {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.simulation-results__exit:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+@media (max-width: 700px) {
+  .simulation-results__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

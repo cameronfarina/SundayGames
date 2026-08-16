@@ -7,9 +7,11 @@ import type {
 import { OutcomePicker } from "./OutcomePicker";
 import { TeamCard } from "./TeamCard";
 import "./SimulationResults.css";
+import "./SimulationResultsActions.css";
 
 interface SimulationResultsProps {
   readonly note: string | undefined;
+  readonly onExit: () => void;
   readonly onFavoriteChange: (favorite: boolean) => void;
   readonly onRunChange: (runNumber: number) => void;
   readonly pendingFavorite: boolean;
@@ -80,13 +82,16 @@ export function SimulationResults(props: SimulationResultsProps) {
     <section aria-labelledby="simulation-results-title" className="simulation-results">
       <div className="simulation-results__heading">
         <div><p className="practice-eyebrow">Results</p><h2 id="simulation-results-title">League outcomes</h2></div>
-        <OutcomePicker
-          onFavoriteChange={props.onFavoriteChange}
-          onRunChange={props.onRunChange}
-          pendingFavorite={props.pendingFavorite}
-          selectedRunNumber={props.selectedRunNumber}
-          summary={props.summary}
-        />
+        <div className="simulation-results__actions">
+          <button className="simulation-results__exit" onClick={props.onExit} type="button">Exit simulations</button>
+          <OutcomePicker
+            onFavoriteChange={props.onFavoriteChange}
+            onRunChange={props.onRunChange}
+            pendingFavorite={props.pendingFavorite}
+            selectedRunNumber={props.selectedRunNumber}
+            summary={props.summary}
+          />
+        </div>
       </div>
       <p className="simulation-results__summary">{props.summary.strategy.summary}</p>
       {props.summary.strategy.warnings.length > 0 && <ul className="simulation-results__warnings">

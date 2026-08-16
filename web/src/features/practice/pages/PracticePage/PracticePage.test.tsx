@@ -90,11 +90,16 @@ describe("PracticePage", () => {
     vi.stubGlobal("fetch", fetcher);
     const view = render(<PracticePage />, { wrapper: providers() });
     await screen.findByRole("button", { name: "Remove Puka Nacua from simulation plan" });
+    expect(screen.getByRole("heading", { name: "Available players" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Draft targets" })).toBeInTheDocument();
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/1")).toBe(0);
 
     await user.click(screen.getByRole("button", { name: "Run simulations" }));
     expect(await screen.findByRole("heading", { name: "League outcomes" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Short King" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Available players" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Draft targets" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run simulations" })).toBeInTheDocument();
     expect(requestCount(fetcher, "/season-simulations/history-new")).toBe(1);
     expect(requestCount(fetcher, "/season-simulations/history-new/runs/1")).toBe(1);
     await user.click(screen.getByRole("button", { name: "Save Run 1 to My Team" }));
@@ -107,6 +112,11 @@ describe("PracticePage", () => {
     expect(await screen.findByText("#2 Run 2 · 99.2 pts", { selector: ".practice-select__trigger span" })).toBeInTheDocument();
     expect(screen.getByTestId("practice-location")).toHaveTextContent("simulationRun=2");
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Exit simulations" }));
+    expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "League outcomes" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Draft targets" })).toBeInTheDocument();
+    expect(screen.getByTestId("practice-location")).not.toHaveTextContent("runId=");
     view.unmount();
   });
 

@@ -17,12 +17,11 @@
 }
 
 .shortlist-row {
-  align-items: center;
+  align-items: stretch;
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
+  display: grid;
+  gap: 0.65rem;
   padding: 0.7rem;
 }
 
@@ -39,8 +38,9 @@
 
 .shortlist-row form {
   align-items: end;
-  display: flex;
+  display: grid;
   gap: 0.4rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .shortlist-row input {
