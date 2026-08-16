@@ -5,6 +5,7 @@ import { JobError } from "../src/platform/jobs.js";
 import { applyPlatformPostgresMigrations } from "../src/platform/platformMigrations.js";
 import { createNodePostgresClient, type NodePostgresClient } from "../src/platform/postgresClient.js";
 import { PostgresJobQueue } from "../src/platform/postgresJobQueue.js";
+import { defaultPostgresPoolSize } from "../src/platform/platformRuntimeConfig/defaults.js";
 
 const databaseUrl = process.env.MOCKD_POSTGRES_INTEGRATION_DATABASE_URL?.trim();
 const describeWithPostgres = databaseUrl === undefined || databaseUrl.length === 0
@@ -27,7 +28,10 @@ describeWithPostgres("Postgres simulation rerun admission", () => {
     await adminClient.query(`CREATE SCHEMA ${quoteIdentifier(schemaName)}`);
     const isolatedUrl = new URL(databaseUrl);
     isolatedUrl.searchParams.set("options", `-c search_path=${schemaName}`);
-    client = createNodePostgresClient({ databaseUrl: isolatedUrl.toString(), max: 110 });
+    client = createNodePostgresClient({
+      databaseUrl: isolatedUrl.toString(),
+      max: defaultPostgresPoolSize,
+    });
     await applyPlatformPostgresMigrations(client);
     await client.query(
       "INSERT INTO accounts (id, email, email_normalized, password_hash) VALUES ('user_owner11', 'owner11@example.com', 'owner11@example.com', 'hash')",
