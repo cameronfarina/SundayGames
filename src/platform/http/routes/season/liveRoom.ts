@@ -49,7 +49,7 @@ export const routeSeasonLiveRoom = async (
       "Publish this season's player catalog and keepers before creating its live room.",
     );
   }
-  const playerCatalog = await liveRoomCatalogForSeason(app, request, season, setup.playerCatalog);
+  const playerCatalog = await liveRoomCatalogForSeason(app, request, season, setup);
   const room = await app.createLiveDraftRoom({
     actorSessionToken: request.sessionToken,
     seasonId: season.id,

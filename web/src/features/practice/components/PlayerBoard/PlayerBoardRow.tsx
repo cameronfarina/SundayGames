@@ -1,14 +1,17 @@
+import { useState } from "react";
 import { Star } from "lucide-react";
 import { IconButton } from "../../../../shared/ui";
 import type { PracticePlayer } from "../../api/playerCatalogSchema";
 import {
   playerMarketValue,
   playerMyValue,
+  playerSimulationValue,
   positionTone,
 } from "../../model/playerBoard";
 
 interface PlayerBoardRowProps {
   readonly isTarget: boolean;
+  readonly onSaveMyValue: (player: PracticePlayer, value: number) => void;
   readonly onToggleTarget: (player: PracticePlayer) => void;
   readonly player: PracticePlayer;
   readonly rank: number;
@@ -17,11 +20,22 @@ interface PlayerBoardRowProps {
 
 export function PlayerBoardRow({
   isTarget,
+  onSaveMyValue,
   onToggleTarget,
   player,
   rank,
   targetChangesDisabled,
 }: PlayerBoardRowProps) {
+  const personalValue = Math.round(playerMyValue(player));
+  const [draftValue, setDraftValue] = useState(String(personalValue));
+  const saveMyValue = () => {
+    const value = Number(draftValue);
+    if (!Number.isInteger(value) || value < 1) {
+      setDraftValue(String(personalValue));
+      return;
+    }
+    if (value !== personalValue) onSaveMyValue(player, value);
+  };
   const action = isTarget ? "Remove" : "Add";
   const direction = isTarget ? "from" : "to";
   const targetLabel = `${action} ${player.name} ${direction} simulation plan`;
@@ -42,7 +56,22 @@ export function PlayerBoardRow({
       <td>{player.teamAbbreviation ?? "FA"}</td>
       <td>{player.byeWeek ?? "-"}</td>
       <td>${Math.round(playerMarketValue(player))}</td>
-      <td>${Math.round(playerMyValue(player))}</td>
+      <td>${Math.round(playerSimulationValue(player))}</td>
+      <td><label className="player-row__value-editor"><span aria-hidden="true">$</span><span className="sr-only">My value for {player.name}</span><input
+        disabled={targetChangesDisabled}
+        inputMode="numeric"
+        min={1}
+        onBlur={saveMyValue}
+        onChange={event => { setDraftValue(event.currentTarget.value); }}
+        onKeyDown={event => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setDraftValue(String(personalValue));
+          }
+        }}
+        type="number"
+        value={draftValue}
+      /></label></td>
     </tr>
   );
 }

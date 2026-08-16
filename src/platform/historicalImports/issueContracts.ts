@@ -12,6 +12,7 @@ export type HistoricalImportIssueCode =
   | "owner_ambiguous"
   | "owner_mapping_not_one_to_one"
   | "owner_fuzzy_match"
+  | "owner_unmapped"
   | "position_invalid"
   | "player_missing"
   | "price_invalid"

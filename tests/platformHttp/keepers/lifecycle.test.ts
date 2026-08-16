@@ -77,7 +77,7 @@ it("previews, persists, lists, and removes commissioner keeper commands", async 
         personalized: true,
         strategyKey: "balanced",
         players: expect.arrayContaining([
-          expect.objectContaining({ marketPrice: 73, myValue: 73, leagueValue: 73 }),
+          expect.objectContaining({ marketPrice: 55, myValue: 55, leagueValue: 55 }),
           expect.objectContaining({
             name: "De'Von Achane",
             isKeeper: true,
@@ -127,7 +127,7 @@ it("previews, persists, lists, and removes commissioner keeper commands", async 
       body: {
         room: {
           board: expect.arrayContaining([
-            expect.objectContaining({ name: "Puka Nacua", marketPrice: 73, expectedPrice: 73 }),
+            expect.objectContaining({ name: "Puka Nacua", marketPrice: 55, expectedPrice: 55 }),
           ]),
           teamSummaries: expect.arrayContaining([
             expect.objectContaining({

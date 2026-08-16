@@ -353,7 +353,7 @@ describe("platform historical import workflow", () => {
     ]);
   });
 
-  it("does not auto-map an owner from generic identity words alone", async () => {
+  it("retains a historical owner who is no longer in the current league", async () => {
     const seasonWithGenericTeamName = {
       ...leagueSeason,
       teams: leagueSeason.teams.map(team =>
@@ -374,13 +374,18 @@ describe("platform historical import workflow", () => {
       now,
     });
 
-    expect(preview.batch.status).toBe("blocked");
-    expect(preview.batch.blockers).toEqual([
-      expect.objectContaining({
-        code: "owner_unknown",
-        sourceValue: "Mystery Team",
-      }),
-    ]);
+    expect(preview.batch.status).toBe("previewed");
+    expect(preview.batch.blockers).toEqual([]);
+    expect(preview.batch.rows[0]).toMatchObject({
+      status: "ready",
+      warnings: expect.arrayContaining([
+        expect.objectContaining({ code: "owner_unmapped" }),
+      ]),
+      record: {
+        ownerDisplayName: "Mystery Team",
+        ownerId: "historical-owner-mystery-team",
+      },
+    });
   });
 
   it("requires an explicit mapping when an owner label matches multiple teams", async () => {
@@ -576,10 +581,7 @@ describe("platform historical import workflow", () => {
 
     expect(preview.source.sourceWarnings.map(warning => warning.code)).toEqual(["invalid_keeper"]);
     expect(preview.batch.status).toBe("blocked");
-    expect(preview.batch.blockers.map(blocker => blocker.code)).toEqual([
-      "owner_unknown",
-      "player_unresolved",
-    ]);
+    expect(preview.batch.blockers.map(blocker => blocker.code)).toEqual(["player_unresolved"]);
     await expect(
       commitHistoricalImportWorkflow({
         repository,

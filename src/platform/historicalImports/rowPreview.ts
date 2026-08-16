@@ -3,7 +3,7 @@ import type {
   HistoricalImportRowPreview,
   HistoricalOwnerMapping,
 } from "./batchContracts.js";
-import { playerIdFromRow } from "./ids.js";
+import { historicalOwnerId, playerIdFromRow } from "./ids.js";
 import { teamResolutionForOwner } from "./ownerResolution.js";
 import type { NormalizedHistoricalImportRow } from "./playerContracts.js";
 import { resolveHistoricalPosition } from "./position.js";
@@ -17,6 +17,7 @@ interface RowPreviewInput {
   seasonYear: number;
   season: LeagueSeason;
   ownerMappings: readonly HistoricalOwnerMapping[];
+  allowUnmappedOwner: boolean;
 }
 
 export const historicalImportRowPreview = ({
@@ -27,6 +28,7 @@ export const historicalImportRowPreview = ({
   seasonYear,
   season,
   ownerMappings,
+  allowUnmappedOwner,
 }: RowPreviewInput): HistoricalImportRowPreview => {
   const teamResolution = teamResolutionForOwner(row.ownerDisplayName, season.teams, ownerMappings);
   const team = teamResolution.team;
@@ -43,11 +45,21 @@ export const historicalImportRowPreview = ({
     playerName,
     playerId,
     acquisitionType,
+    allowUnmappedOwner,
   });
+  const unmappedOwnerLabel = team === null
+    && allowUnmappedOwner
+    && teamResolution.audit.resolution === "unresolved"
+    && teamResolution.audit.sourceOwnerOrTeamLabel.length > 0
+      ? teamResolution.audit.sourceOwnerOrTeamLabel
+      : undefined;
+  const ownerId = team?.ownerId ?? (
+    unmappedOwnerLabel === undefined ? undefined : historicalOwnerId(unmappedOwnerLabel)
+  );
 
   if (
     blockers.length > 0
-    || team === null
+    || ownerId === undefined
     || position === null
     || playerName.length === 0
     || playerId === null
@@ -76,7 +88,7 @@ export const historicalImportRowPreview = ({
       leagueSeasonId: season.id,
       seasonYear,
       rowNumber: row.sourceRowNumber,
-      ownerId: team.ownerId,
+      ownerId,
       ownerDisplayName: teamResolution.audit.sourceOwnerOrTeamLabel,
       playerId,
       playerName,

@@ -7,6 +7,7 @@ interface PracticePlayerBoardProps {
   readonly error: Error | null;
   readonly isPending: boolean;
   readonly onRetry: () => void;
+  readonly onSaveMyValue: (player: PracticePlayer, value: number) => void;
   readonly onToggleTarget: (player: PracticePlayer) => void;
   readonly shortlist: readonly PracticeShortlistItem[];
   readonly targetChangesDisabled: boolean;
@@ -23,6 +24,7 @@ export function PracticePlayerBoard(props: PracticePlayerBoardProps) {
   }
   return <PlayerBoard
     catalog={props.catalog}
+    onSaveMyValue={props.onSaveMyValue}
     onToggleTarget={props.onToggleTarget}
     shortlist={props.shortlist}
     targetChangesDisabled={props.targetChangesDisabled}

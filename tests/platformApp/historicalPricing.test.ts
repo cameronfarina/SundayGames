@@ -90,7 +90,7 @@ describe("platform app service", () => {
       expect.objectContaining({ playerName: "Puka Nacua", priceDollars: 70 }),
     ]);
     expect(pricing.snapshots[0]?.rows.find(row => row.playerName === "Puka Nacua")).toMatchObject({
-      marketPrice: 70,
+      marketPrice: 50,
       scenarioPrice: 70,
     });
     expect(await app.listLeaguePricingSnapshots({

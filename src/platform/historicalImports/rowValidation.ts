@@ -14,6 +14,7 @@ interface RowValidationInput {
   playerName: string;
   playerId: string | null;
   acquisitionType: HistoricalAcquisitionType;
+  allowUnmappedOwner: boolean;
 }
 
 export interface HistoricalImportRowValidation {
@@ -29,6 +30,7 @@ export const validateHistoricalImportRow = ({
   playerName,
   playerId,
   acquisitionType,
+  allowUnmappedOwner,
 }: RowValidationInput): HistoricalImportRowValidation => {
   const blockers: HistoricalImportIssue[] = [];
   const warnings: HistoricalImportIssue[] = [];
@@ -65,7 +67,18 @@ export const validateHistoricalImportRow = ({
       row.sourceRowNumber,
     ));
   }
-  if (teamResolution.team === null) {
+  const unmappedHistoricalOwner = allowUnmappedOwner
+    && teamResolution.audit.resolution === "unresolved"
+    && teamResolution.audit.sourceOwnerOrTeamLabel.length > 0;
+  if (unmappedHistoricalOwner) {
+    warnings.push(historicalImportIssue(
+      "owner_unmapped",
+      "warning",
+      "Historical owner is no longer in the current league and was retained for pricing history.",
+      row.sourceRowNumber,
+      { sourceValue: teamResolution.audit.sourceOwnerOrTeamLabel },
+    ));
+  } else if (teamResolution.team === null) {
     const code = teamResolution.audit.resolution === "ambiguous"
       ? "owner_ambiguous"
       : "owner_unknown";

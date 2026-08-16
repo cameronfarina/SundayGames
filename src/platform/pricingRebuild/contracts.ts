@@ -2,6 +2,11 @@ import type { Position } from "../../../config/league.js";
 import type { HistoricalSaleRecord } from "../historicalImports.js";
 import type { PricingSourcePrice } from "../pricingSnapshots.js";
 
+export interface CurrentKeeperPrice {
+  normalizedName: string;
+  priceDollars: number;
+}
+
 export interface CreateLeagueCalibratedPricingSnapshotsInput {
   leagueId: string;
   seasonYear: number | string;
@@ -15,6 +20,7 @@ export interface CreateLeagueCalibratedPricingSnapshotsInput {
   currentMinimumBidDollars?: number;
   currentKeeperCount?: number;
   keeperLockedSpend?: number;
+  currentKeepers?: readonly CurrentKeeperPrice[];
   createdAt?: string;
 }
 
@@ -35,6 +41,7 @@ export interface PositionSaleCurveResult {
 
 export interface LeagueAuctionAllocation {
   scenarioPrices: readonly number[];
+  personalValues?: readonly number[];
   warnings: readonly string[];
 }
 

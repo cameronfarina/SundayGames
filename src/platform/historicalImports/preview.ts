@@ -64,6 +64,7 @@ const previewInRepository = async (
     seasonYear: input.seasonYear,
     season,
     ownerMappings,
+    allowUnmappedOwner: !requireCompleteTeamMapping,
   });
   const mappingBlockers = ownerMappingBlockers(
     rows,

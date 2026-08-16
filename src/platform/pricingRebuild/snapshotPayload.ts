@@ -50,4 +50,6 @@ export const inputSnapshotPayload = (
   currentMinimumBidDollars: input.currentMinimumBidDollars,
   currentKeeperCount: input.currentKeeperCount,
   keeperLockedSpend: input.keeperLockedSpend,
+  currentKeepers: input.currentKeepers === undefined ? undefined : [...input.currentKeepers]
+    .sort((left, right) => left.normalizedName.localeCompare(right.normalizedName)),
 });

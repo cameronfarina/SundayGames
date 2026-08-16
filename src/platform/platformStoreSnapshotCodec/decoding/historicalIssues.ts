@@ -20,6 +20,7 @@ const issueCodeValue = (value: unknown, path: string): HistoricalImportIssueCode
   if (candidate === "season_missing" || candidate === "team_count_mismatch"
     || candidate === "owner_unknown" || candidate === "owner_ambiguous"
     || candidate === "owner_mapping_not_one_to_one" || candidate === "owner_fuzzy_match"
+    || candidate === "owner_unmapped"
     || candidate === "position_invalid" || candidate === "player_missing"
     || candidate === "price_invalid" || candidate === "public_price_invalid"
     || candidate === "player_duplicate" || candidate === "player_ambiguous"

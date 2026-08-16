@@ -5,12 +5,11 @@ import type { BaselinePlayer } from "./baseline.js";
 export const snakeCatalogPlayers = (
   players: readonly BaselinePlayer[],
   keeperByPlayer: ReadonlyMap<string, LiveDraftRoomInitialRosterPlayer>,
-) => players.map((player, index) => {
+) => players.map(player => {
   const keeper = keeperByPlayer.get(canonicalPlayerIdentityKey(player.name));
   return {
     ...player,
-    marketRank: index + 1,
-    leagueRank: index + 1,
+    leagueRank: player.marketRank,
     marketValueSource: "baseline_rank",
     isKeeper: keeper !== undefined,
     ...(keeper === undefined ? {} : {

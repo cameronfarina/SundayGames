@@ -13,7 +13,7 @@
 
 .player-board table {
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 860px;
   width: 100%;
 }
 
@@ -52,6 +52,29 @@
 
 .player-row__name {
   font-weight: 700;
+}
+
+.player-row__value-editor {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.player-row__value-editor input {
+  background: var(--color-surface-raised);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  padding: 0.3rem 0.35rem;
+  width: 3.5rem;
+}
+
+.player-row__value-editor input:hover,
+.player-row__value-editor input:focus-visible {
+  border-color: var(--color-accent);
+  outline: none;
 }
 
 .target-button {

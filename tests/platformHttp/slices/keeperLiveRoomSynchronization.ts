@@ -72,7 +72,7 @@ export const verifyKeeperLiveRoomSynchronization = async ({
   const pukaPrice = latestPricing?.rows.find(row => row.playerName === "Puka Nacua");
   const pukaRoomPlayer = roomAfterKeeperUpdate.playerCatalog.find(player => player.name === "Puka Nacua");
   expect(pukaRoomPlayer?.expectedPrice).toBe(Math.round(pukaPrice?.scenarioPrice ?? Number.NaN));
-  expect(pukaRoomPlayer?.marketPrice).toBe(73);
+  expect(pukaRoomPlayer?.marketPrice).toBe(55);
 
   const pukaRoomPriceBeforeFailure = roomAfterKeeperUpdate.playerCatalog
     .find(player => player.name === "Puka Nacua")?.expectedPrice;

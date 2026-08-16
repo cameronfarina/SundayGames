@@ -170,7 +170,7 @@ export const verifyRoutingSeasonAndPricing = async ({ handle, owner11, owner04, 
       snapshots: [
         expect.objectContaining({
           scenarioId: "balanced",
-          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 60 })],
+          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 50, scenarioPrice: 60 })],
         }),
       ],
     });

@@ -33,7 +33,7 @@ const shortlist: readonly PracticeShortlistItem[] = [{
 
 describe("PlayerBoard performance", () => {
   it("bounds the initial rows and lets users reveal the complete catalog", () => {
-    render(<PlayerBoard catalog={catalog} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
+    render(<PlayerBoard catalog={catalog} onSaveMyValue={vi.fn()} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
 
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(51);
     expect(screen.getByText("50 shown / 500 matching / 500 loaded")).toBeInTheDocument();
@@ -48,7 +48,7 @@ describe("PlayerBoard performance", () => {
 
   it("resets expanded rows when search and position filters change", async () => {
     const user = userEvent.setup();
-    render(<PlayerBoard catalog={catalog} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
+    render(<PlayerBoard catalog={catalog} onSaveMyValue={vi.fn()} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
 
     await user.click(screen.getByRole("button", { name: /Show .* more players/u }));
     await user.click(screen.getByRole("button", { name: /Show .* more players/u }));
@@ -71,6 +71,7 @@ describe("PlayerBoard performance", () => {
     const onToggleTarget = vi.fn();
     render(<PlayerBoard
       catalog={catalog}
+      onSaveMyValue={vi.fn()}
       onToggleTarget={onToggleTarget}
       shortlist={shortlist}
       targetChangesDisabled={false}

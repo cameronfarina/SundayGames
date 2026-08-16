@@ -65,6 +65,7 @@ interface PreviewRowsInput {
   seasonYear: number;
   season: LeagueSeason;
   ownerMappings: readonly HistoricalOwnerMapping[];
+  allowUnmappedOwner: boolean;
 }
 
 export const analyzedRowPreviews = ({
@@ -74,6 +75,7 @@ export const analyzedRowPreviews = ({
   seasonYear,
   season,
   ownerMappings,
+  allowUnmappedOwner,
 }: PreviewRowsInput): HistoricalImportRowPreview[] => blockDuplicatePlayers(
   rows.map((row, index) => historicalImportRowPreview({
     row,
@@ -83,6 +85,7 @@ export const analyzedRowPreviews = ({
     seasonYear,
     season,
     ownerMappings,
+    allowUnmappedOwner,
   })),
 );
 

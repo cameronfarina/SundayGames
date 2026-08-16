@@ -1,5 +1,6 @@
 import type { HistoricalSaleRecord } from "../../historicalImports.js";
 import type { PricingSourcePrice } from "../../pricingSnapshots.js";
+import type { CurrentKeeperPrice } from "../../pricingRebuild/contracts.js";
 
 export interface RebuildPlatformPricingInput {
   actorSessionToken: string;
@@ -10,6 +11,7 @@ export interface RebuildPlatformPricingInput {
   baselinePrices: readonly PricingSourcePrice[];
   currentKeeperCount?: number | undefined;
   keeperLockedSpend?: number | undefined;
+  currentKeepers?: readonly CurrentKeeperPrice[] | undefined;
   historicalSaleRecords?: readonly HistoricalSaleRecord[] | undefined;
   now?: Date | undefined;
 }

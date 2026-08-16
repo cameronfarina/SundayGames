@@ -76,6 +76,7 @@ export const sourcePriceForScenario = (
   sourcePrice: PricingSourcePrice,
   calibration: CalibrationResult,
   scenarioPrice: number,
+  personalValue: number,
   sharedWarnings: readonly string[],
 ): PricingSourcePrice => {
   const warning = historicalMoveWarning(calibration.historicalMove);
@@ -88,8 +89,9 @@ export const sourcePriceForScenario = (
     name: sourcePrice.name,
     normalizedName: sourcePrice.normalizedName,
     position: sourcePrice.position,
-    price: calibration.price,
+    price: sourcePrice.price,
     scenarioPrice,
+    personalValue,
     warnings: [...new Set(warnings)],
     ...(sourcePrice.confidence === undefined ? {} : { confidence: sourcePrice.confidence }),
     ...(sourcePrice.tier === undefined ? {} : { tier: sourcePrice.tier }),

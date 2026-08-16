@@ -148,19 +148,19 @@ it("uses one pricing snapshot across the player catalog, mock drafts, and simula
         players: expect.arrayContaining([
           expect.objectContaining({
             name: "Puka Nacua",
-            marketPrice: pukaPricing.marketPrice,
+            marketPrice: 55,
             leagueValue: pukaPricing.scenarioPrice,
             myValue: pukaPricing.personalValue,
           }),
           expect.objectContaining({
             name: "Jahmyr Gibbs",
-            marketPrice: gibbsPricing.marketPrice,
+            marketPrice: 57,
             leagueValue: gibbsPricing.scenarioPrice,
             myValue: gibbsPricing.personalValue,
           }),
           expect.objectContaining({
             name: "De'Von Achane",
-            marketPrice: achanePricing.marketPrice,
+            marketPrice: 50,
             leagueValue: achanePricing.scenarioPrice,
             myValue: achanePricing.personalValue,
           }),

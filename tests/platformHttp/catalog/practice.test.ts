@@ -37,15 +37,16 @@ it("serves the current player catalog to signed-in users without requiring a lea
           totalPlayerCount: 5,
         },
         players: [
-          ...playerCatalog.map(player => ({
-            ...player,
-            baselineValueSource: "espn",
-            marketValueSource: "espn",
-          })),
+          expect.objectContaining({ name: "Puka Nacua", marketPrice: 55, marketRank: 4 }),
+          expect.objectContaining({ name: "Xavier Legette", marketPrice: 0, marketRank: 210 }),
+          expect.objectContaining({ name: "Jahmyr Gibbs", marketPrice: 57, marketRank: 1 }),
+          expect.objectContaining({ name: "De'Von Achane", marketPrice: 50, marketRank: 10 }),
           {
             ...fallbackPlayer,
             baselineValueSource: "mockd_projection",
             marketValueSource: "mockd_projection",
+            marketPrice: 1,
+            marketRank: 301,
           },
         ],
       },
@@ -127,7 +128,7 @@ it("prices Practice from only the latest matching league snapshot", async () => 
         personalized: true,
         pricingModelRunId: latest.modelRunId,
         players: expect.arrayContaining([
-          expect.objectContaining({ name: "Puka Nacua", marketPrice: 41 }),
+          expect.objectContaining({ name: "Puka Nacua", marketPrice: 55, myValue: 41 }),
         ]),
       },
     });

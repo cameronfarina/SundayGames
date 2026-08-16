@@ -4,6 +4,7 @@ import { optionalNumber, stringValue } from "../request/values.js";
 import { knownError, methodNotAllowed, notFound } from "../responses.js";
 import { historicalDraftSetupFor } from "./season/historicalSetup.js";
 import {
+  currentLeaguePricingModelVersion,
   playerCatalogWithPricingSnapshot,
   rebuildPricingAfterKeeperChange,
   synchronizeUnopenedLiveRoomAfterKeeperChange,
@@ -45,7 +46,7 @@ export const routeHistoricalImports = async (
     await rebuildPricingAfterKeeperChange(app, request, season, setup, {
       preflight: true,
       historicalSaleRecords: prepared.projectedHistoricalSaleRecords,
-      modelVersion: "league-history-v2",
+      modelVersion: currentLeaguePricingModelVersion,
     });
   }
   const result = await app.commitHistoricalImport({
@@ -57,7 +58,9 @@ export const routeHistoricalImports = async (
     now: request.now,
   });
   if (season.settings.draftFormat !== "snake" && setup !== null) {
-    const pricingResult = await rebuildPricingAfterKeeperChange(app, request, season, setup, { modelVersion: "league-history-v2" });
+    const pricingResult = await rebuildPricingAfterKeeperChange(app, request, season, setup, {
+      modelVersion: currentLeaguePricingModelVersion,
+    });
     if (pricingResult === undefined || !("savedSnapshotIds" in pricingResult)) {
       throw new Error("Historical pricing rebuild did not persist a snapshot.");
     }

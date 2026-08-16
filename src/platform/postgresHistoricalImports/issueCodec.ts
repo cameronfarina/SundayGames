@@ -4,7 +4,7 @@ import { jsonArrayFromDb } from "./jsonValues.js";
 
 const issueCodeSchema = z.enum([
   "season_missing", "team_count_mismatch", "owner_unknown", "owner_ambiguous",
-  "owner_mapping_not_one_to_one", "owner_fuzzy_match", "position_invalid",
+  "owner_mapping_not_one_to_one", "owner_fuzzy_match", "owner_unmapped", "position_invalid",
   "player_missing", "price_invalid", "public_price_invalid", "player_duplicate",
   "player_ambiguous", "player_unresolved", "player_historical_only",
   "season_spend_mismatch", "keeper_inferred", "acquisition_type_inferred",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { PlayerCatalog } from "../../api/playerCatalogSchema";
@@ -20,6 +20,7 @@ const catalog: PlayerCatalog = {
     {
       byeWeek: 11,
       expectedPrice: 73,
+      leagueValue: 72,
       marketPrice: 70,
       myValue: 75,
       name: "Puka Nacua",
@@ -62,6 +63,7 @@ describe("PlayerBoard", () => {
     const view = render(
       <PlayerBoard
         catalog={catalog}
+        onSaveMyValue={vi.fn()}
         onToggleTarget={onToggleTarget}
         shortlist={shortlist}
         targetChangesDisabled={false}
@@ -71,10 +73,12 @@ describe("PlayerBoard", () => {
     expect(screen.getByRole("columnheader", { name: "NFL" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Bye" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Market" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Simulation" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "My value" })).toBeInTheDocument();
     expect(screen.getByText("Keeper · $4")).toBeInTheDocument();
     expect(screen.getByText("$70")).toBeInTheDocument();
-    expect(screen.getByText("$75")).toBeInTheDocument();
+    expect(screen.getByText("$72")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "My value for Puka Nacua" })).toHaveValue(75);
 
     const targetButton = screen.getByRole("button", { name: "Remove Puka Nacua from simulation plan" });
     expect(targetButton).toHaveAttribute("title", "Remove Puka Nacua from simulation plan");
@@ -89,6 +93,7 @@ describe("PlayerBoard", () => {
     const view = render(
       <PlayerBoard
         catalog={catalog}
+        onSaveMyValue={vi.fn()}
         onToggleTarget={vi.fn()}
         shortlist={shortlist}
         targetChangesDisabled={false}
@@ -119,6 +124,7 @@ describe("PlayerBoard", () => {
     const user = userEvent.setup();
     const view = render(<PlayerBoard
       catalog={catalog}
+      onSaveMyValue={vi.fn()}
       onToggleTarget={vi.fn()}
       shortlist={shortlist}
       targetChangesDisabled={false}
@@ -136,10 +142,34 @@ describe("PlayerBoard", () => {
     view.unmount();
   });
 
+  it("starts in true market-rank order even when dollar values disagree", () => {
+    const view = render(<PlayerBoard
+      catalog={{
+        players: [
+          { expectedPrice: 52, marketPrice: 52, marketRank: 8, name: "Amon-Ra St. Brown", position: "WR" },
+          { expectedPrice: 52, marketPrice: 52, marketRank: 7, name: "Jonathan Taylor", position: "RB" },
+          { expectedPrice: 55, marketPrice: 55, marketRank: 4, name: "Puka Nacua", position: "WR" },
+        ],
+      }}
+      onSaveMyValue={vi.fn()}
+      onToggleTarget={vi.fn()}
+      shortlist={[]}
+      targetChangesDisabled={false}
+    />);
+
+    const names = within(screen.getByRole("table")).getAllByRole("row")
+      .slice(1)
+      .map(row => within(row).getAllByRole("cell")[2]?.textContent);
+    expect(names).toEqual(["Puka Nacua", "Jonathan Taylor", "Amon-Ra St. Brown"]);
+    expect(screen.getByRole("combobox", { name: "Sort players" })).toHaveTextContent("Rank");
+    view.unmount();
+  });
+
   it("disables target changes when no league is active", () => {
     const view = render(
       <PlayerBoard
         catalog={catalog}
+        onSaveMyValue={vi.fn()}
         onToggleTarget={vi.fn()}
         shortlist={[]}
         targetChangesDisabled

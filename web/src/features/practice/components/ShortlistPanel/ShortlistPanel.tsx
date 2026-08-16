@@ -32,6 +32,7 @@ function TargetRow({ item, onRemove, onSave, pending }: TargetRowProps) {
           aria-label={`Maximum bid for ${item.playerName}`}
           defaultValue={item.maxBid}
           disabled={pending}
+          key={item.maxBid ?? "uncapped"}
           min="0"
           name="maxBid"
           step="1"

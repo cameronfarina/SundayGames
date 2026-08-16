@@ -63,6 +63,9 @@ export const buildSeasonPlayerValues = ({
   const humanKeepers = initialRosters.filter(player =>
     player.source === "keeper" && player.teamId === humanTeamId
   );
+  const keeperPlayerKeys = new Set(initialRosters
+    .filter(player => player.source === "keeper")
+    .map(player => canonicalPlayerIdentityKey(player.playerName)));
   const positionCounts = humanKeepers.reduce<Record<string, number>>((counts, keeper) => {
     counts[keeper.position] = (counts[keeper.position] ?? 0) + 1;
     return counts;
@@ -87,10 +90,16 @@ export const buildSeasonPlayerValues = ({
 
   const playerExpectedPrices = Object.fromEntries(playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
+    if (keeperPlayerKeys.has(playerKey)) {
+      return [playerKey, player.marketPrice ?? player.expectedPrice];
+    }
     return [playerKey, leaguePrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice];
   }));
   const playerHumanValues = Object.fromEntries(playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
+    if (keeperPlayerKeys.has(playerKey)) {
+      return [playerKey, player.marketPrice ?? player.expectedPrice];
+    }
     const personalValue = personalValues.get(playerKey);
     if (personalValue !== undefined) return [playerKey, personalValue];
     const marketValue = playerExpectedPrices[playerKey] ?? player.expectedPrice;

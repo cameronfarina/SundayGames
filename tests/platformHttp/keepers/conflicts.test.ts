@@ -1,4 +1,8 @@
 import { InMemoryLiveDraftRoomSetupRepository, InMemoryPlatformStore, buildCurrentMockdLeagueSeason, canonicalPlayerIdentityKey, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectBodyRecord, expectString, it, leagueConfig, mockRunner, now, ownerOrder, playerCatalog } from "../support/index.js";
+import { espnPpr300AuctionBaselineValueFor } from "../../../src/data/espnPpr300AuctionBaseline2026.js";
+
+const publicPriceFor = (name: string, fallback: number): number =>
+  Math.max(1, espnPpr300AuctionBaselineValueFor(name)?.auctionValue ?? fallback);
 
 describe("platform HTTP contract", () => {
 it("does not save a keeper when the resulting pricing snapshot would conflict", async () => {
@@ -32,18 +36,20 @@ it("does not save a keeper when the resulting pricing snapshot would conflict", 
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-keepers-v2",
+      modelVersion: "league-history-keepers-v3",
       scenarioIds: ["expected"],
-      baselinePrices: playerCatalog
-        .filter(player => player.name !== "De'Von Achane")
-        .map(player => ({
+      baselinePrices: playerCatalog.map(player => ({
           name: player.name,
           normalizedName: canonicalPlayerIdentityKey(player.name),
           position: player.position,
-          price: player.expectedPrice,
+          price: publicPriceFor(player.name, player.expectedPrice),
         })),
       currentKeeperCount: 1,
       keeperLockedSpend: 50,
+      currentKeepers: [{
+        normalizedName: canonicalPlayerIdentityKey("De'Von Achane"),
+        priceDollars: 50,
+      }],
       now,
     });
     const snapshot = prepared.snapshots[0];
@@ -114,17 +120,18 @@ it("does not commit historical records when the resulting pricing snapshot would
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-v2",
+      modelVersion: "league-history-keepers-v3",
       scenarioIds: ["expected"],
       baselinePrices: playerCatalog.map(player => ({
         name: player.name,
         normalizedName: canonicalPlayerIdentityKey(player.name),
         position: player.position,
-        price: player.expectedPrice,
+        price: publicPriceFor(player.name, player.expectedPrice),
       })),
       historicalSaleRecords: proposed.projectedHistoricalSaleRecords,
       currentKeeperCount: 0,
       keeperLockedSpend: 0,
+      currentKeepers: [],
       now,
     });
     const snapshot = prepared.snapshots[0];

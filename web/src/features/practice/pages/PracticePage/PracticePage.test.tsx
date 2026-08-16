@@ -63,6 +63,10 @@ describe("PracticePage", () => {
     expect(await screen.findByRole("heading", { name: "Draft lab" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Remove Puka Nacua from simulation plan" })).toBeInTheDocument();
     expect(screen.getByText("Sunday Games · 2026")).toBeInTheDocument();
+    const personalValue = screen.getByRole("spinbutton", { name: "My value for Puka Nacua" });
+    await user.clear(personalValue);
+    await user.type(personalValue, "80{Enter}");
+    expect(await screen.findByRole("spinbutton", { name: "Maximum bid for Puka Nacua" })).toHaveValue(80);
     await user.click(screen.getByRole("combobox", { name: "My value strategy" }));
     await user.click(screen.getByRole("option", { name: "WR heavy" }));
     expect(screen.getByRole("combobox", { name: "My value strategy" })).toHaveTextContent("WR heavy");
@@ -78,6 +82,7 @@ describe("PracticePage", () => {
     await user.click(screen.getByRole("button", { name: "Save Puka Nacua maximum bid" }));
     await user.type(maxBid, "70");
     await user.click(screen.getByRole("button", { name: "Save Puka Nacua maximum bid" }));
+    expect(await screen.findByRole("spinbutton", { name: "Maximum bid for Puka Nacua" })).toHaveValue(70);
     await user.click(screen.getByRole("button", { name: "Remove Puka Nacua" }));
     expect(await screen.findByText("Star players on the board to build this plan.")).toBeInTheDocument();
     view.unmount();

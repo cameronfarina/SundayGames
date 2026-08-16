@@ -19,6 +19,9 @@ const sanitizeIdSegment = (value: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
+export const historicalOwnerId = (ownerDisplayName: string): string =>
+  `historical-owner-${sanitizeIdSegment(ownerDisplayName)}`;
+
 export const historicalImportBatchBaseId = (
   leagueId: string,
   seasonYear: number,

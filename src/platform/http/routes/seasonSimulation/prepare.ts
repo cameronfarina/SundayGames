@@ -10,6 +10,7 @@ import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "..
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString, stringValue } from "../../request/values.js";
 import { isSeasonMockDraftContext, seasonMockDraftContextFor } from "../seasonMock/context.js";
+import { currentPricingSnapshotForSeason } from "../season/pricingOrchestration.js";
 
 export interface PreparedSeasonSimulation {
   input: RunSeasonSimulationsInput;
@@ -47,15 +48,10 @@ export const prepareSeasonSimulation = async (
     "Too many simulation runs. Try again later.",
   );
   if (limited !== null) return limited;
-  const snapshots = context.season.settings.draftFormat === "auction"
-    ? await app.listLeaguePricingSnapshots({
-        actorSessionToken: request.sessionToken,
-        leagueId: context.season.leagueId,
-        seasonYear: context.season.seasonYear,
-        scenarioId: "expected",
-        now: request.now,
-      }) : [];
-  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows, context.setup.playerCatalog);
+  const snapshot = context.season.settings.draftFormat === "auction"
+    ? await currentPricingSnapshotForSeason(app, request, context.season, context.setup)
+    : undefined;
+  const snapshotValues = snapshotPlayerValues(snapshot?.rows, context.setup.playerCatalog);
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
     season: context.season,

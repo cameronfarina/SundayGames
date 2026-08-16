@@ -52,7 +52,7 @@ export const persistKeeperSetupChange = async (
   room: LiveDraftRoom | null;
   pricing: RebuildLeaguePricingWorkflowResult | undefined;
 }> => {
-  const previousRoomCatalog = await liveRoomCatalogForSeason(app, request, season, previous.playerCatalog);
+  const previousRoomCatalog = await liveRoomCatalogForSeason(app, request, season, previous);
   const pricingPreflight = await rebuildPricingAfterKeeperChange(app, request, season, proposed, { preflight: true });
   const proposedRoomCatalog = playerCatalogWithPricingSnapshot(proposed.playerCatalog, pricingPreflight?.snapshots.at(-1));
   const { saved, room } = await saveKeeperSetupAndSynchronizeLiveRoom(

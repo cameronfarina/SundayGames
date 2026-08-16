@@ -13,6 +13,7 @@ import { usePracticeMutations } from "./hooks/usePracticeMutations";
 import { usePlayerCatalogQuery, usePracticeContextQuery, useShortlistQuery, useSimulationDetailQuery, useSimulationHistoryQuery, useSimulationRunQuery } from "./hooks/usePracticeQueries";
 import "./PracticePage.css";
 
+type PracticeTarget = Pick<PracticeShortlistItem, "playerName" | "position">;
 export function PracticePage() {
   const [params, setParams] = useSearchParams();
   const historyId = params.get("runId") ?? undefined;
@@ -33,7 +34,6 @@ export function PracticePage() {
   const runDetail = useSimulationRunQuery(historyId, selectedRunNumber);
   const targets = shortlist.data ?? [];
   const mockDraftSearch = seasonId === undefined ? "" : `?${new URLSearchParams({ seasonId }).toString()}`;
-
   const setParameter = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     next.set(name, value);
@@ -56,23 +56,24 @@ export function PracticePage() {
     if (target === undefined) mutations.targets.save.mutate({ playerName: player.name, position: player.position });
     else mutations.targets.remove.mutate(player.name);
   };
-  const saveTarget = (item: PracticeShortlistItem, maxBid: number | undefined) => {
+  const saveTarget = (item: PracticeTarget, maxBid: number | undefined) => {
     mutations.targets.save.mutate({
       ...(maxBid === undefined ? {} : { maxBid }),
-      playerName: item.playerName,
-      position: item.position,
+      playerName: item.playerName, position: item.position,
     });
   };
-  const mutationError = mutations.targets.save.error
-    ?? mutations.targets.remove.error
-    ?? mutations.favoriteOutcome.error
-    ?? runMutation.error;
+  const saveMyValue = (player: PracticePlayer, maxBid: number) => {
+    saveTarget({ playerName: player.name, position: player.position }, maxBid);
+  };
+  const mutationError = mutations.targets.save.error ?? mutations.targets.remove.error
+    ?? mutations.favoriteOutcome.error ?? runMutation.error;
   const selectedSimulation = historyId === undefined ? undefined : { historyId, result: detail.data ?? mutationResult };
   const playerBoard = <PracticePlayerBoard
     catalog={catalog.data}
     error={catalog.error}
     isPending={catalog.isPending}
     onRetry={() => { void catalog.refetch(); }}
+    onSaveMyValue={saveMyValue}
     onToggleTarget={toggleTarget}
     shortlist={targets}
     targetChangesDisabled={activeLeague === undefined || mutations.targets.pending}
@@ -95,7 +96,6 @@ export function PracticePage() {
       summary={selectedSimulation.result.summary}
     />}
   </>;
-
   if (!context.isSuccess) return context.isError
     ? <section aria-labelledby="practice-error-title" className="practice-page practice-page--error">
         <h1 id="practice-error-title">Practice is unavailable</h1><p>{context.error.message}</p>

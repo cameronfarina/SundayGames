@@ -281,7 +281,6 @@ describe("platform historical imports", () => {
 
     expect(invalidRowsBatch.status).toBe("blocked");
     expect(invalidRowsBatch.blockers.map(blocker => blocker.code)).toEqual([
-      "owner_unknown",
       "position_invalid",
       "player_missing",
       "price_invalid",

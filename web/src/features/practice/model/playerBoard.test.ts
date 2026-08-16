@@ -93,16 +93,16 @@ describe("Practice player board model", () => {
       { expectedPrice: 1, name: "Alpha", position: "K" },
     ]), {
       position: "ALL", search: "", shortlistOnly: false, sort: "market",
-    }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Zulu", "Alpha"]);
     expect(filterAndSortPlayers(rankedPlayers, {
       position: "ALL",
       search: "",
       shortlistOnly: false,
       sort: "rank",
     }, new Set()).map(({ player }) => player.name)).toEqual([
+      "Chase Brown",
       "Ja'Marr Chase",
       "Jared Goff",
-      "Chase Brown",
     ]);
   });
 

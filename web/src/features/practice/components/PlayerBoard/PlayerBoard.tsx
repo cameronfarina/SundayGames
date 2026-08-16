@@ -6,8 +6,10 @@ import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import {
   filterAndSortPlayers,
   playerKey,
+  playerMyValue,
+  playerSortFrom,
   positionTone,
-  rankPlayers,
+  rankPlayersWithPersonalValues,
   type PlayerSort,
 } from "../../model/playerBoard";
 import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
@@ -18,6 +20,7 @@ import "./PlayerBoardResponsive.css";
 import "./positionColors.css";
 interface PlayerBoardProps {
   readonly catalog: PlayerCatalog;
+  readonly onSaveMyValue: (player: PracticePlayer, value: number) => void;
   readonly onToggleTarget: (player: PracticePlayer) => void;
   readonly shortlist: readonly PracticeShortlistItem[];
   readonly targetChangesDisabled: boolean;
@@ -42,25 +45,23 @@ const filterReducer = (state: FilterState, action: FilterAction): FilterState =>
   return { ...state, sort: action.value };
 };
 
-const initialFilters: FilterState = { position: "ALL", search: "", shortlistOnly: false, sort: "market" };
+const initialFilters: FilterState = { position: "ALL", search: "", shortlistOnly: false, sort: "rank" };
 const positions = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
 const sortOptions = [
   { label: "Market value", value: "market" },
+  { label: "Simulation price", value: "simulation" },
   { label: "My value", value: "mine" },
   { label: "Rank", value: "rank" },
 ];
 
-const sortValue = (value: string): PlayerSort => {
-  if (value === "mine") return "mine";
-  if (value === "rank") return "rank";
-  return "market";
-};
-
-export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesDisabled }: PlayerBoardProps) {
+export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist, targetChangesDisabled }: PlayerBoardProps) {
   const [filters, dispatch] = useReducer(filterReducer, initialFilters);
   const deferredSearch = useDeferredValue(filters.search);
   const shortlisted = useMemo(() => new Set(shortlist.map(item => playerKey(item.playerName))), [shortlist]);
-  const rankedPlayers = useMemo(() => rankPlayers(catalog.players), [catalog.players]);
+  const rankedPlayers = useMemo(
+    () => rankPlayersWithPersonalValues(catalog.players, shortlist),
+    [catalog.players, shortlist],
+  );
   const players = useMemo(() => filterAndSortPlayers(
     rankedPlayers,
     {
@@ -106,7 +107,7 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
         /></div>
         <PracticeSelect
           label="Sort players"
-          onValueChange={value => { dispatch({ type: "sort", value: sortValue(value) }); }}
+          onValueChange={value => { dispatch({ type: "sort", value: playerSortFrom(value) }); }}
           options={sortOptions}
           value={filters.sort}
         />
@@ -123,12 +124,13 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
             <col className="player-board__target-column" />
             <col className="player-board__rank-column" />
             <col className="player-board__player-column" />
-            <col /><col /><col /><col /><col />
+            <col /><col /><col /><col /><col /><col />
           </colgroup>
-          <thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>My value</th></tr></thead>
+          <thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>Simulation</th><th>My value</th></tr></thead>
           <tbody>{visiblePlayers.map(({ player, rank }) => <PlayerBoardRow
             isTarget={shortlisted.has(playerKey(player.name))}
-            key={player.name}
+            key={`${player.name}:${String(Math.round(playerMyValue(player)))}`}
+            onSaveMyValue={onSaveMyValue}
             onToggleTarget={onToggleTarget}
             player={player}
             rank={rank}

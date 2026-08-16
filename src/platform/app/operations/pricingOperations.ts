@@ -22,10 +22,15 @@ import { cloneForRead } from "../shared.js";
 const requirePricingSeason = async (
   context: PlatformAppContext,
   input: RebuildPlatformPricingInput,
+  mutation: boolean,
 ) => {
   const account = await context.requireAccount(input.actorSessionToken, input.now);
   const season = await context.requireSeasonForLeagueYear(input.leagueId, input.seasonYear);
-  await context.requireSharedMutation(account, input.leagueId);
+  if (mutation) {
+    await context.requireSharedMutation(account, input.leagueId);
+  } else {
+    await context.requireSharedRead(account, input.leagueId);
+  }
   return season;
 };
 
@@ -34,7 +39,7 @@ const pricingWorkflowInput = async (
   input: RebuildPlatformPricingInput,
   historyBeforeFormatCheck: boolean,
 ) => {
-  const season = await requirePricingSeason(context, input);
+  const season = await requirePricingSeason(context, input, historyBeforeFormatCheck);
   const providedRecords = input.historicalSaleRecords;
   const earlyRecords = historyBeforeFormatCheck
     ? providedRecords ?? await context.historicalImports.currentRecordsThroughSeason(input.leagueId, input.seasonYear)
@@ -62,6 +67,7 @@ const pricingWorkflowInput = async (
     currentMinimumBidDollars: season.settings.auction.minimumBidDollars,
     currentKeeperCount: input.currentKeeperCount ?? 0,
     keeperLockedSpend: input.keeperLockedSpend ?? 0,
+    ...(input.currentKeepers === undefined ? {} : { currentKeepers: input.currentKeepers }),
     ...(input.now === undefined ? {} : { createdAt: input.now.toISOString() }),
   };
 };

@@ -8,11 +8,13 @@ import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "../../../liveDraftRooms.js";
+import type { LiveDraftRoomSetup } from "../../../liveDraftRoomSetups.js";
 import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import type { PlatformApp, PlatformHttpResponse } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
 import type { BaselineMetadata, BaselinePlayer } from "./baseline.js";
+import { currentPricingSnapshotForSeason } from "../season/pricingOrchestration.js";
 
 export const auctionCatalogResponse = async (
   app: PlatformApp,
@@ -20,18 +22,21 @@ export const auctionCatalogResponse = async (
   season: ExplicitLeagueSeason,
   accountId: string,
   players: readonly BaselinePlayer[],
+  setup: Pick<LiveDraftRoomSetup, "playerCatalog" | "initialRosters"> | null,
   publishedCatalog: readonly LiveDraftRoomPlayerCatalogEntry[],
   keepers: readonly LiveDraftRoomInitialRosterPlayer[],
   keeperByPlayer: ReadonlyMap<string, LiveDraftRoomInitialRosterPlayer>,
   baselineMetadata: BaselineMetadata,
 ): Promise<PlatformHttpResponse> => {
-  const latest = await app.getLatestLeaguePricingSnapshot({
-    actorSessionToken: request.sessionToken,
-    leagueId: season.leagueId,
-    seasonYear: season.seasonYear,
-    scenarioId: "expected",
-    now: request.now,
-  });
+  const latest = setup === null
+    ? await app.getLatestLeaguePricingSnapshot({
+        actorSessionToken: request.sessionToken,
+        leagueId: season.leagueId,
+        seasonYear: season.seasonYear,
+        scenarioId: "expected",
+        now: request.now,
+      })
+    : await currentPricingSnapshotForSeason(app, request, season, setup);
   const pricingByPlayer = new Map(
     (latest?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row]),
   );
@@ -61,7 +66,7 @@ export const auctionCatalogResponse = async (
       players: players.map(player => {
         const playerKey = canonicalPlayerIdentityKey(player.name);
         const pricing = pricingByPlayer.get(playerKey);
-        const marketPrice = pricing?.marketPrice ?? player.marketPrice ?? player.expectedPrice;
+        const marketPrice = player.marketPrice ?? player.expectedPrice;
         const leagueValue = values.playerExpectedPrices[playerKey] ?? player.expectedPrice;
         const myValue = values.playerHumanValues[playerKey] ?? leagueValue;
         const keeper = keeperByPlayer.get(playerKey);
@@ -71,7 +76,7 @@ export const auctionCatalogResponse = async (
           myValue,
           leagueValue,
           recommendedMaxBid: Math.min(myValue, pricing?.recommendedMaxBid ?? myValue),
-          marketValueSource: pricing === undefined ? "league_model" : "league_history",
+          marketValueSource: player.baselineValueSource,
           isKeeper: keeper !== undefined,
           ...(keeper === undefined ? {} : { keeperTeamId: keeper.teamId, keeperPrice: keeper.price }),
           pricingWarnings: pricing?.warnings ?? [],

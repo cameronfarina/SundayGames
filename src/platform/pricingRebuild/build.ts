@@ -50,7 +50,11 @@ export const createLeagueCalibratedPricingSnapshots = (
       historicalRankPrices.get(index),
       maximumPrice,
     ));
-  const auctionAllocation = leagueAuctionAllocation(input, calibratedPrices);
+  const auctionAllocation = leagueAuctionAllocation(
+    input,
+    calibratedPrices,
+    recentSales.length > 0,
+  );
   const historyWarnings = historyWarningsFor(
     recentSales.length,
     positionInflation.matchedSaleCount,
@@ -68,6 +72,9 @@ export const createLeagueCalibratedPricingSnapshots = (
       price,
       calibratedPrices[index] ?? { price: 0, historicalMove: 0 },
       auctionAllocation.scenarioPrices[index] ?? 0,
+      auctionAllocation.personalValues?.[index]
+        ?? auctionAllocation.scenarioPrices[index]
+        ?? 0,
       [
         ...historyWarnings,
         ...auctionAllocation.warnings,

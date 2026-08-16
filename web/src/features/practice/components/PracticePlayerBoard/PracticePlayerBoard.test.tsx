@@ -10,7 +10,7 @@ const catalog: PlayerCatalog = {
 
 describe("PracticePlayerBoard", () => {
   it("shows progress while the catalog loads", () => {
-    render(<PracticePlayerBoard catalog={undefined} error={null} isPending onRetry={vi.fn()}
+    render(<PracticePlayerBoard catalog={undefined} error={null} isPending onRetry={vi.fn()} onSaveMyValue={vi.fn()}
       onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading the player board");
   });
@@ -18,7 +18,7 @@ describe("PracticePlayerBoard", () => {
   it("shows an actionable catalog error", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
-    render(<PracticePlayerBoard catalog={undefined} error={new Error("Catalog unavailable")}
+    render(<PracticePlayerBoard catalog={undefined} error={new Error("Catalog unavailable")} onSaveMyValue={vi.fn()}
       isPending={false} onRetry={onRetry} onToggleTarget={vi.fn()} shortlist={[]}
       targetChangesDisabled={false} />);
     expect(screen.getByText("Catalog unavailable")).toBeInTheDocument();
@@ -27,14 +27,14 @@ describe("PracticePlayerBoard", () => {
   });
 
   it("shows the player board when catalog data is ready", () => {
-    render(<PracticePlayerBoard catalog={catalog} error={null} isPending={false}
+    render(<PracticePlayerBoard catalog={catalog} error={null} isPending={false} onSaveMyValue={vi.fn()}
       onRetry={vi.fn()} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
     expect(screen.getByRole("heading", { name: "Available players" })).toBeInTheDocument();
     expect(screen.getByText("Puka Nacua")).toBeInTheDocument();
   });
 
   it("shows an empty state when the catalog has no players", () => {
-    render(<PracticePlayerBoard catalog={{ players: [] }} error={null} isPending={false}
+    render(<PracticePlayerBoard catalog={{ players: [] }} error={null} isPending={false} onSaveMyValue={vi.fn()}
       onRetry={vi.fn()} onToggleTarget={vi.fn()} shortlist={[]} targetChangesDisabled={false} />);
     expect(screen.getByText("No players are available for this board yet.")).toBeInTheDocument();
   });
