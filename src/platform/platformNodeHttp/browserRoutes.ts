@@ -25,7 +25,6 @@ export const redirectForBrowserRequest = (request: IncomingMessage): string | un
       source.searchParams.set("seasonId", legacySeasonId);
     }
     source.searchParams.delete("contextSeasonId");
-    if (source.pathname === "/player-news") source.searchParams.set("view", "news");
     return `${targetPath}${source.search}`;
   } catch {
     return undefined;

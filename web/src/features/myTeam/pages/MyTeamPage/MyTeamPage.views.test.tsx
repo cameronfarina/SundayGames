@@ -1,9 +1,14 @@
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import { useLocation } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { playerNewsFeedFixture } from "../../api/playerNews.fixture";
 import { renderMyTeamPage } from "./MyTeamPage.testUtils";
 import { server, usePreDraftHandlers } from "./MyTeamPage.testServer";
+
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+};
 
 const target = {
   createdAt: "2026-08-16T12:00:00.000Z",
@@ -33,7 +38,6 @@ const usePrepHandlers = (): void => {
     http.get("/season-simulations", () => HttpResponse.json({
       history: [{ id: "history-1", note: "Favorite roster", simulation }],
     })),
-    http.get("/api/player-news", () => HttpResponse.json(playerNewsFeedFixture)),
   );
 };
 
@@ -59,13 +63,12 @@ describe("MyTeamPage views", () => {
     expect(screen.getByRole("link", { name: "Draft prep" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("opens roster news from RotoWire and Mockd evidence", async () => {
+  it("forwards the former news view to the first-class player news page", async () => {
     usePrepHandlers();
-    renderMyTeamPage("/my-team?seasonId=season-2026&view=news");
+    renderMyTeamPage("/my-team?seasonId=season-2026&view=news", <LocationProbe />);
 
-    expect(await screen.findByRole("heading", { name: "Player news" })).toBeVisible();
-    expect(await screen.findByText("De'Von Achane was limited in practice.")).toBeVisible();
-    expect(screen.getByText("Mockd evidence")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Player news" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/player-news?seasonId=season-2026",
+    );
   });
 });

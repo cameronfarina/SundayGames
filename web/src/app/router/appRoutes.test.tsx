@@ -14,6 +14,7 @@ describe("application routes", () => {
     "/draft-room",
     "/league",
     "/my-team",
+    "/player-news",
     "/commissioner",
     "/invite",
   ])(
@@ -33,6 +34,7 @@ describe("application routes", () => {
     "/draft-room",
     "/league",
     "/my-team",
+    "/player-news",
     "/commissioner",
     "/invite",
   ])("loads the %s feature module on demand", async path => {

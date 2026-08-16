@@ -6,6 +6,7 @@ describe("route metadata", () => {
     ["/practice", "Draft lab | Mockd"],
     ["/league", "League | Mockd"],
     ["/my-team", "My team | Mockd"],
+    ["/player-news", "Player news | Mockd"],
     ["/commissioner", "Commissioner | Mockd"],
     ["/mock-drafts/session-1", "Mock draft | Mockd"],
     ["/draft-room", "Live draft | Mockd"],

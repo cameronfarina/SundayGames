@@ -99,6 +99,8 @@ describe("ProductHeader", () => {
     await user.click(screen.getByRole("link", { name: "My team" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/my-team?seasonId=season-2026");
+    await user.click(screen.getByRole("link", { name: "Player news" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/player-news?seasonId=season-2026");
   });
 
   it("keeps the core product navigation available without a league", () => {
@@ -107,6 +109,7 @@ describe("ProductHeader", () => {
     expect(screen.getByRole("link", { name: "Practice" })).toBeVisible();
     expect(screen.getByRole("link", { name: "League" })).toBeVisible();
     expect(screen.getByRole("link", { name: "My team" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Player news" })).toBeVisible();
     expect(screen.getByText("No active league")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Commissioner" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("EU");

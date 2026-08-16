@@ -7,10 +7,7 @@ describe("MyTeamTabs", () => {
   it("preserves the active season and identifies the current view", () => {
     render(<MemoryRouter><MyTeamTabs seasonId="season-2026" view="prep" /></MemoryRouter>);
     expect(screen.getByRole("link", { name: "Draft prep" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Player news" })).toHaveAttribute(
-      "href",
-      "/my-team?view=news&seasonId=season-2026",
-    );
+    expect(screen.queryByRole("link", { name: "Player news" })).not.toBeInTheDocument();
   });
 
   it("builds a baseline link without an absent season", () => {

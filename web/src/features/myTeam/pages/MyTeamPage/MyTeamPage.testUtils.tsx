@@ -4,7 +4,10 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { MyTeamPage } from "./MyTeamPage";
 
-export const renderMyTeamPage = (url = "/my-team?seasonId=season-2026"): ReactElement => {
+export const renderMyTeamPage = (
+  url = "/my-team?seasonId=season-2026",
+  probe?: ReactElement,
+): ReactElement => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -12,6 +15,7 @@ export const renderMyTeamPage = (url = "/my-team?seasonId=season-2026"): ReactEl
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[url]}>
         <MyTeamPage />
+        {probe}
       </MemoryRouter>
     </QueryClientProvider>
   );

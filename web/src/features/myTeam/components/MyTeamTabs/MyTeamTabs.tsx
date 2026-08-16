@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import "./MyTeamTabs.css";
 
-export type MyTeamView = "team" | "prep" | "news";
+export type MyTeamView = "team" | "prep";
 
 interface MyTeamTabsProps {
   readonly seasonId: string | undefined;
@@ -17,7 +17,6 @@ const tabSearch = (seasonId: string | undefined, view: MyTeamView): string => {
 const tabs: readonly { label: string; view: MyTeamView }[] = [
   { label: "Team", view: "team" },
   { label: "Draft prep", view: "prep" },
-  { label: "Player news", view: "news" },
 ];
 
 export const MyTeamTabs = ({ seasonId, view }: MyTeamTabsProps) => (

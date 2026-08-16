@@ -7,6 +7,7 @@ interface ProductNavigationProps {
 
 const navigationItems = [
   { label: "Practice", path: "/practice" },
+  { label: "Player news", path: "/player-news" },
   { label: "League", path: "/league" },
   { label: "My team", path: "/my-team" },
 ];

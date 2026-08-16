@@ -5,6 +5,7 @@ import { createPlatformNodeHttpAdapter } from "../platformNodeHttp.js";
 import { platformFallbackHtml } from "../platformFallbackHtml.js";
 import type { PlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
+import { createGlobalPlayerNewsHandler } from "./globalPlayerNews.js";
 import { createHistoricalImportPreflight } from "./historicalImportPreflight.js";
 import type { PlatformRuntimeHolder } from "./internalContracts.js";
 import { createScreenshotImportPreflight } from "./screenshotPreflight.js";
@@ -25,7 +26,9 @@ export const createNodeServer = (
     historicalImportPreflight: createHistoricalImportPreflight(runtimeHolder, options, admissions),
     trustProxy: options.trustProxy,
   });
+  const globalPlayerNewsHandler = createGlobalPlayerNewsHandler(runtimeHolder, options);
   return createServer(async (request, response) => {
+    if (await globalPlayerNewsHandler(request, response)) return;
     if (await draftToolsAdapter(request, response)) return;
     await platformNodeHandler(request, response);
   });

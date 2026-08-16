@@ -29,4 +29,17 @@ describe("getPlayerNews", () => {
     });
     expect(fetcher).toHaveBeenCalledOnce();
   });
+
+  it("requests the global feed when no season is active", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(playerNewsFeedFixture))));
+    await getPlayerNews({
+      fetcher,
+      signal: new AbortController().signal,
+      source: "local",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/player-news?source=local",
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
+  });
 });
