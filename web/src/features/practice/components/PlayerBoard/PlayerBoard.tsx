@@ -99,12 +99,13 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
         ))}
       </div>
       <div className="player-board__controls">
-        <label className="player-board__search"><span>Search players</span><input
+        <div className="player-board__search"><input
+          aria-label="Search players"
           onChange={event => { dispatch({ type: "search", value: event.currentTarget.value }); }}
-          placeholder="Player, position, or NFL team"
+          placeholder="Search players, position or NFL team"
           type="search"
           value={filters.search}
-        /></label>
+        /></div>
         <PracticeSelect
           label="Sort players"
           onValueChange={value => { dispatch({ type: "sort", value: sortValue(value) }); }}
@@ -119,7 +120,14 @@ export function PlayerBoard({ catalog, onToggleTarget, shortlist, targetChangesD
         <span>Draft targets only ({shortlist.length})</span></label>
       </div>
       <div className="player-board__table-wrap">
-        <table><thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>My value</th></tr></thead>
+        <table>
+          <colgroup>
+            <col className="player-board__target-column" />
+            <col className="player-board__rank-column" />
+            <col className="player-board__player-column" />
+            <col /><col /><col /><col /><col />
+          </colgroup>
+          <thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>My value</th></tr></thead>
           <tbody>{visiblePlayers.map(({ player, rank }) => {
             const isTarget = shortlisted.has(playerKey(player.name));
             const targetLabel = `${isTarget ? "Remove" : "Add"} ${player.name} ${isTarget ? "from" : "to"} simulation plan`;

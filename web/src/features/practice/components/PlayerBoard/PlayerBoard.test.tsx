@@ -95,7 +95,9 @@ describe("PlayerBoard", () => {
       />,
     );
 
-    await user.type(screen.getByRole("searchbox", { name: "Search players" }), "goff");
+    const search = screen.getByRole("searchbox", { name: "Search players" });
+    expect(search).toHaveAttribute("placeholder", "Search players, position or NFL team");
+    await user.type(search, "goff");
     expect(screen.getByText("Jared Goff")).toBeInTheDocument();
     expect(screen.getByText("2", { selector: "td" })).toBeInTheDocument();
     expect(screen.queryByText("Puka Nacua")).not.toBeInTheDocument();

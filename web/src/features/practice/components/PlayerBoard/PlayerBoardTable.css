@@ -1,10 +1,12 @@
 .player-board__table-wrap {
-  overflow: visible;
+  display: contents;
 }
 
 @media (max-width: 800px) {
   .player-board__table-wrap {
+    display: block;
     overflow-x: auto;
+    overflow-y: clip;
   }
 }
 
@@ -18,6 +20,18 @@
   border-collapse: collapse;
   min-width: 760px;
   width: 100%;
+}
+
+.player-board__target-column {
+  width: 5rem;
+}
+
+.player-board__rank-column {
+  width: 4.5rem;
+}
+
+.player-board__player-column {
+  width: 20rem;
 }
 
 .player-board th,
