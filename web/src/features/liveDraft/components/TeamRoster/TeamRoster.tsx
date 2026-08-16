@@ -39,15 +39,16 @@ export const TeamRoster = ({ onTeamChange, selectedTeamId, teams }: TeamRosterPr
           <span className="team-roster__metric">Open slots<strong>{team.rosterSlotsRemaining}</strong></span>
         </div>
         <ol className="team-roster__slots">
-          {team.slots.map(slot => (
-            <li key={slot.slot}>
-              <span className={`position position--${slot.player?.position.toLowerCase() ?? "open"}`}>{slot.slot}</span>
+          {team.slots.map(slot => {
+            const slotTone = slot.slot.replace(/\d+$/u, "").toLowerCase();
+            return <li className={`team-roster__slot-row team-roster__slot-row--${slotTone}`} key={slot.slot}>
+              <span className={`team-roster__slot position--${slotTone}`}>{slot.slot}</span>
               {slot.player === undefined ? <span className="team-roster__open">Open</span> : <span>
                 <strong>{slot.player.name}</strong>
                 <small>{formatDollars(slot.player.price)}{slot.player.source === "keeper" ? " · Keeper" : ""}</small>
               </span>}
-            </li>
-          ))}
+            </li>;
+          })}
         </ol>
       </div>
     </aside>

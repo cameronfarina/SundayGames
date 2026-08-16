@@ -66,13 +66,16 @@ export const PlayerBoard = ({
           </tr></thead>
           <tbody>
             {visiblePlayers.map(player => (
-              <tr key={player.normalizedPlayerName}>
+              <tr
+                className={`player-row player-row--${player.position.toLowerCase()}`}
+                key={player.normalizedPlayerName}
+              >
                 {canManage && <td><IconButton
                   disabled={!roomIsLive}
                   label={`Use ${player.name} in sale command`}
                   onClick={() => { onUsePlayer(player); }}
                 ><Plus aria-hidden="true" size={18} /></IconButton></td>}
-                <th scope="row">{player.name}</th>
+                <th className="player-board__player-name" scope="row">{player.name}</th>
                 <td className={`position position--${player.position.toLowerCase()}`}>{player.position}</td>
                 <td>{player.teamAbbreviation ?? "FA"}</td>
                 <td>{player.byeWeek ?? "--"}</td>

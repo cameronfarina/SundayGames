@@ -103,6 +103,8 @@ describe("PlayerBoard", () => {
     expect(screen.getByText("LAR")).toBeVisible();
     expect(screen.getByText("8")).toBeVisible();
     expect(screen.getByText("WR", { selector: ".position--wr" })).toBeVisible();
+    expect(screen.getByRole("row", { name: /Puka Nacua/ })).toHaveClass("player-row--wr");
+    expect(screen.getByRole("button", { name: "WR" })).toHaveClass("position-filter--wr");
     await user.click(screen.getByRole("button", { name: "Use Puka Nacua in sale command" }));
     expect(onUsePlayer).toHaveBeenCalledWith(liveRoom.board[0]);
 

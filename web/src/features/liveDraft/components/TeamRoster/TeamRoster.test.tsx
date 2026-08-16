@@ -29,6 +29,8 @@ describe("TeamRoster", () => {
     expect(screen.getByText("Max bid")).toHaveTextContent("Max bid$150");
     expect(screen.getByText(/Keeper/)).toBeVisible();
     expect(screen.getByText("Open")).toBeVisible();
+    expect(screen.getByText("RB1")).toHaveClass("team-roster__slot", "position--rb");
+    expect(screen.getByText("WR1")).toHaveClass("team-roster__slot", "position--wr");
 
     await user.click(screen.getByRole("combobox", { name: "View team" }));
     await user.click(screen.getByRole("option", { name: "2. Sentinels · Owner04" }));
@@ -61,5 +63,19 @@ describe("TeamRoster", () => {
 
     expect(screen.getByText("$62")).toBeVisible();
     expect(screen.queryByText(/Keeper/)).not.toBeInTheDocument();
+  });
+
+  it("keeps bench labels and values in separate layout columns", () => {
+    render(<TeamRoster
+      onTeamChange={vi.fn()}
+      teams={[{
+        ...liveTeam,
+        slots: [{ slot: "BENCH1" }],
+      }]}
+    />);
+
+    expect(screen.getByText("BENCH1")).toHaveClass("team-roster__slot", "position--bench");
+    expect(screen.getByRole("listitem")).toHaveClass("team-roster__slot-row");
+    expect(screen.getByText("Open")).toHaveClass("team-roster__open");
   });
 });

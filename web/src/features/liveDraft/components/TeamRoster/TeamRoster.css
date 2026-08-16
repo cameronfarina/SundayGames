@@ -23,15 +23,38 @@
 .team-roster__slots { list-style: none; margin: 0; padding: 0; }
 .team-roster__slots li {
   align-items: center;
+  border-left: 3px solid var(--position-color, transparent);
   border-top: 1px solid var(--color-border);
+  column-gap: var(--space-3);
   display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr);
   min-height: 3.5rem;
   padding: var(--space-2);
 }
 .team-roster__slots li > span:last-child { display: grid; }
+.team-roster__slot {
+  color: var(--position-color, var(--color-text-muted));
+  font-weight: 800;
+}
 .team-roster__slots small,
 .team-roster__open { color: var(--color-text-muted); }
+
+.position--qb,
+.team-roster__slot-row--qb { --position-color: var(--color-qb); }
+.position--rb,
+.team-roster__slot-row--rb { --position-color: var(--color-rb); }
+.position--wr,
+.team-roster__slot-row--wr { --position-color: var(--color-wr); }
+.position--te,
+.team-roster__slot-row--te { --position-color: var(--color-te); }
+.position--flex,
+.team-roster__slot-row--flex { --position-color: var(--color-flex); }
+.position--dst,
+.team-roster__slot-row--dst { --position-color: var(--color-dst); }
+.position--k,
+.team-roster__slot-row--k { --position-color: var(--color-k); }
+.position--bench,
+.team-roster__slot-row--bench { --position-color: var(--color-text-muted); }
 
 @media (max-width: 42rem) {
   .team-roster__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
