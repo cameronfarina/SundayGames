@@ -1,10 +1,13 @@
-import { screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   leagueServer,
   onboarding,
   renderLeaguePage,
   resetLeaguePages,
+  team,
   useLeagueApi,
 } from "./LeaguePage.testSupport";
 
@@ -54,5 +57,44 @@ describe("LeaguePage commissioner actions", () => {
       "href",
       "/commissioner?seasonId=season-1#live-room",
     );
+    expect(screen.getByRole("link", { name: "Manage keepers" })).toHaveAttribute(
+      "href",
+      "/commissioner?seasonId=season-1#keepers",
+    );
+  });
+
+  it("continues from a confirmed team claim to keeper setup", async () => {
+    let claimed = false;
+    useLeagueApi(onboarding({ canManageLeague: true }));
+    leagueServer.use(
+      http.get("/onboarding", () => HttpResponse.json(onboarding({
+        canManageLeague: true,
+        claimed,
+      }))),
+      http.post("/seasons/:seasonId/team-claims", () => {
+        claimed = true;
+        return HttpResponse.json({
+          membership: {
+            leagueId: "league-1",
+            ownerId: team.ownerId,
+            role: "owner",
+            teamId: team.id,
+            userId: "user-1",
+          },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderLeaguePage();
+
+    await screen.findByRole("radio", { name: /Short King/i });
+    const teamChoices = screen.getByRole("group", { name: "Available teams" });
+    await user.click(within(teamChoices).getByText("Short King"));
+    await user.click(screen.getByRole("button", { name: "Confirm Short King" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("league-location"))
+        .toHaveTextContent("/commissioner?seasonId=season-1#keepers");
+    });
   });
 });

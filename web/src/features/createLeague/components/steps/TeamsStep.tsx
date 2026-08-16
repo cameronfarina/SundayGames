@@ -21,6 +21,7 @@ export const TeamsStep = ({ dispatch, draft, formId, onSubmit, showErrors }: Tea
     <form aria-label="League team setup" className="create-league-step" id={formId} onSubmit={submit}>
       <h2>League teams</h2>
       <p>Team names are required. Manager names and abbreviations are optional.</p>
+      <p>Commissioners can add keepers in Commissioner after creating the league.</p>
       <p aria-live="polite">{String(entered)} of {String(draft.teamCount)} team names entered</p>
       <div className="create-league-teams">
         {draft.teams.map((team, index) => (

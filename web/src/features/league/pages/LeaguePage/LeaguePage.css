@@ -8,11 +8,16 @@
 .league-button:disabled { cursor: not-allowed; opacity: .55; }
 .league-button--primary { background: var(--color-accent); border-color: var(--color-accent); color: #06110e; }
 .league-section, .league-claim, .league-state { border-top: 1px solid var(--color-border); padding-top: 1.5rem; }
-.league-claim { align-items: start; display: grid; gap: 1rem; grid-template-columns: minmax(14rem, 1fr) minmax(18rem, 1.5fr) auto; }
+.league-claim { align-items: start; display: grid; gap: 2rem; grid-template-columns: minmax(14rem, .75fr) minmax(0, 1.5fr); }
 .league-claim p, .league-team p { color: var(--color-text-muted); margin: .5rem 0 0; }
+.league-claim__selection { min-width: 0; }
+.league-claim p.league-claim__label { font-size: .75rem; font-weight: 800; margin: 0 0 .5rem; text-transform: uppercase; }
+.league-claim__controls { align-items: start; display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) auto; }
 .league-claim__teams { border: 0; display: grid; gap: .5rem; margin: 0; padding: 0; }
-.league-claim__teams legend { color: var(--color-text-muted); font-size: .75rem; font-weight: 800; margin-bottom: .5rem; text-transform: uppercase; }
-.league-claim__team { align-items: center; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: .375rem; cursor: pointer; display: flex; gap: .75rem; padding: .75rem; }
+.league-claim__team { align-items: center; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: .375rem; cursor: pointer; display: flex; gap: .75rem; padding: .75rem; transition: background-color .15s ease, border-color .15s ease; }
+.league-claim__team:hover { border-color: var(--color-accent); }
+.league-claim__team:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.league-claim__team:has(input:checked) { background: var(--color-surface-raised); border-color: var(--color-accent); }
 .league-claim__team span, .league-claim__team small { display: block; }
 .league-claim__team small { color: var(--color-text-muted); margin-top: .125rem; }
 .league-facts { display: grid; grid-template-columns: repeat(3, 1fr); margin: 1rem 0 0; }
@@ -22,6 +27,8 @@
 .league-facts--compact { grid-template-columns: repeat(2, 1fr); }
 .league-section__heading { align-items: baseline; display: flex; justify-content: space-between; }
 .league-section__heading span { color: var(--color-text-muted); }
+.league-section__actions { align-items: center; display: flex; gap: 1rem; }
+.league-section__description { color: var(--color-text-muted); margin: .5rem 0 0; }
 .league-team-list { display: grid; gap: 1px; margin-top: 1rem; }
 .league-team { align-items: start; background: var(--color-surface); display: grid; gap: 1rem; grid-template-columns: minmax(14rem, .75fr) 1.25fr; padding: 1rem; }
 .league-team h3 { display: inline; margin: 0; }
@@ -29,4 +36,4 @@
 .league-team ul { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0; padding: 0; }
 .league-team li { border: 1px solid var(--color-border); border-radius: .25rem; padding: .5rem .75rem; }
 .league-team li span { color: var(--color-text-muted); margin-left: .5rem; }
-@media (max-width: 48rem) { .league-header, .league-claim { align-items: stretch; display: grid; grid-template-columns: 1fr; } .league-facts, .league-facts--compact { grid-template-columns: 1fr; } .league-team { grid-template-columns: 1fr; } }
+@media (max-width: 48rem) { .league-header, .league-claim, .league-claim__controls { align-items: stretch; display: grid; grid-template-columns: 1fr; } .league-facts, .league-facts--compact { grid-template-columns: 1fr; } .league-section__heading { align-items: start; gap: 1rem; } .league-section__actions { align-items: end; flex-direction: column; } .league-team { grid-template-columns: 1fr; } }

@@ -27,16 +27,27 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
   const league = data.selectedLeague;
   const season = data.season.data.season;
   const needsClaim = league.membership.teamId === undefined;
+  const commissionerPath = `/commissioner?${new URLSearchParams({
+    seasonId: league.seasonId,
+  }).toString()}`;
 
   return (
     <div className="league-page">
       <LeagueHeader league={league} />
       {needsClaim ? (
-        <TeamClaimPanel seasonId={league.seasonId} teams={data.season.data.claimableTeams} />
+        <TeamClaimPanel
+          canManageLeague={league.canManageLeague}
+          seasonId={league.seasonId}
+          teams={data.season.data.claimableTeams}
+        />
       ) : null}
       <LeagueSettings season={season} />
       <DraftStatus league={league} />
-      <LeagueTeams teams={season.teams} keepers={data.keepers.data.keepers} />
+      <LeagueTeams
+        keepers={data.keepers.data.keepers}
+        manageKeepersPath={league.canManageLeague ? `${commissionerPath}#keepers` : undefined}
+        teams={season.teams}
+      />
     </div>
   );
 }

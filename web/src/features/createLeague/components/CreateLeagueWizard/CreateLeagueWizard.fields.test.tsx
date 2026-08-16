@@ -74,6 +74,8 @@ describe("CreateLeagueWizard fields", () => {
     await chooseManualSetup(user);
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText(/commissioners can add keepers in Commissioner after creating the league/i))
+      .toBeVisible();
     fireEvent.submit(screen.getByRole("form", { name: "League team setup" }));
     expect(screen.getAllByText("Enter a team name.")).toHaveLength(12);
   });

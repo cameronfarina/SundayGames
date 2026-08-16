@@ -1,5 +1,5 @@
 import { HttpResponse, delay, http } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -48,8 +48,11 @@ describe("LeaguePage member experience", () => {
     const claimHeading = await screen.findByRole("heading", { name: "Claim your team" });
     const settingsHeading = screen.getByRole("heading", { name: "League settings" });
     expect(claimHeading.compareDocumentPosition(settingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    await user.click(screen.getByRole("radio", { name: /Short King/i }));
-    await user.click(screen.getByRole("button", { name: "Claim team" }));
+    expect(screen.getByRole("button", { name: "Select a team" })).toBeDisabled();
+    const teamChoices = screen.getByRole("group", { name: "Available teams" });
+    await user.click(within(teamChoices).getByText("Short King"));
+    expect(screen.getByRole("radio", { name: /Short King/i })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Confirm Short King" }));
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Claim your team" })).not.toBeInTheDocument());
   });
 
@@ -108,9 +111,11 @@ describe("LeaguePage member experience", () => {
     const user = userEvent.setup();
     renderLeaguePage();
 
-    await user.click(await screen.findByRole("radio", { name: /Short King/i }));
-    await user.click(screen.getByRole("button", { name: "Claim team" }));
-    expect(screen.getByRole("button", { name: "Claiming..." })).toBeDisabled();
+    await screen.findByRole("radio", { name: /Short King/i });
+    const teamChoices = screen.getByRole("group", { name: "Available teams" });
+    await user.click(within(teamChoices).getByText("Short King"));
+    await user.click(screen.getByRole("button", { name: "Confirm Short King" }));
+    expect(screen.getByRole("button", { name: "Claiming team..." })).toBeDisabled();
     expect(await screen.findByRole("alert")).toHaveTextContent("That team was already claimed.");
   });
 });
