@@ -1,6 +1,5 @@
 import { expect, type Page } from "@playwright/test";
 import type { LeagueSeason } from "../../../src/platform/leagueSeason.js";
-import { choosePracticeOption } from "../practice.js";
 
 export const exerciseBoardSimulations = async (
   page: Page,
@@ -18,7 +17,8 @@ export const exerciseBoardSimulations = async (
   await expect(results).toBeVisible({ timeout: 30_000 });
   await expect(results.getByText("Completed", { exact: true }).locator("..")).toContainText("2 / 2");
   await expect(results.getByText("Format", { exact: true }).locator("..")).toContainText(/Auction|Snake/u);
-  await expect(results.getByRole("combobox", { name: "Simulation run" })).toHaveText("Run 1");
+  const outcomePicker = results.getByRole("combobox", { name: "Simulation outcome" });
+  await expect(outcomePicker).toContainText(/^#1 Run \d+ · \d+\.\d pts$/u);
   await expect(results.getByRole("article")).toHaveCount(season.teams.length);
   await expect(results.getByText("Your team", { exact: true })).toHaveCount(1);
   const assertLeagueRun = async (): Promise<void> => {
@@ -32,8 +32,14 @@ export const exerciseBoardSimulations = async (
     }
   };
   await assertLeagueRun();
-  await choosePracticeOption(page, "Simulation run", "Run 2");
-  await expect(results.getByRole("combobox", { name: "Simulation run" })).toHaveText("Run 2");
+  await outcomePicker.click();
+  const secondOutcome = page.getByRole("option").filter({ hasText: /^#2 Run \d+ · \d+\.\d pts$/u });
+  const secondOutcomeLabel = await secondOutcome.textContent();
+  if (secondOutcomeLabel === null) {
+    throw new Error("Expected the second ranked simulation outcome.");
+  }
+  await secondOutcome.click();
+  await expect(outcomePicker).toHaveText(secondOutcomeLabel);
   await assertLeagueRun();
   await results.getByText("Player exposure across all runs", { exact: true }).click();
   expect(await results.getByRole("table").first().getByRole("row").count()).toBeGreaterThan(1);
