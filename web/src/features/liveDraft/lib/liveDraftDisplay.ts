@@ -7,6 +7,16 @@ import type {
 export type LiveDraftPositionFilter = LiveDraftBoardPlayer["position"] | "ALL";
 
 const normalized = (value: string): string => value.trim().toLowerCase();
+const displayedMarketValue = (player: LiveDraftBoardPlayer): number =>
+  player.marketPrice ?? player.expectedPrice;
+
+const compareBoardPlayers = (
+  left: LiveDraftBoardPlayer,
+  right: LiveDraftBoardPlayer,
+): number =>
+  displayedMarketValue(right) - displayedMarketValue(left)
+  || right.expectedPrice - left.expectedPrice
+  || left.name.localeCompare(right.name);
 
 export const formatDollars = (value: number): string =>
   `$${value.toLocaleString("en-US")}`;
@@ -46,7 +56,7 @@ export const filterBoard = (
       player.position,
       player.teamAbbreviation ?? "",
     ].join(" ")).includes(needle);
-  });
+  }).sort(compareBoardPlayers);
 };
 
 export const filterSales = (
