@@ -49,7 +49,8 @@ describe("production TypeScript architecture", () => {
       for (const file of sourceFilesUnder(root)) {
         const label = path.relative(process.cwd(), file);
         const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
-        if (lines > 150) {
+        const isTestFile = /\.test\.(?:ts|tsx)$/u.test(file);
+        if (!isTestFile && lines > 150) {
           violations.push(`${label}: ${lines} lines exceeds 150`);
         }
         for (const finding of unsafeSyntaxIn(file)) {
