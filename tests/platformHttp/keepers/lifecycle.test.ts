@@ -77,7 +77,7 @@ it("previews, persists, lists, and removes commissioner keeper commands", async 
         personalized: true,
         strategyKey: "balanced",
         players: expect.arrayContaining([
-          expect.objectContaining({ marketPrice: 73, myValue: 78, leagueValue: 78 }),
+          expect.objectContaining({ marketPrice: 73, myValue: 73, leagueValue: 73 }),
           expect.objectContaining({
             name: "De'Von Achane",
             isKeeper: true,

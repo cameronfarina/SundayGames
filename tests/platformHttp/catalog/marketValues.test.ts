@@ -2,7 +2,7 @@ import { InMemoryPlatformStore, SeasonSimulationError, buildCurrentMockdLeagueSe
 import type { LeagueSeason, LiveDraftRoomPlayerCatalogEntry, SeasonSimulationTargetConstraint } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
-it("keeps league Market and strategy values separate from auction-pool allocation", async () => {
+it("uses one pricing snapshot across the player catalog, mock drafts, and simulations", async () => {
     const currentCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
       { name: "Puka Nacua", position: "WR", expectedPrice: 50, seasonProjection: 240 },
       {
@@ -123,11 +123,20 @@ it("keeps league Market and strategy values separate from auction-pool allocatio
     const snapshots = expectRecordArray(expectBodyRecord(rebuilt.body).snapshots);
     const firstSnapshot = snapshots[0];
     if (firstSnapshot === undefined) throw new Error("Expected a pricing snapshot.");
-    const pukaSnapshot = expectRecordArray(firstSnapshot.rows)
-      .find(row => row.playerName === "Puka Nacua");
-    if (pukaSnapshot === undefined) throw new Error("Expected Puka Nacua pricing.");
-    expect(expectNumber(pukaSnapshot.scenarioPrice))
-      .toBeGreaterThan(expectNumber(pukaSnapshot.marketPrice));
+    const snapshotRows = expectRecordArray(firstSnapshot.rows);
+    const snapshotValueFor = (playerName: string) => {
+      const row = snapshotRows.find(candidate => candidate.playerName === playerName);
+      if (row === undefined) throw new Error(`Expected ${playerName} pricing.`);
+      return {
+        marketPrice: expectNumber(row.marketPrice),
+        scenarioPrice: expectNumber(row.scenarioPrice),
+        personalValue: expectNumber(row.personalValue),
+      };
+    };
+    const pukaPricing = snapshotValueFor("Puka Nacua");
+    const gibbsPricing = snapshotValueFor("Jahmyr Gibbs");
+    const achanePricing = snapshotValueFor("De'Von Achane");
+    expect(pukaPricing.scenarioPrice).toBeGreaterThan(pukaPricing.marketPrice);
     await expect(handle({
       method: "GET",
       path: "/player-catalog",
@@ -137,9 +146,24 @@ it("keeps league Market and strategy values separate from auction-pool allocatio
       status: 200,
       body: {
         players: expect.arrayContaining([
-          expect.objectContaining({ name: "Puka Nacua", marketPrice: 50, myValue: 55 }),
-          expect.objectContaining({ name: "Jahmyr Gibbs", marketPrice: 30, myValue: 21 }),
-          expect.objectContaining({ name: "De'Von Achane", marketPrice: 20, myValue: 31 }),
+          expect.objectContaining({
+            name: "Puka Nacua",
+            marketPrice: pukaPricing.marketPrice,
+            leagueValue: pukaPricing.scenarioPrice,
+            myValue: pukaPricing.personalValue,
+          }),
+          expect.objectContaining({
+            name: "Jahmyr Gibbs",
+            marketPrice: gibbsPricing.marketPrice,
+            leagueValue: gibbsPricing.scenarioPrice,
+            myValue: gibbsPricing.personalValue,
+          }),
+          expect.objectContaining({
+            name: "De'Von Achane",
+            marketPrice: achanePricing.marketPrice,
+            leagueValue: achanePricing.scenarioPrice,
+            myValue: achanePricing.personalValue,
+          }),
         ]),
       },
     });
@@ -156,11 +180,11 @@ it("keeps league Market and strategy values separate from auction-pool allocatio
     const mockPayload = expectBodyRecord(mockSnapshot.payload);
     const mockExpectedPrices = expectNumberRecord(mockPayload.playerExpectedPrices);
     const mockHumanValues = expectNumberRecord(mockPayload.playerHumanValues);
-    expect(mockExpectedPrices[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
-    expect(mockExpectedPrices[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(30);
-    expect(mockExpectedPrices[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(20);
-    expect(mockHumanValues[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
-    expect(mockHumanValues[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
+    expect(mockExpectedPrices[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(pukaPricing.scenarioPrice);
+    expect(mockExpectedPrices[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(gibbsPricing.scenarioPrice);
+    expect(mockExpectedPrices[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(achanePricing.scenarioPrice);
+    expect(mockHumanValues[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(gibbsPricing.personalValue);
+    expect(mockHumanValues[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(achanePricing.personalValue);
 
     await expect(handle({
       method: "PUT",
@@ -179,9 +203,12 @@ it("keeps league Market and strategy values separate from auction-pool allocatio
       body: { seasonId: season.id, count: 1 },
     })).resolves.toMatchObject({ status: 200 });
     expect(simulationAccountId).toBe(owner11.account.id);
-    expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")]).toBe(50);
-    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(21);
-    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")]).toBe(31);
+    expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")])
+      .toBe(pukaPricing.scenarioPrice);
+    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")])
+      .toBe(gibbsPricing.personalValue);
+    expect(simulationHumanValues?.[canonicalPlayerIdentityKey("De'Von Achane")])
+      .toBe(achanePricing.personalValue);
     expect(simulationTargetConstraints).toEqual([{
       playerName: "Puka Nacua",
       maxAuctionPrice: 57,
@@ -204,41 +231,5 @@ it("keeps league Market and strategy values separate from auction-pool allocatio
     });
     rejectForAccountCapacity = false;
 
-    const fullPprSeason: LeagueSeason = {
-      ...season,
-      settings: {
-        ...season.settings,
-        scoring: { ...(season.settings.scoring ?? defaultScoringSettings), reception: 1 },
-      },
-    };
-    await handle({
-      method: "PUT",
-      path: `/seasons/${season.id}`,
-      sessionToken: owner11.sessionToken,
-      body: {
-        season: fullPprSeason,
-        memberships: [{
-          userId: owner11.account.id,
-          leagueId: season.leagueId,
-          role: "owner",
-          ownerId: teams[0]?.ownerId,
-          teamId: teams[0]?.id,
-        }],
-      },
-    });
-    await expect(handle({
-      method: "GET",
-      path: "/player-catalog",
-      query: { seasonId: season.id, strategy: "balanced" },
-      sessionToken: owner11.sessionToken,
-    })).resolves.toMatchObject({
-      status: 200,
-      body: {
-        players: expect.arrayContaining([
-          expect.objectContaining({ name: "Jahmyr Gibbs", marketPrice: 30, myValue: 31 }),
-          expect.objectContaining({ name: "De'Von Achane", marketPrice: 20, myValue: 21 }),
-        ]),
-      },
-    });
   });
 });

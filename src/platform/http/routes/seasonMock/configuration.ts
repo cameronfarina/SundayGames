@@ -1,6 +1,5 @@
-import { canonicalPlayerIdentityKey } from "../../../../data/normalizePlayerName.js";
 import type { LiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
-import { buildSeasonPlayerValues } from "../../../seasonPlayerValues.js";
+import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import { createSeasonMockConfigurationSnapshot } from "../../../seasonMockSnapshot.js";
 import type { SeasonMockConfigurationSnapshotV2 } from "../../../seasonMockSnapshot.js";
 import type { PlatformApp } from "../../contracts.js";
@@ -21,16 +20,15 @@ export const seasonMockConfigurationSnapshotFor = async (
         scenarioId: "expected",
         now: request.now,
       }) : [];
-  const marketPrices = new Map(
-    (snapshots.at(-1)?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row.marketPrice]),
-  );
+  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows);
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
     season: context.season,
     playerCatalog: context.setup.playerCatalog,
     initialRosters: context.setup.initialRosters,
     humanTeamId: context.membership.teamId,
     strategyKey,
-    marketPrices,
+    leaguePrices: snapshotValues.leaguePrices,
+    personalValues: snapshotValues.personalValues,
   });
   return createSeasonMockConfigurationSnapshot({
     season: context.season,

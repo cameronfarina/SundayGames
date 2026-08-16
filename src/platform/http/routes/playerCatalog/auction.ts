@@ -5,7 +5,7 @@ import {
 } from "../../../../modeling/liveDraftStrategies.js";
 import type { ExplicitLeagueSeason } from "../../../leagueSeason.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "../../../liveDraftRooms.js";
-import { buildSeasonPlayerValues } from "../../../seasonPlayerValues.js";
+import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import type { PlatformApp, PlatformHttpResponse } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
@@ -35,15 +35,15 @@ export const auctionCatalogResponse = async (
   const strategy = liveDraftStrategies[strategyKey];
   const membership = (await app.listLeagueMemberships(season.leagueId))
     .find(candidate => candidate.userId === accountId);
+  const snapshotValues = snapshotPlayerValues(latest?.rows);
   const values = buildSeasonPlayerValues({
     season,
     playerCatalog: players,
     initialRosters: keepers,
     humanTeamId: membership?.teamId,
     strategyKey,
-    marketPrices: new Map(
-      [...pricingByPlayer].map(([playerKey, pricing]) => [playerKey, pricing.marketPrice]),
-    ),
+    leaguePrices: snapshotValues.leaguePrices,
+    personalValues: snapshotValues.personalValues,
   });
   return {
     status: 200,
@@ -57,14 +57,15 @@ export const auctionCatalogResponse = async (
       players: players.map(player => {
         const playerKey = canonicalPlayerIdentityKey(player.name);
         const pricing = pricingByPlayer.get(playerKey);
-        const marketPrice = values.playerExpectedPrices[playerKey] ?? player.expectedPrice;
-        const myValue = values.playerHumanValues[playerKey] ?? marketPrice;
+        const marketPrice = pricing?.marketPrice ?? player.marketPrice ?? player.expectedPrice;
+        const leagueValue = values.playerExpectedPrices[playerKey] ?? player.expectedPrice;
+        const myValue = values.playerHumanValues[playerKey] ?? leagueValue;
         const keeper = keeperByPlayer.get(playerKey);
         return {
           ...player,
           marketPrice,
           myValue,
-          leagueValue: myValue,
+          leagueValue,
           recommendedMaxBid: Math.min(myValue, pricing?.recommendedMaxBid ?? myValue),
           marketValueSource: pricing === undefined ? "league_model" : "league_history",
           isKeeper: keeper !== undefined,

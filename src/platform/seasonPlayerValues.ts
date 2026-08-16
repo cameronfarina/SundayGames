@@ -10,6 +10,7 @@ import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "./liveDraftRooms.js";
+import type { PlayerPriceSnapshotRow } from "./pricingSnapshots.js";
 
 export interface BuildSeasonPlayerValuesInput {
   season: ExplicitLeagueSeason;
@@ -17,13 +18,32 @@ export interface BuildSeasonPlayerValuesInput {
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[];
   humanTeamId?: string | undefined;
   strategyKey: LiveDraftStrategyKey;
-  marketPrices?: ReadonlyMap<string, number> | undefined;
+  leaguePrices?: ReadonlyMap<string, number> | undefined;
+  personalValues?: ReadonlyMap<string, number> | undefined;
 }
 
 export interface SeasonPlayerValues {
   playerExpectedPrices: Readonly<Record<string, number>>;
   playerHumanValues: Readonly<Record<string, number>>;
 }
+
+export interface SnapshotPlayerValues {
+  leaguePrices: ReadonlyMap<string, number>;
+  personalValues: ReadonlyMap<string, number>;
+}
+
+export const snapshotPlayerValues = (
+  rows: readonly PlayerPriceSnapshotRow[] = [],
+): SnapshotPlayerValues => ({
+  leaguePrices: new Map(rows.map(row => [
+    canonicalPlayerIdentityKey(row.playerName),
+    Math.max(1, Math.round(row.scenarioPrice)),
+  ])),
+  personalValues: new Map(rows.map(row => [
+    canonicalPlayerIdentityKey(row.playerName),
+    Math.max(1, Math.round(row.personalValue)),
+  ])),
+});
 
 const flexPositions: readonly ("RB" | "WR" | "TE")[] = ["RB", "WR", "TE"];
 
@@ -33,7 +53,8 @@ export const buildSeasonPlayerValues = ({
   initialRosters,
   humanTeamId,
   strategyKey,
-  marketPrices = new Map(),
+  leaguePrices = new Map(),
+  personalValues = new Map(),
 }: BuildSeasonPlayerValuesInput): SeasonPlayerValues => {
   const humanKeepers = initialRosters.filter(player =>
     player.source === "keeper" && player.teamId === humanTeamId
@@ -62,10 +83,12 @@ export const buildSeasonPlayerValues = ({
 
   const playerExpectedPrices = Object.fromEntries(playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
-    return [playerKey, marketPrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice];
+    return [playerKey, leaguePrices.get(playerKey) ?? player.marketPrice ?? player.expectedPrice];
   }));
   const playerHumanValues = Object.fromEntries(playerCatalog.map(player => {
     const playerKey = canonicalPlayerIdentityKey(player.name);
+    const personalValue = personalValues.get(playerKey);
+    if (personalValue !== undefined) return [playerKey, personalValue];
     const marketValue = playerExpectedPrices[playerKey] ?? player.expectedPrice;
     if (auction === undefined) return [playerKey, marketValue];
 

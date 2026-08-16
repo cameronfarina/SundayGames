@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { canonicalPlayerIdentityKey } from "../../../../data/normalizePlayerName.js";
 import { parseLiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import type { LiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import { loadLeagueScoredWeekOneProjections } from "../../../currentPostDraftProjectionSnapshot.js";
-import { buildSeasonPlayerValues } from "../../../seasonPlayerValues.js";
+import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import type { RunSeasonSimulationsInput, SeasonSimulationTargetConstraint } from "../../../seasonSimulationEngine.js";
 import { seasonSimulationTextInputFromUnknown } from "../../../simulationHttpInput.js";
 import { actionRateLimitResponse } from "../../auth/rateLimits.js";
@@ -56,9 +55,7 @@ export const prepareSeasonSimulation = async (
         scenarioId: "expected",
         now: request.now,
       }) : [];
-  const marketPrices = new Map(
-    (snapshots.at(-1)?.rows ?? []).map(row => [canonicalPlayerIdentityKey(row.playerName), row.marketPrice]),
-  );
+  const snapshotValues = snapshotPlayerValues(snapshots.at(-1)?.rows);
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
     season: context.season,
@@ -66,7 +63,8 @@ export const prepareSeasonSimulation = async (
     initialRosters: context.setup.initialRosters,
     humanTeamId: context.membership.teamId,
     strategyKey: strategyPreset,
-    marketPrices,
+    leaguePrices: snapshotValues.leaguePrices,
+    personalValues: snapshotValues.personalValues,
   });
   const strategyInput = [presetStrategyInput[strategyPreset], textInput.strategy].filter(Boolean).join(" and ");
   const practiceTargets = await app.listPracticeShortlist({
