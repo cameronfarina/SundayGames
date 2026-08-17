@@ -16,7 +16,7 @@ describe("simulation HTTP input", () => {
         playerName: "Jadarian Price",
         price: 15,
         priceMode: "ceiling",
-        auctionOwner: "Owner11",
+        auctionOwner: "Seth",
       }],
       softTargets: [{
         label: "Elite RB",
@@ -28,7 +28,7 @@ describe("simulation HTTP input", () => {
         playerName: "Jadarian Price",
         price: 15,
         priceMode: "ceiling",
-        auctionOwner: "Owner11",
+        auctionOwner: "Seth",
       }],
       softTargets: [{
         label: "Elite RB",
@@ -36,6 +36,17 @@ describe("simulation HTTP input", () => {
         maxBid: 78,
       }],
     });
+  });
+
+  it("rejects an auction owner that names nobody", () => {
+    for (const auctionOwner of ["", "   ", 11]) {
+      expect(() => simulationStrategyInputFromUnknown({
+        hardLocks: [{ playerName: "Jadarian Price", price: 15, auctionOwner }],
+      })).toThrow(new SimulationError(
+        "invalid_simulation_strategy",
+        "Hard-lock auctionOwner must name a team manager.",
+      ));
+    }
   });
 
   it("rejects malformed structured strategy fields", () => {

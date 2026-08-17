@@ -1,4 +1,3 @@
-import { ownerOrder } from "../../config/league.js";
 import {
   maximumSimulationCandidatePoolSize,
   maximumSimulationHardLocks,
@@ -51,11 +50,11 @@ const hardLockFromUnknown = (value: unknown): SimulationHardLockInput => {
   if (priceMode !== undefined && priceMode !== "exact" && priceMode !== "ceiling") {
     return invalidStrategy("Hard-lock priceMode must be exact or ceiling.");
   }
-  const auctionOwner = record.auctionOwner === undefined
-    ? undefined
-    : ownerOrder.find(owner => owner === record.auctionOwner);
-  if (record.auctionOwner !== undefined && auctionOwner === undefined) {
-    return invalidStrategy("Hard-lock auctionOwner must identify a configured owner.");
+  const auctionOwner = typeof record.auctionOwner === "string"
+    ? record.auctionOwner.trim()
+    : undefined;
+  if (record.auctionOwner !== undefined && (auctionOwner === undefined || auctionOwner.length === 0)) {
+    return invalidStrategy("Hard-lock auctionOwner must name a team manager.");
   }
   return {
     playerName: record.playerName,
