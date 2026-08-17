@@ -444,6 +444,49 @@ describe("league-calibrated pricing rebuild", () => {
     );
   });
 
+  it("normalizes league-history simulation prices to the current league budget", () => {
+    const deflatedCurveSales = [
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2025-rb-one", playerId: "player-past-rb-one", playerName: "Past RB One",
+        position: "RB", priceDollars: 20,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2024-rb-two", playerId: "player-past-rb-two", playerName: "Past RB Two",
+        position: "RB", priceDollars: 12, seasonYear: 2024,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2025-wr-one", playerId: "player-past-wr-one", playerName: "Past WR One",
+        position: "WR", priceDollars: 6,
+      }),
+      historicalSaleWithoutPublicPrice({
+        id: "sale-2025-te-one", playerId: "player-past-te-one", playerName: "Past TE One",
+        position: "TE", priceDollars: 1,
+      }),
+    ];
+    const [snapshot] = createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-100001",
+      seasonYear: 2026,
+      modelVersion: "league-calibration-v2",
+      scenarioIds: ["expected"],
+      baselinePrices: economicBaselinePrices,
+      historicalSaleRecords: deflatedCurveSales,
+      currentAuctionBudget: 100,
+      currentTeamCount: 2,
+      currentRosterSize: 2,
+      currentMinimumBidDollars: 1,
+      currentKeeperCount: 1,
+      keeperLockedSpend: 5,
+      currentKeepers: [{ normalizedName: "delta receiver", priceDollars: 5 }],
+    });
+
+    const availableTotal = snapshot?.rows
+      .filter(row => row.playerName !== "Delta Receiver")
+      .reduce((total, row) => total + row.scenarioPrice, 0) ?? 0;
+
+    expect(availableTotal).toBeGreaterThan(150);
+    expect(availableTotal).toBeLessThanOrEqual(200);
+  });
+
   it("caps keeper-inflated player values at one team's auction budget", () => {
     const [snapshot] = createLeagueCalibratedPricingSnapshots({
       leagueId: "league-100001",
@@ -464,7 +507,7 @@ describe("league-calibrated pricing rebuild", () => {
     expect(Math.max(...(snapshot?.rows.map(row => row.scenarioPrice) ?? []))).toBe(100);
   });
 
-  it("separates Gibbs' $57 market, $72 simulation price, and $82 personal value", async () => {
+  it("separates Gibbs' $57 market price from his $99 budget-scaled simulation price", async () => {
     const catalog = await loadCurrentPlayerCatalog();
     const keepers = ["Jaxon Smith-Njigba", "De'Von Achane"].map(normalizedName => ({
       normalizedName: canonicalPlayerIdentityKey(normalizedName),
@@ -501,13 +544,13 @@ describe("league-calibrated pricing rebuild", () => {
     expect(catalog.find(player => player.name === "Jahmyr Gibbs")?.expectedPrice).toBe(57);
     expect(snapshot?.rows.find(row => row.playerName === "Jahmyr Gibbs")).toMatchObject({
       marketPrice: 57,
-      scenarioPrice: 72,
-      personalValue: 82,
-      recommendedMaxBid: 82,
+      scenarioPrice: 99,
+      personalValue: 99,
+      recommendedMaxBid: 99,
     });
     expect(playerCatalogWithPricingSnapshot(catalog, snapshot)
       .find(player => player.name === "Jahmyr Gibbs")).toMatchObject({
-        expectedPrice: 72,
+        expectedPrice: 99,
         marketPrice: 57,
       });
   });

@@ -102,14 +102,18 @@ export const keeperSavingsAllocation = (
     (total, keeper) => total + (input.baselinePrices[keeper.index]?.price ?? 0) - keeper.priceDollars,
     0,
   );
-  const historicalPrices = calibratedPrices.map(calibration => calibration.price);
-  const scenarioBaseline = hasLeagueHistory
-    ? historicalPrices
-    : leagueBudgetBaseline.scenarioPrices;
-  const personalBaseline = hasLeagueHistory
-    ? historicalPrices.map((price, index) =>
-      Math.max(price, leagueBudgetBaseline.scenarioPrices[index] ?? 0))
-    : leagueBudgetBaseline.scenarioPrices;
+  // History-calibrated prices stay on the public baseline's scale, so they
+  // must pass through budget allocation before they can price this league.
+  const historicalBudgetBaseline = hasLeagueHistory
+    ? fullBudgetAllocation(input, calibratedPrices, 0, 0)
+    : undefined;
+  const scenarioBaseline = historicalBudgetBaseline === undefined
+    ? leagueBudgetBaseline.scenarioPrices
+    : historicalBudgetBaseline.scenarioPrices;
+  const personalBaseline = historicalBudgetBaseline === undefined
+    ? leagueBudgetBaseline.scenarioPrices
+    : historicalBudgetBaseline.scenarioPrices.map((price, index) =>
+      Math.max(price, leagueBudgetBaseline.scenarioPrices[index] ?? 0));
   return {
     scenarioPrices: pricesWithKeeperSavings(
       input,
@@ -125,6 +129,10 @@ export const keeperSavingsAllocation = (
       keeperIndexSet,
       keeperSavings,
     ),
-    warnings: [...leagueBudgetBaseline.warnings, ...keeperSavingsWarnings(keeperSavings)],
+    warnings: [...new Set([
+      ...leagueBudgetBaseline.warnings,
+      ...(historicalBudgetBaseline?.warnings ?? []),
+      ...keeperSavingsWarnings(keeperSavings),
+    ])],
   };
 };
