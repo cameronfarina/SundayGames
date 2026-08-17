@@ -23,7 +23,6 @@ services:
     preDeployCommand: npm run platform:migrate
     dockerCommand: /bin/sh -c 'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'
     healthCheckPath: /readyz
-    maxShutdownDelaySeconds: 60
     numInstances: 1
     disk:
       name: draft-tools
