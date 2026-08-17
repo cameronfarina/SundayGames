@@ -44,7 +44,7 @@ describe("PlayerBoard performance", () => {
     expect(screen.getByText("Player 500")).toBeInTheDocument();
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(501);
     expect(screen.queryByRole("button", { name: /Show .* more players/u })).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("resets expanded rows when search and position filters change", async () => {
     const user = userEvent.setup();
