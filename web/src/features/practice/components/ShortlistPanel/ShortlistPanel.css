@@ -8,6 +8,12 @@
   margin-top: 0;
 }
 
+/* Matches the player board heading, so both columns start on the same line. */
+.shortlist-panel__heading h2,
+.shortlist-panel__heading p {
+  margin: 0;
+}
+
 .shortlist-panel ol {
   display: grid;
   gap: 0.5rem;

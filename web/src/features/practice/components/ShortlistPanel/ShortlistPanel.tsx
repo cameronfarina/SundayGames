@@ -50,7 +50,7 @@ function TargetRow({ item, onRemove, onSave, pending }: TargetRowProps) {
 export function ShortlistPanel({ items, onRemove, onSave, pending }: ShortlistPanelProps) {
   return (
     <section aria-labelledby="draft-plan-title" className="shortlist-panel">
-      <div><p className="practice-eyebrow">Simulation plan</p><h2 id="draft-plan-title">Draft targets</h2></div>
+      <div className="shortlist-panel__heading"><p className="practice-eyebrow">Simulation plan</p><h2 id="draft-plan-title">Draft targets</h2></div>
       {items.length === 0
         ? <p className="practice-empty">Star players on the board to build this plan.</p>
         : <ol>{items.map(item => <TargetRow
