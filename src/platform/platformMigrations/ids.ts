@@ -11,6 +11,7 @@ export const sharedLeagueInvitationsMigrationId = "platform-shared-league-invita
 export const leagueArchiveMigrationId = "platform-league-archive-v11";
 export const authTokenVersionMigrationId = "platform-auth-token-version-v12";
 export const leagueSlugMigrationId = "platform-league-slug-v13";
+export const playerNewsMigrationId = "platform-player-news-v14";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

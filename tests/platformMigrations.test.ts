@@ -198,6 +198,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
       "platform-league-slug-v13",
+      "platform-player-news-v14",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -224,6 +225,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
       "platform-league-slug-v13",
+      "platform-player-news-v14",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -325,6 +327,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
       "platform-league-slug-v13",
+      "platform-player-news-v14",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -340,6 +343,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
       "platform-league-slug-v13",
+      "platform-player-news-v14",
     ]);
   });
 

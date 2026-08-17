@@ -1,3 +1,5 @@
+import { renderMigrationStatements } from "../postgresSchema.js";
+import { playerNewsTables } from "../postgresSchema/tables/playerNewsTables.js";
 import type { PlatformSchemaMigration } from "./contracts.js";
 import {
   authOwnershipMigrationId,
@@ -5,6 +7,7 @@ import {
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
   leagueSlugMigrationId,
+  playerNewsMigrationId,
   sharedLeagueInvitationsMigrationId,
 } from "./ids.js";
 import { authTokenTableMigrationStatements } from "./schemaStatements.js";
@@ -96,5 +99,9 @@ END $$;`,
       "ALTER TABLE leagues ADD CONSTRAINT leagues_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');",
       "CREATE UNIQUE INDEX IF NOT EXISTS leagues_slug_key ON leagues (slug);",
     ],
+  },
+  {
+    id: playerNewsMigrationId,
+    statements: renderMigrationStatements(playerNewsTables, []),
   },
 ];
