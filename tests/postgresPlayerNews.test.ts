@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PostgresPlayerNewsRepository } from "../src/platform/postgresPlayerNews.js";
+import { upsertItemSql } from "../src/platform/postgresPlayerNews/sql.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type { PostgresQueryClient, PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
 
@@ -66,6 +67,14 @@ class PlayerNewsClient implements PostgresTransactionalQueryClient {
 }
 
 describe("Postgres player news repository", () => {
+  it("casts the tags parameter to jsonb so Postgres does not reject it as text", () => {
+    // The fake client below is untyped and would silently accept a bare
+    // text parameter; real Postgres does not. A prior version of this
+    // query left tags_json uncast and broke every player-news request
+    // in production despite this file's other tests passing.
+    expect(upsertItemSql).toContain("$10::jsonb");
+  });
+
   it("upserts on provider and provider item id, then reads it back", async () => {
     const client = new PlayerNewsClient();
     const repository = new PostgresPlayerNewsRepository(client);

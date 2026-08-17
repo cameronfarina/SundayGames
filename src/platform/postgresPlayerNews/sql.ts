@@ -2,7 +2,7 @@ export const upsertItemSql = `
 INSERT INTO player_news_items (
   id, provider, provider_item_id, canonical_url, player_name, title, summary,
   published_at, fetched_at, tags_json, created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $9)
 ON CONFLICT (provider, provider_item_id) DO UPDATE SET
   canonical_url = EXCLUDED.canonical_url,
   player_name = EXCLUDED.player_name,
