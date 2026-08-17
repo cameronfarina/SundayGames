@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { RouteErrorPage } from "./RouteErrorPage";
@@ -37,6 +37,10 @@ describe("RouteErrorPage", () => {
 
     expect(await screen.findByRole("alert"))
       .toHaveTextContent("We updated the site while this tab was open. Refresh the page to continue.");
-    expect(window.sessionStorage.getItem("staleChunkReloadedAt")).not.toBeNull();
+    // The message renders on the first pass, so the alert can resolve before the
+    // reload effect has run. Wait for the effect instead of racing it.
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem("staleChunkReloadedAt")).not.toBeNull();
+    });
   });
 });
