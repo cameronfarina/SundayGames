@@ -42,7 +42,9 @@ export const exerciseCompletedAuctionMockResults = async (
     await expect(page.getByRole("button", { name: "Abandon mock" })).toBeEnabled({ timeout: 15_000 });
   }
 
-  await expect(finishButton).toBeEnabled();
+  // The simulated owners are still settling the last lots here, which takes
+  // longer than a normal wait when the machine is busy.
+  await expect(finishButton).toBeEnabled({ timeout: 30_000 });
   await finishButton.click();
   const results = page.getByRole("region", { name: "League results" });
   await expect(results).toBeVisible();

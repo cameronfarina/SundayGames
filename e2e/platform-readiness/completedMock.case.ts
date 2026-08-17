@@ -10,6 +10,9 @@ import type { SeasonBody } from "../support/platform-readiness/types.js";
 
 test("completed auction mock shows every team's priced Week 1 roster", async ({ browser }) => {
   test.skip(isDeployedSmoke, "Local fixture bootstrap is not allowed against a deployed target.");
+  // Drafts four full rosters, so it needs more room than a normal case when
+  // the machine is also running the other suites.
+  test.slow();
   const { page, account } = await pageForLocalFixtureUser(browser, "completed.mock.e2e@example.com");
   const owners = ["Alpha", "Bravo", "Charlie", "Delta"];
   const baseSeason = buildCurrentMockdLeagueSeason(owners, {

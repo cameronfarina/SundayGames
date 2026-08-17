@@ -1,3 +1,5 @@
+import { afterEach, vi } from "vitest";
+import { stubReportingFeed } from "../support/reportingFeed.js";
 import {
   expect,
   it,
@@ -8,7 +10,10 @@ import {
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer }) => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
   it("serves published reporting and never the pricing evidence rows", async () => {
+    stubReportingFeed();
     const { baseUrl } = await createListeningServer({
       currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
     });

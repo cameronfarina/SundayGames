@@ -21,7 +21,7 @@
     "test:web:coverage": "vitest run --config web/vitest.config.ts --coverage",
     "typecheck:web": "tsc --noEmit -p web/tsconfig.json",
     "verify:web": "npm run guard:web && npm run typecheck:web && npm run lint:web && npm run test:web:coverage && npm run build:web && npm run budget:web",
-    "verify": "npm test && npm run verify:web && npm run build && npm run test:e2e",
+    "verify": "npm run guard:data && npm run verify:web && npm run build && npm test && npm run platform:render:validate && npm run test:e2e",
     "start": "node dist/src/platform/startPlatformWeb.js",
     "test": "vitest run",
     "test:e2e": "tsx scripts/run-platform-e2e.ts",

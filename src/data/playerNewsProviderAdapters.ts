@@ -103,17 +103,23 @@ export const parseRotowireRssNews = ({
   return items.map(item => itemValueFor(item, fetchedAt));
 };
 
+const rotowireRequestTimeoutMs = 5_000;
+
 export const fetchRotowireRssNews = async ({
   url = rotowireNflRssUrl,
   fetchedAt = new Date().toISOString(),
+  timeoutMs = rotowireRequestTimeoutMs,
 }: {
   url?: string;
   fetchedAt?: string;
+  timeoutMs?: number;
 } = {}): Promise<RawPlayerNewsItem[]> => {
+  // Without a deadline a stalled feed holds the news request open forever.
   const response = await fetch(url, {
     headers: {
       accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8",
     },
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
     throw new Error(`RotoWire RSS request failed with ${response.status}.`);

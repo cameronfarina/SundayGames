@@ -1,8 +1,9 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import { createGlobalPlayerNewsHandler } from "../src/platform/platformServer/globalPlayerNews.js";
+import { stubReportingFeed } from "./support/reportingFeed.js";
 
 const servers: Server[] = [];
 
@@ -30,7 +31,10 @@ const newsHandler = () => createGlobalPlayerNewsHandler(
 );
 
 describe("global player news handler", () => {
+  beforeEach(() => { stubReportingFeed(); });
+
   afterEach(async () => {
+    vi.unstubAllGlobals();
     await Promise.all(servers.splice(0).map(server =>
       new Promise<void>(resolve => { server.close(() => { resolve(); }); })));
   });
