@@ -1,5 +1,7 @@
 .my-team-table-scroll {
   overflow-x: auto;
+  /* Keeps absolutely positioned row content inside the scroll box. */
+  position: relative;
 }
 
 .my-team-table-scroll table {

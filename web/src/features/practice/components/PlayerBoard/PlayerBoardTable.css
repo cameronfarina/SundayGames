@@ -1,6 +1,9 @@
 .player-board__table-wrap {
   display: block;
   overflow-x: auto;
+  /* Anchors absolutely positioned descendants, such as the screen-reader-only
+     labels in each row, so they cannot escape this box and widen the page. */
+  position: relative;
   overflow-y: clip;
   overscroll-behavior-inline: contain;
 }

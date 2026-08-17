@@ -48,6 +48,8 @@
 
 .player-board__table-wrap {
   overflow-x: auto;
+  /* Keeps absolutely positioned row content inside the scroll box. */
+  position: relative;
 }
 
 .player-board table {
