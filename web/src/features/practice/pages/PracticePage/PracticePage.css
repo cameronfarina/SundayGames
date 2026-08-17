@@ -59,8 +59,8 @@
 
 .practice-page__workspace {
   display: grid;
-  gap: 1.5rem;
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
+  gap: 2.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
 }
 
 .practice-page__main,

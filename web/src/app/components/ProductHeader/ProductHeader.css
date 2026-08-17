@@ -7,6 +7,8 @@
   display: flex;
   gap: var(--space-6);
   justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--layout-max-width);
   min-height: 3.75rem;
   padding: 0 var(--space-8);
 }

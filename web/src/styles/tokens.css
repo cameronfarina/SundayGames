@@ -40,4 +40,8 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
+
+  /* Widest the page content grows. The header uses it too, so the tabs line
+     up with the content beneath them. */
+  --layout-max-width: 110rem;
 }
