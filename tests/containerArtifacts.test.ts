@@ -60,7 +60,7 @@ describe("production container artifacts", () => {
 
     expect(dockerfile).toMatch(/^STOPSIGNAL SIGTERM$/m);
     expect(dockerfile).toContain(
-      'CMD ["node", "dist/src/platform/startPlatformWeb.js"]',
+      'CMD ["/bin/sh", "-c", "node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js"]',
     );
     expect(dockerfile).not.toMatch(/^CMD npm /m);
   });
