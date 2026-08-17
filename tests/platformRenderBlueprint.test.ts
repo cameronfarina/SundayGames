@@ -82,7 +82,6 @@ describe("Render production blueprint", () => {
       region: "virginia",
       autoDeployTrigger: "off",
       preDeployCommand: "npm run platform:migrate",
-      dockerCommand: "/bin/sh -c 'node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js'",
       healthCheckPath: "/readyz",
       numInstances: 1,
       disk: {
@@ -91,6 +90,9 @@ describe("Render production blueprint", () => {
         sizeGB: 1,
       },
     }));
+    // Render mis-parses a quoted compound dockerCommand (deploys fail with
+    // exit 127), so the readiness-gated start chain lives in the image CMD.
+    expect(web.dockerCommand).toBeUndefined();
     expect(envFor(web, "DATABASE_URL")?.fromDatabase).toEqual({
       name: "mockd-postgres",
       property: "connectionString",
@@ -130,5 +132,13 @@ describe("Render production blueprint", () => {
     const blueprintText = await readFile("render.yaml", "utf8");
 
     expect(blueprintText).not.toMatch(/PROVISIONING_TOKEN|PASSWORD_HASH/i);
+  });
+
+  it("boots through the readiness check via the image CMD", async () => {
+    const dockerfile = await readFile("Dockerfile", "utf8");
+
+    expect(dockerfile).toContain(
+      'CMD ["/bin/sh", "-c", "node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js"]',
+    );
   });
 });

@@ -49,4 +49,4 @@ EXPOSE 3000
 USER node
 
 STOPSIGNAL SIGTERM
-CMD ["node", "dist/src/platform/startPlatformWeb.js"]
+CMD ["/bin/sh", "-c", "node dist/src/platform/checkPlatformProductionReadiness.js && exec node dist/src/platform/startPlatformWeb.js"]
