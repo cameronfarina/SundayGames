@@ -84,6 +84,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  rollback-on-failure:
+    name: Roll back production when main CI fails
+    runs-on: ubuntu-latest
+    needs: [quality, local-e2e, production-container]
+    if: ${{ failure() && github.ref == 'refs/heads/main' }}
+    timeout-minutes: 10
+    steps:
+      - name: Roll back to the previous live deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: srv-da167clbedkc73c5f82g
+          ALERT_WEBHOOK_URL: ${{ secrets.MOCKD_PRODUCTION_ALERT_WEBHOOK_URL }}
+        run: |
+          previous=$(curl -sf -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys?limit=10" \
+            | jq -r '[.[].deploy | select(.status == "live" or .status == "deactivated")][1].id // empty')
+          if [ -z "$previous" ]; then
+            echo "No previous deploy found; nothing to roll back to."
+          else
+            curl -sf -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"deployId\": \"$previous\"}" \
+              "https://api.render.com/v1/services/$SERVICE_ID/rollback"
+            echo "Rolled back to deploy $previous."
+          fi
+          if [ -n "$ALERT_WEBHOOK_URL" ]; then
+            commit="${{ github.sha }}"
+            curl -sf -X POST -H "Content-Type: application/json" \
+              -d "{\"text\":\"CI failed on main (${commit:0:7}). Production was rolled back to the previous deploy.\"}" \
+              "$ALERT_WEBHOOK_URL" || true
+          fi
+
   production-container:
     name: Production image and Postgres boot
     runs-on: ubuntu-latest
