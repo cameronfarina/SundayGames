@@ -19,4 +19,24 @@ describe("RouteErrorPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load this workspace.");
     expect(screen.getByRole("link", { name: "Return to Practice" })).toHaveAttribute("href", "/practice");
   });
+
+  it("refreshes the tab once when a page file is missing after a deploy", async () => {
+    window.sessionStorage.removeItem("staleChunkReloadedAt");
+    const router = createMemoryRouter([{
+      path: "/player-news",
+      loader: () => {
+        throw new TypeError(
+          "Failed to fetch dynamically imported module: https://sundaygames.io/assets/playerNewsRoute-btdGVP8y.js",
+        );
+      },
+      element: <p>Never rendered</p>,
+      errorElement: <RouteErrorPage />,
+    }], { initialEntries: ["/player-news"] });
+
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("We updated the site while this tab was open. Refresh the page to continue.");
+    expect(window.sessionStorage.getItem("staleChunkReloadedAt")).not.toBeNull();
+  });
 });
