@@ -153,6 +153,21 @@ export const seasonForMobileRelease = (): LeagueSeason => {
   };
 };
 
+/**
+ * A phone has no header tabs, so the pages live in the account menu. This is
+ * how a phone user actually moves between them.
+ */
+export const openPageFromMobileMenu = async (page: Page, name: string): Promise<void> => {
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+};
+
+export const expectMobileMenuOffersPage = async (page: Page, name: string): Promise<void> => {
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await expect(page.getByRole("menuitem", { name, exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+};
+
 export const expectNoHorizontalPageOverflow = async (page: Page): Promise<void> => {
   const dimensions = await page.evaluate(() => ({
     viewportWidth: window.visualViewport?.width ?? window.innerWidth,

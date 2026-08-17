@@ -25,6 +25,7 @@ export const ProductHeader = () => {
           />
           <AccountMenu
             activeLeague={activeLeague}
+            canManageLeague={activeLeague?.canManageLeague === true}
             email={email}
             leagues={leagues}
             onLeagueChange={setActiveLeague}

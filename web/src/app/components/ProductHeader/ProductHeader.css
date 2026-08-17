@@ -62,6 +62,9 @@
      the account menu carries the league instead. */
   .product-header__bar {
     gap: var(--space-3);
+    /* The tabs are hidden here, so keep the menu button where it sits on a
+       wide screen instead of letting it fall to the empty left side. */
+    justify-content: flex-end;
     padding: 0 var(--space-4);
   }
 
@@ -75,8 +78,9 @@
     flex-shrink: 0;
   }
 
+  /* Five tabs cannot fit a phone, and "Commissioner" alone is wider than the
+     room left over. The account menu carries the pages instead. */
   .product-header__navigation {
-    gap: var(--space-4);
-    overflow-x: auto;
+    display: none;
   }
 }

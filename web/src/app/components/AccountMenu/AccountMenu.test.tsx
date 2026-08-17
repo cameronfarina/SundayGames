@@ -39,6 +39,7 @@ const leagueFixtures = [
 
 interface MenuOverrides {
   readonly activeLeague?: OnboardingLeague | undefined;
+  readonly canManageLeague?: boolean | undefined;
   readonly leagues?: readonly OnboardingLeague[] | undefined;
   readonly onLeagueChange?: ((seasonId: string) => void) | undefined;
 }
@@ -49,6 +50,7 @@ const renderMenu = (overrides: MenuOverrides = {}) => {
   queryClient.setQueryData(onboardingQueryOptions().queryKey, cachedOnboarding);
   const menu = <AccountMenu
     activeLeague={overrides.activeLeague}
+    canManageLeague={overrides.canManageLeague ?? false}
     email="example.user@example.com"
     leagues={overrides.leagues ?? []}
     onLeagueChange={overrides.onLeagueChange ?? (() => undefined)}

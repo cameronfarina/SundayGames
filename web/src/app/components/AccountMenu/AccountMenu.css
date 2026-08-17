@@ -26,3 +26,19 @@
   width: max-content;
   z-index: 20;
 }
+
+/* On a phone this button is the only way to reach the pages, so it reads as a
+   menu rather than an avatar. */
+.account-menu__menu-icon {
+  display: none;
+}
+
+@media (max-width: 48rem) {
+  .account-menu__initial {
+    display: none;
+  }
+
+  .account-menu__menu-icon {
+    display: inline-flex;
+  }
+}

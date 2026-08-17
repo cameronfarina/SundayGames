@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
@@ -7,11 +8,13 @@ import { resetAccountQueryState } from "../../../features/auth/model/accountQuer
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
+import { navigationTargets } from "../ProductHeader/navigationTargets";
 import { accountInitial } from "./accountInitial";
 import "./AccountMenu.css";
 
 interface AccountMenuProps {
   readonly activeLeague: OnboardingLeague | undefined;
+  readonly canManageLeague: boolean;
   readonly email: string;
   readonly leagues: readonly OnboardingLeague[];
   readonly onLeagueChange: (seasonId: string) => void;
@@ -19,6 +22,7 @@ interface AccountMenuProps {
 
 export const AccountMenu = ({
   activeLeague,
+  canManageLeague,
   email,
   leagues,
   onLeagueChange,
@@ -41,8 +45,16 @@ export const AccountMenu = ({
     onSelect: () => { onLeagueChange(league.seasonId); },
     selected: league.seasonId === activeLeague?.seasonId,
   }));
+  // A phone has no room for the header tabs, so this menu carries the pages
+  // there. Wide screens keep the tabs and hide these.
+  const pageItems = navigationTargets(activeLeague, canManageLeague).map(target => ({
+    label: target.label,
+    narrowOnly: true,
+    onSelect: () => { void navigate(target.to); },
+  }));
   const items = [
     ...leagueItems,
+    ...pageItems,
     { label: "Change password", onSelect: () => { setPasswordDialogOpen(true); } },
     {
       destructive: true,
@@ -57,6 +69,9 @@ export const AccountMenu = ({
       <DropdownMenu items={items} label="Account menu">
         <span aria-hidden="true" className="account-menu__initial">
           {accountInitial(email)}
+        </span>
+        <span aria-hidden="true" className="account-menu__menu-icon">
+          <Menu size={18} />
         </span>
       </DropdownMenu>
       <Dialog

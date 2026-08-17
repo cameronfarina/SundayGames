@@ -9,8 +9,10 @@ import {
 import {
   api,
   emailDomain,
+  expectMobileMenuOffersPage,
   expectNoControlOverlap,
   expectNoHorizontalPageOverflow,
+  openPageFromMobileMenu,
   expectOk,
   isDeployedSmoke,
   leagueName,
@@ -99,7 +101,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
   const leaguePath = new URL(page.url()).pathname;
   expect(leaguePath).toMatch(/^\/leagues\/[^/]+$/u);
-  await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
+  await expectMobileMenuOffersPage(page, "Commissioner");
   await expect(page.getByRole("link", { name: "Enter draft" })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([
@@ -107,7 +109,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
     page.getByRole("link", { name: "Enter draft" }),
   ]);
 
-  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await openPageFromMobileMenu(page, "Practice");
   await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
   expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expectPracticeBoard(page, 500);
@@ -138,7 +140,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await expectAuctionMockSetup(page);
   expect(new URL(page.url()).searchParams.get("sessionId")).toBe(mockSessionId);
 
-  await page.getByRole("link", { name: "League", exact: true }).click();
+  await openPageFromMobileMenu(page, "League");
   await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
   await page.getByRole("link", { name: "Enter draft" }).click();
   await expect(page.getByRole("heading", { name: "Live auction draft" })).toBeVisible();
@@ -190,10 +192,10 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const leaguePath = new URL(page.url()).pathname;
   expect(leaguePath).toMatch(/^\/leagues\/[^/]+$/u);
-  await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
+  await expectMobileMenuOffersPage(page, "Commissioner");
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([accountMenuButton(page)]);
-  await page.getByRole("link", { name: "Practice", exact: true }).click();
+  await openPageFromMobileMenu(page, "Practice");
   await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
   await expectPracticeBoard(page);
   await expectNoHorizontalPageOverflow(page);
