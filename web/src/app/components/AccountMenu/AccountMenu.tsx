@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
 import { PasswordChangeForm } from "../../../features/auth/components/PasswordChangeForm/PasswordChangeForm";
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
+import { leaguePageForPath } from "../../../features/league/lib/leaguePaths";
 import { navigationTargets } from "../ProductHeader/navigationTargets";
 import { accountInitial } from "./accountInitial";
 import "./AccountMenu.css";
@@ -28,6 +29,7 @@ export const AccountMenu = ({
   onLeagueChange,
 }: AccountMenuProps) => {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const currentPage = leaguePageForPath(useLocation().pathname);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const signOut = useMutation({
@@ -47,15 +49,21 @@ export const AccountMenu = ({
   }));
   // A phone has no room for the header tabs, so this menu carries the pages
   // there. Wide screens keep the tabs and hide these.
-  const pageItems = navigationTargets(activeLeague, canManageLeague).map(target => ({
+  const pageItems = navigationTargets(activeLeague, canManageLeague).map((target, index) => ({
     label: target.label,
     narrowOnly: true,
     onSelect: () => { void navigate(target.to); },
+    selected: target.page === currentPage,
+    startsGroup: index === 0 && leagueItems.length > 0,
   }));
   const items = [
     ...leagueItems,
     ...pageItems,
-    { label: "Change password", onSelect: () => { setPasswordDialogOpen(true); } },
+    {
+      label: "Change password",
+      onSelect: () => { setPasswordDialogOpen(true); },
+      startsGroup: pageItems.length > 0,
+    },
     {
       destructive: true,
       disabled: signOut.isPending,

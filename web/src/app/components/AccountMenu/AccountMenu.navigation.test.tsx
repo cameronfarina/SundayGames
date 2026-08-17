@@ -66,6 +66,15 @@ describe("AccountMenu navigation", () => {
     expect(screen.queryByRole("menuitem", { name: "Commissioner" })).not.toBeInTheDocument();
   });
 
+  it("marks the page being viewed", async () => {
+    await openMenu(true);
+
+    expect(screen.getByRole("menuitem", { name: "Practice" }))
+      .toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("menuitem", { name: "My team" }))
+      .not.toHaveAttribute("aria-current");
+  });
+
   it("opens the page a menu entry names", async () => {
     const user = await openMenu(false);
 

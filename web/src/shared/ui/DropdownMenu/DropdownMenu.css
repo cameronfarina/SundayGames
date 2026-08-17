@@ -65,3 +65,16 @@
     display: flex;
   }
 }
+
+.dropdown-menu__separator {
+  background: var(--color-border);
+  height: 1px;
+  margin: var(--space-2) 0;
+}
+
+@media (min-width: 48.0625rem) {
+  /* The groups it divides are hidden on wide screens. */
+  .dropdown-menu__separator {
+    display: none;
+  }
+}
