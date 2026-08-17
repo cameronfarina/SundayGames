@@ -1,4 +1,5 @@
 import { applyLeagueSetupImportToSeason, parseLeagueSetupImport } from "../leagueSetupImport.js";
+import { leagueSetupTeamAssignments } from "../leagueSetupImport/teamAssignmentPreview.js";
 import type { PlatformSetupApp } from "./app.js";
 import type {
   PlatformLeagueSetupImportApplyBody,
@@ -33,6 +34,7 @@ export const applyLeagueSetupImport = async (
   if (parsedImport.status === "blocked") {
     return { status: 400, body: leagueSetupImportBlockedBody(parsedImport) };
   }
+  const teamAssignments = leagueSetupTeamAssignments(season, parsedImport.records);
   const appliedImport = applyLeagueSetupImportToSeason(season, parsedImport.records);
   const reconciliation = await reconcileSetupMemberships(
     app,
@@ -61,6 +63,7 @@ export const applyLeagueSetupImport = async (
     body: {
       season: registeredSeason,
       import: parsedImport,
+      teamAssignments,
       memberships: reconciliation.memberships,
       pendingInvites: reconciliation.pendingInvites,
       invitations: delivery.invitations,

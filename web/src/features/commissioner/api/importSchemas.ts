@@ -22,6 +22,23 @@ const setupImportSchema = z.object({
   })),
 });
 
+const teamAssignmentSchema = z.object({
+  sourceRowNumber: z.number(),
+  ownerDisplayName: z.string(),
+  teamDisplayName: z.string(),
+  effect: z.enum(["kept", "renamed", "new"]),
+  existingTeamId: z.string().optional(),
+  previousOwnerDisplayName: z.string().optional(),
+  previousTeamDisplayName: z.string().optional(),
+});
+
+export type TeamAssignment = z.output<typeof teamAssignmentSchema>;
+
+export const setupPreviewResponseSchema = z.object({
+  import: setupImportSchema,
+  teamAssignments: z.array(teamAssignmentSchema),
+});
+
 export const setupApplyResponseSchema = z.object({
   season: seasonSchema,
   import: setupImportSchema,

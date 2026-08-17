@@ -116,4 +116,28 @@ describe("LeagueSetupSection", () => {
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
   });
+
+  it("shows what each row will do before anything is saved", async () => {
+    const respond: PlatformFetch = input => Promise.resolve(
+      requestPath(input).endsWith("preview")
+        ? jsonResponse({
+            import: readyImport,
+            teamAssignments: [
+              { sourceRowNumber: 2, ownerDisplayName: "Seth", teamDisplayName: "Alpha", effect: "kept" },
+              {
+                sourceRowNumber: 3, ownerDisplayName: "Tye", teamDisplayName: "Short King",
+                effect: "renamed", previousOwnerDisplayName: "ty", previousTeamDisplayName: "Short King",
+              },
+              { sourceRowNumber: 4, ownerDisplayName: "Newcomer", teamDisplayName: "Bravo", effect: "new" },
+            ],
+          })
+        : jsonResponse({ season: auctionSeason, import: readyImport, invitations: [], invitationFailures: [] }),
+    );
+    renderSection(vi.fn(respond));
+
+    expect(await screen.findByText("Seth keeps their team.")).toBeVisible();
+    expect(screen.getByText("Tye takes over ty's team (Short King), keeping its keepers."))
+      .toBeVisible();
+    expect(screen.getByText("Newcomer starts a new team with no keepers.")).toBeVisible();
+  });
 });

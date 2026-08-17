@@ -8,6 +8,7 @@ import type {
   LeagueMembersScreenshotImageInput,
 } from "../openAiLeagueMembersScreenshotAnalyzer.js";
 import type { LeagueSetupImportResult, LeagueSetupMembershipSeed } from "../leagueSetupImport.js";
+import type { LeagueSetupTeamAssignment } from "../leagueSetupImport/teamAssignmentPreview.js";
 import type { PlatformLeagueMembership } from "../platformApp.js";
 import type { PlatformInvitationRepository, PlatformInvitationView } from "../platformInvitations.js";
 
@@ -57,6 +58,7 @@ export interface PlatformLeagueMembersScreenshotApplyInput {
 
 export interface PlatformLeagueSetupImportPreviewBody {
   import: LeagueSetupImportResult;
+  teamAssignments: readonly LeagueSetupTeamAssignment[];
 }
 
 export interface PlatformLeagueSetupImportPendingInvite {

@@ -1,13 +1,20 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDeferredValue, useState } from "react";
 import { invalidateLeagueSetupConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { applyBlockers } from "../../model/applyBlockers";
 import { errorMessage } from "../../model/errorMessage";
+import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
 
 interface LeagueSetupSectionProps { readonly season: CommissionerSeason }
+
+const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
+  queryFn: () => commissionerApi.previewTeams(seasonId, content),
+  queryKey: ["league-setup-preview", seasonId, content],
+  staleTime: Infinity,
+});
 
 const teamRows = (season: CommissionerSeason): string => [
   "owner,team,role",
@@ -26,6 +33,11 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
   const settings = season.settings;
   const blockers = applyBlockers(apply.error);
   const dirty = content !== teamRows(season);
+  // Asks the server what these rows would do, so the effect of a rename is on
+  // screen before it is saved rather than discovered at the draft room.
+  const previewContent = useDeferredValue(content);
+  const preview = useQuery(teamPreviewOptions(season.id, previewContent));
+  const assignments = preview.data?.teamAssignments ?? [];
   const draftLabel = settings.draftFormat === "auction"
     ? `$${String(settings.auction.budgetDollars)} auction`
     : `${String(settings.snake.rounds)}-round snake`;
@@ -42,6 +54,18 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
       <label htmlFor="commissioner-team-rows">Teams and managers</label>
       <textarea id="commissioner-team-rows" rows={Math.min(10, season.teams.length + 1)} value={content}
         onChange={event => { setContent(event.target.value); apply.reset(); }} />
+      {assignments.length > 0 && (
+        <ul aria-label="What these rows will do" className="commissioner-assignments">
+          {assignments.map(assignment => (
+            <li
+              className={`commissioner-assignments__item commissioner-assignments__item--${assignment.effect}`}
+              key={assignment.sourceRowNumber}
+            >
+              {teamAssignmentSummary(assignment)}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="commissioner-actions">
         <Button
           aria-busy={apply.isPending}
