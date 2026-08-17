@@ -42,7 +42,10 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
   // screen before it is saved rather than discovered at the draft room.
   const previewContent = useDeferredValue(content);
   const preview = useQuery(teamPreviewOptions(season.id, previewContent));
-  const assignments = preview.data?.teamAssignments ?? [];
+  // A row that keeps its own team needs no explanation. Listing all fourteen
+  // buries the one row that does something, so only changes are shown.
+  const assignments = (preview.data?.teamAssignments ?? [])
+    .filter(assignment => assignment.effect !== "kept");
   const draftLabel = settings.draftFormat === "auction"
     ? `$${String(settings.auction.budgetDollars)} auction`
     : `${String(settings.snake.rounds)}-round snake`;

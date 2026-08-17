@@ -118,7 +118,7 @@ describe("LeagueSetupSection", () => {
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
   });
 
-  it("shows what each row will do before anything is saved", async () => {
+  it("lists only the rows that change, before anything is saved", async () => {
     const respond: PlatformFetch = input => Promise.resolve(
       requestPath(input).endsWith("preview")
         ? jsonResponse({
@@ -136,9 +136,25 @@ describe("LeagueSetupSection", () => {
     );
     renderSection(vi.fn(respond));
 
-    expect(await screen.findByText("Seth keeps their team.")).toBeVisible();
-    expect(screen.getByText("Tye takes over ty's team (Short King), keeping its keepers."))
+    expect(await screen.findByText("Tye takes over ty's team (Short King), keeping its keepers."))
       .toBeVisible();
     expect(screen.getByText("Newcomer starts a new team with no keepers.")).toBeVisible();
+    expect(screen.queryByText("Seth keeps their team.")).not.toBeInTheDocument();
+  });
+
+  it("says nothing at all when every row keeps its own team", async () => {
+    renderSection(vi.fn((input: RequestInfo | URL) => Promise.resolve(
+      requestPath(input).endsWith("preview")
+        ? jsonResponse({
+            import: readyImport,
+            teamAssignments: [
+              { sourceRowNumber: 2, ownerDisplayName: "Seth", teamDisplayName: "Alpha", effect: "kept" },
+            ],
+          })
+        : jsonResponse({ season: auctionSeason, import: readyImport, invitations: [], invitationFailures: [] }),
+    )));
+
+    expect(await screen.findByRole("button", { name: "Apply changes" })).toBeDisabled();
+    expect(screen.queryByRole("list", { name: "What these rows will do" })).not.toBeInTheDocument();
   });
 });
