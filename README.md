@@ -106,8 +106,9 @@ mis-parses compound commands there, so leave `dockerCommand` unset.
 Production needs:
 
 - `DATABASE_URL` — Postgres connection string.
-- A persistent disk for draft room session files, with
-  `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` pointing at it.
+- A writable scratch directory for classic draft-tools session files, with
+  `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` pointing at it. Do not use a persistent
+  disk. A disk stops Render from deploying without downtime.
 - `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`.
 - Email delivery for signup and password resets (`MOCKD_AUTH_EMAIL_MODE`,
   `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`).

@@ -43,7 +43,6 @@ COPY --chown=node:node data/raw/fantasy-draft-rankings-2026 ./data/raw/fantasy-d
 
 RUN install -d -o node -g node /var/lib/mockd/draft-tools
 
-VOLUME ["/var/lib/mockd/draft-tools"]
 EXPOSE 3000
 
 USER node

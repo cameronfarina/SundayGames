@@ -22,11 +22,11 @@ services:
     dockerContext: .
     preDeployCommand: npm run platform:migrate
     healthCheckPath: /readyz
+    # No disk: a disk pins the service to one instance and makes Render stop the
+    # old instance before starting the new one. The draft-tools session
+    # directory is container-local scratch (created in the image), so the
+    # service stays disk-free and keeps Render's zero-downtime deploys.
     numInstances: 1
-    disk:
-      name: draft-tools
-      mountPath: /var/lib/mockd/draft-tools
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production

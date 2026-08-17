@@ -84,12 +84,10 @@ describe("Render production blueprint", () => {
       preDeployCommand: "npm run platform:migrate",
       healthCheckPath: "/readyz",
       numInstances: 1,
-      disk: {
-        name: "draft-tools",
-        mountPath: "/var/lib/mockd/draft-tools",
-        sizeGB: 1,
-      },
     }));
+    // A disk would pin the service to one instance and make Render stop the old
+    // instance before starting the new one, so every deploy would drop traffic.
+    expect(web.disk).toBeUndefined();
     // Render mis-parses a quoted compound dockerCommand (deploys fail with
     // exit 127), so the readiness-gated start chain lives in the image CMD.
     expect(web.dockerCommand).toBeUndefined();

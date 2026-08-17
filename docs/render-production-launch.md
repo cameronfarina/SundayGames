@@ -6,12 +6,20 @@ This is the concrete first-production procedure for Mockd. The broader architect
 
 `render.yaml` creates these resources in Render's Virginia region:
 
-- `mockd-web`: one paid Docker web instance with `/readyz` health checks and a 1 GB persistent disk mounted at `/var/lib/mockd/draft-tools`.
+- `mockd-web`: one paid Docker web instance with `/readyz` health checks and no persistent disk.
 - `mockd-postgres`: private managed Postgres 17 on a paid plan with 15 GB of autoscaling storage.
 
 The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Render deploys automatically once GitHub checks pass; an operator can still deploy sooner by hand for urgent low-risk changes. League-aware simulations use a bounded worker-thread queue inside the web service, with request cancellation and a 30-second timeout, so the launch Blueprint does not create the legacy fixture-backed simulation worker.
 
-The web service intentionally stays at one instance. Render persistent disks attach to only one instance, and disk-backed services have a short stop/start window during deploys. Do not deploy during the live draft window.
+The web service carries no persistent disk, so Render deploys it with zero downtime: it starts the new instance, waits for `/readyz` to pass, moves traffic over, and then shuts the old instance down about a minute later. Do not re-attach a disk. A disk pins the service to one instance and makes Render stop the old instance before starting the new one, which drops traffic on every deploy.
+
+Two effects survive the swap window. Live draft rooms reconnect their event stream and catch up from their last revision. A season simulation runs inside the instance that started it, so a simulation still in flight when the old instance stops is lost and the user must run it again.
+
+Deploying during a live draft window is now far safer, but it is not free. Render deploys every commit to main and CI runs in parallel, so a bad commit serves real traffic until the rollback job replaces it. Prefer to hold non-urgent pushes until the draft ends.
+
+The web service still stays at one instance. Going higher needs a review of in-process state first, including the draft-tools store cache and the live-room event-stream subscribers.
+
+Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
 ## Validate The Blueprint
 

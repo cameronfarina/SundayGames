@@ -13,7 +13,7 @@ export const launchWorkerJobKinds: readonly JobKind[] = ["simulation"];
 
 export const productionReadinessNextSteps: readonly string[] = [
   "Run `npm run platform:migrate` against the production DATABASE_URL before starting the web process.",
-  "Mount a persistent volume and set `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to its draft-tools directory.",
+  "Set `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to a writable scratch directory; do not attach a persistent disk, because that disables zero-downtime deploys.",
   "Verify a Resend sender and configure `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`, and `MOCKD_PUBLIC_BASE_URL`.",
   "Create a commissioner account, import a staging league, and verify its settings, members, keepers, and pricing; use `npm run platform:seed:e2e` only for local rehearsal fixtures.",
   "Start `npm run platform:web` behind the domain/proxy.",

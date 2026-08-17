@@ -32,7 +32,7 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
 
 ## Deploy Units
 
-- `web`: HTTP app plus SSE endpoints and a persistent volume for account-isolated board preferences and private artifacts. Durable unified mock sessions and shared league state are persisted through the platform store. Run one web replica for the first release.
+- `web`: HTTP app plus SSE endpoints, with a container-local scratch directory for account-isolated classic draft-tools artifacts. Durable unified mock sessions and shared league state are persisted through the platform store. Run one web replica, and attach no disk, so Render can deploy without downtime.
 - `migrate`: one-off migration task before the web deploy.
 - `postgres`: managed database with automated backups and PITR where possible.
 - Future scale units, not part of the first release: background workers, a scheduler, and object storage.
@@ -70,7 +70,7 @@ Complete these before sending public domain traffic to Mockd:
 - A non-production restore target exists for rehearsals.
 - Secret store has production values for the implemented runtime variables below.
 - Production uses `DATABASE_URL`; `MOCKD_PLATFORM_DATA_FILE` is absent.
-- A persistent volume is mounted and `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` points to it. The first release runs one web replica because private board/mock sessions are account-isolated files on that volume.
+- `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` points to a writable container-local directory, and no persistent disk is attached. A disk would cost zero-downtime deploys. The release runs one web replica because the classic draft-tools sessions are account-isolated files held by that instance.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA` is unset or false in production.
 - `MOCKD_ALLOW_PUBLIC_SIGNUP=true` so users can create accounts and commissioners can create leagues through the product.
 - `MOCKD_AUTH_EMAIL_MODE=resend`, `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`, and `MOCKD_PUBLIC_BASE_URL` are configured so account ownership and recovery require mailbox proof.
@@ -105,7 +105,7 @@ Implemented bootstrap variables:
 - `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
 - `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
-- `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: persistent directory for account-isolated board, shortlist, strategy, and interactive mock sessions. Required by `platform:ready` for a domain deployment.
+- `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: writable scratch directory for the classic draft-tools board, shortlist, strategy, and interactive mock sessions, which the current app reaches only through the `/api/*` routes. Required by `platform:ready` for a domain deployment. It does not need to survive a restart, and it must not be a Render disk.
 - `MOCKD_ALLOW_PUBLIC_SIGNUP`: defaults to `false`. Set it to `true` for the public Mockd product so a signed-in user can create or join a league. Account-creation rate limits remain mandatory; invitations still bind invited managers to league teams.
 - `MOCKD_AUTH_EMAIL_MODE`: defaults to `auto-verify` for local development. Production requires `resend`.
 - `RESEND_API_KEY`: production Resend API credential. It is sent only in the HTTPS authorization header.
@@ -389,7 +389,7 @@ Backup expectations:
 - Manual pre-draft snapshot on draft day.
 - Manual pre-migration snapshot for risky changes.
 - Durable storage backups for uploaded imports and generated exports.
-- Daily backup or snapshot of `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` so private board and mock sessions can be restored with the release.
+- No backup of `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`. It is container-local scratch for the classic draft-tools routes, and a restart discards it by design.
 
 Restore expectations:
 
@@ -519,7 +519,7 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
 | Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, `platform-auth-ownership-v8` is applied, and `league_season_draft_setups` exists. |
-| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, a persistent `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
+| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
 | League setup | A commissioner created and published the staging league through the product; settings, team mappings, historical imports, keepers, and active pricing are correct; no `platform:seed:e2e` fixture accounts are present in production. |
 | Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |

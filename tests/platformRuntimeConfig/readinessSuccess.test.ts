@@ -76,7 +76,7 @@ describe("successful platform production readiness", () => {
       },
     ]);
     expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
-    expect(report.nextSteps.join("\n")).toContain("persistent volume");
+    expect(report.nextSteps.join("\n")).toContain("MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY");
     expect(report.nextSteps.join("\n")).toContain("Create a commissioner account");
     expect(report.nextSteps.join("\n")).toContain("npm run smoke");
     expect(platformProductionReadinessExitCode(report)).toBe(0);

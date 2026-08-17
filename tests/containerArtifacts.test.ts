@@ -42,7 +42,7 @@ describe("production container artifacts", () => {
     );
   });
 
-  it("runs as a non-root user with writable persistent draft storage", async () => {
+  it("runs as a non-root user with writable container-local draft storage", async () => {
     const dockerfile = await readArtifact("Dockerfile");
 
     expect(dockerfile).toContain(
@@ -51,7 +51,9 @@ describe("production container artifacts", () => {
     expect(dockerfile).toContain(
       "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools",
     );
-    expect(dockerfile).toContain('VOLUME ["/var/lib/mockd/draft-tools"]');
+    // Declaring a volume invites re-attaching a Render disk, which would cost
+    // zero-downtime deploys; the image creates the directory instead.
+    expect(dockerfile).not.toContain("VOLUME");
     expect(dockerfile).toMatch(/^USER node$/m);
   });
 

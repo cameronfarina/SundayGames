@@ -31,7 +31,7 @@ export const privateStorageCheck = (
     ? {
       status: "fail",
       label: "Private draft storage",
-      detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY must point to a persistent volume.",
+      detail: "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY must point to a writable directory.",
     }
     : {
       status: "pass",
