@@ -54,9 +54,10 @@
   display: none;
 }
 
-.dropdown-menu__item--selected::before {
-  content: "✓";
-  margin-right: var(--space-2);
+/* No generated text here: it would join the item's accessible name. */
+.dropdown-menu__item--selected {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  font-weight: 700;
 }
 
 @media (max-width: 48rem) {

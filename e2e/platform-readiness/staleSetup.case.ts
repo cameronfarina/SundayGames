@@ -84,16 +84,24 @@ test("commissioner league switching discards stale setup fetch responses", async
     await route.fulfill({ response });
   });
 
+  // This case runs at phone width, where the account menu carries the league.
+  const openAccountMenu = async () => {
+    await page.getByRole("banner").getByRole("button", { name: "Account menu" }).click();
+  };
+  const chooseLeagueB = async () => {
+    await page.getByRole("menuitem", {
+      name: `League B · ${String(seasonB.seasonYear)}`,
+      exact: true,
+    }).click();
+  };
+
   await page.goto(`/setup?seasonId=${encodeURIComponent(seasonA.id)}`);
-  const headerLeaguePicker = page.getByRole("banner").getByRole("combobox", {
-    name: "Active league",
-  });
-  await expect(headerLeaguePicker).toHaveText(`League A · ${String(seasonA.seasonYear)}`);
-  await headerLeaguePicker.click();
-  await page.getByRole("option", {
-    name: `League B · ${String(seasonB.seasonYear)}`,
+  await openAccountMenu();
+  await expect(page.getByRole("menuitem", {
+    name: `League A · ${String(seasonA.seasonYear)}`,
     exact: true,
-  }).click();
+  })).toHaveAttribute("aria-current", "true");
+  await chooseLeagueB();
   await expect(page).toHaveURL(/\/leagues\/league-b\/commissioner$/u);
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Owner11/u);
@@ -104,14 +112,8 @@ test("commissioner league switching discards stale setup fetch responses", async
   await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);
   const leagueAMockSessionId = await createAuctionMock(page);
   await expectAuctionMockSetup(page);
-  const mockLeaguePicker = page.getByRole("banner").getByRole("combobox", {
-    name: "Active league",
-  });
-  await mockLeaguePicker.click();
-  await page.getByRole("option", {
-    name: `League B · ${String(seasonB.seasonYear)}`,
-    exact: true,
-  }).click();
+  await openAccountMenu();
+  await chooseLeagueB();
   await expect(page).toHaveURL(/\/leagues\/league-b\/mock-drafts$/u);
   expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expect(page.getByRole("button", { name: "Create auction mock" })).toBeVisible();
