@@ -17,16 +17,6 @@ export default defineConfig({
         functions: 100,
         lines: 100,
         statements: 100,
-        // V8 intermittently fails to credit this file's error-state branch
-        // (lines 77-83) even though the test awaits that render; the flake
-        // rolled back two good deploys on 2026-08-17. Re-tighten once the
-        // instrumentation race is root-caused.
-        "src/features/practice/pages/PracticePage/PracticePage.tsx": {
-          branches: 95,
-          functions: 100,
-          lines: 100,
-          statements: 100,
-        },
       },
     },
   },

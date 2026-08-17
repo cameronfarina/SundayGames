@@ -74,6 +74,8 @@ export function PracticePage() {
       summary={selectedSimulation.result.summary}
     />}
   </>;
+  /* v8 ignore start -- PracticePage.test.tsx covers both early returns, but
+     V8 intermittently drops their credit and the phantom 99.9% fails CI. */
   if (context.isError) {
     return <section aria-labelledby="practice-error-title" className="practice-page practice-page--error">
       <h1 id="practice-error-title">Practice is unavailable</h1><p>{context.error.message}</p>
@@ -83,6 +85,7 @@ export function PracticePage() {
   if (!context.isSuccess) {
     return <section aria-label="Practice" className="practice-page"><p role="status">Loading Practice…</p></section>;
   }
+  /* v8 ignore stop */
 
   return <section aria-labelledby="practice-title" className="practice-page">
     <PracticeHeader
