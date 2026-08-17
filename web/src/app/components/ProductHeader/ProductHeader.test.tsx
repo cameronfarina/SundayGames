@@ -149,6 +149,17 @@ describe("ProductHeader", () => {
     expect(screen.getByRole("link", { name: "Commissioner" })).toHaveAttribute("href", "/commissioner");
   });
 
+  it("marks only the current page's tab active on league subpages", () => {
+    render(
+      <MemoryRouter initialEntries={["/leagues/sunday-games/practice"]}>
+        <ProductNavigation activeLeague={commissionerLeague} canManageLeague={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Practice" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "League" })).not.toHaveAttribute("aria-current");
+  });
+
   it("supports baseline mode and ignores unavailable league selections", async () => {
     const user = userEvent.setup();
     renderActiveLeagueProbe("/practice?seasonId=baseline");

@@ -77,6 +77,7 @@ const cloneBatchRow = (row: BatchRow): BatchRow => ({
 class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryClient {
   readonly batches = new Map<string, BatchRow>();
   readonly sales = new Map<string, SaleRow>();
+  readonly players = new Set<string>();
   transactionCount = 0;
 
   #inTransaction = false;
@@ -261,7 +262,17 @@ class FakePostgresHistoricalImportClient implements PostgresTransactionalQueryCl
       return { rows: [{ count } as TRow] };
     }
 
+    if (normalizedSql.startsWith("INSERT INTO players")) {
+      this.players.add(values[0] as string);
+      return { rows: [] };
+    }
+
     if (normalizedSql.startsWith("INSERT INTO historical_draft_sales")) {
+      if (!this.players.has(values[7] as string)) {
+        throw new Error(
+          'insert or update on table "historical_draft_sales" violates foreign key constraint "historical_draft_sales_player_id_fkey"',
+        );
+      }
       const [
         id,
         leagueId,

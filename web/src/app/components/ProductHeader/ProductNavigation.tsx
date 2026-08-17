@@ -19,6 +19,7 @@ export const ProductNavigation = ({ activeLeague, canManageLeague }: ProductNavi
     {navigationItems.map(item => (
       <NavLink
         className="product-header__link"
+        end
         key={item.page}
         prefetch="intent"
         to={activeLeague === undefined ? item.legacyPath : leaguePath(activeLeague, item.page)}

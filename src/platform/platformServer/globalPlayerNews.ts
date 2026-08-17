@@ -82,7 +82,15 @@ export const createGlobalPlayerNewsHandler = (
         playerMetadata: await metadataPromise,
         rawNewsItems,
       }));
-    } catch {
+    } catch (error) {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        event: "unhandled_platform_error",
+        source: "global_player_news",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }));
       writeJson(response, 500, internalErrorBody);
     }
     return true;
