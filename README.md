@@ -65,14 +65,29 @@ To change where local data is written, set `MOCKD_PLATFORM_DATA_FILE` or
 
 ## Tests and checks
 
+Run this before every push. It runs what CI runs, in the same order:
+
+```bash
+npm run verify
+```
+
+The parts, when you want one of them on its own:
+
 ```bash
 npm test              # server and engine tests
 npm run verify:web    # frontend gate: types, lint, tests, coverage, build size
+npm run build         # required before the browser tests
 npm run test:e2e      # browser tests (run: npx playwright install chromium)
 ```
 
 `verify:web` requires 100% coverage on the frontend. Any change under `web/src`
 needs its branches covered or the gate fails.
+
+The browser tests run against the built server, so a build must come first.
+Skipping it tests the previous build and hides real breakage.
+
+Some browser cases run at phone width. A change that only affects narrow
+screens can still fail there.
 
 Many tests pin exact user-facing strings. When you change wording, search
 `web/src`, `tests/`, and `e2e/` before assuming one edit is enough.
