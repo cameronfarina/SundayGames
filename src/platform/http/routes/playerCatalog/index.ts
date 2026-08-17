@@ -1,4 +1,5 @@
 import { requireRequestAccount } from "../../auth/access.js";
+import { flexEligiblePositions } from "../../../leagueCreation/flexPositions.js";
 import { normalizeLeagueSeason } from "../../../leagueSeason.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
@@ -49,6 +50,7 @@ export const routePlayerCatalog = async (
       body: {
         draftFormat: "snake",
         personalized: false,
+        flexPositions: flexEligiblePositions(season.settings.roster.lineup),
         ...baselineMetadata,
         players: snakeCatalogPlayers(players, keeperByPlayer),
       },

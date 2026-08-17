@@ -3,6 +3,7 @@ import {
   liveDraftStrategies,
   parseLiveDraftStrategyKey,
 } from "../../../../modeling/liveDraftStrategies.js";
+import { flexEligiblePositions } from "../../../leagueCreation/flexPositions.js";
 import type { ExplicitLeagueSeason } from "../../../leagueSeason.js";
 import type {
   LiveDraftRoomInitialRosterPlayer,
@@ -59,6 +60,7 @@ export const auctionCatalogResponse = async (
     body: {
       draftFormat: "auction",
       personalized: latest !== undefined || publishedCatalog.length > 0,
+      flexPositions: flexEligiblePositions(season.settings.roster.lineup),
       ...baselineMetadata,
       strategyKey,
       strategyLabel: strategy.label,

@@ -8,12 +8,12 @@ import {
   playerKey,
   playerMyValue,
   playerSortFrom,
-  positionTone,
   rankPlayersWithPersonalValues,
   type PlayerSort,
 } from "../../model/playerBoard";
 import { PracticeSelect } from "../PracticeSelect/PracticeSelect";
 import { PlayerBoardRow } from "./PlayerBoardRow";
+import { PositionFilters } from "./PositionFilters";
 import "./PlayerBoard.css";
 import "./PlayerBoardTable.css";
 import "./PlayerBoardResponsive.css";
@@ -46,7 +46,6 @@ const filterReducer = (state: FilterState, action: FilterAction): FilterState =>
 };
 
 const initialFilters: FilterState = { position: "ALL", search: "", shortlistOnly: false, sort: "rank" };
-const positions = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
 const sortOptions = [
   { label: "Market value", value: "market" },
   { label: "Simulation price", value: "simulation" },
@@ -57,6 +56,8 @@ const sortOptions = [
 export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist, targetChangesDisabled }: PlayerBoardProps) {
   const [filters, dispatch] = useReducer(filterReducer, initialFilters);
   const deferredSearch = useDeferredValue(filters.search);
+  const flexKey = (catalog.flexPositions ?? []).join(",");
+  const flexPositions = useMemo(() => (flexKey.length === 0 ? [] : flexKey.split(",")), [flexKey]);
   const shortlisted = useMemo(() => new Set(shortlist.map(item => playerKey(item.playerName))), [shortlist]);
   const rankedPlayers = useMemo(
     () => rankPlayersWithPersonalValues(catalog.players, shortlist),
@@ -65,12 +66,13 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
   const players = useMemo(() => filterAndSortPlayers(
     rankedPlayers,
     {
+      flexPositions,
       position: filters.position, search: deferredSearch,
       shortlistOnly: filters.shortlistOnly,
       sort: filters.sort,
     },
     shortlisted,
-  ), [deferredSearch, filters.position, filters.shortlistOnly, filters.sort, rankedPlayers, shortlisted]);
+  ), [deferredSearch, filters.position, filters.shortlistOnly, filters.sort, flexPositions, rankedPlayers, shortlisted]);
   const { revealMore, revealRowCount, visibleRowCount } = useIncrementalRows(players.length, [
     catalog.players,
     filters.position,
@@ -86,17 +88,11 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
         <div><p className="practice-eyebrow">Player board</p><h2 id="player-board-title">Available players</h2></div>
         <p aria-live="polite">{visiblePlayers.length} shown / {players.length} matching / {catalog.players.length} loaded</p>
       </div>
-      <div aria-label="Filter by position" className="player-board__positions" role="group">
-        {positions.map(position => (
-          <button
-            aria-pressed={filters.position === position}
-            className={`position-filter position-filter--${positionTone(position)}`}
-            key={position}
-            onClick={() => { dispatch({ type: "position", value: position }); }}
-            type="button"
-          >{position === "ALL" ? "All" : position}</button>
-        ))}
-      </div>
+      <PositionFilters
+        flexPositions={flexPositions}
+        onSelect={position => { dispatch({ type: "position", value: position }); }}
+        selected={filters.position}
+      />
       <div className="player-board__controls">
         <div className="player-board__search"><input
           aria-label="Search players"

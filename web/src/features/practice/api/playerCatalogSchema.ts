@@ -24,6 +24,7 @@ export const practicePlayerSchema = z.object({
 
 export const playerCatalogSchema = z.object({
   draftFormat: z.enum(["auction", "snake"]).optional(),
+  flexPositions: z.array(z.string()).optional(),
   personalized: z.boolean().optional(),
   players: z.array(practicePlayerSchema),
   pricingModelRunId: z.string().optional(),

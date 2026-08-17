@@ -2,7 +2,12 @@ import type { PracticePlayer } from "../api/playerCatalogSchema";
 
 export type PlayerSort = "market" | "mine" | "rank" | "simulation";
 
+/** No player carries this as a position; it stands for the league's flex slots. */
+export const FLEX_FILTER = "FLEX";
+
 export interface PlayerBoardFilters {
+  /** Positions this league's flex slots accept, which superflex leagues widen. */
+  readonly flexPositions: readonly string[];
   readonly position: string;
   readonly search: string;
   readonly shortlistOnly: boolean;
@@ -68,13 +73,19 @@ const matchesSearch = (player: PracticePlayer, search: string): boolean => {
     .some(value => normalized(value).includes(query));
 };
 
+const matchesPosition = (player: PracticePlayer, filters: PlayerBoardFilters): boolean => {
+  if (filters.position === "ALL") return true;
+  if (filters.position === FLEX_FILTER) return filters.flexPositions.includes(player.position);
+  return player.position === filters.position;
+};
+
 export const filterAndSortPlayers = (
   players: readonly RankedPracticePlayer[],
   filters: PlayerBoardFilters,
   shortlistedPlayerKeys: ReadonlySet<string>,
 ): readonly RankedPracticePlayer[] => [...players]
   .filter(({ player }) => player.isKeeper !== true)
-  .filter(({ player }) => filters.position === "ALL" || player.position === filters.position)
+  .filter(({ player }) => matchesPosition(player, filters))
   .filter(({ player }) => !filters.shortlistOnly || shortlistedPlayerKeys.has(playerKey(player.name)))
   .filter(({ player }) => matchesSearch(player, filters.search))
   .sort((left, right) => {

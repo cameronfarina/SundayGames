@@ -54,33 +54,47 @@ describe("Practice player board model", () => {
     expect(playerMyValue({ expectedPrice: 8, leagueValue: 10, name: "League value", position: "TE" })).toBe(10);
   });
 
+  it("shows every position a league's flex slot accepts", () => {
+    expect(filterAndSortPlayers(rankedPlayers, {
+      flexPositions: ["RB", "WR", "TE"],
+      position: "FLEX", search: "", shortlistOnly: false, sort: "market",
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Ja'Marr Chase"]);
+  });
+
+  it("adds the quarterback to the flex filter in a superflex league", () => {
+    expect(filterAndSortPlayers(rankedPlayers, {
+      flexPositions: ["QB", "RB", "WR", "TE"],
+      position: "FLEX", search: "", shortlistOnly: false, sort: "market",
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Ja'Marr Chase", "Jared Goff"]);
+  });
+
   it("filters across identity fields and shortlist membership", () => {
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "WR",
+      flexPositions: [], position: "WR",
       search: "cin",
       shortlistOnly: false,
       sort: "market",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Ja'Marr Chase"]);
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL",
+      flexPositions: [], position: "ALL",
       search: "",
       shortlistOnly: true,
       sort: "market",
     }, new Set(["jared goff"])).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL", search: "qb", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "qb", shortlistOnly: false, sort: "market",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL", search: "det", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "det", shortlistOnly: false, sort: "market",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Jared Goff"]);
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL", search: "missing", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "missing", shortlistOnly: false, sort: "market",
     }, new Set())).toEqual([]);
   });
 
   it("sorts value modes descending and rank mode ascending", () => {
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL",
+      flexPositions: [], position: "ALL",
       search: "",
       shortlistOnly: false,
       sort: "mine",
@@ -92,10 +106,10 @@ describe("Practice player board model", () => {
       { expectedPrice: 1, name: "Zulu", position: "K" },
       { expectedPrice: 1, name: "Alpha", position: "K" },
     ]), {
-      position: "ALL", search: "", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "", shortlistOnly: false, sort: "market",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Zulu", "Alpha"]);
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL",
+      flexPositions: [], position: "ALL",
       search: "",
       shortlistOnly: false,
       sort: "rank",
@@ -107,13 +121,13 @@ describe("Practice player board model", () => {
       { expectedPrice: 1, leagueValue: 4, marketRank: 1, name: "Zulu", position: "K" },
       { expectedPrice: 2, leagueValue: 4, marketRank: 1, name: "Alpha", position: "K" },
     ]), {
-      position: "ALL", search: "", shortlistOnly: false, sort: "simulation",
+      flexPositions: [], position: "ALL", search: "", shortlistOnly: false, sort: "simulation",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
     expect(filterAndSortPlayers(rankPlayers([
       { expectedPrice: 1, marketRank: 1, name: "Zulu", position: "K" },
       { expectedPrice: 2, marketRank: 1, name: "Alpha", position: "K" },
     ]), {
-      position: "ALL", search: "", shortlistOnly: false, sort: "rank",
+      flexPositions: [], position: "ALL", search: "", shortlistOnly: false, sort: "rank",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
   });
 
@@ -124,10 +138,10 @@ describe("Practice player board model", () => {
 
   it("excludes kept players from the board entirely", () => {
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL", search: "", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "", shortlistOnly: false, sort: "market",
     }, new Set()).map(({ player }) => player.name)).not.toContain("Chase Brown");
     expect(filterAndSortPlayers(rankedPlayers, {
-      position: "ALL", search: "chase brown", shortlistOnly: false, sort: "market",
+      flexPositions: [], position: "ALL", search: "chase brown", shortlistOnly: false, sort: "market",
     }, new Set())).toEqual([]);
   });
 
