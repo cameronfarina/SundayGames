@@ -225,6 +225,33 @@ describeWithPostgres("production Postgres composition", () => {
       },
     });
 
+    const historyPreview = await postJson(baseUrl, `/seasons/${seasonId}/historical-imports/preview`, {
+      sourceText: [
+        "owner,player,position,price",
+        "Owner11's Team,Puka Nacua,WR,62",
+        "Owner11's Team,Bijan Robinson,RB,55",
+      ].join("\n"),
+      seasonYear: 2025,
+    }, cookie);
+    expect(
+      historyPreview.status,
+      `History preview returned HTTP ${historyPreview.status}: ${JSON.stringify(historyPreview.body)}`,
+    ).toBe(200);
+    const historyBatch = recordValue(recordValue(historyPreview.body, "history preview").batch, "history batch");
+    expect(historyBatch.status).toBe("previewed");
+    const historyCommit = await postJson(
+      baseUrl,
+      `/historical-imports/${stringValue(historyBatch.id, "history batch id")}/commit`,
+      { seasonId, seasonYear: 2025 },
+      cookie,
+    );
+    expect(
+      historyCommit.status,
+      `History commit returned HTTP ${historyCommit.status}: ${JSON.stringify(historyCommit.body)}`,
+    ).toBe(200);
+    expect(recordValue(recordValue(historyCommit.body, "history commit").batch, "committed batch").status)
+      .toBe("committed");
+
     await expect(postJson(baseUrl, `/seasons/${seasonId}/publish`, {
       confirmed: true,
     }, cookie)).resolves.toMatchObject({ status: 200, body: { season: { setupStatus: "published" } } });
