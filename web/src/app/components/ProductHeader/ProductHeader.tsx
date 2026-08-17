@@ -12,7 +12,11 @@ export const ProductHeader = () => {
 
   return (
     <header className="product-header">
-      <div className="product-header__top-row">
+      <div className="product-header__bar">
+        <ProductNavigation
+          activeLeague={activeLeague}
+          canManageLeague={activeLeague?.canManageLeague === true}
+        />
         <div className="product-header__controls">
           <LeaguePicker
             activeLeague={activeLeague}
@@ -22,10 +26,6 @@ export const ProductHeader = () => {
           <AccountMenu email={email} />
         </div>
       </div>
-      <ProductNavigation
-        activeLeague={activeLeague}
-        canManageLeague={activeLeague?.canManageLeague === true}
-      />
     </header>
   );
 };

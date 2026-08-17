@@ -140,7 +140,7 @@ describe("ProductHeader", () => {
     expect(screen.getByRole("link", { name: "Player news" })).toBeVisible();
     expect(screen.getByText("No active league")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Commissioner" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("EU");
+    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("E");
   });
 
   it("keeps commissioner navigation on the legacy route before a league is active", () => {

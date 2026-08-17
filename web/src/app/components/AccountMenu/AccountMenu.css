@@ -9,7 +9,7 @@
   width: 2.75rem;
 }
 
-.account-menu__initials {
+.account-menu__initial {
   font-size: var(--font-size-sm);
   font-weight: 800;
   letter-spacing: 0;

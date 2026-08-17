@@ -6,7 +6,7 @@ import { PasswordChangeForm } from "../../../features/auth/components/PasswordCh
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
-import { accountInitials } from "./accountInitials";
+import { accountInitial } from "./accountInitial";
 import "./AccountMenu.css";
 
 interface AccountMenuProps {
@@ -37,8 +37,8 @@ export const AccountMenu = ({ email }: AccountMenuProps) => {
   return (
     <div className="account-menu">
       <DropdownMenu items={items} label="Account menu">
-        <span aria-hidden="true" className="account-menu__initials">
-          {accountInitials(email)}
+        <span aria-hidden="true" className="account-menu__initial">
+          {accountInitial(email)}
         </span>
       </DropdownMenu>
       <Dialog

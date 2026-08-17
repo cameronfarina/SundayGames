@@ -2,12 +2,12 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.product-header__top-row {
-  align-items: center;
+.product-header__bar {
+  align-items: stretch;
   display: flex;
   gap: var(--space-6);
-  justify-content: flex-end;
-  min-height: 4.5rem;
+  justify-content: space-between;
+  min-height: 3.75rem;
   padding: 0 var(--space-8);
 }
 
@@ -39,8 +39,7 @@
   align-items: stretch;
   display: flex;
   gap: var(--space-6);
-  height: 3.25rem;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .product-header__link {
@@ -59,8 +58,17 @@
 }
 
 @media (max-width: 48rem) {
-  .product-header__top-row {
+  /* One row cannot hold the tabs, the league name, and the account together
+     on a phone, so the controls sit above the tabs again. */
+  .product-header__bar {
+    flex-direction: column-reverse;
+    gap: var(--space-2);
     padding: 0 var(--space-4);
+  }
+
+  .product-header__controls {
+    justify-content: flex-end;
+    min-height: 3.5rem;
   }
 
   .product-header__controls .select-field__label {
@@ -79,8 +87,6 @@
 
   .product-header__navigation {
     gap: var(--space-4);
-    justify-content: flex-start;
     overflow-x: auto;
-    padding: 0 var(--space-4);
   }
 }
