@@ -55,7 +55,7 @@ describe("season-backed private draft tools", () => {
     });
 
     await expect(buildSeasonDraftToolsOptions(unsupportedSeason, setup)).rejects.toThrow(
-      "Private draft tools support the configured 14-owner Mockd league order only.",
+      "Private draft tools support the configured 14-owner league order only.",
     );
   });
 });
