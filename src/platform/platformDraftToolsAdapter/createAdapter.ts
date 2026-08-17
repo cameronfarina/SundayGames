@@ -58,6 +58,15 @@ const handleDraftToolsRequest = async (
     else if (error instanceof DraftToolsUnavailableError) {
       writeJson(response, 503, draftToolsUnavailableBody);
     } else {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        event: "unhandled_platform_error",
+        source: "draft_tools_adapter",
+        path: request.url,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }));
       writeJson(response, 500, internalErrorBody);
     }
   }

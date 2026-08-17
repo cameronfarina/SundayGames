@@ -8,7 +8,7 @@ import {
 } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   defaultLiveDraftImportBodyLimitBytes,
   defaultLiveDraftJsonBodyLimitBytes,
@@ -519,6 +519,11 @@ describe("platform draft tools adapter", () => {
   });
 
   it("returns a stable internal error without leaking resolver or server errors", async () => {
+    const loggedErrors: string[] = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(message => {
+      loggedErrors.push(String(message));
+    });
+    onTestFinished(() => { errorSpy.mockRestore(); });
     const baseSessionDirectory = await temporaryDirectory();
     const resolverAdapter = createPlatformDraftToolsAdapter({
       authorizeSeason: authorizeEverySeason,
@@ -540,6 +545,13 @@ describe("platform draft tools adapter", () => {
       },
     });
     expect(resolverBody).not.toContain("database password");
+    expect(loggedErrors.map(entry => JSON.parse(entry) as Record<string, unknown>)).toContainEqual(
+      expect.objectContaining({
+        event: "unhandled_platform_error",
+        source: "draft_tools_adapter",
+        message: "session database password appeared here",
+      }),
+    );
 
     const createClassicServer = vi.fn()
       .mockRejectedValueOnce(new Error("private filesystem location appeared here"))
