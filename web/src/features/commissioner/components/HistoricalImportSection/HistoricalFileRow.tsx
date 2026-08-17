@@ -16,6 +16,9 @@ interface HistoricalFileRowProps {
 const mappingId = (itemId: string, label: string): string =>
   `${itemId}-mapping-${label.replaceAll(" ", "-")}`;
 
+const mappingDisplayLabel = (label: string): string =>
+  label.trim().length === 0 ? "(blank team cell in file)" : label;
+
 export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowProps) => {
   const yearError = historicalYearError(item.seasonYear);
   const errorProps = yearError === undefined ? {} : { error: yearError };
@@ -48,7 +51,7 @@ export const HistoricalFileRow = ({ dispatch, item, teams }: HistoricalFileRowPr
       <div className="history-mapping" key={label}>
         <Select
           id={mappingId(item.id, label)}
-          label={`Historical team: ${label}`}
+          label={`Historical team: ${mappingDisplayLabel(label)}`}
           onValueChange={teamId => {
             dispatch({ id: item.id, label, teamId, type: "mapping" });
           }}

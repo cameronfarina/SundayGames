@@ -43,12 +43,15 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 12px 30px rgb(0 0 0 / 42%);
+  max-height: var(--radix-select-content-available-height);
   min-width: var(--radix-select-trigger-width);
   overflow: hidden;
   z-index: 100;
 }
 
 .select-field__viewport {
+  max-height: inherit;
+  overflow-y: auto;
   padding: 0.3rem;
 }
 
