@@ -94,11 +94,8 @@ describe("CommissionerPage season state", () => {
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Apply changes" }));
-    expect(applyRequests).toEqual([{
-      body: JSON.stringify({ content: "owner,team,role\nOwner11,Beta,member" }),
-      path: "/seasons/season-b/setup-import/apply",
-    }]);
+    expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
+    expect(applyRequests).toEqual([]);
 
     await router.navigate("/commissioner?seasonId=season-a");
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();

@@ -27,6 +27,14 @@ const renderSection = (fetcher: PlatformFetch, snake = false) => {
 describe("LeagueSetupSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
+  it("disables apply until the teams and managers text changes", async () => {
+    renderSection(vi.fn());
+    const apply = screen.getByRole("button", { name: "Apply changes" });
+    expect(apply).toBeDisabled();
+    await userEvent.setup().type(screen.getByLabelText("Teams and managers"), "x");
+    expect(apply).toBeEnabled();
+  });
+
   it("applies team changes directly without a preview step", async () => {
     const respond: PlatformFetch = input => {
       if (!requestPath(input).endsWith("apply")) throw new Error("Only the apply endpoint should be called.");
@@ -39,6 +47,8 @@ describe("LeagueSetupSection", () => {
     const user = userEvent.setup();
     expect(screen.queryByRole("button", { name: "Preview changes" })).not.toBeInTheDocument();
     const apply = screen.getByRole("button", { name: "Apply changes" });
+    expect(apply).toBeDisabled();
+    await user.type(screen.getByLabelText("Teams and managers"), "x");
     expect(apply).toBeEnabled();
     await user.click(apply);
     expect(await screen.findByText("League teams saved.")).toBeVisible();
@@ -60,6 +70,7 @@ describe("LeagueSetupSection", () => {
     renderSection(fetcher, true);
     const user = userEvent.setup();
     expect(screen.getByText("16-round snake")).toBeVisible();
+    await user.type(screen.getByLabelText("Teams and managers"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(await screen.findByText("Owner is required.")).toBeVisible();
     expect(screen.getByText("A team is missing.")).toBeVisible();
@@ -92,6 +103,7 @@ describe("LeagueSetupSection", () => {
       error: { code: "setup_failed", message: "Could not apply." },
     }, 422))));
     const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Teams and managers"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not apply.");
   });
@@ -100,6 +112,7 @@ describe("LeagueSetupSection", () => {
     const user = userEvent.setup();
     renderSection(vi.fn(() => new Promise<Response>(() => undefined)));
 
+    await user.type(screen.getByLabelText("Teams and managers"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
   });

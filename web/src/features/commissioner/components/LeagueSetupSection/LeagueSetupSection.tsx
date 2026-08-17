@@ -25,6 +25,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
   });
   const settings = season.settings;
   const blockers = applyBlockers(apply.error);
+  const dirty = content !== teamRows(season);
   const draftLabel = settings.draftFormat === "auction"
     ? `$${String(settings.auction.budgetDollars)} auction`
     : `${String(settings.snake.rounds)}-round snake`;
@@ -44,7 +45,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
       <div className="commissioner-actions">
         <Button
           aria-busy={apply.isPending}
-          disabled={apply.isPending}
+          disabled={!dirty || apply.isPending}
           onClick={() => { apply.mutate(); }}
         >
           {apply.isPending ? "Applying..." : "Apply changes"}
