@@ -12,10 +12,10 @@ const wrapper = ({ children }: PropsWithChildren) => (
 );
 
 describe("usePlayerNewsQuery", () => {
-  it("loads and caches a season and source scoped feed", async () => {
+  it("loads and caches a season scoped feed", async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(playerNewsFeedFixture))));
     vi.stubGlobal("fetch", fetcher);
-    const { result } = renderHook(() => usePlayerNewsQuery("season-2026", "all"), { wrapper });
+    const { result } = renderHook(() => usePlayerNewsQuery("season-2026"), { wrapper });
     await waitFor(() => { expect(result.current.isSuccess).toBe(true); });
     expect(result.current.data?.summary.filteredCount).toBe(2);
     expect(fetcher).toHaveBeenCalledOnce();
@@ -24,8 +24,8 @@ describe("usePlayerNewsQuery", () => {
   it("loads the global feed without an active season", async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(playerNewsFeedFixture))));
     vi.stubGlobal("fetch", fetcher);
-    const { result } = renderHook(() => usePlayerNewsQuery(undefined, "local"), { wrapper });
+    const { result } = renderHook(() => usePlayerNewsQuery(undefined), { wrapper });
     await waitFor(() => { expect(result.current.isSuccess).toBe(true); });
-    expect(fetcher).toHaveBeenCalledWith("/api/player-news?source=local", expect.anything());
+    expect(fetcher).toHaveBeenCalledWith("/api/player-news", expect.anything());
   });
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { playerNewsFeedFixture } from "../../api/playerNews.fixture";
@@ -47,30 +47,25 @@ describe("PlayerNews", () => {
     expect(screen.getByText("Ladd McConkey: Expected to lead the passing game.")).toBeVisible();
   });
 
-  it("filters by search and source", async () => {
+  it("filters the feed by search text", async () => {
     const user = userEvent.setup();
     renderNews(successfulFetch);
     await user.type(await screen.findByRole("textbox", { name: "Search news" }), "MIA");
     expect(screen.getByText("De'Von Achane was limited in practice.")).toBeVisible();
     expect(screen.queryByText("Ladd McConkey: Expected to lead the passing game.")).not.toBeInTheDocument();
     await user.clear(screen.getByRole("textbox", { name: "Search news" }));
+    expect(await screen.findByText("Ladd McConkey: Expected to lead the passing game.")).toBeVisible();
+  });
 
-    await user.click(screen.getByRole("combobox", { name: "Source" }));
-    await user.click(screen.getByRole("option", { name: "RotoWire" }));
-    await waitFor(() => {
-      expect(successfulFetch).toHaveBeenCalledWith(
-        "/api/player-news?seasonId=season-2026&source=rotowire-rss",
-        expect.anything(),
-      );
-    });
-    await user.click(screen.getByRole("combobox", { name: "Source" }));
-    await user.click(screen.getByRole("option", { name: "All sources" }));
-    await waitFor(() => {
-      expect(successfulFetch).toHaveBeenCalledWith(
-        "/api/player-news?seasonId=season-2026&source=all",
-        expect.anything(),
-      );
-    });
+  it("offers no source picker, because news is published reporting only", async () => {
+    renderNews(successfulFetch);
+    await screen.findByRole("textbox", { name: "Search news" });
+
+    expect(screen.queryByRole("combobox", { name: "Source" })).not.toBeInTheDocument();
+    expect(successfulFetch).toHaveBeenCalledWith(
+      "/api/player-news?seasonId=season-2026",
+      expect.anything(),
+    );
   });
 
   it("searches provider items that omit team and position metadata", async () => {

@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { normalizePlayerName } from "../../data/normalizePlayerName.js";
-import { loadPlayerEvidenceSourceRows } from "../../data/playerEvidenceSourceAdapters.js";
 import { fetchRotowireRssNews, type RawPlayerNewsItem } from "../../data/playerNewsProviderAdapters.js";
-import { playerNewsEvidencePath } from "../../liveDraftServer/constants.js";
 import { playerNewsFiltersFromQuery } from "../../liveDraftServer/playerNewsInput.js";
 import {
   buildPlayerNewsFeed,
@@ -46,7 +44,6 @@ export const createGlobalPlayerNewsHandler = (
   runtimeHolder: PlatformRuntimeHolder,
   options: CreatePlatformServerOptions,
 ) => {
-  let evidenceRowsPromise: ReturnType<typeof loadPlayerEvidenceSourceRows> | undefined;
   let metadataPromise: Promise<readonly PlayerNewsPlayerMetadata[]> | undefined;
 
   return async (request: IncomingMessage, response: ServerResponse): Promise<boolean> => {
@@ -64,24 +61,16 @@ export const createGlobalPlayerNewsHandler = (
       }
 
       const filters = playerNewsFiltersFromQuery(url);
-      const sourceMode = filters.source ?? "all";
-      const evidenceRows = sourceMode === "rotowire-rss"
-        ? []
-        : await (evidenceRowsPromise ??= loadPlayerEvidenceSourceRows({ path: playerNewsEvidencePath }));
       let rawNewsItems: readonly RawPlayerNewsItem[] = [];
-      if (sourceMode !== "local") {
-        try {
-          rawNewsItems = await fetchRotowireRssNews();
-        } catch (error) {
-          if (sourceMode === "rotowire-rss") throw error;
-        }
+      try {
+        rawNewsItems = await fetchRotowireRssNews();
+      } catch {
+        // A reporting outage empties the feed rather than breaking the page.
       }
       metadataPromise ??= metadataFor(options.currentPlayerCatalogProvider);
       writeJson(response, 200, buildPlayerNewsFeed({
         draftState: emptyDraftState,
-        evidenceRows,
         filters,
-        localEvidencePath: playerNewsEvidencePath,
         playerMetadata: await metadataPromise,
         rawNewsItems,
       }));

@@ -41,6 +41,18 @@ describe("global player news handler", () => {
     expect(await response.json()).toMatchObject({ items: expect.any(Array) });
   });
 
+  it("never publishes the pricing evidence rows as news", async () => {
+    const baseUrl = await listen(newsHandler());
+
+    const response = await fetch(`${baseUrl}/api/player-news?source=local`, {
+      headers: { cookie: "mockd_session=token-owner11" },
+    });
+    const feed = await response.json() as { items: { source: { provider: string } }[] };
+
+    expect(response.status).toBe(200);
+    expect(feed.items.filter(item => item.source.provider === "Local evidence")).toEqual([]);
+  });
+
   it("still serves news when no league is selected", async () => {
     const baseUrl = await listen(newsHandler());
 

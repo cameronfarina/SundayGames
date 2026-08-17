@@ -3,18 +3,17 @@ import { playerNewsFeedFixture } from "./playerNews.fixture";
 import { getPlayerNews } from "./playerNewsApi";
 
 describe("getPlayerNews", () => {
-  it("requests a season-scoped source and validates the response", async () => {
+  it("requests a season-scoped feed and validates the response", async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(playerNewsFeedFixture))));
     const result = await getPlayerNews({
       fetcher,
       seasonId: "season 2026",
       signal: new AbortController().signal,
-      source: "rotowire-rss",
     });
 
     expect(result.items[0]?.player).toBe("Ladd McConkey");
     expect(fetcher).toHaveBeenCalledWith(
-      "/api/player-news?seasonId=season+2026&source=rotowire-rss",
+      "/api/player-news?seasonId=season+2026",
       expect.objectContaining({ credentials: "same-origin" }),
     );
   });
@@ -25,7 +24,6 @@ describe("getPlayerNews", () => {
     await getPlayerNews({
       seasonId: "season-2026",
       signal: new AbortController().signal,
-      source: "all",
     });
     expect(fetcher).toHaveBeenCalledOnce();
   });
@@ -35,10 +33,9 @@ describe("getPlayerNews", () => {
     await getPlayerNews({
       fetcher,
       signal: new AbortController().signal,
-      source: "local",
     });
     expect(fetcher).toHaveBeenCalledWith(
-      "/api/player-news?source=local",
+      "/api/player-news",
       expect.objectContaining({ credentials: "same-origin" }),
     );
   });

@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Select, TextField, type SelectOption } from "../../../../shared/ui";
-import type { PlayerNewsSource } from "../../api/playerNewsSchema";
+import { TextField } from "../../../../shared/ui";
 import { usePlayerNewsQuery } from "../../hooks/usePlayerNewsQuery";
 import { usePlayerNewsWatchlist } from "../../hooks/usePlayerNewsWatchlist";
 import { formatNewsTimestamp } from "../../lib/formatNewsTimestamp";
@@ -14,20 +13,10 @@ interface PlayerNewsProps {
   readonly seasonId: string | undefined;
 }
 
-const sourceOptions: readonly SelectOption[] = [
-  { label: "All sources", value: "all" },
-  { label: "RotoWire", value: "rotowire-rss" },
-  { label: "Our evidence", value: "local" },
-];
-
-const sourceFrom = (value: string): PlayerNewsSource =>
-  value === "local" || value === "rotowire-rss" ? value : "all";
-
 export const PlayerNews = ({ accountId, seasonId }: PlayerNewsProps) => {
-  const [source, setSource] = useState<PlayerNewsSource>("all");
   const [scope, setScope] = useState<NewsScope>("all");
   const [search, setSearch] = useState("");
-  const news = usePlayerNewsQuery(seasonId, source);
+  const news = usePlayerNewsQuery(seasonId);
   const watchlist = usePlayerNewsWatchlist(accountId);
   const query = search.trim().toLowerCase();
   const items = (news.data?.items ?? []).filter(item => {
@@ -52,7 +41,6 @@ export const PlayerNews = ({ accountId, seasonId }: PlayerNewsProps) => {
         <button aria-selected={scope === "all"} onClick={() => { setScope("all"); }} role="tab" type="button">All</button>
         <button aria-selected={scope === "followed"} onClick={() => { setScope("followed"); }} role="tab" type="button">My players ({watchlist.players.length})</button>
       </div>
-      <Select id="news-source" label="Source" onValueChange={value => { setSource(sourceFrom(value)); }} options={sourceOptions} value={source} />
       <TextField id="news-search" label="Search news" onChange={event => { setSearch(event.currentTarget.value); }} placeholder="Player, team, or headline" value={search} />
     </div>
     {news.isPending ? <p role="status">Loading player news...</p> : null}
