@@ -1,0 +1,15 @@
+.public-layout__main {
+  margin: 0 auto;
+  max-width: 90rem;
+  padding: var(--space-10) var(--space-8);
+}
+
+.public-layout__main:focus {
+  outline: none;
+}
+
+@media (max-width: 48rem) {
+  .public-layout__main {
+    padding: var(--space-8) var(--space-4);
+  }
+}

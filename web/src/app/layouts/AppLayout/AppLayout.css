@@ -22,7 +22,7 @@
 
 .app-layout__main {
   margin: 0 auto;
-  max-width: 120rem;
+  max-width: 90rem;
   padding: var(--space-10) var(--space-8);
 }
 

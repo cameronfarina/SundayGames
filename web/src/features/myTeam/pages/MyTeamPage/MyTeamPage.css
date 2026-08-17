@@ -1,7 +1,5 @@
 .my-team-page {
-  width: min(100%, 90rem);
-  margin: 0 auto;
-  padding: clamp(1.5rem, 4vw, 4rem);
+  width: 100%;
   color: var(--color-text);
 }
 
