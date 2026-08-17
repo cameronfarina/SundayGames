@@ -62,14 +62,22 @@ export const parseEspnNews = ({
   });
 };
 
+const espnRequestTimeoutMs = 5_000;
+
 export const fetchEspnNews = async ({
   url = espnNflNewsUrl,
   fetchedAt = new Date().toISOString(),
+  timeoutMs = espnRequestTimeoutMs,
 }: {
   url?: string;
   fetchedAt?: string;
+  timeoutMs?: number;
 } = {}): Promise<RawPlayerNewsItem[]> => {
-  const response = await fetch(url, { headers: { accept: "application/json" } });
+  // Without a deadline a stalled feed holds the news request open forever.
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!response.ok) {
     throw new Error(`ESPN news request failed with ${response.status}.`);
   }
