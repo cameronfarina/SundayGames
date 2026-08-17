@@ -33,7 +33,7 @@ describe("email ownership and password recovery", () => {
 
     expect(account.emailVerifiedAt).toBeUndefined();
     expect(mailSender.messages).toHaveLength(1);
-    expect(mailSender.messages[0]?.text).toContain("choose your Mockd password");
+    expect(mailSender.messages[0]?.text).toContain("choose your Sunday Games password");
     expect(new URL(mailSender.messages[0]!.actionUrl).searchParams.get("returnTo"))
       .toBe("/invite?token=league-invite");
     expect(JSON.stringify(repository.authTokens())).not.toContain(

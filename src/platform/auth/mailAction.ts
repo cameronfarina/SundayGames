@@ -40,10 +40,10 @@ export const sendAuthAction = async (input: SendAuthActionInput): Promise<void> 
   const verification = input.purpose === "email_verification";
   await input.mailSender.send({
     to: input.account.email,
-    subject: verification ? "Finish your Mockd account" : "Reset your Mockd password",
+    subject: verification ? "Finish your Sunday Games account" : "Reset your Sunday Games password",
     text: verification
-      ? `Verify your email and choose your Mockd password: ${actionUrl.toString()}`
-      : `Reset your Mockd password: ${actionUrl.toString()}`,
+      ? `Verify your email and choose your Sunday Games password: ${actionUrl.toString()}`
+      : `Reset your Sunday Games password: ${actionUrl.toString()}`,
     actionUrl: actionUrl.toString(),
   });
 };

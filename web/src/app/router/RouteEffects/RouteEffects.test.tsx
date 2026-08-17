@@ -32,14 +32,14 @@ describe("RouteEffects", () => {
     render(<MemoryRouter initialEntries={["/practice"]}><RouteHarness /></MemoryRouter>);
 
     await waitFor(() => {
-      expect(document.title).toBe("Draft lab | Mockd");
+      expect(document.title).toBe("Draft lab | Sunday Games");
     });
     scrollTo.mockClear();
     const focus = vi.spyOn(screen.getByRole("main"), "focus");
     await user.click(screen.getByRole("button", { name: "League" }));
 
     await waitFor(() => {
-      expect(document.title).toBe("League | Mockd");
+      expect(document.title).toBe("League | Sunday Games");
     });
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ behavior: "instant", left: 0, top: 0 });
     expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
@@ -52,7 +52,7 @@ describe("RouteEffects", () => {
     render(<MemoryRouter initialEntries={["/practice"]}><RouteHarness /></MemoryRouter>);
 
     await waitFor(() => {
-      expect(document.title).toBe("Draft lab | Mockd");
+      expect(document.title).toBe("Draft lab | Sunday Games");
     });
     scrollTo.mockClear();
     const focus = vi.spyOn(screen.getByRole("main"), "focus");
@@ -69,13 +69,13 @@ describe("RouteEffects", () => {
     render(<MemoryRouter initialEntries={["/practice"]}><RouteHarness /></MemoryRouter>);
 
     await waitFor(() => {
-      expect(document.title).toBe("Draft lab | Mockd");
+      expect(document.title).toBe("Draft lab | Sunday Games");
     });
     scrollTo.mockClear();
     const focus = vi.spyOn(screen.getByRole("main"), "focus");
     await user.click(screen.getByRole("button", { name: "League details" }));
 
-    expect(document.title).toBe("League | Mockd");
+    expect(document.title).toBe("League | Sunday Games");
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("/league#details");
     expect(scrollTo).not.toHaveBeenCalled();
     expect(focus).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe("RouteEffects", () => {
     render(<MemoryRouter initialEntries={["/practice"]}><RouteHarness /></MemoryRouter>);
 
     await waitFor(() => {
-      expect(document.title).toBe("Draft lab | Mockd");
+      expect(document.title).toBe("Draft lab | Sunday Games");
     });
     scrollTo.mockClear();
     const focus = vi.spyOn(screen.getByRole("main"), "focus");

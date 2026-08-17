@@ -56,6 +56,6 @@ describe("AppLayout", () => {
     await user.click(screen.getByRole("link", { name: "League" }));
 
     expect(await screen.findByRole("heading", { name: "League home" })).toBeVisible();
-    expect(document.title).toBe("League | Mockd");
+    expect(document.title).toBe("League | Sunday Games");
   });
 });

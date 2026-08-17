@@ -16,7 +16,7 @@ describe("PublicLayout", () => {
     );
 
     await waitFor(() => {
-      expect(document.title).toBe("Sign in | Mockd");
+      expect(document.title).toBe("Sign in | Sunday Games");
     });
     expect(screen.getByRole("main")).toHaveFocus();
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeVisible();
