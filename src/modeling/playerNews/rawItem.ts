@@ -11,6 +11,11 @@ import {
   playerNewsSlugFor,
 } from "./normalization.js";
 
+const providerLabels: Record<RawPlayerNewsItem["provider"], string> = {
+  "rotowire-rss": "RotoWire RSS",
+  espn: "ESPN",
+};
+
 export const playerNewsItemFromRaw = (
   item: RawPlayerNewsItem,
   index: number,
@@ -34,7 +39,7 @@ export const playerNewsItemFromRaw = (
     ...(sourceDate ? { sourceDate } : {}),
     fetchedAt: item.fetchedAt,
     source: {
-      provider: "RotoWire RSS",
+      provider: providerLabels[item.provider],
       ...(item.canonicalUrl ? { url: item.canonicalUrl } : {}),
       quality: "unreviewed",
     },

@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-export type RawPlayerNewsProvider = "rotowire-rss";
+export type RawPlayerNewsProvider = "rotowire-rss" | "espn";
 
 export interface RawPlayerNewsItem {
   provider: RawPlayerNewsProvider;
@@ -27,10 +27,10 @@ const parser = new XMLParser({
   trimValues: true,
 });
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const textValue = (value: unknown): string => {
+export const textValue = (value: unknown): string => {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number") return String(value);
   return "";
@@ -42,7 +42,7 @@ const cleanSummary = (value: unknown): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-const isoDateFromRssDate = (value: unknown): string | undefined => {
+export const isoDateFrom = (value: unknown): string | undefined => {
   const parsed = Date.parse(textValue(value));
   if (!Number.isFinite(parsed)) return undefined;
   return new Date(parsed).toISOString();
@@ -57,7 +57,7 @@ const titleParts = (title: string): { playerName?: string; title: string } => {
   };
 };
 
-const rotowireTagsFor = (title: string, summary: string): string[] => {
+export const tagsForNewsText = (title: string, summary: string): string[] => {
   const text = `${title} ${summary}`.toLowerCase();
   const tags: string[] = [];
 
@@ -75,7 +75,7 @@ const itemValueFor = (raw: Record<string, unknown>, fetchedAt: string): RawPlaye
   const summary = cleanSummary(raw.description);
   const canonicalUrl = textValue(raw.link);
   const providerItemId = textValue(raw.guid) || canonicalUrl || rawTitle;
-  const publishedAt = isoDateFromRssDate(raw.pubDate);
+  const publishedAt = isoDateFrom(raw.pubDate);
 
   return {
     provider: "rotowire-rss",
@@ -86,7 +86,7 @@ const itemValueFor = (raw: Record<string, unknown>, fetchedAt: string): RawPlaye
     summary,
     ...(publishedAt ? { publishedAt } : {}),
     fetchedAt,
-    tags: rotowireTagsFor(rawTitle, summary),
+    tags: tagsForNewsText(rawTitle, summary),
     raw,
   };
 };

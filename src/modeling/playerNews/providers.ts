@@ -16,6 +16,12 @@ export const playerNewsProviderStatuses = (
     detail: "No-key NFL RSS feed with recent player news headlines.",
   },
   {
+    key: "espn",
+    label: "ESPN",
+    status: "available",
+    detail: "No-key NFL news feed with breaking headlines and player tags.",
+  },
+  {
     key: "sleeper",
     label: "Sleeper",
     status: "candidate",

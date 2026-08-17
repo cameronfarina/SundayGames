@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
+import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import { createGlobalPlayerNewsHandler } from "../src/platform/platformServer/globalPlayerNews.js";
 
 const servers: Server[] = [];
@@ -19,7 +20,12 @@ const listen = async (
 };
 
 const newsHandler = () => createGlobalPlayerNewsHandler(
-  { current: () => ({ app: { findAccountBySessionToken: async () => ({ id: "account-owner11" }) } }) } as never,
+  {
+    current: () => ({
+      app: { findAccountBySessionToken: async () => ({ id: "account-owner11" }) },
+      playerNewsRepository: new InMemoryPlayerNewsRepository(),
+    }),
+  } as never,
   { currentPlayerCatalogProvider: async () => [] } as never,
 );
 

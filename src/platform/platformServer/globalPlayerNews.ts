@@ -1,12 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { fetchEspnNews } from "../../data/espnPlayerNewsAdapter.js";
 import { normalizePlayerName } from "../../data/normalizePlayerName.js";
-import { fetchRotowireRssNews, type RawPlayerNewsItem } from "../../data/playerNewsProviderAdapters.js";
+import {
+  fetchRotowireRssNews,
+  type RawPlayerNewsItem,
+  type RawPlayerNewsProvider,
+} from "../../data/playerNewsProviderAdapters.js";
 import { playerNewsFiltersFromQuery } from "../../liveDraftServer/playerNewsInput.js";
 import {
   buildPlayerNewsFeed,
   type PlayerNewsDraftState,
   type PlayerNewsPlayerMetadata,
 } from "../../modeling/playerNews.js";
+import type { PlayerNewsRepository, PlayerNewsStoredItem, SavePlayerNewsItemInput } from "../playerNews.js";
 import { platformSessionTokenForHeaders } from "../platformNodeHttp.js";
 import { authRequiredBody, internalErrorBody, writeJson } from "../platformDraftToolsAdapter/responses.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -16,6 +22,49 @@ const emptyDraftState: PlayerNewsDraftState = {
   availableTargets: [],
   events: [],
   owners: [],
+};
+
+const rawPlayerNewsProviderValues = new Set<string>(
+  ["rotowire-rss", "espn"] satisfies RawPlayerNewsProvider[],
+);
+
+const isRawPlayerNewsProvider = (value: string): value is RawPlayerNewsProvider =>
+  rawPlayerNewsProviderValues.has(value);
+
+const saveInputFromRaw = (item: RawPlayerNewsItem): SavePlayerNewsItemInput => ({
+  provider: item.provider,
+  providerItemId: item.providerItemId,
+  canonicalUrl: item.canonicalUrl,
+  playerName: item.playerName,
+  title: item.title,
+  summary: item.summary,
+  publishedAt: item.publishedAt,
+  fetchedAt: item.fetchedAt,
+  tags: item.tags,
+});
+
+const rawItemFromStored = (item: PlayerNewsStoredItem): RawPlayerNewsItem | undefined => {
+  if (!isRawPlayerNewsProvider(item.provider)) return undefined;
+  return {
+    provider: item.provider,
+    providerItemId: item.providerItemId,
+    ...(item.canonicalUrl === undefined ? {} : { canonicalUrl: item.canonicalUrl }),
+    ...(item.playerName === undefined ? {} : { playerName: item.playerName }),
+    title: item.title,
+    summary: item.summary,
+    ...(item.publishedAt === undefined ? {} : { publishedAt: item.publishedAt }),
+    fetchedAt: item.fetchedAt,
+    tags: item.tags,
+    raw: undefined,
+  };
+};
+
+// Every source is fetched independently so one outage (ESPN down, RotoWire
+// rate-limited) never empties the other's items out of the stored feed.
+const fetchAndStoreLatestNews = async (repository: PlayerNewsRepository): Promise<void> => {
+  const results = await Promise.allSettled([fetchRotowireRssNews(), fetchEspnNews()]);
+  const items = results.flatMap(result => (result.status === "fulfilled" ? result.value : []));
+  if (items.length > 0) await repository.saveItems(items.map(saveInputFromRaw));
 };
 
 // Player news is account-scoped, not league-scoped: the feed is published
@@ -61,12 +110,16 @@ export const createGlobalPlayerNewsHandler = (
       }
 
       const filters = playerNewsFiltersFromQuery(url);
-      let rawNewsItems: readonly RawPlayerNewsItem[] = [];
+      const repository = runtimeHolder.current().playerNewsRepository;
       try {
-        rawNewsItems = await fetchRotowireRssNews();
+        await fetchAndStoreLatestNews(repository);
       } catch {
-        // A reporting outage empties the feed rather than breaking the page.
+        // A reporting outage serves the last stored items rather than breaking the page.
       }
+      const rawNewsItems = (await repository.recentItems()).flatMap(item => {
+        const raw = rawItemFromStored(item);
+        return raw === undefined ? [] : [raw];
+      });
       metadataPromise ??= metadataFor(options.currentPlayerCatalogProvider);
       writeJson(response, 200, buildPlayerNewsFeed({
         draftState: emptyDraftState,

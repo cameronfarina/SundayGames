@@ -5,6 +5,7 @@ import { InMemoryJobQueue } from "../../../jobs.js";
 import { InMemoryLiveDraftRoomRepository } from "../../../liveDraftRooms.js";
 import { InMemoryLiveDraftRoomSetupRepository } from "../../../liveDraftRoomSetups.js";
 import { InMemoryMockDraftSessionRepository } from "../../../mockSessions.js";
+import { InMemoryPlayerNewsRepository } from "../../../playerNews.js";
 import { InMemoryPracticeShortlistRepository } from "../../../practiceShortlists.js";
 import {
   createInMemoryPricingSnapshotRepository,
@@ -24,6 +25,7 @@ export class InMemoryPlatformRepositories {
   readonly pricingSnapshots: PricingSnapshotRepository = createInMemoryPricingSnapshotRepository();
   readonly simulations = new InMemorySimulationRepository();
   readonly practiceShortlists = new InMemoryPracticeShortlistRepository();
+  readonly playerNews = new InMemoryPlayerNewsRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
   readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
 

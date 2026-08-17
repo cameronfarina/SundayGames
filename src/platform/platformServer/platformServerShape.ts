@@ -31,6 +31,7 @@ export const createPlatformServerShape = (
   get practiceShortlistRepository() {
     return input.runtimeHolder.current().practiceShortlistRepository;
   },
+  get playerNewsRepository() { return input.runtimeHolder.current().playerNewsRepository; },
   get liveDraftRoomRepository() { return input.runtimeHolder.current().liveDraftRoomRepository; },
   get exportArtifactRepository() { return input.runtimeHolder.current().exportArtifactRepository; },
   get invitationRepository() { return input.runtimeHolder.current().invitationRepository; },

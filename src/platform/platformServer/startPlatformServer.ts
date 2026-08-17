@@ -23,6 +23,7 @@ export const startPlatformServer = async (
     get jobRepository() { return platformServer.jobRepository; },
     get simulationRepository() { return platformServer.simulationRepository; },
     get practiceShortlistRepository() { return platformServer.practiceShortlistRepository; },
+    get playerNewsRepository() { return platformServer.playerNewsRepository; },
     get liveDraftRoomRepository() { return platformServer.liveDraftRoomRepository; },
     get exportArtifactRepository() { return platformServer.exportArtifactRepository; },
     get invitationRepository() { return platformServer.invitationRepository; },
