@@ -1,4 +1,4 @@
-import { InMemoryPlatformStore, createPlatformApp, createPlatformHttpHandler, describe, expect, it, mockRunner } from "./support/index.js";
+import { InMemoryPlatformStore, createPlatformApp, createPlatformHttpHandler, describe, expect, it, mockRunner, vi } from "./support/index.js";
 import type { PlatformApp } from "./support/index.js";
 
 describe("platform HTTP contract", () => {
@@ -52,5 +52,31 @@ it("maps known domain errors and unexpected failures without leaking stack trace
         },
       },
     });
+  });
+
+it("logs the underlying failure server-side when responding with internal_error", async () => {
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failingHandle = createPlatformHttpHandler({
+        ...app,
+        createAccount: () => {
+          throw new Error("pricing rebuild exploded");
+        },
+      });
+
+      await failingHandle({
+        method: "POST",
+        path: "/accounts",
+        body: { email: "fail@example.com", password: "secure password" },
+      });
+
+      const logged = consoleError.mock.calls.map(call => call.join(" ")).join("\n");
+      expect(logged).toContain("unhandled_platform_error");
+      expect(logged).toContain("pricing rebuild exploded");
+      expect(logged).toContain("errors.test.ts");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
