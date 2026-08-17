@@ -109,6 +109,12 @@ describe("Practice player board model", () => {
     ]), {
       position: "ALL", search: "", shortlistOnly: false, sort: "simulation",
     }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
+    expect(filterAndSortPlayers(rankPlayers([
+      { expectedPrice: 1, marketRank: 1, name: "Zulu", position: "K" },
+      { expectedPrice: 2, marketRank: 1, name: "Alpha", position: "K" },
+    ]), {
+      position: "ALL", search: "", shortlistOnly: false, sort: "rank",
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
   });
 
   it("normalizes supported and unknown sort values", () => {
