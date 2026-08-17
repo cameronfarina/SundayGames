@@ -37,14 +37,42 @@ describe("season-backed private draft tools", () => {
     }));
   });
 
+  it("supports a league whose managers use their own names", async () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
+    const realOwnerNames = [
+      "Seth", "Mackie", "Juice", "Mello", "Russ", "Kenny", "Martins",
+      "Beaton", "Tye", "Sam", "Cam", "Ferg", "Diggs", "Whit",
+    ];
+    const renamedSeason = {
+      ...season,
+      teams: [...season.teams]
+        .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
+        .map((team, index) => ({
+          ...team,
+          ownerDisplayName: realOwnerNames[index] ?? team.ownerDisplayName,
+        })),
+    };
+    const repository = new InMemoryLiveDraftRoomSetupRepository();
+    const setup = await repository.save({
+      seasonId: season.id,
+      sourceVersion: "test-renamed-season",
+      playerCatalog: await loadCurrentPlayerCatalog(),
+      initialRosters: currentLeagueInitialRostersFor(season),
+      updatedAt: now,
+    });
+
+    const options = await buildSeasonDraftToolsOptions(renamedSeason, setup);
+
+    expect(options.keepers).toContainEqual(expect.objectContaining({
+      owner: "Cam",
+      player: "Ashton Jeanty",
+      newCost: 50,
+    }));
+  });
+
   it("fails closed for a season shape the current engine cannot model", async () => {
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
-    const unsupportedSeason = {
-      ...season,
-      teams: season.teams.map((team, index) => index === 0
-        ? { ...team, ownerDisplayName: "Different owner" }
-        : team),
-    };
+    const unsupportedSeason = { ...season, teams: season.teams.slice(0, 12) };
     const repository = new InMemoryLiveDraftRoomSetupRepository();
     const setup = await repository.save({
       seasonId: season.id,
@@ -55,7 +83,7 @@ describe("season-backed private draft tools", () => {
     });
 
     await expect(buildSeasonDraftToolsOptions(unsupportedSeason, setup)).rejects.toThrow(
-      "Private draft tools support the configured 14-owner league order only.",
+      "Private draft tools support 14-owner leagues only.",
     );
   });
 });

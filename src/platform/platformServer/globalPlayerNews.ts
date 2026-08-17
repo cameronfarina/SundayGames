@@ -20,10 +20,13 @@ const emptyDraftState: PlayerNewsDraftState = {
   owners: [],
 };
 
+// Player news is account-scoped, not league-scoped: the feed is public
+// reporting plus our evidence rows, and the reader's follow list lives with
+// their account. A seasonId in the query must not route news through the
+// private draft tools, which would refuse leagues it cannot model.
 const isGlobalPlayerNewsRequest = (request: IncomingMessage, url: URL): boolean =>
   request.method === "GET"
-  && url.pathname === "/api/player-news"
-  && !url.searchParams.has("seasonId");
+  && url.pathname === "/api/player-news";
 
 const metadataFor = async (
   provider: CreatePlatformServerOptions["currentPlayerCatalogProvider"],

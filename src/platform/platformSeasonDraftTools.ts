@@ -17,7 +17,7 @@ const loadSourceProjections = createAsyncValueCache(
 );
 
 const ownerFor = (value: string): Owner | undefined =>
-  ownerOrder.find(owner => owner === value);
+  value.trim().length === 0 ? undefined : value;
 
 const proTeamIdFor = (abbreviation: string | undefined): number | undefined => {
   if (abbreviation === undefined) return undefined;
@@ -28,12 +28,9 @@ const proTeamIdFor = (abbreviation: string | undefined): number | undefined => {
 };
 
 const assertSupportedSeason = (season: LeagueSeason): void => {
-  const ownersByDraftOrder = [...season.teams]
-    .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
-    .map(team => team.ownerDisplayName);
-  if (!isDeepStrictEqual(ownersByDraftOrder, [...ownerOrder])) {
+  if (season.teams.length !== ownerOrder.length) {
     throw new Error(
-      "Private draft tools support the configured 14-owner league order only.",
+      `Private draft tools support ${String(ownerOrder.length)}-owner leagues only.`,
     );
   }
   if (!isDeepStrictEqual(season.settings, expectedSeasonSettings)) {
