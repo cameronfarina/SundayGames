@@ -8,6 +8,11 @@ const envVarSchema = z.object({
   value: z.string().optional(),
   sync: z.boolean().optional(),
   fromDatabase: z.object({ name: z.string(), property: z.string() }).optional(),
+  fromService: z.object({
+    type: z.string(),
+    name: z.string(),
+    envVarKey: z.string(),
+  }).optional(),
 });
 
 const serviceSchema = z.object({
@@ -98,7 +103,14 @@ describe("Render production blueprint", () => {
     expect(envFor(web, "MOCKD_AUTH_EMAIL_MODE")?.value).toBe("resend");
     expect(envFor(web, "RESEND_API_KEY")).toEqual({ key: "RESEND_API_KEY", sync: false });
     expect(envFor(web, "MOCKD_EMAIL_FROM")).toEqual({ key: "MOCKD_EMAIL_FROM", sync: false });
-    expect(envFor(web, "MOCKD_PUBLIC_BASE_URL")).toEqual({ key: "MOCKD_PUBLIC_BASE_URL", sync: false });
+    expect(envFor(web, "MOCKD_PUBLIC_BASE_URL")).toEqual({
+      key: "MOCKD_PUBLIC_BASE_URL",
+      fromService: {
+        type: "web",
+        name: "mockd-web",
+        envVarKey: "RENDER_EXTERNAL_URL",
+      },
+    });
     expect(envFor(web, "MOCKD_TRUST_PROXY")?.value).toBe("true");
     expect(envFor(web, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
     expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");

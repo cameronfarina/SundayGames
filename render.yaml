@@ -50,7 +50,10 @@ services:
       - key: MOCKD_EMAIL_FROM
         sync: false
       - key: MOCKD_PUBLIC_BASE_URL
-        sync: false
+        fromService:
+          type: web
+          name: mockd-web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: MOCKD_INVITATION_TOKEN_SECRET
         generateValue: true
       - key: MOCKD_TRUST_PROXY
