@@ -19,10 +19,6 @@ export const applyCommissionerSetup = async (
   const setupSection = page.locator("#league-setup");
   const teamRows = setupSection.getByRole("textbox", { name: "Teams and managers" });
   await teamRows.fill(setupRowsFor(camEmail));
-  await page.getByRole("button", { name: "Preview changes" }).click();
-  await expect(setupSection.getByRole("status")).toHaveText(
-    `Ready to apply ${String(ownerOrder.length)} teams.`,
-  );
   await page.getByRole("button", { name: "Apply changes" }).click();
   await expect(setupSection.getByRole("status")).toHaveText("League teams saved.");
   const invitationSection = page.locator("#league-invite");

@@ -53,6 +53,7 @@ describe("league API", () => {
 
     await expect(loadLeagueSeason("season-1", fetcher)).rejects.toEqual(
       new PlatformApiError({
+        body: { error: { code: "membership_required", message: "Join this league first." } },
         code: "membership_required",
         message: "Join this league first.",
         status: 403,

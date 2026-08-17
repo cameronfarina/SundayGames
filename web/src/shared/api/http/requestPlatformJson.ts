@@ -26,6 +26,7 @@ const apiErrorFor = (status: number, body: unknown): PlatformApiError => {
   const parsed = platformErrorSchema.safeParse(body);
   if (parsed.success) {
     return new PlatformApiError({
+      body,
       code: parsed.data.error.code,
       message: parsed.data.error.message,
       status,

@@ -39,10 +39,27 @@ describe("requestPlatformJson", () => {
       path: "/session",
       responseSchema: accountSchema,
     })).rejects.toEqual(new PlatformApiError({
+      body: { error: { code: "auth_required", message: "Sign in first." } },
       code: "auth_required",
       message: "Sign in first.",
       status: 401,
     }));
+  });
+
+  it("keeps the error response body on the thrown error", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      error: { code: "league_setup_import_blocked", message: "Resolve blockers." },
+      import: { blockers: [{ code: "blank_owner", message: "Owner is required." }] },
+    }), { status: 400 })));
+
+    await expect(requestPlatformJson({
+      fetcher,
+      path: "/seasons/season-1/setup-import/apply",
+      responseSchema: accountSchema,
+    })).rejects.toMatchObject({
+      code: "league_setup_import_blocked",
+      body: { import: { blockers: [{ code: "blank_owner", message: "Owner is required." }] } },
+    });
   });
 
   it("rejects successful responses that violate the declared schema", async () => {

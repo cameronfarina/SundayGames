@@ -41,7 +41,7 @@ const onboarding = onboardingSchema.parse({
 });
 
 const renderWorkspace = () => {
-  const previewRequests: { readonly body: string; readonly path: string }[] = [];
+  const applyRequests: { readonly body: string; readonly path: string }[] = [];
   const respond: PlatformFetch = (input, init) => {
     const path = requestPath(input);
     if (path === "/onboarding") return Promise.resolve(jsonResponse(onboarding));
@@ -53,11 +53,12 @@ const renderWorkspace = () => {
     if (path === `/invitations?seasonId=${selected.id}`) {
       return Promise.resolve(jsonResponse({ invitations: [], claimedTeamIds: [] }));
     }
-    if (path.endsWith("/setup-import/preview")) {
-      previewRequests.push({ body: typeof init?.body === "string" ? init.body : "", path });
+    if (path.endsWith("/setup-import/apply")) {
+      applyRequests.push({ body: typeof init?.body === "string" ? init.body : "", path });
       return Promise.resolve(jsonResponse({
-        import: { blockers: [{ code: "test", message: "Test preview." }], records: [], status: "blocked" },
-      }));
+        error: { code: "league_setup_import_blocked", message: "Resolve league setup import blockers before applying." },
+        import: { blockers: [{ code: "test", message: "Test blocker." }], records: [], status: "blocked" },
+      }, 400));
     }
     throw new Error(`Unexpected request: ${path}`);
   };
@@ -69,14 +70,14 @@ const renderWorkspace = () => {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <RouterProvider router={router} />
   </QueryClientProvider>);
-  return { previewRequests, router };
+  return { applyRequests, router };
 };
 
 describe("CommissionerPage season state", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
   it("discards every staged commissioner edit when the active season changes", async () => {
-    const { previewRequests, router } = renderWorkspace();
+    const { applyRequests, router } = renderWorkspace();
     const user = userEvent.setup();
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
     await user.clear(screen.getByLabelText("Teams and managers"));
@@ -93,10 +94,10 @@ describe("CommissionerPage season state", () => {
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Preview changes" }));
-    expect(previewRequests).toEqual([{
+    await user.click(screen.getByRole("button", { name: "Apply changes" }));
+    expect(applyRequests).toEqual([{
       body: JSON.stringify({ content: "owner,team,role\nOwner11,Beta,member" }),
-      path: "/seasons/season-b/setup-import/preview",
+      path: "/seasons/season-b/setup-import/apply",
     }]);
 
     await router.navigate("/commissioner?seasonId=season-a");

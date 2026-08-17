@@ -4,7 +4,6 @@ import {
   historicalCommitResponseSchema,
   historicalPreviewResponseSchema,
   setupApplyResponseSchema,
-  setupPreviewResponseSchema,
 } from "./importSchemas";
 import { seasonResponseSchema, seasonSchema } from "./seasonSchemas";
 import {
@@ -53,11 +52,6 @@ export const commissionerApi = {
     path: "/invitations",
     init: jsonRequest("POST", { seasonId }),
     responseSchema: invitationMutationResponseSchema,
-  }),
-  previewTeams: async (seasonId: string, content: string) => await requestPlatformJson({
-    path: seasonPath(seasonId, "/setup-import/preview"),
-    init: jsonRequest("POST", { content }),
-    responseSchema: setupPreviewResponseSchema,
   }),
   applyTeams: async (seasonId: string, content: string) => await requestPlatformJson({
     path: seasonPath(seasonId, "/setup-import/apply"),

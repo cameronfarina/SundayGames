@@ -22,8 +22,6 @@ const setupImportSchema = z.object({
   })),
 });
 
-export const setupPreviewResponseSchema = z.object({ import: setupImportSchema });
-
 export const setupApplyResponseSchema = z.object({
   season: seasonSchema,
   import: setupImportSchema,
