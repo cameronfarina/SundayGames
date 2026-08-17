@@ -9,7 +9,7 @@ This is the concrete first-production procedure for Mockd. The broader architect
 - `mockd-web`: one paid Docker web instance with `/readyz` health checks and a 1 GB persistent disk mounted at `/var/lib/mockd/draft-tools`.
 - `mockd-postgres`: private managed Postgres 17 on a paid plan with 15 GB of autoscaling storage.
 
-The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Automatic deploys are disabled; the deploy owner starts a release manually only after GitHub checks pass. League-aware simulations use a bounded worker-thread queue inside the web service, with request cancellation and a 30-second timeout, so the launch Blueprint does not create the legacy fixture-backed simulation worker.
+The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Render deploys automatically once GitHub checks pass; an operator can still deploy sooner by hand for urgent low-risk changes. League-aware simulations use a bounded worker-thread queue inside the web service, with request cancellation and a 30-second timeout, so the launch Blueprint does not create the legacy fixture-backed simulation worker.
 
 The web service intentionally stays at one instance. Render persistent disks attach to only one instance, and disk-backed services have a short stop/start window during deploys. Do not deploy during the live draft window.
 

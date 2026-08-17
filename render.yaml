@@ -17,7 +17,7 @@ services:
     runtime: docker
     plan: starter
     region: virginia
-    autoDeployTrigger: off
+    autoDeployTrigger: checksPass
     dockerfilePath: ./Dockerfile
     dockerContext: .
     preDeployCommand: npm run platform:migrate
