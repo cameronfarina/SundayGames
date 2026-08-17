@@ -30,6 +30,7 @@ const onboarding = onboardingSchema.parse({
   leagues: [seasonA, seasonB].map(season => ({
     leagueId: season.leagueId,
     leagueName: season.league.name,
+    leagueSlug: season.league.name.toLowerCase(),
     seasonId: season.id,
     seasonYear: season.seasonYear,
     membership: { role: "owner" },

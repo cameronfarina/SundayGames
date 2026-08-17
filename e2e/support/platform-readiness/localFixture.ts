@@ -36,7 +36,7 @@ export const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmok
   expect(beforeSethClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);
   const sethTeamRow = await expectTeamCanBeClaimed(sethPage, "Owner04");
   await Promise.all([
-    sethPage.waitForURL(/\/league\?seasonId=/),
+    sethPage.waitForURL(/\/leagues\/[^/]+$/u),
     sethTeamRow.getByRole("button", { name: "Join as Owner04" }).click(),
   ]);
   const acceptedOnboarding = expectOk(await api<{ leagues: Array<{ membership: PlatformLeagueMembership }> }>(
@@ -73,7 +73,7 @@ export const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmok
   await expect(invitationTeam(hoodyPage, "Owner04")).toContainText("Claimed");
   const hoodyTeamRow = await expectTeamCanBeClaimed(hoodyPage, "Owner02");
   await Promise.all([
-    hoodyPage.waitForURL(/\/league\?seasonId=/),
+    hoodyPage.waitForURL(/\/leagues\/[^/]+$/u),
     hoodyTeamRow.getByRole("button", { name: "Join as Owner02" }).click(),
   ]);
   await expect(hoodyPage.getByRole("heading", { name: leagueName })).toBeVisible();

@@ -20,6 +20,7 @@ const claimedOnboarding = {
     canManageLeague: false,
     leagueId: "league-1",
     leagueName: "Sunday Games",
+    leagueSlug: "sunday-games",
     liveDraft: null,
     membership: { role: "member", ownerId: "owner-1", teamId: "team-1" },
     readiness: { leagueSetup: "ready", liveDraft: "needs_attention", teamClaim: "ready" },

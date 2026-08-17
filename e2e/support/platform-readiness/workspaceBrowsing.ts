@@ -25,17 +25,17 @@ export const exerciseWorkspaceBrowsing = async (workspace: ReadySmokeWorkspace):
     (count, team) => count + team.roster.length,
     0,
   );
-  await openUnifiedBoard(camPage, appliedSeason.id, fullPlayerCount);
+  await openUnifiedBoard(camPage, fullPlayerCount);
   await expect(camPage.getByRole("link", { name: "Enter draft" })).toHaveCount(0);
   await camPage.getByRole("link", { name: "League", exact: true }).click();
-  await expect(camPage).toHaveURL(/\/league\?seasonId=/);
+  await expect(camPage).toHaveURL(/\/leagues\/[^/]+$/u);
   await expect(camPage.getByRole("heading", { name: appliedSeason.league.name })).toBeVisible();
   await accountMenuButton(camPage).click();
   await expect(camPage.getByRole("menu")).toBeVisible();
   await camPage.keyboard.press("Escape");
   await expect(camPage.getByRole("menu")).toBeHidden();
 
-  await openUnifiedBoard(sethPage, appliedSeason.id, fullPlayerCount);
+  await openUnifiedBoard(sethPage, fullPlayerCount);
   await exerciseBoardSimulations(sethPage, appliedSeason);
   await exerciseDurableMockWorkspace(sethPage, appliedSeason);
 

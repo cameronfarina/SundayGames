@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useSessionQuery } from "../../../features/auth/api/sessionQuery";
+import { leaguePath } from "../../../features/league/lib/leaguePaths";
 import { AccountMenu } from "../AccountMenu/AccountMenu";
 import { LeaguePicker } from "./LeaguePicker";
 import { ProductNavigation } from "./ProductNavigation";
@@ -8,14 +9,16 @@ import "./ProductHeader.css";
 
 export const ProductHeader = () => {
   const session = useSessionQuery();
-  const { activeLeague, leagues, navigationSearch, setActiveLeague } = useActiveLeague();
-  const search = navigationSearch.length > 0 ? `?${navigationSearch}` : "";
+  const { activeLeague, leagues, setActiveLeague } = useActiveLeague();
   const email = session.data?.account.email ?? "";
 
   return (
     <header className="product-header">
       <div className="product-header__top-row">
-        <NavLink className="product-header__brand" to={{ pathname: "/practice", search }}>
+        <NavLink
+          className="product-header__brand"
+          to={activeLeague === undefined ? "/practice" : leaguePath(activeLeague, "practice")}
+        >
           Mockd
         </NavLink>
         <div className="product-header__controls">
@@ -28,8 +31,8 @@ export const ProductHeader = () => {
         </div>
       </div>
       <ProductNavigation
+        activeLeague={activeLeague}
         canManageLeague={activeLeague?.canManageLeague === true}
-        search={search}
       />
     </header>
   );

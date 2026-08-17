@@ -1,8 +1,11 @@
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { InlineNotice, Skeleton } from "../../../../shared/ui";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
+import { onboardingQueryOptions } from "../../../../shared/api/onboarding/onboardingQuery";
+import { selectLeagueForRoute } from "../../../league/lib/leaguePaths";
 import { useLiveDraftRoom } from "../../hooks/useLiveDraftRoom";
-import { readLiveDraftLocation } from "../../lib/liveDraftLocation";
+import { readLiveDraftLocation, type LiveDraftLocation } from "../../lib/liveDraftLocation";
 import { LiveDraftWorkspace } from "./LiveDraftWorkspace";
 import "./LiveDraftPage.css";
 
@@ -47,7 +50,20 @@ const RoomContent = ({ roomId, seasonId }: RoomContentProps) => {
 
 export const LiveDraftPage = () => {
   const [searchParams] = useSearchParams();
-  const roomLocation = readLiveDraftLocation(searchParams);
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
+  const onboarding = useQuery({ ...onboardingQueryOptions(), enabled: leagueSlug !== undefined });
+  const league = selectLeagueForRoute(
+    onboarding.data?.leagues ?? [],
+    leagueSlug,
+    searchParams.get("seasonId"),
+  );
+  const legacyLocation = readLiveDraftLocation(searchParams);
+  const roomLocation: LiveDraftLocation = league?.liveDraft === null || league?.liveDraft === undefined
+    ? legacyLocation
+    : { ok: true, roomId: league.liveDraft.roomId, seasonId: league.seasonId };
+  if (leagueSlug !== undefined && onboarding.isPending) {
+    return <section aria-label="Live draft" className="live-draft"><p role="status">Opening draft room...</p></section>;
+  }
   return (
     <section aria-labelledby="live-draft-title" className="live-draft">
       <header className="live-draft__heading">

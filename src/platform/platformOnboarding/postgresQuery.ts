@@ -2,6 +2,7 @@ export const platformOnboardingQuery = `
 SELECT
   l.id AS league_id,
   l.name AS league_name,
+  l.slug AS league_slug,
   ls.id AS season_id,
   ls.season_year,
   ls.status AS season_status,

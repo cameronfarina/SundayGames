@@ -37,8 +37,8 @@ describeWithPostgres("Postgres simulation admission", () => {
        VALUES ('user_cam', 'owner11@example.com', 'owner11@example.com', 'hash')`,
     );
     await client.query(
-      `INSERT INTO leagues (id, name, created_by_user_id)
-       VALUES ('league_100001', 'Sunday Games', 'user_cam')`,
+      `INSERT INTO leagues (id, name, slug, created_by_user_id)
+       VALUES ('league_100001', 'Sunday Games', 'sunday-games', 'user_cam')`,
     );
     await client.query(
       `INSERT INTO league_seasons (id, league_id, season_year, name)

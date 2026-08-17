@@ -50,7 +50,7 @@ describe("PracticePage", () => {
 
     expect(await screen.findByRole("link", { name: "Start auction mock" })).toHaveAttribute(
       "href",
-      "/mock-drafts?seasonId=season-1",
+      "/leagues/sunday-games/mock-drafts",
     );
     view.unmount();
   });
@@ -165,7 +165,7 @@ describe("PracticePage", () => {
     await user.click(screen.getByRole("option", { name: "Work League · 2026" }));
 
     expect(screen.getByTestId("practice-location")).toHaveTextContent(
-      "seasonId=season-2&strategy=wr-heavy",
+      "strategy=wr-heavy",
     );
     expect(screen.queryByRole("heading", { name: "League outcomes" })).not.toBeInTheDocument();
     expect(requestCount(fetcher, "/season-simulations/history-1/runs/2")).toBe(1);

@@ -16,6 +16,13 @@ describe("application routes", () => {
     "/my-team",
     "/player-news",
     "/commissioner",
+    "/leagues/sunday-games",
+    "/leagues/sunday-games/practice",
+    "/leagues/sunday-games/mock-drafts",
+    "/leagues/sunday-games/draft",
+    "/leagues/sunday-games/my-team",
+    "/leagues/sunday-games/player-news",
+    "/leagues/sunday-games/commissioner",
     "/invite",
   ])(
     "owns the %s browser route",
@@ -36,6 +43,13 @@ describe("application routes", () => {
     "/my-team",
     "/player-news",
     "/commissioner",
+    "/leagues/sunday-games",
+    "/leagues/sunday-games/practice",
+    "/leagues/sunday-games/mock-drafts",
+    "/leagues/sunday-games/draft",
+    "/leagues/sunday-games/my-team",
+    "/leagues/sunday-games/player-news",
+    "/leagues/sunday-games/commissioner",
     "/invite",
   ])("loads the %s feature module on demand", async path => {
     const matches = matchRoutes(appRoutes, path);

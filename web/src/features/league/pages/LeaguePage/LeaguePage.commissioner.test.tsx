@@ -29,7 +29,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Finish setup" })).toHaveAttribute(
       "href",
-      "/commissioner?seasonId=season-1",
+      "/leagues/sunday-games/commissioner",
     );
     expect(screen.queryByRole("link", { name: "Enter draft" })).not.toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Enter draft" })).toHaveAttribute(
       "href",
-      "/draft-room?seasonId=season-1&roomId=room%2F1",
+      "/leagues/sunday-games/draft",
     );
     expect(screen.getByText("Setup")).toBeVisible();
   });
@@ -55,11 +55,11 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Create draft room" })).toHaveAttribute(
       "href",
-      "/commissioner?seasonId=season-1#live-room",
+      "/leagues/sunday-games/commissioner#live-room",
     );
     expect(screen.getByRole("link", { name: "Manage keepers" })).toHaveAttribute(
       "href",
-      "/commissioner?seasonId=season-1#keepers",
+      "/leagues/sunday-games/commissioner#keepers",
     );
   });
 
@@ -94,7 +94,7 @@ describe("LeaguePage commissioner actions", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("league-location"))
-        .toHaveTextContent("/commissioner?seasonId=season-1#keepers");
+        .toHaveTextContent("/leagues/sunday-games/commissioner#keepers");
     });
   });
 });

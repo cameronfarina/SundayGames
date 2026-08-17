@@ -53,7 +53,7 @@ describe("MyTeamPage states", () => {
     expect(await screen.findByRole("heading", { name: "Claim your team" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Choose team" })).toHaveAttribute(
       "href",
-      "/league?seasonId=season-2026#claim-your-team",
+      "/leagues/sunday-games#claim-your-team",
     );
   });
 

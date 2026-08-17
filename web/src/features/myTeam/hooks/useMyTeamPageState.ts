@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useOnboardingQuery } from "../../../shared/api/onboarding/onboardingQuery";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../api/myTeamQueryOptions";
 import type { PostDraftTeam } from "../api/postDraftSchema";
 import type { Keeper, SeasonTeam } from "../api/seasonTeamSchema";
+import { selectLeagueForRoute } from "../../league/lib/leaguePaths";
 
 type MyTeamPageState =
   | { kind: "loading" }
@@ -24,17 +25,12 @@ type MyTeamPageState =
     }
   | { kind: "post-draft"; league: OnboardingLeague; team: PostDraftTeam };
 
-const activeLeague = (
-  leagues: readonly OnboardingLeague[],
-  requestedSeasonId: string | null,
-): OnboardingLeague | undefined =>
-  leagues.find(league => league.seasonId === requestedSeasonId) ?? leagues[0];
-
 export const useMyTeamPageState = (): MyTeamPageState => {
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
   const [searchParams] = useSearchParams();
   const requestedSeasonId = searchParams.get("seasonId");
   const onboarding = useOnboardingQuery();
-  const league = activeLeague(onboarding.data?.leagues ?? [], requestedSeasonId);
+  const league = selectLeagueForRoute(onboarding.data?.leagues ?? [], leagueSlug, requestedSeasonId);
   const teamId = league?.membership.teamId;
   const assigned = teamId !== undefined;
   const draftEnded = league?.liveDraft?.status === "ended";

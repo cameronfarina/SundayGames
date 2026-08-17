@@ -10,16 +10,12 @@ import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
+import { leaguePath } from "../../../league/lib/leaguePaths";
 
 interface LiveRoomSectionProps {
   readonly league: OnboardingLeague;
   readonly season: CommissionerSeason;
 }
-
-const roomPath = (seasonId: string, roomId: string): string => {
-  const query = new URLSearchParams({ seasonId, roomId });
-  return `/draft-room?${query.toString()}`;
-};
 
 export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
   const queryClient = useQueryClient();
@@ -62,7 +58,7 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
             {create.isPending ? "Creating room..." : "Create room"}
           </Button>
         </div> : <div className="commissioner-actions">
-          <Link className="commissioner-button commissioner-primary" to={roomPath(season.id, activeRoom.roomId)}>Enter draft room</Link>
+          <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft room</Link>
           {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
             <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
               {archive.isPending ? "Archiving room..." : "Confirm archive"}

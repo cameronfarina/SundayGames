@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { useLocation } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -67,8 +67,10 @@ describe("MyTeamPage views", () => {
     usePrepHandlers();
     renderMyTeamPage("/my-team?seasonId=season-2026&view=news", <LocationProbe />);
 
-    expect(await screen.findByTestId("location")).toHaveTextContent(
-      "/player-news?seasonId=season-2026",
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/leagues/sunday-games/player-news",
+      );
+    });
   });
 });

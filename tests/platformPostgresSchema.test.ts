@@ -193,6 +193,7 @@ describe("platform Postgres schema contract", () => {
 
   it("declares critical uniqueness and idempotency contracts", () => {
     expectUniqueContract("accounts", "accounts_email_normalized_key", ["email_normalized"]);
+    expectUniqueContract("leagues", "leagues_slug_key", ["slug"]);
     expectUniqueContract("account_auth_tokens", "account_auth_tokens_token_hash_key", ["token_hash"]);
     expectUniqueContract("sessions", "sessions_token_hash_key", ["token_hash"]);
     expectUniqueContract("league_seasons", "league_seasons_league_year_key", ["league_id", "season_year"]);
@@ -254,6 +255,11 @@ describe("platform Postgres schema contract", () => {
     ]);
 
     expect(tableByName("draft_rooms").primaryKey).toEqual(["id"]);
+  });
+
+  it("stores a stable public slug for clean league URLs", () => {
+    expectColumn("leagues", "slug", { type: "text" });
+    expectCheckContract("leagues", "leagues_slug_not_blank", "length(trim(slug)) > 0");
   });
 
   it("declares indexes used by common auth, private, job, and live-room reads", () => {

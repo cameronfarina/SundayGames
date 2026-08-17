@@ -684,6 +684,13 @@ describe("platform Node HTTP adapter", () => {
       "/my-team",
       "/mock-drafts",
       "/draft-room",
+      "/leagues/sunday-games",
+      "/leagues/sunday-games/practice",
+      "/leagues/sunday-games/mock-drafts",
+      "/leagues/sunday-games/draft",
+      "/leagues/sunday-games/my-team",
+      "/leagues/sunday-games/player-news",
+      "/leagues/sunday-games/commissioner",
     ]) {
       const response = await fetch(`${baseUrl}${path}`);
 

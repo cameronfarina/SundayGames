@@ -28,7 +28,7 @@ export const expectPracticeBoard = async (
   await expect(board.getByRole("heading", { name: "Available players" })).toBeVisible();
   await expect(practicePlayerRows(page).first()).toBeVisible();
   await expect(board.getByRole("columnheader")).toHaveText([
-    "Target", "Rank", "Player", "Pos", "NFL", "Bye", "Market", "My value",
+    "Target", "Rank", "Player", "Pos", "NFL", "Bye", "Market", "Simulation", "My value",
   ]);
   if (loadedPlayerCount !== undefined) {
     await expect(board).toContainText(`${String(loadedPlayerCount)} loaded`);

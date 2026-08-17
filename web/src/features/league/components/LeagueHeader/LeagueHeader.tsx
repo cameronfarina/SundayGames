@@ -1,16 +1,15 @@
 import { Link } from "react-router-dom";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
+import { leaguePath } from "../../lib/leaguePaths";
 
 const roomPath = (league: OnboardingLeague): string | undefined => {
-  const roomId = league.liveDraft?.roomId;
-  if (roomId === undefined) return undefined;
-  const query = new URLSearchParams({ seasonId: league.seasonId, roomId });
-  return `/draft-room?${query.toString()}`;
+  if (league.liveDraft === null) return undefined;
+  return leaguePath(league, "draft");
 };
 
 export function LeagueHeader({ league }: { readonly league: OnboardingLeague }) {
   const draftPath = roomPath(league);
-  const setupPath = `/commissioner?${new URLSearchParams({ seasonId: league.seasonId }).toString()}`;
+  const setupPath = leaguePath(league, "commissioner");
   const needsSetup = league.readiness.leagueSetup === "needs_attention";
 
   return (

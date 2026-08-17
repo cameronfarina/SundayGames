@@ -25,6 +25,7 @@ const commissionerLeague: Onboarding["leagues"][number] = {
   canManageLeague: true,
   leagueId: "league-sunday",
   leagueName: "Sunday Games",
+  leagueSlug: "sunday-games",
   liveDraft: null,
   membership: { role: "owner" },
   readiness: { leagueSetup: "ready", liveDraft: "ready", teamClaim: "ready" },
@@ -36,6 +37,7 @@ const memberLeague: Onboarding["leagues"][number] = {
   canManageLeague: false,
   leagueId: "league-work",
   leagueName: "Work League",
+  leagueSlug: "work-league",
   liveDraft: null,
   membership: { role: "member" },
   readiness: { leagueSetup: "ready", liveDraft: "needs_attention", teamClaim: "ready" },
@@ -85,22 +87,22 @@ describe("ProductHeader", () => {
     await user.click(screen.getByRole("option", { name: "Work League · 2026" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/practice?seasonId=season-work&view=targets",
+      "/leagues/work-league/practice?view=targets",
     );
     expect(screen.queryByRole("link", { name: "Commissioner" })).not.toBeInTheDocument();
   });
 
   it("carries the active league through primary navigation", async () => {
     const user = userEvent.setup();
-    renderHeader([commissionerLeague], "/practice?seasonId=season-2026");
+    renderHeader([commissionerLeague], "/leagues/sunday-games/practice");
 
     expect(screen.queryByRole("combobox", { name: "Active league" })).not.toBeInTheDocument();
     expect(screen.getByText("Sunday Games · 2026")).toBeVisible();
     await user.click(screen.getByRole("link", { name: "My team" }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/my-team?seasonId=season-2026");
+    expect(screen.getByTestId("location")).toHaveTextContent("/leagues/sunday-games/my-team");
     await user.click(screen.getByRole("link", { name: "Player news" }));
-    expect(screen.getByTestId("location")).toHaveTextContent("/player-news?seasonId=season-2026");
+    expect(screen.getByTestId("location")).toHaveTextContent("/leagues/sunday-games/player-news");
   });
 
   it("keeps the core product navigation available without a league", () => {
@@ -123,7 +125,18 @@ describe("ProductHeader", () => {
       "Sunday Games · 2026",
     );
     await user.click(screen.getByRole("link", { name: "League" }));
-    expect(screen.getByTestId("location")).toHaveTextContent("/league?seasonId=season-2026");
+    expect(screen.getByTestId("location")).toHaveTextContent("/leagues/sunday-games");
+  });
+
+  it("replaces a legacy identifier URL with its clean league route", async () => {
+    renderHeader(
+      [commissionerLeague],
+      "/player-news?seasonId=season-2026&roomId=room-private&source=rotowire",
+    );
+
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/leagues/sunday-games/player-news?source=rotowire",
+    );
   });
 
   it("renders usable account and league fallbacks while protected data loads", () => {

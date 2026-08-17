@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { HistoricalImportSection } from "../../components/HistoricalImportSection/HistoricalImportSection";
 import { InvitationSection } from "../../components/InvitationSection/InvitationSection";
 import { KeeperSection } from "../../components/KeeperSection/KeeperSection";
@@ -10,7 +10,8 @@ import { useCommissionerWorkspace } from "./hooks/useCommissionerWorkspace";
 
 export function CommissionerPage() {
   const [searchParams] = useSearchParams();
-  const workspace = useCommissionerWorkspace(searchParams.get("seasonId"));
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
+  const workspace = useCommissionerWorkspace(searchParams.get("seasonId"), leagueSlug);
 
   if (workspace.onboarding.isPending) {
     return <section aria-label="Commissioner" className="commissioner-page"><p role="status">Loading commissioner tools...</p></section>;

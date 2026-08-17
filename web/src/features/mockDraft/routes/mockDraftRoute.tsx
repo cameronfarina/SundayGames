@@ -1,10 +1,20 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { InlineNotice } from "../../../shared/ui";
+import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
+import { leaguePath, selectLeagueForRoute } from "../../league/lib/leaguePaths";
 import { MockDraftPage } from "../pages/MockDraftPage/MockDraftPage";
 
 export function MockDraftRoutePage() {
   const [params, setParams] = useSearchParams();
-  const seasonId = params.get("seasonId");
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
+  const onboarding = useQuery({ ...onboardingQueryOptions(), enabled: leagueSlug !== undefined });
+  const league = selectLeagueForRoute(
+    onboarding.data?.leagues ?? [],
+    leagueSlug,
+    params.get("seasonId"),
+  );
+  const seasonId = league?.seasonId ?? params.get("seasonId");
   const sessionId = params.get("sessionId") ?? undefined;
 
   if (seasonId === null) {
@@ -14,7 +24,7 @@ export function MockDraftRoutePage() {
         <InlineNotice variant="warning">
           Auction mocks use the active league's teams, keepers, budget, and roster settings.
         </InlineNotice>
-        <Link to="/league">Open League</Link>
+        <Link to={league === undefined ? "/league" : leaguePath(league, "league")}>Open League</Link>
       </section>
     );
   }

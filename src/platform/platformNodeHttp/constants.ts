@@ -14,6 +14,12 @@ export const appShellPaths = new Set([
   "/simulations", "/strategy", "/my-expert", "/player-news",
 ]);
 
+const leagueAppShellPath = /^\/leagues\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/(?:commissioner|draft|mock-drafts|my-team|player-news|practice))?$/u;
+
+export const isAppShellPath = (pathname: string): boolean => (
+  appShellPaths.has(pathname) || leagueAppShellPath.test(pathname)
+);
+
 export const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
   ["/board", "/practice"],
   ["/mock-results", "/mock-drafts"],

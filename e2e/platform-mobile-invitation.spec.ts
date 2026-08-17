@@ -98,7 +98,7 @@ test("shared league invitation requires deliberate mobile team claims for existi
   expect(beforeExistingClaim.leagues.some(league => league.seasonId === seasonId)).toBe(false);
   const existingMemberRow = await expectTeamCanBeClaimed(page, existingMemberTeam.displayName);
   await Promise.all([
-    page.waitForURL(/\/league\?seasonId=/),
+    page.waitForURL(/\/leagues\/[^/]+$/u),
     existingMemberRow.getByRole("button", { name: `Join as ${existingMemberTeam.displayName}` }).click(),
   ]);
   await expect(page.getByRole("heading", { name: `${leagueName} Invite` })).toBeVisible();
@@ -129,7 +129,7 @@ test("shared league invitation requires deliberate mobile team claims for existi
   const memberRow = await expectTeamCanBeClaimed(page, newMemberTeam.displayName);
   await expectNoHorizontalPageOverflow(page);
   await Promise.all([
-    page.waitForURL(/\/league\?seasonId=/),
+    page.waitForURL(/\/leagues\/[^/]+$/u),
     memberRow.getByRole("button", { name: `Join as ${newMemberTeam.displayName}` }).click(),
   ]);
   await expect(page.getByRole("heading", { name: `${leagueName} Invite` })).toBeVisible();

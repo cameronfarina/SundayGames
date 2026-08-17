@@ -11,6 +11,7 @@ it("connects onboarding and invitation lifecycle routes to league membership", a
       listForUser: async (userId: string) => userId === "missing" ? [] : [{
         leagueId: "league-100001",
         leagueName: "Sunday Games",
+        leagueSlug: "sunday-games",
         seasonId: "league-100001-season-2026",
         seasonYear: 2026,
         membership: { role: "owner" },

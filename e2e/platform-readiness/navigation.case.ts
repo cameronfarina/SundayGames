@@ -27,6 +27,8 @@ test("primary navigation stays in the current document and the account menu dism
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
   await expectPracticeBoard(page);
+  await expect(page).toHaveURL(/\/leagues\/[^/]+\/practice$/u);
+  const leaguePath = new URL(page.url()).pathname.replace(/\/practice$/u, "");
   await exercisePracticeBoardControls(page);
   expect(requestCounts).toEqual({ document: 1, onboarding: 1, session: 1 });
 
@@ -42,38 +44,38 @@ test("primary navigation stays in the current document and the account menu dism
   };
 
   await page.getByRole("link", { name: "League", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
 
   await page.getByRole("link", { name: "My team", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/my-team$`, "u"));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/.+/u);
   await expectCurrentDocument();
 
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/practice\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
   await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expectPracticeBoard(page);
   await expect(page).toHaveTitle("Draft lab | Mockd");
   await expectCurrentDocument();
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`/league\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("League | Mockd");
   await expectCurrentDocument();
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/my-team$`, "u"));
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expect(page).toHaveTitle("My team | Mockd");
@@ -107,7 +109,7 @@ test("primary navigation stays in the current document and the account menu dism
   await signOutThroughAccountMenu(page);
   await expect(page.getByRole("alert")).toHaveText("Could not sign out. Try again.");
   await expectAuthenticatedAccount(page, email);
-  await expect(page).toHaveURL(new RegExp(`/my-team\\?seasonId=${season.id}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/my-team$`, "u"));
   await expectCurrentDocument(3);
 
   rejectSignOut = false;

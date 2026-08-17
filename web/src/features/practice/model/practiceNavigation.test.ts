@@ -6,6 +6,7 @@ const league = (seasonId: string): OnboardingLeague => ({
   canManageLeague: false,
   leagueId: `league-${seasonId}`,
   leagueName: seasonId,
+  leagueSlug: seasonId,
   liveDraft: null,
   membership: { role: "member" },
   readiness: { leagueSetup: "ready", liveDraft: "needs_attention", teamClaim: "needs_attention" },

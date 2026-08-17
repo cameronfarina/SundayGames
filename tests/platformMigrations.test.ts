@@ -90,6 +90,36 @@ describe("platform Postgres migrations", () => {
       .toHaveLength(requiredPlatformPostgresMigrationIds.length);
   });
 
+  it("backfills stable league slugs before enforcing their public URL contract", async () => {
+    const client = new RecordingPostgresClient();
+    [
+      "platform-schema-v1",
+      "platform-live-room-paused-v2",
+      "platform-invitations-v3",
+      "platform-live-room-setup-v4",
+      "platform-auth-version-v5",
+      "platform-team-identities-v6",
+      "platform-league-formats-v7",
+      "platform-auth-ownership-v8",
+      "platform-historical-pricing-ownership-v9",
+      "platform-shared-league-invitations-v10",
+      "platform-league-archive-v11",
+      "platform-auth-token-version-v12",
+    ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await applyPlatformPostgresMigrations(client);
+
+    expect(client.statements).toContain("ALTER TABLE leagues ADD COLUMN IF NOT EXISTS slug text;");
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "WHILE EXISTS (SELECT 1 FROM leagues WHERE slug = candidate_slug)",
+    ));
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "UPDATE leagues SET slug = candidate_slug",
+    ));
+    expect(client.statements).toContain("ALTER TABLE leagues ALTER COLUMN slug SET NOT NULL;");
+    expect(client.statements).toContain("CREATE UNIQUE INDEX IF NOT EXISTS leagues_slug_key ON leagues (slug);");
+  });
+
   it("adds durable league invitations to an existing platform database", async () => {
     const client = new RecordingPostgresClient();
     client.appliedMigrationIds.add("platform-schema-v1");
@@ -167,6 +197,7 @@ describe("platform Postgres migrations", () => {
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
+      "platform-league-slug-v13",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -192,6 +223,7 @@ describe("platform Postgres migrations", () => {
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
+      "platform-league-slug-v13",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -292,6 +324,7 @@ describe("platform Postgres migrations", () => {
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
+      "platform-league-slug-v13",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -306,6 +339,7 @@ describe("platform Postgres migrations", () => {
       "platform-shared-league-invitations-v10",
       "platform-league-archive-v11",
       "platform-auth-token-version-v12",
+      "platform-league-slug-v13",
     ]);
   });
 

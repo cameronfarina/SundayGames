@@ -14,6 +14,7 @@ const onboarding = onboardingSchema.parse({
     {
       leagueId: "league-1",
       leagueName: "Sunday Games",
+      leagueSlug: "sunday-games",
       seasonId: "season-1",
       seasonYear: 2026,
       membership: { role: "member" },

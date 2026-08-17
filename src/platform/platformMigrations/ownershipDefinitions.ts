@@ -4,6 +4,7 @@ import {
   authTokenVersionMigrationId,
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
+  leagueSlugMigrationId,
   sharedLeagueInvitationsMigrationId,
 } from "./ids.js";
 import { authTokenTableMigrationStatements } from "./schemaStatements.js";
@@ -56,6 +57,44 @@ export const ownershipPlatformSchemaMigrations: readonly PlatformSchemaMigration
     id: authTokenVersionMigrationId,
     statements: [
       "ALTER TABLE account_auth_tokens ADD COLUMN IF NOT EXISTS auth_version bigint NOT NULL DEFAULT 1;",
+    ],
+  },
+  {
+    id: leagueSlugMigrationId,
+    statements: [
+      "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS slug text;",
+      `DO $$
+DECLARE
+  league_record record;
+  candidate_slug text;
+  slug_number integer;
+BEGIN
+  FOR league_record IN
+    SELECT
+      id,
+      COALESCE(
+        NULLIF(trim(BOTH '-' FROM regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')), ''),
+        'league'
+      ) AS base_slug
+    FROM leagues
+    WHERE slug IS NULL
+    ORDER BY id
+  LOOP
+    candidate_slug := league_record.base_slug;
+    slug_number := 2;
+    WHILE EXISTS (SELECT 1 FROM leagues WHERE slug = candidate_slug) LOOP
+      candidate_slug := league_record.base_slug || '-' || slug_number::text;
+      slug_number := slug_number + 1;
+    END LOOP;
+    UPDATE leagues SET slug = candidate_slug WHERE id = league_record.id;
+  END LOOP;
+END $$;`,
+      "ALTER TABLE leagues ALTER COLUMN slug SET NOT NULL;",
+      "ALTER TABLE leagues DROP CONSTRAINT IF EXISTS leagues_slug_not_blank;",
+      "ALTER TABLE leagues ADD CONSTRAINT leagues_slug_not_blank CHECK (length(trim(slug)) > 0);",
+      "ALTER TABLE leagues DROP CONSTRAINT IF EXISTS leagues_slug_format;",
+      "ALTER TABLE leagues ADD CONSTRAINT leagues_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');",
+      "CREATE UNIQUE INDEX IF NOT EXISTS leagues_slug_key ON leagues (slug);",
     ],
   },
 ];

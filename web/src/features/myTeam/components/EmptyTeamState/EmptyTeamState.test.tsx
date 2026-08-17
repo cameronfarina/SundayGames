@@ -42,6 +42,7 @@ describe("EmptyTeamState", () => {
       canManageLeague: false,
       leagueId: "league-1",
       leagueName: "Sunday Games",
+      leagueSlug: "sunday-games",
       liveDraft: null,
       membership: { role: "member" },
       readiness: { leagueSetup: "ready", liveDraft: "ready", teamClaim: "needs_attention" },
@@ -52,7 +53,7 @@ describe("EmptyTeamState", () => {
 
     expect(screen.getByRole("link", { name: "Choose team" })).toHaveAttribute(
       "href",
-      "/league?seasonId=season%201#claim-your-team",
+      "/leagues/sunday-games#claim-your-team",
     );
   });
 });

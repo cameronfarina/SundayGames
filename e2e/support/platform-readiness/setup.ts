@@ -5,7 +5,7 @@ import type { LiveDraftRoomReadModel } from "../../../src/platform/liveDraftRoom
 import { expectAuthenticatedAccount } from "../auth.js";
 import { api, expectOk } from "./api.js";
 import { setupRowsFor } from "./seasons.js";
-import type { LiveDraftRoomBody } from "./types.js";
+import type { LiveDraftRoomBody, OnboardingBody } from "./types.js";
 
 export const applyCommissionerSetup = async (
   page: Page,
@@ -14,6 +14,8 @@ export const applyCommissionerSetup = async (
 ): Promise<string> => {
   await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
   await expectAuthenticatedAccount(page, camEmail);
+  await expect(page).toHaveURL(/\/leagues\/[^/]+\/commissioner$/u);
+  const leaguePath = new URL(page.url()).pathname.replace(/\/commissioner$/u, "");
   const setupSection = page.locator("#league-setup");
   const teamRows = setupSection.getByRole("textbox", { name: "Teams and managers" });
   await teamRows.fill(setupRowsFor(camEmail));
@@ -46,7 +48,7 @@ export const applyCommissionerSetup = async (
   await page.goto(`/league?seasonId=${encodeURIComponent(season.id)}`);
   await page.getByRole("link", { name: "Create draft room" }).click();
   await expect(page).toHaveURL(
-    new RegExp(`/commissioner\\?seasonId=${season.id}#live-room$`, "u"),
+    new RegExp(`${leaguePath}/commissioner#live-room$`, "u"),
   );
   await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
 
@@ -60,9 +62,11 @@ export const createLiveRoomFromSetup = async (
   await page.getByRole("button", { name: "Create room" }).click();
   const enterRoom = page.getByRole("link", { name: "Enter draft room" });
   await expect(enterRoom).toBeVisible();
-  await Promise.all([page.waitForURL(/\/draft-room\?seasonId=.*&roomId=/), enterRoom.click()]);
-  const roomId = new URL(page.url()).searchParams.get("roomId");
-  if (roomId === null) throw new Error("Expected created room URL to include roomId.");
+  const onboarding = expectOk(await api<OnboardingBody>(page, "/onboarding"));
+  const roomId = onboarding.leagues.find(league => league.seasonId === season.id)?.liveDraft?.roomId;
+  if (roomId === undefined) throw new Error("Expected onboarding to include the created room.");
+  await Promise.all([page.waitForURL(/\/leagues\/[^/]+\/draft$/u), enterRoom.click()]);
+  expect(new URL(page.url()).searchParams.has("roomId")).toBe(false);
   const room = expectOk(await api<LiveDraftRoomBody>(page, `/live-rooms/${encodeURIComponent(roomId)}`)).room;
   expect(room).toMatchObject({
     roomId,

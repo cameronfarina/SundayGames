@@ -11,6 +11,7 @@ import {
   type ClaimLeagueTeamInput,
 } from "../api/leagueApi";
 import { selectActiveLeague } from "../lib/leagueDisplay";
+import { selectLeagueForRoute } from "../lib/leaguePaths";
 
 const seasonOptions = (seasonId: string, enabled: boolean) => queryOptions({
   queryKey: seasonQueryKeys.leagueSeason(seasonId),
@@ -23,11 +24,16 @@ const keepersOptions = (seasonId: string, enabled: boolean) => queryOptions({
   enabled,
 });
 
-export const useLeaguePageData = (requestedSeasonId: string | null) => {
+export const useLeaguePageData = (
+  requestedSeasonId: string | null,
+  requestedLeagueSlug?: string,
+) => {
   const onboarding = useOnboardingQuery();
   const selectedLeague = onboarding.data === undefined
     ? undefined
-    : selectActiveLeague(onboarding.data, requestedSeasonId);
+    : requestedLeagueSlug === undefined
+      ? selectActiveLeague(onboarding.data, requestedSeasonId)
+      : selectLeagueForRoute(onboarding.data.leagues, requestedLeagueSlug, requestedSeasonId);
   const seasonId = selectedLeague?.seasonId ?? "";
   const season = useQuery(seasonOptions(seasonId, selectedLeague !== undefined));
   const keepers = useQuery(keepersOptions(seasonId, selectedLeague !== undefined));

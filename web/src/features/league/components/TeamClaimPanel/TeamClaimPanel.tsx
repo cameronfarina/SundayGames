@@ -5,16 +5,16 @@ import { useClaimLeagueTeam } from "../../hooks/useLeaguePageData";
 
 interface TeamClaimPanelProps {
   readonly canManageLeague: boolean;
+  readonly keepersPath: string;
   readonly seasonId: string;
   readonly teams: readonly FantasyTeam[];
 }
 
-export function TeamClaimPanel({ canManageLeague, seasonId, teams }: TeamClaimPanelProps) {
+export function TeamClaimPanel({ canManageLeague, keepersPath, seasonId, teams }: TeamClaimPanelProps) {
   const [teamId, setTeamId] = useState("");
   const claim = useClaimLeagueTeam();
   const navigate = useNavigate();
   const selectedTeam = teams.find((team) => team.id === teamId);
-  const keepersPath = `/commissioner?${new URLSearchParams({ seasonId }).toString()}#keepers`;
   const buttonLabel = selectedTeam === undefined
     ? "Select a team"
     : `Confirm ${selectedTeam.displayName}`;

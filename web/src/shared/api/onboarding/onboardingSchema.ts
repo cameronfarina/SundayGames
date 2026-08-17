@@ -8,6 +8,7 @@ export const onboardingLeagueSchema = z.object({
   canManageLeague: z.boolean(),
   leagueId: z.string(),
   leagueName: z.string(),
+  leagueSlug: z.string(),
   liveDraft: z.object({
     roomId: z.string(),
     status: roomStatusSchema,

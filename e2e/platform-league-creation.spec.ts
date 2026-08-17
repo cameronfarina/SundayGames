@@ -66,7 +66,8 @@ test("league setup follows the complete manual workflow", async ({ page }) => {
   await expect(finish).toBeEnabled();
   await finish.click();
 
-  await expect(page).toHaveURL(/\/league\?seasonId=/u);
+  await expect(page).toHaveURL(/\/leagues\/league-setup-e2e$/u);
+  expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expect(page.getByRole("heading", { name: "League setup E2E" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Claim your team" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "League settings" })).toBeVisible();

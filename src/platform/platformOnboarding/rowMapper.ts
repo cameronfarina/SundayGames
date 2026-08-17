@@ -5,6 +5,7 @@ export const onboardingLeagueForRow = (
 ): PlatformOnboardingLeague => ({
   leagueId: row.league_id,
   leagueName: row.league_name,
+  leagueSlug: row.league_slug,
   seasonId: row.season_id,
   seasonYear: row.season_year,
   membership: {

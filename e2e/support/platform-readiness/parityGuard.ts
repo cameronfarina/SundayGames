@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const maximumLines = 250;
-const expectedAssertionCount = 214;
-const expectedAssertionHash = "3b02b48985ecc8420bd303a5d8ace92948525b31fe77f3650c313d5a0fb8a826";
+const expectedAssertionCount = 219;
+const expectedAssertionHash = "956fb38b9fd1d27aa0b439c4a5a522aabd3c7da0a04ea81dd86940b6f991560b";
 const expectedBehaviorNames: readonly string[] = [
   "local platform supports fixture signup, setup, invitation, realtime draft, and final-export gating",
   "Draft Lab supports baseline browsing and league-aware planning",

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { MemoryRouter, useLocation, useSearchParams } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { MockDraftPageProps } from "../pages/MockDraftPage/MockDraftPage";
@@ -29,9 +30,15 @@ const LeagueSwitch = () => {
   }} type="button">Switch league</button>;
 };
 
+const providers = ({ children }: { readonly children: ReactNode }) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{children}</MemoryRouter>
+  </QueryClientProvider>
+);
+
 describe("MockDraftRoutePage", () => {
   it("requires an active league season", () => {
-    render(<MemoryRouter><MockDraftRoutePage /></MemoryRouter>);
+    render(<MockDraftRoutePage />, { wrapper: providers });
 
     expect(screen.getByRole("heading", { name: "Choose a league first" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Open League" })).toHaveAttribute("href", "/league");
@@ -40,10 +47,12 @@ describe("MockDraftRoutePage", () => {
   it("opens and persists a mock session for the active season", async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={["/mock-drafts?seasonId=season-1&sessionId=mock-1"]}>
-        <MockDraftRoutePage />
-        <Location />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/mock-drafts?seasonId=season-1&sessionId=mock-1"]}>
+          <MockDraftRoutePage />
+          <Location />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     await user.click(screen.getByRole("button", { name: "season-1:mock-1" }));
@@ -56,11 +65,13 @@ describe("MockDraftRoutePage", () => {
   it("does not carry the previous league session into a new season", async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={["/mock-drafts?seasonId=season-1&sessionId=mock-1"]}>
-        <MockDraftRoutePage />
-        <LeagueSwitch />
-        <Location />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/mock-drafts?seasonId=season-1&sessionId=mock-1"]}>
+          <MockDraftRoutePage />
+          <LeagueSwitch />
+          <Location />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByRole("button", { name: "season-1:mock-1" })).toBeVisible();

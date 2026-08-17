@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
+import { leaguePath } from "../../../league/lib/leaguePaths";
 import "./EmptyTeamState.css";
 
 interface EmptyTeamStateProps {
@@ -26,7 +27,7 @@ export const EmptyTeamState = ({ league }: EmptyTeamStateProps) => {
       <p>Select your team in {league.leagueName} to see private keeper, budget, and draft results.</p>
       <a
         className="my-team-primary-link"
-        href={`/league?seasonId=${encodeURIComponent(league.seasonId)}#claim-your-team`}
+        href={`${leaguePath(league, "league")}#claim-your-team`}
       >
         Choose team
       </a>

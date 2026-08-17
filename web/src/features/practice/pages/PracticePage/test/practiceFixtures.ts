@@ -53,6 +53,7 @@ export const league = (teamClaimed: boolean) => ({
   canManageLeague: true,
   leagueId: "league-1",
   leagueName: "Sunday Games",
+  leagueSlug: "sunday-games",
   liveDraft: null,
   membership: { role: "owner", ...(teamClaimed ? { teamId: "team-1" } : {}) },
   readiness: {

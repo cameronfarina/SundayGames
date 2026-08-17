@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import { appShellPaths, legacyProductRedirects } from "./constants.js";
+import { isAppShellPath, legacyProductRedirects } from "./constants.js";
 
 export const htmlForBrowserRequest = (
   request: IncomingMessage,
@@ -8,7 +8,7 @@ export const htmlForBrowserRequest = (
   if (request.method !== "GET") return undefined;
   try {
     const pathname = new URL(request.url ?? "/", "http://mockd.local").pathname;
-    return appShellPaths.has(pathname) ? appHtml : undefined;
+    return isAppShellPath(pathname) ? appHtml : undefined;
   } catch {
     return undefined;
   }

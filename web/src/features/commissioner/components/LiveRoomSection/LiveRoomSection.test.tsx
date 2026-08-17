@@ -50,10 +50,10 @@ describe("LiveRoomSection", () => {
     expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
     client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
     expect(await screen.findByRole("link", { name: "Enter draft room" }))
-      .toHaveAttribute("href", "/draft-room?seasonId=season-1&roomId=room-1");
+      .toHaveAttribute("href", "/leagues/sunday-games/draft");
     await user.click(screen.getByRole("link", { name: "Enter draft room" }));
     expect(screen.getByTestId("location"))
-      .toHaveTextContent("/draft-room?seasonId=season-1&roomId=room-1");
+      .toHaveTextContent("/leagues/sunday-games/draft");
     await user.click(screen.getByRole("button", { name: "Archive room" }));
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));
     expect(await screen.findByRole("button", { name: "Create room" })).toBeVisible();

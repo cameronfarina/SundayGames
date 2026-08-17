@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CreateLeagueWizard } from "../../../createLeague/components/CreateLeagueWizard/CreateLeagueWizard";
 import { DraftStatus } from "../../components/DraftStatus/DraftStatus";
 import { LeagueHeader } from "../../components/LeagueHeader/LeagueHeader";
@@ -7,6 +7,7 @@ import { LeagueError, LeagueLoading, NoLeague, StaleLeague } from "../../compone
 import { LeagueTeams } from "../../components/LeagueTeams/LeagueTeams";
 import { TeamClaimPanel } from "../../components/TeamClaimPanel/TeamClaimPanel";
 import { useLeaguePageData } from "../../hooks/useLeaguePageData";
+import { leaguePath } from "../../lib/leaguePaths";
 import "./LeaguePage.css";
 
 interface LeaguePageContentProps {
@@ -27,9 +28,7 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
   const league = data.selectedLeague;
   const season = data.season.data.season;
   const needsClaim = league.membership.teamId === undefined;
-  const commissionerPath = `/commissioner?${new URLSearchParams({
-    seasonId: league.seasonId,
-  }).toString()}`;
+  const commissionerPath = leaguePath(league, "commissioner");
 
   return (
     <div className="league-page">
@@ -37,6 +36,7 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
       {needsClaim ? (
         <TeamClaimPanel
           canManageLeague={league.canManageLeague}
+          keepersPath={`${commissionerPath}#keepers`}
           seasonId={league.seasonId}
           teams={data.season.data.claimableTeams}
         />
@@ -53,13 +53,25 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
 }
 
 export function LeaguePage() {
+  const navigate = useNavigate();
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
   const [search, setSearch] = useSearchParams();
-  const data = useLeaguePageData(search.get("seasonId"));
+  const data = useLeaguePageData(search.get("seasonId"), leagueSlug);
   const updateSearch = (seasonId?: string) => {
     const nextSearch = new URLSearchParams(search);
     nextSearch.delete("create");
-    if (seasonId !== undefined) nextSearch.set("seasonId", seasonId);
-    setSearch(nextSearch, { replace: true });
+    if (seasonId === undefined) {
+      setSearch(nextSearch, { replace: true });
+      return;
+    }
+    const league = data.onboarding.data?.leagues.find(candidate => candidate.seasonId === seasonId);
+    if (league === undefined) {
+      nextSearch.set("seasonId", seasonId);
+      setSearch(nextSearch, { replace: true });
+      return;
+    }
+    nextSearch.delete("seasonId");
+    void navigate({ pathname: leaguePath(league, "league"), search: nextSearch.toString() }, { replace: true });
   };
 
   return (

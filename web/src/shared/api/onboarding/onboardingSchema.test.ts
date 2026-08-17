@@ -5,6 +5,7 @@ const league = {
   canManageLeague: true,
   leagueId: "league-1",
   leagueName: "Sunday Games",
+  leagueSlug: "sunday-games",
   liveDraft: { roomId: "room-1", status: "setup" },
   membership: {
     ownerDisplayName: "Owner11",

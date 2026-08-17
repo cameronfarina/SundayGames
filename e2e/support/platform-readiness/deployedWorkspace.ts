@@ -87,8 +87,8 @@ export const exerciseDeployedWorkspace = async (browser: Browser): Promise<void>
   await expect(commissionerPage.locator("#my-team-name")).toHaveText(commissionerIdentity.teamName);
   await expect(memberPage.locator("#my-team-name")).toHaveText(memberIdentity.teamName);
 
-  await openUnifiedBoard(commissionerPage, season.id);
-  await openUnifiedBoard(memberPage, season.id);
+  await openUnifiedBoard(commissionerPage);
+  await openUnifiedBoard(memberPage);
   await exerciseBoardSimulations(memberPage, season);
   await expect(memberPage.getByRole("link", { name: "Start auction mock" })).toHaveAttribute(
     "href",

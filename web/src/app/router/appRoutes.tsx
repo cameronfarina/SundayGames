@@ -52,6 +52,34 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
         path: "commissioner",
         lazy: () => import("../../features/commissioner/routes/commissionerRoute"),
       },
+      {
+        path: "leagues/:leagueSlug",
+        lazy: () => import("../../features/league/routes/leagueRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/practice",
+        lazy: () => import("../../features/practice/routes/practiceRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/mock-drafts",
+        lazy: () => import("../../features/mockDraft/routes/mockDraftRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/draft",
+        lazy: () => import("../../features/liveDraft/routes/liveDraftRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/my-team",
+        lazy: () => import("../../features/myTeam/routes/myTeamRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/player-news",
+        lazy: () => import("../../features/playerNews/routes/playerNewsRoute"),
+      },
+      {
+        path: "leagues/:leagueSlug/commissioner",
+        lazy: () => import("../../features/commissioner/routes/commissionerRoute"),
+      },
     ],
   },
 ];

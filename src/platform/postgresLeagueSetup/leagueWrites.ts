@@ -1,8 +1,39 @@
 import type { LeagueSeason } from "../leagueSeason.js";
+import { leagueSlugBase } from "../leagueSlug.js";
 import type { ArchiveLeagueRepositoryInput } from "../leagueSetup.js";
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 import { firstRow, jsonbParameter } from "./databaseValues.js";
 import { settingsJsonFor } from "./settingsMapping.js";
+
+interface LeagueSlugRow {
+  id: string;
+  slug: string;
+}
+
+const publicLeagueSlug = async (
+  client: PostgresQueryClient,
+  leagueId: string,
+  leagueName: string,
+): Promise<string> => {
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+    ["mockd:league-slug-allocation"],
+  );
+  const baseSlug = leagueSlugBase(leagueName);
+  const result = await client.query<LeagueSlugRow>(`
+SELECT id, slug
+FROM leagues
+WHERE id = $1 OR slug = $2 OR slug LIKE $3;
+`.trim(), [leagueId, baseSlug, `${baseSlug}-%`]);
+  const current = result.rows.find(row => row.id === leagueId);
+  if (current !== undefined) return current.slug;
+
+  const used = new Set(result.rows.map(row => row.slug));
+  if (!used.has(baseSlug)) return baseSlug;
+  let suffix = 2;
+  while (used.has(`${baseSlug}-${String(suffix)}`)) suffix += 1;
+  return `${baseSlug}-${String(suffix)}`;
+};
 
 export const upsertLeague = async (
   client: PostgresQueryClient,
@@ -10,10 +41,11 @@ export const upsertLeague = async (
   createdByUserId: string,
   now: Date,
 ): Promise<void> => {
+  const slug = await publicLeagueSlug(client, season.league.id, season.league.name);
   await client.query(`
 INSERT INTO leagues (
-  id, name, sport, provider, provider_league_id, created_by_user_id, created_at, updated_at
-) VALUES ($1, $2, 'football', $3, $4, $5, $6, $6)
+  id, name, slug, sport, provider, provider_league_id, created_by_user_id, created_at, updated_at
+) VALUES ($1, $2, $3, 'football', $4, $5, $6, $7, $7)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   provider = EXCLUDED.provider,
@@ -22,6 +54,7 @@ ON CONFLICT (id) DO UPDATE SET
 `.trim(), [
     season.league.id,
     season.league.name,
+    slug,
     season.league.provider,
     season.league.externalLeagueId,
     createdByUserId,

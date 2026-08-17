@@ -94,6 +94,7 @@ test("commissioner league switching discards stale setup fetch responses", async
     name: `League B · ${String(seasonB.seasonYear)}`,
     exact: true,
   }).click();
+  await expect(page).toHaveURL(/\/leagues\/league-b\/commissioner$/u);
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Owner11/u);
   await delay(400);
@@ -111,7 +112,8 @@ test("commissioner league switching discards stale setup fetch responses", async
     name: `League B · ${String(seasonB.seasonYear)}`,
     exact: true,
   }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("seasonId")).toBe(seasonB.id);
+  await expect(page).toHaveURL(/\/leagues\/league-b\/mock-drafts$/u);
+  expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expect(page.getByRole("button", { name: "Create auction mock" })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("sessionId")).toBeNull();
   expect(new URL(page.url()).searchParams.get("sessionId")).not.toBe(leagueAMockSessionId);

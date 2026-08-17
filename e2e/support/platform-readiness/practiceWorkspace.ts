@@ -11,12 +11,11 @@ import { expectPracticeBoard } from "../practice.js";
 
 export const openUnifiedBoard = async (
   page: Page,
-  seasonId: string,
   expectedPlayerCount?: number,
 ): Promise<void> => {
   await page.getByRole("link", { name: "Practice", exact: true }).click();
-  await expect(page).toHaveURL(/\/practice\?seasonId=/);
-  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(seasonId);
+  await expect(page).toHaveURL(/\/leagues\/[^/]+\/practice$/u);
+  expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
   await expectPracticeBoard(page, expectedPlayerCount);
 };
@@ -26,7 +25,7 @@ export const exerciseDurableMockWorkspace = async (
   season: LeagueSeason,
 ): Promise<void> => {
   const persistedSessionId = await createAuctionMock(page);
-  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(season.id);
+  expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expectAuctionMockSetup(page);
   const otherTeam = season.teams[1];
   if (otherTeam !== undefined) await chooseRoster(page, otherTeam.displayName);

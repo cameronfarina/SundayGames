@@ -1,11 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { playerNewsFeedFixture } from "../../api/playerNews.fixture";
 import { NewsItem } from "./NewsItem";
 
 describe("NewsItem", () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
   it("shows player context, a concise timestamp, and the original source", async () => {
+    vi.stubEnv("TZ", "America/New_York");
     const item = playerNewsFeedFixture.items[0];
     if (item === undefined) throw new Error("Expected a news fixture.");
     const onToggleFollow = vi.fn();

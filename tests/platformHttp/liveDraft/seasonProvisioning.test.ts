@@ -57,7 +57,7 @@ it("provisions a season live room from the server-owned draft setup", async () =
       },
     });
 
-    const startsAt = "2026-08-16T22:00:00.000Z";
+    const startsAt = "2100-08-16T22:00:00.000Z";
     const created = await handle({
       method: "POST",
       path: `/seasons/${season.id}/live-room`,

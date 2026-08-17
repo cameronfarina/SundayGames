@@ -97,6 +97,8 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
 
   await page.goto(`/league?seasonId=${encodeURIComponent(season.id)}`);
   await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
+  const leaguePath = new URL(page.url()).pathname;
+  expect(leaguePath).toMatch(/^\/leagues\/[^/]+$/u);
   await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Enter draft" })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
@@ -106,8 +108,8 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   ]);
 
   await page.getByRole("link", { name: "Practice", exact: true }).click();
-  await expect(page).toHaveURL(/\/practice\?seasonId=/);
-  expect(new URL(page.url()).searchParams.get("seasonId")).toBe(season.id);
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
+  expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
   await expectPracticeBoard(page, 500);
   const rankedTarget = practicePlayerRows(page).nth(7);
   const targetName = (await rankedTarget.getByRole("cell").nth(2).textContent())?.trim();
@@ -186,11 +188,13 @@ test("deployed mobile shell renders the pre-provisioned smoke season without mut
   await signInExisting(page, email, accountPassword);
   await page.goto(`/league?seasonId=${encodeURIComponent(seasonId)}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const leaguePath = new URL(page.url()).pathname;
+  expect(leaguePath).toMatch(/^\/leagues\/[^/]+$/u);
   await expect(page.getByRole("link", { name: "Commissioner" })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
   await expectNoControlOverlap([accountMenuButton(page)]);
   await page.getByRole("link", { name: "Practice", exact: true }).click();
-  await expect(page).toHaveURL(/\/practice\?seasonId=/);
+  await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
   await expectPracticeBoard(page);
   await expectNoHorizontalPageOverflow(page);
 });

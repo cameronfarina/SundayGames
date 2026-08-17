@@ -41,7 +41,7 @@ export const snakeSeason = seasonSchema.parse({
 });
 
 export const ownerLeague = onboardingLeagueSchema.parse({
-  leagueId: "league-1", leagueName: "Sunday Games", seasonId: "season-1", seasonYear: 2026,
+  leagueId: "league-1", leagueName: "Sunday Games", leagueSlug: "sunday-games", seasonId: "season-1", seasonYear: 2026,
   membership: { role: "owner" }, canManageLeague: true,
   readiness: { leagueSetup: "needs_attention", teamClaim: "ready", liveDraft: "needs_attention" },
   liveDraft: null,

@@ -1,25 +1,27 @@
 import { NavLink } from "react-router-dom";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
+import { leaguePath, type LeaguePageName } from "../../../features/league/lib/leaguePaths";
 
 interface ProductNavigationProps {
+  readonly activeLeague: OnboardingLeague | undefined;
   readonly canManageLeague: boolean;
-  readonly search: string;
 }
 
-const navigationItems = [
-  { label: "Practice", path: "/practice" },
-  { label: "Player news", path: "/player-news" },
-  { label: "League", path: "/league" },
-  { label: "My team", path: "/my-team" },
+const navigationItems: readonly { label: string; legacyPath: string; page: LeaguePageName }[] = [
+  { label: "Practice", legacyPath: "/practice", page: "practice" },
+  { label: "Player news", legacyPath: "/player-news", page: "player-news" },
+  { label: "League", legacyPath: "/league", page: "league" },
+  { label: "My team", legacyPath: "/my-team", page: "my-team" },
 ];
 
-export const ProductNavigation = ({ canManageLeague, search }: ProductNavigationProps) => (
+export const ProductNavigation = ({ activeLeague, canManageLeague }: ProductNavigationProps) => (
   <nav aria-label="Primary navigation" className="product-header__navigation">
     {navigationItems.map(item => (
       <NavLink
         className="product-header__link"
-        key={item.path}
+        key={item.page}
         prefetch="intent"
-        to={{ pathname: item.path, search }}
+        to={activeLeague === undefined ? item.legacyPath : leaguePath(activeLeague, item.page)}
       >
         {item.label}
       </NavLink>
@@ -28,7 +30,7 @@ export const ProductNavigation = ({ canManageLeague, search }: ProductNavigation
       <NavLink
         className="product-header__link"
         prefetch="intent"
-        to={{ pathname: "/commissioner", search }}
+        to={activeLeague === undefined ? "/commissioner" : leaguePath(activeLeague, "commissioner")}
       >
         Commissioner
       </NavLink>

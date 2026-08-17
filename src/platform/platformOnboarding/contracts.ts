@@ -8,6 +8,7 @@ export type PlatformReadinessState = "ready" | "needs_attention";
 export interface PlatformOnboardingRow {
   league_id: string;
   league_name: string;
+  league_slug: string;
   season_id: string;
   season_year: number;
   season_status: string;
@@ -29,6 +30,7 @@ export interface PlatformOnboardingAccount {
 export interface PlatformOnboardingLeague {
   leagueId: string;
   leagueName: string;
+  leagueSlug: string;
   seasonId: string;
   seasonYear: number;
   membership: {

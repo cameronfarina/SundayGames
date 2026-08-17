@@ -4,6 +4,7 @@ import type {
   PlatformOnboardingRepository,
   PlatformReadinessState,
 } from "./contracts.js";
+import { leagueSlugBase } from "../leagueSlug.js";
 
 const readinessState = (ready: boolean): PlatformReadinessState =>
   ready ? "ready" : "needs_attention";
@@ -38,6 +39,7 @@ export class InMemoryPlatformOnboardingRepository implements PlatformOnboardingR
         return [{
           leagueId: season.leagueId,
           leagueName: season.league.name,
+          leagueSlug: leagueSlugBase(season.league.name),
           seasonId: season.id,
           seasonYear: season.seasonYear,
           membership: {

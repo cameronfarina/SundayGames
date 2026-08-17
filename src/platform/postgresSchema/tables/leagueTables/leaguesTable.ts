@@ -6,6 +6,7 @@ export const leaguesTable: PostgresTableDefinition = {
   columns: [
     { name: "id", type: "text" },
     { name: "name", type: "text" },
+    { name: "slug", type: "text" },
     { name: "sport", type: "text", default: "'football'" },
     { name: "provider", type: "text", nullable: true },
     { name: "provider_league_id", type: "text", nullable: true },
@@ -17,6 +18,8 @@ export const leaguesTable: PostgresTableDefinition = {
   primaryKey: ["id"],
   checkConstraints: [
     { name: "leagues_name_not_blank", expression: "length(trim(name)) > 0" },
+    { name: "leagues_slug_not_blank", expression: "length(trim(slug)) > 0" },
+    { name: "leagues_slug_format", expression: "slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'" },
     { name: "leagues_sport_check", expression: "sport IN ('football')" },
   ],
   foreignKeys: [
@@ -34,6 +37,7 @@ export const leaguesTable: PostgresTableDefinition = {
     },
   ],
   indexes: [
+    { name: "leagues_slug_key", columns: ["slug"], unique: true },
     { name: "leagues_created_by_user_id_idx", columns: ["created_by_user_id"] },
     {
       name: "leagues_active_created_by_user_id_idx",

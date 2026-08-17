@@ -10,6 +10,7 @@ export const historicalPricingOwnershipMigrationId = "platform-historical-pricin
 export const sharedLeagueInvitationsMigrationId = "platform-shared-league-invitations-v10";
 export const leagueArchiveMigrationId = "platform-league-archive-v11";
 export const authTokenVersionMigrationId = "platform-auth-token-version-v12";
+export const leagueSlugMigrationId = "platform-league-slug-v13";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

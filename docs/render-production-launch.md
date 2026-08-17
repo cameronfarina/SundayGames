@@ -39,6 +39,8 @@ Do not add the public domain yet. Use the generated `onrender.com` hostname for 
 
 Create a commissioner account through the public signup flow, open the verification email, and sign in only after verification succeeds. Exercise **Forgot password** once and confirm the reset link is single-use. Then create a temporary staging league from the product. Do not run `platform:seed:e2e` against production.
 
+After league creation, confirm the browser uses the public league slug, such as `/leagues/sunday-games/practice`. Internal season and room IDs must not appear in normal page URLs. Open one legacy ID-based link during staging and confirm the app replaces it with the matching slug URL without losing the selected page.
+
 In Commissioner Setup:
 
 1. Import the ESPN league settings URL or ID and review the detected draft format, team count, scoring, budget, roster slots, and position limits.

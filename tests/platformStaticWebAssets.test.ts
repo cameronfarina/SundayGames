@@ -51,7 +51,7 @@ describe("platform static web assets", () => {
     await writeFile(join(temporaryDirectory, "assets", "app-a1b2c3.js"), "window.mockd = true;");
     const baseUrl = await listen(temporaryDirectory);
 
-    const page = await fetch(`${baseUrl}/practice`);
+    const page = await fetch(`${baseUrl}/leagues/sunday-games/practice`);
     const asset = await fetch(`${baseUrl}/assets/app-a1b2c3.js`);
 
     expect(await page.text()).toContain("id=\"root\"");

@@ -24,16 +24,16 @@ describe("Postgres league table schema", () => {
   it("preserves the public table order and complete schema contract", () => {
     expect(leagueTables.map(table => table.name)).toEqual(expectedTableNames);
     expect(fingerprint(leagueTables)).toBe(
-      "76d7df50726c4c3cbe3e1fed21bc383cac7fad894d2a1f8344a3c32f37801860",
+      "1b74be79087fcd5f42362d7803ccd47a0107b649e95115ddb6575a014a600717",
     );
   });
 
   it("preserves generated migration SQL text and statement ordering", () => {
     const statements = platformPostgresMigrationStatements.filter(isLeagueStatement);
 
-    expect(statements).toHaveLength(11);
+    expect(statements).toHaveLength(12);
     expect(fingerprint(statements)).toBe(
-      "93811a56be5b2e97ae9cd098aa9a10deafbd51b89aa2f69b8559b0e7e2b7c79e",
+      "70ca3edb41ec5d52a5767e537c310e2d9dd4ff5cb4d338792a1434d0c5fff41d",
     );
   });
 });

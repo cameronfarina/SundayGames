@@ -102,6 +102,7 @@ describe("platform onboarding", () => {
     expect(snapshot.leagues).toEqual([{
       leagueId: "league_1",
       leagueName: "Sunday Games",
+      leagueSlug: "sunday-games",
       seasonId: "season_2026",
       seasonYear: 2026,
       membership: {
@@ -166,6 +167,7 @@ describe("platform onboarding", () => {
     const client = new OnboardingClient([{
       league_id: "league_1",
       league_name: "Sunday Games",
+      league_slug: "sunday-games",
       season_id: "season_2026",
       season_year: 2026,
       season_status: "published",
@@ -189,6 +191,7 @@ describe("platform onboarding", () => {
       leagues: [{
         leagueId: "league_1",
         leagueName: "Sunday Games",
+        leagueSlug: "sunday-games",
         seasonId: "season_2026",
         seasonYear: 2026,
         membership: {
@@ -213,12 +216,14 @@ describe("platform onboarding", () => {
     expect(client.queries[0]?.sql).toContain("lm.user_id = $1");
     expect(client.queries[0]?.sql).toContain("ft.owner_user_id = lm.user_id");
     expect(client.queries[0]?.sql).toContain("l.archived_at IS NULL");
+    expect(client.queries[0]?.sql).toContain("l.slug AS league_slug");
   });
 
   it("keeps members out of commissioner setup and reports missing readiness", async () => {
     const client = new OnboardingClient([{
       league_id: "league_1",
       league_name: "Sunday Games",
+      league_slug: "sunday-games",
       season_id: "season_2026",
       season_year: 2026,
       season_status: "draft",

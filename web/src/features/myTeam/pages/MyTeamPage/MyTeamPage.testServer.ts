@@ -4,6 +4,7 @@ import { setupServer } from "msw/node";
 export const assignedLeague = {
   leagueId: "league-1",
   leagueName: "Sunday Games",
+  leagueSlug: "sunday-games",
   seasonId: "season-2026",
   seasonYear: 2026,
   membership: {

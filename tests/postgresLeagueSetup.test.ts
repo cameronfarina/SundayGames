@@ -27,6 +27,7 @@ const now = new Date("2026-08-09T12:00:00.000Z");
 interface LeagueRow {
   id: string;
   name: string;
+  slug: string;
   provider: string | null;
   provider_league_id: string | null;
   created_by_user_id: string;
@@ -195,6 +196,18 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       return { rows: this.leagues.has(leagueId) ? [{ id: leagueId } as TRow] : [] };
     }
 
+    if (normalizedSql.startsWith("SELECT id, slug FROM leagues")) {
+      const [leagueId, baseSlug, slugPattern] = values as readonly [string, string, string];
+      const prefix = slugPattern.slice(0, -1);
+      return {
+        rows: [...this.leagues.values()]
+          .filter(league =>
+            league.id === leagueId || league.slug === baseSlug || league.slug.startsWith(prefix)
+          )
+          .map(league => ({ id: league.id, slug: league.slug }) as TRow),
+      };
+    }
+
     if (normalizedSql.startsWith("SELECT COUNT(*) FILTER (WHERE archived_at IS NULL)::integer AS active_league_count")) {
       const [createdByUserId, windowStartedAt] = values as readonly [string, Date];
       const leagues = [...this.leagues.values()].filter(
@@ -233,12 +246,13 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
     }
 
     if (normalizedSql.startsWith("INSERT INTO leagues")) {
-      const [id, name, provider, providerLeagueId, createdByUserId, updatedAt] =
-        values as readonly [string, string, string, string, string, Date];
+      const [id, name, slug, provider, providerLeagueId, createdByUserId, updatedAt] =
+        values as readonly [string, string, string, string, string, string, Date];
       const existing = this.leagues.get(id);
       this.leagues.set(id, {
         id,
         name,
+        slug: existing?.slug ?? slug,
         provider,
         provider_league_id: providerLeagueId,
         created_by_user_id: existing?.created_by_user_id ?? createdByUserId,
@@ -673,7 +687,7 @@ describe("Postgres league setup repository", () => {
     ));
     expect(client.queries.filter(query =>
       normalizeSql(query.text).startsWith("SELECT pg_advisory_xact_lock")
-    )).toHaveLength(2);
+    )).toHaveLength(3);
     expect(client.leagues.has(secondLeagueId)).toBe(false);
   });
 

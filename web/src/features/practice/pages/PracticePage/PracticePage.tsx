@@ -1,5 +1,5 @@
-import { Link, useSearchParams } from "react-router-dom";
-import { searchForSeason } from "../../../../shared/navigation/seasonSearch";
+import { Link } from "react-router-dom";
+import { leaguePath } from "../../../league/lib/leaguePaths";
 import type { PracticePlayer } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import { PracticePlayerBoard } from "../../components/PracticePlayerBoard/PracticePlayerBoard";
@@ -8,21 +8,17 @@ import { ShortlistPanel } from "../../components/ShortlistPanel/ShortlistPanel";
 import { SimulationResults } from "../../components/SimulationResults/SimulationResults";
 import { SimulationWorkspace } from "../../components/SimulationWorkspace/SimulationWorkspace";
 import { playerKey } from "../../model/playerBoard";
-import { practiceStrategy, selectedPracticeLeague } from "../../model/practiceNavigation";
+import { usePracticeLocation } from "./hooks/usePracticeLocation";
 import { usePracticeMutations } from "./hooks/usePracticeMutations";
 import { usePlayerCatalogQuery, usePracticeContextQuery, useShortlistQuery, useSimulationDetailQuery, useSimulationHistoryQuery, useSimulationRunQuery } from "./hooks/usePracticeQueries";
 import "./PracticePage.css";
 
 type PracticeTarget = Pick<PracticeShortlistItem, "playerName" | "position">;
 export function PracticePage() {
-  const [params, setParams] = useSearchParams();
-  const historyId = params.get("runId") ?? undefined;
-  const requestedRunNumber = Number(params.get("simulationRun") ?? "1");
-  const selectedRunNumber = Number.isInteger(requestedRunNumber) && requestedRunNumber > 0 ? requestedRunNumber : 1;
   const context = usePracticeContextQuery();
-  const strategy = practiceStrategy(params.get("strategy"));
   const leagues = context.data?.leagues ?? [];
-  const activeLeague = selectedPracticeLeague(leagues, params.get("seasonId"));
+  const route = usePracticeLocation(leagues);
+  const { activeLeague, historyId, selectedRunNumber, strategy } = route;
   const seasonId = activeLeague?.seasonId;
   const catalog = usePlayerCatalogQuery(seasonId, strategy, context.isSuccess);
   const shortlist = useShortlistQuery(seasonId);
@@ -33,24 +29,6 @@ export function PracticePage() {
   const detail = useSimulationDetailQuery(historyId);
   const runDetail = useSimulationRunQuery(historyId, selectedRunNumber);
   const targets = shortlist.data ?? [];
-  const mockDraftSearch = seasonId === undefined ? "" : `?${new URLSearchParams({ seasonId }).toString()}`;
-  const setParameter = (name: string, value: string) => {
-    const next = new URLSearchParams(params);
-    next.set(name, value);
-    setParams(next);
-  };
-  const openSimulation = (value: string, runNumber: number) => {
-    const next = new URLSearchParams(params);
-    next.set("runId", value);
-    next.set("simulationRun", String(runNumber));
-    setParams(next);
-  };
-  const exitSimulation = () => {
-    const next = new URLSearchParams(params);
-    next.delete("runId");
-    next.delete("simulationRun");
-    setParams(next);
-  };
   const toggleTarget = (player: PracticePlayer) => {
     const target = targets.find(item => playerKey(item.playerName) === playerKey(player.name));
     if (target === undefined) mutations.targets.save.mutate({ playerName: player.name, position: player.position });
@@ -84,11 +62,11 @@ export function PracticePage() {
     {runDetail.isError && <section className="practice-page__error"><p>{runDetail.error.message}</p><button onClick={() => { void runDetail.refetch(); }} type="button">Retry selected run</button></section>}
     {selectedSimulation?.result !== undefined && <SimulationResults
       note={selectedSimulation.result.note}
-      onExit={exitSimulation}
+      onExit={route.exitSimulation}
       onFavoriteChange={favorite => { mutations.favoriteOutcome.mutate({
         favorite, historyId: selectedSimulation.historyId, runNumber: selectedRunNumber,
       }); }}
-      onRunChange={runNumber => { setParameter("simulationRun", String(runNumber)); }}
+      onRunChange={runNumber => { route.setParameter("simulationRun", String(runNumber)); }}
       pendingFavorite={mutations.favoriteOutcome.isPending}
       pendingRun={runDetail.isPending}
       run={runDetail.data?.run}
@@ -107,13 +85,13 @@ export function PracticePage() {
     <PracticeHeader
       activeLeague={activeLeague}
       leagues={leagues}
-      onLeagueChange={value => { setParams(searchForSeason(params, value)); }}
-      onStrategyChange={value => { setParameter("strategy", value); }}
+      onLeagueChange={route.changeLeague}
+      onStrategyChange={value => { route.setParameter("strategy", value); }}
       strategy={strategy}
     />
     {activeLeague !== undefined && (
       <nav aria-label="Practice modes" className="practice-page__modes">
-        <Link to={`/mock-drafts${mockDraftSearch}`}>Start auction mock</Link>
+        <Link to={leaguePath(activeLeague, "mock-drafts")}>Start auction mock</Link>
       </nav>
     )}
     {activeLeague === undefined && <aside className="practice-page__baseline">
@@ -135,9 +113,9 @@ export function PracticePage() {
           ? <section className="practice-page__error"><p>{history.error.message}</p><button onClick={() => { void history.refetch(); }} type="button">Retry history</button></section>
           : <SimulationWorkspace
           history={history.data}
-          onOpenHistory={openSimulation}
+          onOpenHistory={route.openSimulation}
           onRun={request => { runMutation.mutate(request, { onSuccess: response => {
-            openSimulation(response.historyId, response.summary.outcomes[0]?.runNumber ?? 1);
+            route.openSimulation(response.historyId, response.summary.outcomes[0]?.runNumber ?? 1);
           } }); }}
           pending={runMutation.isPending}
           progress={mutations.run.progress}

@@ -1,14 +1,16 @@
-import { useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useOnboardingQuery } from "../../../../shared/api/onboarding/onboardingQuery";
+import { selectLeagueForRoute } from "../../../league/lib/leaguePaths";
 import { PlayerNews } from "../../components/PlayerNews/PlayerNews";
 import "./PlayerNewsPage.css";
 
 export const PlayerNewsPage = () => {
   const onboarding = useOnboardingQuery();
   const [searchParams] = useSearchParams();
+  const { leagueSlug } = useParams<{ leagueSlug: string }>();
   const requestedSeasonId = searchParams.get("seasonId");
   const leagues = onboarding.data?.leagues ?? [];
-  const league = leagues.find(candidate => candidate.seasonId === requestedSeasonId) ?? leagues.at(0);
+  const league = selectLeagueForRoute(leagues, leagueSlug, requestedSeasonId);
   const accountId = onboarding.data?.account.id;
 
   return (

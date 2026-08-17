@@ -37,7 +37,7 @@ describeWithPostgres("Postgres simulation rerun admission", () => {
       "INSERT INTO accounts (id, email, email_normalized, password_hash) VALUES ('user_owner11', 'owner11@example.com', 'owner11@example.com', 'hash')",
     );
     await client.query(
-      "INSERT INTO leagues (id, name, created_by_user_id) VALUES ('league_100001', 'Test League', 'user_owner11')",
+      "INSERT INTO leagues (id, name, slug, created_by_user_id) VALUES ('league_100001', 'Test League', 'test-league', 'user_owner11')",
     );
     await client.query(
       "INSERT INTO league_seasons (id, league_id, season_year, name) VALUES ('season_2026', 'league_100001', 2026, '2026')",

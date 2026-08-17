@@ -30,6 +30,7 @@ export class FakeTransactionalPostgresAuthClient
       normalizedSql.startsWith("CREATE UNIQUE INDEX") ||
       normalizedSql.startsWith("ALTER TABLE") ||
       normalizedSql.startsWith("DROP INDEX") ||
+      normalizedSql.startsWith("DO $$") ||
       normalizedSql.startsWith("UPDATE accounts SET email_verified_at")
     ) {
       return { rows: [] };
