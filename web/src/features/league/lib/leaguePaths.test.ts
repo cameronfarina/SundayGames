@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import {
   cleanLeagueSearch,
+  leaguePageForPath,
   leaguePath,
+  leagueSlugForPath,
+  searchForLeagueChange,
   selectLeagueForRoute,
 } from "./leaguePaths";
 
@@ -35,6 +38,9 @@ describe("league paths", () => {
 
     expect(selectLeagueForRoute(leagues, "work-league", null)?.seasonId).toBe("season-2");
     expect(selectLeagueForRoute(leagues, undefined, "season-1")?.leagueSlug).toBe("sunday-games");
+    expect(selectLeagueForRoute(leagues, undefined, "missing")?.leagueSlug).toBe("sunday-games");
+    expect(selectLeagueForRoute(leagues, undefined, null)?.leagueSlug).toBe("sunday-games");
+    expect(selectLeagueForRoute(leagues, "missing", null)).toBeUndefined();
   });
 
   it("removes private routing identifiers while preserving page state", () => {
@@ -43,5 +49,22 @@ describe("league paths", () => {
     );
 
     expect(cleanLeagueSearch(search).toString()).toBe("runId=history-1&strategy=wr-heavy");
+    expect(searchForLeagueChange(new URLSearchParams(
+      "seasonId=season-1&roomId=room-1&runId=history-1&sessionId=session-1&simulationRun=3&strategy=wr-heavy",
+    )).toString()).toBe("strategy=wr-heavy");
+  });
+
+  it("recognizes clean and legacy league pages", () => {
+    expect(leaguePageForPath("/leagues/sunday-games/draft")).toBe("draft");
+    expect(leaguePageForPath("/leagues/sunday-games/commissioner")).toBe("commissioner");
+    expect(leaguePageForPath("/leagues/sunday-games/mock-drafts")).toBe("mock-drafts");
+    expect(leaguePageForPath("/practice")).toBe("practice");
+    expect(leaguePageForPath("/unrelated")).toBeUndefined();
+  });
+
+  it("decodes public league slugs without throwing on malformed paths", () => {
+    expect(leagueSlugForPath("/leagues/sunday%20games/practice")).toBe("sunday games");
+    expect(leagueSlugForPath("/practice")).toBeUndefined();
+    expect(leagueSlugForPath("/leagues/%E0%A4%A/practice")).toBeUndefined();
   });
 });

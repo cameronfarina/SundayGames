@@ -3,6 +3,7 @@ import {
   filterAndSortPlayers,
   playerMarketValue,
   playerMyValue,
+  playerSortFrom,
   positionTone,
   rankPlayers,
 } from "./playerBoard";
@@ -104,6 +105,17 @@ describe("Practice player board model", () => {
       "Ja'Marr Chase",
       "Jared Goff",
     ]);
+    expect(filterAndSortPlayers(rankPlayers([
+      { expectedPrice: 1, leagueValue: 4, marketRank: 1, name: "Zulu", position: "K" },
+      { expectedPrice: 2, leagueValue: 4, marketRank: 1, name: "Alpha", position: "K" },
+    ]), {
+      position: "ALL", search: "", shortlistOnly: false, sort: "simulation",
+    }, new Set()).map(({ player }) => player.name)).toEqual(["Alpha", "Zulu"]);
+  });
+
+  it("normalizes supported and unknown sort values", () => {
+    expect(["mine", "rank", "simulation", "unknown"].map(playerSortFrom))
+      .toEqual(["mine", "rank", "simulation", "market"]);
   });
 
   it("provides stable visual tones for every position family", () => {

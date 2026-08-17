@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LiveDraftPage } from "./LiveDraftPage";
 import { liveRoom } from "../../test/liveDraftFixtures";
 
@@ -18,7 +18,10 @@ export const renderLiveDraftPage = (entry = "/draft-room?seasonId=season-1&roomI
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}><LiveDraftPage /></MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}><Routes>
+        <Route path="/draft-room" element={<LiveDraftPage />} />
+        <Route path="/leagues/:leagueSlug/draft" element={<LiveDraftPage />} />
+      </Routes></MemoryRouter>
     </QueryClientProvider>,
   );
 };

@@ -81,4 +81,28 @@ describe("LeaguePage league creation", () => {
     });
     expect(await screen.findByRole("heading", { name: "Sunday Games" })).toBeVisible();
   });
+
+  it("uses the clean league route when the created season is already available", async () => {
+    const knownLeague = {
+      ...onboarding({ canManageLeague: true }).leagues[0],
+      leagueId: "league-new",
+      seasonId: "season-new",
+    };
+    useLeagueApi({
+      ...onboarding({ canManageLeague: true }),
+      leagues: [knownLeague],
+    }, { season: createdSeasonFixture, claimableTeams: [] });
+    leagueServer.use(http.post("/leagues", () => HttpResponse.json({
+      season: createdSeasonFixture,
+    }, { status: 201 })));
+    const user = userEvent.setup();
+    renderLeaguePage("/league?create=1");
+
+    await screen.findByRole("dialog", { name: "Input league info" });
+    await completeManualLeague(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("league-location")).toHaveTextContent("/leagues/sunday-games");
+    });
+  });
 });

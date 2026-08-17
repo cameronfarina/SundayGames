@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { OnboardingLeague } from "../../../../../shared/api/onboarding/onboardingSchema";
@@ -18,12 +19,15 @@ const league: OnboardingLeague = {
 
 const LocationProbe = () => {
   const route = usePracticeLocation([league]);
-  return <dl>
-    <dt>League</dt><dd>{route.activeLeague?.leagueName}</dd>
-    <dt>History</dt><dd>{route.historyId}</dd>
-    <dt>Run</dt><dd>{route.selectedRunNumber}</dd>
-    <dt>Strategy</dt><dd>{route.strategy}</dd>
-  </dl>;
+  return <>
+    <dl>
+      <dt>League</dt><dd>{route.activeLeague?.leagueName}</dd>
+      <dt>History</dt><dd>{route.historyId}</dd>
+      <dt>Run</dt><dd>{route.selectedRunNumber}</dd>
+      <dt>Strategy</dt><dd>{route.strategy}</dd>
+    </dl>
+    <button onClick={() => { route.changeLeague("missing"); }} type="button">Choose missing league</button>
+  </>;
 };
 
 describe("usePracticeLocation", () => {
@@ -42,5 +46,19 @@ describe("usePracticeLocation", () => {
     expect(screen.getByText("history-1")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("hero-rb")).toBeInTheDocument();
+  });
+
+  it("ignores a league selection that is no longer available", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/leagues/sunday-games/practice"]}>
+        <Routes>
+          <Route path="/leagues/:leagueSlug/practice" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose missing league" }));
+    expect(screen.getByText("Sunday Games")).toBeInTheDocument();
   });
 });

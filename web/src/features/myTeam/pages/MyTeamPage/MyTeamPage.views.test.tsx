@@ -73,4 +73,16 @@ describe("MyTeamPage views", () => {
       );
     });
   });
+
+  it("forwards the former news view without requiring an active league", async () => {
+    server.use(http.get("/onboarding", () => HttpResponse.json({
+      account: { email: "user@example.com", id: "account-user" },
+      leagues: [],
+    })));
+    renderMyTeamPage("/my-team?view=news&source=legacy", <LocationProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/player-news?source=legacy");
+    });
+  });
 });

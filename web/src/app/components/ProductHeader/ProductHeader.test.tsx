@@ -7,6 +7,8 @@ import { sessionQueryKey } from "../../../features/auth/api/sessionQuery";
 import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
 import type { Onboarding } from "../../../shared/api/onboarding/onboardingSchema";
 import { ProductHeader } from "./ProductHeader";
+import { ProductNavigation } from "./ProductNavigation";
+import { useActiveLeague } from "./hooks/useActiveLeague";
 
 beforeAll(() => {
   Object.defineProperties(Element.prototype, {
@@ -50,6 +52,17 @@ const LocationProbe = () => {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 };
 
+const ActiveLeagueProbe = () => {
+  const { activeLeague, setActiveLeague } = useActiveLeague();
+  const location = useLocation();
+  return <>
+    <output data-testid="active-league">{activeLeague?.leagueName ?? "Baseline"}</output>
+    <output data-testid="active-location">{location.pathname}{location.search}</output>
+    <button onClick={() => { setActiveLeague("missing"); }} type="button">Choose missing league</button>
+    <button onClick={() => { setActiveLeague("season-work"); }} type="button">Choose work league</button>
+  </>;
+};
+
 const renderHeader = (leagues: Onboarding["leagues"], initialEntry: string) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -73,6 +86,19 @@ const renderHeader = (leagues: Onboarding["leagues"], initialEntry: string) => {
         <ProductHeader />
         <LocationProbe />
       </MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
+
+const renderActiveLeagueProbe = (initialEntry: string) => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  queryClient.setQueryData(onboardingQueryOptions().queryKey, {
+    account: { email: "example.user@example.com", id: "account-example" },
+    leagues: [commissionerLeague, memberLeague],
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}><ActiveLeagueProbe /></MemoryRouter>
     </QueryClientProvider>,
   );
 };
@@ -115,6 +141,29 @@ describe("ProductHeader", () => {
     expect(screen.getByText("No active league")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Commissioner" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("EU");
+  });
+
+  it("keeps commissioner navigation on the legacy route before a league is active", () => {
+    render(<MemoryRouter><ProductNavigation activeLeague={undefined} canManageLeague /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: "Commissioner" })).toHaveAttribute("href", "/commissioner");
+  });
+
+  it("supports baseline mode and ignores unavailable league selections", async () => {
+    const user = userEvent.setup();
+    renderActiveLeagueProbe("/practice?seasonId=baseline");
+
+    expect(screen.getByTestId("active-league")).toHaveTextContent("Baseline");
+    await user.click(screen.getByRole("button", { name: "Choose missing league" }));
+    expect(screen.getByTestId("active-location")).toHaveTextContent("/practice?seasonId=baseline");
+  });
+
+  it("falls back to Practice when switching leagues from an unrelated page", async () => {
+    const user = userEvent.setup();
+    renderActiveLeagueProbe("/unrelated");
+
+    await user.click(screen.getByRole("button", { name: "Choose work league" }));
+    expect(screen.getByTestId("active-location")).toHaveTextContent("/leagues/work-league/practice");
   });
 
   it("falls back to the first league when a saved season is no longer available", async () => {

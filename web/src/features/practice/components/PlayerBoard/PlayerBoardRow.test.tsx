@@ -74,4 +74,25 @@ describe("PlayerBoardRow", () => {
     await user.tab();
     expect(onSaveMyValue).not.toHaveBeenCalled();
   });
+
+  it("restores an invalid personal value instead of saving it", async () => {
+    const user = userEvent.setup();
+    const onSaveMyValue = vi.fn();
+    render(<table><tbody><PlayerBoardRow
+      isTarget={false}
+      onSaveMyValue={onSaveMyValue}
+      onToggleTarget={vi.fn()}
+      player={player}
+      rank={1}
+      targetChangesDisabled={false}
+    /></tbody></table>);
+    const myValue = screen.getByRole("spinbutton", { name: "My value for Jahmyr Gibbs" });
+
+    await user.clear(myValue);
+    await user.type(myValue, "0");
+    await user.tab();
+
+    expect(myValue).toHaveValue(65);
+    expect(onSaveMyValue).not.toHaveBeenCalled();
+  });
 });

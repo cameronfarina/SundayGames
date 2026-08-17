@@ -24,6 +24,14 @@ afterAll(() => {
 });
 
 describe("LeaguePage member experience", () => {
+  it("loads the requested league from its clean public URL", async () => {
+    useLeagueApi(onboarding({ claimed: true }));
+
+    renderLeaguePage("/leagues/sunday-games");
+
+    expect(await screen.findByRole("heading", { name: "Sunday Games" })).toBeVisible();
+  });
+
   it("places team claiming before league details and saves the selection", async () => {
     let claimed = false;
     useLeagueApi(onboarding());

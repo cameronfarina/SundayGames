@@ -74,12 +74,15 @@ export function PracticePage() {
       summary={selectedSimulation.result.summary}
     />}
   </>;
-  if (!context.isSuccess) return context.isError
-    ? <section aria-labelledby="practice-error-title" className="practice-page practice-page--error">
-        <h1 id="practice-error-title">Practice is unavailable</h1><p>{context.error.message}</p>
-        <button onClick={() => { void context.refetch(); }} type="button">Try again</button>
-      </section>
-    : <section aria-label="Practice" className="practice-page"><p role="status">Loading Practice…</p></section>;
+  if (context.isError) {
+    return <section aria-labelledby="practice-error-title" className="practice-page practice-page--error">
+      <h1 id="practice-error-title">Practice is unavailable</h1><p>{context.error.message}</p>
+      <button onClick={() => { void context.refetch(); }} type="button">Try again</button>
+    </section>;
+  }
+  if (!context.isSuccess) {
+    return <section aria-label="Practice" className="practice-page"><p role="status">Loading Practice…</p></section>;
+  }
 
   return <section aria-labelledby="practice-title" className="practice-page">
     <PracticeHeader

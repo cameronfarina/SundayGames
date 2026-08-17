@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
 import { setupServer } from "msw/node";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LeagueLocationProbe } from "./LeagueLocationProbe.testSupport";
 import { LeaguePage } from "./LeaguePage";
 
@@ -118,7 +118,10 @@ export const renderLeaguePage = (entry = "/league") => {
   const result = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[entry]}>
-        <LeaguePage />
+        <Routes>
+          <Route path="/league" element={<LeaguePage />} />
+          <Route path="/leagues/:leagueSlug" element={<LeaguePage />} />
+        </Routes>
         <LeagueLocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
