@@ -62,7 +62,7 @@ describe("PlayerBoard", () => {
     ]);
   });
 
-  it("breaks market ties by Mockd value and player name", () => {
+  it("breaks market ties by our value and player name", () => {
     render(<PlayerBoard
       canManage={false}
       onUsePlayer={vi.fn()}
@@ -98,7 +98,7 @@ describe("PlayerBoard", () => {
     ]);
   });
 
-  it("shows searchable market and Mockd values with player context", async () => {
+  it("shows searchable market and our values with player context", async () => {
     const user = userEvent.setup();
     const onUsePlayer = vi.fn();
     render(<PlayerBoard

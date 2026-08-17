@@ -49,7 +49,7 @@ export const MockDraftPage = ({
       <section aria-labelledby="mock-draft-heading" className="mock-draft-page mock-draft-page--launch">
         <span className="mock-draft-page__eyebrow">Practice</span>
         <h1 id="mock-draft-heading">Auction mock draft</h1>
-        <p>Draft for your claimed team while Mockd runs the rest of your league.</p>
+        <p>Draft for your claimed team while we run the rest of your league.</p>
         {mock.abandoned && <InlineNotice title="Mock abandoned" variant="success">The session no longer counts toward your active mock limit.</InlineNotice>}
         {mock.error !== null && <InlineNotice variant="error">{errorMessage(mock.error)}</InlineNotice>}
         <ProgressButton
@@ -75,7 +75,7 @@ export const MockDraftPage = ({
         <div>
           <span className="mock-draft-page__eyebrow">Mock draft</span>
           <h1 id="mock-draft-heading">Auction mock draft</h1>
-          <p>Draft for your claimed team while Mockd runs the rest of your league.</p>
+          <p>Draft for your claimed team while we run the rest of your league.</p>
         </div>
         <MockDraftActions
           busy={mock.busy}

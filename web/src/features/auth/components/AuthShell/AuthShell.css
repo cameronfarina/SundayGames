@@ -13,14 +13,6 @@
   width: 100%;
 }
 
-.auth-shell__brand {
-  color: var(--color-text);
-  display: inline-block;
-  font-size: var(--font-size-xl);
-  font-weight: 800;
-  margin-bottom: var(--space-10);
-  text-decoration: none;
-}
 
 .auth-shell__header {
   margin-bottom: var(--space-8);
@@ -61,7 +53,5 @@
     padding: var(--space-6) var(--space-4);
   }
 
-  .auth-shell__brand {
-    margin-bottom: var(--space-8);
-  }
+  
 }

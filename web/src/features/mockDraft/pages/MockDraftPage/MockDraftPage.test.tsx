@@ -77,7 +77,7 @@ describe("MockDraftPage", () => {
       <MockDraftPage fetcher={fetcher} initialSessionId="mock-1" seasonId="season-1" />,
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Mockd returned data that does not match the application contract.",
+      "The server returned data that does not match the application contract.",
     );
   });
 });

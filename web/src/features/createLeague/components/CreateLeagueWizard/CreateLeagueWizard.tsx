@@ -49,7 +49,7 @@ const OpenCreateLeagueWizard = ({ onClose, onCreated }: OpenCreateLeagueWizardPr
 
   return (
     <Dialog
-      description="Review each section before Mockd creates your league."
+      description="Review each section before we create your league."
       footer={footer}
       onOpenChange={onClose}
       open

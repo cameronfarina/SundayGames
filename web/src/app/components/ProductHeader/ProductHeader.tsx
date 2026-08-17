@@ -1,6 +1,4 @@
-import { NavLink } from "react-router-dom";
 import { useSessionQuery } from "../../../features/auth/api/sessionQuery";
-import { leaguePath } from "../../../features/league/lib/leaguePaths";
 import { AccountMenu } from "../AccountMenu/AccountMenu";
 import { LeaguePicker } from "./LeaguePicker";
 import { ProductNavigation } from "./ProductNavigation";
@@ -15,12 +13,6 @@ export const ProductHeader = () => {
   return (
     <header className="product-header">
       <div className="product-header__top-row">
-        <NavLink
-          className="product-header__brand"
-          to={activeLeague === undefined ? "/practice" : leaguePath(activeLeague, "practice")}
-        >
-          Mockd
-        </NavLink>
         <div className="product-header__controls">
           <LeaguePicker
             activeLeague={activeLeague}

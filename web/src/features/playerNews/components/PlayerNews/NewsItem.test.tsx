@@ -29,7 +29,7 @@ describe("NewsItem", () => {
     expect(screen.getByText("NFL")).toBeVisible();
     expect(screen.getByRole("button", { name: "Remove NFL from my players" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByText("Mockd evidence")).toBeVisible();
+    expect(screen.getByText("Our evidence")).toBeVisible();
   });
 
   it("shows a position when the NFL team is unavailable", () => {

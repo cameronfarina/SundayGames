@@ -29,7 +29,7 @@ export const ScoringStep = ({ dispatch, draft, errors, formId, onSubmit }: Scori
   return (
     <form className="create-league-step" id={formId} onSubmit={submit}>
       <h2>Scoring rules</h2>
-      <p>Confirm the point values Mockd should use for projections and draft models.</p>
+      <p>Confirm the point values we should use for projections and draft models.</p>
       <div className="create-league-grid create-league-grid--three">
         {fields.map(item => (
           <NumberField

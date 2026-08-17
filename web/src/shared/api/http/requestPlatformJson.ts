@@ -34,7 +34,7 @@ const apiErrorFor = (status: number, body: unknown): PlatformApiError => {
 
   return new PlatformApiError({
     code: "invalid_error_response",
-    message: "Mockd returned an unreadable error response.",
+    message: "The server returned an unreadable error response.",
     status,
   });
 };
@@ -57,7 +57,7 @@ export const requestPlatformJson = async <Schema extends ZodType>(
   if (!parsed.success) {
     throw new PlatformApiError({
       code: "invalid_response",
-      message: "Mockd returned data that does not match the application contract.",
+      message: "The server returned data that does not match the application contract.",
       status: response.status,
     });
   }

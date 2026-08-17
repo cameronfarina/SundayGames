@@ -42,7 +42,7 @@ export class SimulationQueueApiError extends PlatformApiError {
 
 const invalidResponse = (): PlatformApiError => new PlatformApiError({
   code: "invalid_response",
-  message: "Mockd returned an unreadable simulation stream.",
+  message: "The server returned an unreadable simulation stream.",
   status: 200,
 });
 

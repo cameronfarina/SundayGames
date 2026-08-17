@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const maximumLines = 250;
 const expectedAssertionCount = 219;
-const expectedAssertionHash = "956fb38b9fd1d27aa0b439c4a5a522aabd3c7da0a04ea81dd86940b6f991560b";
+const expectedAssertionHash = "a923b62e4dc0b74aacc731e1f7d2cbfba7fbcd0bdf7195825c4f3dc0939a1fb3";
 const expectedBehaviorNames: readonly string[] = [
   "local platform supports fixture signup, setup, invitation, realtime draft, and final-export gating",
   "Draft Lab supports baseline browsing and league-aware planning",

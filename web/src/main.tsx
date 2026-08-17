@@ -11,7 +11,7 @@ const router = createAppRouter(queryClient);
 const rootElement = document.getElementById("root");
 
 if (rootElement === null) {
-  throw new Error("Mockd could not find its application root.");
+  throw new Error("Could not find the application root.");
 }
 
 createRoot(rootElement).render(

@@ -17,7 +17,7 @@ interface PlayerNewsProps {
 const sourceOptions: readonly SelectOption[] = [
   { label: "All sources", value: "all" },
   { label: "RotoWire", value: "rotowire-rss" },
-  { label: "Mockd evidence", value: "local" },
+  { label: "Our evidence", value: "local" },
 ];
 
 const sourceFrom = (value: string): PlayerNewsSource =>

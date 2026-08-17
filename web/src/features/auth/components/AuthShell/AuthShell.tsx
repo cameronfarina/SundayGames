@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import "./AuthShell.css";
 
 interface AuthShellProps {
@@ -12,7 +11,6 @@ interface AuthShellProps {
 export const AuthShell = ({ children, description, footer, title }: AuthShellProps) => (
   <section aria-labelledby="auth-title" className="auth-shell">
     <div className="auth-shell__panel">
-      <Link className="auth-shell__brand" to="/practice">Sunday Games</Link>
       <header className="auth-shell__header">
         <p className="auth-shell__eyebrow">Your draft workspace</p>
         <h1 id="auth-title">{title}</h1>

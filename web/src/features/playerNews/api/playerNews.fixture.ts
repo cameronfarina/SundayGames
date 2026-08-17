@@ -47,7 +47,7 @@ export const playerNewsFeedFixture: PlayerNewsFeed = {
     player: "De'Von Achane",
     position: "RB",
     providerItemId: "local-1",
-    source: { provider: "Mockd evidence" },
+    source: { provider: "Our evidence" },
     teamAbbreviation: "MIA",
   }],
 };

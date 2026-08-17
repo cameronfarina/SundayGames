@@ -2,7 +2,7 @@ import type { LeagueSyncProviderStatusReport } from "./contracts.js";
 
 export const mockdDraftProvider = (): LeagueSyncProviderStatusReport => ({
   key: "mockd-draft",
-  label: "Mockd draft",
+  label: "Draft room",
   status: "active",
   readOnly: true,
   auth: {

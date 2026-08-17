@@ -47,7 +47,7 @@ test("primary navigation stays in the current document and the account menu dism
   await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page).toHaveTitle("League | Mockd");
+  await expect(page).toHaveTitle("League | Sunday Games");
   await expectCurrentDocument();
 
   await page.getByRole("link", { name: "My team", exact: true }).click();
@@ -59,26 +59,26 @@ test("primary navigation stays in the current document and the account menu dism
   await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page).toHaveTitle("League | Mockd");
+  await expect(page).toHaveTitle("League | Sunday Games");
   await expectCurrentDocument();
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`${leaguePath}/practice$`, "u"));
   await expect(page.getByRole("heading", { name: "Draft lab" })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
   await expectPracticeBoard(page);
-  await expect(page).toHaveTitle("Draft lab | Mockd");
+  await expect(page).toHaveTitle("Draft lab | Sunday Games");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`${leaguePath}$`, "u"));
   await expect(page.getByRole("heading", { name: season.league.name })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page).toHaveTitle("League | Mockd");
+  await expect(page).toHaveTitle("League | Sunday Games");
   await expectCurrentDocument();
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`${leaguePath}/my-team$`, "u"));
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page).toHaveTitle("My team | Mockd");
+  await expect(page).toHaveTitle("My team | Sunday Games");
   await expectCurrentDocument();
 
   const menuButton = accountMenuButton(page);

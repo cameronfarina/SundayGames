@@ -36,7 +36,7 @@ export function InvitationPage() {
       <header className="invite-header">
         <p className="invite-eyebrow">League invitation · {details.league.seasonYear}</p>
         <h1>Join {details.league.name}</h1>
-        <p>Choose the team you manage. Your selection is linked to your Mockd account.</p>
+        <p>Choose the team you manage. Your selection is linked to your account.</p>
       </header>
       {data.session.data.status === "signed-out" ? <InvitationAuthActions token={token} /> : null}
       {connectedLeague === undefined ? null : (

@@ -33,7 +33,7 @@ const assertSupportedSeason = (season: LeagueSeason): void => {
     .map(team => team.ownerDisplayName);
   if (!isDeepStrictEqual(ownersByDraftOrder, [...ownerOrder])) {
     throw new Error(
-      "Private draft tools support the configured 14-owner Mockd league order only.",
+      "Private draft tools support the configured 14-owner league order only.",
     );
   }
   if (!isDeepStrictEqual(season.settings, expectedSeasonSettings)) {

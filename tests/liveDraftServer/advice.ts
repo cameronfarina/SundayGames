@@ -50,7 +50,7 @@ export const registerAdviceTests = (): void => {
       expect(data.readOnly).toBe(true);
       expect(data.source).toEqual(expect.objectContaining({
         key: "mockd-draft",
-        label: "Mockd draft",
+        label: "Draft room",
         readOnly: true,
       }));
       expect(data.team).toEqual(expect.objectContaining({

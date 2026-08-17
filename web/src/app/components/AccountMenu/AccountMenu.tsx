@@ -42,7 +42,7 @@ export const AccountMenu = ({ email }: AccountMenuProps) => {
         </span>
       </DropdownMenu>
       <Dialog
-        description="Update the password used to sign in to Mockd."
+        description="Update the password you use to sign in."
         onOpenChange={setPasswordDialogOpen}
         open={passwordDialogOpen}
         title="Change password"

@@ -71,7 +71,7 @@ describe("MyTeamPage states", () => {
     renderMyTeamPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Mockd returned data that does not match the application contract.",
+      "The server returned data that does not match the application contract.",
     );
   });
 });

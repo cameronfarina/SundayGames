@@ -9,7 +9,7 @@ export const LoginPage = () => {
   return (
     <AuthShell
       description="Open your leagues, practice plans, and live auction rooms."
-      footer={<>New to Mockd? <Link to={`/signup${location.search}`}>Create account</Link></>}
+      footer={<>New here? <Link to={`/signup${location.search}`}>Create account</Link></>}
       title="Sign in"
     >
       {searchParams.get("passwordChanged") === "1" && (

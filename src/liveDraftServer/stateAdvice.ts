@@ -84,7 +84,7 @@ export const createStateAdvice = ({
       mode: "advice-only",
       readOnly: true,
       generatedAt: new Date().toISOString(),
-      source: { key: "mockd-draft", label: "Mockd draft", readOnly: true, detail: "Current Mockd draft room state." },
+      source: { key: "mockd-draft", label: "Draft room", readOnly: true, detail: "Current draft room state." },
       team: ownerSummary(watchOwner, draftState.watchOwner.spent, roster),
       summary: {
         currentWeek,

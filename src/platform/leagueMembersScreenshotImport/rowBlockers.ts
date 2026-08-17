@@ -43,7 +43,7 @@ const mappingBlockers = (
     return [issue("invalid_team_mapping", `Team row ${row} references an unavailable Mockd profile.`, row)];
   }
   return duplicates.teamMappings.has(index)
-    ? [issue("duplicate_team_mapping", "Each existing Mockd profile can be assigned to only one imported team.", row)]
+    ? [issue("duplicate_team_mapping", "Each existing profile can be assigned to only one imported team.", row)]
     : [];
 };
 

@@ -12,6 +12,6 @@ describe("route error message", () => {
   });
 
   it("uses safe copy for unexpected failures", () => {
-    expect(routeErrorMessage("broken")).toBe("Mockd hit an unexpected error.");
+    expect(routeErrorMessage("broken")).toBe("Something went wrong on our end.");
   });
 });

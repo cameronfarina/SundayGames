@@ -31,7 +31,7 @@ export const ReferenceStep = (props: ReferenceStepProps) => {
     <form className="create-league-step" id={props.formId} onSubmit={submit}>
       <h2>Reference league</h2>
       <p>
-        Mockd can automatically read league name, team count, draft format, scoring, roster
+        We can automatically read league name, team count, draft format, scoring, roster
         slots, and team names from a public ESPN league. It cannot read private leagues or
         settings ESPN does not expose. Review every imported value before applying it, or enter
         the setup manually.

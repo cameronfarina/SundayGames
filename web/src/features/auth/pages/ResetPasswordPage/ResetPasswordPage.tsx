@@ -7,7 +7,7 @@ export const ResetPasswordPage = () => {
   const token = searchParams.get("token");
   return (
     <AuthShell
-      description="Choose a new password for your Mockd account."
+      description="Choose a new password for your account."
       footer={<>Ready to sign in? <Link to="/login">Back to sign in</Link></>}
       title="Choose a new password"
     >

@@ -10,6 +10,6 @@ describe("authErrorMessage", () => {
       status: 401,
     }))).toBe("Email or password is incorrect.");
     expect(authErrorMessage(new Error("database details")))
-      .toBe("Mockd could not complete that request.");
+      .toBe("We could not complete that request.");
   });
 });
