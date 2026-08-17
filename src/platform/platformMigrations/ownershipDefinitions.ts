@@ -1,5 +1,3 @@
-import { renderMigrationStatements } from "../postgresSchema.js";
-import { playerNewsTables } from "../postgresSchema/tables/playerNewsTables.js";
 import type { PlatformSchemaMigration } from "./contracts.js";
 import {
   authOwnershipMigrationId,
@@ -10,7 +8,7 @@ import {
   playerNewsMigrationId,
   sharedLeagueInvitationsMigrationId,
 } from "./ids.js";
-import { authTokenTableMigrationStatements } from "./schemaStatements.js";
+import { authTokenTableMigrationStatements, playerNewsMigrationStatements } from "./schemaStatements.js";
 
 export const ownershipPlatformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
@@ -102,6 +100,6 @@ END $$;`,
   },
   {
     id: playerNewsMigrationId,
-    statements: renderMigrationStatements(playerNewsTables, []),
+    statements: playerNewsMigrationStatements,
   },
 ];

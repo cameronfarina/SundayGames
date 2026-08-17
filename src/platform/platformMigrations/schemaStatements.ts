@@ -25,3 +25,12 @@ export const authTokenTableMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE INDEX account_auth_tokens_expires_at_idx")
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
+
+export const playerNewsMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE player_news_items")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE UNIQUE INDEX player_news_items_provider_item_key")
+    .replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX player_news_items_published_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];
