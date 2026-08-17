@@ -46,14 +46,17 @@ describe("platform league setup import application", () => {
     expect(applied.season.settings).toEqual(customDraftOrderSeason.settings);
     expect(applied.season.settings).not.toBe(customDraftOrderSeason.settings);
     expect(applied.season.draft).toEqual(customDraftOrderSeason.draft);
+    // Row three names an existing manager, so it keeps that manager's team.
+    // Row two names nobody the season knows, so it takes over the team left
+    // standing in its draft slot rather than stranding that team's keepers.
     expect(applied.season.teams.map(team => team.id)).toEqual([
       `${season.id}-team-01-owner11`,
-      `${season.id}-team-02-owner04`,
+      secondTeam.id,
       firstTeam.id,
     ]);
     expect(applied.season.teams.map(team => team.ownerId)).toEqual([
       "owner-owner11",
-      "owner-owner04",
+      secondTeam.ownerId,
       firstTeam.ownerId,
     ]);
     expect(applied.season.teams.map(team => team.draftOrderPosition)).toEqual([3, 1, 2]);
@@ -139,5 +142,27 @@ describe("platform league setup import application", () => {
       draftOrderPosition: 2,
     });
     expect(season.teams.map(team => team.id)).not.toContain(newAlexTeam.id);
+  });
+
+  it("keeps a team's identity when its manager is renamed", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 3), {
+      ...leagueConfig,
+      teams: 3,
+    }, { setupStatus: "published" });
+    const renamedTeam = season.teams[1];
+    if (renamedTeam === undefined) throw new Error("Expected a second team fixture.");
+    const parsed = parseLeagueSetupImport([
+      "owner,team,role",
+      `${ownerOrder[0] ?? ""},Alpha,member`,
+      "Tye,Bravo,member",
+      `${ownerOrder[2] ?? ""},Charlie,member`,
+    ].join("\n"), { expectedTeamCount: 3 });
+
+    const applied = applyLeagueSetupImportToSeason(season, parsed.records);
+
+    const applperTeam = applied.season.teams[1];
+    expect(applperTeam?.ownerDisplayName).toBe("Tye");
+    expect(applperTeam?.id).toBe(renamedTeam.id);
+    expect(new Set(applied.season.teams.map(team => team.id)).size).toBe(3);
   });
 });

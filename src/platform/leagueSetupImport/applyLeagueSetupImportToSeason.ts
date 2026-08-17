@@ -1,5 +1,5 @@
 import type { LeagueSeason } from "../leagueSeason.js";
-import { membershipSeedFor, teamForRecord } from "./teamMapping.js";
+import { existingTeamsForRecords, membershipSeedFor, teamForRecord } from "./teamMapping.js";
 import type {
   AppliedLeagueSetupImport,
   LeagueSetupTeamRecord,
@@ -10,9 +10,10 @@ export const applyLeagueSetupImportToSeason = (
   records: readonly LeagueSetupTeamRecord[],
 ): AppliedLeagueSetupImport => {
   const seasonCopy = structuredClone(season);
+  const existingTeams = existingTeamsForRecords(season, records);
   const appliedRecords = records.map((record, index) => ({
     record,
-    team: teamForRecord(season, record, index),
+    team: teamForRecord(season, record, index, existingTeams[index]),
   }));
 
   seasonCopy.teams = appliedRecords.map(appliedRecord => appliedRecord.team);

@@ -13,7 +13,10 @@ import type {
   RebuildLeaguePricingWorkflowResult,
 } from "../../../platformPricingWorkflow.js";
 
-export const currentLeaguePricingModelVersion = "league-history-keepers-v3";
+// v4 scales history-calibrated prices to the league budget. Prices computed
+// before that change differ, so they need their own version: a saved snapshot
+// is immutable, and reusing v3 makes every recalculation collide with it.
+export const currentLeaguePricingModelVersion = "league-history-keepers-v4";
 
 const staleKeeperPricingModelVersions = new Set([
   "league-history-keepers-v2",

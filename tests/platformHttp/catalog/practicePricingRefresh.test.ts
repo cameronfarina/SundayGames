@@ -130,7 +130,7 @@ describe("platform HTTP pricing refresh", () => {
       },
     });
     expect(preflight).toHaveBeenCalledWith(expect.objectContaining({
-      modelVersion: "league-history-keepers-v3",
+      modelVersion: "league-history-keepers-v4",
     }));
 
     const mockResponse = await handle({
