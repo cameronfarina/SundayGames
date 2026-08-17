@@ -86,7 +86,6 @@ describe("Practice player board model", () => {
       sort: "mine",
     }, new Set()).map(({ player }) => player.name)).toEqual([
       "Ja'Marr Chase",
-      "Chase Brown",
       "Jared Goff",
     ]);
     expect(filterAndSortPlayers(rankPlayers([
@@ -101,7 +100,6 @@ describe("Practice player board model", () => {
       shortlistOnly: false,
       sort: "rank",
     }, new Set()).map(({ player }) => player.name)).toEqual([
-      "Chase Brown",
       "Ja'Marr Chase",
       "Jared Goff",
     ]);
@@ -116,6 +114,15 @@ describe("Practice player board model", () => {
   it("normalizes supported and unknown sort values", () => {
     expect(["mine", "rank", "simulation", "unknown"].map(playerSortFrom))
       .toEqual(["mine", "rank", "simulation", "market"]);
+  });
+
+  it("excludes kept players from the board entirely", () => {
+    expect(filterAndSortPlayers(rankedPlayers, {
+      position: "ALL", search: "", shortlistOnly: false, sort: "market",
+    }, new Set()).map(({ player }) => player.name)).not.toContain("Chase Brown");
+    expect(filterAndSortPlayers(rankedPlayers, {
+      position: "ALL", search: "chase brown", shortlistOnly: false, sort: "market",
+    }, new Set())).toEqual([]);
   });
 
   it("provides stable visual tones for every position family", () => {

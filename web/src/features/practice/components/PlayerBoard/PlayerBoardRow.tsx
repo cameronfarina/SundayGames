@@ -49,9 +49,7 @@ export function PlayerBoardRow({
         onClick={() => { onToggleTarget(player); }}
       ><Star aria-hidden="true" fill={isTarget ? "currentColor" : "none"} size={19} /></IconButton></td>
       <td>{rank}</td>
-      <td className="player-row__name">{player.name}{player.isKeeper === true && <span className="keeper-badge">
-        Keeper{player.keeperPrice === undefined ? "" : ` · $${String(player.keeperPrice)}`}
-      </span>}</td>
+      <td className="player-row__name">{player.name}</td>
       <td><span className={`position-label position-label--${positionTone(player.position)}`}>{player.position}</span></td>
       <td>{player.teamAbbreviation ?? "FA"}</td>
       <td>{player.byeWeek ?? "-"}</td>

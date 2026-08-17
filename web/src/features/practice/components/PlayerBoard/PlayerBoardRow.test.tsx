@@ -7,8 +7,6 @@ import { PlayerBoardRow } from "./PlayerBoardRow";
 const player: PracticePlayer = {
   byeWeek: 6,
   expectedPrice: 57,
-  isKeeper: true,
-  keeperPrice: 12,
   marketPrice: 60,
   leagueValue: 62,
   myValue: 65,
@@ -30,7 +28,6 @@ describe("PlayerBoardRow", () => {
       rank={1}
       targetChangesDisabled={false}
     /></tbody></table>);
-    expect(screen.getByText("Keeper · $12")).toBeVisible();
     expect(screen.getByText("$60")).toBeVisible();
     expect(screen.getByText("$62")).toBeVisible();
     const myValue = screen.getByRole("spinbutton", { name: "My value for Jahmyr Gibbs" });
@@ -47,7 +44,7 @@ describe("PlayerBoardRow", () => {
       isTarget
       onSaveMyValue={vi.fn()}
       onToggleTarget={vi.fn()}
-      player={{ ...player, byeWeek: undefined, isKeeper: false, keeperPrice: undefined, teamAbbreviation: undefined }}
+      player={{ ...player, byeWeek: undefined, teamAbbreviation: undefined }}
       rank={2}
       targetChangesDisabled
     /></tbody></table>);

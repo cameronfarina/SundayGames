@@ -75,7 +75,9 @@ describe("PlayerBoard", () => {
     expect(screen.getByRole("columnheader", { name: "Market" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Simulation" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "My value" })).toBeInTheDocument();
-    expect(screen.getByText("Keeper · $4")).toBeInTheDocument();
+    expect(screen.queryByText("Jared Goff")).not.toBeInTheDocument();
+    expect(screen.queryByText("Brock Bowers")).not.toBeInTheDocument();
+    expect(screen.getByText("1 shown / 1 matching / 3 loaded")).toBeInTheDocument();
     expect(screen.getByText("$70")).toBeInTheDocument();
     expect(screen.getByText("$72")).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "My value for Puka Nacua" })).toHaveValue(75);
@@ -103,9 +105,8 @@ describe("PlayerBoard", () => {
     const search = screen.getByRole("searchbox", { name: "Search players" });
     expect(search).toHaveAttribute("placeholder", "Search players, position or NFL team");
     await user.type(search, "goff");
-    expect(screen.getByText("Jared Goff")).toBeInTheDocument();
-    expect(screen.getByText("2", { selector: "td" })).toBeInTheDocument();
-    expect(screen.queryByText("Puka Nacua")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jared Goff")).not.toBeInTheDocument();
+    expect(screen.getByText("No players match these filters.")).toBeInTheDocument();
     await user.clear(screen.getByRole("searchbox", { name: "Search players" }));
     await user.click(screen.getByRole("button", { name: "WR" }));
     expect(screen.getByText("Puka Nacua")).toBeInTheDocument();
@@ -137,8 +138,9 @@ describe("PlayerBoard", () => {
     await user.click(screen.getByRole("option", { name: "Rank" }));
     await user.click(select);
     await user.click(screen.getByRole("option", { name: "Market value" }));
-    expect(screen.getByText("Keeper", { selector: ".keeper-badge" })).toBeInTheDocument();
-    expect(screen.getByText("FA")).toBeInTheDocument();
+    expect(screen.getByText("Puka Nacua")).toBeInTheDocument();
+    expect(screen.queryByText("Jared Goff")).not.toBeInTheDocument();
+    expect(screen.queryByText("Brock Bowers")).not.toBeInTheDocument();
     view.unmount();
   });
 

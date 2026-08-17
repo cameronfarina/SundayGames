@@ -73,6 +73,7 @@ export const filterAndSortPlayers = (
   filters: PlayerBoardFilters,
   shortlistedPlayerKeys: ReadonlySet<string>,
 ): readonly RankedPracticePlayer[] => [...players]
+  .filter(({ player }) => player.isKeeper !== true)
   .filter(({ player }) => filters.position === "ALL" || player.position === filters.position)
   .filter(({ player }) => !filters.shortlistOnly || shortlistedPlayerKeys.has(playerKey(player.name)))
   .filter(({ player }) => matchesSearch(player, filters.search))
