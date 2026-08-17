@@ -4,16 +4,25 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
 import { PasswordChangeForm } from "../../../features/auth/components/PasswordChangeForm/PasswordChangeForm";
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
+import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
 import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
 import { accountInitial } from "./accountInitial";
 import "./AccountMenu.css";
 
 interface AccountMenuProps {
+  readonly activeLeague: OnboardingLeague | undefined;
   readonly email: string;
+  readonly leagues: readonly OnboardingLeague[];
+  readonly onLeagueChange: (seasonId: string) => void;
 }
 
-export const AccountMenu = ({ email }: AccountMenuProps) => {
+export const AccountMenu = ({
+  activeLeague,
+  email,
+  leagues,
+  onLeagueChange,
+}: AccountMenuProps) => {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -24,7 +33,16 @@ export const AccountMenu = ({ email }: AccountMenuProps) => {
       void navigate("/login", { replace: true });
     },
   });
+  // Wide screens show the league picker in the header, so these repeat it only
+  // where that picker is hidden.
+  const leagueItems = leagues.map(league => ({
+    label: `${league.leagueName} · ${String(league.seasonYear)}`,
+    narrowOnly: true,
+    onSelect: () => { onLeagueChange(league.seasonId); },
+    selected: league.seasonId === activeLeague?.seasonId,
+  }));
   const items = [
+    ...leagueItems,
     { label: "Change password", onSelect: () => { setPasswordDialogOpen(true); } },
     {
       destructive: true,

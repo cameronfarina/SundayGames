@@ -8,7 +8,7 @@ import {
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer }) => {
-  it("serves authenticated player news without an active league", async () => {
+  it("serves published reporting and never the pricing evidence rows", async () => {
     const { baseUrl } = await createListeningServer({
       currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
     });
@@ -23,7 +23,7 @@ describePlatformServer(({ createListeningServer }) => {
       method: "POST",
     });
 
-    const response = await jsonFetch(baseUrl, "/api/player-news?source=local", {
+    const response = await jsonFetch(baseUrl, "/api/player-news", {
       headers: { "x-session-token": sessionTokenFrom(login) },
     });
 
@@ -31,9 +31,10 @@ describePlatformServer(({ createListeningServer }) => {
       status: 200,
       contentType: "application/json; charset=utf-8",
       body: {
-        sourceMode: "local",
-        items: expect.arrayContaining([
-          expect.objectContaining({ player: "De'Von Achane", position: "RB" }),
+        items: expect.not.arrayContaining([
+          expect.objectContaining({
+            source: expect.objectContaining({ provider: "Local evidence" }),
+          }),
         ]),
       },
     });

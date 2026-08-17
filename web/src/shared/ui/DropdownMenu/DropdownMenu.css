@@ -49,3 +49,18 @@
 .dropdown-menu__item--danger {
   color: var(--color-danger);
 }
+
+.dropdown-menu__item--narrow {
+  display: none;
+}
+
+.dropdown-menu__item--selected::before {
+  content: "✓";
+  margin-right: var(--space-2);
+}
+
+@media (max-width: 48rem) {
+  .dropdown-menu__item--narrow {
+    display: flex;
+  }
+}

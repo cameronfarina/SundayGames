@@ -5,7 +5,11 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sessionQueryKey } from "../../../features/auth/api/sessionQuery";
 import { onboardingQueryOptions } from "../../../shared/api/onboarding/onboardingQuery";
-import type { Onboarding } from "../../../shared/api/onboarding/onboardingSchema";
+import {
+  onboardingLeagueSchema,
+  type Onboarding,
+  type OnboardingLeague,
+} from "../../../shared/api/onboarding/onboardingSchema";
 import { AccountMenu } from "./AccountMenu";
 
 const cachedOnboarding: Onboarding = {
@@ -13,12 +17,44 @@ const cachedOnboarding: Onboarding = {
   leagues: [],
 };
 
-const renderMenu = () => {
+const leagueFixture = (
+  leagueName: string,
+  seasonId: string,
+): OnboardingLeague => onboardingLeagueSchema.parse({
+  canManageLeague: false,
+  leagueId: `league-${seasonId}`,
+  leagueName,
+  leagueSlug: seasonId,
+  liveDraft: null,
+  membership: { role: "member" },
+  readiness: { leagueSetup: "ready", liveDraft: "ready", teamClaim: "ready" },
+  seasonId,
+  seasonYear: 2026,
+});
+
+const leagueFixtures = [
+  leagueFixture("The Sunday Games", "season-a"),
+  leagueFixture("Dynasty Home", "season-b"),
+];
+
+interface MenuOverrides {
+  readonly activeLeague?: OnboardingLeague | undefined;
+  readonly leagues?: readonly OnboardingLeague[] | undefined;
+  readonly onLeagueChange?: ((seasonId: string) => void) | undefined;
+}
+
+const renderMenu = (overrides: MenuOverrides = {}) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   queryClient.setQueryData(sessionQueryKey(), { private: "session" });
   queryClient.setQueryData(onboardingQueryOptions().queryKey, cachedOnboarding);
+  const menu = <AccountMenu
+    activeLeague={overrides.activeLeague}
+    email="example.user@example.com"
+    leagues={overrides.leagues ?? []}
+    onLeagueChange={overrides.onLeagueChange ?? (() => undefined)}
+  />;
   const router = createMemoryRouter([
-    { path: "/practice", element: <AccountMenu email="example.user@example.com" /> },
+    { path: "/practice", element: menu },
     { path: "/login", element: <h1>Sign in</h1> },
   ], { initialEntries: ["/practice"] });
   render(
@@ -43,6 +79,37 @@ describe("AccountMenu", () => {
     fireEvent.pointerDown(document.body);
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("lists every league and marks the one being viewed", async () => {
+    const user = userEvent.setup();
+    const onLeagueChange = vi.fn();
+    renderMenu({
+      activeLeague: leagueFixtures[0],
+      leagues: leagueFixtures,
+      onLeagueChange,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByRole("menuitem", { name: "The Sunday Games · 2026" }))
+      .toHaveAttribute("aria-current", "true");
+    const other = screen.getByRole("menuitem", { name: "Dynasty Home · 2026" });
+    expect(other).not.toHaveAttribute("aria-current");
+
+    await user.click(other);
+
+    expect(onLeagueChange).toHaveBeenCalledWith("season-b");
+  });
+
+  it("offers no league switcher when the account has none", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByRole("menuitem", { name: "Change password" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /2026/ })).not.toBeInTheDocument();
   });
 
   it("opens password change in a dialog", async () => {

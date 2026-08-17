@@ -7,7 +7,10 @@ export interface DropdownMenuItem {
   readonly destructive?: boolean;
   readonly disabled?: boolean;
   readonly label: string;
+  /** Hidden on wide screens, where the surrounding page shows this control. */
+  readonly narrowOnly?: boolean;
   readonly onSelect: () => void;
+  readonly selected?: boolean;
 }
 
 export interface DropdownMenuProps {
@@ -28,7 +31,10 @@ export const DropdownMenu = ({ children, items, label }: DropdownMenuProps) => (
             className={clsx(
               "dropdown-menu__item",
               item.destructive && "dropdown-menu__item--danger",
+              item.narrowOnly === true && "dropdown-menu__item--narrow",
+              item.selected === true && "dropdown-menu__item--selected",
             )}
+            aria-current={item.selected === true ? "true" : undefined}
             key={item.label}
             onSelect={item.onSelect}
             {...(item.disabled === undefined ? {} : { disabled: item.disabled })}

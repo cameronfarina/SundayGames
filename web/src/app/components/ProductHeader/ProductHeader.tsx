@@ -23,7 +23,12 @@ export const ProductHeader = () => {
             leagues={leagues}
             onLeagueChange={setActiveLeague}
           />
-          <AccountMenu email={email} />
+          <AccountMenu
+            activeLeague={activeLeague}
+            email={email}
+            leagues={leagues}
+            onLeagueChange={setActiveLeague}
+          />
         </div>
       </div>
     </header>
