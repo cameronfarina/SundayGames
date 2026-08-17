@@ -108,6 +108,14 @@ jobs:
               -d "{\"deployId\": \"$previous\"}" \
               "https://api.render.com/v1/services/$SERVICE_ID/rollback"
             echo "Rolled back to deploy $previous."
+            # Render suspends auto-deploys after a rollback; turn them back
+            # on so the next push to main deploys its fix.
+            curl -sf -X PATCH -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"autoDeploy": "yes"}' \
+              "https://api.render.com/v1/services/$SERVICE_ID" > /dev/null \
+              && echo "Auto-deploy re-enabled." \
+              || echo "Could not re-enable auto-deploy; resume it in the Render dashboard."
           fi
           if [ -n "$ALERT_WEBHOOK_URL" ]; then
             commit="${{ github.sha }}"
