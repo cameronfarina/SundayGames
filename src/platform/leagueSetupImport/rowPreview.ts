@@ -11,6 +11,7 @@ const recordFor = (draft: DraftLeagueSetupRow): LeagueSetupTeamRecord | null => 
     sourceRowNumber: draft.rowNumber,
     ownerDisplayName: draft.ownerDisplayName,
     teamDisplayName: draft.teamDisplayName,
+    ...(draft.existingTeamId === undefined ? {} : { existingTeamId: draft.existingTeamId }),
     ...(draft.email === undefined ? {} : { email: draft.email }),
     role: draft.role,
   };

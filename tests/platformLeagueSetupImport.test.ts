@@ -103,6 +103,73 @@ describe("platform league setup import parsing", () => {
     ]);
   });
 
+  it("carries a team id column through as the record's existing team", () => {
+    const result = parseLeagueSetupImport([
+      "teamId,owner,team,role",
+      "season-2027-team-01-ty,Tye,Tye's Team,member",
+      "season-2027-team-02-bob,Bob,Bob's Team,member",
+    ].join("\n"), {
+      expectedTeamCount: 2,
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.records).toEqual([
+      {
+        sourceRowNumber: 2,
+        ownerDisplayName: "Tye",
+        teamDisplayName: "Tye's Team",
+        existingTeamId: "season-2027-team-01-ty",
+        role: "member",
+      },
+      {
+        sourceRowNumber: 3,
+        ownerDisplayName: "Bob",
+        teamDisplayName: "Bob's Team",
+        existingTeamId: "season-2027-team-02-bob",
+        role: "member",
+      },
+    ]);
+  });
+
+  it("never reads an existing team id from headerless positional rows", () => {
+    const result = parseLeagueSetupImport("Owner11,Owner11's Team");
+
+    expect(result.records).toEqual([{
+      sourceRowNumber: 1,
+      ownerDisplayName: "Owner11",
+      teamDisplayName: "Owner11's Team",
+      role: "member",
+    }]);
+  });
+
+  it("keeps a header that names no email column from mailing the cell beside it", () => {
+    const result = parseLeagueSetupImport([
+      "owner,team,role",
+      "Owner11,Owner11's Team,admin",
+    ].join("\n"));
+
+    expect(result.records).toEqual([{
+      sourceRowNumber: 2,
+      ownerDisplayName: "Owner11",
+      teamDisplayName: "Owner11's Team",
+      role: "admin",
+    }]);
+  });
+
+  it("ignores a blank team id cell rather than claiming a team with no id", () => {
+    const result = parseLeagueSetupImport([
+      "teamId,owner,team,role",
+      ",Newcomer,Newcomer's Team,member",
+    ].join("\n"));
+
+    expect(result.records).toEqual([{
+      sourceRowNumber: 2,
+      ownerDisplayName: "Newcomer",
+      teamDisplayName: "Newcomer's Team",
+      role: "member",
+    }]);
+  });
+
   it("blocks expected count mismatches, blank owners, duplicates, and invalid roles", () => {
     const result = parseLeagueSetupImport([
       "owner,team,email,role",

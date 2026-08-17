@@ -2,13 +2,20 @@ import type { LeagueSetupColumn, RawLeagueSetupRow } from "./internalTypes.js";
 import { normalizeHeader } from "./normalization.js";
 
 const headerAliases: Record<LeagueSetupColumn, ReadonlySet<string>> = {
+  teamId: new Set(["teamid", "existingteamid"]),
   owner: new Set(["owner", "ownername", "ownerdisplayname", "manager", "managername"]),
   team: new Set(["team", "teamname", "teamdisplayname", "displayname"]),
   email: new Set(["email", "owneremail", "inviteemail"]),
   role: new Set(["role", "membershiprole", "workspacerole"]),
 };
 
-const leagueSetupColumns: readonly LeagueSetupColumn[] = ["owner", "team", "email", "role"];
+const leagueSetupColumns: readonly LeagueSetupColumn[] = [
+  "teamId",
+  "owner",
+  "team",
+  "email",
+  "role",
+];
 
 const columnForHeader = (header: string): LeagueSetupColumn | null => {
   const normalizedHeader = normalizeHeader(header);
@@ -53,4 +60,21 @@ export const cellValue = (
 ): string => {
   const cellIndex = headerMap?.get(column) ?? positionalIndex;
   return row.cells[cellIndex]?.trim() ?? "";
+};
+
+/**
+ * Reads a column only when a header names it. Team ids identify a row rather
+ * than describe it, so a pasted list that never mentions one must not have a
+ * neighbouring cell read as an id.
+ */
+export const headerCellValue = (
+  row: RawLeagueSetupRow,
+  headerMap: ReadonlyMap<LeagueSetupColumn, number> | null,
+  column: LeagueSetupColumn,
+): string | undefined => {
+  const cellIndex = headerMap?.get(column);
+  if (cellIndex === undefined) return undefined;
+
+  const value = row.cells[cellIndex]?.trim() ?? "";
+  return value.length === 0 ? undefined : value;
 };

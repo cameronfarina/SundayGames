@@ -80,8 +80,8 @@ describe("CommissionerPage season state", () => {
     const { applyRequests, router } = renderWorkspace();
     const user = userEvent.setup();
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
-    await user.clear(screen.getByLabelText("Teams and managers"));
-    await user.type(screen.getByLabelText("Teams and managers"), "A staged rows");
+    await user.clear(screen.getByLabelText("Manager 1"));
+    await user.type(screen.getByLabelText("Manager 1"), "A staged manager");
     await user.type(screen.getByLabelText("Keeper command"), "A keeper");
     await user.upload(screen.getByLabelText("Choose historical draft files"), new File(["a"], "alpha.csv"));
     await user.click(screen.getByLabelText("Replace an import for the same year"));
@@ -89,7 +89,8 @@ describe("CommissionerPage season state", () => {
 
     await router.navigate("/commissioner?seasonId=season-b");
     expect(await screen.findByText("Beta · 2027")).toBeVisible();
-    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nOwner11,Beta,member");
+    expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
+    expect(screen.getByLabelText("Team name 1")).toHaveValue("Beta");
     expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
@@ -99,7 +100,8 @@ describe("CommissionerPage season state", () => {
 
     await router.navigate("/commissioner?seasonId=season-a");
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
-    expect(screen.getByLabelText("Teams and managers")).toHaveValue("owner,team,role\nOwner11,Alpha,member");
+    expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
+    expect(screen.getByLabelText("Team name 1")).toHaveValue("Alpha");
     expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");

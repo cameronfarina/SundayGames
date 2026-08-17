@@ -104,10 +104,10 @@ test("commissioner league switching discards stale setup fetch responses", async
   await chooseLeagueB();
   await expect(page).toHaveURL(/\/leagues\/league-b\/commissioner$/u);
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Teams and managers" })).toHaveValue(/League B Owner11/u);
+  await expect(page.getByRole("textbox", { name: "Team name 1" })).toHaveValue(/League B Owner11/u);
   await delay(400);
   await expect(page.getByRole("button", { name: "Create league link" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Teams and managers" })).not.toHaveValue(/League A Owner11/u);
+  await expect(page.getByRole("textbox", { name: "Team name 1" })).not.toHaveValue(/League A Owner11/u);
 
   await page.goto(`/practice?seasonId=${encodeURIComponent(seasonA.id)}`);
   const leagueAMockSessionId = await createAuctionMock(page);

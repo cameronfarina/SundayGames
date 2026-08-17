@@ -1,5 +1,5 @@
 import type { WorkspaceRole } from "../workspacePrivacy.js";
-import { cellValue } from "./headerMap.js";
+import { cellValue, headerCellValue } from "./headerMap.js";
 import type {
   DraftLeagueSetupRow,
   LeagueSetupColumn,
@@ -26,11 +26,13 @@ export const draftRowFor = (
   const rawTeamDisplayName = cellValue(row, headerMap, "team", 1);
   const email = normalizeEmail(cellValue(row, headerMap, "email", 2));
   const rawRole = cellValue(row, headerMap, "role", 3);
+  const existingTeamId = headerCellValue(row, headerMap, "teamId");
 
   return {
     rowNumber: row.rowNumber,
     ownerDisplayName,
     teamDisplayName: rawTeamDisplayName.length > 0 ? rawTeamDisplayName : ownerDisplayName,
+    ...(existingTeamId === undefined ? {} : { existingTeamId }),
     ...(email === undefined ? {} : { email }),
     role: roleFor(rawRole),
     rawRole,

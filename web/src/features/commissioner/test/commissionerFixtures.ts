@@ -54,3 +54,6 @@ export const requestPath = (input: RequestInfo | URL): string => {
   if (typeof input === "string") return input;
   return input instanceof URL ? input.toString() : input.url;
 };
+
+export const requestBody = (init?: RequestInit): string =>
+  typeof init?.body === "string" ? init.body : "";

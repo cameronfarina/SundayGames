@@ -17,9 +17,10 @@ export const applyCommissionerSetup = async (
   await expect(page).toHaveURL(/\/leagues\/[^/]+\/commissioner$/u);
   const leaguePath = new URL(page.url()).pathname.replace(/\/commissioner$/u, "");
   const setupSection = page.locator("#league-setup");
+  await setupSection.getByText("Paste a full team list").click();
   const teamRows = setupSection.getByRole("textbox", { name: "Teams and managers" });
   await teamRows.fill(setupRowsFor(camEmail));
-  await page.getByRole("button", { name: "Apply changes" }).click();
+  await page.getByRole("button", { name: "Replace team list" }).click();
   await expect(setupSection.getByRole("status")).toHaveText("League teams saved.");
   const invitationSection = page.locator("#league-invite");
   await page.getByRole("button", { name: "Create league link" }).click();

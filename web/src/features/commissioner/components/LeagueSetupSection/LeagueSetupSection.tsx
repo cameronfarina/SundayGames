@@ -7,6 +7,13 @@ import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { applyBlockers } from "../../model/applyBlockers";
 import { errorMessage } from "../../model/errorMessage";
 import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
+import {
+  teamRosterContent,
+  teamRosterRows,
+  withRowEdited,
+  withRowMoved,
+} from "../../model/teamRoster";
+import { TeamListPaste } from "./TeamListPaste";
 
 interface LeagueSetupSectionProps { readonly season: CommissionerSeason }
 
@@ -16,23 +23,21 @@ const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
   staleTime: Infinity,
 });
 
-const teamRows = (season: CommissionerSeason): string => [
-  "owner,team,role",
-  ...[...season.teams]
-    .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
-    .map(team => `${team.ownerDisplayName},${team.displayName},member`),
-].join("\n");
-
 export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
   const queryClient = useQueryClient();
-  const [content, setContent] = useState(() => teamRows(season));
+  const [rows, setRows] = useState(() => teamRosterRows(season));
+  const content = teamRosterContent(rows);
   const apply = useMutation({
     mutationFn: () => commissionerApi.applyTeams(season.id, content),
     onSuccess: async () => { await invalidateLeagueSetupConsumers(queryClient, season.id); },
   });
   const settings = season.settings;
   const blockers = applyBlockers(apply.error);
-  const dirty = content !== teamRows(season);
+  const dirty = content !== teamRosterContent(teamRosterRows(season));
+  const editRow = (index: number, edit: Parameters<typeof withRowEdited>[2]) => {
+    setRows(current => withRowEdited(current, index, edit));
+    apply.reset();
+  };
   // Asks the server what these rows would do, so the effect of a rename is on
   // screen before it is saved rather than discovered at the draft room.
   const previewContent = useDeferredValue(content);
@@ -50,10 +55,41 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
         <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>
         <div><span>Roster</span><strong>{settings.roster.rosterSize} players · {settings.expectedTeamCount} teams</strong></div>
       </div>
-      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Team names and managers remain editable until a live room starts.</p>
-      <label htmlFor="commissioner-team-rows">Teams and managers</label>
-      <textarea id="commissioner-team-rows" rows={Math.min(10, season.teams.length + 1)} value={content}
-        onChange={event => { setContent(event.target.value); apply.reset(); }} />
+      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place, and use the arrows to set draft order. Both stay editable until a live room starts.</p>
+      <fieldset className="commissioner-teams">
+        <legend>Teams and managers</legend>
+        <ol className="commissioner-teams__list">
+          {rows.map((row, index) => (
+            <li className="commissioner-teams__row" key={row.teamId}>
+              <span className="commissioner-teams__pick">{index + 1}</span>
+              <input
+                aria-label={`Manager ${String(index + 1)}`}
+                onChange={event => { editRow(index, { ownerDisplayName: event.target.value }); }}
+                value={row.ownerDisplayName}
+              />
+              <input
+                aria-label={`Team name ${String(index + 1)}`}
+                onChange={event => { editRow(index, { teamDisplayName: event.target.value }); }}
+                value={row.teamDisplayName}
+              />
+              <span className="commissioner-teams__move">
+                <button
+                  aria-label={`Move ${row.ownerDisplayName} up`}
+                  disabled={index === 0}
+                  onClick={() => { setRows(current => withRowMoved(current, index, -1)); apply.reset(); }}
+                  type="button"
+                >↑</button>
+                <button
+                  aria-label={`Move ${row.ownerDisplayName} down`}
+                  disabled={index === rows.length - 1}
+                  onClick={() => { setRows(current => withRowMoved(current, index, 1)); apply.reset(); }}
+                  type="button"
+                >↓</button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </fieldset>
       {assignments.length > 0 && (
         <ul aria-label="What these rows will do" className="commissioner-assignments">
           {assignments.map(assignment => (
@@ -78,6 +114,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
       {blockers.map(blocker => <p role="alert" key={`${blocker.code}-${String(blocker.rowNumber ?? 0)}`}>{blocker.message}</p>)}
       {apply.isSuccess ? <p role="status">League teams saved.</p> : null}
       {apply.isError && blockers.length === 0 ? <p role="alert">{errorMessage(apply.error)}</p> : null}
+      <TeamListPaste seasonId={season.id} />
     </section>
   );
 }

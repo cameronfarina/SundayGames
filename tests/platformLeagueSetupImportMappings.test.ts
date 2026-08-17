@@ -122,4 +122,46 @@ describe("platform league setup import mappings", () => {
       ],
     });
   });
+
+  it("keeps every team when a row is renamed and reordered in the same save", () => {
+    const season = buildCurrentMockdLeagueSeason(ownerOrder.slice(0, 3), {
+      ...leagueConfig,
+      teams: 3,
+    }, { leagueName: "Auction Crew", seasonYear: 2027, setupStatus: "published" });
+    const [first, second, third] = season.teams;
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error("Expected three mapped team fixtures.");
+    }
+
+    const applied = applyLeagueSetupImportToSeason(season, [
+      {
+        sourceRowNumber: 2,
+        ownerDisplayName: second.ownerDisplayName,
+        teamDisplayName: second.displayName,
+        existingTeamId: second.id,
+        role: "member",
+      },
+      {
+        sourceRowNumber: 3,
+        ownerDisplayName: `${first.ownerDisplayName}e`,
+        teamDisplayName: first.displayName,
+        existingTeamId: first.id,
+        role: "member",
+      },
+      {
+        sourceRowNumber: 4,
+        ownerDisplayName: third.ownerDisplayName,
+        teamDisplayName: third.displayName,
+        existingTeamId: third.id,
+        role: "member",
+      },
+    ]);
+
+    expect(applied.season.teams.map(team => team.id)).toEqual([second.id, first.id, third.id]);
+    expect(applied.season.teams.at(1)).toMatchObject({
+      id: first.id,
+      ownerId: first.ownerId,
+      ownerDisplayName: `${first.ownerDisplayName}e`,
+    });
+  });
 });

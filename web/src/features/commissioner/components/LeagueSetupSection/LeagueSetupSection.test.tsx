@@ -27,11 +27,11 @@ const renderSection = (fetcher: PlatformFetch, snake = false) => {
 describe("LeagueSetupSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
-  it("disables apply until the teams and managers text changes", async () => {
+  it("disables apply until a manager or team name changes", async () => {
     renderSection(vi.fn());
     const apply = screen.getByRole("button", { name: "Apply changes" });
     expect(apply).toBeDisabled();
-    await userEvent.setup().type(screen.getByLabelText("Teams and managers"), "x");
+    await userEvent.setup().type(screen.getByLabelText("Manager 1"), "x");
     expect(apply).toBeEnabled();
   });
 
@@ -48,7 +48,7 @@ describe("LeagueSetupSection", () => {
     expect(screen.queryByRole("button", { name: "Preview changes" })).not.toBeInTheDocument();
     const apply = screen.getByRole("button", { name: "Apply changes" });
     expect(apply).toBeDisabled();
-    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.type(screen.getByLabelText("Manager 1"), "x");
     expect(apply).toBeEnabled();
     await user.click(apply);
     expect(await screen.findByText("League teams saved.")).toBeVisible();
@@ -70,12 +70,12 @@ describe("LeagueSetupSection", () => {
     renderSection(fetcher, true);
     const user = userEvent.setup();
     expect(screen.getByText("16-round snake")).toBeVisible();
-    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.type(screen.getByLabelText("Manager 1"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(await screen.findByText("Owner is required.")).toBeVisible();
     expect(screen.getByText("A team is missing.")).toBeVisible();
     expect(screen.queryByText("Resolve league setup import blockers before applying.")).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.type(screen.getByLabelText("Manager 1"), "x");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -93,9 +93,10 @@ describe("LeagueSetupSection", () => {
     render(<QueryClientProvider client={new QueryClient()}>
       <LeagueSetupSection season={reordered} />
     </QueryClientProvider>);
-    expect(screen.getByLabelText("Teams and managers")).toHaveValue(
-      "owner,team,role\nOwner11,Short King,member\nAlex,Second Team,member",
-    );
+    expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
+    expect(screen.getByLabelText("Team name 1")).toHaveValue("Short King");
+    expect(screen.getByLabelText("Manager 2")).toHaveValue("Alex");
+    expect(screen.getByLabelText("Team name 2")).toHaveValue("Second Team");
   });
 
   it("reports apply errors that carry no row blockers", async () => {
@@ -103,7 +104,7 @@ describe("LeagueSetupSection", () => {
       error: { code: "setup_failed", message: "Could not apply." },
     }, 422))));
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.type(screen.getByLabelText("Manager 1"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not apply.");
   });
@@ -112,7 +113,7 @@ describe("LeagueSetupSection", () => {
     const user = userEvent.setup();
     renderSection(vi.fn(() => new Promise<Response>(() => undefined)));
 
-    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.type(screen.getByLabelText("Manager 1"), "x");
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
   });
