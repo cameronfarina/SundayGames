@@ -7,9 +7,10 @@ const isCi = process.env.CI === "true";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
-  // A single flaky auction timing failure rolls production back, so CI retries
-  // before reporting red. Local runs never retry, to keep flakes visible.
-  retries: isCi ? 2 : 0,
+  // No retries: these cases share one platform store, so a second attempt
+  // starts from the first attempt's data and fails for a different reason.
+  // Timing races have to be fixed in the assertions instead.
+  retries: 0,
   expect: {
     timeout: 5_000,
   },
