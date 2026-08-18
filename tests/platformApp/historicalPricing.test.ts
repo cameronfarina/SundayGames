@@ -43,7 +43,7 @@ describe("platform app service", () => {
         actorSessionToken: owner04.sessionToken,
         leagueId: importSeason.leagueId,
         seasonYear: importSeason.seasonYear,
-        sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,70,2025,player-puka",
+        sourceText: "owner,player,position,price,espn value,year,player id\nOwner11,Puka Nacua,WR,70,50,2025,player-puka",
         now,
       }),
     ).rejects.toThrow(new PlatformAppError(
@@ -55,7 +55,7 @@ describe("platform app service", () => {
       actorSessionToken: owner11.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
-      sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,70,2025,player-puka",
+      sourceText: "owner,player,position,price,espn value,year,player id\nOwner11,Puka Nacua,WR,70,50,2025,player-puka",
       now,
     });
     const committed = await app.commitHistoricalImport({
@@ -67,7 +67,7 @@ describe("platform app service", () => {
       actorSessionToken: owner11.sessionToken,
       leagueId: importSeason.leagueId,
       seasonYear: importSeason.seasonYear,
-      sourceText: "owner,player,position,price,year,player id\nOwner11,Puka Nacua,WR,90,2025,player-puka",
+      sourceText: "owner,player,position,price,espn value,year,player id\nOwner11,Puka Nacua,WR,90,50,2025,player-puka",
       replacementRequested: true,
       now: new Date(now.getTime() + 1_500),
     });
@@ -91,7 +91,7 @@ describe("platform app service", () => {
     ]);
     expect(pricing.snapshots[0]?.rows.find(row => row.playerName === "Puka Nacua")).toMatchObject({
       marketPrice: 50,
-      scenarioPrice: 70,
+      scenarioPrice: 90,
     });
     expect(await app.listLeaguePricingSnapshots({
       actorSessionToken: owner04.sessionToken,

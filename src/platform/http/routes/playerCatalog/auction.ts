@@ -47,11 +47,7 @@ export const auctionCatalogResponse = async (
     .find(candidate => candidate.userId === accountId);
   const snapshotValues = snapshotPlayerValues(latest?.rows, publishedCatalog);
   const values = buildSeasonPlayerValues({
-    season,
     playerCatalog: players,
-    initialRosters: keepers,
-    humanTeamId: membership?.teamId,
-    strategyKey,
     leaguePrices: snapshotValues.leaguePrices,
     personalValues: snapshotValues.personalValues,
   });

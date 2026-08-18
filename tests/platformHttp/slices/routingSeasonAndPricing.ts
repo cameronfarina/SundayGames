@@ -79,7 +79,7 @@ export const verifyRoutingSeasonAndPricing = async ({ handle, owner11, owner04, 
         fileName: "draft-2025.csv",
         mimeType: "text/csv",
         base64: Buffer.from(
-          "owner,player,position,price,year\nOwner11,Puka Nacua,WR,70,2025",
+          "owner,player,position,price,espn value,year\nOwner11,Puka Nacua,WR,70,50,2025",
         ).toString("base64"),
         seasonYear: 2025,
         now,
@@ -170,7 +170,7 @@ export const verifyRoutingSeasonAndPricing = async ({ handle, owner11, owner04, 
       snapshots: [
         expect.objectContaining({
           scenarioId: "balanced",
-          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 50, scenarioPrice: 60 })],
+          rows: [expect.objectContaining({ playerName: "Puka Nacua", marketPrice: 50, scenarioPrice: 70 })],
         }),
       ],
     });

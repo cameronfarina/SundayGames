@@ -125,12 +125,12 @@ describe("platform HTTP pricing refresh", () => {
         personalized: true,
         pricingModelRunId: expect.not.stringContaining(stale.modelRunId),
         players: expect.arrayContaining([
-          expect.objectContaining({ name: "Jahmyr Gibbs", marketPrice: 57, myValue: 82 }),
+          expect.objectContaining({ name: "Jahmyr Gibbs", marketPrice: 57, myValue: 70 }),
         ]),
       },
     });
     expect(preflight).toHaveBeenCalledWith(expect.objectContaining({
-      modelVersion: "league-history-keepers-v4",
+      modelVersion: "league-flat-inflation-v1",
     }));
 
     const mockResponse = await handle({
@@ -144,7 +144,7 @@ describe("platform HTTP pricing refresh", () => {
     const mockSnapshot = expectBodyRecord(mockSession.configurationSnapshot);
     const mockPayload = expectBodyRecord(mockSnapshot.payload);
     expect(expectNumberRecord(mockPayload.playerExpectedPrices)[canonicalPlayerIdentityKey("Jahmyr Gibbs")])
-      .toBe(82);
+      .toBe(70);
 
     await expect(handle({
       method: "POST",
@@ -152,6 +152,6 @@ describe("platform HTTP pricing refresh", () => {
       sessionToken: login.sessionToken,
       body: { seasonId: season.id, count: 1 },
     })).resolves.toMatchObject({ status: 200 });
-    expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(82);
+    expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(70);
   });
 });
