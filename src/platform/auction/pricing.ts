@@ -7,7 +7,7 @@ import {
 import { backupDepthMaximumBidFor } from "./backupDepth.js";
 import { deterministicFraction } from "./deterministic.js";
 import { ownerBidLiftFor } from "./ownerSurplus.js";
-import { flatPricedAuctionPositions, premiumValueThresholdDollars } from "./pricingConstants.js";
+import { flatPricedAuctionDollars, flatPricedAuctionPositions, premiumValueThresholdDollars } from "./pricingConstants.js";
 import { canAcquire, rosterNeedFor } from "./roster.js";
 import {
   isAutomatedAuctionAcquisitionEligible,
@@ -31,7 +31,10 @@ export const aiMaxBidFor = (
   if (!canAcquire(state, team, player, state.configuration.minimumBidDollars)) return 0;
   if (!isAutomatedAuctionAcquisitionEligible(state, team, player)) return 0;
   if (flatPricedAuctionPositions.has(player.position)) {
-    return Math.min(team.maxBid, state.configuration.minimumBidDollars);
+    return Math.min(
+      team.maxBid,
+      Math.max(state.configuration.minimumBidDollars, flatPricedAuctionDollars),
+    );
   }
   const backupDepthMaximum = backupDepthMaximumBidFor(state, team, player);
   if (backupDepthMaximum !== undefined) {

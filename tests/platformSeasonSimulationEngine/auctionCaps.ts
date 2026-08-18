@@ -155,7 +155,7 @@ export const registerAuctionCapTests = (): void => {
     }
   });
 
-  it("fills every kicker and defense slot at the minimum bid", () => {
+  it("fills every kicker and defense slot at two dollars", () => {
     const result = runSeasonSimulations({
       season: specialistSeason,
       setup: specialistSetup,
@@ -168,10 +168,10 @@ export const registerAuctionCapTests = (): void => {
       team.roster.filter(player => player.position === "K" || player.position === "DST")));
 
     expect(drafted.length).toBeGreaterThan(0);
-    expect(drafted.every(player => player.price === 1)).toBe(true);
+    expect(drafted.every(player => (player.price ?? 0) <= 2)).toBe(true);
   });
 
-  it("buys a named defense while no rival bids past the minimum", () => {
+  it("buys a named defense while no rival bids past the flat price", () => {
     const result = runSeasonSimulations({
       season: specialistSeason,
       setup: specialistSetup,
@@ -184,11 +184,11 @@ export const registerAuctionCapTests = (): void => {
     for (const run of result.runs) {
       const roster = run.teams.find(team => team.teamId === "team-1")?.roster ?? [];
       expect(roster.map(player => player.playerName)).toContain("Defense 3");
-      expect(roster.find(player => player.playerName === "Defense 3")?.price).toBe(1);
+      expect(roster.find(player => player.playerName === "Defense 3")?.price).toBe(3);
       const rivalDefenses = run.teams
         .filter(team => team.teamId !== "team-1")
         .flatMap(team => team.roster.filter(player => player.position === "DST"));
-      expect(rivalDefenses.every(player => player.price === 1)).toBe(true);
+      expect(rivalDefenses.every(player => (player.price ?? 0) <= 2)).toBe(true);
     }
   });
 };

@@ -2,6 +2,7 @@ import { remainingValuePerSlotFor } from "./auctionAnalysis.js";
 import { GenericAuctionMockError } from "./errors.js";
 import { openNomination } from "./nomination.js";
 import { budgetPressureLiftFor } from "./ownerSurplus.js";
+import { flatPricedAuctionPositions } from "./pricingConstants.js";
 import { aiMaxBidFor } from "./pricing.js";
 import {
   availableNominationPlayersFor,
@@ -22,6 +23,9 @@ const aiOpeningBidFor = (
   player: Parameters<typeof aiMaxBidFor>[2],
 ): number => {
   const minimumBid = state.configuration.minimumBidDollars;
+  if (flatPricedAuctionPositions.has(player.position)) {
+    return aiMaxBidFor(state, team, player, state.session.nominationsCompleted + 1);
+  }
   const pressureOpening = minimumBid + budgetPressureLiftFor(
     team,
     minimumBid,

@@ -462,7 +462,7 @@ describe("generic auction mock engine", () => {
       expectedRevision: 2,
     });
 
-    expect(passed.sales.find(sale => sale.playerId === "k-1")?.price).toBe(1);
+    expect(passed.sales.find(sale => sale.playerId === "k-1")?.price).toBe(2);
   });
 
   it("uses owner tendencies to produce deterministic AI bidding personalities", () => {

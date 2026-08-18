@@ -1,7 +1,10 @@
 export const auctionClearingPriceCushionDollars = 2;
-// Kickers and defenses always clear at the minimum bid. No team spends a
-// budget down onto them, however much money is left in the room.
+// Kickers and defenses always cost two dollars. No team spends a budget
+// down onto them, however much money is left in the room.
 export const flatPricedAuctionPositions = new Set(["K", "DST"]);
+export const flatPricedAuctionDollars = 2;
+// A cheap backup quarterback is a half-the-room habit, per league history.
+export const backupQuarterbackTeamShare = 0.5;
 // Once a team's dedicated starter slot at a specialist position is filled,
 // backups there are worth a few dollars at most.
 export const backupDepthBidCushionDollars = 2;

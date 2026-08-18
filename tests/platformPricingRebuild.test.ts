@@ -133,8 +133,8 @@ describe("league-calibrated pricing rebuild", () => {
 
     expect(snapshot?.rows.filter(row => row.position === "K" || row.position === "DST"))
       .toMatchObject([
-        { playerName: "Foxtrot Kicker", marketPrice: 4, scenarioPrice: 1, personalValue: 1 },
-        { playerName: "Golf Defense", marketPrice: 6, scenarioPrice: 1, personalValue: 1 },
+        { playerName: "Foxtrot Kicker", marketPrice: 4, scenarioPrice: 2, personalValue: 2 },
+        { playerName: "Golf Defense", marketPrice: 6, scenarioPrice: 2, personalValue: 2 },
       ]);
   });
 

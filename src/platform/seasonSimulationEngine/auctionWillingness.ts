@@ -14,7 +14,7 @@ import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTarget
 import { remainingValuePerSlotFor } from "../auction/auctionAnalysis.js";
 import { backupDepthMaximumBidFor } from "../auction/backupDepth.js";
 import { ownerBidLiftFor } from "../auction/ownerSurplus.js";
-import { flatPricedAuctionPositions } from "../auction/pricingConstants.js";
+import { flatPricedAuctionDollars, flatPricedAuctionPositions } from "../auction/pricingConstants.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
 import {
   auctionRosterNeedFor,
@@ -42,9 +42,12 @@ export const auctionWillingnessFor = (
       : !isAutomatedAuctionAcquisitionEligible(state, team, player)
   ) return 0;
 
-  // A kicker or defense costs the minimum bid unless this manager named him.
+  // A kicker or defense costs two dollars unless this manager named him.
   if (flatPricedAuctionPositions.has(player.position) && !isTarget) {
-    return Math.min(team.maxBid, state.configuration.minimumBidDollars);
+    return Math.min(
+      team.maxBid,
+      Math.max(state.configuration.minimumBidDollars, flatPricedAuctionDollars),
+    );
   }
 
   const isPair = player.id === pairPlayerId;
