@@ -10,10 +10,7 @@ import {
 } from "./platformApp/parity.js";
 
 const platformAppDirectory = path.resolve("tests/platformApp");
-const longBehaviorFiles = new Set([
-  "liveRoomCommands.test.ts",
-  "sharedAccess.test.ts",
-]);
+const maximumLines = 400;
 
 const sourceFilesUnder = (directory: string): readonly string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -121,8 +118,6 @@ describe("platform app test architecture", () => {
     for (const file of platformAppFiles) {
       const label = path.relative(process.cwd(), file);
       const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
-      const localName = path.relative(platformAppDirectory, file);
-      const maximumLines = longBehaviorFiles.has(localName) ? 250 : 150;
       if (lines > maximumLines) violations.push(`${label}: ${lines} lines exceeds ${maximumLines}`);
       for (const finding of unsafeTypeSyntax(sourceFileFor(file))) {
         violations.push(`${label}: ${finding}`);

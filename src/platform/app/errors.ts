@@ -1,5 +1,6 @@
 export type PlatformAppErrorCode =
   | "auth_required"
+  | "draft_format_locked"
   | "draft_room_not_final"
   | "historical_import_not_found"
   | "league_not_found"

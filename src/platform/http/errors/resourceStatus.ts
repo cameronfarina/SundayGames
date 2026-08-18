@@ -6,6 +6,7 @@ import type { PlatformInvitationError } from "../../platformInvitations.js";
 export const platformErrorStatus = (code: PlatformAppError["code"]): number => {
   switch (code) {
     case "auth_required": return 401;
+    case "draft_format_locked":
     case "draft_room_not_final":
     case "team_claim_locked":
     case "team_already_claimed": return 409;

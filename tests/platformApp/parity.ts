@@ -22,8 +22,10 @@ export const expectedBehaviorNames: readonly string[] = [
   "rejects snake hosted rooms before delegating creation to the repository",
   "cancels a setup room idempotently so league setup can resume and the room can be recreated",
   "can route live draft rooms and export artifacts through injected async repositories",
+  "locks the draft format once a league season is published",
+  "still allows a draft format change while the season is a draft",
 ];
 
-export const expectedAssertionCount = 109;
+export const expectedAssertionCount = 112;
 export const expectedAssertionFingerprint =
-  "81b2bef009b736f3ffcae886853ca0f22f96525a63dde6bc7946fa40b5bddfd2";
+  "4083c92be655be14cd15a14ecee76bbe20916dfbfdbaf33ba928d2f51f563c93";

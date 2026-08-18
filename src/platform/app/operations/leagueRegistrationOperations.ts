@@ -27,6 +27,23 @@ const assertMembershipTeams = (
   }
 };
 
+// Legacy seasons predate the explicit field but were always auction leagues.
+const draftFormatOf = (season: LeagueSeason): "auction" | "snake" =>
+  season.settings.draftFormat ?? "auction";
+
+const assertDraftFormatUnchanged = async (
+  context: PlatformAppContext,
+  season: LeagueSeason,
+): Promise<void> => {
+  const existing = await context.leagueSetup.findLeagueSeason(season.id);
+  if (existing === null || existing.setupStatus === "draft") return;
+  if (draftFormatOf(existing) === draftFormatOf(season)) return;
+  throw new PlatformAppError(
+    "draft_format_locked",
+    "Draft format cannot change after the league is published. Create a new season to switch formats.",
+  );
+};
+
 const assertRegistrationAllowed = async (
   context: PlatformAppContext,
   account: AccountRecord,
@@ -47,6 +64,7 @@ const assertRegistrationAllowed = async (
     );
   }
   assertMembershipTeams(season, memberships);
+  await assertDraftFormatUnchanged(context, season);
 };
 
 export const createLeagueRegistrationOperations = (context: PlatformAppContext) => ({
