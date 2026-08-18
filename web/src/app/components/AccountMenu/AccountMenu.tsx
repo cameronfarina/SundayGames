@@ -7,7 +7,7 @@ import { PasswordChangeForm } from "../../../features/auth/components/PasswordCh
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import { Dialog } from "../../../shared/ui/Dialog/Dialog";
-import { DropdownMenu } from "../../../shared/ui/DropdownMenu/DropdownMenu";
+import { DropdownMenu, type DropdownMenuItem } from "../../../shared/ui/DropdownMenu/DropdownMenu";
 import { leaguePageForPath } from "../../../features/league/lib/leaguePaths";
 import { navigationTargets } from "../ProductHeader/navigationTargets";
 import { accountInitial } from "./accountInitial";
@@ -39,30 +39,35 @@ export const AccountMenu = ({
       void navigate("/login", { replace: true });
     },
   });
-  // Wide screens show the league picker in the header, so these repeat it only
-  // where that picker is hidden.
-  const leagueItems = leagues.map(league => ({
+  // A laptop shows the league picker in the header, so these repeat it only
+  // where that picker is hidden. One league is a label, not a choice, so it
+  // carries no marker.
+  const leagueItems: DropdownMenuItem[] = leagues.map(league => ({
+    hiddenFrom: "laptop",
     label: `${league.leagueName} · ${String(league.seasonYear)}`,
-    narrowOnly: true,
     onSelect: () => { onLeagueChange(league.seasonId); },
-    selected: league.seasonId === activeLeague?.seasonId,
+    selected: leagues.length > 1 && league.seasonId === activeLeague?.seasonId,
   }));
   // A phone has no room for the header tabs, so this menu carries the pages
-  // there. Wide screens keep the tabs and hide these.
-  const pageItems = navigationTargets(activeLeague, canManageLeague).map((target, index) => ({
-    label: target.label,
-    narrowOnly: true,
-    onSelect: () => { void navigate(target.to); },
-    selected: target.page === currentPage,
-    startsGroup: index === 0 && leagueItems.length > 0,
-  }));
-  const items = [
+  // there. Wider screens keep the tabs and hide these.
+  const pageItems: DropdownMenuItem[] = navigationTargets(activeLeague, canManageLeague)
+    .map((target, index) => ({
+      dividerHiddenFrom: "tablet",
+      hiddenFrom: "tablet",
+      label: target.label,
+      onSelect: () => { void navigate(target.to); },
+      selected: target.page === currentPage,
+      startsGroup: index === 0 && leagueItems.length > 0,
+    }));
+  const items: DropdownMenuItem[] = [
     ...leagueItems,
     ...pageItems,
     {
+      // The league rows outlast the page rows, so this divider outlasts them too.
+      dividerHiddenFrom: leagueItems.length > 0 ? "laptop" : "tablet",
       label: "Change password",
       onSelect: () => { setPasswordDialogOpen(true); },
-      startsGroup: pageItems.length > 0,
+      startsGroup: leagueItems.length > 0 || pageItems.length > 0,
     },
     {
       destructive: true,

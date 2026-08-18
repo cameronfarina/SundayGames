@@ -3,12 +3,18 @@ import clsx from "clsx";
 import { Fragment, type ReactNode } from "react";
 import "./DropdownMenu.css";
 
+/** Widths at which the surrounding page takes a control back from this menu. */
+export type DropdownMenuWidth = "tablet" | "laptop";
+
 export interface DropdownMenuItem {
   readonly destructive?: boolean;
   readonly disabled?: boolean;
+  /** Hides this group's divider from this width up, for when every row above
+      the divider is gone. */
+  readonly dividerHiddenFrom?: DropdownMenuWidth;
+  /** Hidden from this width up, where the surrounding page shows this control. */
+  readonly hiddenFrom?: DropdownMenuWidth;
   readonly label: string;
-  /** Hidden on wide screens, where the surrounding page shows this control. */
-  readonly narrowOnly?: boolean;
   readonly onSelect: () => void;
   readonly selected?: boolean;
   /** Starts a new group. Without it, a marked row in one group runs into a
@@ -32,13 +38,19 @@ export const DropdownMenu = ({ children, items, label }: DropdownMenuProps) => (
         {items.map(item => (
           <Fragment key={item.label}>
           {item.startsGroup === true && (
-            <MenuPrimitive.Separator className="dropdown-menu__separator" />
+            <MenuPrimitive.Separator
+              className={clsx(
+                "dropdown-menu__separator",
+                item.dividerHiddenFrom !== undefined
+                  && `dropdown-menu__separator--hidden-from-${item.dividerHiddenFrom}`,
+              )}
+            />
           )}
           <MenuPrimitive.Item
             className={clsx(
               "dropdown-menu__item",
               item.destructive && "dropdown-menu__item--danger",
-              item.narrowOnly === true && "dropdown-menu__item--narrow",
+              item.hiddenFrom !== undefined && `dropdown-menu__item--hidden-from-${item.hiddenFrom}`,
               item.selected === true && "dropdown-menu__item--selected",
             )}
             aria-current={item.selected === true ? "true" : undefined}

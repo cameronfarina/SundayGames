@@ -23,17 +23,21 @@
   border-radius: 6px;
   box-shadow: 0 12px 30px rgb(0 0 0 / 42%);
   min-width: 12rem;
-  padding: 0.3rem;
+  overflow: hidden;
+  /* No side padding: a row runs the full width, so its marker sits on the
+     panel's left edge instead of floating inside it. */
+  padding: 0.3rem 0;
   z-index: 100;
 }
 
 .dropdown-menu__item {
-  border-radius: 4px;
+  align-items: center;
   color: var(--color-text);
   cursor: pointer;
+  display: flex;
   min-height: 2.4rem;
   outline: none;
-  padding: 0.55rem 0.7rem;
+  padding: 0.55rem 0.9rem;
 }
 
 .dropdown-menu__item[data-highlighted] {
@@ -50,20 +54,10 @@
   color: var(--color-danger);
 }
 
-.dropdown-menu__item--narrow {
-  display: none;
-}
-
 /* No generated text here: it would join the item's accessible name. */
 .dropdown-menu__item--selected {
-  box-shadow: inset 2px 0 0 var(--color-accent);
+  box-shadow: inset 3px 0 0 var(--color-accent);
   font-weight: 700;
-}
-
-@media (max-width: 48rem) {
-  .dropdown-menu__item--narrow {
-    display: flex;
-  }
 }
 
 .dropdown-menu__separator {
@@ -73,8 +67,15 @@
 }
 
 @media (min-width: 48.0625rem) {
-  /* The groups it divides are hidden on wide screens. */
-  .dropdown-menu__separator {
+  .dropdown-menu__item--hidden-from-tablet,
+  .dropdown-menu__separator--hidden-from-tablet {
+    display: none;
+  }
+}
+
+@media (min-width: 56.25rem) {
+  .dropdown-menu__item--hidden-from-laptop,
+  .dropdown-menu__separator--hidden-from-laptop {
     display: none;
   }
 }

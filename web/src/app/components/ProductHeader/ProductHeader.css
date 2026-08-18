@@ -59,21 +59,23 @@
   color: var(--color-text);
 }
 
+/* Below a laptop one row cannot hold the tabs and the league name together
+   without the tabs wrapping, so the account menu carries the league instead. */
+@media (max-width: 56.25rem) {
+  .product-header__controls .select-field,
+  .product-header__league-empty,
+  .product-header__league-name {
+    display: none;
+  }
+}
+
 @media (max-width: 48rem) {
-  /* One row cannot hold the tabs and the league name together on a phone, so
-     the account menu carries the league instead. */
   .product-header__bar {
     gap: var(--space-3);
     /* The tabs are hidden here, so keep the menu button where it sits on a
        wide screen instead of letting it fall to the empty left side. */
     justify-content: flex-end;
     padding: 0 var(--space-4);
-  }
-
-  .product-header__controls .select-field,
-  .product-header__league-empty,
-  .product-header__league-name {
-    display: none;
   }
 
   .product-header__controls {
