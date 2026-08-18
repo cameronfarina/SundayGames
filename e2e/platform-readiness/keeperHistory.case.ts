@@ -104,15 +104,20 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   ).toBeVisible();
   await expect(keeperSection.getByRole("status")).toHaveText("Keeper saved.");
   await expect(keeperCommand).toHaveValue("");
-  await expect(keeperSection).toContainText("CeeDee Lamb");
-  await expect(keeperSection).toContainText("Alex · WR");
-  await expect(keeperSection).toContainText("$50");
+  // Keepers sit on their own team's row now, not in a list of their own. The
+  // remove control names both the player and the team holding it.
+  const setupSection = page.locator("#league-setup");
+  await expect(setupSection).toContainText("CeeDee Lamb $50");
+  await expect(
+    setupSection.getByRole("button", { name: "Remove CeeDee Lamb from Alex" }),
+  ).toBeVisible();
+  await expect(keeperSection).not.toContainText("CeeDee Lamb");
 
   await page.reload();
   await expect(
     keeperSection.getByText("3 saved", { exact: true }),
   ).toBeVisible();
-  await expect(keeperSection).toContainText("CeeDee Lamb");
+  await expect(setupSection).toContainText("CeeDee Lamb $50");
   await page.getByRole("button", { name: "Publish reviewed league" }).click();
   await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
 

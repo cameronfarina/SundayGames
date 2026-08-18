@@ -47,10 +47,12 @@ export function CommissionerPage() {
         <a href="#live-room">Live room</a>
       </nav>
       <Fragment key={season.id}>
-        <LeagueSetupSection season={season} />
+        <LeagueSetupSection keepers={workspace.keepers.data.keepers} season={season} />
         <KeeperSection keepers={workspace.keepers.data.keepers} season={season} />
-        <HistoricalImportSection season={season} />
-        <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
+        <div className="commissioner-pair">
+          <HistoricalImportSection season={season} />
+          <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
+        </div>
         <LiveRoomSection league={workspace.selectedLeague} season={season} />
       </Fragment>
     </section>

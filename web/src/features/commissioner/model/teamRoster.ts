@@ -4,6 +4,9 @@ export interface TeamRosterRow {
   teamId: string;
   ownerDisplayName: string;
   teamDisplayName: string;
+  /** The manager name already saved. Keeper commands resolve a team by name,
+   * so an edit that has not been applied yet would match nothing. */
+  savedOwnerDisplayName: string;
 }
 
 const csvCell = (value: string): string =>
@@ -16,6 +19,7 @@ export const teamRosterRows = (season: CommissionerSeason): TeamRosterRow[] =>
       teamId: team.id,
       ownerDisplayName: team.ownerDisplayName,
       teamDisplayName: team.displayName,
+      savedOwnerDisplayName: team.ownerDisplayName,
     }));
 
 /**
@@ -35,6 +39,6 @@ export const teamRosterContent = (rows: readonly TeamRosterRow[]): string => [
 export const withRowEdited = (
   rows: readonly TeamRosterRow[],
   index: number,
-  edit: Partial<Omit<TeamRosterRow, "teamId">>,
+  edit: Partial<Pick<TeamRosterRow, "ownerDisplayName" | "teamDisplayName">>,
 ): TeamRosterRow[] =>
   rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...edit } : row);

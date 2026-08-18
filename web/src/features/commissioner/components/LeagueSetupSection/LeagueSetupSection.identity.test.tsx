@@ -20,6 +20,10 @@ const twoTeams = seasonSchema.parse({
   }],
 });
 
+const chase = {
+  teamId: "team-1", playerId: "jamarr-chase", playerName: "Ja'Marr Chase", position: "WR", price: 40,
+};
+
 const captureApplyBodies = (season: typeof auctionSeason) => {
   const bodies: string[] = [];
   const fetcher: PlatformFetch = (input, init) => {
@@ -30,7 +34,7 @@ const captureApplyBodies = (season: typeof auctionSeason) => {
   };
   vi.stubGlobal("fetch", vi.fn(fetcher));
   render(<QueryClientProvider client={new QueryClient()}>
-    <LeagueSetupSection season={season} />
+    <LeagueSetupSection keepers={[chase]} season={season} />
   </QueryClientProvider>);
   return bodies;
 };
@@ -63,11 +67,18 @@ describe("LeagueSetupSection team identity", () => {
   });
 
 
+  it("puts each keeper on the row of the team that holds it", () => {
+    captureApplyBodies(twoTeams);
+
+    expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Ja'Marr Chase $40");
+    expect(screen.getAllByRole("listitem")[1]).not.toHaveTextContent("Ja'Marr Chase");
+  });
+
   it("offers no way to add or remove a team, because the league size is fixed", () => {
     captureApplyBodies(twoTeams);
 
     expect(screen.getAllByLabelText(/^Manager \d+$/)).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: /add team/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add team/iu })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /remove team/iu })).not.toBeInTheDocument();
   });
 });

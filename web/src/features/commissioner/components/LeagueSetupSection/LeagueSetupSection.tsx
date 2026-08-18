@@ -4,13 +4,18 @@ import { invalidateLeagueSetupConsumers } from "../../../../shared/api/queries/s
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
+import type { CommissionerKeeper } from "../../api/workspaceSchemas";
 import { applyBlockers } from "../../model/applyBlockers";
 import { errorMessage } from "../../model/errorMessage";
 import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
 import { teamRosterContent, teamRosterRows, withRowEdited } from "../../model/teamRoster";
+import { TeamKeepers } from "./TeamKeepers";
 import { TeamListPaste } from "./TeamListPaste";
 
-interface LeagueSetupSectionProps { readonly season: CommissionerSeason }
+interface LeagueSetupSectionProps {
+  readonly keepers: readonly CommissionerKeeper[];
+  readonly season: CommissionerSeason;
+}
 
 const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
   queryFn: () => commissionerApi.previewTeams(seasonId, content),
@@ -18,7 +23,7 @@ const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
   staleTime: Infinity,
 });
 
-export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
+export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState(() => teamRosterRows(season));
   const content = teamRosterContent(rows);
@@ -53,7 +58,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
         <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>
         <div><span>Roster</span><strong>{settings.roster.rosterSize} players · {settings.expectedTeamCount} teams</strong></div>
       </div>
-      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place. Both stay editable until a live room starts.</p>
+      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place, then apply. Keepers save as soon as you add them. Everything stays editable until a live room starts.</p>
       <fieldset className="commissioner-teams">
         <legend>Teams and managers</legend>
         <ol className="commissioner-teams__list">
@@ -69,6 +74,12 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
                 aria-label={`Team name ${String(index + 1)}`}
                 onChange={event => { editRow(index, { teamDisplayName: event.target.value }); }}
                 value={row.teamDisplayName}
+              />
+              <TeamKeepers
+                keepers={keepers.filter(keeper => keeper.teamId === row.teamId)}
+                savedOwnerDisplayName={row.savedOwnerDisplayName}
+                seasonId={season.id}
+                teamId={row.teamId}
               />
             </li>
           ))}

@@ -23,7 +23,7 @@
 .commissioner-teams { border: 0; margin: 8px 0 0; padding: 0; }
 .commissioner-teams legend { color: var(--color-text-muted); font-size: 12px; margin-bottom: 8px; padding: 0; text-transform: uppercase; }
 .commissioner-teams__list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
-.commissioner-teams__row { align-items: center; display: grid; gap: 8px; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); }
+.commissioner-teams__row { align-items: center; display: grid; gap: 8px; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
 .commissioner-teams__pick { color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: right; }
 .commissioner-teams__row input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font: inherit; min-height: 44px; padding: 10px 12px; width: 100%; }
 .commissioner-paste { border-top: 1px solid var(--color-border); margin-top: 18px; padding-top: 12px; }
@@ -32,6 +32,19 @@
 .commissioner-assignments__item { border-left: 3px solid var(--color-border); color: var(--color-text-muted); font-size: var(--font-size-sm); padding: 4px 0 4px 10px; }
 .commissioner-assignments__item--renamed { border-left-color: var(--color-accent); color: var(--color-text); }
 .commissioner-assignments__item--new { border-left-color: var(--color-danger); color: var(--color-text); }
+.commissioner-teams__row { align-items: start; }
+.team-keepers { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; }
+.team-keepers__chip { align-items: center; background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 999px; display: inline-flex; font-size: var(--font-size-sm); gap: 6px; padding: 4px 6px 4px 12px; }
+.team-keepers__chip button { background: none; border: 0; color: var(--color-text-muted); font-size: 15px; line-height: 1; min-height: 28px; min-width: 28px; }
+.team-keepers__chip button:hover:not(:disabled) { color: var(--color-danger); }
+.team-keepers__add { background: none; border: 1px dashed var(--color-border); border-radius: 999px; color: var(--color-text-muted); font-size: var(--font-size-sm); min-height: 36px; padding: 0 12px; white-space: nowrap; }
+.team-keepers__add:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.team-keepers__entry { align-items: center; display: flex; gap: 6px; }
+.team-keepers__entry input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font: inherit; min-height: 36px; padding: 6px 10px; width: 9rem; }
+.team-keepers__entry button { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font-size: var(--font-size-sm); min-height: 36px; padding: 0 10px; }
+.team-keepers__error { color: var(--color-danger); flex-basis: 100%; font-size: var(--font-size-sm); margin: 0; }
+.commissioner-pair { display: grid; gap: 32px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.commissioner-pair > .commissioner-section { border-top: 1px solid var(--color-border); }
 .commissioner-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .commissioner-inline-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; margin-top: 16px; }
 .commissioner-inline-form > label { grid-column: 1 / -1; }
@@ -56,6 +69,19 @@
   .commissioner-facts { grid-template-columns: 1fr; }
   .commissioner-inline-form, .commissioner-copy-row { grid-template-columns: 1fr; }
   .commissioner-list > div, .history-file { grid-template-columns: 1fr !important; }
+  .commissioner-teams__row { align-items: start; }
+.team-keepers { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; }
+.team-keepers__chip { align-items: center; background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 999px; display: inline-flex; font-size: var(--font-size-sm); gap: 6px; padding: 4px 6px 4px 12px; }
+.team-keepers__chip button { background: none; border: 0; color: var(--color-text-muted); font-size: 15px; line-height: 1; min-height: 28px; min-width: 28px; }
+.team-keepers__chip button:hover:not(:disabled) { color: var(--color-danger); }
+.team-keepers__add { background: none; border: 1px dashed var(--color-border); border-radius: 999px; color: var(--color-text-muted); font-size: var(--font-size-sm); min-height: 36px; padding: 0 12px; white-space: nowrap; }
+.team-keepers__add:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.team-keepers__entry { align-items: center; display: flex; gap: 6px; }
+.team-keepers__entry input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font: inherit; min-height: 36px; padding: 6px 10px; width: 9rem; }
+.team-keepers__entry button { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font-size: var(--font-size-sm); min-height: 36px; padding: 0 10px; }
+.team-keepers__error { color: var(--color-danger); flex-basis: 100%; font-size: var(--font-size-sm); margin: 0; }
+.commissioner-pair { gap: 0; grid-template-columns: 1fr; }
   .commissioner-teams__row { grid-template-columns: 28px minmax(0, 1fr); }
   .commissioner-teams__row input:last-of-type { grid-column: 2 / -1; }
+  .team-keepers { grid-column: 2 / -1; }
 }

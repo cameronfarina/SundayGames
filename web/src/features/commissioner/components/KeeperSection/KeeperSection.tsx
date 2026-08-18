@@ -12,8 +12,6 @@ interface KeeperSectionProps {
   readonly season: CommissionerSeason;
 }
 
-interface KeeperIdentity { readonly playerId: string; readonly teamId: string }
-
 export function KeeperSection({ keepers, season }: KeeperSectionProps) {
   const [command, setCommand] = useState("");
   const queryClient = useQueryClient();
@@ -22,20 +20,15 @@ export function KeeperSection({ keepers, season }: KeeperSectionProps) {
     mutationFn: () => commissionerApi.addKeeper(season.id, command.trim()),
     onSuccess: async () => { setCommand(""); await refresh(); },
   });
-  const remove = useMutation({
-    mutationFn: (keeper: KeeperIdentity) => commissionerApi.removeKeeper(season.id, keeper.teamId, keeper.playerId),
-    onSuccess: refresh,
-  });
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (command.trim().length > 0) add.mutate();
   };
-  const teamNames = new Map(season.teams.map(team => [team.id, team.displayName]));
 
   return (
     <section className="commissioner-section" id="keepers">
       <header><div><span>02</span><h2>Keepers</h2></div><strong>{keepers.length} saved</strong></header>
-      <p className="commissioner-help">Type a manager or team, player, and cost. Press Enter to save. Keepers stay editable after publishing until the draft starts.</p>
+      <p className="commissioner-help">Add several keepers quickly from here, or use the + Keeper button on a team above. Each keeper appears on its team's row.</p>
       <form aria-label="Add keeper" className="commissioner-inline-form" onSubmit={submit}>
         <TextField
           autoComplete="off"
@@ -57,21 +50,6 @@ export function KeeperSection({ keepers, season }: KeeperSectionProps) {
       {add.isPending ? <p role="status">Saving keeper and updating league values...</p> : null}
       {add.isSuccess ? <p role="status">Keeper saved.</p> : null}
       {add.isError ? <p role="alert">{errorMessage(add.error)}</p> : null}
-      <div className="commissioner-list">
-        {keepers.length === 0 ? <p>No keepers added yet.</p> : keepers.map(keeper => {
-          const playerId = keeper.playerId;
-          return <div key={`${keeper.teamId}-${keeper.playerName}`}>
-            <span><strong>{keeper.playerName}</strong><small>{teamNames.get(keeper.teamId) ?? "Team"} · {keeper.position}</small></span>
-            <strong>{keeper.keeperRound === undefined ? `$${String(keeper.price)}` : `Round ${String(keeper.keeperRound)}`}</strong>
-            {playerId === undefined
-              ? <Button disabled variant="secondary">Remove</Button>
-              : <Button aria-busy={remove.isPending} onClick={() => {
-                remove.mutate({ teamId: keeper.teamId, playerId });
-              }} disabled={remove.isPending} variant="secondary">Remove</Button>}
-          </div>;
-        })}
-      </div>
-      {remove.isError ? <p role="alert">{errorMessage(remove.error)}</p> : null}
     </section>
   );
 }

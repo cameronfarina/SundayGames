@@ -19,7 +19,7 @@ const renderSection = (fetcher: PlatformFetch, snake = false) => {
   client.setQueryData(seasonQueryKeys.leagueSeason(auctionSeason.id), { season: auctionSeason });
   client.setQueryData(seasonQueryKeys.seasonTeam(auctionSeason.id), { season: auctionSeason });
   const view = render(<QueryClientProvider client={client}>
-    <LeagueSetupSection season={snake ? snakeSeason : auctionSeason} />
+    <LeagueSetupSection keepers={[]} season={snake ? snakeSeason : auctionSeason} />
   </QueryClientProvider>);
   return { ...view, client };
 };
@@ -91,7 +91,7 @@ describe("LeagueSetupSection", () => {
     });
     vi.stubGlobal("fetch", vi.fn());
     render(<QueryClientProvider client={new QueryClient()}>
-      <LeagueSetupSection season={reordered} />
+      <LeagueSetupSection keepers={[]} season={reordered} />
     </QueryClientProvider>);
     expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
     expect(screen.getByLabelText("Team name 1")).toHaveValue("Short King");
