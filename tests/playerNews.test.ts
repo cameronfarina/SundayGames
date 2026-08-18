@@ -95,7 +95,6 @@ describe("player news feed", () => {
     expect(feed.providers.map(provider => provider.key)).toEqual([
       "local-evidence",
       "rotowire-rss",
-      "espn",
       "sleeper",
       "sportsdataio",
       "rotoballer",

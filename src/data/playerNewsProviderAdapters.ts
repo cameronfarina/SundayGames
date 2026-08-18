@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-export type RawPlayerNewsProvider = "rotowire-rss" | "espn";
+export type RawPlayerNewsProvider = "rotowire-rss";
 
 export interface RawPlayerNewsItem {
   provider: RawPlayerNewsProvider;

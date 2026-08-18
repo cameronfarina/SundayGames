@@ -13,7 +13,6 @@ import {
 
 const providerLabels: Record<RawPlayerNewsItem["provider"], string> = {
   "rotowire-rss": "RotoWire RSS",
-  espn: "ESPN",
 };
 
 export const playerNewsItemFromRaw = (

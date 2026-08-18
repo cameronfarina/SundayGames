@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { fetchEspnNews } from "../../data/espnPlayerNewsAdapter.js";
 import { normalizePlayerName } from "../../data/normalizePlayerName.js";
 import {
   fetchRotowireRssNews,
@@ -24,8 +23,10 @@ const emptyDraftState: PlayerNewsDraftState = {
   owners: [],
 };
 
+// Stored items from a provider we no longer read are skipped here, so dropping
+// a source retires its rows without a migration.
 const rawPlayerNewsProviderValues = new Set<string>(
-  ["rotowire-rss", "espn"] satisfies RawPlayerNewsProvider[],
+  ["rotowire-rss"] satisfies RawPlayerNewsProvider[],
 );
 
 const isRawPlayerNewsProvider = (value: string): value is RawPlayerNewsProvider =>
@@ -59,11 +60,8 @@ const rawItemFromStored = (item: PlayerNewsStoredItem): RawPlayerNewsItem | unde
   };
 };
 
-// Every source is fetched independently so one outage (ESPN down, RotoWire
-// rate-limited) never empties the other's items out of the stored feed.
 const fetchAndStoreLatestNews = async (repository: PlayerNewsRepository): Promise<void> => {
-  const results = await Promise.allSettled([fetchRotowireRssNews(), fetchEspnNews()]);
-  const items = results.flatMap(result => (result.status === "fulfilled" ? result.value : []));
+  const items = await fetchRotowireRssNews();
   if (items.length > 0) await repository.saveItems(items.map(saveInputFromRaw));
 };
 
