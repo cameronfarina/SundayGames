@@ -9,6 +9,7 @@ import {
   normalizedNewsDate,
   playerNewsKeyFor,
   playerNewsSlugFor,
+  withoutSourceCredit,
 } from "./normalization.js";
 
 const providerLabels: Record<RawPlayerNewsItem["provider"], string> = {
@@ -34,7 +35,7 @@ export const playerNewsItemFromRaw = (
     ...playerNewsItemMetadataFor(market),
     category: categoryForRawNews(item),
     headline: `${player}: ${ensureNewsSentence(item.title)}`,
-    fantasyImpact: ensureNewsSentence(item.summary),
+    fantasyImpact: ensureNewsSentence(withoutSourceCredit(item.summary)),
     ...(sourceDate ? { sourceDate } : {}),
     fetchedAt: item.fetchedAt,
     source: {
