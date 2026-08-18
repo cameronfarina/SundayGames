@@ -419,6 +419,50 @@ describe("generic auction mock engine", () => {
     expect(nominated.sales.find(sale => sale.playerId === "target")?.price).toBeGreaterThan(40);
   });
 
+  it("never spends a budget down onto a kicker or a defense", () => {
+    const config = baseConfig({
+      budgetDollars: 60,
+      rosterSlots: [
+        { slot: "RB", count: 1, eligiblePositions: ["RB"] },
+        { slot: "K", count: 1, eligiblePositions: ["K"] },
+        { slot: "DST", count: 1, eligiblePositions: ["DST"] },
+      ],
+      positionMaximums: { RB: 1, K: 1, DST: 1 },
+      players: [
+        { id: "rb-1", name: "RB One", position: "RB", expectedPrice: 40 },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 35 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 30 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 25 },
+        { id: "k-1", name: "Kicker One", position: "K", expectedPrice: 1 },
+        { id: "k-2", name: "Kicker Two", position: "K", expectedPrice: 1 },
+        { id: "k-3", name: "Kicker Three", position: "K", expectedPrice: 1 },
+        { id: "k-4", name: "Kicker Four", position: "K", expectedPrice: 1 },
+        { id: "dst-1", name: "Defense One", position: "DST", expectedPrice: 1 },
+        { id: "dst-2", name: "Defense Two", position: "DST", expectedPrice: 1 },
+        { id: "dst-3", name: "Defense Three", position: "DST", expectedPrice: 1 },
+        { id: "dst-4", name: "Defense Four", position: "DST", expectedPrice: 1 },
+      ],
+      ai: {
+        defaultBidMultiplier: 1,
+        rosterNeedDollars: 0,
+        randomness: 0,
+        targetEndingBudgetDollars: 0,
+      },
+    });
+    const nominated = applyGenericAuctionMockCommand(start(config), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "k-1",
+      openingBid: 1,
+    });
+    const passed = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: 2,
+    });
+
+    expect(passed.sales.find(sale => sale.playerId === "k-1")?.price).toBe(1);
+  });
+
   it("uses owner tendencies to produce deterministic AI bidding personalities", () => {
     const config = baseConfig({
       teams: [

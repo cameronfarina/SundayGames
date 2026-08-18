@@ -4,7 +4,10 @@ import {
   positionScarcityMultiplierFor,
 } from "./auctionAnalysis.js";
 import { deterministicFraction } from "./deterministic.js";
-import { auctionClearingPriceCushionDollars } from "./pricingConstants.js";
+import {
+  auctionClearingPriceCushionDollars,
+  flatPricedAuctionPositions,
+} from "./pricingConstants.js";
 import { projectedRosterPricesAfterAcquiring } from "./rosterPriceProjection.js";
 import { canAcquire, rosterNeedFor } from "./roster.js";
 import {
@@ -68,6 +71,9 @@ export const aiMaxBidFor = (
 ): number => {
   if (!canAcquire(state, team, player, state.configuration.minimumBidDollars)) return 0;
   if (!isAutomatedAuctionAcquisitionEligible(state, team, player)) return 0;
+  if (flatPricedAuctionPositions.has(player.position)) {
+    return Math.min(team.maxBid, state.configuration.minimumBidDollars);
+  }
 
   const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
   const bidMultiplier = tendency?.bidMultiplier
