@@ -1,7 +1,7 @@
 import { InMemoryLiveDraftRoomRepository, InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, it, mockRunner, now, playerCatalog, snakePlayerCatalog, snakeSeason } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
-it("returns a typed conflict without persisting a snake hosted room through provisioning", async () => {
+it("provisions a snake hosted room", async () => {
     const liveDraftRoomRepository = new InMemoryLiveDraftRoomRepository();
     const app = createPlatformApp({
       store: new InMemoryPlatformStore(),
@@ -45,15 +45,7 @@ it("returns a typed conflict without persisting a snake hosted room through prov
       },
     });
 
-    expect(response).toEqual({
-      status: 409,
-      body: {
-        error: {
-          code: "snake_live_room_unavailable",
-          message: "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
-        },
-      },
-    });
-    expect(liveDraftRoomRepository.rooms()).toEqual([]);
+    expect(response.status).toBe(201);
+    expect(liveDraftRoomRepository.rooms()).toHaveLength(1);
   });
 });

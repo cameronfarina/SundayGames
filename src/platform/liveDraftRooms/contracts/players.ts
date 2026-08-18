@@ -51,14 +51,15 @@ export interface LiveDraftRoomTeamState {
   ownerDisplayName: string;
   teamDisplayName: string;
   draftOrderPosition: number;
-  budgetDollars: number;
-  spent: number;
-  budgetRemaining: number;
   rosterSlotsRemaining: number;
-  maxBid: number;
   positionCounts: Record<Position, number>;
   roster: readonly LiveDraftRoomRosterPlayer[];
   slots: readonly LiveDraftRoomRosterSlot[];
+  /** Auction rooms only. Snake teams have no budget. */
+  budgetDollars?: number | undefined;
+  spent?: number | undefined;
+  budgetRemaining?: number | undefined;
+  maxBid?: number | undefined;
 }
 
 export interface LiveDraftRoomBoardPlayer {

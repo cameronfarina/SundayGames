@@ -1,7 +1,7 @@
 import { describe, it, AsyncLiveDraftRoomRepository, InMemoryPlatformStore, LiveDraftRoomError, PlatformAppError, asSnakeSeason, buildCurrentMockdLeagueSeason, createPlatformApp, expect, leagueConfig, mockRunner, now, ownerOrder, playerCatalog, signUpAndLogin } from "./support/index.js";
 
 describe("platform app service", () => {
-  it("rejects snake hosted rooms before delegating creation to the repository", async () => {
+  it("creates snake hosted rooms through the repository", async () => {
     const liveDraftRoomRepository = new AsyncLiveDraftRoomRepository();
     const app = createPlatformApp({
       store: new InMemoryPlatformStore(),
@@ -24,19 +24,18 @@ describe("platform app service", () => {
       ],
     });
 
-    await expect(app.createLiveDraftRoom({
+    const room = await app.createLiveDraftRoom({
       actorSessionToken: owner11.sessionToken,
       seasonId: season.id,
       roomId: "room_snake",
       viewerPasswordHashRef: "viewer-password-hash",
       playerCatalog,
       now,
-    })).rejects.toThrow(new LiveDraftRoomError(
-      "snake_live_room_unavailable",
-      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
-    ));
-    expect(liveDraftRoomRepository.createInputs).toEqual([]);
-    expect(liveDraftRoomRepository.inner.rooms()).toEqual([]);
+    });
+
+    expect(room.roomId).toBe("room_snake");
+    expect(liveDraftRoomRepository.createInputs).toHaveLength(1);
+    expect(liveDraftRoomRepository.inner.rooms()).toHaveLength(1);
   });
 
   it("cancels a setup room idempotently so league setup can resume and the room can be recreated", async () => {
