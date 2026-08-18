@@ -50,10 +50,8 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   );
 
   await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
-  const keeperSection = page.locator("#keepers");
-  await expect(
-    keeperSection.getByText("2 saved", { exact: true }),
-  ).toBeVisible();
+  const setupSection = page.locator("#league-setup");
+  await expect(setupSection.locator(".team-keepers__chip")).toHaveCount(2);
   await page.getByLabel("Choose historical draft files").setInputFiles([
     {
       name: "league-auction-2023.csv",
@@ -85,38 +83,23 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(historyRows.nth(0)).toContainText("8 players imported");
   await expect(historyRows.nth(1)).toContainText("8 players imported");
 
-  const keeperCommand = keeperSection.getByRole("textbox", {
-    name: "Keeper command",
-  });
-  await keeperCommand.fill("Alex Lamb 50");
-  await keeperCommand.press("Enter");
-  await expect(keeperSection.getByRole("alert")).toHaveText(
-    "Use '<team or manager> keeping <player> <number>'.",
-  );
-  await expect(keeperCommand).toHaveValue("Alex Lamb 50");
-  await expect(
-    keeperSection.getByText("2 saved", { exact: true }),
-  ).toBeVisible();
-  await keeperCommand.fill("Alex keeping Lamb 50");
-  await keeperCommand.press("Enter");
-  await expect(
-    keeperSection.getByText("3 saved", { exact: true }),
-  ).toBeVisible();
-  await expect(keeperSection.getByRole("status")).toHaveText("Keeper saved.");
-  await expect(keeperCommand).toHaveValue("");
-  // Keepers sit on their own team's row now, not in a list of their own. The
-  // remove control names both the player and the team holding it.
-  const setupSection = page.locator("#league-setup");
+  // Keepers are typed on the row of the team that keeps them.
+  const keepFor = async (owner: string, entry: string): Promise<void> => {
+    const managers = setupSection.getByRole("textbox", { name: /^Manager \d+$/u });
+    const names = await managers.evaluateAll(
+      inputs => inputs.map(input => input instanceof HTMLInputElement ? input.value : ""),
+    );
+    await setupSection.getByRole("button", { name: "+ Keeper" }).nth(names.indexOf(owner)).click();
+    await setupSection.getByRole("textbox", { name: `Keeper for ${owner}` }).fill(entry);
+    await page.keyboard.press("Enter");
+  };
+  await keepFor("Alex", "Lamb 50");
   await expect(setupSection).toContainText("CeeDee Lamb $50");
   await expect(
     setupSection.getByRole("button", { name: "Remove CeeDee Lamb from Alex" }),
   ).toBeVisible();
-  await expect(keeperSection).not.toContainText("CeeDee Lamb");
 
   await page.reload();
-  await expect(
-    keeperSection.getByText("3 saved", { exact: true }),
-  ).toBeVisible();
   await expect(setupSection).toContainText("CeeDee Lamb $50");
   await page.getByRole("button", { name: "Publish reviewed league" }).click();
   await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
@@ -129,13 +112,10 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await expect(alexRoster).toContainText("CeeDee Lamb");
 
   await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
-  await expect(
-    keeperSection.getByText("3 saved", { exact: true }),
-  ).toBeVisible();
-  await expect(keeperCommand).toBeEnabled();
-  await keeperCommand.fill("Alex keeping Lamb 47");
-  await keeperCommand.press("Enter");
-  await expect(keeperSection.getByRole("status")).toHaveText("Keeper saved.");
+  await expect(setupSection.locator(".team-keepers__chip")).toHaveCount(3);
+  await setupSection.getByRole("button", { name: "Remove CeeDee Lamb from Alex" }).click();
+  await keepFor("Alex", "Lamb 47");
+  await expect(setupSection).toContainText("CeeDee Lamb $47");
   await page.goto(
     `/draft-room?seasonId=${encodeURIComponent(season.id)}&roomId=${encodeURIComponent(room.roomId)}`,
   );

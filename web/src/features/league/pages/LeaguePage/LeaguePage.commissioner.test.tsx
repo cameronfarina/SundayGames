@@ -59,7 +59,7 @@ describe("LeaguePage commissioner actions", () => {
     );
     expect(screen.getByRole("link", { name: "Manage keepers" })).toHaveAttribute(
       "href",
-      "/leagues/sunday-games/commissioner#keepers",
+      "/leagues/sunday-games/commissioner#league-setup",
     );
   });
 
@@ -94,7 +94,7 @@ describe("LeaguePage commissioner actions", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("league-location"))
-        .toHaveTextContent("/leagues/sunday-games/commissioner#keepers");
+        .toHaveTextContent("/leagues/sunday-games/commissioner#league-setup");
     });
   });
 });

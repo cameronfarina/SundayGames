@@ -82,7 +82,6 @@ describe("CommissionerPage season state", () => {
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
     await user.clear(screen.getByLabelText("Manager 1"));
     await user.type(screen.getByLabelText("Manager 1"), "A staged manager");
-    await user.type(screen.getByLabelText("Keeper command"), "A keeper");
     await user.upload(screen.getByLabelText("Choose historical draft files"), new File(["a"], "alpha.csv"));
     await user.click(screen.getByLabelText("Replace an import for the same year"));
     await user.type(screen.getByLabelText("Draft date and time"), "2026-09-10T20:00");
@@ -91,7 +90,6 @@ describe("CommissionerPage season state", () => {
     expect(await screen.findByText("Beta · 2027")).toBeVisible();
     expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
     expect(screen.getByLabelText("Team name 1")).toHaveValue("Beta");
-    expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
@@ -102,7 +100,6 @@ describe("CommissionerPage season state", () => {
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
     expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
     expect(screen.getByLabelText("Team name 1")).toHaveValue("Alpha");
-    expect(screen.getByLabelText("Keeper command")).toHaveValue("");
     expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
   });

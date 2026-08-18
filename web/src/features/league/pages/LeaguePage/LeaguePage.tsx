@@ -36,7 +36,7 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
       {needsClaim ? (
         <TeamClaimPanel
           canManageLeague={league.canManageLeague}
-          keepersPath={`${commissionerPath}#keepers`}
+          keepersPath={`${commissionerPath}#league-setup`}
           seasonId={league.seasonId}
           teams={data.season.data.claimableTeams}
         />
@@ -45,7 +45,7 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
       <DraftStatus league={league} />
       <LeagueTeams
         keepers={data.keepers.data.keepers}
-        manageKeepersPath={league.canManageLeague ? `${commissionerPath}#keepers` : undefined}
+        manageKeepersPath={league.canManageLeague ? `${commissionerPath}#league-setup` : undefined}
         teams={season.teams}
       />
     </div>

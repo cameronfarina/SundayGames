@@ -117,7 +117,6 @@ describe("CommissionerPage", () => {
     expect(await screen.findByRole("heading", { name: "Commissioner" })).toBeVisible();
     expect(screen.getByText("Sunday Games · 2026")).toBeVisible();
     expect(screen.getByText("$200 auction")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Keepers" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Draft history" })).toBeVisible();
     expect(screen.queryByText(/screenshot/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("main")).not.toBeInTheDocument();
@@ -128,7 +127,7 @@ describe("CommissionerPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Commissioner access required" }))
       .toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Keepers" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "League info" })).not.toBeInTheDocument();
   });
 
   it("reports onboarding and league workspace failures", async () => {

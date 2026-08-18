@@ -2,7 +2,6 @@ import { Fragment } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { HistoricalImportSection } from "../../components/HistoricalImportSection/HistoricalImportSection";
 import { InvitationSection } from "../../components/InvitationSection/InvitationSection";
-import { KeeperSection } from "../../components/KeeperSection/KeeperSection";
 import { LeagueSetupSection } from "../../components/LeagueSetupSection/LeagueSetupSection";
 import { LiveRoomSection } from "../../components/LiveRoomSection/LiveRoomSection";
 import "./CommissionerPage.css";
@@ -42,13 +41,12 @@ export function CommissionerPage() {
         <strong>{workspace.selectedLeague.leagueName} · {workspace.selectedLeague.seasonYear}</strong>
       </header>
       <nav aria-label="Commissioner sections" className="commissioner-section-nav">
-        <a href="#league-setup">League info</a><a href="#keepers">Keepers</a>
+        <a href="#league-setup">League info</a>
         <a href="#draft-history">Draft history</a><a href="#league-invite">Invite</a>
         <a href="#live-room">Live room</a>
       </nav>
       <Fragment key={season.id}>
         <LeagueSetupSection keepers={workspace.keepers.data.keepers} season={season} />
-        <KeeperSection keepers={workspace.keepers.data.keepers} season={season} />
         <div className="commissioner-pair">
           <HistoricalImportSection season={season} />
           <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
