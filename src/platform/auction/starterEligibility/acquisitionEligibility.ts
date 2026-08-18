@@ -8,8 +8,9 @@ import { isStarterEligible } from "./playerProduction.js";
 import {
   benchOnlySpecialistPositions,
   bestPositiveStarterFallbackFor,
+  dedicatedStarterSlotCountFor,
+  hasAcquirableRbOrWrAlternative,
   hasOpenDedicatedStarterSlotFor,
-  hasProjectedRbOrWrAlternative,
   hasStarterEligibilitySignalFor,
   openDedicatedStarterDemandFor,
   remainingStarterEligiblePlayersFor,
@@ -23,10 +24,14 @@ export const isAutomatedAuctionAcquisitionEligible = (
   const assignedSlot = assignableSlotFor(team, player);
   if (assignedSlot === undefined) return false;
   if (!hasStarterEligibilitySignalFor(state, player.position)) return true;
+  // One cheap backup specialist is fine; a second backup wastes a bench slot
+  // that a runner or receiver should take.
   if (
     benchOnlySpecialistPositions.has(player.position)
     && !hasOpenDedicatedStarterSlotFor(team, player.position)
-    && hasProjectedRbOrWrAlternative(state, team)
+    && (team.positionCounts[player.position] ?? 0)
+      > dedicatedStarterSlotCountFor(team, player.position)
+    && hasAcquirableRbOrWrAlternative(state, team)
   ) return false;
 
   const starterEligiblePlayers = remainingStarterEligiblePlayersFor(state, player.position);

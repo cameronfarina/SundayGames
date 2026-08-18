@@ -2,9 +2,7 @@ import { deterministicFraction } from "./deterministic.js";
 import { GenericAuctionMockError } from "./errors.js";
 import { canAcquire, rosterNeedFor } from "./roster.js";
 import {
-  hasOpenDedicatedStarterSlotFor,
   isAutomatedAuctionAcquisitionEligible,
-  isStarterEligible,
   projectedWeeklyProductionFor,
 } from "./starterEligibility.js";
 import type {
@@ -14,6 +12,7 @@ import type {
   GenericAuctionMockTeamReadModel,
 } from "./types.js";
 
+// Owners bring out the best players first, so nominations track player value.
 export const nominationScoreFor = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
@@ -23,11 +22,8 @@ export const nominationScoreFor = (
   const tendency = state.configuration.teams.find(candidate => candidate.id === team.id)?.aiTendency;
   const positionWeight = tendency?.nominationPositionWeights?.[player.position] ?? 1;
   const needWeight = state.configuration.ai?.rosterNeedDollars ?? 1;
-  const projectedStarterNeed = isStarterEligible(player)
-    && hasOpenDedicatedStarterSlotFor(team, player.position);
 
   return player.expectedPrice * positionWeight
-    + (projectedStarterNeed ? 1_000 : 0)
     + (player.week1Projection === 0 ? -10_000 : 0)
     + rosterNeedFor(team, player.position) * needWeight
     + projectedWeeklyProductionFor(player) * 0.01

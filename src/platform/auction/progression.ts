@@ -57,20 +57,12 @@ export const advanceToHumanDecision = (state: GenericAuctionMockState): GenericA
     }
 
     const player = selectAiNomination(nextState, nominator.team);
-    const targetEndingBudget = nextState.configuration.ai?.targetEndingBudgetDollars;
-    const openingBid = nominator.team.rosterSlotsRemaining === 1
-      && targetEndingBudget !== undefined
-      ? Math.max(
-        nextState.configuration.minimumBidDollars,
-        nominator.team.maxBid - targetEndingBudget,
-      )
-      : nextState.configuration.minimumBidDollars;
     nextState = {
       ...openNomination(
         nextState,
         nominator.team,
         player,
-        openingBid,
+        nextState.configuration.minimumBidDollars,
       ),
       nextNominatorIndex: nominator.index,
     };

@@ -2,9 +2,10 @@ export { isAutomatedAuctionAcquisitionEligible } from "./starterEligibility/acqu
 export { maximumAutomatedAuctionBidFor } from "./starterEligibility/maximumBid.js";
 export {
   benchOnlySpecialistPositions,
+  dedicatedStarterSlotCountFor,
   bestPositiveStarterFallbackFor,
   hasOpenDedicatedStarterSlotFor,
-  hasProjectedRbOrWrAlternative,
+  hasAcquirableRbOrWrAlternative,
   hasStarterEligibilitySignalFor,
   openDedicatedStarterDemandFor,
   remainingStarterEligiblePlayersFor,

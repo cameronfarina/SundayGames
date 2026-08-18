@@ -56,14 +56,10 @@ export const progressCurrentNomination = (
 
   const humanCanBuy = !initialAdvance.nomination.humanPassed
     && canAcquire(state, humanTeam, player, initialAdvance.nomination.nextBid);
-  const advanced = !humanCanBuy
-      && initialAdvance.nomination.highestBidderTeamId !== humanTeam.id
-    ? requireAdvancedAiBid(state, initialAdvance.nomination, true)
-    : initialAdvance;
   const withStandingBid = standingBidState(
     state,
     nomination,
-    advanced,
+    initialAdvance,
     humanCanBuy,
   );
 

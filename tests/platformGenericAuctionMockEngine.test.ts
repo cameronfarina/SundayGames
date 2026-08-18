@@ -404,7 +404,6 @@ describe("generic auction mock engine", () => {
         defaultBidMultiplier: 1,
         rosterNeedDollars: 0,
         randomness: 0,
-        targetEndingBudgetDollars: 0,
       },
     });
     const nominated = applyGenericAuctionMockCommand(start(config), {
@@ -413,10 +412,14 @@ describe("generic auction mock engine", () => {
       playerId: "target",
       openingBid: 1,
     });
+    const passed = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: nominated.session.revision,
+    });
 
-    expect(nominated.sales.find(sale => sale.playerId === "target"))
+    expect(passed.sales.find(sale => sale.playerId === "target"))
       .toMatchObject({ teamId: "team-b" });
-    expect(nominated.sales.find(sale => sale.playerId === "target")?.price).toBeGreaterThan(40);
+    expect(passed.sales.find(sale => sale.playerId === "target")?.price).toBeGreaterThan(40);
   });
 
   it("never spends a budget down onto a kicker or a defense", () => {
@@ -446,7 +449,6 @@ describe("generic auction mock engine", () => {
         defaultBidMultiplier: 1,
         rosterNeedDollars: 0,
         randomness: 0,
-        targetEndingBudgetDollars: 0,
       },
     });
     const nominated = applyGenericAuctionMockCommand(start(config), {
@@ -939,135 +941,6 @@ describe("generic auction mock engine", () => {
     expect(maximumAutomatedAuctionBidFor(setup, team, target)).toBe(18);
   });
 
-  it("reranks paced AI bidders and clears one dollar above the runner-up", () => {
-    const config = baseConfig({
-      humanTeamId: "team-b",
-      teams: [
-        { id: "team-a", name: "Low Budget AI", aiTendency: { bidMultiplier: 10 } },
-        { id: "team-b", name: "Human" },
-        { id: "team-c", name: "High Budget AI" },
-        { id: "team-d", name: "Keeper AI" },
-      ],
-      rosterSlots: [{ slot: "RB", count: 2, eligiblePositions: ["RB"] }],
-      positionMaximums: { RB: 2 },
-      players: [
-        { id: "target", name: "Target", position: "RB", expectedPrice: 1 },
-        ...Array.from({ length: 7 }, (_, index) => ({
-          id: `runner-${index + 1}`,
-          name: `Runner ${index + 1}`,
-          position: "RB",
-          expectedPrice: 0,
-        })),
-      ],
-      keepers: [
-        { teamId: "team-a", playerId: "runner-1", price: 15 },
-        { teamId: "team-b", playerId: "runner-2", price: 18 },
-        { teamId: "team-d", playerId: "runner-3", price: 19 },
-      ],
-      ai: {
-        defaultBidMultiplier: 1,
-        rosterNeedDollars: 0,
-        randomness: 0,
-        spendPacingExcludedPlayerIds: ["target"],
-        targetEndingBudgetDollars: 0,
-      },
-    });
-
-    const state = start(config);
-
-    expect(state.sales.find(sale => sale.playerId === "target")).toMatchObject({
-      playerId: "target",
-      teamId: "team-c",
-      price: 6,
-    });
-  });
-
-  it("never settles a paced AI sale above the winner's automated ceiling", () => {
-    const config = baseConfig({
-      humanTeamId: "team-b",
-      budgetDollars: 100,
-      teams: [
-        { id: "team-a", name: "Nominator AI" },
-        { id: "team-b", name: "Human" },
-        { id: "team-c", name: "Paced AI" },
-        { id: "team-d", name: "Other AI" },
-      ],
-      rosterSlots: [
-        { slot: "QB", count: 1, eligiblePositions: ["QB"] },
-        { slot: "RB", count: 1, eligiblePositions: ["RB"] },
-      ],
-      positionMaximums: { QB: 1, RB: 1 },
-      players: [
-        {
-          id: "target",
-          name: "Target RB",
-          position: "RB",
-          expectedPrice: 100,
-          projectedStarter: true,
-        },
-        { id: "human-keeper", name: "Human Keeper", position: "RB", expectedPrice: 1 },
-        {
-          id: "qb-1",
-          name: "QB One",
-          position: "QB",
-          expectedPrice: 78,
-          projectedStarter: true,
-        },
-        {
-          id: "qb-2",
-          name: "QB Two",
-          position: "QB",
-          expectedPrice: 78,
-          projectedStarter: true,
-        },
-        {
-          id: "qb-3",
-          name: "QB Three",
-          position: "QB",
-          expectedPrice: 78,
-          projectedStarter: true,
-        },
-        {
-          id: "qb-4",
-          name: "QB Four",
-          position: "QB",
-          expectedPrice: 78,
-          projectedStarter: true,
-        },
-        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 1 },
-        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 1 },
-        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 1 },
-      ],
-      keepers: [{ teamId: "team-b", playerId: "human-keeper", price: 99 }],
-      ai: {
-        defaultBidMultiplier: 1,
-        rosterNeedDollars: 0,
-        randomness: 0,
-        spendPacingExcludedPlayerIds: ["target"],
-        targetEndingBudgetDollars: 0,
-      },
-    });
-    const setup = createGenericAuctionMockState(config);
-    const pacedTeam = setup.teams.find(team => team.id === "team-c");
-    const target = setup.board.players.find(player => player.id === "target");
-
-    expect(pacedTeam).toBeDefined();
-    expect(target).toBeDefined();
-    if (pacedTeam === undefined || target === undefined) return;
-
-    const automatedCeiling = maximumAutomatedAuctionBidFor(setup, pacedTeam, target);
-    const state = applyGenericAuctionMockCommand(setup, {
-      type: "start",
-      expectedRevision: 0,
-    });
-    const sale = state.sales.find(candidate => candidate.playerId === "target");
-
-    expect(automatedCeiling).toBe(20);
-    expect(sale).toBeDefined();
-    expect(sale?.price).toBeLessThanOrEqual(automatedCeiling);
-    expect(sale?.price).toBeLessThanOrEqual(pacedTeam.maxBid);
-  });
-
   it("rejects completion while teams still have open roster slots", () => {
     const active = start();
     expect(() => applyGenericAuctionMockCommand(active, {
@@ -1117,9 +990,6 @@ describe("generic auction mock engine", () => {
     }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
     expect(() => createGenericAuctionMockState(baseConfig({
       positionMaximums: { QB: 1, RB: 2 },
-    }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
-    expect(() => createGenericAuctionMockState(baseConfig({
-      ai: { spendPacingExcludedPlayerIds: ["missing-player"] },
     }))).toThrowError(expect.objectContaining({ code: "invalid_config" }));
   });
 });

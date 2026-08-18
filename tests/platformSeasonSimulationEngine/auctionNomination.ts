@@ -51,7 +51,9 @@ export const registerAuctionNominationTests = (): void => {
 
     expect(result.targetOutcome).toMatchObject({ hitCount: 1, hitRate: 1 });
     expect(result.runs[0]?.teams.filter(team => !team.isUserTeam)
-      .every(team => team.budgetRemaining === 0)).toBe(true);
+      .every(team => team.budgetRemaining
+        === 100 - team.roster.reduce((total, player) => total + (player.price ?? 0), 0)))
+      .toBe(true);
 
     const overCapacityTargets = runSeasonSimulations({
       season,
@@ -64,6 +66,8 @@ export const registerAuctionNominationTests = (): void => {
       seedPrefix: "over-capacity-targets",
     });
     expect(overCapacityTargets.runs[0]?.teams.filter(team => !team.isUserTeam)
-      .every(team => team.budgetRemaining === 0)).toBe(true);
+      .every(team => team.budgetRemaining
+        === 100 - team.roster.reduce((total, player) => total + (player.price ?? 0), 0)))
+      .toBe(true);
   });
 };

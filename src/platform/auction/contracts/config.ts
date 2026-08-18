@@ -48,8 +48,7 @@ export interface GenericAuctionMockAiConfig {
   defaultBidMultiplier?: number | undefined;
   rosterNeedDollars?: number | undefined;
   randomness?: number | undefined;
-  spendPacingExcludedPlayerIds?: readonly string[] | undefined;
-  targetEndingBudgetDollars?: number | undefined;
+  bidPressureExemptPlayerIds?: readonly string[] | undefined;
 }
 
 export interface GenericAuctionMockConfig {

@@ -6,10 +6,8 @@ import type {
 } from "./types.js";
 
 export interface GenericAuctionMockAnalysisCache {
-  availablePlayersByExpectedPrice: readonly GenericAuctionMockBoardPlayer[] | undefined;
   eligibleAiTeamsByPlayerId: Map<string, readonly GenericAuctionMockTeamReadModel[]>;
-  projectedRosterPricesByTeamAndPlayerId: Map<string, readonly number[]>;
-  projectedRbOrWrAlternativeByTeamId: Map<string, boolean>;
+  acquirableRbOrWrAlternativeByTeamId: Map<string, boolean>;
   remainingStarterEligiblePlayersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
   starterEligibilitySignalByPosition: Map<string, boolean>;
 }
@@ -29,10 +27,8 @@ export const analysisCacheFor = (state: GenericAuctionMockState): GenericAuction
   if (cached?.teams === state.teams) return cached.cache;
 
   const created: GenericAuctionMockAnalysisCache = {
-    availablePlayersByExpectedPrice: undefined,
     eligibleAiTeamsByPlayerId: new Map(),
-    projectedRosterPricesByTeamAndPlayerId: new Map(),
-    projectedRbOrWrAlternativeByTeamId: new Map(),
+    acquirableRbOrWrAlternativeByTeamId: new Map(),
     remainingStarterEligiblePlayersByPosition: new Map(),
     starterEligibilitySignalByPosition: new Map(),
   };

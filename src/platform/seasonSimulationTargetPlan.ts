@@ -84,10 +84,7 @@ export const resolveAuctionTargetPlan = (input: {
   const team = input.state.teams.find(candidate => candidate.id === input.humanTeamId);
   if (team === undefined) return { targets: input.targets, plannedAcquisitions: [] };
 
-  const targetPlayerIds = input.targets
-    .filter(target => target.infeasibility === undefined)
-    .map(target => target.playerId);
-  const planningState = neutralTargetPricingState({ state: input.state, targetPlayerIds });
+  const planningState = neutralTargetPricingState({ state: input.state });
 
   const retainedPlayerIds = new Set(team.roster.map(player => player.playerId));
   const plannedAcquisitions: GenericAuctionMockPlannedAcquisition[] = [];

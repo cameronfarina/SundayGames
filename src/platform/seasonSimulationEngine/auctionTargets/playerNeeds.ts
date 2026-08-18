@@ -16,11 +16,3 @@ export const auctionProjectedWeeklyProductionFor = (
   ?? (player.weeks1To4Projection === undefined ? undefined : player.weeks1To4Projection / 4)
   ?? (player.seasonProjection === undefined ? 0 : player.seasonProjection / 17);
 
-export const needsDedicatedStarterFor = (
-  team: GenericAuctionMockTeamReadModel,
-  position: string,
-): boolean => team.slots.some(slot =>
-  slot.playerId === undefined
-  && slot.eligiblePositions.length === 1
-  && slot.eligiblePositions[0] === position
-);

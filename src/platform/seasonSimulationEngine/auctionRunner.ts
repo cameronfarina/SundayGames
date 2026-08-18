@@ -26,7 +26,7 @@ export const runAuctionSimulation = (input: {
     ...input.config,
     ai: {
       ...input.config.ai,
-      spendPacingExcludedPlayerIds: [...input.targetsByPlayerId.keys()].filter(playerId =>
+      bidPressureExemptPlayerIds: [...input.targetsByPlayerId.keys()].filter(playerId =>
         input.config.players.some(player => player.id === playerId)
       ),
     },

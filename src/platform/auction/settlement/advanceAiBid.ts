@@ -16,9 +16,8 @@ export interface AdvancedAiBid {
 export const advanceAiBid = (
   state: GenericAuctionMockState,
   nomination: GenericAuctionMockNomination,
-  forceSpendPacing = false,
 ): AdvancedAiBid | undefined => {
-  const maximums = aiMaximumsFor(state, nomination, forceSpendPacing);
+  const maximums = aiMaximumsFor(state, nomination);
   const bid = competitiveAuctionBidFor({
     currentPrice: nomination.currentPrice,
     highestBidderTeamId: nomination.highestBidderTeamId,
@@ -42,9 +41,8 @@ export const advanceAiBid = (
 export const requireAdvancedAiBid = (
   state: GenericAuctionMockState,
   nomination: GenericAuctionMockNomination,
-  forceSpendPacing = false,
 ): AdvancedAiBid => {
-  const advanced = advanceAiBid(state, nomination, forceSpendPacing);
+  const advanced = advanceAiBid(state, nomination);
   if (advanced !== undefined) return advanced;
 
   const player = playerFor(state, nomination.playerId);

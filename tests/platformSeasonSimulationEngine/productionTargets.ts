@@ -104,10 +104,11 @@ export const registerProductionTargetTests = (): void => {
         targets.some(target => target.name === player.playerName)
       )).toHaveLength(targets.length);
       expect(humanTeam?.roster).toHaveLength(season.settings.roster.rosterSize);
-      expect(humanTeam?.budgetRemaining).toBe(0);
       expect(run.teams.every(team => team.roster.length === season.settings.roster.rosterSize))
         .toBe(true);
-      expect(run.teams.every(team => team.budgetRemaining === 0)).toBe(true);
+      expect(run.teams.every(team => team.budgetRemaining
+        === 200 - team.roster.reduce((total, player) => total + (player.price ?? 0), 0)))
+        .toBe(true);
     }
   });
 };

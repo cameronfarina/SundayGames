@@ -34,13 +34,11 @@ const priceFormationConfig = (): GenericAuctionMockConfig => ({
     defaultBidMultiplier: 1,
     rosterNeedDollars: 0,
     randomness: 0,
-    spendPacingExcludedPlayerIds: ["target"],
-    targetEndingBudgetDollars: 0,
   },
 });
 
 describe("auction price formation", () => {
-  it("does not turn spend pacing into bids from a team that is already winning", () => {
+  it("does not raise a bid from the team that is already winning", () => {
     const setup = createGenericAuctionMockState(priceFormationConfig());
     const started = applyGenericAuctionMockCommand(setup, {
       type: "start",

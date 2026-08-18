@@ -11,6 +11,14 @@ import {
   projectedWeeklyProductionFor,
 } from "./playerProduction.js";
 
+export const dedicatedStarterSlotCountFor = (
+  team: GenericAuctionMockTeamReadModel,
+  position: string,
+): number => team.slots.filter(slot =>
+  slot.eligiblePositions.length === 1
+  && slot.eligiblePositions[0] === position
+).length;
+
 export const hasStarterEligibilitySignalFor = (
   state: GenericAuctionMockState,
   position: string,
@@ -64,18 +72,17 @@ export const remainingStarterEligiblePlayersFor = (
 
 export const benchOnlySpecialistPositions = new Set(["QB", "TE", "K", "DST"]);
 
-export const hasProjectedRbOrWrAlternative = (
+export const hasAcquirableRbOrWrAlternative = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
 ): boolean => {
-  const byTeam = analysisCacheFor(state).projectedRbOrWrAlternativeByTeamId;
+  const byTeam = analysisCacheFor(state).acquirableRbOrWrAlternativeByTeamId;
   const cached = byTeam.get(team.id);
   if (cached !== undefined) return cached;
 
   const hasAlternative = state.board.players.some(candidate =>
     candidate.status === "available"
     && (candidate.position === "RB" || candidate.position === "WR")
-    && projectedWeeklyProductionFor(candidate) > 0
     && canAcquire(state, team, candidate, state.configuration.minimumBidDollars)
   );
   byTeam.set(team.id, hasAlternative);

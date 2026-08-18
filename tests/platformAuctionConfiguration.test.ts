@@ -128,14 +128,6 @@ const invalidCases = (): readonly InvalidCase[] => [
     message: "AI settings must be non-negative finite numbers.",
   },
   {
-    config: configuration({ ai: { targetEndingBudgetDollars: 20 } }),
-    message: "AI target ending budget must be a non-negative whole-dollar amount below the auction budget.",
-  },
-  {
-    config: configuration({ ai: { spendPacingExcludedPlayerIds: ["rb", "rb"] } }),
-    message: "AI spend-pacing exclusions must reference unique players in the auction catalog.",
-  },
-  {
     config: configuration({ plannedAcquisitions: [
       { teamId: "one", playerId: "rb", price: 5 },
     ] }),
@@ -178,8 +170,6 @@ describe("auction configuration", () => {
         defaultBidMultiplier: 1.1,
         rosterNeedDollars: 2,
         randomness: 0.1,
-        targetEndingBudgetDollars: 1,
-        spendPacingExcludedPlayerIds: ["rb"],
       },
       plannedAcquisitions: [{ teamId: "human", playerId: "rb", price: 5 }],
       teams: [

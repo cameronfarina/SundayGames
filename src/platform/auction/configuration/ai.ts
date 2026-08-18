@@ -22,26 +22,13 @@ export const assertAiConfiguration = (
     );
   }
 
-  const targetEndingBudget = config.ai?.targetEndingBudgetDollars;
-  if (
-    targetEndingBudget !== undefined
-    && (!Number.isInteger(targetEndingBudget)
-      || targetEndingBudget < 0
-      || targetEndingBudget >= config.budgetDollars)
-  ) {
+  const exemptions = config.ai?.bidPressureExemptPlayerIds ?? [];
+  const hasInvalidExemption = new Set(exemptions).size !== exemptions.length
+    || exemptions.some(playerId => !playerIds.includes(playerId));
+  if (hasInvalidExemption) {
     throw new GenericAuctionMockError(
       "invalid_config",
-      "AI target ending budget must be a non-negative whole-dollar amount below the auction budget.",
-    );
-  }
-
-  const exclusions = config.ai?.spendPacingExcludedPlayerIds ?? [];
-  const hasInvalidExclusion = new Set(exclusions).size !== exclusions.length
-    || exclusions.some(playerId => !playerIds.includes(playerId));
-  if (hasInvalidExclusion) {
-    throw new GenericAuctionMockError(
-      "invalid_config",
-      "AI spend-pacing exclusions must reference unique players in the auction catalog.",
+      "AI bid-pressure exemptions must reference unique players in the auction catalog.",
     );
   }
 };

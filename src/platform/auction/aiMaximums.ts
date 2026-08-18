@@ -15,26 +15,15 @@ export interface AiMaximum {
 export const aiMaximumsFor = (
   state: GenericAuctionMockState,
   nomination: GenericAuctionMockNomination,
-  forceSpendPacing = false,
 ): readonly AiMaximum[] => {
   const player = playerFor(state, nomination.playerId);
-  const humanTeam = teamFor(state, state.configuration.humanTeamId);
-  const ignoreSpendPacingExclusions = forceSpendPacing
-    || nomination.humanPassed
-    || !canAcquire(state, humanTeam, player, state.configuration.minimumBidDollars);
 
   return state.teams
     .filter(team => !team.isHuman)
     .map(team => ({
       team,
       maximum: Math.max(
-        aiMaxBidFor(
-          state,
-          team,
-          player,
-          nomination.number,
-          ignoreSpendPacingExclusions,
-        ),
+        aiMaxBidFor(state, team, player, nomination.number),
         nomination.highestBidderTeamId === team.id ? nomination.currentPrice : 0,
       ),
     }))

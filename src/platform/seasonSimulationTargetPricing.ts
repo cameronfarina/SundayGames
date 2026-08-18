@@ -7,7 +7,6 @@ import type { SeasonSimulationTargetConstraint } from "./seasonSimulationTargets
 
 export const neutralTargetPricingState = (input: {
   state: GenericAuctionMockState;
-  targetPlayerIds: readonly string[];
 }): GenericAuctionMockState => ({
   ...input.state,
   configuration: {
@@ -19,7 +18,6 @@ export const neutralTargetPricingState = (input: {
     ai: {
       ...input.state.configuration.ai,
       randomness: 0,
-      spendPacingExcludedPlayerIds: input.targetPlayerIds,
     },
   },
 });

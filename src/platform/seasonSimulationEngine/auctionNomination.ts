@@ -14,7 +14,6 @@ import {
   auctionProjectedWeeklyProductionFor,
   auctionRosterNeedFor,
   canAuctionTeamAcquire,
-  needsDedicatedStarterFor,
 } from "./auctionTargets.js";
 
 export const selectAuctionNomination = (
@@ -52,8 +51,6 @@ export const selectAuctionNomination = (
           player,
           pairPlayerId,
         ) ? 10_000 : 0)
-        + (player.projectedStarter === true
-          && needsDedicatedStarterFor(humanTeam, player.position) ? 1_000 : 0)
         + (player.week1Projection === 0 ? -10_000 : 0)
         + auctionRosterNeedFor(humanTeam, player.position) * 100
         + (player.humanValue ?? player.expectedPrice)

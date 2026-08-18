@@ -35,7 +35,6 @@ export const buildSeasonAuctionMockConfig = ({
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),
     rosterSlots: rosterSlotsFor(season),
     positionMaximums: positionMaximumsFor(season, setup),
-    ai: { targetEndingBudgetDollars: 0 },
     players: auctionPlayersFor(setup, playerExpectedPrices, playerHumanValues),
     keepers: setup.initialRosters
       .filter(player => player.source === "keeper")

@@ -8,7 +8,6 @@ import {
   auctionRosterNeedFor,
   canAuctionTeamAcquire,
   canAuctionTeamRoster,
-  needsDedicatedStarterFor,
   plannedFutureTargetsFor,
   preservesSlotsForTargets,
 } from "../src/platform/seasonSimulationEngine/auctionTargets.js";
@@ -58,8 +57,6 @@ describe("season simulation auction target roster needs", () => {
     if (team === undefined || runningBack === undefined) throw new Error("Missing fixture data.");
 
     expect(auctionRosterNeedFor(team, "RB")).toBe(1.5);
-    expect(needsDedicatedStarterFor(team, "QB")).toBe(true);
-    expect(needsDedicatedStarterFor(team, "WR")).toBe(false);
     expect(canAuctionTeamRoster(state, team, runningBack)).toBe(true);
     expect(canAuctionTeamAcquire(state, team, { ...runningBack, available: false })).toBe(false);
     expect(canAuctionTeamRoster(state, team, { ...runningBack, position: "TE" })).toBe(false);

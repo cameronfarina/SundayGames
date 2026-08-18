@@ -1,7 +1,6 @@
 export {
   auctionProjectedWeeklyProductionFor,
   auctionRosterNeedFor,
-  needsDedicatedStarterFor,
 } from "./auctionTargets/playerNeeds.js";
 export { targetsFor } from "./auctionTargets/strategyTargets.js";
 export {

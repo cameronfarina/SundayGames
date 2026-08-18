@@ -7,7 +7,7 @@ import { auctionSeason, teams } from "./leagueFixtures.js";
 import { catalogPlayer } from "./simulationFixtures.js";
 
 export const registerAuctionBudgetTests = (): void => {
-  it("closes feasible low-value auction budgets while preserving explicit caps", () => {
+  it("keeps sale prices honest when the room holds more money than the board", () => {
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,
       settings: {
@@ -36,13 +36,16 @@ export const registerAuctionBudgetTests = (): void => {
         setup,
         humanTeamId,
         runCount: 1,
-        seedPrefix: `human-closing-budget-${humanTeamId}`,
+        seedPrefix: `honest-budget-${humanTeamId}`,
       });
       for (const team of result.runs[0]?.teams ?? []) {
+        const rosterSpend = team.roster.reduce((total, player) => total + (player.price ?? 0), 0);
+        // Nobody dumps leftover budget onto a $1 player, and the books balance.
         expect(
-          team.budgetRemaining,
-          `${team.teamName} retained budget after a feasible low-value run: ${JSON.stringify(team.roster)}`,
-        ).toBeLessThanOrEqual(1);
+          team.roster.every(player => (player.price ?? 0) <= 5),
+          `${team.teamName} overpaid on a $1 board: ${JSON.stringify(team.roster)}`,
+        ).toBe(true);
+        expect(team.budgetRemaining).toBe(100 - rosterSpend);
       }
     }
 
@@ -52,7 +55,7 @@ export const registerAuctionBudgetTests = (): void => {
       humanTeamId: "team-1",
       runCount: 1,
       strategyInput: "Do not spend over $10 on another RB",
-      seedPrefix: "human-closing-budget-capped",
+      seedPrefix: "honest-budget-capped",
     });
     const humanRoster = capped.runs[0]?.teams.find(team => team.teamId === "team-1")?.roster ?? [];
     expect(humanRoster.every(player => (player.price ?? 0) <= 10)).toBe(true);

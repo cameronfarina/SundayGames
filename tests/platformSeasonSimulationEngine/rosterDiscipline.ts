@@ -7,7 +7,7 @@ import { auctionSeason } from "./leagueFixtures.js";
 import { catalogPlayer } from "./simulationFixtures.js";
 
 export const registerRosterDisciplineTests = (): void => {
-  it("does not let AI teams complete auction rosters with material unused budget", () => {
+  it("completes AI auction rosters with honest budgets and prices near value", () => {
     const result = runSeasonSimulations({
       season: auctionSeason,
       setup: auctionSetup,
@@ -21,10 +21,12 @@ export const registerRosterDisciplineTests = (): void => {
       expect(aiTeams.every(team => team.roster.length === auctionSeason.settings.roster.rosterSize))
         .toBe(true);
       for (const team of aiTeams) {
+        const rosterSpend = team.roster.reduce((total, player) => total + (player.price ?? 0), 0);
+        // Leftover budget is honest money, never stapled onto a player.
         expect(
           team.budgetRemaining,
-          `${team.teamName} should not finish with material unused budget: ${JSON.stringify(team.roster)}`,
-        ).toBeLessThanOrEqual(auctionSeason.settings.auction.minimumBidDollars);
+          `${team.teamName} budget does not match its roster: ${JSON.stringify(team.roster)}`,
+        ).toBe(auctionSeason.settings.auction.budgetDollars - rosterSpend);
       }
     }
   });

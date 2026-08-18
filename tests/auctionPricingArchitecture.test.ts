@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 
 const productionFiles = [
   "src/platform/auction/pricing.ts",
-  "src/platform/auction/rosterPriceProjection.ts",
+  "src/platform/auction/ownerSurplus.ts",
+  "src/platform/auction/backupDepth.ts",
 ];
 
 const unsafeSyntaxIn = (file: string): readonly string[] => {

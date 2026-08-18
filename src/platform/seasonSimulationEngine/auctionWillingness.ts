@@ -11,9 +11,10 @@ import {
   type ResolvedSeasonSimulationPreference,
 } from "../seasonSimulationPreferences.js";
 import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTargets.js";
+import { backupDepthMaximumBidFor } from "../auction/backupDepth.js";
+import { ownerBidLiftFor } from "../auction/ownerSurplus.js";
 import { flatPricedAuctionPositions } from "../auction/pricingConstants.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
-import { humanClearingPriceCushionDollars } from "./constants.js";
 import {
   auctionRosterNeedFor,
   canAuctionTeamRoster,
@@ -52,6 +53,15 @@ export const auctionWillingnessFor = (
     player,
     pairPlayerId,
   );
+  // A backup specialist never earns starter money unless this manager asked
+  // for the depth by naming the player or the position.
+  const backupDepthMaximum = backupDepthMaximumBidFor(state, team, player);
+  if (
+    backupDepthMaximum !== undefined
+    && !isTarget && !isPair && preference === undefined
+  ) {
+    return Math.min(team.maxBid, backupDepthMaximum);
+  }
   const positionPreference = preferences.find(candidate =>
     candidate.preference.position === player.position
     && preferenceRosterCountFor(team.roster, candidate, pairPlayerId) < candidate.targetCount
@@ -64,9 +74,19 @@ export const auctionWillingnessFor = (
   const baseValue = team.isHuman ? player.humanValue ?? player.expectedPrice : player.expectedPrice;
   const preferenceDollars = isPreferred ? Math.ceil(baseValue * 0.15) : 0;
   const targetDollars = isTarget || isPair ? Math.ceil(baseValue * 0.1) : 0;
+  const ownerLiftDollars = ownerBidLiftFor({
+    teams: state.teams,
+    team,
+    position: player.position,
+    expectedPrice: baseValue,
+    minimumBid: state.configuration.minimumBidDollars,
+    pressureExempt: state.configuration.ai?.bidPressureExemptPlayerIds
+      ?.includes(player.id) ?? false,
+  });
   const valueLimit = Math.max(
     state.configuration.minimumBidDollars,
-    Math.round(baseValue) + needDollars + preferenceDollars + targetDollars,
+    Math.round(baseValue) + needDollars + preferenceDollars + targetDollars
+      + ownerLiftDollars,
   );
   const plannedTargetPlayers = plannedFutureTargetsFor(
     state,
@@ -103,20 +123,9 @@ export const auctionWillingnessFor = (
       : positionCap.maxAuctionPrice,
     isTarget ? team.maxBid : positionPreference?.preference.maxAuctionPrice ?? team.maxBid,
   );
-  const minimumBid = state.configuration.minimumBidDollars;
-  const discretionaryBudget = Math.max(
-    0,
-    team.budgetRemaining - team.rosterSlotsRemaining * minimumBid,
-  );
-  const closingPaceLimit = Math.min(
-    team.maxBid,
-    minimumBid
-      + Math.ceil(discretionaryBudget / team.rosterSlotsRemaining)
-      + humanClearingPriceCushionDollars,
-  );
   let enforcedValueLimit = team.maxBid;
   if ((!isTarget || target.maxAuctionPrice !== undefined) && preference === undefined) {
-    enforcedValueLimit = Math.max(valueLimit, closingPaceLimit);
+    enforcedValueLimit = valueLimit;
   }
 
   return Math.min(team.maxBid, strategyLimit, enforcedValueLimit);

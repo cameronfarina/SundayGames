@@ -87,7 +87,7 @@ describe("season mock results", () => {
         expectedPrice: Math.max(1, 12 - index),
         week1Projection: index + 1,
       })),
-      ai: { randomness: 0, rosterNeedDollars: 0, targetEndingBudgetDollars: 0 },
+      ai: { randomness: 0, rosterNeedDollars: 0 },
     });
 
     const results = buildSeasonMockResults(state);

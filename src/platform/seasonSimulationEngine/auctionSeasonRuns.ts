@@ -1,5 +1,4 @@
 import { buildSeasonAuctionMockConfig } from "../seasonAuctionMock.js";
-import { reconciledSeasonSimulationTeams } from "../seasonSimulationAuctionBudgets.js";
 import type {
   CompletedSimulationRun,
   RunSeasonSimulationsInput,
@@ -38,15 +37,10 @@ export const runAuctionSeasonSimulations = (
     if (!state.teams.some(team => team.id === input.humanTeamId)) {
       throw new SeasonSimulationError("human_team_missing", "Claim a team before running simulations.");
     }
-    const reconciledTeams = reconciledSeasonSimulationTeams({
-      state,
-      targetsByPlayerId: prepared.targetsByPlayerId,
-      positionCaps: prepared.strategyResolution.strategy.positionCaps ?? [],
-    });
     runs.push({
       runNumber,
       seed,
-      teams: reconciledTeams.map(team => teamResultFor({
+      teams: state.teams.map(team => teamResultFor({
         teamId: team.id,
         teamName: team.name,
         isUserTeam: team.id === input.humanTeamId,
