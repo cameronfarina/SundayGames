@@ -1,5 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { AuctionLeagueSeason, FantasyTeam } from "../leagueSeason.js";
+import type { ExplicitLeagueSeason, FantasyTeam } from "../leagueSeason.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "./contracts/core.js";
 import type { LiveDraftRoomRosterPlayer } from "./contracts/players.js";
 import { assertPositiveWholeDollar, pluralPosition } from "./common.js";
@@ -19,7 +19,7 @@ interface InitialRosterState {
 }
 
 export const validateInitialRosters = (
-  season: AuctionLeagueSeason,
+  season: ExplicitLeagueSeason,
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[],
 ): void => {
   const rosterStateByTeamId = new Map<string, InitialRosterState>(
@@ -34,10 +34,13 @@ export const validateInitialRosters = (
       throw new LiveDraftRoomError("team_not_found", `Unknown team "${player.teamId}".`);
     }
     const { roster, team } = rosterState;
-    assertPositiveWholeDollar(
-      rosterPlayer.price,
-      `Initial roster price must be a positive whole-dollar amount for ${rosterPlayer.name}.`,
-    );
+    const auction = season.settings.auction;
+    if (auction !== undefined) {
+      assertPositiveWholeDollar(
+        rosterPlayer.price,
+        `Initial roster price must be a positive whole-dollar amount for ${rosterPlayer.name}.`,
+      );
+    }
     const playerIdentity = canonicalPlayerIdentityKey(rosterPlayer.normalizedPlayerName);
     if (unavailablePlayerIdentities.has(playerIdentity)) {
       throw new LiveDraftRoomError("duplicate_player", `${rosterPlayer.name} is already unavailable.`);
@@ -47,19 +50,19 @@ export const validateInitialRosters = (
     if (roster.length >= rosterCapacity) {
       throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
     }
-    const spent = roster.reduce((total, rosteredPlayer) => total + rosteredPlayer.price, 0);
-    const rosterSlotsRemaining = rosterCapacity - roster.length;
-    const budgetRemaining = season.settings.auction.budgetDollars - spent;
-    const maxBid = maxBidFor(
-      budgetRemaining,
-      rosterSlotsRemaining,
-      season.settings.auction.minimumBidDollars,
-    );
-    if (rosterPlayer.price > maxBid) {
-      throw new LiveDraftRoomError(
-        "max_bid_exceeded",
-        `${team.ownerDisplayName} cannot roster ${rosterPlayer.name} for $${rosterPlayer.price}: max bid is $${maxBid}.`,
+    if (auction !== undefined) {
+      const spent = roster.reduce((total, rosteredPlayer) => total + rosteredPlayer.price, 0);
+      const maxBid = maxBidFor(
+        auction.budgetDollars - spent,
+        rosterCapacity - roster.length,
+        auction.minimumBidDollars,
       );
+      if (rosterPlayer.price > maxBid) {
+        throw new LiveDraftRoomError(
+          "max_bid_exceeded",
+          `${team.ownerDisplayName} cannot roster ${rosterPlayer.name} for $${rosterPlayer.price}: max bid is $${maxBid}.`,
+        );
+      }
     }
 
     const positionMaximum = positionMaximumsFor(season)[rosterPlayer.position];

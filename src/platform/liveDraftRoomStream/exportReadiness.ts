@@ -6,7 +6,9 @@ import type {
 
 const exportBlockersFor = (teams: readonly LiveDraftRoomTeamSummary[]): readonly string[] =>
   teams.flatMap(team => [
-    ...(team.budgetRemaining < 0 ? [`${team.ownerDisplayName} has a negative budget.`] : []),
+    ...(team.budgetRemaining !== undefined && team.budgetRemaining < 0
+      ? [`${team.ownerDisplayName} has a negative budget.`]
+      : []),
     ...(team.rosterSlotsRemaining > 0
       ? [`${team.ownerDisplayName} has ${team.rosterSlotsRemaining} open roster slots.`]
       : []),

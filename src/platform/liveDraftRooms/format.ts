@@ -2,22 +2,22 @@ import { analyzeRosterSlots } from "../leagueCreation.js";
 import {
   assessLeagueSeasonReadiness,
   type AnyLeagueSeason,
-  type AuctionLeagueSeason,
+  type ExplicitLeagueSeason,
 } from "../leagueSeason.js";
 import { LiveDraftRoomError } from "./error.js";
 
 export function assertHostedLiveDraftRoomFormat(
   season: AnyLeagueSeason,
-): asserts season is AuctionLeagueSeason {
-  if (season.settings.draftFormat === "snake") {
+): asserts season is ExplicitLeagueSeason {
+  if (season.settings.draftFormat === undefined && season.settings.auction === undefined) {
     throw new LiveDraftRoomError(
-      "snake_live_room_unavailable",
-      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
+      "season_not_ready",
+      "This league has no draft format. Choose auction or snake in league settings.",
     );
   }
 }
 
-export function assertSeasonReady(season: AnyLeagueSeason): asserts season is AuctionLeagueSeason {
+export function assertSeasonReady(season: AnyLeagueSeason): asserts season is ExplicitLeagueSeason {
   assertHostedLiveDraftRoomFormat(season);
   const readiness = assessLeagueSeasonReadiness(season);
   const unsupportedSlot = analyzeRosterSlots(season.settings.roster.lineup).unsupportedSlots[0];

@@ -11,17 +11,16 @@ import {
 } from "./fixtures.js";
 
 describe("live draft rooms", () => {
-  it("rejects snake hosted rooms before storing a room or creation event", () => {
+  it("stores a snake hosted room and its creation event", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
 
-    expect(() => createRoom(repository, {
+    const room = createRoom(repository, {
       season: publishedSnakeSeason(),
       roomId: "room_snake",
-    })).toThrow(new LiveDraftRoomError(
-      "snake_live_room_unavailable",
-      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
-    ));
-    expect(repository.rooms()).toEqual([]);
+    });
+
+    expect(room.roomId).toBe("room_snake");
+    expect(repository.rooms()).toHaveLength(1);
   });
 
   it("cancels only setup rooms and unlocks their season for replacement", () => {

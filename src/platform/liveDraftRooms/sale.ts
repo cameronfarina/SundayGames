@@ -28,7 +28,7 @@ export const validateSale = (room: LiveDraftRoom, sale: LiveDraftRoomSale): void
   if (team.rosterSlotsRemaining <= 0) {
     throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
   }
-  if (sale.price > team.maxBid) {
+  if (team.maxBid !== undefined && sale.price > team.maxBid) {
     throw new LiveDraftRoomError(
       "max_bid_exceeded",
       `${team.ownerDisplayName} cannot buy ${sale.playerName} for $${sale.price}: max bid is $${team.maxBid}.`,

@@ -1,5 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { AuctionLeagueSeason, FantasyTeam } from "../leagueSeason.js";
+import type { ExplicitLeagueSeason, FantasyTeam } from "../leagueSeason.js";
 import { activeSalesFor } from "./activeSales.js";
 import type {
   LiveDraftRoomProjection,
@@ -19,31 +19,33 @@ import {
 import { rosterSlotsFor } from "./rosterSlots.js";
 
 const teamStateFor = (
-  season: AuctionLeagueSeason,
+  season: ExplicitLeagueSeason,
   team: FantasyTeam,
   roster: readonly LiveDraftRoomRosterPlayer[],
 ): LiveDraftRoomTeamState => {
-  const spent = roster.reduce((total, player) => total + player.price, 0);
   const rosterSlotsRemaining = Math.max(0, draftRosterCapacityFor(season) - roster.length);
-  const budgetRemaining = season.settings.auction.budgetDollars - spent;
-  return {
+  const common = {
     teamId: team.id,
     ownerId: team.ownerId,
     ownerDisplayName: team.ownerDisplayName,
     teamDisplayName: team.displayName,
     draftOrderPosition: team.draftOrderPosition,
-    budgetDollars: season.settings.auction.budgetDollars,
-    spent,
-    budgetRemaining,
     rosterSlotsRemaining,
-    maxBid: maxBidFor(
-      budgetRemaining,
-      rosterSlotsRemaining,
-      season.settings.auction.minimumBidDollars,
-    ),
     positionCounts: countPositions(roster),
     roster: [...roster],
     slots: rosterSlotsFor(season, roster),
+  };
+  const auction = season.settings.auction;
+  if (auction === undefined) return common;
+
+  const spent = roster.reduce((total, player) => total + player.price, 0);
+  const budgetRemaining = auction.budgetDollars - spent;
+  return {
+    ...common,
+    budgetDollars: auction.budgetDollars,
+    spent,
+    budgetRemaining,
+    maxBid: maxBidFor(budgetRemaining, rosterSlotsRemaining, auction.minimumBidDollars),
   };
 };
 

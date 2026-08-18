@@ -22,8 +22,8 @@ const expectedParity = {
   registrationCount: 39,
   runtimeBehaviorCount: 47,
   assertionCount: 117,
-  behaviorDigest: "fe03b5850c21ad6f4dc17359b92780b7e9495236098e3c513c46cd7444364760",
-  assertionDigest: "83d55fec2da2a5a72ce78700341bd35829ece5941086c3f6df65c552fffa9eb8",
+  behaviorDigest: "7f06240d4a7c5882c661370a1b39f0f8cd4bcfe2ac5e382e7de1c55784a875ae",
+  assertionDigest: "d83d53517966eb318c04023315a05f93ae5f64e8f92dd58c343a8511e553cf38",
 };
 
 export const assertLiveDraftRoomSuiteParity = (entryUrl: string): void => {
