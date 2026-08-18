@@ -299,4 +299,43 @@ describe("platform league setup import parsing", () => {
       records: [],
     });
   });
+
+  it("reads a draft order column so a snake commissioner can reorder the board", () => {
+    const result = parseLeagueSetupImport([
+      "teamId,owner,team,role,draftOrder",
+      "team-1,Owner11,Short King,member,3",
+      "team-2,Owner04,Bob's Team,member,1",
+    ].join("\n"));
+
+    expect(result.records.map(record => record.draftOrderPosition)).toEqual([3, 1]);
+  });
+
+  it("blocks a draft order that is not a whole number of one or more", () => {
+    const result = parseLeagueSetupImport([
+      "teamId,owner,team,role,draftOrder",
+      "team-1,Owner11,Short King,member,zero",
+    ].join("\n"));
+
+    expect(result.status).toBe("blocked");
+    expect(result.blockers).toEqual([{
+      code: "invalid_draft_order",
+      severity: "blocker",
+      message: "Invalid draft order \"zero\". Use a whole number of 1 or more.",
+      rowNumber: 2,
+    }]);
+  });
+
+  it("blocks two teams that claim the same draft order", () => {
+    const result = parseLeagueSetupImport([
+      "teamId,owner,team,role,draftOrder",
+      "team-1,Owner11,Short King,member,2",
+      "team-2,Owner04,Bob's Team,member,2",
+    ].join("\n"));
+
+    expect(result.status).toBe("blocked");
+    expect(result.blockers.map(blocker => blocker.code)).toEqual([
+      "duplicate_draft_order",
+      "duplicate_draft_order",
+    ]);
+  });
 });

@@ -8,8 +8,8 @@ import {
 } from "./teamRoster";
 
 const rows: TeamRosterRow[] = [
-  { teamId: "team-1", ownerDisplayName: "Ty", teamDisplayName: "Short King", savedOwnerDisplayName: "Ty" },
-  { teamId: "team-2", ownerDisplayName: "Bob", teamDisplayName: "Bob's Team", savedOwnerDisplayName: "Bob" },
+  { teamId: "team-1", ownerDisplayName: "Ty", teamDisplayName: "Short King", draftOrder: "1", savedOwnerDisplayName: "Ty" },
+  { teamId: "team-2", ownerDisplayName: "Bob", teamDisplayName: "Bob's Team", draftOrder: "2", savedOwnerDisplayName: "Bob" },
 ];
 
 describe("teamRoster", () => {
@@ -18,15 +18,16 @@ describe("teamRoster", () => {
       teamId: "team-1",
       ownerDisplayName: "Owner11",
       teamDisplayName: "Short King",
+      draftOrder: "1",
       savedOwnerDisplayName: "Owner11",
     }]);
   });
 
   it("sends the team id beside every row so a rename edits that team", () => {
     expect(teamRosterContent(rows)).toBe([
-      "teamId,owner,team,role",
-      "team-1,Ty,Short King,member",
-      "team-2,Bob,Bob's Team,member",
+      "teamId,owner,team,role,draftOrder",
+      "team-1,Ty,Short King,member,1",
+      "team-2,Bob,Bob's Team,member,2",
     ].join("\n"));
   });
 
@@ -36,11 +37,12 @@ describe("teamRoster", () => {
         teamId: "team-1",
         ownerDisplayName: "Ty, Jr.",
         teamDisplayName: "The \"Best\" Team",
+        draftOrder: "1",
         savedOwnerDisplayName: "Ty, Jr.",
       },
     ])).toBe([
-      "teamId,owner,team,role",
-      "team-1,\"Ty, Jr.\",\"The \"\"Best\"\" Team\",member",
+      "teamId,owner,team,role,draftOrder",
+      "team-1,\"Ty, Jr.\",\"The \"\"Best\"\" Team\",member,1",
     ].join("\n"));
   });
 
@@ -50,6 +52,7 @@ describe("teamRoster", () => {
         teamId: "team-1",
         ownerDisplayName: "Tye",
         teamDisplayName: "Short King",
+        draftOrder: "1",
         savedOwnerDisplayName: "Ty",
       },
       rows[1],

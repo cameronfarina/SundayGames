@@ -12,7 +12,9 @@ export type LeagueSetupImportIssueCode =
   | "blank_owner"
   | "duplicate_owner_name"
   | "duplicate_team_name"
-  | "invalid_role";
+  | "invalid_role"
+  | "invalid_draft_order"
+  | "duplicate_draft_order";
 
 export interface LeagueSetupImportIssue {
   code: LeagueSetupImportIssueCode;

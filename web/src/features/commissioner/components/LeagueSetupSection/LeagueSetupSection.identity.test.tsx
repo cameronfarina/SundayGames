@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { seasonSchema } from "../../api/seasonSchemas";
-import { auctionSeason, jsonResponse, requestBody, requestPath } from "../../test/commissionerFixtures";
+import { auctionSeason, jsonResponse, requestBody, requestPath, snakeSeason } from "../../test/commissionerFixtures";
 import { LeagueSetupSection } from "./LeagueSetupSection";
 
 const readyImport = { status: "ready", blockers: [], records: [] };
@@ -51,7 +51,25 @@ describe("LeagueSetupSection team identity", () => {
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
     expect(await screen.findByText("League teams saved.")).toBeVisible();
-    expect(bodies.at(-1)).toContain("teamId,owner,team,role\\nteam-1,Tye,Short King,member");
+    expect(bodies.at(-1)).toContain("teamId,owner,team,role,draftOrder\\nteam-1,Tye,Short King,member,1");
+  });
+
+  it("sends a snake draft order edit and leaves auction rows as plain numbers", async () => {
+    const bodies = captureApplyBodies(snakeSeason);
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByLabelText("Draft order 1"));
+    await user.type(screen.getByLabelText("Draft order 1"), "4");
+    await user.click(screen.getByRole("button", { name: "Apply changes" }));
+
+    expect(await screen.findByText("League teams saved.")).toBeVisible();
+    expect(bodies.at(-1)).toContain("team-1,Owner11,Short King,member,4");
+  });
+
+  it("shows a plain pick number for an auction league", () => {
+    captureApplyBodies(auctionSeason);
+
+    expect(screen.queryByLabelText("Draft order 1")).not.toBeInTheDocument();
   });
 
   it("sends the team id with a renamed team as well as a renamed manager", async () => {

@@ -26,12 +26,17 @@ export const buildSeasonSnakeMockConfig = ({
   }
 
   const snake = season.settings.snake;
+  // The commissioner edits draft order on the team rows, so the teams carry the
+  // current order. settings.snake.order only holds the order set at creation.
+  const teamOrder = [...season.teams]
+    .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
+    .map(team => team.id);
   const baseConfig: SnakeDraftConfig = {
     sessionId,
     seed,
     rounds: snake.rounds,
     orderType: snake.reversal === "third-round" ? "third_round_reversal" : "standard",
-    teamOrder: snake.order,
+    teamOrder,
     humanTeamId,
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),
     rosterSlots: snakeRosterSlotsFor(season, snake),

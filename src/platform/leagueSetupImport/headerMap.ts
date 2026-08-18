@@ -7,6 +7,7 @@ const headerAliases: Record<LeagueSetupColumn, ReadonlySet<string>> = {
   team: new Set(["team", "teamname", "teamdisplayname", "displayname"]),
   email: new Set(["email", "owneremail", "inviteemail"]),
   role: new Set(["role", "membershiprole", "workspacerole"]),
+  draftOrder: new Set(["draftorder", "draftposition", "draftpick", "pick", "order"]),
 };
 
 const leagueSetupColumns: readonly LeagueSetupColumn[] = [
@@ -15,6 +16,7 @@ const leagueSetupColumns: readonly LeagueSetupColumn[] = [
   "team",
   "email",
   "role",
+  "draftOrder",
 ];
 
 const columnForHeader = (header: string): LeagueSetupColumn | null => {

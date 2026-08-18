@@ -46,6 +46,7 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
   // buries the one row that does something, so only changes are shown.
   const assignments = (preview.data?.teamAssignments ?? [])
     .filter(assignment => assignment.effect !== "kept");
+  const snake = settings.draftFormat === "snake";
   const draftLabel = settings.draftFormat === "auction"
     ? `$${String(settings.auction.budgetDollars)} auction`
     : `${String(settings.snake.rounds)}-round snake`;
@@ -64,7 +65,13 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
         <ol className="commissioner-teams__list">
           {rows.map((row, index) => (
             <li className="commissioner-teams__row" key={row.teamId}>
-              <span className="commissioner-teams__pick">{index + 1}</span>
+              {snake ? <input
+                aria-label={`Draft order ${String(index + 1)}`}
+                className="commissioner-teams__pick-input"
+                inputMode="numeric"
+                onChange={event => { editRow(index, { draftOrder: event.target.value }); }}
+                value={row.draftOrder}
+              /> : <span className="commissioner-teams__pick">{index + 1}</span>}
               <input
                 aria-label={`Manager ${String(index + 1)}`}
                 onChange={event => { editRow(index, { ownerDisplayName: event.target.value }); }}

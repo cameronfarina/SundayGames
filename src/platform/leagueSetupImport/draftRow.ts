@@ -18,6 +18,12 @@ const roleFor = (role: string): WorkspaceRole | null => {
   return null;
 };
 
+const draftOrderFor = (rawDraftOrder: string): number | undefined => {
+  if (rawDraftOrder.length === 0) return undefined;
+  const parsed = Number(rawDraftOrder);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 export const draftRowFor = (
   row: RawLeagueSetupRow,
   headerMap: ReadonlyMap<LeagueSetupColumn, number> | null,
@@ -27,6 +33,8 @@ export const draftRowFor = (
   const email = normalizeEmail(cellValue(row, headerMap, "email", 2));
   const rawRole = cellValue(row, headerMap, "role", 3);
   const existingTeamId = headerCellValue(row, headerMap, "teamId");
+  const rawDraftOrder = headerCellValue(row, headerMap, "draftOrder") ?? "";
+  const draftOrderPosition = draftOrderFor(rawDraftOrder);
 
   return {
     rowNumber: row.rowNumber,
@@ -36,6 +44,8 @@ export const draftRowFor = (
     ...(email === undefined ? {} : { email }),
     role: roleFor(rawRole),
     rawRole,
+    ...(draftOrderPosition === undefined ? {} : { draftOrderPosition }),
+    rawDraftOrder,
     blockers: [...row.blockers],
   };
 };

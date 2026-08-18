@@ -13,6 +13,9 @@ const recordFor = (draft: DraftLeagueSetupRow): LeagueSetupTeamRecord | null => 
     teamDisplayName: draft.teamDisplayName,
     ...(draft.existingTeamId === undefined ? {} : { existingTeamId: draft.existingTeamId }),
     ...(draft.email === undefined ? {} : { email: draft.email }),
+    ...(draft.draftOrderPosition === undefined
+      ? {}
+      : { draftOrderPosition: draft.draftOrderPosition }),
     role: draft.role,
   };
 };

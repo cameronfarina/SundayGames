@@ -1,7 +1,7 @@
 import type { WorkspaceRole } from "../workspacePrivacy.js";
 import type { LeagueSetupImportIssue } from "./types.js";
 
-export type LeagueSetupColumn = "teamId" | "owner" | "team" | "email" | "role";
+export type LeagueSetupColumn = "teamId" | "owner" | "team" | "email" | "role" | "draftOrder";
 
 export interface RawLeagueSetupRow {
   rowNumber: number;
@@ -17,5 +17,7 @@ export interface DraftLeagueSetupRow {
   email?: string;
   role: WorkspaceRole | null;
   rawRole: string;
+  draftOrderPosition?: number;
+  rawDraftOrder: string;
   blockers: LeagueSetupImportIssue[];
 }

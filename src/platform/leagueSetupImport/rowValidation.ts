@@ -41,6 +41,36 @@ export const addDuplicateBlockers = (
   return blockers;
 };
 
+const duplicateDraftOrderBlockers = (
+  drafts: readonly DraftLeagueSetupRow[],
+): LeagueSetupImportIssue[] => {
+  const groups = new Map<number, DraftLeagueSetupRow[]>();
+
+  for (const draft of drafts) {
+    const position = draft.draftOrderPosition;
+    if (position === undefined) continue;
+    groups.set(position, [...(groups.get(position) ?? []), draft]);
+  }
+
+  const blockers: LeagueSetupImportIssue[] = [];
+
+  for (const [position, duplicates] of groups) {
+    if (duplicates.length < 2) continue;
+
+    for (const duplicate of duplicates) {
+      const blocker = createImportIssue(
+        "duplicate_draft_order",
+        `Draft order ${String(position)} appears more than once.`,
+        duplicate.rowNumber,
+      );
+      duplicate.blockers.push(blocker);
+      blockers.push(blocker);
+    }
+  }
+
+  return blockers;
+};
+
 export const addRowValidationBlockers = (
   drafts: readonly DraftLeagueSetupRow[],
 ): LeagueSetupImportIssue[] => {
@@ -68,7 +98,17 @@ export const addRowValidationBlockers = (
       draft.blockers.push(blocker);
       blockers.push(blocker);
     }
+
+    if (draft.rawDraftOrder.length > 0 && draft.draftOrderPosition === undefined) {
+      const blocker = createImportIssue(
+        "invalid_draft_order",
+        `Invalid draft order "${draft.rawDraftOrder}". Use a whole number of 1 or more.`,
+        draft.rowNumber,
+      );
+      draft.blockers.push(blocker);
+      blockers.push(blocker);
+    }
   }
 
-  return blockers;
+  return [...blockers, ...duplicateDraftOrderBlockers(drafts)];
 };
