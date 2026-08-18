@@ -3,11 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
-import { auctionSeason, jsonResponse } from "../../test/commissionerFixtures";
+import { auctionSeason, jsonResponse, withStoredHistoricalImports } from "../../test/commissionerFixtures";
 import { HistoricalImportSection } from "./HistoricalImportSection";
 
 const renderSection = (fetcher: PlatformFetch) => {
-  vi.stubGlobal("fetch", fetcher);
+  vi.stubGlobal("fetch", withStoredHistoricalImports(fetcher, () => []));
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <HistoricalImportSection season={auctionSeason} />

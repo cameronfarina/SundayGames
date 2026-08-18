@@ -6,12 +6,30 @@ import { optionalBoolean, optionalNumber, optionalString, stringValue } from "..
 import { knownError, methodNotAllowed, notFound } from "../../responses.js";
 import { historicalDraftSetupFor, historicalOwnerMappingsFrom, historicalPlayerMappingsFrom } from "./historicalSetup.js";
 
+const listSeasonHistoricalImports = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  seasonId: string,
+): Promise<PlatformHttpResponse> => {
+  if (request.method !== "GET") return methodNotAllowed();
+  await requireSeasonManager(app, request, seasonId);
+  const season = await app.getLeagueSeason({ actorSessionToken: request.sessionToken, seasonId, now: request.now });
+  const seasonYears = await app.listHistoricalImportSeasonYears({
+    actorSessionToken: request.sessionToken,
+    leagueId: season.leagueId,
+    seasonYear: season.seasonYear,
+    now: request.now,
+  });
+  return { status: 200, body: { seasonYears } };
+};
+
 export const routeSeasonHistoricalImports = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const [, seasonId, , action] = request.segments;
+  if (request.segments.length === 3) return await listSeasonHistoricalImports(app, request, seasonId ?? "");
   if (request.segments.length !== 4) return notFound();
   if (action !== "preview" && action !== "upload-preview") return notFound();
   if (request.method !== "POST") return methodNotAllowed();

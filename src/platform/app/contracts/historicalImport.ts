@@ -21,6 +21,13 @@ export interface PreviewPlatformHistoricalImportInput {
   now?: Date | undefined;
 }
 
+export interface ListPlatformHistoricalImportYearsInput {
+  actorSessionToken: string;
+  leagueId: string;
+  seasonYear: number;
+  now?: Date | undefined;
+}
+
 export interface CommitPlatformHistoricalImportInput {
   actorSessionToken: string;
   batchId: string;

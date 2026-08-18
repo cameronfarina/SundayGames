@@ -1,10 +1,12 @@
-import { useMutation } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
 import { Button, ProgressButton } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
 import { fileBase64 } from "../../model/fileBase64";
+import { historicalOwnerNeeds } from "../../model/historicalOwnerNeeds";
 import {
   duplicateHistoricalYears,
   hasInvalidHistoricalYears,
@@ -22,18 +24,16 @@ interface ImportOutcome {
 }
 interface ImportProgress { readonly completed: number; readonly total: number }
 interface ImportableFile { readonly item: HistoricalFileItem; readonly seasonYear: number }
-const ownerNeedsFor = (item: HistoricalFileItem, rows: readonly {
-  readonly blockers: readonly { readonly code: string }[];
-  readonly identityAudit?: { readonly sourceOwnerOrTeamLabel: string } | undefined;
-}[]): readonly string[] => [...new Set(rows.flatMap(row => {
-  const needsMapping = row.blockers.some(blocker =>
-    blocker.code === "owner_unknown" || blocker.code === "owner_ambiguous");
-  return needsMapping && row.identityAudit !== undefined
-    ? [row.identityAudit.sourceOwnerOrTeamLabel]
-    : [];
-}))].filter(label => item.ownerMappings[label] === undefined);
+const storedImportOptions = (seasonId: string, enabled: boolean) => queryOptions({
+  queryKey: seasonQueryKeys.commissionerHistoricalImports(seasonId),
+  queryFn: async () => await commissionerApi.historicalImports(seasonId),
+  enabled,
+});
 
 export function HistoricalImportSection({ season }: HistoricalImportSectionProps) {
+  const unavailable = season.settings.draftFormat === "snake";
+  const queryClient = useQueryClient();
+  const importedYears = useQuery(storedImportOptions(season.id, !unavailable));
   const [items, dispatch] = useReducer(historicalQueueReducer, []);
   const [replace, setReplace] = useState(false);
   const [keepersInFirstRow, setKeepersInFirstRow] = useState(false);
@@ -59,7 +59,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
         seasonId: season.id,
         seasonYear,
       });
-      const ownerNeeds = ownerNeedsFor(item, preview.batch.rows);
+      const ownerNeeds = historicalOwnerNeeds(item, preview.batch.rows);
       if (preview.batch.status === "blocked") {
         const messages = preview.batch.blockers.map(blocker => blocker.message);
         return {
@@ -88,7 +88,14 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   const importFiles = useMutation({
     mutationFn: async (files: readonly ImportableFile[]): Promise<readonly ImportOutcome[]> =>
       await Promise.all(files.map(importOne)),
-    onSuccess: outcomes => { outcomes.forEach(outcome => { dispatch({ type: "result", ...outcome }); }); },
+    onSuccess: outcomes => {
+      outcomes.forEach(outcome => { dispatch({ type: "result", ...outcome }); });
+      if (outcomes.some(outcome => outcome.status === "imported")) {
+        void queryClient.invalidateQueries({
+          queryKey: seasonQueryKeys.commissionerHistoricalImports(season.id),
+        });
+      }
+    },
   });
   const addFiles = (files: FileList | null) => {
     if (files !== null) dispatch({ type: "add", files: Array.from(files), currentYear: season.seasonYear });
@@ -102,7 +109,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
   const duplicateYears = duplicateHistoricalYears(items);
   const invalidYears = hasInvalidHistoricalYears(items);
   const mappingIncomplete = pending.some(item => item.ownerNeeds.some(label => !item.ownerMappings[label]));
-  const unavailable = season.settings.draftFormat === "snake";
+  const importedCount = importedYears.data?.seasonYears.length ?? 0;
   const percent = progress.total === 0 ? 0 : (progress.completed / progress.total) * 100;
   const fileLabel = pending.length === 1 ? "file" : "files";
   const importLabel = importFiles.isPending
@@ -115,7 +122,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
 
   return (
     <section className="commissioner-section" id="draft-history">
-      <header><div><span>03</span><h2>Draft history</h2></div><strong>{items.filter(item => item.status === "imported").length} imported</strong></header>
+      <header><div><span>02</span><h2>Draft history</h2></div><strong>{importedCount} imported</strong></header>
       {unavailable ? <p>Historical snake draft imports are not available yet.</p> : <>
         <p className="commissioner-help">Add prior auction results as CSV, TSV, or XLSX. Each file must use a different draft year.</p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}

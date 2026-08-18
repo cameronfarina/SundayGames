@@ -1,4 +1,5 @@
 import { seasonSchema } from "../api/seasonSchemas";
+import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
 import { onboardingLeagueSchema } from "../../../shared/api/onboarding/onboardingSchema";
 
 export const auctionSeason = seasonSchema.parse({
@@ -57,3 +58,11 @@ export const requestPath = (input: RequestInfo | URL): string => {
 
 export const requestBody = (init?: RequestInit): string =>
   typeof init?.body === "string" ? init.body : "";
+
+export const withStoredHistoricalImports = (
+  fetcher: PlatformFetch,
+  seasonYears: () => readonly number[],
+): PlatformFetch => (input, init) =>
+  requestPath(input).endsWith("/historical-imports")
+    ? Promise.resolve(jsonResponse({ seasonYears: seasonYears() }))
+    : fetcher(input, init);

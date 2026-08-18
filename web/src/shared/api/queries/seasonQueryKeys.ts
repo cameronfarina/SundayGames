@@ -2,6 +2,7 @@ type OnboardingKey = readonly ["onboarding"];
 type CommissionerSeasonKey = readonly ["commissioner", "season", string];
 type CommissionerKeepersKey = readonly ["commissioner", "keepers", string];
 type CommissionerInvitationsKey = readonly ["commissioner", "invitations", string];
+type CommissionerHistoricalImportsKey = readonly ["commissioner", "historical-imports", string];
 type LeagueSeasonKey = readonly ["league-season", string];
 type SeasonTeamKey = readonly ["season-team", string];
 type SeasonKeepersKey = readonly ["season-keepers", string];
@@ -16,6 +17,8 @@ export const seasonQueryKeys = {
     ["commissioner", "keepers", seasonId],
   commissionerInvitations: (seasonId: string): CommissionerInvitationsKey =>
     ["commissioner", "invitations", seasonId],
+  commissionerHistoricalImports: (seasonId: string): CommissionerHistoricalImportsKey =>
+    ["commissioner", "historical-imports", seasonId],
   leagueSeason: (seasonId: string): LeagueSeasonKey => ["league-season", seasonId],
   seasonTeam: (seasonId: string): SeasonTeamKey => ["season-team", seasonId],
   seasonKeepers: (seasonId: string): SeasonKeepersKey => ["season-keepers", seasonId],

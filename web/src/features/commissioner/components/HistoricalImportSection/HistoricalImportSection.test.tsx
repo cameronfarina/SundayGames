@@ -3,7 +3,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
-import { auctionSeason, jsonResponse, requestPath, snakeSeason } from "../../test/commissionerFixtures";
+import {
+  auctionSeason,
+  jsonResponse,
+  requestPath,
+  snakeSeason,
+  withStoredHistoricalImports,
+} from "../../test/commissionerFixtures";
 import { HistoricalImportSection } from "./HistoricalImportSection";
 
 beforeAll(() => {
@@ -30,8 +36,12 @@ const preview = (status: "blocked" | "previewed", ownerLabel?: string) => ({
   },
 });
 
-const renderSection = (fetcher: PlatformFetch, snake = false) => {
-  vi.stubGlobal("fetch", fetcher);
+const renderSection = (
+  fetcher: PlatformFetch,
+  snake = false,
+  storedYears: () => readonly number[] = () => [],
+) => {
+  vi.stubGlobal("fetch", withStoredHistoricalImports(fetcher, storedYears));
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
     <HistoricalImportSection season={snake ? snakeSeason : auctionSeason} />
   </QueryClientProvider>);
@@ -60,6 +70,32 @@ describe("HistoricalImportSection", () => {
 
     expect(await screen.findByText("1 players imported")).toBeVisible();
     expect(screen.getByText("Columns are missing.")).toBeVisible();
+  });
+
+  it("counts draft years already stored for the league before any upload", async () => {
+    renderSection(vi.fn(() => Promise.resolve(jsonResponse(preview("previewed")))), false, () => [2025, 2024, 2023]);
+
+    expect(await screen.findByText("3 imported")).toBeVisible();
+  });
+
+  it("recounts stored draft years after an import succeeds", async () => {
+    const storedYears: number[] = [];
+    const respond: PlatformFetch = input => {
+      if (requestPath(input).includes("commit")) {
+        storedYears.push(2024);
+        return Promise.resolve(jsonResponse({
+          batch: { id: "batch-1", status: "committed" }, committedRecords: [{ playerName: "Puka Nacua" }],
+        }));
+      }
+      return Promise.resolve(jsonResponse(preview("previewed")));
+    };
+    renderSection(vi.fn(respond), false, () => storedYears);
+    const user = userEvent.setup();
+    expect(await screen.findByText("0 imported")).toBeVisible();
+    await user.upload(screen.getByLabelText("Choose historical draft files"), new File(["good"], "draft-2024.csv"));
+    await user.click(screen.getByRole("button", { name: "Import 1 file" }));
+
+    expect(await screen.findByText("1 imported")).toBeVisible();
   });
 
   it("collects team mappings and retries a blocked preview", async () => {

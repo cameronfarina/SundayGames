@@ -41,7 +41,7 @@ export function InvitationSection({ invitations, seasonId }: InvitationSectionPr
 
   return (
     <section className="commissioner-section" id="league-invite">
-      <header><div><span>04</span><h2>League invitation</h2></div><strong>{url ? "Active" : "Not created"}</strong></header>
+      <header><div><span>03</span><h2>League invitation</h2></div><strong>{url ? "Active" : "Not created"}</strong></header>
       <p className="commissioner-help">Share one link with the group. Each manager signs in and claims an available team.</p>
       {url ? <div className="commissioner-copy-row">
         <label htmlFor="league-invite-url">Shareable league link</label>

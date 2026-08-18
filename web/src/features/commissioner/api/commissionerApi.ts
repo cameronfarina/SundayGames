@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
 import {
   historicalCommitResponseSchema,
+  historicalImportListResponseSchema,
   historicalPreviewResponseSchema,
   setupApplyResponseSchema,
   setupPreviewResponseSchema,
@@ -78,6 +79,10 @@ export const commissionerApi = {
     path: seasonPath(seasonId, "/live-room"),
     init: jsonRequest("DELETE"),
     responseSchema: okResponseSchema,
+  }),
+  historicalImports: async (seasonId: string) => await requestPlatformJson({
+    path: seasonPath(seasonId, "/historical-imports"),
+    responseSchema: historicalImportListResponseSchema,
   }),
   previewHistory: async (input: HistoricalUploadInput) => await requestPlatformJson({
     path: seasonPath(input.seasonId, "/historical-imports/upload-preview"),

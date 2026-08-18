@@ -7,6 +7,7 @@ import {
 } from "../../platformHistoricalImportWorkflow.js";
 import type {
   CommitPlatformHistoricalImportInput,
+  ListPlatformHistoricalImportYearsInput,
   PreparePlatformHistoricalImportCommitInput,
   PreparePlatformHistoricalImportCommitResult,
   PreviewPlatformHistoricalImportInput,
@@ -16,6 +17,18 @@ import { PlatformAppError } from "../errors.js";
 import { cloneForRead } from "../shared.js";
 
 export const createHistoricalImportOperations = (context: PlatformAppContext) => ({
+  listHistoricalImportSeasonYears: async (
+    input: ListPlatformHistoricalImportYearsInput,
+  ): Promise<number[]> => {
+    const account = await context.requireAccount(input.actorSessionToken, input.now);
+    await context.requireSharedRead(account, input.leagueId);
+    const records = await context.historicalImports.currentRecordsThroughSeason(
+      input.leagueId,
+      input.seasonYear,
+    );
+    return [...new Set(records.map(record => record.seasonYear))].sort((left, right) => right - left);
+  },
+
   previewHistoricalImportSource: async (
     input: PreviewPlatformHistoricalImportInput,
   ): Promise<PreviewHistoricalImportSourceWorkflowResult> => {

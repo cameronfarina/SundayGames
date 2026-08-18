@@ -69,6 +69,10 @@ export const historicalPreviewResponseSchema = z.object({
   }),
 });
 
+export const historicalImportListResponseSchema = z.object({
+  seasonYears: z.array(z.number()),
+});
+
 export const historicalCommitResponseSchema = z.object({
   batch: z.object({ id: z.string(), status: z.literal("committed") }),
   committedRecords: z.array(z.object({ playerName: z.string() })),
