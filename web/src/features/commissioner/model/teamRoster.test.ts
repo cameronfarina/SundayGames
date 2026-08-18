@@ -3,6 +3,7 @@ import { auctionSeason } from "../test/commissionerFixtures";
 import {
   teamRosterContent,
   teamRosterRows,
+  withDraftOrderCommitted,
   withRowEdited,
   type TeamRosterRow,
 } from "./teamRoster";
@@ -44,6 +45,20 @@ describe("teamRoster", () => {
       "teamId,owner,team,role,draftOrder",
       "team-1,\"Ty, Jr.\",\"The \"\"Best\"\" Team\",member,1",
     ].join("\n"));
+  });
+
+  it("moves a team to the slot it asks for and closes the gap behind it", () => {
+    const moved = withDraftOrderCommitted(withRowEdited(rows, 0, { draftOrder: "2" }), 0);
+    expect(moved.map(row => [row.teamId, row.draftOrder])).toEqual([
+      ["team-2", "1"],
+      ["team-1", "2"],
+    ]);
+  });
+
+  it("restores the order on screen when the slot is out of range or the row is gone", () => {
+    expect(withDraftOrderCommitted(withRowEdited(rows, 0, { draftOrder: "9" }), 0)
+      .map(row => row.draftOrder)).toEqual(["1", "2"]);
+    expect(withDraftOrderCommitted(rows, 5)).toEqual(rows);
   });
 
   it("edits one row, keeping its team id and the name already saved", () => {

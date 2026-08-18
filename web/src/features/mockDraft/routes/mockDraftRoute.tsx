@@ -22,7 +22,7 @@ export function MockDraftRoutePage() {
       <section aria-labelledby="mock-league-required">
         <h1 id="mock-league-required">Choose a league first</h1>
         <InlineNotice variant="warning">
-          Auction mocks use the active league's teams, keepers, budget, and roster settings.
+          Mock drafts use the active league's teams, keepers, and roster settings.
         </InlineNotice>
         <Link to="/league">Open League</Link>
       </section>

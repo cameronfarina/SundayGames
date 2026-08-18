@@ -13,7 +13,7 @@ export const positionFilters: readonly PositionFilter[] = [
   "K",
 ];
 
-const matchesPosition = (position: string, filter: PositionFilter): boolean => {
+export const matchesPositionFilter = (position: string, filter: PositionFilter): boolean => {
   if (filter === "ALL") return true;
   if (filter === "FLEX") return ["RB", "WR", "TE"].includes(position);
   return position === filter;
@@ -26,7 +26,7 @@ export const filterAuctionPlayers = (
 ): readonly AuctionPlayer[] => {
   const term = search.trim().toLocaleLowerCase();
   return players.filter(player => {
-    if (!player.available || !matchesPosition(player.position, filter)) return false;
+    if (!player.available || !matchesPositionFilter(player.position, filter)) return false;
     if (term.length === 0) return true;
     return [player.name, player.position, player.teamAbbreviation ?? ""]
       .some(value => value.toLocaleLowerCase().includes(term));

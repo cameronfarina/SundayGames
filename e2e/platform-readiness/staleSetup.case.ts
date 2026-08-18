@@ -116,7 +116,7 @@ test("commissioner league switching discards stale setup fetch responses", async
   await chooseLeagueB();
   await expect(page).toHaveURL(/\/leagues\/league-b\/mock-drafts$/u);
   expect(new URL(page.url()).searchParams.has("seasonId")).toBe(false);
-  await expect(page.getByRole("button", { name: "Create auction mock" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create mock draft" })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("sessionId")).toBeNull();
   expect(new URL(page.url()).searchParams.get("sessionId")).not.toBe(leagueAMockSessionId);
   await expect(page.getByText(/belongs to another league/u)).toHaveCount(0);

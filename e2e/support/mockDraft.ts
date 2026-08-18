@@ -4,11 +4,12 @@ export const availablePlayersTable = (page: Page): Locator =>
   page.getByRole("table", { name: "Available players" });
 
 export const createAuctionMock = async (page: Page): Promise<string> => {
-  const createButton = page.getByRole("button", { name: "Create auction mock" });
+  const createButton = page.getByRole("button", { name: "Create mock draft" });
   if (await createButton.count() === 0) {
-    await page.getByRole("link", { name: "Start auction mock" }).click();
+    await page.getByRole("link", { name: "Start mock draft" }).click();
   }
-  await expect(page.getByRole("heading", { name: "Auction mock draft" })).toBeVisible();
+  // The launch screen has no session yet, so it cannot name the format.
+  await expect(page.getByRole("heading", { name: "Mock draft" })).toBeVisible();
   await createButton.click();
   await expect(page.getByRole("button", { name: "Start draft" })).toBeEnabled();
   const sessionId = new URL(page.url()).searchParams.get("sessionId");
@@ -38,7 +39,7 @@ export const abandonAuctionMock = async (page: Page): Promise<void> => {
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Abandon mock" }).click();
   await expect(page.getByText("Mock abandoned", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create auction mock" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create mock draft" })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("sessionId")).toBeNull();
 };
 

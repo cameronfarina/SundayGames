@@ -1,9 +1,10 @@
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
 import type { AuctionCommand } from "./auctionStateSchemas.js";
+import type { SnakeCommand } from "./snakeStateSchemas.js";
 import {
   abandonedMockResponseSchema,
-  auctionMockResponseSchema,
+  mockResponseSchema,
 } from "./mockDraftSchemas.js";
 
 interface CreateAuctionMockInput {
@@ -18,7 +19,7 @@ interface SessionInput {
 }
 
 interface SendCommandInput extends SessionInput {
-  readonly command: AuctionCommand;
+  readonly command: AuctionCommand | SnakeCommand;
 }
 
 interface AbandonInput extends SessionInput {
@@ -31,27 +32,27 @@ const jsonRequest = (body: unknown): RequestInit => ({
   method: "POST",
 });
 
-export const createAuctionMock = (
+export const createMock = (
   input: CreateAuctionMockInput,
   fetcher: PlatformFetch = fetch,
 ) => requestPlatformJson({
   fetcher,
   init: jsonRequest(input),
   path: "/season-mock-drafts",
-  responseSchema: auctionMockResponseSchema,
+  responseSchema: mockResponseSchema,
 });
 
-export const loadAuctionMock = (
+export const loadMock = (
   input: SessionInput,
   fetcher: PlatformFetch = fetch,
 ) => requestPlatformJson({
   fetcher,
   init: { method: "GET", ...(input.signal === undefined ? {} : { signal: input.signal }) },
   path: `/season-mock-drafts/${encodeURIComponent(input.sessionId)}?seasonId=${encodeURIComponent(input.seasonId)}`,
-  responseSchema: auctionMockResponseSchema,
+  responseSchema: mockResponseSchema,
 });
 
-export const sendAuctionMockCommand = (
+export const sendMockCommand = (
   input: SendCommandInput,
   fetcher: PlatformFetch = fetch,
 ) => requestPlatformJson({
@@ -62,10 +63,10 @@ export const sendAuctionMockCommand = (
     seasonId: input.seasonId,
   }),
   path: `/season-mock-drafts/${encodeURIComponent(input.sessionId)}/commands`,
-  responseSchema: auctionMockResponseSchema,
+  responseSchema: mockResponseSchema,
 });
 
-export const abandonAuctionMock = (
+export const abandonMock = (
   input: AbandonInput,
   fetcher: PlatformFetch = fetch,
 ) => requestPlatformJson({

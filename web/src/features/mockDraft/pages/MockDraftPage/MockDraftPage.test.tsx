@@ -26,7 +26,7 @@ describe("MockDraftPage", () => {
     );
 
     expect(screen.queryByRole("main")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Create auction mock" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create mock draft" }));
     expect(await screen.findByRole("button", { name: "Start draft" })).toBeInTheDocument();
     expect(onSessionChange).toHaveBeenCalledWith("mock-1");
     expect(screen.getAllByText("$136")).toHaveLength(2);
@@ -54,7 +54,7 @@ describe("MockDraftPage", () => {
     const dialog = screen.getByRole("dialog", { name: "Abandon this mock?" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Abandon mock" }));
     expect(await screen.findByText("Mock abandoned")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create auction mock" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create mock draft" })).toBeInTheDocument();
   });
 
   it("finishes a ready session and shows every team's Week 1 results", async () => {

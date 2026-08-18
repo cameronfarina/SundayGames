@@ -60,6 +60,16 @@ export const BasicsStep = ({ dispatch, draft, errors, formId, onSubmit }: Basics
         options={[{ label: "Auction", value: "auction" }, { label: "Snake", value: "snake" }]}
         value={draft.draftType}
       />
+      {draft.draftType === "snake" && (
+        <NumberField
+          {...(errors["snakeRounds"] === undefined ? {} : { error: errors["snakeRounds"] })}
+          id="snake-rounds"
+          label="Draft rounds"
+          min={1}
+          onChange={event => { dispatch({ type: "set-snake-rounds", value: event.currentTarget.valueAsNumber }); }}
+          value={Number.isFinite(draft.snakeRounds) ? draft.snakeRounds : ""}
+        />
+      )}
       {draft.draftType === "auction" && (
         <div className="create-league-grid create-league-grid--two">
           <NumberField

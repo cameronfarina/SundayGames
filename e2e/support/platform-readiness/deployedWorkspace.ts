@@ -90,7 +90,7 @@ export const exerciseDeployedWorkspace = async (browser: Browser): Promise<void>
   await openUnifiedBoard(commissionerPage);
   await openUnifiedBoard(memberPage);
   await exerciseBoardSimulations(memberPage, season);
-  await expect(memberPage.getByRole("link", { name: "Start auction mock" })).toHaveAttribute(
+  await expect(memberPage.getByRole("link", { name: "Start mock draft" })).toHaveAttribute(
     "href",
     `/mock-drafts?seasonId=${encodeURIComponent(season.id)}`,
   );

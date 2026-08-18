@@ -45,7 +45,7 @@ describe("MockDraftRoutePage league switching", () => {
     expect(await screen.findByRole("button", { name: "Bid $72" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Switch league" }));
 
-    expect(await screen.findByRole("button", { name: "Create auction mock" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Create mock draft" })).toBeVisible();
     expect(screen.getByTestId("location")).toHaveTextContent("?seasonId=season-2");
     await waitFor(() => { expect(fetcher).toHaveBeenCalledTimes(1); });
     expect(fetcher.mock.calls.map(call => requestedUrl(call[0]))).not.toContain(

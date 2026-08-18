@@ -30,12 +30,12 @@ test("a stale failed mock request cannot overwrite a newer mock session", async 
     await route.fallback();
   });
 
-  await page.getByRole("link", { name: "Start auction mock" }).click();
-  await page.getByRole("button", { name: "Create auction mock" }).click();
+  await page.getByRole("link", { name: "Start mock draft" }).click();
+  await page.getByRole("button", { name: "Create mock draft" }).click();
   await expect.poll(() => pendingFirstRequest.route !== undefined).toBe(true);
   await page.getByRole("link", { name: "Practice", exact: true }).click();
-  await page.getByRole("link", { name: "Start auction mock" }).click();
-  await page.getByRole("button", { name: "Create auction mock" }).click();
+  await page.getByRole("link", { name: "Start mock draft" }).click();
+  await page.getByRole("button", { name: "Create mock draft" }).click();
   await expectAuctionMockSetup(page);
   await expect.poll(async () => await page.evaluate(() =>
     document.documentElement.dataset.staleMockDocument

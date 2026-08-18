@@ -97,7 +97,7 @@ export function PracticePage() {
     />
     {activeLeague !== undefined && (
       <nav aria-label="Practice modes" className="practice-page__modes">
-        <Link to={leaguePath(activeLeague, "mock-drafts")}>Start auction mock</Link>
+        <Link to={leaguePath(activeLeague, "mock-drafts")}>Start mock draft</Link>
       </nav>
     )}
     {activeLeague === undefined && <aside className="practice-page__baseline">

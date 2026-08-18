@@ -14,6 +14,7 @@ export type LeagueDraftAction =
   | { readonly type: "set-draft-type"; readonly value: DraftType }
   | { readonly type: "set-auction-budget"; readonly value: number }
   | { readonly type: "set-minimum-bid"; readonly value: number }
+  | { readonly type: "set-snake-rounds"; readonly value: number }
   | { readonly type: "set-reference-source"; readonly value: string }
   | { readonly type: "choose-manual" }
   | { readonly type: "accept-import"; readonly review: EspnSettingsReview }
@@ -98,6 +99,7 @@ export const leagueDraftReducer = (draft: LeagueDraft, action: LeagueDraftAction
   if (action.type === "set-draft-type") return { ...draft, draftType: action.value };
   if (action.type === "set-auction-budget") return { ...draft, auctionBudget: action.value };
   if (action.type === "set-minimum-bid") return { ...draft, minimumBid: action.value };
+  if (action.type === "set-snake-rounds") return { ...draft, snakeRounds: action.value };
   if (action.type === "set-reference-source") return { ...draft, referenceSource: action.value };
   if (action.type === "choose-manual") return { ...draft, referenceMode: "manual", externalLeagueId: "" };
   if (action.type === "accept-import") return acceptedImport(draft, action.review);

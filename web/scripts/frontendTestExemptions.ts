@@ -82,6 +82,8 @@ export const frontendTestExemptions: FrontendTestExemption[] = [
     "web/src/features/mockDraft/api/mockDraftSchemas.ts",
     "web/src/features/mockDraft/components/ResultsGrid/ResultTeamCard.tsx",
     "web/src/features/mockDraft/index.ts",
+    "web/src/features/mockDraft/pages/MockDraftPage/AuctionMockWorkspace.tsx",
+    "web/src/features/mockDraft/pages/MockDraftPage/SnakeMockWorkspace.tsx",
   ], "Covered by mock draft API, page, and results integration tests."),
   ...coveredBy([
     "web/src/features/myTeam/api/myTeamApi.ts",

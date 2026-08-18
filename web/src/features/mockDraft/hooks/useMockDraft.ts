@@ -8,13 +8,13 @@ import {
 import { useState } from "react";
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
 import {
-  abandonAuctionMock,
-  createAuctionMock,
-  loadAuctionMock,
-  sendAuctionMockCommand,
+  abandonMock,
+  createMock,
+  loadMock,
+  sendMockCommand,
 } from "../api/mockDraftApi.js";
-import type { AuctionMockResponse } from "../api/mockDraftSchemas.js";
-import { auctionCommand, type AuctionCommandIntent } from "../model/auctionCommand.js";
+import type { MockResponse } from "../api/mockDraftSchemas.js";
+import { mockCommand, type MockCommandIntent } from "../model/mockCommand.js";
 
 interface UseAuctionMockDraftInput {
   readonly fetcher?: PlatformFetch;
@@ -42,12 +42,12 @@ const auctionMockQueryOptions = (
 ) => queryOptions({
   queryFn: sessionId === undefined
     ? skipToken
-    : ({ signal }) => loadAuctionMock({ seasonId, sessionId, signal }, fetcher),
+    : ({ signal }) => loadMock({ seasonId, sessionId, signal }, fetcher),
   queryKey: queryKey(seasonId, sessionId, fetcher),
   staleTime: 15_000,
 });
 
-export const useAuctionMockDraft = ({
+export const useMockDraft = ({
   fetcher = fetch,
   initialSessionId,
   onSessionChange,
@@ -59,7 +59,7 @@ export const useAuctionMockDraft = ({
   const [abandoned, setAbandoned] = useState(false);
   const sessionQuery = useQuery(auctionMockQueryOptions(seasonId, activeSessionId, fetcher));
   const createMutation = useMutation({
-    mutationFn: () => createAuctionMock({ seasonId, strategy }, fetcher),
+    mutationFn: () => createMock({ seasonId, strategy }, fetcher),
     onSuccess: response => {
       queryClient.setQueryData(queryKey(seasonId, response.mockSession.id, fetcher), response);
       setActiveSessionId(response.mockSession.id);
@@ -68,14 +68,14 @@ export const useAuctionMockDraft = ({
     },
   });
   const commandMutation = useMutation({
-    mutationFn: (intent: AuctionCommandIntent) => {
+    mutationFn: (intent: MockCommandIntent) => {
       if (activeSessionId === undefined) return Promise.reject(new Error("No mock session is active."));
-      const response = queryClient.getQueryData<AuctionMockResponse>(
+      const response = queryClient.getQueryData<MockResponse>(
         queryKey(seasonId, activeSessionId, fetcher),
       );
       if (response === undefined) return Promise.reject(new Error("No mock session is active."));
-      return sendAuctionMockCommand({
-        command: auctionCommand(intent, response.state.session.revision),
+      return sendMockCommand({
+        command: mockCommand(intent, response.state.session.revision),
         seasonId,
         sessionId: activeSessionId,
       }, fetcher);
@@ -87,11 +87,11 @@ export const useAuctionMockDraft = ({
   const abandonMutation = useMutation({
     mutationFn: () => {
       if (activeSessionId === undefined) return Promise.reject(new Error("No mock session is active."));
-      const response = queryClient.getQueryData<AuctionMockResponse>(
+      const response = queryClient.getQueryData<MockResponse>(
         queryKey(seasonId, activeSessionId, fetcher),
       );
       if (response === undefined) return Promise.reject(new Error("No mock session is active."));
-      return abandonAuctionMock({
+      return abandonMock({
         expectedRevision: response.mockSession.revision,
         seasonId,
         sessionId: activeSessionId,

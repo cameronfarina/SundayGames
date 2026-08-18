@@ -46,3 +46,31 @@ export const withRowEdited = (
   edit: Partial<Pick<TeamRosterRow, "ownerDisplayName" | "teamDisplayName" | "draftOrder">>,
 ): TeamRosterRow[] =>
   rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...edit } : row);
+
+const renumbered = (ordered: readonly TeamRosterRow[]): TeamRosterRow[] =>
+  ordered.map((row, position) => ({ ...row, draftOrder: String(position + 1) }));
+
+/**
+ * Moves one team to the slot it asks for and closes the gap behind it, so the
+ * board always holds every slot from one to the team count exactly once.
+ * A number outside that range restores the order already on screen.
+ */
+export const withDraftOrderCommitted = (
+  rows: readonly TeamRosterRow[],
+  index: number,
+): TeamRosterRow[] => {
+  const moved = rows[index];
+  if (moved === undefined) return [...rows];
+
+  const requested = Number(moved.draftOrder);
+  if (!Number.isInteger(requested) || requested < 1 || requested > rows.length) {
+    return renumbered(rows);
+  }
+
+  const others = rows.filter((_, rowIndex) => rowIndex !== index);
+  return renumbered([
+    ...others.slice(0, requested - 1),
+    moved,
+    ...others.slice(requested - 1),
+  ]);
+};

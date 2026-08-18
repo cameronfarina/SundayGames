@@ -76,6 +76,25 @@ describe("create league validation", () => {
     });
   });
 
+  it("carries the chosen snake rounds into the created league", () => {
+    let draft = completedDraft();
+    draft = leagueDraftReducer(draft, { type: "set-draft-type", value: "snake" });
+    draft = leagueDraftReducer(draft, { type: "set-snake-rounds", value: 20 });
+
+    expect(basicsErrors(draft)).toEqual({});
+    expect(createLeagueSetup(draft)).toMatchObject({ draft: { type: "snake", rounds: 20 } });
+  });
+
+  it("blocks a snake round count outside one to forty", () => {
+    let draft = completedDraft();
+    draft = leagueDraftReducer(draft, { type: "set-draft-type", value: "snake" });
+
+    expect(basicsErrors(leagueDraftReducer(draft, { type: "set-snake-rounds", value: 0 })))
+      .toEqual({ snakeRounds: "Use between 1 and 40 rounds." });
+    expect(basicsErrors(leagueDraftReducer(draft, { type: "set-snake-rounds", value: 41 })))
+      .toEqual({ snakeRounds: "Use between 1 and 40 rounds." });
+  });
+
   it("normalizes optional team values and creates snake order", () => {
     let draft = completedDraft();
     draft = leagueDraftReducer(draft, { type: "set-draft-type", value: "snake" });

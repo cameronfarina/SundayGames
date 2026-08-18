@@ -22,7 +22,7 @@ test("Draft Lab supports baseline browsing and league-aware planning", async ({ 
   await page.goto(`/practice?seasonId=${encodeURIComponent(season.id)}`);
   await expectPracticeBoard(page, 500);
   await exercisePracticeBoardControls(page);
-  await expect(page.getByRole("link", { name: "Start auction mock" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start mock draft" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run simulations" })).toBeVisible();
 });
 

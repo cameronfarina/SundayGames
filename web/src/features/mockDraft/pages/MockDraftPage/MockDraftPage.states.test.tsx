@@ -15,13 +15,13 @@ const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), {
 describe("MockDraftPage states", () => {
   it("renders the launch state with the platform fetch default", () => {
     renderMockDraft(<MockDraftPage seasonId="season-1" />);
-    expect(screen.getByRole("button", { name: "Create auction mock" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create mock draft" })).toBeInTheDocument();
   });
 
   it("shows determinate progress while creating a mock", async () => {
     const fetcher = vi.fn(() => new Promise<Response>(() => undefined));
     renderMockDraft(<MockDraftPage fetcher={fetcher} seasonId="season-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Create auction mock" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create mock draft" }));
     expect(screen.getByRole("progressbar", { name: "35% complete" })).toBeInTheDocument();
   });
 
@@ -33,9 +33,9 @@ describe("MockDraftPage states", () => {
       status: 503,
     }));
     renderMockDraft(<MockDraftPage fetcher={fetcher} seasonId="season-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Create auction mock" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create mock draft" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Mock creation is unavailable.");
-    expect(screen.getByRole("button", { name: "Create auction mock" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create mock draft" })).toBeInTheDocument();
   });
 
   it("shows a loading surface while a saved mock resumes", () => {
@@ -43,7 +43,7 @@ describe("MockDraftPage states", () => {
     renderMockDraft(
       <MockDraftPage fetcher={fetcher} initialSessionId="mock-1" seasonId="season-1" />,
     );
-    expect(screen.getByLabelText("Auction mock draft")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mock draft")).toBeInTheDocument();
   });
 
   it("uses safe copy for a non-error rejection", async () => {

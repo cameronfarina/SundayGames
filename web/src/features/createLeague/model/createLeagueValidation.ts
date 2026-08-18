@@ -30,6 +30,10 @@ export const basicsErrors = (draft: LeagueDraft): FieldErrors => {
   if (draft.draftType === "auction" && (!Number.isFinite(draft.minimumBid) || draft.minimumBid <= 0)) {
     errors["minimumBid"] = "Enter a positive minimum bid.";
   }
+  if (draft.draftType === "snake"
+    && (!Number.isSafeInteger(draft.snakeRounds) || draft.snakeRounds < 1 || draft.snakeRounds > 40)) {
+    errors["snakeRounds"] = "Use between 1 and 40 rounds.";
+  }
   return errors;
 };
 

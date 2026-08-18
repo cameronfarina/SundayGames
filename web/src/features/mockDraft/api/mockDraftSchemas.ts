@@ -1,13 +1,28 @@
 import { z } from "zod";
 import { auctionStateSchema } from "./auctionStateSchemas.js";
+import { snakeStateSchema } from "./snakeStateSchemas.js";
 
-export const mockSessionSchema = z.object({
-  draftMode: z.object({ format: z.literal("auction") }),
+const mockSessionFields = {
   id: z.string().min(1),
   revision: z.number().int().nonnegative(),
   seasonId: z.string().min(1),
   status: z.enum(["setup", "active", "completed", "abandoned"]),
   teamId: z.string().min(1),
+};
+
+export const mockSessionSchema = z.object({
+  ...mockSessionFields,
+  draftMode: z.object({ format: z.enum(["auction", "snake"]) }),
+});
+
+const auctionSessionSchema = z.object({
+  ...mockSessionFields,
+  draftMode: z.object({ format: z.literal("auction") }),
+});
+
+const snakeSessionSchema = z.object({
+  ...mockSessionFields,
+  draftMode: z.object({ format: z.literal("snake") }),
 });
 
 export const resultPlayerSchema = z.object({
@@ -40,15 +55,34 @@ export const mockResultsSchema = z.object({
 });
 
 export const auctionMockResponseSchema = z.object({
-  mockSession: mockSessionSchema,
+  mockSession: auctionSessionSchema,
   results: mockResultsSchema.optional(),
   state: auctionStateSchema,
 });
+
+export const snakeMockResponseSchema = z.object({
+  mockSession: snakeSessionSchema,
+  results: mockResultsSchema.optional(),
+  state: snakeStateSchema,
+});
+
+/** The format lives on the session, so each branch pins its own literal. */
+export const mockResponseSchema = z.union([
+  auctionMockResponseSchema,
+  snakeMockResponseSchema,
+]);
 
 export const abandonedMockResponseSchema = z.object({
   mockSession: mockSessionSchema,
 });
 
 export type AuctionMockResponse = z.infer<typeof auctionMockResponseSchema>;
+export type SnakeMockResponse = z.infer<typeof snakeMockResponseSchema>;
+export type MockResponse = z.infer<typeof mockResponseSchema>;
+
+/** The format sits on the session, one level down, so a guard does the narrowing. */
+export const isSnakeMockResponse = (
+  response: MockResponse,
+): response is SnakeMockResponse => response.mockSession.draftMode.format === "snake";
 export type MockResults = z.infer<typeof mockResultsSchema>;
 export type MockResultTeam = z.infer<typeof resultTeamSchema>;

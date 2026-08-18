@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { Button, Dialog, ProgressButton } from "../../../../shared/ui/index.js";
-import type { AuctionState } from "../../api/auctionStateSchemas.js";
+
+/** Both draft formats expose the same three session flags, so this takes only those. */
+interface MockDraftSessionFlags {
+  readonly session: {
+    readonly canComplete: boolean;
+    readonly canUndo: boolean;
+    readonly status: "setup" | "active" | "completed";
+  };
+}
 
 interface MockDraftActionsProps {
   readonly busy: boolean;
@@ -8,7 +16,7 @@ interface MockDraftActionsProps {
   readonly onComplete: () => void;
   readonly onStart: () => void;
   readonly onUndo: () => void;
-  readonly state: AuctionState;
+  readonly state: MockDraftSessionFlags;
 }
 
 export const MockDraftActions = ({

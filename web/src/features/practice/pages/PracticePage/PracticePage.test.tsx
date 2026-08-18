@@ -48,7 +48,7 @@ describe("PracticePage", () => {
     vi.stubGlobal("fetch", createPracticeFetch());
     const view = render(<PracticePage />, { wrapper: providers() });
 
-    expect(await screen.findByRole("link", { name: "Start auction mock" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Start mock draft" })).toHaveAttribute(
       "href",
       "/leagues/sunday-games/mock-drafts",
     );

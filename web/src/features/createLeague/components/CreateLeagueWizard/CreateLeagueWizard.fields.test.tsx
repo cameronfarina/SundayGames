@@ -37,8 +37,14 @@ describe("CreateLeagueWizard fields", () => {
     await user.click(format);
     await user.click(screen.getByRole("option", { name: "Snake" }));
     expect(screen.queryByRole("spinbutton", { name: "Auction budget" })).not.toBeInTheDocument();
+    const rounds = screen.getByRole("spinbutton", { name: "Draft rounds" });
+    expect(rounds).toHaveValue(16);
+    await user.clear(rounds);
+    await user.type(rounds, "20");
+    expect(screen.getByRole("spinbutton", { name: "Draft rounds" })).toHaveValue(20);
     await user.click(format);
     await user.click(screen.getByRole("option", { name: "Auction" }));
+    expect(screen.queryByRole("spinbutton", { name: "Draft rounds" })).not.toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Auction budget" })).toHaveValue(250);
   });
 

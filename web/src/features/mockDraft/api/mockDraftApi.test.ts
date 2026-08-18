@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
 import {
-  abandonAuctionMock,
-  createAuctionMock,
-  loadAuctionMock,
-  sendAuctionMockCommand,
+  abandonMock,
+  createMock,
+  loadMock,
+  sendMockCommand,
 } from "./mockDraftApi.js";
 import { auctionMockResponseFixture } from "../test/auctionMockResponseFixture.js";
 import { auctionCommandSchema } from "./auctionStateSchemas.js";
@@ -22,9 +22,9 @@ describe("mock draft API", () => {
       .mockResolvedValueOnce(jsonResponse(body, 201))
       .mockResolvedValueOnce(jsonResponse(body));
 
-    await expect(createAuctionMock({ seasonId: "season 1", strategy: "balanced" }, fetcher))
+    await expect(createMock({ seasonId: "season 1", strategy: "balanced" }, fetcher))
       .resolves.toEqual(body);
-    await expect(loadAuctionMock({ seasonId: "season 1", sessionId: "mock 1" }, fetcher))
+    await expect(loadMock({ seasonId: "season 1", sessionId: "mock 1" }, fetcher))
       .resolves.toEqual(body);
     expect(fetcher).toHaveBeenNthCalledWith(1, "/season-mock-drafts", expect.objectContaining({
       body: JSON.stringify({ seasonId: "season 1", strategy: "balanced" }),
@@ -51,7 +51,7 @@ describe("mock draft API", () => {
       return Promise.resolve(jsonResponse(body));
     };
 
-    await sendAuctionMockCommand({
+    await sendMockCommand({
       command: { type: "buy", expectedRevision: 3, price: 42 },
       seasonId: "season-1",
       sessionId: "mock-1",
@@ -76,12 +76,12 @@ describe("mock draft API", () => {
       .mockResolvedValueOnce(jsonResponse({ mockSession: { ...body.mockSession, status: "abandoned" } }))
       .mockResolvedValueOnce(jsonResponse({ state: "broken" }));
 
-    await expect(abandonAuctionMock({
+    await expect(abandonMock({
       expectedRevision: 3,
       seasonId: "season-1",
       sessionId: "mock-1",
     }, fetcher)).resolves.toMatchObject({ mockSession: { status: "abandoned" } });
-    await expect(loadAuctionMock({ seasonId: "season-1", sessionId: "mock-1" }, fetcher))
+    await expect(loadMock({ seasonId: "season-1", sessionId: "mock-1" }, fetcher))
       .rejects.toMatchObject({ code: "invalid_response" });
   });
 });

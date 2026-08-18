@@ -8,7 +8,7 @@ import type { CommissionerKeeper } from "../../api/workspaceSchemas";
 import { applyBlockers } from "../../model/applyBlockers";
 import { errorMessage } from "../../model/errorMessage";
 import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
-import { teamRosterContent, teamRosterRows, withRowEdited } from "../../model/teamRoster";
+import { teamRosterContent, teamRosterRows, withDraftOrderCommitted, withRowEdited } from "../../model/teamRoster";
 import { TeamKeepers } from "./TeamKeepers";
 import { TeamListPaste } from "./TeamListPaste";
 
@@ -36,6 +36,12 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
   const dirty = content !== teamRosterContent(teamRosterRows(season));
   const editRow = (index: number, edit: Parameters<typeof withRowEdited>[2]) => {
     setRows(current => withRowEdited(current, index, edit));
+    apply.reset();
+  };
+  // Renumbering while a manager types would move the box out from under the
+  // cursor, so the board settles once the field is left.
+  const commitDraftOrder = (index: number) => {
+    setRows(current => withDraftOrderCommitted(current, index));
     apply.reset();
   };
   // Asks the server what these rows would do, so the effect of a rename is on
@@ -69,6 +75,7 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
                 aria-label={`Draft order ${String(index + 1)}`}
                 className="commissioner-teams__pick-input"
                 inputMode="numeric"
+                onBlur={() => { commitDraftOrder(index); }}
                 onChange={event => { editRow(index, { draftOrder: event.target.value }); }}
                 value={row.draftOrder}
               /> : <span className="commissioner-teams__pick">{index + 1}</span>}

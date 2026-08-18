@@ -54,16 +54,33 @@ describe("LeagueSetupSection team identity", () => {
     expect(bodies.at(-1)).toContain("teamId,owner,team,role,draftOrder\\nteam-1,Tye,Short King,member,1");
   });
 
-  it("sends a snake draft order edit and leaves auction rows as plain numbers", async () => {
-    const bodies = captureApplyBodies(snakeSeason);
+  it("moves a snake team to the slot it asks for and renumbers the rest", async () => {
+    const twoTeamSnake = seasonSchema.parse({
+      ...twoTeams,
+      settings: { ...snakeSeason.settings, expectedTeamCount: 2, snake: { rounds: 16, order: ["team-1", "team-2"], reversal: "standard" } },
+    });
+    const bodies = captureApplyBodies(twoTeamSnake);
     const user = userEvent.setup();
 
     await user.clear(screen.getByLabelText("Draft order 1"));
-    await user.type(screen.getByLabelText("Draft order 1"), "4");
+    await user.type(screen.getByLabelText("Draft order 1"), "2");
+    await user.tab();
     await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
     expect(await screen.findByText("League teams saved.")).toBeVisible();
-    expect(bodies.at(-1)).toContain("team-1,Owner11,Short King,member,4");
+    expect(bodies.at(-1)).toContain("team-2,Alex,Second Team,member,1");
+    expect(bodies.at(-1)).toContain("team-1,Owner11,Short King,member,2");
+  });
+
+  it("restores the order when a snake draft order sits outside the team count", async () => {
+    captureApplyBodies(snakeSeason);
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByLabelText("Draft order 1"));
+    await user.type(screen.getByLabelText("Draft order 1"), "9");
+    await user.tab();
+
+    expect(screen.getByLabelText("Draft order 1")).toHaveValue("1");
   });
 
   it("shows a plain pick number for an auction league", () => {
