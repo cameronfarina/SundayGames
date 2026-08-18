@@ -46,11 +46,12 @@
 }
 
 .player-row {
+  background: color-mix(in srgb, var(--position-color) 4%, transparent);
   border-left: 3px solid var(--position-color, transparent);
 }
 
 .player-row:hover {
-  background: var(--color-surface-raised);
+  background: color-mix(in srgb, var(--position-color) 10%, var(--color-surface-hover));
 }
 
 .player-row__name {

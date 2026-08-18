@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { PasswordGuidance } from "./PasswordGuidance";
 
 describe("PasswordGuidance", () => {
-  it("explains the password requirement as a memorable passphrase", () => {
+  it("states the password minimum", () => {
     render(<PasswordGuidance id="password-guidance" />);
 
     expect(screen.getByText(
-      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+      "Use at least 6 characters.",
     )).toHaveAttribute("id", "password-guidance");
   });
 });

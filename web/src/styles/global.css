@@ -10,6 +10,7 @@ html {
   letter-spacing: 0;
   line-height: var(--line-height-body);
   overflow-x: clip;
+  scroll-behavior: smooth;
 }
 
 body {

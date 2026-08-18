@@ -53,7 +53,7 @@ describe("AuthForm", () => {
     vi.stubGlobal("fetch", fetcher);
     const path = "/login?returnTo=%2Fleague%3FseasonId%3Dseason-1";
     const { queryClient, router: navigation } = mountRoute(path);
-    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "15");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "6");
     await enterCredentials();
     await userEvent.type(screen.getByLabelText("Password"), "{Enter}");
     await waitFor(() => {
@@ -105,7 +105,7 @@ describe("AuthForm", () => {
     vi.stubGlobal("fetch", fetcher);
     const signupPath = "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1";
     const { queryClient, router: navigation } = mountRoute(signupPath);
-    expect(await screen.findByText("Use at least 15 characters. A passphrase of 4 memorable words works well.")).toBeVisible();
+    expect(await screen.findByText("Use at least 6 characters.")).toBeVisible();
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(screen.getByRole("button", { name: "Creating account..." })).toBeDisabled();

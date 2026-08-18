@@ -52,7 +52,7 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
 
   return (
     <section className="commissioner-section" id="league-setup">
-      <header><div><span>01</span><h2>League info</h2></div><strong>{season.setupStatus}</strong></header>
+      <header><h2>League info</h2><strong>{season.setupStatus}</strong></header>
       <div className="commissioner-facts">
         <div><span>Draft</span><strong>{draftLabel}</strong></div>
         <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>

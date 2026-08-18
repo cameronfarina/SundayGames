@@ -4,6 +4,6 @@ interface PasswordGuidanceProps {
 
 export const PasswordGuidance = ({ id }: PasswordGuidanceProps) => (
   <p className="auth-form__hint" id={id}>
-    Use at least 15 characters. A passphrase of 4 memorable words works well.
+    Use at least 6 characters.
   </p>
 );

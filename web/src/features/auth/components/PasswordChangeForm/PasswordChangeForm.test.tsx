@@ -41,12 +41,12 @@ describe("PasswordChangeForm", () => {
     const navigation = mountForm();
     const currentPassword = screen.getByLabelText("Current password");
     const newPassword = screen.getByLabelText("New password");
-    expect(newPassword).toHaveAttribute("minlength", "15");
+    expect(newPassword).toHaveAttribute("minlength", "6");
     expect(screen.getByText(
-      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+      "Use at least 6 characters.",
     )).toBeVisible();
     expect(newPassword).toHaveAccessibleDescription(
-      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+      "Use at least 6 characters.",
     );
     expect(currentPassword).not.toHaveAccessibleDescription();
     await fillForm();

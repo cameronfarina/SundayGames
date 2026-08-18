@@ -127,7 +127,7 @@ describe("platform auth foundation", () => {
       now,
     })).rejects.toThrow(new AuthError(
       "invalid_password",
-      "Password must be at least 15 characters.",
+      "Password must be at least 6 characters.",
     ));
   });
 

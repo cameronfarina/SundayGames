@@ -26,19 +26,15 @@ describe("InvitationSection", () => {
     vi.unstubAllGlobals();
   });
 
-  it("copies the active group link and can regenerate it", async () => {
+  it("copies the active group link and hides the create button", async () => {
     const writeText = vi.fn(() => Promise.resolve());
-    const fetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({ invitation: {
-      ...pendingInvite, id: "invite-2", acceptPath: "/invitations/invite-2",
-    } })));
-    renderSection(fetcher);
+    renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))));
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith("http://localhost:3000/invitations/invite-1");
     expect(screen.getByText("League link copied.")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Generate new link" }));
-    expect(await screen.findByDisplayValue("http://localhost:3000/invitations/invite-2")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Create league link" })).not.toBeInTheDocument();
   });
 
   it("selects the link when clipboard access fails", async () => {
@@ -63,6 +59,12 @@ describe("InvitationSection", () => {
     expect(screen.queryByLabelText("Shareable league link")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Create league link" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Only commissioners can invite.");
+  });
+
+  it("shows the new link after creating one", async () => {
+    renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))), []);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Create league link" }));
+    expect(await screen.findByDisplayValue("http://localhost:3000/invitations/invite-1")).toBeVisible();
   });
 
   it("shows progress while creating a group link", async () => {

@@ -54,7 +54,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
 
   return (
     <section className="commissioner-section" id="draft-history">
-      <header><div><span>02</span><h2>Draft history</h2></div><strong>{importedCount} imported</strong></header>
+      <header><h2>Draft history</h2><strong>{importedCount} imported</strong></header>
       {unavailable ? <p>Historical snake draft imports are not available yet.</p> : <>
         <p className="commissioner-help">Add prior auction results as CSV, TSV, or XLSX. Each file must use a different draft year.</p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}

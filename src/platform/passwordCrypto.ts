@@ -20,7 +20,7 @@ const supportedPolicies = [currentPolicy, legacyPolicy];
 const saltBytes = 16;
 const keyBytes = 64;
 const maximumMemoryBytes = 64 * 1_024 * 1_024;
-const minimumPasswordCharacters = 15;
+const minimumPasswordCharacters = 6;
 const maximumPasswordBytes = 1_024;
 const unknownAccountSalt = Buffer.alloc(saltBytes).toString("base64url");
 

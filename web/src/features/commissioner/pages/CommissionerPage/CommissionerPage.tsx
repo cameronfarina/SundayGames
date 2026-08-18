@@ -47,11 +47,11 @@ export function CommissionerPage() {
       </nav>
       <Fragment key={season.id}>
         <LeagueSetupSection keepers={workspace.keepers.data.keepers} season={season} />
-        <div className="commissioner-pair">
+        <div className="commissioner-trio">
           <HistoricalImportSection season={season} />
           <InvitationSection invitations={workspace.invitations.data.invitations} seasonId={season.id} />
+          <LiveRoomSection league={workspace.selectedLeague} season={season} />
         </div>
-        <LiveRoomSection league={workspace.selectedLeague} season={season} />
       </Fragment>
     </section>
   );

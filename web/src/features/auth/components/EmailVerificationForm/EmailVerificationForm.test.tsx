@@ -38,9 +38,9 @@ describe("EmailVerificationForm", () => {
   it("establishes the mailbox-proven password and returns to login", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ verified: true })));
     const router = mountForm();
-    expect(screen.getByLabelText("Choose password")).toHaveAttribute("minlength", "15");
+    expect(screen.getByLabelText("Choose password")).toHaveAttribute("minlength", "6");
     expect(screen.getByText(
-      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+      "Use at least 6 characters.",
     )).toBeVisible();
     await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
     await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");

@@ -58,9 +58,9 @@ describe("authentication recovery", () => {
       return jsonResponse({ reset: true });
     }));
     const navigation = mountRoute("/reset-password?token=reset-token");
-    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "15");
+    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "6");
     expect(screen.getByText(
-      "Use at least 15 characters. A passphrase of 4 memorable words works well.",
+      "Use at least 6 characters.",
     )).toBeVisible();
     await userEvent.type(screen.getByLabelText("New password"), "replacement password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");

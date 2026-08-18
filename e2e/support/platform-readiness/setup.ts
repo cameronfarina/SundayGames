@@ -32,7 +32,7 @@ export const applyCommissionerSetup = async (
   await expect(invitationSection.getByRole("status")).toHaveText("League link copied.");
   await page.reload();
   await expect(page.getByLabel("Shareable league link")).toHaveValue(invitationUrl);
-  await expect(page.getByRole("button", { name: "Generate new link" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create league link" })).toBeHidden();
 
   await expect(page.getByText("$200 auction", { exact: true })).toBeVisible();
   const publishButton = page.getByRole("button", { name: "Publish reviewed league" });

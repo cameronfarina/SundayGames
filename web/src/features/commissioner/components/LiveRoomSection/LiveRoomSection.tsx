@@ -45,7 +45,7 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
 
   return (
     <section className="commissioner-section" id="live-room">
-      <header><div><span>04</span><h2>Live auction room</h2></div><strong>{activeRoom?.status ?? "Not created"}</strong></header>
+      <header><h2>Live auction room</h2></header>
       {!auction ? <p>Hosted live rooms currently support auction drafts only.</p> : <>
         <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
         {!published ? <Button aria-busy={publish.isPending} onClick={() => { publish.mutate(); }} disabled={publish.isPending}>

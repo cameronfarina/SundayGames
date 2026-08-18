@@ -1,1 +1,1 @@
-export const minimumPasswordCharacters = 15;
+export const minimumPasswordCharacters = 6;

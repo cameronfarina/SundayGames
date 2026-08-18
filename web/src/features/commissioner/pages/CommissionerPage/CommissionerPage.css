@@ -8,8 +8,7 @@
 .commissioner-section-nav a:hover, .commissioner-section-nav a:focus-visible { background: var(--color-surface-hover); border-color: var(--color-accent); color: var(--color-accent); }
 .commissioner-section { border-top: 1px solid var(--color-border); padding: 32px 0; }
 .commissioner-section > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.commissioner-section > header div { display: flex; align-items: center; gap: 12px; }
-.commissioner-section > header span, .commissioner-section label { color: var(--color-text-muted); font-size: 13px; font-weight: 750; text-transform: uppercase; }
+.commissioner-section label { color: var(--color-text-muted); font-size: 13px; font-weight: 750; text-transform: uppercase; }
 .commissioner-section h2 { margin: 0; font-size: 24px; }
 .commissioner-help { color: var(--color-text-muted); max-width: 860px; }
 .commissioner-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 18px; }
@@ -43,8 +42,15 @@
 .team-keepers__entry input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font: inherit; min-height: 36px; padding: 6px 10px; width: 9rem; }
 .team-keepers__entry button { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font-size: var(--font-size-sm); min-height: 36px; padding: 0 10px; }
 .team-keepers__error { color: var(--color-danger); flex-basis: 100%; font-size: var(--font-size-sm); margin: 0; }
-.commissioner-pair { display: grid; gap: 32px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.commissioner-pair > .commissioner-section { border-top: 1px solid var(--color-border); }
+.commissioner-trio { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.commissioner-trio > .commissioner-section { border-top: 1px solid var(--color-border); }
+.commissioner-trio h2 { font-size: 20px; }
+/* Each column is narrow, so the side-by-side rows inside a section have to stack. */
+.commissioner-trio .commissioner-inline-form,
+.commissioner-trio .commissioner-copy-row,
+.commissioner-trio .commissioner-list > div,
+.commissioner-trio .history-file { grid-template-columns: 1fr !important; }
+.commissioner-trio .commissioner-dropzone { min-height: 120px; }
 .commissioner-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .commissioner-inline-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; margin-top: 16px; }
 .commissioner-inline-form > label { grid-column: 1 / -1; }
@@ -80,7 +86,7 @@
 .team-keepers__entry input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font: inherit; min-height: 36px; padding: 6px 10px; width: 9rem; }
 .team-keepers__entry button { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); font-size: var(--font-size-sm); min-height: 36px; padding: 0 10px; }
 .team-keepers__error { color: var(--color-danger); flex-basis: 100%; font-size: var(--font-size-sm); margin: 0; }
-.commissioner-pair { gap: 0; grid-template-columns: 1fr; }
+.commissioner-trio { gap: 0; grid-template-columns: 1fr; }
   .commissioner-teams__row { grid-template-columns: 28px minmax(0, 1fr); }
   .commissioner-teams__row input:last-of-type { grid-column: 2 / -1; }
   .team-keepers { grid-column: 2 / -1; }
