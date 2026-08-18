@@ -5,3 +5,6 @@ export const flatPricedAuctionPositions = new Set(["K", "DST"]);
 // Once a team's dedicated starter slot at a specialist position is filled,
 // backups there are worth a few dollars at most.
 export const backupDepthBidCushionDollars = 2;
+// A "stud" for bidding-style purposes: owners with a stud-avoiding history
+// discount players from this value up, and only those.
+export const premiumValueThresholdDollars = 40;

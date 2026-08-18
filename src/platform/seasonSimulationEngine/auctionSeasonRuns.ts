@@ -25,6 +25,7 @@ export const runAuctionSeasonSimulations = (
       seed,
       playerExpectedPrices: input.playerExpectedPrices,
       playerHumanValues: input.playerHumanValues,
+      historicalSaleRecords: input.historicalSaleRecords,
     });
     const state = runAuctionSimulation({
       config: { ...config, plannedAcquisitions: prepared.targetPlan.plannedAcquisitions },

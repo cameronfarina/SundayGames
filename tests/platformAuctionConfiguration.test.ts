@@ -142,6 +142,13 @@ const invalidCases = (): readonly InvalidCase[] => [
   },
   {
     config: configuration({ teams: [
+      { id: "human", name: "Human", aiTendency: { premiumBidMultiplier: -1 } },
+      ...configuration().teams.slice(1),
+    ] }),
+    message: "AI bid multipliers must be non-negative finite numbers.",
+  },
+  {
+    config: configuration({ teams: [
       { id: "human", name: "Human", aiTendency: { randomness: -1 } },
       ...configuration().teams.slice(1),
     ] }),

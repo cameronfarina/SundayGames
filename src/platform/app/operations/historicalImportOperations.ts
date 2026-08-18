@@ -1,4 +1,4 @@
-import { prepareHistoricalImportBatchCommit } from "../../historicalImports.js";
+import { prepareHistoricalImportBatchCommit, type HistoricalSaleRecord } from "../../historicalImports.js";
 import {
   commitHistoricalImportWorkflow,
   previewHistoricalImportSourceWorkflow,
@@ -27,6 +27,17 @@ export const createHistoricalImportOperations = (context: PlatformAppContext) =>
       input.seasonYear,
     );
     return [...new Set(records.map(record => record.seasonYear))].sort((left, right) => right - left);
+  },
+
+  listHistoricalSaleRecords: async (
+    input: ListPlatformHistoricalImportYearsInput,
+  ): Promise<readonly HistoricalSaleRecord[]> => {
+    const account = await context.requireAccount(input.actorSessionToken, input.now);
+    await context.requireSharedRead(account, input.leagueId);
+    return cloneForRead(await context.historicalImports.currentRecordsThroughSeason(
+      input.leagueId,
+      input.seasonYear,
+    ));
   },
 
   previewHistoricalImportSource: async (

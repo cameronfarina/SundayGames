@@ -5,8 +5,9 @@ import { assertNonNegativeMap, isNonNegativeFinite } from "./values.js";
 export const assertTeamTendencies = (config: GenericAuctionMockConfig): void => {
   for (const team of config.teams) {
     const tendency = team.aiTendency;
-    if (tendency?.bidMultiplier !== undefined
-      && !isNonNegativeFinite(tendency.bidMultiplier)) {
+    if ((tendency?.bidMultiplier !== undefined && !isNonNegativeFinite(tendency.bidMultiplier))
+      || (tendency?.premiumBidMultiplier !== undefined
+        && !isNonNegativeFinite(tendency.premiumBidMultiplier))) {
       throw new GenericAuctionMockError(
         "invalid_config",
         "AI bid multipliers must be non-negative finite numbers.",

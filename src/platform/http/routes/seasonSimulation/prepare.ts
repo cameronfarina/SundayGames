@@ -51,6 +51,14 @@ export const prepareSeasonSimulation = async (
   const snapshot = context.season.settings.draftFormat === "auction"
     ? await currentPricingSnapshotForSeason(app, request, context.season, context.setup)
     : undefined;
+  const historicalSaleRecords = context.season.settings.draftFormat === "auction"
+    ? await app.listHistoricalSaleRecords({
+      actorSessionToken: request.sessionToken,
+      leagueId: context.season.leagueId,
+      seasonYear: context.season.seasonYear,
+      now: request.now,
+    })
+    : undefined;
   const snapshotValues = snapshotPlayerValues(snapshot?.rows, context.setup.playerCatalog);
   const strategyPreset = parseLiveDraftStrategyKey(optionalString(request.body.strategyPreset) ?? "balanced");
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
@@ -80,6 +88,7 @@ export const prepareSeasonSimulation = async (
     seedPrefix,
     week1Projections: await loadLeagueScoredWeekOneProjections(context.season, context.setup.playerCatalog),
     ...(context.season.settings.draftFormat === "auction" ? { playerExpectedPrices, playerHumanValues } : {}),
+    ...(historicalSaleRecords === undefined ? {} : { historicalSaleRecords }),
   };
   return {
     input,

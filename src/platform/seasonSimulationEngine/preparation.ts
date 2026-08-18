@@ -61,6 +61,7 @@ export const prepareSeasonSimulation = (input: RunSeasonSimulationsInput) => {
         seed: `${seedPrefix}:target-plan`,
         playerExpectedPrices: input.playerExpectedPrices,
         playerHumanValues: input.playerHumanValues,
+        historicalSaleRecords: input.historicalSaleRecords,
       }), []),
       humanTeamId: input.humanTeamId,
       targets: baseStrategyResolution.resolvedTargets,

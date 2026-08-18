@@ -231,4 +231,89 @@ describe("auction owner behavior", () => {
     expect(nomination).toBeDefined();
     expect(nomination?.currentPrice).toBeLessThanOrEqual(4);
   });
+
+  it("bids under value on a premium player when the owner's style avoids studs", () => {
+    const auctionConfig = config({
+      budgetDollars: 200,
+      teams: [
+        { id: "team-a", name: "Owner11" },
+        { id: "team-b", name: "Owner01" },
+        { id: "team-c", name: "Owner04", aiTendency: { premiumBidMultiplier: 0.5 } },
+        { id: "team-d", name: "Owner03", aiTendency: { premiumBidMultiplier: 0.5 } },
+      ],
+      players: [
+        { id: "stud-rb", name: "Stud RB", position: "RB", expectedPrice: 60 },
+        { id: "qb-1", name: "QB One", position: "QB", expectedPrice: 8, starterEligible: true },
+        { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 6, starterEligible: true },
+        { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 5, starterEligible: true },
+        { id: "qb-4", name: "QB Four", position: "QB", expectedPrice: 4, starterEligible: true },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 12 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 10 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 9 },
+        { id: "rb-5", name: "RB Five", position: "RB", expectedPrice: 8 },
+        { id: "rb-6", name: "RB Six", position: "RB", expectedPrice: 7 },
+        { id: "rb-7", name: "RB Seven", position: "RB", expectedPrice: 6 },
+        { id: "rb-8", name: "RB Eight", position: "RB", expectedPrice: 5 },
+      ],
+    });
+    const nominated = applyGenericAuctionMockCommand(start(auctionConfig), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "stud-rb",
+      openingBid: 1,
+    });
+    const passed = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: nominated.session.revision,
+    });
+
+    // Teams C and D only stretch to half value for studs, so the one
+    // full-value bidder wins just above their ceiling instead of near $60.
+    const sale = passed.sales.find(candidate => candidate.playerId === "stud-rb");
+    expect(sale).toBeDefined();
+    expect(sale?.teamId).toBe("team-b");
+    expect(sale?.price).toBeLessThanOrEqual(35);
+  });
+
+  it("still pays full value below the premium threshold despite a stud-avoider style", () => {
+    const auctionConfig = config({
+      budgetDollars: 200,
+      teams: [
+        { id: "team-a", name: "Owner11" },
+        { id: "team-b", name: "Owner01" },
+        { id: "team-c", name: "Owner04", aiTendency: { premiumBidMultiplier: 0.5 } },
+        { id: "team-d", name: "Owner03", aiTendency: { premiumBidMultiplier: 0.5 } },
+      ],
+      players: [
+        { id: "mid-rb", name: "Mid RB", position: "RB", expectedPrice: 30 },
+        { id: "qb-1", name: "QB One", position: "QB", expectedPrice: 8, starterEligible: true },
+        { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 6, starterEligible: true },
+        { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 5, starterEligible: true },
+        { id: "qb-4", name: "QB Four", position: "QB", expectedPrice: 4, starterEligible: true },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 12 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 10 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 9 },
+        { id: "rb-5", name: "RB Five", position: "RB", expectedPrice: 8 },
+        { id: "rb-6", name: "RB Six", position: "RB", expectedPrice: 7 },
+        { id: "rb-7", name: "RB Seven", position: "RB", expectedPrice: 6 },
+        { id: "rb-8", name: "RB Eight", position: "RB", expectedPrice: 5 },
+      ],
+    });
+    const nominated = applyGenericAuctionMockCommand(start(auctionConfig), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "mid-rb",
+      openingBid: 1,
+    });
+    const passed = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: nominated.session.revision,
+    });
+
+    // A $30 player sits under the $40 stud threshold, so the avoider style
+    // never discounts it and the sale lands near value.
+    const sale = passed.sales.find(candidate => candidate.playerId === "mid-rb");
+    expect(sale).toBeDefined();
+    expect(sale?.price).toBeGreaterThanOrEqual(28);
+  });
 });

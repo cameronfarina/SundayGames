@@ -1,5 +1,6 @@
 export interface GenericAuctionMockAiTendency {
   bidMultiplier?: number | undefined;
+  premiumBidMultiplier?: number | undefined;
   positionBidMultipliers?: Readonly<Record<string, number>> | undefined;
   nominationPositionWeights?: Readonly<Record<string, number>> | undefined;
   randomness?: number | undefined;

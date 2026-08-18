@@ -6,7 +6,7 @@ import {
 import { backupDepthMaximumBidFor } from "./backupDepth.js";
 import { deterministicFraction } from "./deterministic.js";
 import { ownerBidLiftFor } from "./ownerSurplus.js";
-import { flatPricedAuctionPositions } from "./pricingConstants.js";
+import { flatPricedAuctionPositions, premiumValueThresholdDollars } from "./pricingConstants.js";
 import { canAcquire, rosterNeedFor } from "./roster.js";
 import {
   isAutomatedAuctionAcquisitionEligible,
@@ -42,6 +42,9 @@ export const aiMaxBidFor = (
     ?? state.configuration.ai?.defaultBidMultiplier
     ?? 1;
   const positionMultiplier = tendency?.positionBidMultipliers?.[player.position] ?? 1;
+  const premiumMultiplier = player.expectedPrice >= premiumValueThresholdDollars
+    ? tendency?.premiumBidMultiplier ?? 1
+    : 1;
   const needDollars = state.configuration.ai?.rosterNeedDollars ?? 1;
   const randomness = tendency?.randomness ?? state.configuration.ai?.randomness ?? 0.08;
   const eligibleAiTeams = eligibleAiTeamsFor(state, player);
@@ -59,7 +62,7 @@ export const aiMaxBidFor = (
     ) * 2 - 1
   ) * player.expectedPrice * randomness;
   const willingness = Math.max(0, Math.round(
-    player.expectedPrice * bidMultiplier * positionMultiplier
+    player.expectedPrice * bidMultiplier * premiumMultiplier * positionMultiplier
     + player.expectedPrice * (scarcityMultiplier - 1)
     + relativeRosterNeed * needDollars
     + noise

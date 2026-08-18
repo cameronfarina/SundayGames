@@ -10,6 +10,9 @@ const expectedBehaviors = [
   "rejects unknown legacy roster slots",
   "replays persisted JSON commands and rejects malformed data",
   "rejects snake seasons and unclaimed teams",
+  "derives each owner's premium bid multiplier from their median yearly top buy",
+  "clamps an extreme stud-avoider to the floor multiplier",
+  "leaves every team untouched without history",
 ];
 
 const directory = path.resolve("tests/platformSeasonAuctionMock");
@@ -57,7 +60,7 @@ describe("season auction mock test architecture", () => {
   it("preserves season auction mock behaviors and assertions", () => {
     const metadata = behaviorFiles.map(metadataFor);
     expect(metadata.flatMap(item => item.names).sort()).toEqual([...expectedBehaviors].sort());
-    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(19);
+    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(25);
   });
 
   it("keeps season auction mock tests focused and free of unsafe type escapes", () => {
