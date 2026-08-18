@@ -163,12 +163,12 @@ describe("auction owner behavior", () => {
     });
 
     // Team B's $25 keeper surplus stays off the bench slot, but its spare
-    // cash does not: real owners finish at $0, so the room's money prices
-    // even a $5 bench player once the board is nearly empty.
+    // cash does not: every owner finishes at $0, and this bench slot is
+    // team B's only remaining purchase, so its whole purse lands here.
     const sale = passed.sales.find(candidate => candidate.playerId === "bench-rb");
     expect(sale).toBeDefined();
     expect(sale?.teamId).toBe("team-b");
-    expect(sale?.price).toBe(23);
+    expect(sale?.price).toBe(45);
   });
 
   it("pays up for a starter when it holds more cash than the room", () => {
@@ -236,7 +236,7 @@ describe("auction owner behavior", () => {
 
   it("bids under value on a premium player when the owner's style avoids studs", () => {
     const auctionConfig = config({
-      budgetDollars: 200,
+      budgetDollars: 100,
       teams: [
         { id: "team-a", name: "Owner11" },
         { id: "team-b", name: "Owner01" },
@@ -245,6 +245,7 @@ describe("auction owner behavior", () => {
       ],
       players: [
         { id: "stud-rb", name: "Stud RB", position: "RB", expectedPrice: 60 },
+        { id: "stud-rb-2", name: "Stud RB Two", position: "RB", expectedPrice: 55 },
         { id: "qb-1", name: "QB One", position: "QB", expectedPrice: 8, starterEligible: true },
         { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 6, starterEligible: true },
         { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 5, starterEligible: true },
@@ -317,5 +318,47 @@ describe("auction owner behavior", () => {
     const sale = passed.sales.find(candidate => candidate.playerId === "mid-rb");
     expect(sale).toBeDefined();
     expect(sale?.price).toBeGreaterThanOrEqual(28);
+  });
+
+  it("never bids past forty percent of the budget on one player", () => {
+    const auctionConfig = config({
+      budgetDollars: 200,
+      teams: [
+        { id: "team-a", name: "Owner11" },
+        { id: "team-b", name: "Owner01", aiTendency: { premiumBidMultiplier: 1.3 } },
+        { id: "team-c", name: "Owner04", aiTendency: { premiumBidMultiplier: 1.3 } },
+        { id: "team-d", name: "Owner03" },
+      ],
+      players: [
+        { id: "elite-rb", name: "Elite RB", position: "RB", expectedPrice: 70 },
+        { id: "qb-1", name: "QB One", position: "QB", expectedPrice: 8, starterEligible: true },
+        { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 6, starterEligible: true },
+        { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 5, starterEligible: true },
+        { id: "qb-4", name: "QB Four", position: "QB", expectedPrice: 4, starterEligible: true },
+        { id: "rb-2", name: "RB Two", position: "RB", expectedPrice: 12 },
+        { id: "rb-3", name: "RB Three", position: "RB", expectedPrice: 10 },
+        { id: "rb-4", name: "RB Four", position: "RB", expectedPrice: 9 },
+        { id: "rb-5", name: "RB Five", position: "RB", expectedPrice: 8 },
+        { id: "rb-6", name: "RB Six", position: "RB", expectedPrice: 7 },
+        { id: "rb-7", name: "RB Seven", position: "RB", expectedPrice: 6 },
+        { id: "rb-8", name: "RB Eight", position: "RB", expectedPrice: 5 },
+      ],
+    });
+    const nominated = applyGenericAuctionMockCommand(start(auctionConfig), {
+      type: "nominate",
+      expectedRevision: 1,
+      playerId: "elite-rb",
+      openingBid: 1,
+    });
+    const passed = applyGenericAuctionMockCommand(nominated, {
+      type: "pass",
+      expectedRevision: nominated.session.revision,
+    });
+
+    // Two stud hunters could push an elite to $90+; real top buys stop at
+    // $81, so no single bid passes 40% of the $200 budget.
+    const sale = passed.sales.find(candidate => candidate.playerId === "elite-rb");
+    expect(sale).toBeDefined();
+    expect(sale?.price).toBeLessThanOrEqual(80);
   });
 });

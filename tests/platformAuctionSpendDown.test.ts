@@ -83,21 +83,21 @@ const setup: LiveDraftRoomSetup = {
 };
 
 describe("auction spend-down", () => {
-  it("leaves AI teams near zero budget, the way real owners finish", () => {
+  it("leaves every team at exactly zero budget, the way real owners finish", () => {
     const result = runSeasonSimulations({
       season, setup, humanTeamId: "human", runCount: 1, seedPrefix: "spend-down",
     });
 
     const leftovers = (result.runs[0]?.teams ?? [])
-      .filter(team => !team.isUserTeam)
       .map(team => ({
         name: team.teamName,
         leftover: 100 - team.roster.reduce((total, player) => total + (player.price ?? 0), 0),
       }));
 
-    expect(leftovers).toHaveLength(3);
+    // Every owner spends the full budget. Not close to full: full.
+    expect(leftovers).toHaveLength(4);
     for (const team of leftovers) {
-      expect(team.leftover, `${team.name} leftover`).toBeLessThanOrEqual(4);
+      expect(team.leftover, `${team.name} leftover`).toBe(0);
     }
   });
 });

@@ -31,7 +31,7 @@ const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       passingYards: 0.04, passingTouchdown: 4, rushingYards: 0.1,
       rushingTouchdown: 6, receivingYards: 0.1, receivingTouchdown: 6, reception: 0.5,
     },
-    auction: { budgetDollars: 200, minimumBidDollars: 1 },
+    auction: { budgetDollars: 45, minimumBidDollars: 1 },
     roster: {
       rosterSize: 2,
       lineup: { RB: 1, BENCH: 1 },

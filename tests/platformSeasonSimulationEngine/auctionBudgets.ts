@@ -40,13 +40,10 @@ export const registerAuctionBudgetTests = (): void => {
       });
       for (const team of result.runs[0]?.teams ?? []) {
         const rosterSpend = team.roster.reduce((total, player) => total + (player.price ?? 0), 0);
-        // Real owners finish near $0, so a money-rich room bids the bare
-        // board up - but never past the sub-stud line, and the books balance.
-        expect(
-          team.roster.every(player => (player.price ?? 0) <= 40),
-          `${team.teamName} paid stud money on a $1 board: ${JSON.stringify(team.roster)}`,
-        ).toBe(true);
+        // Every owner finishes at $0: on a bare board the money has nowhere
+        // else to go, and the books still balance.
         expect(team.budgetRemaining).toBe(100 - rosterSpend);
+        expect(rosterSpend, `${team.teamName} left money on a bare board`).toBe(100);
       }
     }
 

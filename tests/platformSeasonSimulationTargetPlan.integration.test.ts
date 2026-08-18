@@ -79,7 +79,9 @@ describe("season simulation target-plan feasibility", () => {
         { playerName: "Premium Runner" },
         { playerName: "Value Runner" },
       ],
-      budgetDollars: 90,
+      // Rivals stop at 40% of the budget now, so the premium target's
+      // modeled cost shrinks with the budget; 64 recreates the squeeze.
+      budgetDollars: 64,
     });
 
     expect(result.targetOutcomes?.[1]).toMatchObject({
@@ -93,8 +95,11 @@ describe("season simulation target-plan feasibility", () => {
   });
 
   it("keeps an ordinary capped target feasible when the cap may cause a miss", () => {
+    // 150 keeps the rivals' 40% single-bid cap ($60) above this manager's
+    // $55 limit, so the market can still clear past it.
     const result = runTargetPlanFixture({
       targets: [{ playerName: "Premium Runner", maxAuctionPrice: 55 }],
+      budgetDollars: 150,
     });
 
     expect(result.targetOutcome).toMatchObject({

@@ -70,11 +70,13 @@ export const registerEliteAuctionTests = (): void => {
   });
 
   it("reports a feasible elite preference miss when the market clears above its cap", () => {
+    // 150 keeps the 40% single-bid cap ($60) above the elite tier, so the
+    // market can still clear elites past this manager's $45 limit.
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,
       settings: {
         ...auctionSeason.settings,
-        auction: { budgetDollars: 100, minimumBidDollars: 1 },
+        auction: { budgetDollars: 150, minimumBidDollars: 1 },
       },
     };
     const result = runSeasonSimulations({

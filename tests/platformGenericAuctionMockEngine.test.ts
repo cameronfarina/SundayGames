@@ -381,7 +381,9 @@ describe("generic auction mock engine", () => {
   it("lets a team with a cheap keeper use its budget advantage in bidding", () => {
     const config = baseConfig({
       humanTeamId: "team-a",
-      budgetDollars: 100,
+      // 110 keeps the 40% single-bid cap ($44) above the $40 target, so the
+      // keeper surplus is what decides this race.
+      budgetDollars: 110,
       rosterSlots: [{ slot: "RB", count: 2, eligiblePositions: ["RB"] }],
       positionMaximums: { RB: 2 },
       players: [

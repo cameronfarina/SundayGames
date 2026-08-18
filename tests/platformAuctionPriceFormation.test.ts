@@ -10,7 +10,9 @@ const priceFormationConfig = (): GenericAuctionMockConfig => ({
   sessionId: "price-formation",
   seed: "price-formation-seed",
   humanTeamId: "human",
-  budgetDollars: 20,
+  // A budget the tiny board can absorb, so spend-down stays out of the way
+  // and the test watches pure bid mechanics.
+  budgetDollars: 3,
   minimumBidDollars: 1,
   teams: [
     { id: "human", name: "Human" },
@@ -61,9 +63,10 @@ describe("auction price formation", () => {
       expectedRevision: nominated.session.revision,
     });
 
+    // The winner's final-slot purchase spends its remaining dollar too.
     expect(passed.sales.find(sale => sale.playerId === "target")).toMatchObject({
       teamId: "bidder",
-      price: 2,
+      price: 3,
     });
     expect(passed.auctionEvents.filter(event => event.type === "bid"))
       .toEqual([expect.objectContaining({ teamId: "bidder", price: 2 })]);

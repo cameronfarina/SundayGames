@@ -6,6 +6,7 @@ import {
 } from "./auctionAnalysis.js";
 import { backupDepthMaximumBidFor } from "./backupDepth.js";
 import { deterministicFraction } from "./deterministic.js";
+import { singleBidCapFor } from "./closingPrice.js";
 import { ownerBidLiftFor } from "./ownerSurplus.js";
 import { flatPricedAuctionDollars, flatPricedAuctionPositions, premiumValueThresholdDollars } from "./pricingConstants.js";
 import { canAcquire, rosterNeedFor } from "./roster.js";
@@ -75,6 +76,7 @@ export const aiMaxBidFor = (
 
   return Math.min(
     team.maxBid,
+    singleBidCapFor(state, player),
     maximumAutomatedAuctionBidFor(state, team, player),
     willingness + ownerBidLiftFor({
       team,

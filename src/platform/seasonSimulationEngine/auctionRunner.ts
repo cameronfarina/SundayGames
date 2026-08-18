@@ -10,9 +10,10 @@ import type { ResolvedSeasonSimulationPreference } from "../seasonSimulationPref
 import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTargets.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
 import { SeasonSimulationError } from "./contracts.js";
+import { automatedClosingPriceFor } from "../auction/closingPrice.js";
 import { maximumDecisionsPerRun } from "./constants.js";
 import { selectAuctionNomination } from "./auctionNomination.js";
-import { auctionWillingnessFor } from "./auctionWillingness.js";
+import { auctionWillingnessDetailFor } from "./auctionWillingness.js";
 
 export const runAuctionSimulation = (input: {
   config: ReturnType<typeof buildSeasonAuctionMockConfig>;
@@ -74,7 +75,7 @@ export const runAuctionSimulation = (input: {
         "The auction engine did not expose a valid human decision.",
       );
     }
-    const willingness = auctionWillingnessFor(
+    const { willingness, finalSlotCeiling } = auctionWillingnessDetailFor(
       state,
       humanTeam,
       player,
@@ -84,7 +85,18 @@ export const runAuctionSimulation = (input: {
       input.preferences,
     );
     state = applyGenericAuctionMockCommand(state, nomination.nextBid <= willingness
-      ? { type: "buy", expectedRevision: state.session.revision, price: nomination.nextBid }
+      ? {
+        type: "buy",
+        expectedRevision: state.session.revision,
+        price: automatedClosingPriceFor(
+          state,
+          humanTeam,
+          player,
+          nomination.nextBid,
+          willingness,
+          { finalSlotCeiling },
+        ),
+      }
       : { type: "pass", expectedRevision: state.session.revision });
   }
 

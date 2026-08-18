@@ -15,7 +15,9 @@ export const catalogPlayer = (
 export const runTargetBudgetAuctionPlan = (
   targetConstraints: readonly SeasonSimulationTargetConstraint[],
   seedPrefix: string,
-  budgetDollars = 100,
+  // 150 keeps the 40% single-bid cap ($60) above the $57 elite, the same
+  // shape as the real league's $80 cap over its $70 elites.
+  budgetDollars = 150,
 ) => {
   const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
     ...auctionSeason,

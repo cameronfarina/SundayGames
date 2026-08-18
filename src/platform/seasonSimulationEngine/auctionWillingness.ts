@@ -11,10 +11,10 @@ import {
   type ResolvedSeasonSimulationPreference,
 } from "../seasonSimulationPreferences.js";
 import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTargets.js";
-import { remainingValuePerSlotFor } from "../auction/auctionAnalysis.js";
+import { singleBidCapFor } from "../auction/closingPrice.js";
 import { backupDepthMaximumBidFor } from "../auction/backupDepth.js";
-import { ownerBidLiftFor } from "../auction/ownerSurplus.js";
 import { flatPricedAuctionDollars, flatPricedAuctionPositions } from "../auction/pricingConstants.js";
+import { auctionValueLimitFor } from "./auctionValueLimit.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
 import {
   auctionRosterNeedFor,
@@ -24,7 +24,14 @@ import {
   preservesSlotsForTargets,
 } from "./auctionTargets.js";
 
-export const auctionWillingnessFor = (
+export interface AuctionWillingness {
+  willingness: number;
+  // The manager's own plan (targets, price caps, preferences): the only
+  // limits that still bind when spend-down closes a final-slot purchase.
+  finalSlotCeiling: number;
+}
+
+export const auctionWillingnessDetailFor = (
   state: GenericAuctionMockState,
   team: GenericAuctionMockTeamReadModel,
   player: GenericAuctionMockBoardPlayer,
@@ -32,7 +39,7 @@ export const auctionWillingnessFor = (
   pairPlayerId: string | undefined,
   strategy: ParsedSeasonSimulationStrategy,
   preferences: readonly ResolvedSeasonSimulationPreference[],
-): number => {
+): AuctionWillingness => {
   const target = targetsByPlayerId.get(player.id);
   const isTarget = target !== undefined;
   const isUncappedTarget = isTarget && target.maxAuctionPrice === undefined;
@@ -40,14 +47,15 @@ export const auctionWillingnessFor = (
     isUncappedTarget
       ? !canAuctionTeamRoster(state, team, player)
       : !isAutomatedAuctionAcquisitionEligible(state, team, player)
-  ) return 0;
+  ) return { willingness: 0, finalSlotCeiling: 0 };
 
   // A kicker or defense costs two dollars unless this manager named him.
   if (flatPricedAuctionPositions.has(player.position) && !isTarget) {
-    return Math.min(
+    const flatPrice = Math.min(
       team.maxBid,
       Math.max(state.configuration.minimumBidDollars, flatPricedAuctionDollars),
     );
+    return { willingness: flatPrice, finalSlotCeiling: flatPrice };
   }
 
   const isPair = player.id === pairPlayerId;
@@ -64,7 +72,8 @@ export const auctionWillingnessFor = (
     backupDepthMaximum !== undefined
     && !isTarget && !isPair && preference === undefined
   ) {
-    return Math.min(team.maxBid, backupDepthMaximum);
+    const backupPrice = Math.min(team.maxBid, backupDepthMaximum);
+    return { willingness: backupPrice, finalSlotCeiling: backupPrice };
   }
   const positionPreference = preferences.find(candidate =>
     candidate.preference.position === player.position
@@ -74,24 +83,16 @@ export const auctionWillingnessFor = (
     .reverse()
     .find(cap => cap.position === player.position);
   const isPreferred = preference !== undefined;
-  const needDollars = Math.ceil(auctionRosterNeedFor(team, player.position) * 2);
-  const baseValue = team.isHuman ? player.humanValue ?? player.expectedPrice : player.expectedPrice;
-  const preferenceDollars = isPreferred ? Math.ceil(baseValue * 0.15) : 0;
-  const targetDollars = isTarget || isPair ? Math.ceil(baseValue * 0.1) : 0;
-  const ownerLiftDollars = ownerBidLiftFor({
+  const valueLimit = auctionValueLimitFor({
+    state,
     team,
-    position: player.position,
-    expectedPrice: baseValue,
-    minimumBid: state.configuration.minimumBidDollars,
-    remainingValuePerSlot: remainingValuePerSlotFor(state),
+    player,
+    isTarget,
+    isPair,
+    isPreferred,
     pressureExempt: state.configuration.ai?.bidPressureExemptPlayerIds
       ?.includes(player.id) ?? false,
   });
-  const valueLimit = Math.max(
-    state.configuration.minimumBidDollars,
-    Math.round(baseValue) + needDollars + preferenceDollars + targetDollars
-      + ownerLiftDollars,
-  );
   const plannedTargetPlayers = plannedFutureTargetsFor(
     state,
     team,
@@ -101,7 +102,7 @@ export const auctionWillingnessFor = (
   if (
     !isTarget
     && plannedTargetPlayers.some(targetPlayer => targetPlayer.position === player.position)
-  ) return 0;
+  ) return { willingness: 0, finalSlotCeiling: 0 };
   const reservedTargetBudget = plannedTargetPlayers.reduce(
     (total, targetPlayer) => total + Math.max(
       0,
@@ -132,5 +133,13 @@ export const auctionWillingnessFor = (
     enforcedValueLimit = valueLimit;
   }
 
-  return Math.min(team.maxBid, strategyLimit, enforcedValueLimit);
+  // A named target or an explicit position preference is the manager's own
+  // plan, so it pierces the league-wide single-bid cap.
+  const singleBidCap = isTarget || isPreferred
+    ? team.maxBid
+    : singleBidCapFor(state, player);
+  return {
+    willingness: Math.min(team.maxBid, singleBidCap, strategyLimit, enforcedValueLimit),
+    finalSlotCeiling: Math.min(team.maxBid, singleBidCap, strategyLimit),
+  };
 };

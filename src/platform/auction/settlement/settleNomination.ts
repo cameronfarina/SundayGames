@@ -1,4 +1,6 @@
 import { addAcquisition } from "../acquisitions.js";
+import { automatedClosingPriceFor } from "../closingPrice.js";
+import { aiMaxBidFor } from "../pricing.js";
 import { GenericAuctionMockError } from "../errors.js";
 import { type AuctionEventInput, withAuctionEvents } from "../events.js";
 import { playerFor, teamFor } from "../roster.js";
@@ -28,11 +30,20 @@ export const settleNomination = (
   const player = playerFor(state, nomination.playerId);
   const winner = teamFor(state, nomination.highestBidderTeamId);
   const nominator = teamFor(state, nomination.nominatedByTeamId);
+  const closingPrice = winner.isHuman
+    ? nomination.currentPrice
+    : automatedClosingPriceFor(
+      state,
+      winner,
+      player,
+      nomination.currentPrice,
+      aiMaxBidFor(state, winner, player, nomination.number),
+    );
   const sold = addAcquisition({
     state,
     player,
     team: winner,
-    price: nomination.currentPrice,
+    price: closingPrice,
     source: winner.isHuman ? "human" : "ai",
     nominatedByTeam: nominator,
     nominationNumber: nomination.number,
@@ -57,8 +68,8 @@ export const settleNomination = (
       playerName: player.name,
       teamId: winner.id,
       teamName: winner.name,
-      price: nomination.currentPrice,
-      text: `Sold to ${winner.name} for $${nomination.currentPrice}`,
+      price: closingPrice,
+      text: `Sold to ${winner.name} for $${closingPrice}`,
     },
   ]);
 };

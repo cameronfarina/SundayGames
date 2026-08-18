@@ -2,16 +2,20 @@ import { InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, create
 import type { LeagueSeason } from "../support/index.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../../../src/platform/liveDraftRooms.js";
 
-// Money in the room is 4 x $200 = $800 and the published board totals $800,
-// so the no-history inflation fallback multiplies every price by exactly 1.
+// Money in the room is 4 x $70 = $280 and the published board totals $280,
+// so the no-history inflation fallback multiplies every price by exactly 1
+// and the spend-down floor stays below real bids.
 const fillerRb = (index: number): LiveDraftRoomPlayerCatalogEntry => ({
   name: `Filler RB ${index + 1}`,
   position: "RB",
-  expectedPrice: 10,
+  expectedPrice: 28,
 });
 const styleCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Stud RB", position: "RB", expectedPrice: 60 },
-  ...Array.from({ length: 74 }, (_, index) => fillerRb(index)),
+  { name: "Mid RB One", position: "RB", expectedPrice: 38 },
+  { name: "Mid RB Two", position: "RB", expectedPrice: 36 },
+  { name: "Mid RB Three", position: "RB", expectedPrice: 34 },
+  ...Array.from({ length: 4 }, (_, index) => fillerRb(index)),
 ];
 
 const historyCsv = Buffer.from([
@@ -46,7 +50,7 @@ describe("platform HTTP contract", () => {
           rosterMaximums: { QB: 2, RB: 2, WR: 2, TE: 2, K: 1, DST: 1 },
         },
         draftFormat: "auction",
-        auction: { budgetDollars: 200, minimumBidDollars: 1 },
+        auction: { budgetDollars: 70, minimumBidDollars: 1 },
       },
     };
     await handle({
