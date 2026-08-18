@@ -9,7 +9,9 @@ import type {
   PlatformLeagueSetupImportBlockedBody,
   PlatformSetupHttpResponse,
 } from "./contracts.js";
+import { unclaimedTeamsForRecords } from "../leagueSetupImport.js";
 import {
+  leagueSetupDeletesTeamsBody,
   leagueSetupImportBlockedBody,
   leagueSetupLockedBody,
   screenshotReviewRequiredBody,
@@ -38,6 +40,10 @@ export const applyLeagueMembersScreenshotImport = async (
   });
   if (parsedImport.status === "blocked") {
     return { status: 400, body: leagueSetupImportBlockedBody(parsedImport) };
+  }
+  const deletedTeams = unclaimedTeamsForRecords(season, parsedImport.records);
+  if (deletedTeams.length > 0) {
+    return { status: 409, body: leagueSetupDeletesTeamsBody(deletedTeams) };
   }
   const appliedImport = applyLeagueMembersScreenshotImportToSeason(season, parsedImport);
   const memberships = await app.listLeagueMemberships(season.leagueId);

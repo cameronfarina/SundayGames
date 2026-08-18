@@ -79,3 +79,21 @@ export const membershipSeedFor = (
   ...(record.email === undefined ? {} : { email: record.email }),
   role: record.role,
 });
+
+/**
+ * Teams no submitted row claims. Saving such a list deletes those teams, and
+ * everything keyed to their ids goes with them: keepers, imported rosters, and
+ * memberships. Nothing on the commissioner screen should delete a team, so the
+ * save refuses instead.
+ */
+export const unclaimedTeamsForRecords = (
+  season: LeagueSeason,
+  records: readonly LeagueSetupTeamRecord[],
+): readonly FantasyTeam[] => {
+  const claimedIds = new Set(
+    existingTeamsForRecords(season, records)
+      .flatMap(team => team === undefined ? [] : [team.id]),
+  );
+
+  return season.teams.filter(team => !claimedIds.has(team.id));
+};

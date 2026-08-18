@@ -83,6 +83,22 @@ describe("TeamListPaste", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not apply.");
   });
 
+  it("names the team a rejected paste would have deleted", async () => {
+    capturePasteBodies(() => Promise.resolve(jsonResponse({
+      error: {
+        code: "league_setup_deletes_teams",
+        message: "These rows would delete a team and everything saved against it, including keepers: Ty (Short King). Every team must appear exactly once.",
+      },
+    }, 409)));
+    const user = userEvent.setup();
+    await openPasteBox(user);
+
+    await user.type(screen.getByLabelText("Teams and managers"), "x");
+    await user.click(screen.getByRole("button", { name: "Replace team list" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ty (Short King)");
+  });
+
   it("reports the blockers from a rejected paste", async () => {
     capturePasteBodies(() => Promise.resolve(jsonResponse({
       error: { code: "league_setup_import_blocked", message: "Resolve league setup import blockers before applying." },

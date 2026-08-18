@@ -1,4 +1,8 @@
-import { applyLeagueSetupImportToSeason, parseLeagueSetupImport } from "../leagueSetupImport.js";
+import {
+  applyLeagueSetupImportToSeason,
+  parseLeagueSetupImport,
+  unclaimedTeamsForRecords,
+} from "../leagueSetupImport.js";
 import { leagueSetupTeamAssignments } from "../leagueSetupImport/teamAssignmentPreview.js";
 import type { PlatformSetupApp } from "./app.js";
 import type {
@@ -10,6 +14,7 @@ import type {
 import { deliverSetupInvitations } from "./invitationDelivery.js";
 import { reconcileSetupMemberships } from "./membershipReconciliation.js";
 import {
+  leagueSetupDeletesTeamsBody,
   leagueSetupImportBlockedBody,
   leagueSetupLockedBody,
   seasonRequiredBody,
@@ -33,6 +38,10 @@ export const applyLeagueSetupImport = async (
   });
   if (parsedImport.status === "blocked") {
     return { status: 400, body: leagueSetupImportBlockedBody(parsedImport) };
+  }
+  const deletedTeams = unclaimedTeamsForRecords(season, parsedImport.records);
+  if (deletedTeams.length > 0) {
+    return { status: 409, body: leagueSetupDeletesTeamsBody(deletedTeams) };
   }
   const teamAssignments = leagueSetupTeamAssignments(season, parsedImport.records);
   const appliedImport = applyLeagueSetupImportToSeason(season, parsedImport.records);

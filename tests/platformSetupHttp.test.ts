@@ -266,6 +266,44 @@ describe("platform setup import HTTP helpers", () => {
     expect(await app.listLeagueMemberships(season.leagueId)).toEqual(existingMemberships);
   });
 
+  it("refuses a pasted list that would delete a team, and changes nothing", async () => {
+    const { app, owner11, season } = await setupRegisteredSeason();
+    const existingSeason = await app.getLeagueSeason({
+      actorSessionToken: owner11.sessionToken,
+      seasonId: season.id,
+      now,
+    });
+    const existingMemberships = await app.listLeagueMemberships(season.leagueId);
+
+    // Owner04 moves up and Owner11 is spelled differently. Owner11's row then
+    // falls back to a slot Owner04 already took, so Owner11's team is dropped.
+    const response = await applyLeagueSetupImport(app, {
+      actorSessionToken: owner11.sessionToken,
+      seasonId: season.id,
+      content: [
+        "owner,team,email,role",
+        "Owner04,Owner04's Club,owner04@example.com,member",
+        "Owner11x,Owner11's Club,owner11@example.com,owner",
+        "Owner01,Owner01's Club,owner01@example.com,member",
+      ].join("\n"),
+      now,
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      error: {
+        code: "league_setup_deletes_teams",
+        message: "These rows would delete a team and everything saved against it, including keepers: Owner11 (Owner11). Every team must appear exactly once.",
+      },
+    });
+    expect(await app.getLeagueSeason({
+      actorSessionToken: owner11.sessionToken,
+      seasonId: season.id,
+      now,
+    })).toEqual(existingSeason);
+    expect(await app.listLeagueMemberships(season.leagueId)).toEqual(existingMemberships);
+  });
+
   it("returns a stable blocked-import error instead of applying duplicate owners", async () => {
     const { app, owner11, season } = await setupRegisteredSeason();
 

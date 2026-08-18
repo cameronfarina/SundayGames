@@ -24,6 +24,21 @@ export const leagueSetupLockedBody: PlatformSetupHttpErrorBody = {
   },
 };
 
+export const leagueSetupDeletesTeamsBody = (
+  teams: readonly { ownerDisplayName: string; displayName: string }[],
+): PlatformSetupHttpErrorBody => ({
+  error: {
+    code: "league_setup_deletes_teams",
+    message: [
+      "These rows would delete",
+      teams.length === 1 ? "a team" : `${String(teams.length)} teams`,
+      `and everything saved against ${teams.length === 1 ? "it" : "them"}, including keepers:`,
+      teams.map(team => `${team.ownerDisplayName} (${team.displayName})`).join(", ") + ".",
+      "Every team must appear exactly once.",
+    ].join(" "),
+  },
+});
+
 export const screenshotReviewRequiredBody: PlatformSetupHttpErrorBody = {
   error: {
     code: "screenshot_review_required",
