@@ -11,6 +11,7 @@ import {
   type ResolvedSeasonSimulationPreference,
 } from "../seasonSimulationPreferences.js";
 import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTargets.js";
+import { flatPricedAuctionPositions } from "../auction/pricingConstants.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
 import { humanClearingPriceCushionDollars } from "./constants.js";
 import {
@@ -38,6 +39,11 @@ export const auctionWillingnessFor = (
       ? !canAuctionTeamRoster(state, team, player)
       : !isAutomatedAuctionAcquisitionEligible(state, team, player)
   ) return 0;
+
+  // A kicker or defense costs the minimum bid unless this manager named him.
+  if (flatPricedAuctionPositions.has(player.position) && !isTarget) {
+    return Math.min(team.maxBid, state.configuration.minimumBidDollars);
+  }
 
   const isPair = player.id === pairPlayerId;
   const preference = activePositionPreferenceFor(

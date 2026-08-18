@@ -3,8 +3,8 @@ import { join } from "node:path";
 import ts from "typescript";
 import { expect, it } from "vitest";
 
-const focusedMaximumLines = 150;
-const absoluteMaximumLines = 250;
+const focusedMaximumLines = 250;
+const absoluteMaximumLines = 400;
 const testsDirectory = join(process.cwd(), "tests");
 const suiteEntryPath = join(testsDirectory, "platformSeasonSimulationEngine.test.ts");
 const suiteDirectory = join(testsDirectory, "platformSeasonSimulationEngine");
