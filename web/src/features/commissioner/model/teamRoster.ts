@@ -38,19 +38,3 @@ export const withRowEdited = (
   edit: Partial<Omit<TeamRosterRow, "teamId">>,
 ): TeamRosterRow[] =>
   rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...edit } : row);
-
-export const withRowMoved = (
-  rows: readonly TeamRosterRow[],
-  index: number,
-  offset: number,
-): TeamRosterRow[] => {
-  const target = index + offset;
-  const row = rows[index];
-  const swapped = rows[target];
-  if (row === undefined || swapped === undefined) return [...rows];
-
-  return rows.map((current, rowIndex) => {
-    if (rowIndex === index) return swapped;
-    return rowIndex === target ? row : current;
-  });
-};

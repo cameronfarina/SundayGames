@@ -4,7 +4,6 @@ import {
   teamRosterContent,
   teamRosterRows,
   withRowEdited,
-  withRowMoved,
   type TeamRosterRow,
 } from "./teamRoster";
 
@@ -44,15 +43,5 @@ describe("teamRoster", () => {
     ]);
   });
 
-  it("swaps two rows to change draft order and ignores a move off either end", () => {
-    expect(withRowMoved(rows, 0, 1)).toEqual([rows[1], rows[0]]);
-    expect(withRowMoved(rows, 0, -1)).toEqual(rows);
-    expect(withRowMoved(rows, 1, 1)).toEqual(rows);
-  });
 
-  it("leaves the rows either side of a swap where they were", () => {
-    const third = { teamId: "team-3", ownerDisplayName: "Sue", teamDisplayName: "Sue's Team" };
-
-    expect(withRowMoved([...rows, third], 2, -1)).toEqual([rows[0], third, rows[1]]);
-  });
 });

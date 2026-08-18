@@ -62,24 +62,6 @@ describe("LeagueSetupSection team identity", () => {
     expect(bodies.at(-1)).toContain("team-1,Owner11,Tall King,member");
   });
 
-  it("keeps every team id when a row moves to a new draft slot", async () => {
-    const bodies = captureApplyBodies(twoTeams);
-    const user = userEvent.setup();
-
-    expect(screen.getByRole("button", { name: "Move Owner11 up" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Alex down" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Move Alex up" }));
-    expect(screen.getByLabelText("Manager 1")).toHaveValue("Alex");
-    await user.click(screen.getByRole("button", { name: "Move Alex down" }));
-    expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
-    await user.click(screen.getByRole("button", { name: "Move Owner11 down" }));
-    expect(screen.getByLabelText("Manager 1")).toHaveValue("Alex");
-    await user.click(screen.getByRole("button", { name: "Apply changes" }));
-
-    expect(await screen.findByText("League teams saved.")).toBeVisible();
-    expect(bodies.at(-1))
-      .toContain("team-2,Alex,Second Team,member\\nteam-1,Owner11,Short King,member");
-  });
 
   it("offers no way to add or remove a team, because the league size is fixed", () => {
     captureApplyBodies(twoTeams);

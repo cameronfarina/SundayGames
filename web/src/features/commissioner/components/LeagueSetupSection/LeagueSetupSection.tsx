@@ -7,12 +7,7 @@ import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { applyBlockers } from "../../model/applyBlockers";
 import { errorMessage } from "../../model/errorMessage";
 import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
-import {
-  teamRosterContent,
-  teamRosterRows,
-  withRowEdited,
-  withRowMoved,
-} from "../../model/teamRoster";
+import { teamRosterContent, teamRosterRows, withRowEdited } from "../../model/teamRoster";
 import { TeamListPaste } from "./TeamListPaste";
 
 interface LeagueSetupSectionProps { readonly season: CommissionerSeason }
@@ -58,7 +53,7 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
         <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>
         <div><span>Roster</span><strong>{settings.roster.rosterSize} players · {settings.expectedTeamCount} teams</strong></div>
       </div>
-      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place, and use the arrows to set draft order. Both stay editable until a live room starts.</p>
+      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place. Both stay editable until a live room starts.</p>
       <fieldset className="commissioner-teams">
         <legend>Teams and managers</legend>
         <ol className="commissioner-teams__list">
@@ -75,20 +70,6 @@ export function LeagueSetupSection({ season }: LeagueSetupSectionProps) {
                 onChange={event => { editRow(index, { teamDisplayName: event.target.value }); }}
                 value={row.teamDisplayName}
               />
-              <span className="commissioner-teams__move">
-                <button
-                  aria-label={`Move ${row.ownerDisplayName} up`}
-                  disabled={index === 0}
-                  onClick={() => { setRows(current => withRowMoved(current, index, -1)); apply.reset(); }}
-                  type="button"
-                >↑</button>
-                <button
-                  aria-label={`Move ${row.ownerDisplayName} down`}
-                  disabled={index === rows.length - 1}
-                  onClick={() => { setRows(current => withRowMoved(current, index, 1)); apply.reset(); }}
-                  type="button"
-                >↓</button>
-              </span>
             </li>
           ))}
         </ol>
