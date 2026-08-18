@@ -34,12 +34,10 @@ export const NewsItem = ({ followed, item, onToggleFollow }: NewsItemProps) => {
         </div>
         <h3>{item.headline}</h3>
       </div>
+      {timestamp === undefined
+        ? null
+        : <span className="player-news-item__timestamp">{timestamp}</span>}
     </header>
     <p>{item.fantasyImpact}</p>
-    <footer>
-      <span>{item.category} · {item.availability.detail}</span>
-      <span>{item.source.provider}{timestamp === undefined ? "" : ` · ${timestamp}`}</span>
-      {item.source.url === undefined ? null : <a href={item.source.url} rel="noreferrer" target="_blank">Open source</a>}
-    </footer>
   </article>;
 };

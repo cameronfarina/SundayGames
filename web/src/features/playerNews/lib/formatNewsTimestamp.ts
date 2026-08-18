@@ -2,9 +2,9 @@ export const formatNewsTimestamp = (value: string | undefined): string | undefin
   if (value === undefined) return undefined;
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return undefined;
-  const day = date.toLocaleDateString();
+  const day = date.toLocaleDateString([], { month: "numeric", day: "numeric" });
   const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     .replace(" ", "")
     .toLowerCase();
-  return `${day}, ${time}`;
+  return `${day} ${time}`;
 };

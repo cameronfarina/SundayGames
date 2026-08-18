@@ -7,17 +7,19 @@ import { NewsItem } from "./NewsItem";
 describe("NewsItem", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
 
-  it("shows player context, a concise timestamp, and the original source", async () => {
+  it("shows only the player, the headline, the note, and a concise timestamp", async () => {
     vi.stubEnv("TZ", "America/New_York");
     const item = playerNewsFeedFixture.items[0];
     if (item === undefined) throw new Error("Expected a news fixture.");
     const onToggleFollow = vi.fn();
     render(<NewsItem followed={false} item={item} onToggleFollow={onToggleFollow} />);
     expect(screen.getByText("Ladd McConkey · WR · LAC")).toBeVisible();
-    expect(screen.queryByText("Move up")).not.toBeInTheDocument();
-    expect(screen.getByText(/\$18 live \/ \$22 max/u)).toBeVisible();
-    expect(screen.getByText(/8\/16\/2026, 9:30am/u)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open source" })).toHaveAttribute("href", "https://example.com/ladd");
+    expect(screen.getByText(/8\/16 9:30am/u)).toBeVisible();
+    // The card carries no category, auction line, provider, or source link.
+    expect(screen.queryByText(/\$18 live \/ \$22 max/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(item.category)).not.toBeInTheDocument();
+    expect(screen.queryByText(item.source.provider)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add Ladd McConkey to my players" }));
     expect(onToggleFollow).toHaveBeenCalledWith("Ladd McConkey");
   });
@@ -29,7 +31,8 @@ describe("NewsItem", () => {
     expect(screen.getByText("NFL")).toBeVisible();
     expect(screen.getByRole("button", { name: "Remove NFL from my players" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByText("Our evidence")).toBeVisible();
+    // An unreadable date drops the timestamp rather than printing "Invalid Date".
+    expect(screen.queryByText(/\d+\/\d+ \d+:\d+[ap]m/u)).not.toBeInTheDocument();
   });
 
   it("shows a position when the NFL team is unavailable", () => {
