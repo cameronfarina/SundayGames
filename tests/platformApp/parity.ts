@@ -26,4 +26,4 @@ export const expectedBehaviorNames: readonly string[] = [
 
 export const expectedAssertionCount = 109;
 export const expectedAssertionFingerprint =
-  "f32b261373f398695d3907d91f9920be6a67aa053da43ef51bf3631742f4232b";
+  "81b2bef009b736f3ffcae886853ca0f22f96525a63dde6bc7946fa40b5bddfd2";

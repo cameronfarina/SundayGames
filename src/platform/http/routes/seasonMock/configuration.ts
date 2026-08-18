@@ -1,4 +1,3 @@
-import type { LiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
 import { createSeasonMockConfigurationSnapshot } from "../../../seasonMockSnapshot.js";
 import type { SeasonMockConfigurationSnapshotV2 } from "../../../seasonMockSnapshot.js";
@@ -11,18 +10,13 @@ export const seasonMockConfigurationSnapshotFor = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   context: SeasonMockDraftContext,
-  strategyKey: LiveDraftStrategyKey,
 ): Promise<SeasonMockConfigurationSnapshotV2> => {
   const snapshot = context.season.settings.draftFormat === "auction"
     ? await currentPricingSnapshotForSeason(app, request, context.season, context.setup)
     : undefined;
   const snapshotValues = snapshotPlayerValues(snapshot?.rows, context.setup.playerCatalog);
   const { playerExpectedPrices, playerHumanValues } = buildSeasonPlayerValues({
-    season: context.season,
     playerCatalog: context.setup.playerCatalog,
-    initialRosters: context.setup.initialRosters,
-    humanTeamId: context.membership.teamId,
-    strategyKey,
     leaguePrices: snapshotValues.leaguePrices,
     personalValues: snapshotValues.personalValues,
   });

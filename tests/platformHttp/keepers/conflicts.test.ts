@@ -36,7 +36,7 @@ it("does not save a keeper when the resulting pricing snapshot would conflict", 
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-keepers-v4",
+      modelVersion: "league-flat-inflation-v1",
       scenarioIds: ["expected"],
       baselinePrices: playerCatalog.map(player => ({
           name: player.name,
@@ -120,7 +120,7 @@ it("does not commit historical records when the resulting pricing snapshot would
       actorSessionToken: owner11.sessionToken,
       leagueId: season.leagueId,
       seasonYear: season.seasonYear,
-      modelVersion: "league-history-keepers-v4",
+      modelVersion: "league-flat-inflation-v1",
       scenarioIds: ["expected"],
       baselinePrices: playerCatalog.map(player => ({
         name: player.name,

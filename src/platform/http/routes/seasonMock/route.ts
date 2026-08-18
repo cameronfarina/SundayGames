@@ -48,7 +48,7 @@ export const routeSeasonMockDrafts = async (
         mockCount: 1,
         label: `${context.season.league.name} ${strategy.label} mock draft`,
       },
-      configurationSnapshot: await seasonMockConfigurationSnapshotFor(app, request, context, strategyKey),
+      configurationSnapshot: await seasonMockConfigurationSnapshotFor(app, request, context),
       status: "setup",
       now: request.now,
     });

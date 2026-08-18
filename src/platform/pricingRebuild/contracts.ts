@@ -1,4 +1,3 @@
-import type { Position } from "../../../config/league.js";
 import type { HistoricalSaleRecord } from "../historicalImports.js";
 import type { PricingSourcePrice } from "../pricingSnapshots.js";
 
@@ -24,28 +23,12 @@ export interface CreateLeagueCalibratedPricingSnapshotsInput {
   createdAt?: string;
 }
 
-export interface CalibrationResult {
-  price: number;
-  historicalMove: number;
-}
+export type LeagueInflationSource = "history" | "budget" | "unavailable";
 
-export interface PositionInflationResult {
-  multipliers: ReadonlyMap<Position, number>;
-  publicValueCoverage: ReadonlyMap<Position, number>;
-  matchedSaleCount: number;
-}
-
-export interface PositionSaleCurveResult {
-  pricesByPosition: ReadonlyMap<Position, readonly number[]>;
-}
-
-export interface LeagueAuctionAllocation {
-  scenarioPrices: readonly number[];
-  personalValues?: readonly number[];
-  warnings: readonly string[];
-}
-
-export interface WholeDollarAllocation {
-  allocations: readonly number[];
-  unallocatedDollars: number;
+export interface LeagueInflationResult {
+  multiplier: number;
+  source: LeagueInflationSource;
+  countedSaleCount: number;
+  leagueDollars: number;
+  publicDollars: number;
 }
