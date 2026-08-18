@@ -50,6 +50,9 @@ export const createPlatformRuntimeFactory = (
       ? {} : { currentPlayerCatalogProvider: options.currentPlayerCatalogProvider }),
     ...(options.espnLeagueSettingsImporter === undefined
       ? {} : { espnLeagueSettingsImporter: options.espnLeagueSettingsImporter }),
+    fantasyProsRepository: repositories.fantasyProsRepository,
+    ...(options.fantasyProsConfigured === undefined
+      ? {} : { fantasyProsConfigured: options.fantasyProsConfigured }),
     liveDraftRoomSetupProvider,
     liveDraftRoomSetupRepository: repositories.liveDraftRoomSetupRepository,
     ...(options.postDraftProjectionProvider === undefined

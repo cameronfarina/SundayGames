@@ -104,3 +104,15 @@ export const screenshotCheck = (
       : "MOCKD_SCREENSHOT_IMPORT_MODE must be disabled or openai.",
   };
 };
+
+// The key is optional on purpose: FantasyPros data is advisory display only,
+// so a deploy without it is still production ready, just without the overlay.
+export const fantasyProsCheck = (
+  env: PlatformRuntimeEnv,
+): PlatformProductionReadinessCheck => ({
+  status: "pass",
+  label: "FantasyPros sync",
+  detail: optionalEnvString(env, "FANTASYPROS_API_KEY") === undefined
+    ? "FantasyPros rankings and projections are disabled; set FANTASYPROS_API_KEY to enable them."
+    : "FantasyPros rankings, projections, and player catalog are configured.",
+});

@@ -9,6 +9,7 @@ export const defaultScreenshotImportModel = "gpt-5.6-terra";
 export const defaultScreenshotImportTimeoutMs = 30_000;
 export const defaultScreenshotImportMaxImageBytes = 5 * 1024 * 1024;
 export const defaultScreenshotImportMaxConcurrency = 2;
+export const defaultFantasyProsSeason = 2026;
 export const launchWorkerJobKinds: readonly JobKind[] = ["simulation"];
 
 export const productionReadinessNextSteps: readonly string[] = [
@@ -19,4 +20,5 @@ export const productionReadinessNextSteps: readonly string[] = [
   "Start `npm run platform:web` behind the domain/proxy.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",
   "Optional: set MOCKD_SCREENSHOT_IMPORT_MODE=openai and configure OPENAI_API_KEY to enable commissioner screenshot analysis.",
+  "Optional: configure FANTASYPROS_API_KEY to enable the FantasyPros rankings, projections, and player-catalog sync; the feature stays dark without it.",
 ];

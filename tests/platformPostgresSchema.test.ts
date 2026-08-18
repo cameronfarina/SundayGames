@@ -46,6 +46,10 @@ const expectedTableOrder = [
   "draft_room_export_contents",
   "audit_events",
   "player_news_items",
+  "fantasy_pros_rankings",
+  "fantasy_pros_projections",
+  "fantasy_pros_players",
+  "fantasy_pros_fetch_log",
 ] as const;
 
 const tableByName = (tableName: string): PostgresTableDefinition => {

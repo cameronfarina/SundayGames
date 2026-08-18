@@ -6,6 +6,7 @@ import type {
   EspnLeagueSettingsImportInput,
   EspnLeagueSettingsImportOutcome,
 } from "../espnLeagueSettingsImport.js";
+import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { LeagueMembersScreenshotAnalyzer } from "../openAiLeagueMembersScreenshotAnalyzer.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LeagueSeason } from "../leagueSeason.js";
@@ -51,6 +52,8 @@ export interface PlatformHttpServices {
   onboardingRepository?: PlatformOnboardingRepository | undefined;
   currentPlayerCatalogProvider?: (() => Promise<readonly LiveDraftRoomPlayerCatalogEntry[]>) | undefined;
   espnLeagueSettingsImporter?: ((input: EspnLeagueSettingsImportInput) => Promise<EspnLeagueSettingsImportOutcome>) | undefined;
+  fantasyProsRepository?: FantasyProsRepository | undefined;
+  fantasyProsConfigured?: boolean | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
   applyAcceptedMembership?: ((result: AcceptedPlatformInvitation) => void | Promise<void>) | undefined;

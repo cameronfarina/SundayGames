@@ -1,11 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type { JobKind } from "../jobs.js";
 import type {
+  FantasyProsConfig,
   PlatformRuntimeConfig,
   PlatformRuntimeEnv,
   ScreenshotImportConfig,
 } from "./contracts.js";
 import {
+  defaultFantasyProsSeason,
   defaultScreenshotImportMaxConcurrency,
   defaultScreenshotImportMaxImageBytes,
   defaultScreenshotImportModel,
@@ -81,6 +83,18 @@ export const screenshotImportConfig = (
       "MOCKD_SCREENSHOT_IMPORT_MAX_CONCURRENCY",
       defaultScreenshotImportMaxConcurrency,
     ),
+  };
+};
+
+export const fantasyProsConfig = (env: PlatformRuntimeEnv): FantasyProsConfig => {
+  const apiKey = optionalEnvString(env, "FANTASYPROS_API_KEY");
+  return {
+    apiKey,
+    // Without a key the whole FantasyPros surface stays dark: no scheduled
+    // fetches, and the repositories serve whatever is already stored.
+    refreshEnabled: apiKey !== undefined &&
+      booleanEnv(env, "MOCKD_FANTASYPROS_REFRESH_ENABLED", true),
+    season: positiveIntegerEnv(env, "MOCKD_FANTASYPROS_SEASON", defaultFantasyProsSeason),
   };
 };
 

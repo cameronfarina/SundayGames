@@ -34,3 +34,22 @@ export const playerNewsMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE INDEX player_news_items_published_at_idx")
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
+
+export const fantasyProsMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE fantasy_pros_rankings")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX fantasy_pros_rankings_type_ecr_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX fantasy_pros_rankings_player_id_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE TABLE fantasy_pros_projections")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX fantasy_pros_projections_week_position_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE TABLE fantasy_pros_players")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX fantasy_pros_players_position_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE TABLE fantasy_pros_fetch_log")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+];

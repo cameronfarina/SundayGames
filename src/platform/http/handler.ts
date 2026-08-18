@@ -7,6 +7,7 @@ import type {
 import { errorResponseFor } from "./errors/errorResponse.js";
 import { parsedRequestFor, secureSessionCookieFor } from "./request/parsedRequest.js";
 import { notFound } from "./responses.js";
+import { routeFantasyProsStatus } from "./routes/fantasyProsStatus.js";
 import { routeHistoricalImports } from "./routes/historicalImports.js";
 import { routeInvitations } from "./routes/invitations/index.js";
 import { routeJobs } from "./routes/jobs.js";
@@ -45,6 +46,9 @@ export const createPlatformHttpHandler = (
     }
     if (root === "player-catalog" && parsedRequest.segments.length === 1) {
       return await routePlayerCatalog(app, parsedRequest, services);
+    }
+    if (root === "fantasypros-status") {
+      return await routeFantasyProsStatus(app, parsedRequest, services);
     }
     if (root === "league-imports") return await routeLeagueImports(app, parsedRequest, services);
     if (root === "leagues") return await routeLeagues(app, parsedRequest);

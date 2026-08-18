@@ -74,6 +74,11 @@ describe("successful platform production readiness", () => {
         label: "Screenshot import",
         detail: "OpenAI screenshot analysis is configured.",
       },
+      {
+        status: "pass",
+        label: "FantasyPros sync",
+        detail: "FantasyPros rankings and projections are disabled; set FANTASYPROS_API_KEY to enable them.",
+      },
     ]);
     expect(report.nextSteps.join("\n")).toContain("npm run platform:migrate");
     expect(report.nextSteps.join("\n")).toContain("MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY");

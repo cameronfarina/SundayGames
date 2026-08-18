@@ -24,6 +24,7 @@ export const startPlatformServer = async (
     get simulationRepository() { return platformServer.simulationRepository; },
     get practiceShortlistRepository() { return platformServer.practiceShortlistRepository; },
     get playerNewsRepository() { return platformServer.playerNewsRepository; },
+    get fantasyProsRepository() { return platformServer.fantasyProsRepository; },
     get liveDraftRoomRepository() { return platformServer.liveDraftRoomRepository; },
     get exportArtifactRepository() { return platformServer.exportArtifactRepository; },
     get invitationRepository() { return platformServer.invitationRepository; },

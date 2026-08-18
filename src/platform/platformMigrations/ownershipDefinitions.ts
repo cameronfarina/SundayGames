@@ -2,13 +2,18 @@ import type { PlatformSchemaMigration } from "./contracts.js";
 import {
   authOwnershipMigrationId,
   authTokenVersionMigrationId,
+  fantasyProsMigrationId,
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
   leagueSlugMigrationId,
   playerNewsMigrationId,
   sharedLeagueInvitationsMigrationId,
 } from "./ids.js";
-import { authTokenTableMigrationStatements, playerNewsMigrationStatements } from "./schemaStatements.js";
+import {
+  authTokenTableMigrationStatements,
+  fantasyProsMigrationStatements,
+  playerNewsMigrationStatements,
+} from "./schemaStatements.js";
 
 export const ownershipPlatformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
@@ -101,5 +106,9 @@ END $$;`,
   {
     id: playerNewsMigrationId,
     statements: playerNewsMigrationStatements,
+  },
+  {
+    id: fantasyProsMigrationId,
+    statements: fantasyProsMigrationStatements,
   },
 ];

@@ -13,8 +13,10 @@ import {
 } from "./processLifecycle.js";
 import {
   authMailSenderFor,
+  fantasyProsClientFor,
   screenshotAnalyzerFor,
 } from "./runtimeServices.js";
+import { startFantasyProsRefreshIfConfigured } from "./fantasyProsRefresh.js";
 import { platformWebServerOptions } from "./serverOptions.js";
 import { staticWebAssetsFor } from "./staticAssets.js";
 
@@ -53,11 +55,16 @@ export const startPlatformWebFromEnv = async (
     throw error;
   }
   const stopObserving = observePlatformNodeHttpServer(server.server);
+  const fantasyProsRefresh = startFantasyProsRefreshIfConfigured({
+    client: fantasyProsClientFor(config),
+    repository: server.fantasyProsRepository,
+  });
   return {
     server,
     postgresClient,
     close: () => closePlatformWebRuntime({
       stopObserving,
+      stopFantasyProsRefresh: () => fantasyProsRefresh?.stop(),
       closeServer: async () => await server.close(),
       closePostgres,
     }),

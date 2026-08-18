@@ -24,6 +24,7 @@ describe("platform runtime config parsing", () => {
       MOCKD_SCREENSHOT_IMPORT_TIMEOUT_MS: "20000",
       MOCKD_SCREENSHOT_IMPORT_MAX_IMAGE_BYTES: "4194304",
       MOCKD_SCREENSHOT_IMPORT_MAX_CONCURRENCY: "3",
+      FANTASYPROS_API_KEY: "test-fantasypros-key",
       MOCKD_WORKER_ID: "worker-a",
       MOCKD_WORKER_JOB_KINDS: "simulation",
       MOCKD_WORKER_POLL_INTERVAL_MS: "750",
@@ -61,6 +62,11 @@ describe("platform runtime config parsing", () => {
         maxImageBytes: 4194304,
         maxConcurrentRequests: 3,
       },
+      fantasyPros: {
+        apiKey: "test-fantasypros-key",
+        refreshEnabled: true,
+        season: 2026,
+      },
       worker: {
         workerId: "worker-a",
         jobKinds: ["simulation"],
@@ -94,6 +100,11 @@ describe("platform runtime config parsing", () => {
       timeoutMs: 30000,
       maxImageBytes: 5242880,
       maxConcurrentRequests: 2,
+    });
+    expect(config.fantasyPros).toEqual({
+      apiKey: undefined,
+      refreshEnabled: false,
+      season: 2026,
     });
     expect(config.worker.workerId).toMatch(/^worker_/);
     expect(config.worker.jobKinds).toEqual(["simulation"]);

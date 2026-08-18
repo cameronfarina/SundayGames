@@ -2,6 +2,7 @@ import { InMemoryPlatformInvitationRepository } from "../platformInvitations.js"
 import { InMemoryPlatformOnboardingRepository, PostgresPlatformOnboardingRepository } from "../platformOnboarding.js";
 import { PostgresAuthRepository } from "../postgresAuth.js";
 import { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js";
+import { PostgresFantasyProsRepository } from "../postgresFantasyPros.js";
 import { PostgresHistoricalImportRepository } from "../postgresHistoricalImports.js";
 import { PostgresJobQueue } from "../postgresJobQueue.js";
 import { PostgresLeagueSetupRepository } from "../postgresLeagueSetup.js";
@@ -42,6 +43,10 @@ export const composeRuntimeRepositories = (
       sharedTransactionalClient !== undefined
     ? new PostgresPlayerNewsRepository(sharedTransactionalClient)
     : undefined;
+  const postgresFantasyProsRepository = options.fantasyProsRepository === undefined &&
+      sharedTransactionalClient !== undefined
+    ? new PostgresFantasyProsRepository(sharedTransactionalClient)
+    : undefined;
   const liveDraftClient = options.postgresLiveDraftRoomClient ??
     (options.liveDraftRoomRepository === undefined ? sharedTransactionalClient : undefined);
   const exportArtifactClient = options.postgresExportArtifactClient ??
@@ -71,6 +76,8 @@ export const composeRuntimeRepositories = (
       postgresPracticeShortlistRepository ?? store.practiceShortlists,
     playerNewsRepository: options.playerNewsRepository ??
       postgresPlayerNewsRepository ?? store.playerNews,
+    fantasyProsRepository: options.fantasyProsRepository ??
+      postgresFantasyProsRepository ?? store.fantasyPros,
     liveDraftRoomRepository: options.liveDraftRoomRepository ??
       postgresLiveDraftRoomRepository ?? store.liveDraftRooms,
     exportArtifactRepository: options.exportArtifactRepository ??
@@ -90,6 +97,7 @@ export const composeRuntimeRepositories = (
     ...(postgresSimulationRepository === undefined ? {} : { postgresSimulationRepository }),
     ...(postgresPracticeShortlistRepository === undefined ? {} : { postgresPracticeShortlistRepository }),
     ...(postgresPlayerNewsRepository === undefined ? {} : { postgresPlayerNewsRepository }),
+    ...(postgresFantasyProsRepository === undefined ? {} : { postgresFantasyProsRepository }),
     ...(postgresLiveDraftRoomRepository === undefined ? {} : { postgresLiveDraftRoomRepository }),
     ...(postgresExportArtifactRepository === undefined ? {} : { postgresExportArtifactRepository }),
     ...(postgresInvitationRepository === undefined ? {} : { postgresInvitationRepository }),

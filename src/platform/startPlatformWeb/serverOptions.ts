@@ -64,6 +64,7 @@ export const platformWebServerOptions = (
   ...(config.liveDraftDataMode === "local-fixtures"
     ? { liveDraftRoomSetupProvider: localFixtureDraftSetupFor }
     : {}),
+  fantasyProsConfigured: config.fantasyPros.apiKey !== undefined,
   readinessProbe: createPlatformWebReadinessProbe(config, dependencies.postgresClient),
   simulationRunner: dependencies.simulationRunner,
 });

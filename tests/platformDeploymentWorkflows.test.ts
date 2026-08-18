@@ -48,6 +48,7 @@ describe("production deployment workflows", () => {
     expect(content).toContain("http://127.0.0.1:4319/readyz");
     expect(content).toContain("--env MOCKD_SCREENSHOT_IMPORT_MODE=disabled");
     expect(content).not.toContain("--env OPENAI_API_KEY");
+    expect(content).not.toContain("--env FANTASYPROS_API_KEY");
     expect(content).toContain("--env MOCKD_ALLOW_PUBLIC_SIGNUP=true");
     expect(content).toContain("--env MOCKD_AUTH_EMAIL_MODE=resend");
     expect(content).toContain("--env RESEND_API_KEY=ci-placeholder-not-used");

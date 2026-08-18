@@ -1,5 +1,6 @@
 import type { AuthRepository } from "../auth.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
+import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
@@ -15,6 +16,7 @@ import type { PlayerNewsRepository } from "../playerNews.js";
 import type { PracticeShortlistRepository } from "../practiceShortlists.js";
 import type { PostgresAuthRepository } from "../postgresAuth.js";
 import type { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js";
+import type { PostgresFantasyProsRepository } from "../postgresFantasyPros.js";
 import type { PostgresHistoricalImportRepository } from "../postgresHistoricalImports.js";
 import type { PostgresJobQueue } from "../postgresJobQueue.js";
 import type { PostgresLeagueSetupRepository } from "../postgresLeagueSetup.js";
@@ -41,6 +43,7 @@ export interface RuntimeRepositories extends LoadedPlatformStore {
   simulationRepository: SimulationRepository;
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
+  fantasyProsRepository: FantasyProsRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
   invitationRepository: PlatformInvitationRepository;
@@ -53,6 +56,7 @@ export interface RuntimeRepositories extends LoadedPlatformStore {
   postgresSimulationRepository?: PostgresSimulationRepository | undefined;
   postgresPracticeShortlistRepository?: PostgresPracticeShortlistRepository | undefined;
   postgresPlayerNewsRepository?: PostgresPlayerNewsRepository | undefined;
+  postgresFantasyProsRepository?: PostgresFantasyProsRepository | undefined;
   postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
   postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
   postgresInvitationRepository?: PostgresPlatformInvitationRepository | undefined;

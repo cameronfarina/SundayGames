@@ -67,5 +67,7 @@ services:
         value: mockd-production
       - key: MOCKD_SCREENSHOT_IMPORT_MODE
         value: disabled
+      - key: FANTASYPROS_API_KEY
+        sync: false
       - key: MOCKD_ENABLE_LEGACY_MOCK_BATCH
         value: "false"

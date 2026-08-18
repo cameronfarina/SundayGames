@@ -36,6 +36,7 @@ const localServerEnvironment = (config: LocalServerConfig): NodeJS.ProcessEnv =>
   MOCKD_PROVISIONING_TOKEN: "local-e2e-provisioning-token",
   MOCKD_SCREENSHOT_IMPORT_MODE: "disabled",
   OPENAI_API_KEY: "",
+  FANTASYPROS_API_KEY: "",
 });
 
 const startLocalServer = (config: LocalServerConfig): ChildProcess =>

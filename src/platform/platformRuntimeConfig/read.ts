@@ -18,6 +18,7 @@ import {
   positiveIntegerEnv,
 } from "./env.js";
 import {
+  fantasyProsConfig,
   legacyMockBatchEnabled,
   liveDraftDataMode,
   runtimeWorkerId,
@@ -83,6 +84,7 @@ export const readPlatformRuntimeConfig = (
     authEmail: authEmailConfig(env),
     simulationDataMode: parsedSimulationDataMode,
     screenshotImport: screenshotImportConfig(env),
+    fantasyPros: fantasyProsConfig(env),
     worker: {
       workerId: runtimeWorkerId(env),
       jobKinds: parsedWorkerJobKinds,

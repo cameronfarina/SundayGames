@@ -1,5 +1,6 @@
 import { InMemoryAuthRepository } from "../../../auth.js";
 import { InMemoryExportArtifactRepository } from "../../../exportArtifacts.js";
+import { InMemoryFantasyProsRepository } from "../../../fantasyPros.js";
 import { InMemoryHistoricalImportRepository } from "../../../historicalImports.js";
 import { InMemoryJobQueue } from "../../../jobs.js";
 import { InMemoryLiveDraftRoomRepository } from "../../../liveDraftRooms.js";
@@ -26,6 +27,7 @@ export class InMemoryPlatformRepositories {
   readonly simulations = new InMemorySimulationRepository();
   readonly practiceShortlists = new InMemoryPracticeShortlistRepository();
   readonly playerNews = new InMemoryPlayerNewsRepository();
+  readonly fantasyPros = new InMemoryFantasyProsRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
   readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
 

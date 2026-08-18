@@ -4,6 +4,7 @@ import { coachTables } from "./coachTables.js";
 import { draftCoreTables } from "./draftCoreTables.js";
 import { draftExportTables } from "./draftExportTables.js";
 import { draftStateTables } from "./draftStateTables.js";
+import { fantasyProsTables } from "./fantasyProsTables.js";
 import { historyTables } from "./historyTables.js";
 import { jobTables } from "./jobTables.js";
 import { leagueTables } from "./leagueTables.js";
@@ -31,4 +32,5 @@ export const platformPostgresTables: readonly PostgresTableDefinition[] = [
   ...draftExportTables,
   ...auditTables,
   ...playerNewsTables,
+  ...fantasyProsTables,
 ];

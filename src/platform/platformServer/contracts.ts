@@ -4,6 +4,7 @@ import type {
   NormalizedEmailRateLimiter,
 } from "../authRateLimit.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
+import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
@@ -50,6 +51,8 @@ export interface CreatePlatformServerOptions {
   simulationRepository?: SimulationRepository | undefined;
   practiceShortlistRepository?: PracticeShortlistRepository | undefined;
   playerNewsRepository?: PlayerNewsRepository | undefined;
+  fantasyProsRepository?: FantasyProsRepository | undefined;
+  fantasyProsConfigured?: boolean | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;

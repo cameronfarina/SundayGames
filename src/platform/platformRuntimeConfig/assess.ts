@@ -14,6 +14,7 @@ import { accountCheck, emailCheck, invitationCheck, storageChecks } from "./core
 import { readPlatformRuntimeConfig } from "./read.js";
 import {
   bindCheck,
+  fantasyProsCheck,
   liveDraftCheck,
   privateStorageCheck,
   screenshotCheck,
@@ -37,6 +38,7 @@ export const assessPlatformProductionReadiness = (
     privateStorageCheck(env),
     bind.check,
     screenshotCheck(env),
+    fantasyProsCheck(env),
   ];
   if (storage.kind === "postgres" && databaseUsesPostgresScheme && bind.port !== undefined) {
     try {

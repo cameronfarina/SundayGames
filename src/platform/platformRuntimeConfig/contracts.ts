@@ -26,6 +26,12 @@ export interface ScreenshotImportConfig {
   maxConcurrentRequests: number;
 }
 
+export interface FantasyProsConfig {
+  apiKey: string | undefined;
+  refreshEnabled: boolean;
+  season: number;
+}
+
 export interface PlatformRuntimeConfig {
   host: string;
   port: number;
@@ -45,6 +51,7 @@ export interface PlatformRuntimeConfig {
   authEmail: AuthEmailConfig;
   simulationDataMode: "disabled" | "local-fixtures";
   screenshotImport: ScreenshotImportConfig;
+  fantasyPros: FantasyProsConfig;
   worker: {
     workerId: string;
     jobKinds: readonly JobKind[];

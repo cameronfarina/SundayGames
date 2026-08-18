@@ -116,6 +116,8 @@ describe("Render production blueprint", () => {
     expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");
     expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODEL")).toBeUndefined();
     expect(envFor(web, "OPENAI_API_KEY")).toBeUndefined();
+    expect(envFor(web, "FANTASYPROS_API_KEY"))
+      .toEqual({ key: "FANTASYPROS_API_KEY", sync: false });
   });
 
   it("does not deploy the legacy fixture-backed simulation worker", async () => {

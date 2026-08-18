@@ -1,6 +1,7 @@
 import type { Server } from "node:http";
 import type { AuthRepository } from "../auth.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
+import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
@@ -38,6 +39,7 @@ export interface PlatformServer {
   simulationRepository: SimulationRepository;
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
+  fantasyProsRepository: FantasyProsRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
   invitationRepository: PlatformInvitationRepository;

@@ -1,4 +1,5 @@
 import type { AuthMailSender } from "../auth.js";
+import { createFantasyProsClient, type FantasyProsClient } from "../../data/fantasyPros.js";
 import {
   createOpenAiLeagueMembersScreenshotAnalyzer,
   type LeagueMembersScreenshotAnalyzer,
@@ -35,5 +36,17 @@ export const screenshotAnalyzerFor = (
     timeoutMs: config.screenshotImport.timeoutMs,
     maxImageBytes: config.screenshotImport.maxImageBytes,
     maxConcurrentRequests: config.screenshotImport.maxConcurrentRequests,
+  });
+};
+
+export const fantasyProsClientFor = (
+  config: PlatformRuntimeConfig,
+): FantasyProsClient | undefined => {
+  if (!config.fantasyPros.refreshEnabled) return undefined;
+  if (config.fantasyPros.apiKey === undefined) return undefined;
+
+  return createFantasyProsClient({
+    apiKey: config.fantasyPros.apiKey,
+    season: config.fantasyPros.season,
   });
 };
