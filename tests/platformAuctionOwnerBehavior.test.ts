@@ -162,11 +162,13 @@ describe("auction owner behavior", () => {
       expectedRevision: nominated.session.revision,
     });
 
-    // Team B holds a $25 keeper surplus, but its only open slot is a bench
-    // slot, so it never bids that surplus onto a $5 bench player.
+    // Team B's $25 keeper surplus stays off the bench slot, but its spare
+    // cash does not: real owners finish at $0, so the room's money prices
+    // even a $5 bench player once the board is nearly empty.
     const sale = passed.sales.find(candidate => candidate.playerId === "bench-rb");
     expect(sale).toBeDefined();
-    expect(sale?.price).toBeLessThanOrEqual(6);
+    expect(sale?.teamId).toBe("team-b");
+    expect(sale?.price).toBe(23);
   });
 
   it("pays up for a starter when it holds more cash than the room", () => {
@@ -212,7 +214,7 @@ describe("auction owner behavior", () => {
     expect(sale?.price).toBeGreaterThan(20);
   });
 
-  it("opens a final-slot nomination at the minimum bid instead of dumping budget", () => {
+  it("opens a final-slot nomination with its spend-down cash instead of hoarding it", () => {
     const state = start(config({
       humanTeamId: "team-d",
       rosterSlots: [{ slot: "RB", count: 1, eligiblePositions: ["RB"] }],
@@ -225,11 +227,11 @@ describe("auction owner behavior", () => {
       ],
     }));
 
-    // The AI nominator has its whole $50 and one roster slot, yet the bid
-    // starts at $1 and settles near value.
+    // The AI nominator holds $50 for one roster slot on a bare board. Real
+    // owners leave at most $3, so the nomination opens at the money, not $1.
     const nomination = state.session.currentNomination;
     expect(nomination).toBeDefined();
-    expect(nomination?.currentPrice).toBeLessThanOrEqual(4);
+    expect(nomination?.currentPrice).toBe(39);
   });
 
   it("bids under value on a premium player when the owner's style avoids studs", () => {

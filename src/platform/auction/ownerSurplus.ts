@@ -1,9 +1,9 @@
+import { premiumValueThresholdDollars } from "./pricingConstants.js";
 import type { GenericAuctionMockTeamReadModel } from "./types.js";
 
 // The edge surplus buys on any single player: enough to beat a rival at
 // market value, never enough to re-inflate the whole board.
 const surplusBidLiftShare = 0.1;
-const combinedBidLiftShare = 0.25;
 
 // Bench slots take every position; a starter slot is any narrower slot.
 const benchSlotNamePrefix = "BENCH";
@@ -58,36 +58,49 @@ const sparePerOpenSlotFor = (
   : Math.max(0, team.budgetRemaining - team.rosterSlotsRemaining * minimumBid)
     / team.rosterSlotsRemaining;
 
-// An owner holding more spare cash per open slot than the room pays up
-// rather than watch good players pass by. The pressure is relative, so an
-// evenly-funded room adds nothing to any price.
-const budgetPressureLiftFor = (
-  teams: readonly GenericAuctionMockTeamReadModel[],
+// History says every owner spends the full budget, and the money lands on
+// talent, not on fliers: an owner who missed the studs loads up on the
+// $20-39 tier while $1 players stay $1. So each owner prices the remaining
+// board by the ratio of their spare cash to what their share of the board
+// costs at value, and the lift scales with the player's value. On a final
+// slot the ratio takes over and the remaining cash lands there.
+export const budgetPressureLiftFor = (
   team: GenericAuctionMockTeamReadModel,
   minimumBid: number,
+  remainingValuePerSlot: number,
+  expectedPrice: number,
 ): number => {
-  const openTeams = teams.filter(candidate => candidate.rosterSlotsRemaining > 0);
-  if (openTeams.length === 0) return 0;
-  const roomAverage = openTeams.reduce(
-    (total, candidate) => total + sparePerOpenSlotFor(candidate, minimumBid),
+  if (expectedPrice >= premiumValueThresholdDollars) return 0;
+  const spare = Math.max(
     0,
-  ) / openTeams.length;
-  return Math.max(0, Math.floor(sparePerOpenSlotFor(team, minimumBid) - roomAverage));
+    team.budgetRemaining - team.rosterSlotsRemaining * minimumBid,
+  );
+  const fairShareCost = team.rosterSlotsRemaining * remainingValuePerSlot;
+  if (fairShareCost <= 0) return 0;
+  // A flush owner overpays for talent, but paying stud money for a
+  // non-stud is where real owners stop: no-stud teams top out at $31-39.
+  return Math.min(
+    Math.round(expectedPrice * Math.max(0, spare / fairShareCost - 1)),
+    Math.max(0, premiumValueThresholdDollars - 1 - expectedPrice),
+  );
 };
 
-// Together the two lifts stay a fraction of the player's value, so an owner
-// with money outbids a rival at market value without re-inflating the board.
+// Surplus stays a fraction of the player's value so keeper bargains never
+// re-inflate the board; spend-down pressure carries no such cap, because
+// late-draft players must be able to absorb the room's remaining cash.
 export const ownerBidLiftFor = (input: {
-  teams: readonly GenericAuctionMockTeamReadModel[];
   team: GenericAuctionMockTeamReadModel;
   position: string;
   expectedPrice: number;
   minimumBid: number;
+  remainingValuePerSlot: number;
   pressureExempt: boolean;
-}): number => Math.min(
-  surplusBidLiftFor(input.team, input.position, input.expectedPrice)
-    + (input.pressureExempt
-      ? 0
-      : budgetPressureLiftFor(input.teams, input.team, input.minimumBid)),
-  Math.ceil(input.expectedPrice * combinedBidLiftShare),
-);
+}): number => surplusBidLiftFor(input.team, input.position, input.expectedPrice)
+  + (input.pressureExempt
+    ? 0
+    : budgetPressureLiftFor(
+      input.team,
+      input.minimumBid,
+      input.remainingValuePerSlot,
+      input.expectedPrice,
+    ));

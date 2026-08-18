@@ -10,6 +10,7 @@ export interface GenericAuctionMockAnalysisCache {
   acquirableRbOrWrAlternativeByTeamId: Map<string, boolean>;
   remainingStarterEligiblePlayersByPosition: Map<string, readonly GenericAuctionMockBoardPlayer[]>;
   starterEligibilitySignalByPosition: Map<string, boolean>;
+  remainingValuePerSlot?: number;
 }
 
 export interface GenericAuctionMockAnalysisCacheEntry {

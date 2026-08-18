@@ -7,7 +7,7 @@ import { auctionSeason, teams } from "./leagueFixtures.js";
 import { catalogPlayer } from "./simulationFixtures.js";
 
 export const registerAuctionBudgetTests = (): void => {
-  it("keeps sale prices honest when the room holds more money than the board", () => {
+  it("bids up a bare board with spend-down cash while the books stay balanced", () => {
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,
       settings: {
@@ -40,10 +40,11 @@ export const registerAuctionBudgetTests = (): void => {
       });
       for (const team of result.runs[0]?.teams ?? []) {
         const rosterSpend = team.roster.reduce((total, player) => total + (player.price ?? 0), 0);
-        // Nobody dumps leftover budget onto a $1 player, and the books balance.
+        // Real owners finish near $0, so a money-rich room bids the bare
+        // board up - but never past the sub-stud line, and the books balance.
         expect(
-          team.roster.every(player => (player.price ?? 0) <= 5),
-          `${team.teamName} overpaid on a $1 board: ${JSON.stringify(team.roster)}`,
+          team.roster.every(player => (player.price ?? 0) <= 40),
+          `${team.teamName} paid stud money on a $1 board: ${JSON.stringify(team.roster)}`,
         ).toBe(true);
         expect(team.budgetRemaining).toBe(100 - rosterSpend);
       }

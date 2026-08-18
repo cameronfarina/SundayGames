@@ -24,11 +24,11 @@ export const registerTargetBudgetPlanTests = (): void => {
       "Premium Runner",
       "Value Runner",
     ]);
-    expect(humanTeam?.spent).toBe(97);
-    expect(humanTeam?.budgetRemaining).toBe(3);
+    expect(humanTeam?.spent).toBe(98);
+    expect(humanTeam?.budgetRemaining).toBe(2);
     expect(humanTeam?.roster).toEqual(expect.arrayContaining([
       expect.objectContaining({ playerName: "Premium Runner", price: 58 }),
-      expect.objectContaining({ playerName: "Value Runner", price: 39 }),
+      expect.objectContaining({ playerName: "Value Runner", price: 40 }),
     ]));
   });
 
@@ -69,12 +69,12 @@ export const registerTargetBudgetPlanTests = (): void => {
 
     expect(humanTeam?.roster).toEqual(expect.arrayContaining([
       expect.objectContaining({ playerName: "Premium Runner", price: 58 }),
-      expect.objectContaining({ playerName: "Value Runner", price: 39 }),
+      expect.objectContaining({ playerName: "Value Runner", price: 40 }),
     ]));
     expect(humanTeam?.roster).toHaveLength(2);
     expect(new Set(humanTeam?.roster.map(player => player.playerId)).size).toBe(2);
-    expect(humanTeam?.spent).toBe(97);
-    expect(humanTeam?.budgetRemaining).toBe(3);
+    expect(humanTeam?.spent).toBe(98);
+    expect(humanTeam?.budgetRemaining).toBe(2);
   });
 
   it("keeps a budget-infeasible uncapped target plan within auction invariants", () => {

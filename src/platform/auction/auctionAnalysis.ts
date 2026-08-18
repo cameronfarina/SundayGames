@@ -52,3 +52,22 @@ export const positionScarcityMultiplierFor = (
 
   return 1 + depletion * demandPressure * 0.15;
 };
+
+// What one open roster slot can still expect to buy: the top remaining
+// values, one per open slot, averaged across the room. When the room's
+// spare cash per slot exceeds this, prices must rise to clear the money.
+export const remainingValuePerSlotFor = (state: GenericAuctionMockState): number => {
+  const cache = analysisCacheFor(state);
+  if (cache.remainingValuePerSlot !== undefined) return cache.remainingValuePerSlot;
+  const openSlots = state.teams.reduce((total, team) => total + team.rosterSlotsRemaining, 0);
+  const topValues = openSlots <= 0 ? [] : state.board.players
+    .filter(player => player.status !== "sold")
+    .map(player => player.expectedPrice)
+    .sort((left, right) => right - left)
+    .slice(0, openSlots);
+  const valuePerSlot = topValues.length === 0
+    ? 0
+    : topValues.reduce((total, value) => total + value, 0) / openSlots;
+  cache.remainingValuePerSlot = valuePerSlot;
+  return valuePerSlot;
+};

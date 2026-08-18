@@ -11,6 +11,7 @@ import {
   type ResolvedSeasonSimulationPreference,
 } from "../seasonSimulationPreferences.js";
 import type { SeasonSimulationTargetConstraint } from "../seasonSimulationTargets.js";
+import { remainingValuePerSlotFor } from "../auction/auctionAnalysis.js";
 import { backupDepthMaximumBidFor } from "../auction/backupDepth.js";
 import { ownerBidLiftFor } from "../auction/ownerSurplus.js";
 import { flatPricedAuctionPositions } from "../auction/pricingConstants.js";
@@ -75,11 +76,11 @@ export const auctionWillingnessFor = (
   const preferenceDollars = isPreferred ? Math.ceil(baseValue * 0.15) : 0;
   const targetDollars = isTarget || isPair ? Math.ceil(baseValue * 0.1) : 0;
   const ownerLiftDollars = ownerBidLiftFor({
-    teams: state.teams,
     team,
     position: player.position,
     expectedPrice: baseValue,
     minimumBid: state.configuration.minimumBidDollars,
+    remainingValuePerSlot: remainingValuePerSlotFor(state),
     pressureExempt: state.configuration.ai?.bidPressureExemptPlayerIds
       ?.includes(player.id) ?? false,
   });

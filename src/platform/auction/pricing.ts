@@ -2,6 +2,7 @@ import {
   averageRosterNeedFor,
   eligibleAiTeamsFor,
   positionScarcityMultiplierFor,
+  remainingValuePerSlotFor,
 } from "./auctionAnalysis.js";
 import { backupDepthMaximumBidFor } from "./backupDepth.js";
 import { deterministicFraction } from "./deterministic.js";
@@ -73,11 +74,11 @@ export const aiMaxBidFor = (
     team.maxBid,
     maximumAutomatedAuctionBidFor(state, team, player),
     willingness + ownerBidLiftFor({
-      teams: state.teams,
       team,
       position: player.position,
       expectedPrice: player.expectedPrice,
       minimumBid: state.configuration.minimumBidDollars,
+      remainingValuePerSlot: remainingValuePerSlotFor(state),
       pressureExempt: state.configuration.ai?.bidPressureExemptPlayerIds
         ?.includes(player.id) ?? false,
     }),

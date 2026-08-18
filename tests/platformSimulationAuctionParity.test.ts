@@ -51,7 +51,7 @@ const setup: LiveDraftRoomSetup = {
   sourceVersion: "test",
   playerCatalog: [
     { name: "Target RB", position: "RB", expectedPrice: 2 },
-    { name: "Fallback RB", position: "RB", expectedPrice: 1 },
+    { name: "Fallback RB", position: "RB", expectedPrice: 60 },
     { name: "Keeper One", position: "RB", expectedPrice: 1 },
     { name: "Keeper Two", position: "RB", expectedPrice: 1 },
   ],
@@ -81,7 +81,7 @@ const interactiveSalePrice = (): number | undefined => {
     positionMaximums: { RB: 1 },
     players: [
       { id: "target rb", name: "Target RB", position: "RB", expectedPrice: 2 },
-      { id: "fallback rb", name: "Fallback RB", position: "RB", expectedPrice: 1 },
+      { id: "fallback rb", name: "Fallback RB", position: "RB", expectedPrice: 60 },
       { id: "keeper one", name: "Keeper One", position: "RB", expectedPrice: 1 },
       { id: "keeper two", name: "Keeper Two", position: "RB", expectedPrice: 1 },
     ],

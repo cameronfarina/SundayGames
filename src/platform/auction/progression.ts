@@ -1,5 +1,8 @@
+import { remainingValuePerSlotFor } from "./auctionAnalysis.js";
 import { GenericAuctionMockError } from "./errors.js";
 import { openNomination } from "./nomination.js";
+import { budgetPressureLiftFor } from "./ownerSurplus.js";
+import { aiMaxBidFor } from "./pricing.js";
 import {
   availableNominationPlayersFor,
   nextNominator,
@@ -8,6 +11,26 @@ import {
 import { rosterCapacityFor } from "./roster.js";
 import { progressCurrentNomination } from "./settlement.js";
 import type { GenericAuctionMockState } from "./types.js";
+
+// A nominator with money the board can no longer absorb opens at their
+// pressure level instead of the minimum bid, the way a real owner announces
+// "$15 on this guy" late in a draft. With money and board in balance the
+// pressure is zero and every nomination still opens at the minimum bid.
+const aiOpeningBidFor = (
+  state: GenericAuctionMockState,
+  team: Parameters<typeof aiMaxBidFor>[1],
+  player: Parameters<typeof aiMaxBidFor>[2],
+): number => {
+  const minimumBid = state.configuration.minimumBidDollars;
+  const pressureOpening = minimumBid + budgetPressureLiftFor(
+    team,
+    minimumBid,
+    remainingValuePerSlotFor(state),
+    player.expectedPrice,
+  );
+  const willingness = aiMaxBidFor(state, team, player, state.session.nominationsCompleted + 1);
+  return Math.max(minimumBid, Math.min(pressureOpening, willingness));
+};
 
 export const advanceToHumanDecision = (state: GenericAuctionMockState): GenericAuctionMockState => {
   let nextState = state;
@@ -62,7 +85,7 @@ export const advanceToHumanDecision = (state: GenericAuctionMockState): GenericA
         nextState,
         nominator.team,
         player,
-        nextState.configuration.minimumBidDollars,
+        aiOpeningBidFor(nextState, nominator.team, player),
       ),
       nextNominatorIndex: nominator.index,
     };

@@ -11,7 +11,9 @@ const config: GenericAuctionMockConfig = {
   sessionId: "command-validation",
   seed: "command-validation-seed",
   humanTeamId: "human",
-  budgetDollars: 20,
+  // Budget tracks the board's per-slot value, so spend-down pressure stays
+  // quiet and these tests exercise command validation, not economics.
+  budgetDollars: 10,
   minimumBidDollars: 1,
   teams: [
     { id: "human", name: "Human" },
@@ -23,9 +25,9 @@ const config: GenericAuctionMockConfig = {
   positionMaximums: { QB: 1 },
   players: [
     { id: "qb-1", name: "QB One", position: "QB", expectedPrice: 8 },
-    { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 6 },
-    { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 4 },
-    { id: "qb-4", name: "QB Four", position: "QB", expectedPrice: 2 },
+    { id: "qb-2", name: "QB Two", position: "QB", expectedPrice: 10 },
+    { id: "qb-3", name: "QB Three", position: "QB", expectedPrice: 9 },
+    { id: "qb-4", name: "QB Four", position: "QB", expectedPrice: 9 },
   ],
   ai: {
     defaultBidMultiplier: 1,

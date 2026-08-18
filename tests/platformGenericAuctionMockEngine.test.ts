@@ -166,8 +166,8 @@ describe("generic auction mock engine", () => {
         expectedPrice: 8,
         nominatedByTeamId: "team-a",
         highestBidderTeamId: "team-b",
-        currentPrice: 8,
-        nextBid: 9,
+        currentPrice: 16,
+        nextBid: 17,
         humanCanBuy: true,
         humanCanPass: true,
       },
@@ -185,7 +185,7 @@ describe("generic auction mock engine", () => {
         type: "bid",
         playerId: "qb-1",
         teamId: "team-b",
-        price: 8,
+        price: 16,
       }),
     ]));
   });
@@ -233,29 +233,29 @@ describe("generic auction mock engine", () => {
     const bought = applyGenericAuctionMockCommand(nominated, {
       type: "buy",
       expectedRevision: 2,
-      price: 10,
+      price: 17,
     });
 
     expect(bought.sales[0]).toMatchObject({
       number: 1,
       playerId: "qb-1",
       teamId: "team-a",
-      price: 10,
+      price: 17,
       source: "human",
       nominatedByTeamId: "team-a",
     });
     expect(bought.teams.find(team => team.id === "team-a")).toMatchObject({
-      spent: 10,
-      budgetRemaining: 10,
+      spent: 17,
+      budgetRemaining: 3,
       rosterSlotsRemaining: 1,
-      maxBid: 10,
+      maxBid: 3,
     });
     expect(bought.teams.find(team => team.id === "team-a")?.roster[0])
-      .toMatchObject({ playerId: "qb-1", rosterSlot: "QB", price: 10 });
+      .toMatchObject({ playerId: "qb-1", rosterSlot: "QB", price: 17 });
     expect(bought.board.players.find(player => player.id === "qb-1"))
       .toMatchObject({ status: "sold", available: false });
-    expect(bought.session.phase).toBe("awaiting_human_bid");
-    expect(bought.session.currentNomination?.nominatedByTeamId).toBe("team-b");
+    expect(bought.session.phase).toBe("awaiting_human_nomination");
+    expect(bought.session.currentNomination).toBeUndefined();
   });
 
   it("automatically counters a human bid when an AI ceiling is higher", () => {
@@ -280,14 +280,14 @@ describe("generic auction mock engine", () => {
     const countered = applyGenericAuctionMockCommand(nominated, {
       type: "buy",
       expectedRevision: 2,
-      price: 8,
+      price: 14,
     });
 
     expect(countered.sales).toEqual([]);
     expect(countered.session.currentNomination).toMatchObject({
       highestBidderTeamId: "team-b",
-      currentPrice: 9,
-      nextBid: 10,
+      currentPrice: 15,
+      nextBid: 16,
       humanCanBuy: true,
     });
   });
@@ -307,7 +307,7 @@ describe("generic auction mock engine", () => {
     expect(passed.sales[0]).toMatchObject({
       playerId: "qb-1",
       teamId: "team-b",
-      price: 8,
+      price: 16,
       source: "ai",
     });
     expect(passed.session.revision).toBe(3);
@@ -323,7 +323,7 @@ describe("generic auction mock engine", () => {
         type: "sold",
         playerId: "qb-1",
         teamId: "team-b",
-        price: 8,
+        price: 16,
       }),
     ]));
   });
@@ -491,9 +491,9 @@ describe("generic auction mock engine", () => {
 
     expect(nominated.session.currentNomination).toMatchObject({
       highestBidderTeamId: "team-b",
-      currentPrice: 7,
+      currentPrice: 13,
     });
-    expect(passed.sales[0]).toMatchObject({ teamId: "team-b", playerId: "wr-1", price: 7 });
+    expect(passed.sales[0]).toMatchObject({ teamId: "team-b", playerId: "wr-1", price: 13 });
   });
 
   it("centers competitive AI clearing prices around the expected market price", () => {
@@ -554,7 +554,7 @@ describe("generic auction mock engine", () => {
     expect(afterHumanSale.session.currentNomination).toMatchObject({
       nominatedByTeamId: "team-c",
       highestBidderTeamId: "team-c",
-      currentPrice: 8,
+      currentPrice: 14,
     });
   });
 
