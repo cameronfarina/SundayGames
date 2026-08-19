@@ -73,7 +73,12 @@ const keeperPolicyValue = (value: unknown, path: string): KeeperPolicy => {
   const record = recordValue(value, path);
   if (record.mode !== "previous-cost-multiplier") return invalidSnapshot(`${path}.mode`);
   if (record.rounding !== "ceil") return invalidSnapshot(`${path}.rounding`);
-  return { mode: record.mode, multiplier: numberValue(record.multiplier, `${path}.multiplier`), rounding: record.rounding };
+  return {
+    mode: record.mode,
+    multiplier: numberValue(record.multiplier, `${path}.multiplier`),
+    rounding: record.rounding,
+    ...(record.enabled === false ? { enabled: false } : {}),
+  };
 };
 
 const auctionSettings = (

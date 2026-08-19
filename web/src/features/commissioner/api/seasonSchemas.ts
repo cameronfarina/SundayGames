@@ -36,6 +36,7 @@ const settingsCore = {
     mode: z.literal("previous-cost-multiplier"),
     multiplier: z.number(),
     rounding: z.literal("ceil"),
+    enabled: z.boolean().optional(),
   }),
 };
 

@@ -21,6 +21,7 @@ const keeperPolicySchema = z.object({
   mode: z.literal("previous-cost-multiplier"),
   multiplier: z.number().positive(),
   rounding: z.literal("ceil"),
+  enabled: z.boolean().optional(),
 });
 
 const settingsCore = {

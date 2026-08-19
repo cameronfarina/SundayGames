@@ -53,6 +53,9 @@ export const confirmedLeagueCreationInputFromUnknown = (
     throw new LeagueCreationError("League provider is invalid.");
   }
   if (!Array.isArray(input.teams)) throw new LeagueCreationError("League teams are required.");
+  if (input.keeperLeague !== undefined && typeof input.keeperLeague !== "boolean") {
+    throw new LeagueCreationError("Keeper league flag is invalid.");
+  }
   const scoring = recordValue(input.scoring, "Scoring settings");
   const rosterSlotsRecord = recordValue(input.rosterSlots, "Roster slots");
   const rosterSlots = Object.fromEntries(Object.entries(rosterSlotsRecord).map(([slot, count]) => {
@@ -66,6 +69,7 @@ export const confirmedLeagueCreationInputFromUnknown = (
     leagueName: stringField(input, "leagueName", "League name"),
     seasonYear: numberField(input, "seasonYear", "Season"),
     expectedTeamCount: numberField(input, "expectedTeamCount", "Team count"),
+    ...(input.keeperLeague === undefined ? {} : { keeperLeague: input.keeperLeague }),
     teams: teamsFrom(input.teams),
     draft: draftFrom(input.draft),
     scoring: {

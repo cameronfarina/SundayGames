@@ -3,6 +3,7 @@ import type { FantasyTeam, SeasonKeeper } from "../../api/leagueSchemas";
 
 interface LeagueTeamsProps {
   readonly keepers: readonly SeasonKeeper[];
+  readonly keepersEnabled: boolean;
   readonly manageKeepersPath: string | undefined;
   readonly teams: readonly FantasyTeam[];
 }
@@ -11,11 +12,11 @@ const keeperPrice = (keeper: SeasonKeeper): string => keeper.keeperRound === und
   ? `$${String(keeper.price)} keeper`
   : `Round ${String(keeper.keeperRound)} keeper`;
 
-export function LeagueTeams({ keepers, manageKeepersPath, teams }: LeagueTeamsProps) {
+export function LeagueTeams({ keepers, keepersEnabled, manageKeepersPath, teams }: LeagueTeamsProps) {
   return (
     <section className="league-section" aria-labelledby="league-teams-title">
       <div className="league-section__heading">
-        <h2 id="league-teams-title">Teams and keepers</h2>
+        <h2 id="league-teams-title">{keepersEnabled ? "Teams and keepers" : "Teams"}</h2>
         <div className="league-section__actions">
           <span>{teams.length} teams</span>
           {manageKeepersPath === undefined ? null : (
@@ -38,7 +39,7 @@ export function LeagueTeams({ keepers, manageKeepersPath, teams }: LeagueTeamsPr
                 <h3>{team.displayName}</h3>
                 <p>{team.managerDisplayNames?.join(", ") ?? team.ownerDisplayName}</p>
               </div>
-              {teamKeepers.length === 0 ? <p>No keepers</p> : (
+              {!keepersEnabled ? null : teamKeepers.length === 0 ? <p>No keepers</p> : (
                 <ul>
                   {teamKeepers.map((keeper) => (
                     <li key={`${team.id}-${keeper.playerName}`}>

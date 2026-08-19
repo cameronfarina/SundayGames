@@ -29,6 +29,7 @@ export interface LeagueDraft {
   readonly seasonYear: number;
   readonly teamCount: number;
   readonly draftType: DraftType;
+  readonly keeperLeague: boolean;
   readonly auctionBudget: number;
   readonly minimumBid: number;
   readonly snakeRounds: number;
@@ -74,6 +75,7 @@ export interface ConfirmedLeagueSetup {
   readonly leagueName: string;
   readonly seasonYear: number;
   readonly expectedTeamCount: number;
+  readonly keeperLeague: boolean;
   readonly teams: readonly ConfirmedLeagueTeam[];
   readonly draft:
     | { readonly type: "auction"; readonly budgetDollars: number; readonly minimumBidDollars: number }

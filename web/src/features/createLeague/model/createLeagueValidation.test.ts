@@ -66,6 +66,7 @@ describe("create league validation", () => {
       leagueName: "Sunday Games",
       seasonYear: 2026,
       expectedTeamCount: 2,
+      keeperLeague: false,
       teams: [
         { externalTeamId: "1", displayName: "Short King" },
         { externalTeamId: "2", displayName: "Dart Vader" },
@@ -74,6 +75,13 @@ describe("create league validation", () => {
       scoring: draft.scoring,
       rosterSlots: draft.roster,
     });
+  });
+
+  it("carries the keeper league choice into the created league", () => {
+    let draft = completedDraft();
+    draft = leagueDraftReducer(draft, { type: "set-keeper-league", value: true });
+
+    expect(createLeagueSetup(draft)).toMatchObject({ keeperLeague: true });
   });
 
   it("carries the chosen snake rounds into the created league", () => {

@@ -12,6 +12,7 @@ export type LeagueDraftAction =
   | { readonly type: "set-season"; readonly value: number }
   | { readonly type: "set-team-count"; readonly value: number }
   | { readonly type: "set-draft-type"; readonly value: DraftType }
+  | { readonly type: "set-keeper-league"; readonly value: boolean }
   | { readonly type: "set-auction-budget"; readonly value: number }
   | { readonly type: "set-minimum-bid"; readonly value: number }
   | { readonly type: "set-snake-rounds"; readonly value: number }
@@ -38,6 +39,7 @@ export const createInitialLeagueDraft = (seasonYear: number): LeagueDraft => ({
   seasonYear,
   teamCount: 12,
   draftType: "auction",
+  keeperLeague: false,
   auctionBudget: 200,
   minimumBid: 1,
   snakeRounds: 16,
@@ -97,6 +99,7 @@ export const leagueDraftReducer = (draft: LeagueDraft, action: LeagueDraftAction
   if (action.type === "set-season") return { ...draft, seasonYear: action.value };
   if (action.type === "set-team-count") return { ...draft, teamCount: action.value, teams: resizedTeams(draft, action.value) };
   if (action.type === "set-draft-type") return { ...draft, draftType: action.value };
+  if (action.type === "set-keeper-league") return { ...draft, keeperLeague: action.value };
   if (action.type === "set-auction-budget") return { ...draft, auctionBudget: action.value };
   if (action.type === "set-minimum-bid") return { ...draft, minimumBid: action.value };
   if (action.type === "set-snake-rounds") return { ...draft, snakeRounds: action.value };

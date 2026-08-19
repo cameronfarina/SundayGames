@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createLeagueSeasonFromConfirmedSetup } from "../src/platform/leagueCreation.js";
+import {
+  confirmedLeagueCreationInputFromUnknown,
+  createLeagueSeasonFromConfirmedSetup,
+} from "../src/platform/leagueCreation.js";
 import { defaultScoringSettings } from "../src/platform/leagueSeason.js";
 
 describe("confirmed league creation", () => {
@@ -115,6 +118,43 @@ describe("confirmed league creation", () => {
       lineupSlotCount: 12,
       rosterMaximums: { QB: 4, RB: 6, WR: 7, TE: 6, K: 3, DST: 3 },
     });
+  });
+
+  it("disables the keeper policy only when the setup opts out of keepers", () => {
+    const setupFor = (keeperLeague?: boolean) => ({
+      provider: "mockd" as const,
+      externalLeagueId: "keeper-flag",
+      leagueName: "Keeper Flag League",
+      seasonYear: 2026,
+      expectedTeamCount: 4,
+      ...(keeperLeague === undefined ? {} : { keeperLeague }),
+      teams: [
+        { externalTeamId: "1", displayName: "First" },
+        { externalTeamId: "2", displayName: "Second" },
+        { externalTeamId: "3", displayName: "Third" },
+        { externalTeamId: "4", displayName: "Fourth" },
+      ],
+      draft: { type: "auction" as const, budgetDollars: 200, minimumBidDollars: 1 },
+      scoring: { ...defaultScoringSettings },
+      rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 7 },
+    });
+
+    const redraft = createLeagueSeasonFromConfirmedSetup(setupFor(false));
+    expect(redraft.settings.keeperPolicy).toEqual({
+      mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil", enabled: false,
+    });
+    const keeper = createLeagueSeasonFromConfirmedSetup(setupFor(true));
+    expect(keeper.settings.keeperPolicy).toEqual({
+      mode: "previous-cost-multiplier", multiplier: 1.2, rounding: "ceil",
+    });
+    const legacy = createLeagueSeasonFromConfirmedSetup(setupFor());
+    expect(legacy.settings.keeperPolicy.enabled).toBeUndefined();
+
+    expect(confirmedLeagueCreationInputFromUnknown(setupFor(false)))
+      .toMatchObject({ keeperLeague: false });
+    expect(confirmedLeagueCreationInputFromUnknown(setupFor()).keeperLeague).toBeUndefined();
+    expect(() => confirmedLeagueCreationInputFromUnknown({ ...setupFor(), keeperLeague: "yes" }))
+      .toThrow("Keeper league flag is invalid.");
   });
 
   it("rejects unknown roster slots instead of treating them as universal", () => {

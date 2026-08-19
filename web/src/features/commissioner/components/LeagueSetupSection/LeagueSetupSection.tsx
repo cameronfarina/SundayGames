@@ -53,6 +53,7 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
   const assignments = (preview.data?.teamAssignments ?? [])
     .filter(assignment => assignment.effect !== "kept");
   const snake = settings.draftFormat === "snake";
+  const keepersEnabled = settings.keeperPolicy.enabled !== false;
   const draftLabel = settings.draftFormat === "auction"
     ? `$${String(settings.auction.budgetDollars)} auction`
     : `${String(settings.snake.rounds)}-round snake`;
@@ -65,7 +66,7 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
         <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>
         <div><span>Roster</span><strong>{settings.roster.rosterSize} players · {settings.expectedTeamCount} teams</strong></div>
       </div>
-      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place, then apply. Keepers save as soon as you add them. Everything stays editable until a live room starts.</p>
+      <p className="commissioner-help">Scoring and roster rules are read-only after league creation. Edit a manager or team name in place, then apply. {keepersEnabled ? "Keepers save as soon as you add them. " : ""}Everything stays editable until a live room starts.</p>
       <fieldset className="commissioner-teams">
         <legend>Teams and managers</legend>
         <ol className="commissioner-teams__list">
@@ -89,12 +90,14 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
                 onChange={event => { editRow(index, { teamDisplayName: event.target.value }); }}
                 value={row.teamDisplayName}
               />
-              <TeamKeepers
-                keepers={keepers.filter(keeper => keeper.teamId === row.teamId)}
-                savedOwnerDisplayName={row.savedOwnerDisplayName}
-                seasonId={season.id}
-                teamId={row.teamId}
-              />
+              {keepersEnabled && (
+                <TeamKeepers
+                  keepers={keepers.filter(keeper => keeper.teamId === row.teamId)}
+                  savedOwnerDisplayName={row.savedOwnerDisplayName}
+                  seasonId={season.id}
+                  teamId={row.teamId}
+                />
+              )}
             </li>
           ))}
         </ol>

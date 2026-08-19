@@ -49,7 +49,12 @@ export const keeperPolicyFromDb = (value: unknown): KeeperPolicy => {
     typeof policy.multiplier === "number" &&
     policy.rounding === "ceil"
   ) {
-    return { mode: "previous-cost-multiplier", multiplier: policy.multiplier, rounding: "ceil" };
+    return {
+      mode: "previous-cost-multiplier",
+      multiplier: policy.multiplier,
+      rounding: "ceil",
+      ...(policy.enabled === false ? { enabled: false } : {}),
+    };
   }
   return { ...defaultKeeperPolicy };
 };

@@ -46,6 +46,14 @@ describe("CreateLeagueWizard fields", () => {
     await user.click(screen.getByRole("option", { name: "Auction" }));
     expect(screen.queryByRole("spinbutton", { name: "Draft rounds" })).not.toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Auction budget" })).toHaveValue(250);
+    const keeper = screen.getByRole("combobox", { name: "Keeper league" });
+    expect(keeper).toHaveTextContent("No");
+    await user.click(keeper);
+    await user.click(screen.getByRole("option", { name: "Yes" }));
+    expect(keeper).toHaveTextContent("Yes");
+    await user.click(keeper);
+    await user.click(screen.getByRole("option", { name: "No" }));
+    expect(keeper).toHaveTextContent("No");
   });
 
   it("orders scoring and roster fields and blocks invalid values", async () => {
@@ -80,9 +88,25 @@ describe("CreateLeagueWizard fields", () => {
     await chooseManualSetup(user);
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText(/commissioners can add keepers in Commissioner after creating the league/i))
-      .toBeVisible();
+    expect(screen.queryByText(/commissioners can add keepers/i)).not.toBeInTheDocument();
+    const teamName = screen.getAllByRole("textbox", { name: "Team name" })[0];
+    expect(teamName).toHaveAttribute("aria-required", "true");
     fireEvent.submit(screen.getByRole("form", { name: "League team setup" }));
     expect(screen.getAllByText("Enter a team name.")).toHaveLength(12);
+  });
+
+  it("mentions keeper setup only for keeper leagues", async () => {
+    const user = userEvent.setup();
+    renderCreateLeagueWizard();
+    await user.type(screen.getByRole("textbox", { name: "League name" }), "Sunday Games");
+    await user.click(screen.getByRole("combobox", { name: "Keeper league" }));
+    await user.click(screen.getByRole("option", { name: "Yes" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Enter settings manually" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText(/commissioners can add keepers in Commissioner after creating the league/i))
+      .toBeVisible();
   });
 });

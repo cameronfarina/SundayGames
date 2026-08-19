@@ -7,6 +7,7 @@ import {
   onboarding,
   renderLeaguePage,
   resetLeaguePages,
+  season,
   team,
   useLeagueApi,
 } from "./LeaguePage.testSupport";
@@ -61,6 +62,25 @@ describe("LeaguePage commissioner actions", () => {
       "href",
       "/leagues/sunday-games/commissioner#league-setup",
     );
+  });
+
+  it("hides keeper tools for a non-keeper league", async () => {
+    const nonKeeperSeason = {
+      ...season,
+      settings: {
+        ...season.settings,
+        keeperPolicy: { ...season.settings.keeperPolicy, enabled: false },
+      },
+    };
+    useLeagueApi(
+      onboarding({ canManageLeague: true, claimed: true }),
+      { season: nonKeeperSeason, claimableTeams: [team] },
+    );
+    renderLeaguePage();
+
+    expect(await screen.findByRole("heading", { name: "Teams" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Manage keepers" })).not.toBeInTheDocument();
+    expect(screen.queryByText("No keepers")).not.toBeInTheDocument();
   });
 
   it("continues from a confirmed team claim to keeper setup", async () => {

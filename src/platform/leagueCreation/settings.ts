@@ -8,10 +8,11 @@ import { LeagueCreationError } from "./errors.js";
 import { analyzeRosterSlots, lineupFor } from "./roster.js";
 import type { ConfirmedLeagueCreationInput } from "./types.js";
 
-const keeperPolicy = (): KeeperPolicy => ({
+const keeperPolicy = (enabled: boolean): KeeperPolicy => ({
   mode: "previous-cost-multiplier",
   multiplier: 1.2,
   rounding: "ceil",
+  ...(enabled ? {} : { enabled: false }),
 });
 
 const rosterRulesFor = (input: ConfirmedLeagueCreationInput): RosterRules => {
@@ -36,7 +37,7 @@ export const settingsFor = (
       expectedTeamCount: input.expectedTeamCount,
       scoring: { ...input.scoring },
       roster,
-      keeperPolicy: keeperPolicy(),
+      keeperPolicy: keeperPolicy(input.keeperLeague !== false),
       auction: {
         budgetDollars: input.draft.budgetDollars,
         minimumBidDollars: input.draft.minimumBidDollars,
@@ -48,7 +49,7 @@ export const settingsFor = (
     expectedTeamCount: input.expectedTeamCount,
     scoring: { ...input.scoring },
     roster,
-    keeperPolicy: keeperPolicy(),
+    keeperPolicy: keeperPolicy(input.keeperLeague !== false),
     snake: {
       rounds: input.draft.rounds,
       reversal: input.draft.reversal ?? "standard",

@@ -51,15 +51,26 @@ export const BasicsStep = ({ dispatch, draft, errors, formId, onSubmit }: Basics
           value={Number.isFinite(draft.teamCount) ? draft.teamCount : ""}
         />
       </div>
-      <Select
-        id="draft-type"
-        label="Draft format"
-        onValueChange={value => {
-          dispatch({ type: "set-draft-type", value: draftTypeSchema.parse(value) });
-        }}
-        options={[{ label: "Auction", value: "auction" }, { label: "Snake", value: "snake" }]}
-        value={draft.draftType}
-      />
+      <div className="create-league-grid create-league-grid--two">
+        <Select
+          id="draft-type"
+          label="Draft format"
+          onValueChange={value => {
+            dispatch({ type: "set-draft-type", value: draftTypeSchema.parse(value) });
+          }}
+          options={[{ label: "Auction", value: "auction" }, { label: "Snake", value: "snake" }]}
+          value={draft.draftType}
+        />
+        <Select
+          id="keeper-league"
+          label="Keeper league"
+          onValueChange={value => {
+            dispatch({ type: "set-keeper-league", value: value === "yes" });
+          }}
+          options={[{ label: "No", value: "no" }, { label: "Yes", value: "yes" }]}
+          value={draft.keeperLeague ? "yes" : "no"}
+        />
+      </div>
       {draft.draftType === "snake" && (
         <NumberField
           {...(errors["snakeRounds"] === undefined ? {} : { error: errors["snakeRounds"] })}

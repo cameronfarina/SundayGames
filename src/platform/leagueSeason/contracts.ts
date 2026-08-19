@@ -59,6 +59,8 @@ export interface KeeperPolicy {
   mode: "previous-cost-multiplier";
   multiplier: number;
   rounding: "ceil";
+  /** Absent means keepers are enabled; leagues predate the flag. */
+  enabled?: boolean;
 }
 
 interface LeagueSeasonSettingsCore {

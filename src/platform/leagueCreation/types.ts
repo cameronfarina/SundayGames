@@ -31,6 +31,7 @@ export interface ConfirmedLeagueCreationInput {
   leagueName: string;
   seasonYear: number;
   expectedTeamCount: number;
+  keeperLeague?: boolean;
   teams: readonly ConfirmedLeagueTeamInput[];
   draft: ConfirmedLeagueDraftInput;
   scoring: ScoringSettings;

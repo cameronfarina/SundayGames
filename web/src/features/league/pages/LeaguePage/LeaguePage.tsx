@@ -29,6 +29,7 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
   const season = data.season.data.season;
   const needsClaim = league.membership.teamId === undefined;
   const commissionerPath = leaguePath(league, "commissioner");
+  const keepersEnabled = season.settings.keeperPolicy.enabled !== false;
 
   return (
     <div className="league-page">
@@ -45,7 +46,8 @@ function LeaguePageContent({ data }: LeaguePageContentProps) {
       <DraftStatus league={league} />
       <LeagueTeams
         keepers={data.keepers.data.keepers}
-        manageKeepersPath={league.canManageLeague ? `${commissionerPath}#league-setup` : undefined}
+        keepersEnabled={keepersEnabled}
+        manageKeepersPath={league.canManageLeague && keepersEnabled ? `${commissionerPath}#league-setup` : undefined}
         teams={season.teams}
       />
     </div>

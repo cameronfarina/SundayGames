@@ -92,6 +92,7 @@ export const createLeagueSetup = (draft: LeagueDraft): ConfirmedLeagueSetup => {
     leagueName: draft.leagueName.trim(),
     seasonYear: draft.seasonYear,
     expectedTeamCount: draft.teamCount,
+    keeperLeague: draft.keeperLeague,
     teams: draft.teams.map(confirmedTeam),
     draft: draft.draftType === "auction"
       ? { type: "auction", budgetDollars: draft.auctionBudget, minimumBidDollars: draft.minimumBid }

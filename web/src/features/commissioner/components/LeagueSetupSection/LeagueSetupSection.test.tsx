@@ -79,6 +79,22 @@ describe("LeagueSetupSection", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("hides keeper entry for a non-keeper league", () => {
+    const nonKeeperSeason = seasonSchema.parse({
+      ...auctionSeason,
+      settings: {
+        ...auctionSeason.settings,
+        keeperPolicy: { ...auctionSeason.settings.keeperPolicy, enabled: false },
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn());
+    render(<QueryClientProvider client={new QueryClient()}>
+      <LeagueSetupSection keepers={[]} season={nonKeeperSeason} />
+    </QueryClientProvider>);
+    expect(screen.queryByRole("button", { name: "+ Keeper" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Everything stays editable/u)).not.toHaveTextContent("Keepers save");
+  });
+
   it("sorts team rows into draft order", () => {
     const firstTeam = auctionSeason.teams[0];
     if (firstTeam === undefined) throw new Error("Expected an auction team fixture.");
