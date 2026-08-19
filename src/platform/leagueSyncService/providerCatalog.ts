@@ -16,12 +16,7 @@ export interface LeagueSyncProviderCatalogEntry {
   handleLabel: string;
   handleHint: string;
   detail: string;
-  /** True when a private league may ask for cookies after the first attempt. */
   supportsCookieCredentials: boolean;
-  /**
-   * True when the handle names exactly one league, so there is nothing to
-   * choose and the league can be connected the moment it is found.
-   */
   handleNamesOneLeague: boolean;
 }
 
@@ -42,12 +37,11 @@ export const leagueSyncProviderCatalog = (): readonly LeagueSyncProviderCatalogE
     label: "ESPN",
     availability: "connectable",
     handleKind: "espn-league-id",
-    handleLabel: "ESPN league ID or league URL",
-    handleHint: "Paste the league URL from ESPN, or just the leagueId number in it.",
-    detail:
-      "Paste your league's address and Sunday Games takes it from there. Public leagues connect straight away.",
+    handleLabel: "ESPN league ID or league URL (optional)",
+    handleHint: "Leave this blank and paste your ESPN cookies below to find every league on your account.",
+    detail: "Connect your ESPN account once to find its fantasy football leagues, or enter one league directly.",
     supportsCookieCredentials: true,
-    handleNamesOneLeague: true,
+    handleNamesOneLeague: false,
   },
   {
     provider: "yahoo",
