@@ -53,8 +53,8 @@ describe("SlotPriceImport", () => {
   it("explains the columns and shows an example before anything is pasted", () => {
     openSlotImport();
 
-    expect(screen.getByText(/One row per slot/u)).toBeInTheDocument();
-    expect(screen.getByText("Slot,Price,Season")).toBeInTheDocument();
+    expect(screen.getByText(/No owner or player names are required/u)).toBeInTheDocument();
+    expect(screen.getByText("Position,Rank,Price")).toBeInTheDocument();
     expect(screen.getByText(/sold for \$1 or \$2 are saved but do not change/u)).toBeInTheDocument();
   });
 
