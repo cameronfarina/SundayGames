@@ -8,6 +8,7 @@ import {
   publicConnection,
   serviceOptionsFor,
 } from "./context.js";
+import { importSyncedLeague } from "./importSyncedLeague.js";
 
 const connectionNotFound = (): PlatformHttpResponse => knownError(
   404,
@@ -62,9 +63,21 @@ export const routeLeagueConnectionSync = async (
 
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
-  const result = await syncLeagueConnection(options, connection, request.now ?? new Date());
+  const previousSnapshot = await options.repository.findSnapshot(connectionId);
+  const now = request.now ?? new Date();
+  const synced = await syncLeagueConnection(options, connection, now);
+  const imported = synced.snapshot === undefined
+    ? synced.connection
+    : await importSyncedLeague({
+      account,
+      app,
+      connection: synced.connection,
+      previousSnapshot,
+      repository: options.repository,
+      sessionToken: request.sessionToken,
+      snapshot: synced.snapshot,
+      now,
+    });
 
-  // A failed sync is still a successful request: the connection now carries the
-  // status and the plain-language reason the owner needs to read.
-  return { status: 200, body: { connection: publicConnection(result.connection) } };
+  return { status: 200, body: { connection: publicConnection(imported) } };
 };
