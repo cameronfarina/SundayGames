@@ -3,9 +3,11 @@ import type {
   LiveDraftRoomMutationAction,
 } from "./core.js";
 import type {
+  CorrectLiveDraftRoomPickInput,
   CorrectLiveDraftRoomSaleInput,
   CreateLiveDraftRoomInput,
   EndLiveDraftRoomInput,
+  LogLiveDraftRoomPickInput,
   LogLiveDraftRoomSaleInput,
   MutateLiveDraftRoomInput,
   SynchronizeLiveDraftRoomInitialRostersInput,
@@ -37,5 +39,8 @@ export interface LiveDraftRoomRepository {
   logSaleCommand(input: LogLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   correctSale(input: CorrectLiveDraftRoomSaleInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  logPick(input: LogLiveDraftRoomPickInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  correctPick(input: CorrectLiveDraftRoomPickInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  undoLastPick(input: MutateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   endRoom(input: EndLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
 }
