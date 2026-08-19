@@ -5,6 +5,7 @@ import { createHistoricalImportOperations } from "./operations/historicalImportO
 import { createLeagueRegistrationOperations } from "./operations/leagueRegistrationOperations.js";
 import { createLiveDraftExportOperations } from "./operations/liveDraftExportOperations.js";
 import { createLiveDraftLifecycleOperations } from "./operations/liveDraftLifecycleOperations.js";
+import { createLiveDraftPickOperations } from "./operations/liveDraftPickOperations.js";
 import { createLiveDraftRoomOperations } from "./operations/liveDraftRoomOperations.js";
 import { createLiveDraftSaleOperations } from "./operations/liveDraftSaleOperations.js";
 import { createMockDraftOperations } from "./operations/mockDraftOperations.js";
@@ -32,6 +33,7 @@ export const createPlatformApp = (options: PlatformAppOptions) => {
     ...createLiveDraftRoomOperations(context),
     ...createLiveDraftLifecycleOperations(context),
     ...createLiveDraftSaleOperations(context),
+    ...createLiveDraftPickOperations(context),
     ...createLiveDraftExportOperations(context),
   };
 };
