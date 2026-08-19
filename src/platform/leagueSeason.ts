@@ -4,6 +4,7 @@ export {
   normalizeLeagueSeason,
   normalizeLeagueSeasonSettings,
 } from "./leagueSeason/normalizeLeagueSeasonSettings.js";
+export { isSnakeLeagueSeason } from "./leagueSeason/formatGuards.js";
 export { assessLeagueSeasonReadiness } from "./leagueSeason/readiness.js";
 export { validateAuctionBudget, validateSnakeDraft } from "./leagueSeason/validateDraftFormat.js";
 export { validatePublishLockState, validateTeamCount } from "./leagueSeason/validateIdentity.js";
@@ -35,6 +36,7 @@ export type {
   RosterMaximums,
   RosterRules,
   ScoringSettings,
+  SnakeLeagueSeason,
   SnakeLeagueSeasonSettings,
   SnakeSettings,
   StaticLeagueConfig,

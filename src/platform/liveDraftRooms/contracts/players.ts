@@ -72,6 +72,19 @@ export interface LiveDraftRoomBoardPlayer {
   byeWeek?: number | undefined;
 }
 
+/** Snake rooms only. One slot on the draft board, filled once a team takes it. */
+export interface LiveDraftRoomPick {
+  overall: number;
+  round: number;
+  pickInRound: number;
+  teamId: string;
+  ownerDisplayName: string;
+  teamDisplayName: string;
+  playerName?: string | undefined;
+  source?: "keeper" | "imported" | "sale" | undefined;
+  saleEventId?: string | undefined;
+}
+
 export interface LiveDraftRoomProjection {
   roomId: string;
   leagueId: string;
@@ -82,6 +95,9 @@ export interface LiveDraftRoomProjection {
   teams: readonly LiveDraftRoomTeamState[];
   board: readonly LiveDraftRoomBoardPlayer[];
   sales: readonly LiveDraftRoomSale[];
+  /** Snake rooms only. Auction rooms have no fixed pick order. */
+  picks?: readonly LiveDraftRoomPick[] | undefined;
+  onTheClock?: LiveDraftRoomPick | undefined;
 }
 
 export interface LiveDraftRoomIncompleteTeam {
