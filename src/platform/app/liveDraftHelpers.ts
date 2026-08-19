@@ -33,7 +33,11 @@ export const exportTeamStateFor = (room: LiveDraftRoom): DraftExportTeamState[] 
             player: {
               name: slot.player.name,
               price: slot.player.price,
-              source: slot.player.source === "sale" ? "auction" : "keeper",
+              source: slot.player.source === "sale"
+                ? "auction"
+                : slot.player.source === "pick"
+                  ? "snake"
+                  : "keeper",
             },
           }),
       }];
