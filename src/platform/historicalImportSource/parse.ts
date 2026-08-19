@@ -13,6 +13,7 @@ import { slotPriceHeaderIndex } from "./slotPriceHeaders.js";
 import { rowsFromSlotPriceSource } from "./slotPrices.js";
 import { sourceWarning } from "./warnings.js";
 import { rowsFromWideAuctionSource, wideAuctionOwnerBlocks } from "./wideAuction.js";
+import { rowsFromWideSlotPriceSource, wideSlotPriceBlocks } from "./wideSlotPrices.js";
 
 const emptySourceResult = (fileHash: string): HistoricalImportSourceParseResult => ({
   rows: [],
@@ -47,6 +48,16 @@ export const parseHistoricalImportSource = (
       rows,
       fileHash: wideAuctionSourceHashFor(normalizedSourceText, inferKeepers),
       sourceRowCount: rows.length + 1,
+      warnings: parsedSource.warnings,
+    };
+  }
+
+  const wideSlotBlocks = wideSlotPriceBlocks(mappedHeaderRow);
+  if (wideSlotBlocks !== null) {
+    return {
+      rows: rowsFromWideSlotPriceSource(sourceRows.slice(1), wideSlotBlocks),
+      fileHash,
+      sourceRowCount: sourceRows.length,
       warnings: parsedSource.warnings,
     };
   }
