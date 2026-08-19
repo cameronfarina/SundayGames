@@ -1,4 +1,6 @@
 import type {
+  LiveDraftRoomPick,
+  LiveDraftRoomPickSelection,
   LiveDraftRoomProjection,
   LiveDraftRoomRosterSlot,
   LiveDraftRoomSale,
@@ -43,6 +45,50 @@ export const saleValue = (value: unknown, path: string): LiveDraftRoomSale => {
   };
 };
 
+export const pickSelectionValue = (
+  value: unknown,
+  path: string,
+): LiveDraftRoomPickSelection => {
+  const record = recordValue(value, path);
+  return {
+    pickEventId: stringValue(record.pickEventId, `${path}.pickEventId`),
+    input: stringValue(record.input, `${path}.input`),
+    overall: integerValue(record.overall, `${path}.overall`),
+    round: integerValue(record.round, `${path}.round`),
+    pickInRound: integerValue(record.pickInRound, `${path}.pickInRound`),
+    teamId: stringValue(record.teamId, `${path}.teamId`),
+    ownerId: stringValue(record.ownerId, `${path}.ownerId`),
+    ownerDisplayName: stringValue(record.ownerDisplayName, `${path}.ownerDisplayName`),
+    teamDisplayName: stringValue(record.teamDisplayName, `${path}.teamDisplayName`),
+    playerName: stringValue(record.playerName, `${path}.playerName`),
+    normalizedPlayerName: stringValue(record.normalizedPlayerName, `${path}.normalizedPlayerName`),
+    position: positionValue(record.position, `${path}.position`),
+    expectedPrice: numberValue(record.expectedPrice, `${path}.expectedPrice`),
+    teamAbbreviation: optionalString(record.teamAbbreviation, `${path}.teamAbbreviation`),
+    byeWeek: optionalValue(record.byeWeek, `${path}.byeWeek`, numberValue),
+  };
+};
+
+const pickValue = (value: unknown, path: string): LiveDraftRoomPick => {
+  const record = recordValue(value, path);
+  const source = record.source;
+  if (source !== undefined && source !== null
+    && source !== "keeper" && source !== "imported" && source !== "pick") {
+    return invalidSnapshot(`${path}.source`);
+  }
+  return {
+    overall: integerValue(record.overall, `${path}.overall`),
+    round: integerValue(record.round, `${path}.round`),
+    pickInRound: integerValue(record.pickInRound, `${path}.pickInRound`),
+    teamId: stringValue(record.teamId, `${path}.teamId`),
+    ownerDisplayName: stringValue(record.ownerDisplayName, `${path}.ownerDisplayName`),
+    teamDisplayName: stringValue(record.teamDisplayName, `${path}.teamDisplayName`),
+    playerName: optionalString(record.playerName, `${path}.playerName`),
+    source: source === null ? undefined : source,
+    pickEventId: optionalString(record.pickEventId, `${path}.pickEventId`),
+  };
+};
+
 const slotValue = (value: unknown, path: string): LiveDraftRoomRosterSlot => {
   const record = recordValue(value, path);
   return {
@@ -63,6 +109,9 @@ const positionCountsValue = (value: unknown, path: string) => {
   };
 };
 
+const optionalNumber = (record: Record<string, unknown>, key: string, path: string) =>
+  optionalValue(record[key], `${path}.${key}`, numberValue);
+
 const teamStateValue = (value: unknown, path: string): LiveDraftRoomTeamState => {
   const record = recordValue(value, path);
   return {
@@ -71,11 +120,11 @@ const teamStateValue = (value: unknown, path: string): LiveDraftRoomTeamState =>
     ownerDisplayName: stringValue(record.ownerDisplayName, `${path}.ownerDisplayName`),
     teamDisplayName: stringValue(record.teamDisplayName, `${path}.teamDisplayName`),
     draftOrderPosition: integerValue(record.draftOrderPosition, `${path}.draftOrderPosition`),
-    budgetDollars: numberValue(record.budgetDollars, `${path}.budgetDollars`),
-    spent: numberValue(record.spent, `${path}.spent`),
-    budgetRemaining: numberValue(record.budgetRemaining, `${path}.budgetRemaining`),
+    budgetDollars: optionalNumber(record, "budgetDollars", path),
+    spent: optionalNumber(record, "spent", path),
+    budgetRemaining: optionalNumber(record, "budgetRemaining", path),
     rosterSlotsRemaining: integerValue(record.rosterSlotsRemaining, `${path}.rosterSlotsRemaining`),
-    maxBid: numberValue(record.maxBid, `${path}.maxBid`),
+    maxBid: optionalNumber(record, "maxBid", path),
     positionCounts: positionCountsValue(record.positionCounts, `${path}.positionCounts`),
     roster: arrayValue(record.roster, `${path}.roster`, rosterPlayerValue),
     slots: arrayValue(record.slots, `${path}.slots`, slotValue),
@@ -84,6 +133,9 @@ const teamStateValue = (value: unknown, path: string): LiveDraftRoomTeamState =>
 
 export const projectionValue = (value: unknown, path: string): LiveDraftRoomProjection => {
   const record = recordValue(value, path);
+  const picks = optionalValue(record.picks, `${path}.picks`, (candidate, candidatePath) =>
+    arrayValue(candidate, candidatePath, pickValue));
+  const onTheClock = optionalValue(record.onTheClock, `${path}.onTheClock`, pickValue);
   return {
     roomId: stringValue(record.roomId, `${path}.roomId`),
     leagueId: stringValue(record.leagueId, `${path}.leagueId`),
@@ -94,5 +146,7 @@ export const projectionValue = (value: unknown, path: string): LiveDraftRoomProj
     teams: arrayValue(record.teams, `${path}.teams`, teamStateValue),
     board: arrayValue(record.board, `${path}.board`, boardPlayerValue),
     sales: arrayValue(record.sales, `${path}.sales`, saleValue),
+    ...(picks === undefined ? {} : { picks }),
+    ...(onTheClock === undefined ? {} : { onTheClock }),
   };
 };
