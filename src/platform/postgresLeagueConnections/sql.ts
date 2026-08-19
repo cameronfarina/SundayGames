@@ -1,6 +1,7 @@
 const connectionColumns = `
   id, account_id, provider, provider_league_id, season, display_name,
-  status, status_detail, last_synced_at, created_at, updated_at
+  status, status_detail, linked_league_id, linked_season_id,
+  last_synced_at, created_at, updated_at
 `.trim();
 
 export const upsertConnectionSql = `
@@ -33,6 +34,13 @@ export const selectCredentialsSql = `
 SELECT espn_s2, swid
 FROM league_connections
 WHERE id = $1
+`.trim();
+
+export const linkConnectionSql = `
+UPDATE league_connections
+SET linked_league_id = $3, linked_season_id = $4, updated_at = $5
+WHERE id = $1 AND account_id = $2
+RETURNING ${connectionColumns}
 `.trim();
 
 export const updateConnectionStatusSql = `
