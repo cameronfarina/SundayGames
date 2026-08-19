@@ -4,7 +4,10 @@ import type {
   LiveDraftRoomInitialRosterPlayer,
   LiveDraftRoomPlayerCatalogEntry,
 } from "./core.js";
-import type { LiveDraftRoomSaleCommandInput } from "./players.js";
+import type {
+  LiveDraftRoomPickCommandInput,
+  LiveDraftRoomSaleCommandInput,
+} from "./players.js";
 
 export interface CreateLiveDraftRoomInput {
   season: LeagueSeason;
@@ -46,4 +49,13 @@ export interface LogLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput {
 export interface CorrectLiveDraftRoomSaleInput extends MutateLiveDraftRoomInput {
   saleEventId: string;
   replacementSale: LiveDraftRoomSaleCommandInput;
+}
+
+export interface LogLiveDraftRoomPickInput extends MutateLiveDraftRoomInput {
+  pick: LiveDraftRoomPickCommandInput;
+}
+
+export interface CorrectLiveDraftRoomPickInput extends MutateLiveDraftRoomInput {
+  pickEventId: string;
+  replacementPick: LiveDraftRoomPickCommandInput;
 }
