@@ -4,6 +4,7 @@ import { recordValue, stringValue } from "./json.js";
 import {
   incompleteTeamsValue,
   initialRostersValue,
+  pickValue,
   playerCatalogValue,
   saleValue,
 } from "./payloadValues.js";
@@ -61,6 +62,23 @@ export const persistedEventFromRow = (
         previousSale: saleValue(payload.previousSale),
         replacementSale: saleValue(payload.replacementSale),
       };
+    case "pick_logged":
+      return { ...common, type: row.event_type, pick: pickValue(payload.pick) };
+    case "pick_undone":
+      return {
+        ...common,
+        type: row.event_type,
+        undonePickEventId: stringValue(payload.undonePickEventId),
+        undonePick: pickValue(payload.undonePick),
+      };
+    case "pick_corrected":
+      return {
+        ...common,
+        type: row.event_type,
+        correctedPickEventId: stringValue(payload.correctedPickEventId),
+        previousPick: pickValue(payload.previousPick),
+        replacementPick: pickValue(payload.replacementPick),
+      };
     case "room_ended":
       return {
         ...common,
@@ -74,6 +92,7 @@ export const persistedEventFromRow = (
 export const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, unknown> => {
   switch (event.type) {
     case "sale_logged": return { sale: event.sale };
+    case "pick_logged": return { pick: event.pick };
     case "initial_rosters_synchronized":
       return { initialRosters: event.initialRosters, playerCatalog: event.playerCatalog };
     case "sale_undone":
@@ -83,6 +102,14 @@ export const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, u
         correctedSaleEventId: event.correctedSaleEventId,
         previousSale: event.previousSale,
         replacementSale: event.replacementSale,
+      };
+    case "pick_undone":
+      return { undonePickEventId: event.undonePickEventId, undonePick: event.undonePick };
+    case "pick_corrected":
+      return {
+        correctedPickEventId: event.correctedPickEventId,
+        previousPick: event.previousPick,
+        replacementPick: event.replacementPick,
       };
     case "room_created":
     case "room_started":
@@ -94,9 +121,10 @@ export const payloadJsonForEvent = (event: LiveDraftRoomEvent): Record<string, u
   }
 };
 
-export const rawCommandForEvent = (event: LiveDraftRoomEvent): string | null =>
-  event.type === "sale_logged"
-    ? event.sale.input
-    : event.type === "sale_corrected"
-      ? event.replacementSale.input
-      : null;
+export const rawCommandForEvent = (event: LiveDraftRoomEvent): string | null => {
+  if (event.type === "sale_logged") return event.sale.input;
+  if (event.type === "sale_corrected") return event.replacementSale.input;
+  if (event.type === "pick_logged") return event.pick.input;
+  if (event.type === "pick_corrected") return event.replacementPick.input;
+  return null;
+};
