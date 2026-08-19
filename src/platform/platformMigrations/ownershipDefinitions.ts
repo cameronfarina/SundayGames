@@ -6,6 +6,7 @@ import {
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
   leagueSlugMigrationId,
+  leagueSyncLinkMigrationId,
   leagueSyncMigrationId,
   playerNewsMigrationId,
   playerNewsProviderDataMigrationId,
@@ -122,5 +123,17 @@ END $$;`,
   {
     id: leagueSyncMigrationId,
     statements: leagueSyncMigrationStatements,
+  },
+  {
+    id: leagueSyncLinkMigrationId,
+    statements: [
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS linked_league_id text;",
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS linked_season_id text;",
+      "ALTER TABLE league_connections DROP CONSTRAINT IF EXISTS league_connections_linked_league_id_fkey;",
+      "ALTER TABLE league_connections ADD CONSTRAINT league_connections_linked_league_id_fkey FOREIGN KEY (linked_league_id) REFERENCES leagues(id) ON DELETE SET NULL;",
+      "ALTER TABLE league_connections DROP CONSTRAINT IF EXISTS league_connections_linked_season_id_fkey;",
+      "ALTER TABLE league_connections ADD CONSTRAINT league_connections_linked_season_id_fkey FOREIGN KEY (linked_season_id) REFERENCES league_seasons(id) ON DELETE SET NULL;",
+      "CREATE INDEX IF NOT EXISTS league_connections_linked_league_id_idx ON league_connections (linked_league_id);",
+    ],
   },
 ];
