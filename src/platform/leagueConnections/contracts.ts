@@ -21,6 +21,8 @@ export interface LeagueConnection {
   status: LeagueConnectionStatus;
   statusDetail?: string | undefined;
   lastSyncedAt?: string | undefined;
+  linkedLeagueId?: string | undefined;
+  linkedSeasonId?: string | undefined;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,6 +47,14 @@ export interface UpdateLeagueConnectionStatusInput {
   status: LeagueConnectionStatus;
   statusDetail?: string | undefined;
   lastSyncedAt?: string | undefined;
+  now?: Date | undefined;
+}
+
+export interface LinkLeagueConnectionInput {
+  id: string;
+  accountId: string;
+  leagueId: string;
+  seasonId: string;
   now?: Date | undefined;
 }
 
@@ -76,6 +86,7 @@ export interface LeagueConnectionRepository {
   findConnection(accountId: string, id: string): Promise<LeagueConnection | null>;
   findCredentials(id: string): Promise<LeagueConnectionCredentials | null>;
   saveConnection(input: SaveLeagueConnectionInput): Promise<LeagueConnection>;
+  linkConnection(input: LinkLeagueConnectionInput): Promise<LeagueConnection | null>;
   updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void>;
   deleteConnection(accountId: string, id: string): Promise<boolean>;
   saveSnapshot(connectionId: string, snapshot: LeagueSnapshot, syncedAt: string): Promise<void>;
