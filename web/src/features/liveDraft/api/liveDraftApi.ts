@@ -20,12 +20,18 @@ interface MutationBase extends LiveDraftRequestOptions {
 }
 
 export type LiveDraftMutation =
-  | (MutationBase & { readonly action: "start" | "pause" | "resume" | "reopen" | "undo" })
+  | (MutationBase & { readonly action: "start" | "pause" | "resume" | "reopen" | "undo" | "undo-pick" })
   | (MutationBase & { readonly action: "sales"; readonly command: string })
+  | (MutationBase & { readonly action: "picks"; readonly playerName: string })
   | (MutationBase & {
     readonly action: "corrections";
     readonly replacementSale: string;
     readonly saleEventId: string;
+  })
+  | (MutationBase & {
+    readonly action: "pick-corrections";
+    readonly pickEventId: string;
+    readonly replacementPlayerName: string;
   })
   | (MutationBase & { readonly action: "end"; readonly allowIncomplete?: boolean });
 
@@ -46,14 +52,23 @@ const mutationBody = (input: LiveDraftMutation): Record<string, unknown> => {
     case "resume":
     case "reopen":
     case "undo":
+    case "undo-pick":
       return concurrency;
     case "sales":
       return { ...concurrency, command: input.command };
+    case "picks":
+      return { ...concurrency, pick: { playerName: input.playerName } };
     case "corrections":
       return {
         ...concurrency,
         saleEventId: input.saleEventId,
         replacementSale: input.replacementSale,
+      };
+    case "pick-corrections":
+      return {
+        ...concurrency,
+        pickEventId: input.pickEventId,
+        replacementPick: { playerName: input.replacementPlayerName },
       };
     case "end":
       return input.allowIncomplete === undefined
