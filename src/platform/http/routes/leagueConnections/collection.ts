@@ -53,6 +53,7 @@ export const routeLeagueConnectionCollection = async (
     ...(credentials === undefined ? {} : { credentials }),
     now,
   });
+  const previousSnapshot = await options.repository.findSnapshot(saved.id);
   const synced = await syncLeagueConnection(options, saved, now);
   const connection = synced.snapshot === undefined
     ? synced.connection
@@ -60,6 +61,7 @@ export const routeLeagueConnectionCollection = async (
       account,
       app,
       connection: synced.connection,
+      previousSnapshot,
       repository: options.repository,
       sessionToken: request.sessionToken,
       snapshot: synced.snapshot,
