@@ -1,4 +1,5 @@
 import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
+import { inSeasonSchema } from "./inSeasonSchema";
 import { postDraftSchema } from "./postDraftSchema";
 import { keepersSchema, seasonTeamSchema } from "./seasonTeamSchema";
 
@@ -26,5 +27,12 @@ export const getPostDraftTeam = async (roomId: string, request: MyTeamRequest) =
   await requestPlatformJson({
     path: `/live-rooms/${encodeURIComponent(roomId)}/my-team`,
     responseSchema: postDraftSchema,
+    init: initFor(request.signal),
+  });
+
+export const getInSeasonTeam = async (roomId: string, request: MyTeamRequest) =>
+  await requestPlatformJson({
+    path: `/live-rooms/${encodeURIComponent(roomId)}/in-season`,
+    responseSchema: inSeasonSchema,
     init: initFor(request.signal),
   });

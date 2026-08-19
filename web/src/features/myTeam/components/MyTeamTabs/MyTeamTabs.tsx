@@ -3,7 +3,7 @@ import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboard
 import { leaguePath } from "../../../league/lib/leaguePaths";
 import "./MyTeamTabs.css";
 
-export type MyTeamView = "team" | "prep";
+export type MyTeamView = "team" | "prep" | "lineup" | "waivers";
 
 interface MyTeamTabsProps {
   readonly league: OnboardingLeague;
@@ -15,6 +15,8 @@ const tabSearch = (view: MyTeamView): string => `?${new URLSearchParams({ view }
 const tabs: readonly { label: string; view: MyTeamView }[] = [
   { label: "Team", view: "team" },
   { label: "Draft prep", view: "prep" },
+  { label: "Lineup", view: "lineup" },
+  { label: "Waivers", view: "waivers" },
 ];
 
 export const MyTeamTabs = ({ league, view }: MyTeamTabsProps) => (

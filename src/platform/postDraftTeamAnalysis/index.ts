@@ -1,4 +1,5 @@
 export { analyzePostDraftTeam } from "./analyze.js";
+export { selectStarters } from "./starterSelection.js";
 export * from "./contracts/analysis.js";
 export * from "./contracts/core.js";
 export * from "./contracts/projections.js";

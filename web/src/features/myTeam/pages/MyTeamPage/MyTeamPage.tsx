@@ -1,6 +1,8 @@
 import { Navigate, useSearchParams } from "react-router-dom";
 import { DraftPrep } from "../../components/DraftPrep/DraftPrep";
 import { EmptyTeamState } from "../../components/EmptyTeamState/EmptyTeamState";
+import { InSeasonLocked } from "../../components/InSeasonTools/InSeasonLocked";
+import { InSeasonTools, type InSeasonView } from "../../components/InSeasonTools/InSeasonTools";
 import { MyTeamTabs, type MyTeamView } from "../../components/MyTeamTabs/MyTeamTabs";
 import { PostDraftTeamView } from "../../components/PostDraftTeam/PostDraftTeam";
 import { PreDraftTeam } from "../../components/PreDraftTeam/PreDraftTeam";
@@ -9,7 +11,10 @@ import { leaguePath } from "../../../league/lib/leaguePaths";
 import "./MyTeamPage.css";
 
 const viewFrom = (value: string | null): MyTeamView =>
-  value === "prep" ? value : "team";
+  value === "prep" || value === "lineup" || value === "waivers" ? value : "team";
+
+const inSeasonViewFrom = (view: MyTeamView): InSeasonView | undefined =>
+  view === "lineup" || view === "waivers" ? view : undefined;
 
 export const MyTeamPage = () => {
   const [params] = useSearchParams();
@@ -28,6 +33,7 @@ export const MyTeamPage = () => {
     }} />;
   }
   const view = viewFrom(params.get("view"));
+  const inSeasonView = inSeasonViewFrom(view);
   return (
     <section aria-labelledby="my-team-title" className="my-team-page">
       <header className="my-team-header">
@@ -50,6 +56,12 @@ export const MyTeamPage = () => {
       )}
       {view === "team" && state.kind === "post-draft" && <PostDraftTeamView team={state.team} />}
       {view === "prep" && activeLeague !== undefined && <DraftPrep seasonId={activeLeague.seasonId} />}
+      {inSeasonView !== undefined && (state.kind === "pre-draft" || state.kind === "unassigned") && (
+        <InSeasonLocked view={inSeasonView} />
+      )}
+      {inSeasonView !== undefined && state.kind === "post-draft" && (
+        <InSeasonTools roomId={state.roomId} view={inSeasonView} />
+      )}
     </section>
   );
 };

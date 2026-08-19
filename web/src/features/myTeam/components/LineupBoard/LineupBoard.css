@@ -1,0 +1,14 @@
+.lineup-board__concerns {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+
+.lineup-board__concerns li {
+  background: var(--color-surface);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 4px;
+  padding: var(--space-2) var(--space-3);
+}

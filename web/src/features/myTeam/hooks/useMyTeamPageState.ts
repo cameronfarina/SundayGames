@@ -23,7 +23,7 @@ type MyTeamPageState =
       season: SeasonTeam;
       keepers: readonly Keeper[];
     }
-  | { kind: "post-draft"; league: OnboardingLeague; team: PostDraftTeam };
+  | { kind: "post-draft"; league: OnboardingLeague; roomId: string; team: PostDraftTeam };
 
 export const useMyTeamPageState = (): MyTeamPageState => {
   const { leagueSlug } = useParams<{ leagueSlug: string }>();
@@ -47,7 +47,7 @@ export const useMyTeamPageState = (): MyTeamPageState => {
   if (draftEnded) {
     if (postDraft.isPending) return { kind: "loading" };
     if (postDraft.error !== null) return { kind: "error", error: postDraft.error };
-    return { kind: "post-draft", league, team: postDraft.data };
+    return { kind: "post-draft", league, roomId, team: postDraft.data };
   }
   if (season.isPending || keepers.isPending) return { kind: "loading" };
   if (season.error !== null) return { kind: "error", error: season.error };

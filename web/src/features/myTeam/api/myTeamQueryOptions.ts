@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
 import {
+  getInSeasonTeam,
   getKeepers,
   getPostDraftTeam,
   getSeasonTeam,
@@ -21,5 +22,13 @@ export const keepersQueryOptions = (seasonId: string, enabled: boolean) => query
 export const postDraftTeamQueryOptions = (roomId: string, enabled: boolean) => queryOptions({
   queryKey: ["post-draft-team", roomId],
   queryFn: async ({ signal }) => await getPostDraftTeam(roomId, { signal }),
+  enabled,
+});
+
+// The lineup and waiver tabs read the same payload, so switching between them
+// costs no extra request.
+export const inSeasonQueryOptions = (roomId: string, enabled: boolean) => queryOptions({
+  queryKey: ["in-season-team", roomId],
+  queryFn: async ({ signal }) => await getInSeasonTeam(roomId, { signal }),
   enabled,
 });
