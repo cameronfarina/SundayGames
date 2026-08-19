@@ -11,9 +11,11 @@ export type {
 } from "./liveDraftRooms/contracts/core.js";
 export type { LiveDraftRoomEvent } from "./liveDraftRooms/contracts/events.js";
 export type {
+  CorrectLiveDraftRoomPickInput,
   CorrectLiveDraftRoomSaleInput,
   CreateLiveDraftRoomInput,
   EndLiveDraftRoomInput,
+  LogLiveDraftRoomPickInput,
   LogLiveDraftRoomSaleInput,
   MutateLiveDraftRoomInput,
   SynchronizeLiveDraftRoomInitialRostersInput,
@@ -21,12 +23,16 @@ export type {
 export type {
   LiveDraftRoomBoardPlayer,
   LiveDraftRoomIncompleteTeam,
+  LiveDraftRoomPick,
+  LiveDraftRoomPickCommandInput,
+  LiveDraftRoomPickSelection,
   LiveDraftRoomProjection,
   LiveDraftRoomRosterPlayer,
   LiveDraftRoomRosterSlot,
   LiveDraftRoomSale,
   LiveDraftRoomSaleCommandInput,
   LiveDraftRoomTeamState,
+  ParsedLiveDraftRoomPickInput,
   ParsedLiveDraftRoomSaleInput,
 } from "./liveDraftRooms/contracts/players.js";
 export type {
