@@ -8,11 +8,15 @@ import {
   type DiscoverLeaguesRequest,
 } from "../api/leagueConnectionsApi";
 import { leagueConnectionQueryKeys } from "./useLeagueConnectionQueries";
+import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
 
 export const useLeagueConnectionMutations = () => {
   const client = useQueryClient();
   const refreshList = async (): Promise<void> => {
     await client.invalidateQueries({ queryKey: leagueConnectionQueryKeys.list() });
+  };
+  const refreshOnboarding = async (): Promise<void> => {
+    await client.invalidateQueries({ exact: true, queryKey: seasonQueryKeys.onboarding() });
   };
 
   const discover = useMutation({
@@ -20,7 +24,7 @@ export const useLeagueConnectionMutations = () => {
   });
   const connect = useMutation({
     mutationFn: (request: ConnectLeagueRequest) => connectLeague(request),
-    onSuccess: refreshList,
+    onSuccess: async () => { await Promise.all([refreshList(), refreshOnboarding()]); },
   });
   const sync = useMutation({
     mutationFn: (connectionId: string) => syncLeagueConnection(connectionId),
