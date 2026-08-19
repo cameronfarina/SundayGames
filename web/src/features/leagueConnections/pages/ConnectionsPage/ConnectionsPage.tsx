@@ -59,6 +59,10 @@ export const ConnectionsPage = () => {
       : <LeagueDetail connectionId={selectedConnectionId} key={selectedConnectionId} />}
     {connections.data === undefined
       ? null
-      : <AddConnection mutations={mutations} providers={connections.data.providers} />}
+      : <AddConnection
+        connections={connections.data.connections}
+        mutations={mutations}
+        providers={connections.data.providers}
+      />}
   </section>;
 };
