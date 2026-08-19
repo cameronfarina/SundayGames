@@ -16,7 +16,7 @@ export type DraftExportRosterSlotKey =
   | "BENCH6"
   | "BENCH7";
 
-export type DraftExportPlayerSource = "keeper" | "auction";
+export type DraftExportPlayerSource = "keeper" | "auction" | "snake";
 export type DraftExportCell = string | number;
 export type DraftExportErrorCode = "duplicate_player" | "invalid_price" | "invalid_slot";
 
