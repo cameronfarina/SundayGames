@@ -6,6 +6,7 @@ export type {
   FantasyProsLineupBasis,
   FantasyProsLineupConcern,
   FantasyProsLineupSlot,
+  FantasyProsPlayerNews,
   FantasyProsRankView,
   FantasyProsWaiverBoard,
   FantasyProsWaiverPlayer,
@@ -18,6 +19,11 @@ export {
 export type { FantasyProsInSeasonDataset } from "./fantasyProsInSeason/dataset.js";
 export { buildFantasyProsInSeasonView } from "./fantasyProsInSeason/index.js";
 export type { BuildFantasyProsInSeasonViewInput } from "./fantasyProsInSeason/index.js";
+export {
+  emptyFantasyProsPlayerNewsIndex,
+  loadFantasyProsPlayerNewsIndex,
+} from "./fantasyProsInSeason/news.js";
+export type { FantasyProsPlayerNewsIndex } from "./fantasyProsInSeason/news.js";
 export { fantasyProsRosterView } from "./fantasyProsInSeason/roster.js";
 export type {
   FantasyProsRosterCandidate,

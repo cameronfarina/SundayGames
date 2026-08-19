@@ -46,6 +46,7 @@ export const createPlatformRuntimeFactory = (
     invitationRepository: repositories.invitationRepository,
     leagueSetupRepository: repositories.leagueSetupRepository,
     onboardingRepository: repositories.onboardingRepository,
+    playerNewsRepository: repositories.playerNewsRepository,
     ...(options.currentPlayerCatalogProvider === undefined
       ? {} : { currentPlayerCatalogProvider: options.currentPlayerCatalogProvider }),
     ...(options.espnLeagueSettingsImporter === undefined

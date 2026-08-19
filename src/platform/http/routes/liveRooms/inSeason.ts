@@ -1,8 +1,10 @@
 import {
   buildFantasyProsInSeasonView,
   emptyFantasyProsInSeasonDataset,
+  emptyFantasyProsPlayerNewsIndex,
   fantasyProsRosterView,
   loadFantasyProsInSeasonDataset,
+  loadFantasyProsPlayerNewsIndex,
 } from "../../../fantasyProsInSeason.js";
 import { PlatformAppError } from "../../../platformApp.js";
 import { starterSlotsFor } from "../../../postDraftLiveRoomAdapter.js";
@@ -38,11 +40,19 @@ export const routeLiveRoomInSeason = async (
   }
 
   // Without the repository the page still renders the roster, just with no
-  // FantasyPros numbers beside it.
+  // FantasyPros numbers beside it. A news blurb hangs off a FantasyPros player
+  // id, so with FantasyPros dark there is nothing for one to attach to and the
+  // news read is skipped rather than joined against an empty roster.
   const repository = services.fantasyProsRepository;
-  const dataset = repository === undefined
-    ? emptyFantasyProsInSeasonDataset()
-    : await loadFantasyProsInSeasonDataset(repository);
+  const newsRepository = repository === undefined ? undefined : services.playerNewsRepository;
+  const [dataset, news] = await Promise.all([
+    repository === undefined
+      ? emptyFantasyProsInSeasonDataset()
+      : loadFantasyProsInSeasonDataset(repository),
+    newsRepository === undefined
+      ? emptyFantasyProsPlayerNewsIndex()
+      : loadFantasyProsPlayerNewsIndex(newsRepository, request.now),
+  ]);
 
   return {
     status: 200,
@@ -53,6 +63,7 @@ export const routeLiveRoomInSeason = async (
       rosterView,
       starterSlots: starterSlotsFor(room.season),
       dataset,
+      news,
     }),
   };
 };

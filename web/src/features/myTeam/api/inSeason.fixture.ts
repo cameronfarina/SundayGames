@@ -11,6 +11,11 @@ const gibbs = {
   restOfSeason: { rankEcr: 3, positionRank: "RB2", tier: 1, ecrDelta: 2 },
   weeklyProjectedPoints: 19.4,
   restOfSeasonProjectedPoints: 280.5,
+  news: {
+    headline: "Gibbs is limited in practice with an ankle injury",
+    publishedAt: "2026-09-17T08:30:00.000Z",
+    injury: true,
+  },
 } satisfies InSeasonTeam["players"][number];
 
 const otton = {
@@ -22,6 +27,11 @@ const otton = {
   weekly: { rankEcr: 35 },
   restOfSeason: { rankEcr: 140, tier: 13 },
   weeklyProjectedPoints: 11,
+  news: {
+    headline: "Otton is set for a full workload with Mayfield back",
+    publishedAt: "2026-09-17T07:00:00.000Z",
+    injury: false,
+  },
 } satisfies InSeasonTeam["players"][number];
 
 const legette = {
@@ -85,6 +95,11 @@ export const inSeasonTeam: InSeasonTeam = {
         restOfSeason: { rankEcr: 125, tier: 12 },
         ownedEspn: 41.3,
         weeklyProjectedPoints: 14.2,
+        news: {
+          headline: "Shough is expected to start again in Week 3",
+          publishedAt: "2026-09-17T08:00:00.000Z",
+          injury: false,
+        },
       },
       {
         playerId: "draft-player:jalen coker",

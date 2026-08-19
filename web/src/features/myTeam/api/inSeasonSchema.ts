@@ -11,6 +11,12 @@ const rankViewSchema = z.object({
   ecrDelta: z.number().optional(),
 });
 
+const playerNewsSchema = z.object({
+  headline: z.string(),
+  publishedAt: z.string(),
+  injury: z.boolean(),
+});
+
 const inSeasonPlayerSchema = z.object({
   playerId: z.string(),
   playerName: z.string(),
@@ -22,6 +28,7 @@ const inSeasonPlayerSchema = z.object({
   restOfSeason: rankViewSchema.optional(),
   weeklyProjectedPoints: z.number().optional(),
   restOfSeasonProjectedPoints: z.number().optional(),
+  news: playerNewsSchema.optional(),
 });
 
 const lineupSlotSchema = z.object({
@@ -60,3 +67,4 @@ export type InSeasonTeam = z.output<typeof inSeasonSchema>;
 export type InSeasonPlayer = z.output<typeof inSeasonPlayerSchema>;
 export type InSeasonLineupSlot = z.output<typeof lineupSlotSchema>;
 export type InSeasonWaiverPlayer = InSeasonTeam["waivers"]["players"][number];
+export type InSeasonPlayerNews = z.output<typeof playerNewsSchema>;

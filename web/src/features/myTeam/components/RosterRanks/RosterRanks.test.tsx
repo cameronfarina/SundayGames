@@ -28,6 +28,15 @@ describe("RosterRanks", () => {
     expect(screen.getByText("FantasyPros has no record for Cam Little.")).toBeVisible();
   });
 
+  it("puts the latest FantasyPros report beside the player it names", () => {
+    render(<RosterRanks team={inSeasonTeam} />);
+
+    expect(screen.getByRole("row", { name: /Jahmyr Gibbs/u }))
+      .toHaveTextContent("Gibbs is limited in practice with an ankle injury");
+    expect(screen.getByRole("row", { name: /Cam Little/u }))
+      .not.toHaveTextContent("Gibbs is limited");
+  });
+
   it("stays quiet when every player matched", () => {
     render(<RosterRanks team={{
       ...inSeasonTeam,

@@ -9,6 +9,7 @@ import {
   tierLabel,
 } from "../../lib/inSeasonFormat";
 import { FantasyProsCredit } from "../FantasyProsCredit/FantasyProsCredit";
+import { PlayerNewsBlurb } from "../PlayerNewsBlurb/PlayerNewsBlurb";
 import "../TeamTable/TeamTable.css";
 import "./RosterRanks.css";
 
@@ -47,6 +48,7 @@ export const RosterRanks = ({ team }: RosterRanksProps) => {
                   <span className={`position position-${player.position.toLowerCase()}`}>
                     {player.position}
                   </span>
+                  <PlayerNewsBlurb news={player.news} />
                 </th>
                 <td>{byeLabel(player.byeWeek)}</td>
                 <td>{rankLabel(player.weekly)}</td>

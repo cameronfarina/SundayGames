@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { InSeasonTeam } from "../../api/inSeasonSchema";
@@ -26,6 +26,39 @@ describe("WaiverBoard", () => {
     expect(shough).toHaveTextContent("14.2");
     expect(shough).toHaveTextContent("Week 11");
     expect(screen.getByRole("row", { name: /Jalen Coker/u })).toHaveTextContent("—");
+  });
+
+  it("puts the latest FantasyPros report on the candidate it names, and only there", () => {
+    render(<WaiverBoard team={inSeasonTeam} />);
+
+    const shough = screen.getByRole("row", { name: /Tyler Shough/u });
+    expect(shough).toHaveTextContent("Shough is expected to start again in Week 3");
+    expect(within(shough).queryByText("Injury")).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /Jalen Coker/u }))
+      .not.toHaveTextContent("Shough is expected to start");
+  });
+
+  it("marks a candidate FantasyPros filed an injury report on", () => {
+    const [shough] = inSeasonTeam.waivers.players;
+    if (shough === undefined) throw new Error("Expected the fixture waiver candidate.");
+    render(<WaiverBoard team={{
+      ...inSeasonTeam,
+      waivers: {
+        ...inSeasonTeam.waivers,
+        players: [{
+          ...shough,
+          news: {
+            headline: "Shough is nursing a shoulder injury",
+            publishedAt: "2026-09-17T08:00:00.000Z",
+            injury: true,
+          },
+        }],
+      },
+    }} />);
+
+    const row = screen.getByRole("row", { name: /Tyler Shough/u });
+    expect(within(row).getByText("Injury")).toBeVisible();
+    expect(row).toHaveTextContent("Shough is nursing a shoulder injury");
   });
 
   it("filters to one position and back to all", async () => {

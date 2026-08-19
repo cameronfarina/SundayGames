@@ -1,6 +1,7 @@
 import type { FantasyProsStoredRanking } from "../fantasyPros.js";
 import type { FantasyProsInSeasonPlayer, FantasyProsRankView } from "./contracts.js";
 import type { FantasyProsInSeasonDataset } from "./dataset.js";
+import { fantasyProsNewsFor, type FantasyProsPlayerNewsIndex } from "./news.js";
 import type { FantasyProsRosterCandidate } from "./roster.js";
 
 /**
@@ -22,6 +23,7 @@ const rankView = (
 export const enrichRosterCandidate = (
   candidate: FantasyProsRosterCandidate,
   dataset: FantasyProsInSeasonDataset,
+  news: FantasyProsPlayerNewsIndex,
 ): FantasyProsInSeasonPlayer => {
   const match = dataset.index.find({
     name: candidate.name,
@@ -48,5 +50,6 @@ export const enrichRosterCandidate = (
     restOfSeason: rankView(restOfSeason),
     weeklyProjectedPoints: dataset.weeklyProjections.get(match.playerId)?.pointsPpr,
     restOfSeasonProjectedPoints: dataset.restOfSeasonProjections.get(match.playerId)?.pointsPpr,
+    news: fantasyProsNewsFor(news, match.playerId),
   };
 };

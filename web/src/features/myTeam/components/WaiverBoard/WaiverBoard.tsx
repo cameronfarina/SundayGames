@@ -9,6 +9,7 @@ import {
   waiverSourceLabel,
 } from "../../lib/inSeasonFormat";
 import { FantasyProsCredit } from "../FantasyProsCredit/FantasyProsCredit";
+import { PlayerNewsBlurb } from "../PlayerNewsBlurb/PlayerNewsBlurb";
 import "../TeamTable/TeamTable.css";
 import "./WaiverBoard.css";
 
@@ -79,6 +80,7 @@ export const WaiverBoard = ({ team }: WaiverBoardProps) => {
                       <span className={`position position-${player.position.toLowerCase()}`}>
                         {player.position}
                       </span>
+                      <PlayerNewsBlurb news={player.news} />
                     </th>
                     <td>{byWaiverRank
                       ? rankLabel(player.waiverRank === undefined

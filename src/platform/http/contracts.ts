@@ -20,6 +20,7 @@ import type { LiveDraftRoomEventStreamSubscription } from "../liveDraftRoomEvent
 import type { LiveDraftRoomSetupRepository } from "../liveDraftRoomSetups.js";
 import type { AcceptedPlatformInvitation, PlatformInvitationRepository } from "../platformInvitations.js";
 import type { PlatformOnboardingRepository } from "../platformOnboarding.js";
+import type { PlayerNewsRepository } from "../playerNews.js";
 import type { PostDraftProjectionSnapshot } from "../postDraftTeamAnalysis.js";
 import { createPlatformApp } from "../platformApp.js";
 import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
@@ -52,6 +53,7 @@ export type PlatformHttpHandler = (request: PlatformHttpRequest) => Promise<Plat
 
 export interface PlatformHttpServices {
   onboardingRepository?: PlatformOnboardingRepository | undefined;
+  playerNewsRepository?: PlayerNewsRepository | undefined;
   currentPlayerCatalogProvider?: (() => Promise<readonly LiveDraftRoomPlayerCatalogEntry[]>) | undefined;
   espnLeagueSettingsImporter?: ((input: EspnLeagueSettingsImportInput) => Promise<EspnLeagueSettingsImportOutcome>) | undefined;
   fantasyProsRepository?: FantasyProsRepository | undefined;

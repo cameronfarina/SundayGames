@@ -7,6 +7,7 @@ import {
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../src/platform/liveDraftRooms.js";
 import { InMemoryPlatformStore, createPlatformApp } from "../src/platform/platformApp.js";
+import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import {
   createPlatformHttpHandler,
   type PlatformHttpHandler,
@@ -83,6 +84,51 @@ const seedFantasyPros = async (repository: FantasyProsRepository): Promise<void>
   });
 };
 
+const seedNews = async (repository: InMemoryPlayerNewsRepository): Promise<void> => {
+  await repository.saveItems([
+    {
+      provider: "fantasypros",
+      providerItemId: "603053",
+      title: "Coker is expected to start with Legette out",
+      summary: "",
+      publishedAt: "2026-09-17T08:00:00.000Z",
+      fetchedAt,
+      tags: [],
+      categories: ["Commentary", "News"],
+      providerPlayerId: "10",
+    },
+    {
+      provider: "fantasypros",
+      providerItemId: "603054",
+      title: "Gibbs is limited with an ankle injury",
+      summary: "",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+      fetchedAt,
+      tags: [],
+      categories: ["News", "Injury"],
+      providerPlayerId: "1",
+    },
+    // RotoWire carries no FantasyPros player id, so it never joins.
+    {
+      provider: "rotowire-rss",
+      providerItemId: "rotowire-1",
+      title: "Shough takes first-team reps",
+      summary: "",
+      publishedAt: "2026-09-17T09:30:00.000Z",
+      fetchedAt,
+      tags: [],
+    },
+  ]);
+};
+
+interface NewsRow {
+  playerName: string;
+  news?: { headline: string; publishedAt: string; injury: boolean } | undefined;
+}
+
+const named = (rows: readonly NewsRow[], playerName: string): NewsRow | undefined =>
+  rows.find(row => row.playerName === playerName);
+
 interface RoomContext {
   handle: PlatformHttpHandler;
   owner: LoggedInAccount;
@@ -95,6 +141,7 @@ interface RoomContext {
 // handler here is given none.
 const createRoomContext = async (
   repository?: FantasyProsRepository,
+  newsRepository?: InMemoryPlayerNewsRepository,
 ): Promise<RoomContext> => {
   const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
   const handle = createPlatformHttpHandler(app, {
@@ -104,6 +151,7 @@ const createRoomContext = async (
     ...(repository === undefined
       ? {}
       : { fantasyProsRepository: repository, fantasyProsConfigured: true }),
+    ...(newsRepository === undefined ? {} : { playerNewsRepository: newsRepository }),
   });
   const owner = await createLoggedInAccount(handle, "owner11@example.com");
   const bystander = await createLoggedInAccount(handle, "bystander@example.com");
@@ -278,6 +326,42 @@ describe("live room in-season route", () => {
     expect(kicker.restOfSeason).toBeUndefined();
     expect(kicker.weeklyProjectedPoints).toBeUndefined();
     expect(kicker.fantasyProsPlayerId).toBeUndefined();
+  });
+
+  it("hangs the latest FantasyPros report on the roster and the waiver board", async () => {
+    const newsRepository = new InMemoryPlayerNewsRepository();
+    await seedNews(newsRepository);
+    const withNews = await createRoomContext(repository, newsRepository);
+    await endRoom(withNews);
+
+    const response = await getInSeason(withNews, withNews.owner.sessionToken);
+    const body = JSON.parse(JSON.stringify(response.body));
+
+    expect(named(body.players, "Jahmyr Gibbs")?.news).toEqual({
+      headline: "Gibbs is limited with an ankle injury",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+      injury: true,
+    });
+    expect(named(body.waivers.players, "Jalen Coker")?.news).toMatchObject({
+      headline: "Coker is expected to start with Legette out",
+      injury: false,
+    });
+    // Nothing FantasyPros published names him, and the RotoWire item cannot
+    // join, so he is on the board with no blurb rather than missing from it.
+    expect(named(body.waivers.players, "Tyler Shough")).toBeDefined();
+    expect(named(body.waivers.players, "Tyler Shough")?.news).toBeUndefined();
+  });
+
+  it("serves the same board when no news repository is wired up", async () => {
+    await endRoom(context);
+
+    const response = await getInSeason(context, context.owner.sessionToken);
+    const body = JSON.parse(JSON.stringify(response.body));
+
+    expect(body.waivers.players.map((player: { playerName: string }) => player.playerName))
+      .toEqual(["Tyler Shough", "Jalen Coker"]);
+    expect(body.waivers.players.every((player: { news?: unknown }) =>
+      player.news === undefined)).toBe(true);
   });
 
   it("still serves the roster when FantasyPros is not wired up", async () => {

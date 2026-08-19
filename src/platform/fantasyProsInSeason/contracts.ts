@@ -10,6 +10,14 @@ export interface FantasyProsRankView {
   ecrDelta?: number | undefined;
 }
 
+/** The latest FantasyPros report about a player, for context beside a rank. */
+export interface FantasyProsPlayerNews {
+  headline: string;
+  publishedAt: string;
+  /** FantasyPros filed the report under its Injury category. */
+  injury: boolean;
+}
+
 export interface FantasyProsInSeasonPlayer {
   playerId: string;
   playerName: string;
@@ -21,6 +29,7 @@ export interface FantasyProsInSeasonPlayer {
   restOfSeason?: FantasyProsRankView | undefined;
   weeklyProjectedPoints?: number | undefined;
   restOfSeasonProjectedPoints?: number | undefined;
+  news?: FantasyProsPlayerNews | undefined;
 }
 
 /** Which projection the lineup was assigned on; the two are never mixed. */

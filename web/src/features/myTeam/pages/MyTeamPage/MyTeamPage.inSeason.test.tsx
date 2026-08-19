@@ -52,6 +52,22 @@ describe("MyTeamPage in-season tabs", () => {
     expect(screen.getByRole("link", { name: "Waivers" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("carries a waiver candidate's FantasyPros news blurb through the wire", async () => {
+    useInSeasonHandlers();
+    renderMyTeamPage("/my-team?seasonId=season-2026&view=waivers");
+
+    expect(await screen.findByText("Shough is expected to start again in Week 3")).toBeVisible();
+  });
+
+  it("marks an injury report on the roster the lineup tab shows", async () => {
+    useInSeasonHandlers();
+    renderMyTeamPage("/my-team?seasonId=season-2026&view=lineup");
+
+    expect(await screen.findByText("Gibbs is limited in practice with an ankle injury"))
+      .toBeVisible();
+    expect(screen.getByText("Injury")).toBeVisible();
+  });
+
   it("tells a pre-draft league that these tools unlock after the draft", async () => {
     usePreDraftHandlers();
     renderMyTeamPage("/my-team?seasonId=season-2026&view=lineup");

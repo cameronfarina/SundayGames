@@ -2,6 +2,7 @@ import type { Position } from "../../../config/league.js";
 import type { FantasyProsWaiverBoard, FantasyProsWaiverPlayer } from "./contracts.js";
 import type { FantasyProsInSeasonDataset } from "./dataset.js";
 import { enrichRosterCandidate } from "./enrich.js";
+import type { FantasyProsPlayerNewsIndex } from "./news.js";
 import type { FantasyProsRosterCandidate } from "./roster.js";
 
 /**
@@ -36,13 +37,14 @@ const takePerPosition = (
 export const buildFantasyProsWaiverBoard = (
   freeAgents: readonly FantasyProsRosterCandidate[],
   dataset: FantasyProsInSeasonDataset,
+  news: FantasyProsPlayerNewsIndex,
 ): FantasyProsWaiverBoard => {
   // Waiver rankings stay empty until the season starts, so the rest-of-season
   // set stands in and the payload says which one the reader is looking at.
   const useWaiverRankings = dataset.waiverRankings.size > 0;
 
   const ranked = freeAgents.flatMap<RankedCandidate>(candidate => {
-    const player = enrichRosterCandidate(candidate, dataset);
+    const player = enrichRosterCandidate(candidate, dataset, news);
     const fantasyProsPlayerId = player.fantasyProsPlayerId;
     if (fantasyProsPlayerId === undefined) return [];
 
