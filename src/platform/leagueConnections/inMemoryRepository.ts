@@ -5,6 +5,7 @@ import type {
   LeagueConnectionCredentials,
   LeagueConnectionRepository,
   LeagueSnapshot,
+  LinkLeagueConnectionInput,
   SaveLeagueConnectionInput,
   StoredLeagueSnapshot,
   StoredPlayerDirectory,
@@ -57,6 +58,8 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
       status: existing?.status ?? "pending",
       ...(existing?.statusDetail === undefined ? {} : { statusDetail: existing.statusDetail }),
       ...(existing?.lastSyncedAt === undefined ? {} : { lastSyncedAt: existing.lastSyncedAt }),
+      ...(existing?.linkedLeagueId === undefined ? {} : { linkedLeagueId: existing.linkedLeagueId }),
+      ...(existing?.linkedSeasonId === undefined ? {} : { linkedSeasonId: existing.linkedSeasonId }),
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
@@ -65,6 +68,19 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
       this.#credentialsById.set(connection.id, clone(input.credentials));
     }
     return clone(connection);
+  }
+
+  async linkConnection(input: LinkLeagueConnectionInput): Promise<LeagueConnection | null> {
+    const existing = this.#connectionsById.get(input.id);
+    if (existing === undefined || existing.accountId !== input.accountId) return null;
+    const linked = {
+      ...existing,
+      linkedLeagueId: input.leagueId,
+      linkedSeasonId: input.seasonId,
+      updatedAt: (input.now ?? new Date()).toISOString(),
+    };
+    this.#connectionsById.set(input.id, linked);
+    return clone(linked);
   }
 
   async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void> {
