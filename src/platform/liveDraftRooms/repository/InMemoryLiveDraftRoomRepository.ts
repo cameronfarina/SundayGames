@@ -1,8 +1,10 @@
 import type { LiveDraftRoomActor } from "../contracts/core.js";
 import type {
+  CorrectLiveDraftRoomPickInput,
   CorrectLiveDraftRoomSaleInput,
   CreateLiveDraftRoomInput,
   EndLiveDraftRoomInput,
+  LogLiveDraftRoomPickInput,
   LogLiveDraftRoomSaleInput,
   MutateLiveDraftRoomInput,
   SynchronizeLiveDraftRoomInitialRostersInput,
@@ -13,11 +15,13 @@ import type {
 } from "../contracts/repository.js";
 import type { LiveDraftRoom, LiveDraftRoomSummary } from "../contracts/room.js";
 import { cancelRoom } from "./cancelRoom.js";
+import { correctPick } from "./correctPick.js";
 import { correctSale } from "./correctSale.js";
 import { createRoom } from "./createRoom.js";
 import type { LiveDraftRoomRepositoryContext } from "./context.js";
 import { endRoom } from "./endRoom.js";
 import { pauseRoom, resumeRoom, startRoom } from "./liveLifecycle.js";
+import { logPick } from "./logPick.js";
 import { logSaleCommand } from "./logSale.js";
 import {
   getRoom,
@@ -28,6 +32,7 @@ import {
 import { reopenRoom } from "./reopenRoom.js";
 import { replaceRooms, rooms, roomSummaries } from "./snapshots.js";
 import { synchronizeInitialRostersForSeason } from "./synchronizeInitialRosters.js";
+import { undoLastPick } from "./undoPick.js";
 import { undoLastSale } from "./undoSale.js";
 
 export class InMemoryLiveDraftRoomRepository implements LiveDraftRoomRepository {
@@ -93,6 +98,18 @@ export class InMemoryLiveDraftRoomRepository implements LiveDraftRoomRepository 
 
   undoLastSale(input: MutateLiveDraftRoomInput): LiveDraftRoom {
     return undoLastSale(this.#context, input);
+  }
+
+  logPick(input: LogLiveDraftRoomPickInput): LiveDraftRoom {
+    return logPick(this.#context, input);
+  }
+
+  correctPick(input: CorrectLiveDraftRoomPickInput): LiveDraftRoom {
+    return correctPick(this.#context, input);
+  }
+
+  undoLastPick(input: MutateLiveDraftRoomInput): LiveDraftRoom {
+    return undoLastPick(this.#context, input);
   }
 
   endRoom(input: EndLiveDraftRoomInput): LiveDraftRoom {
