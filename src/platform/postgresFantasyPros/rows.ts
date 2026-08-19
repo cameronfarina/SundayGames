@@ -4,9 +4,20 @@ import type {
   SaveFantasyProsRankingsInput,
 } from "../fantasyPros.js";
 
+/**
+ * Postgres refuses an upsert whose batch names the same conflict key twice
+ * ("ON CONFLICT DO UPDATE command cannot affect row a second time"), while an
+ * in-memory Map just overwrites. Collapse duplicates first so both stores
+ * agree and a repeated player cannot fail a whole dataset.
+ */
+const lastByPlayerId = <TValue extends { playerId: number }>(
+  values: readonly TValue[],
+): readonly TValue[] =>
+  [...new Map(values.map(value => [value.playerId, value])).values()];
+
 export const rankingRowValues = (
   input: SaveFantasyProsRankingsInput,
-): readonly (readonly unknown[])[] => input.rankings.map(ranking => [
+): readonly (readonly unknown[])[] => lastByPlayerId(input.rankings).map(ranking => [
   input.rankingType,
   input.scoring,
   input.week,
@@ -32,7 +43,7 @@ export const rankingRowValues = (
 
 export const projectionRowValues = (
   input: SaveFantasyProsProjectionsInput,
-): readonly (readonly unknown[])[] => input.projections.map(projection => [
+): readonly (readonly unknown[])[] => lastByPlayerId(input.projections).map(projection => [
   input.week,
   projection.playerId,
   projection.playerName,
@@ -53,7 +64,7 @@ export const projectionRowValues = (
 
 export const playerRowValues = (
   input: SaveFantasyProsPlayersInput,
-): readonly (readonly unknown[])[] => input.players.map(player => [
+): readonly (readonly unknown[])[] => lastByPlayerId(input.players).map(player => [
   player.playerId,
   player.playerName,
   player.firstName ?? null,

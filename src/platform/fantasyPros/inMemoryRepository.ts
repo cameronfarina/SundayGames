@@ -1,18 +1,21 @@
 import type {
   ClaimFantasyProsRefreshInput,
-  FantasyProsDataset,
   FantasyProsDatasetStatus,
   FantasyProsProjectionsQuery,
   FantasyProsRankingsQuery,
   FantasyProsRepository,
-  FantasyProsStoredPlayer,
-  FantasyProsStoredProjection,
-  FantasyProsStoredRanking,
   RecordFantasyProsRefreshOutcomeInput,
   SaveFantasyProsPlayersInput,
   SaveFantasyProsProjectionsInput,
   SaveFantasyProsRankingsInput,
 } from "./contracts.js";
+import type {
+  FantasyProsDataset,
+  FantasyProsStoredPlayer,
+  FantasyProsStoredProjection,
+  FantasyProsStoredRanking,
+} from "./records.js";
+import { retryTimestamp } from "./retrySchedule.js";
 
 interface FetchLogEntry {
   lastFetchedAt: string;
@@ -27,6 +30,7 @@ const rankingKey = (ranking: FantasyProsStoredRanking): string =>
 
 const projectionKey = (projection: FantasyProsStoredProjection): string =>
   `${projection.week}\0${projection.playerId}`;
+
 
 export class InMemoryFantasyProsRepository implements FantasyProsRepository {
   readonly #rankings = new Map<string, FantasyProsStoredRanking>();
@@ -102,7 +106,7 @@ export class InMemoryFantasyProsRepository implements FantasyProsRepository {
     const entry = this.#fetchLog.get(input.dataset) ??
       { lastFetchedAt: input.now.toISOString(), requestCount: 0, rowCount: 0 };
     this.#fetchLog.set(input.dataset, {
-      lastFetchedAt: entry.lastFetchedAt,
+      lastFetchedAt: retryTimestamp(input) ?? entry.lastFetchedAt,
       requestCount: entry.requestCount + input.requestCount,
       rowCount: input.rowCount ?? entry.rowCount,
       ...(input.error === undefined

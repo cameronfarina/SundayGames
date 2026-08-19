@@ -16,14 +16,23 @@ const handlerFor = (services: PlatformHttpServices): PlatformHttpHandler =>
     services,
   );
 
+const emptyDataset = (name: string) => ({
+  name,
+  lastFetchedAt: null,
+  lastSucceededAt: null,
+  rowCount: 0,
+  requestCount: 0,
+  lastError: null,
+});
+
 const emptyDatasets = [
-  { name: "rankings-weekly", lastFetchedAt: null, rowCount: 0 },
-  { name: "rankings-ros", lastFetchedAt: null, rowCount: 0 },
-  { name: "rankings-waiver", lastFetchedAt: null, rowCount: 0 },
-  { name: "projections-weekly", lastFetchedAt: null, rowCount: 0 },
-  { name: "projections-ros", lastFetchedAt: null, rowCount: 0 },
-  { name: "players", lastFetchedAt: null, rowCount: 0 },
-];
+  "rankings-weekly",
+  "rankings-ros",
+  "rankings-waiver",
+  "projections-weekly",
+  "projections-ros",
+  "players",
+].map(emptyDataset);
 
 describe("FantasyPros status route", () => {
   it("requires a signed-in account", async () => {
@@ -71,7 +80,14 @@ describe("FantasyPros status route", () => {
         configured: true,
         datasets: [
           ...emptyDatasets.slice(0, 5),
-          { name: "players", lastFetchedAt: now.toISOString(), rowCount: 8525 },
+          {
+            name: "players",
+            lastFetchedAt: now.toISOString(),
+            lastSucceededAt: now.toISOString(),
+            rowCount: 8525,
+            requestCount: 1,
+            lastError: null,
+          },
         ],
       },
     });
@@ -85,6 +101,40 @@ describe("FantasyPros status route", () => {
       .resolves.toMatchObject({ status: 405 });
     await expect(handle({ method: "GET", path: "/fantasypros-status/players", sessionToken }))
       .resolves.toMatchObject({ status: 404 });
+  });
+
+  it("reports why a dataset is empty instead of hiding the failure", async () => {
+    // The production defect: projections-ros stored zero rows and the status
+    // payload gave no way to tell a failed fetch from one that never ran.
+    const repository = new InMemoryFantasyProsRepository();
+    const now = new Date("2026-09-10T12:00:00.000Z");
+    await repository.claimRefresh({ dataset: "projections-ros", now, cadenceMs: 1000 });
+    await repository.recordRefreshOutcome({
+      dataset: "projections-ros",
+      now,
+      requestCount: 6,
+      rowCount: 0,
+      error: "QB: FantasyPros request to /nfl/2026/projections failed with 429.",
+    });
+    const handle = handlerFor({ fantasyProsRepository: repository, fantasyProsConfigured: true });
+    const { sessionToken } = await createLoggedInAccount(handle, "failed@mockd.local");
+
+    const response = await handle({
+      method: "GET",
+      path: "/fantasypros-status",
+      sessionToken,
+    });
+
+    expect(response.body).toMatchObject({
+      datasets: expect.arrayContaining([{
+        name: "projections-ros",
+        lastFetchedAt: now.toISOString(),
+        lastSucceededAt: null,
+        rowCount: 0,
+        requestCount: 6,
+        lastError: "QB: FantasyPros request to /nfl/2026/projections failed with 429.",
+      }]),
+    });
   });
 
   it("is an observable route root so production requests are logged", () => {

@@ -11,7 +11,13 @@ export interface FantasyProsRefreshDependencies {
   onError?: ((source: FantasyProsRefreshErrorSource, error: unknown) => void) | undefined;
 }
 
-export type FantasyProsRefreshStatus = "refreshed" | "skipped" | "failed";
+export type FantasyProsRefreshStatus = "refreshed" | "partial" | "skipped" | "failed";
+
+export interface FantasyProsDatasetRunResult {
+  rowCount: number;
+  /** One entry per request that failed; empty means the dataset fully refreshed. */
+  failures: readonly string[];
+}
 
 export interface FantasyProsRefreshResult {
   dataset: FantasyProsDataset;
@@ -28,7 +34,7 @@ export interface FantasyProsDatasetRefresh {
     client: FantasyProsClient;
     repository: FantasyProsRepository;
     fetchedAt: string;
-  }): Promise<number>;
+  }): Promise<FantasyProsDatasetRunResult>;
 }
 
 export interface FantasyProsRefreshLoop {

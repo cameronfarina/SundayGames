@@ -25,7 +25,12 @@ export const routeFantasyProsStatus = async (
         return {
           name: dataset,
           lastFetchedAt: status?.lastFetchedAt ?? null,
+          // A refresh that fetched but stored nothing looks identical to one
+          // that never ran unless the outcome is reported alongside it.
+          lastSucceededAt: status?.lastSucceededAt ?? null,
           rowCount: status?.rowCount ?? 0,
+          requestCount: status?.requestCount ?? 0,
+          lastError: status?.lastError ?? null,
         };
       }),
     },

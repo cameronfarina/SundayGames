@@ -12,6 +12,7 @@ import type {
   SaveFantasyProsProjectionsInput,
   SaveFantasyProsRankingsInput,
 } from "../fantasyPros.js";
+import { retryTimestamp } from "../fantasyPros/retrySchedule.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
 import type {
   FantasyProsFetchLogRow,
@@ -112,6 +113,7 @@ export class PostgresFantasyProsRepository implements FantasyProsRepository {
       input.rowCount ?? null,
       input.error ?? null,
       input.now.toISOString(),
+      retryTimestamp(input) ?? null,
     ]);
   }
 

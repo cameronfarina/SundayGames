@@ -11,6 +11,7 @@ import {
   parseFantasyProsPlayers,
   parseFantasyProsProjections,
   parseFantasyProsRankings,
+  rawPlayerRecordCount,
 } from "./parse.js";
 
 export const fantasyProsBaseUrl = "https://api.fantasypros.com/public/v2/json";
@@ -19,6 +20,24 @@ export const fantasyProsRequestTimeoutMs = 10_000;
 
 // Rest-of-season rankings and projections are both requested as week 0.
 export const fantasyProsRestOfSeasonWeek = 0;
+
+/**
+ * A response full of records that parses to nothing means FantasyPros changed
+ * a field name, not that the dataset is empty. Fail loudly so the refresh
+ * records a cause instead of storing zero rows and looking healthy.
+ */
+const assertParsedEveryRecord = (
+  label: string,
+  payload: unknown,
+  parsedCount: number,
+): void => {
+  const rawCount = rawPlayerRecordCount(payload);
+  if (rawCount > 0 && parsedCount === 0) {
+    throw new Error(
+      `FantasyPros ${label} returned ${rawCount} records but none could be parsed.`,
+    );
+  }
+};
 
 const searchParams = (entries: Record<string, string | undefined>): string => {
   const params = new URLSearchParams();
@@ -60,7 +79,9 @@ export const createFantasyProsClient = (
         scoring,
         ...(request.week === undefined ? {} : { week: String(request.week) }),
       }));
-      return parseFantasyProsRankings(payload, { type: request.type, scoring, week });
+      const set = parseFantasyProsRankings(payload, { type: request.type, scoring, week });
+      assertParsedEveryRecord(`${request.type} rankings`, payload, set.rankings.length);
+      return set;
     },
 
     fetchProjections: async (
@@ -71,14 +92,24 @@ export const createFantasyProsClient = (
         week: String(request.week),
         scoring: request.scoring ?? "PPR",
       }));
-      return parseFantasyProsProjections(payload, {
+      const set = parseFantasyProsProjections(payload, {
         position: request.position,
         week: request.week,
       });
+      assertParsedEveryRecord(
+        `week ${request.week} ${request.position} projections`,
+        payload,
+        set.projections.length,
+      );
+      return set;
     },
 
     // The player catalog is not season-scoped; /nfl/<year>/players is not a route.
-    fetchPlayers: async (): Promise<readonly FantasyProsPlayer[]> =>
-      parseFantasyProsPlayers(await requestJson("/nfl/players", searchParams({}))),
+    fetchPlayers: async (): Promise<readonly FantasyProsPlayer[]> => {
+      const payload = await requestJson("/nfl/players", searchParams({}));
+      const players = parseFantasyProsPlayers(payload);
+      assertParsedEveryRecord("player catalog", payload, players.length);
+      return players;
+    },
   };
 };

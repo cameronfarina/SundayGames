@@ -90,6 +90,79 @@ describe("Postgres FantasyPros repository", () => {
     expect(Math.max(...placeholders)).toBe(30);
   });
 
+  it("never names the same conflict key twice inside one batch", async () => {
+    // Postgres rejects a batch that touches a row twice with
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time", while
+    // the in-memory Map silently overwrites and hides the difference.
+    const client = new RecordingClient();
+    const repository = new PostgresFantasyProsRepository(client);
+
+    await repository.saveProjections({
+      week: 0,
+      position: "RB",
+      fetchedAt: "2026-09-10T12:00:00.000Z",
+      projections: [
+        { playerId: 1, playerName: "First Listing", position: "RB", pointsPpr: 10 },
+        { playerId: 2, playerName: "Other Player", position: "RB", pointsPpr: 9 },
+        { playerId: 1, playerName: "Duplicate Listing", position: "RB", pointsPpr: 11 },
+      ],
+    });
+
+    const columnCount = 16;
+    const values = client.queries[0]?.values ?? [];
+    expect(values.length / columnCount).toBe(2);
+    // The later listing wins, matching what the in-memory store does.
+    expect(values).toContain("Duplicate Listing");
+    expect(values).not.toContain("First Listing");
+  });
+
+  it("collapses a repeated player in a catalog batch", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresFantasyProsRepository(client);
+
+    await repository.savePlayers({
+      players: [player(1), player(2), player(1)],
+      fetchedAt: "2026-09-10T12:00:00.000Z",
+    });
+
+    expect((client.queries[0]?.values ?? []).length / 10).toBe(2);
+  });
+
+  it("rewinds the stored timestamp so a failed dataset retries sooner", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresFantasyProsRepository(client);
+    const now = new Date("2026-09-10T12:00:00.000Z");
+
+    await repository.recordRefreshOutcome({
+      dataset: "projections-ros",
+      now,
+      requestCount: 6,
+      rowCount: 0,
+      error: "QB: failed with 429",
+      retryDelayMs: 30 * 60 * 1000,
+      cadenceMs: 6 * 60 * 60 * 1000,
+    });
+
+    const update = client.queries[0];
+    expect(update?.sql).toContain("last_fetched_at = COALESCE($6::timestamptz, last_fetched_at)");
+    // now - 6h + 30m, so the next claim succeeds 30 minutes from now.
+    expect(update?.values[5]).toBe("2026-09-10T06:30:00.000Z");
+  });
+
+  it("leaves the stored timestamp alone after a success", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresFantasyProsRepository(client);
+
+    await repository.recordRefreshOutcome({
+      dataset: "players",
+      now: new Date("2026-09-10T12:00:00.000Z"),
+      requestCount: 1,
+      rowCount: 8525,
+    });
+
+    expect(client.queries[0]?.values[5]).toBeNull();
+  });
+
   it("lets Postgres compare the cadence cutoff against the stored timestamp", async () => {
     const client = new RecordingClient();
     const repository = new PostgresFantasyProsRepository(client);

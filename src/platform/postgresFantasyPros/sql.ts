@@ -97,6 +97,7 @@ UPDATE fantasy_pros_fetch_log SET
   row_count = COALESCE($3::integer, row_count),
   last_succeeded_at = CASE WHEN $4::text IS NULL THEN $5 ELSE last_succeeded_at END,
   last_error = $4,
+  last_fetched_at = COALESCE($6::timestamptz, last_fetched_at),
   updated_at = $5
 WHERE dataset = $1
 `.trim();

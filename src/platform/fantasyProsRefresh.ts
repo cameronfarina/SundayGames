@@ -1,5 +1,6 @@
 export type {
   FantasyProsDatasetRefresh,
+  FantasyProsDatasetRunResult,
   FantasyProsRefreshDependencies,
   FantasyProsRefreshErrorSource,
   FantasyProsRefreshLoop,
@@ -13,7 +14,10 @@ export {
   fantasyProsProjectionsCadenceMs,
   fantasyProsRankingsCadenceMs,
 } from "./fantasyProsRefresh/datasets.js";
-export { refreshFantasyProsDatasets } from "./fantasyProsRefresh/refresh.js";
+export {
+  fantasyProsRetryDelayMs,
+  refreshFantasyProsDatasets,
+} from "./fantasyProsRefresh/refresh.js";
 export {
   fantasyProsRefreshPollIntervalMs,
   startFantasyProsRefreshLoop,

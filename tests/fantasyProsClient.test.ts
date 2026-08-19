@@ -214,6 +214,51 @@ describe("FantasyPros client requests", () => {
       .toBe("https://api.fantasypros.com/public/v2/json/nfl/players?");
   });
 
+  it("fails loudly when a full payload parses to nothing", async () => {
+    // A renamed identifier field would otherwise store zero rows and look
+    // like an empty dataset, which is how a silent outage hides.
+    const renamedIdentifier = {
+      season: "2026",
+      week: "0",
+      count: "2",
+      players: [
+        { player_ref: 1, name: "First Player", position_id: "RB", stats: { points_ppr: 10 } },
+        { player_ref: 2, name: "Second Player", position_id: "RB", stats: { points_ppr: 9 } },
+      ],
+    };
+    const client = createFantasyProsClient({
+      apiKey: "test-key",
+      fetchImplementation: async (..._request: FetchArguments) => jsonResponse(renamedIdentifier),
+    });
+
+    await expect(client.fetchProjections({ position: "RB", week: 0 })).rejects.toThrow(
+      "FantasyPros week 0 RB projections returned 2 records but none could be parsed.",
+    );
+  });
+
+  it("stays quiet when the payload is genuinely empty", async () => {
+    // Waiver rankings are legitimately empty pre-season; that is not a defect.
+    const client = createFantasyProsClient({
+      apiKey: "test-key",
+      fetchImplementation: async (..._request: FetchArguments) =>
+        jsonResponse({ sport: "NFL", count: 0, players: [], public_api_limited: true }),
+    });
+
+    await expect(client.fetchRankings({ type: "waiver" }))
+      .resolves.toMatchObject({ type: "waiver", rankings: [] });
+  });
+
+  it("fails loudly when the player catalog parses to nothing", async () => {
+    const client = createFantasyProsClient({
+      apiKey: "test-key",
+      fetchImplementation: async (..._request: FetchArguments) =>
+        jsonResponse({ count: 1, players: [{ name: "No Identifier", position_id: "WR" }] }),
+    });
+
+    await expect(client.fetchPlayers())
+      .rejects.toThrow("FantasyPros player catalog returned 1 records but none could be parsed.");
+  });
+
   it("fails loudly on a non-OK response", async () => {
     const client = createFantasyProsClient({
       apiKey: "test-key",

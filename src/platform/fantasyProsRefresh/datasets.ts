@@ -4,7 +4,7 @@ import {
   type FantasyProsRankingType,
 } from "../../data/fantasyPros.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
-import type { FantasyProsDatasetRefresh } from "./contracts.js";
+import type { FantasyProsDatasetRefresh, FantasyProsDatasetRunResult } from "./contracts.js";
 
 const hoursMs = 60 * 60 * 1000;
 
@@ -22,6 +22,9 @@ export const fantasyProsPlayersCadenceMs = 24 * hoursMs;
  * during a deploy add no requests.
  */
 export const fantasyProsDailyRequestBudget = 61;
+
+const failureText = (label: string, error: unknown): string =>
+  `${label}: ${error instanceof Error ? error.message : String(error)}`;
 
 const rankingsRefresh = (
   dataset: "rankings-weekly" | "rankings-ros" | "rankings-waiver",
@@ -41,7 +44,7 @@ const rankingsRefresh = (
       rankings: set.rankings,
       fetchedAt,
     });
-    return set.rankings.length;
+    return { rowCount: set.rankings.length, failures: [] };
   },
 });
 
@@ -63,18 +66,25 @@ const projectionsRefresh = (
   requestCount: fantasyProsProjectionPositions.length,
   run: async ({ client, repository, fetchedAt }) => {
     const week = await weekFor(repository);
+    const failures: string[] = [];
     let rowCount = 0;
     for (const position of fantasyProsProjectionPositions) {
-      const set = await client.fetchProjections({ position, week });
-      await repository.saveProjections({
-        week: set.week,
-        position: set.position,
-        projections: set.projections,
-        fetchedAt,
-      });
-      rowCount += set.projections.length;
+      // One position failing must not discard the other five. Before this,
+      // a single transient response zeroed the whole dataset.
+      try {
+        const set = await client.fetchProjections({ position, week });
+        await repository.saveProjections({
+          week: set.week,
+          position: set.position,
+          projections: set.projections,
+          fetchedAt,
+        });
+        rowCount += set.projections.length;
+      } catch (error) {
+        failures.push(failureText(position, error));
+      }
     }
-    return rowCount;
+    return { rowCount, failures };
   },
 });
 
@@ -82,10 +92,10 @@ const playersRefresh: FantasyProsDatasetRefresh = {
   dataset: "players",
   cadenceMs: fantasyProsPlayersCadenceMs,
   requestCount: 1,
-  run: async ({ client, repository, fetchedAt }) => {
+  run: async ({ client, repository, fetchedAt }): Promise<FantasyProsDatasetRunResult> => {
     const players = await client.fetchPlayers();
     await repository.savePlayers({ players, fetchedAt });
-    return players.length;
+    return { rowCount: players.length, failures: [] };
   },
 };
 

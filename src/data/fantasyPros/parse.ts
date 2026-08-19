@@ -21,6 +21,14 @@ import {
 const playersOf = (payload: unknown): readonly Record<string, unknown>[] =>
   isRecord(payload) ? recordArray(payload.players) : [];
 
+/**
+ * How many player records the response carried, before parsing dropped any.
+ * Comparing this against the parsed count is what turns a silent shape change
+ * into a loud one.
+ */
+export const rawPlayerRecordCount = (payload: unknown): number =>
+  playersOf(payload).length;
+
 const rankingFrom = (raw: Record<string, unknown>): FantasyProsRanking | undefined => {
   const playerId = optionalInteger(raw.player_id);
   const playerName = textValue(raw.player_name);

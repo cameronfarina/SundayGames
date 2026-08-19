@@ -13,6 +13,7 @@ import {
   fantasyProsDatasetRefreshes,
   fantasyProsPlayersCadenceMs,
   fantasyProsRankingsCadenceMs,
+  fantasyProsRetryDelayMs,
   refreshFantasyProsDatasets,
 } from "../src/platform/fantasyProsRefresh.js";
 
@@ -180,6 +181,68 @@ describe("FantasyPros refresh gating", () => {
 
     const weeks = fetchProjections.mock.calls.map(([request]) => request.week);
     expect(new Set(weeks)).toEqual(new Set([0, 7]));
+  });
+
+  it("keeps five good positions when one projection request fails", async () => {
+    // The production defect: a single failing position threw out of the loop,
+    // so projections-ros stored zero rows even though five positions answered.
+    const repository = new InMemoryFantasyProsRepository();
+    const inner = fixtureClient();
+    const client: FantasyProsClient = {
+      ...inner,
+      fetchProjections: async request => {
+        if (request.position === "QB") throw new Error("failed with 429");
+        return await inner.fetchProjections(request);
+      },
+    };
+
+    const results = await refreshFantasyProsDatasets({ client, repository, now: () => now });
+
+    const restOfSeason = results.find(result => result.dataset === "projections-ros");
+    expect(restOfSeason?.status).toBe("partial");
+    expect(restOfSeason?.rowCount).toBeGreaterThan(0);
+    await expect(repository.projections({ week: 0 })).resolves.not.toEqual([]);
+    const status = (await repository.datasetStatuses())
+      .find(entry => entry.dataset === "projections-ros");
+    expect(status?.lastError).toContain("QB: failed with 429");
+    expect(status?.rowCount).toBeGreaterThan(0);
+  });
+
+  it("reports a dataset as failed only when nothing landed", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    const client: FantasyProsClient = {
+      ...fixtureClient(),
+      fetchProjections: async () => { throw new Error("upstream down"); },
+    };
+
+    const results = await refreshFantasyProsDatasets({ client, repository, now: () => now });
+
+    expect(results.find(result => result.dataset === "projections-ros")?.status).toBe("failed");
+    expect(results.find(result => result.dataset === "players")?.status).toBe("refreshed");
+  });
+
+  it("retries a failed dataset well before its full cadence", async () => {
+    // A transient failure used to cost six hours of staleness because the
+    // claim had already moved the stored timestamp forward.
+    const repository = new InMemoryFantasyProsRepository();
+    const fetchPlayers = vi.fn(async () => { throw new Error("upstream down"); });
+    const client: FantasyProsClient = { ...fixtureClient(), fetchPlayers };
+
+    await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    await refreshFantasyProsDatasets({
+      client,
+      repository,
+      now: () => new Date(now.getTime() + fantasyProsRetryDelayMs - 1),
+    });
+    expect(fetchPlayers).toHaveBeenCalledOnce();
+
+    await refreshFantasyProsDatasets({
+      client,
+      repository,
+      now: () => new Date(now.getTime() + fantasyProsRetryDelayMs),
+    });
+    expect(fetchPlayers).toHaveBeenCalledTimes(2);
+    expect(fantasyProsRetryDelayMs).toBeLessThan(fantasyProsPlayersCadenceMs);
   });
 
   it("keeps the scheduled request budget well under the daily quota", () => {
