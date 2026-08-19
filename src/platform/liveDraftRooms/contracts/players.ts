@@ -12,6 +12,12 @@ export interface ParsedLiveDraftRoomSaleInput {
 
 export type LiveDraftRoomSaleCommandInput = string | ParsedLiveDraftRoomSaleInput;
 
+export interface ParsedLiveDraftRoomPickInput {
+  playerName: string;
+}
+
+export type LiveDraftRoomPickCommandInput = string | ParsedLiveDraftRoomPickInput;
+
 export interface LiveDraftRoomSale {
   saleEventId: string;
   input: string;
@@ -28,14 +34,33 @@ export interface LiveDraftRoomSale {
   byeWeek?: number | undefined;
 }
 
+export interface LiveDraftRoomPickSelection {
+  pickEventId: string;
+  input: string;
+  overall: number;
+  round: number;
+  pickInRound: number;
+  teamId: string;
+  ownerId: string;
+  ownerDisplayName: string;
+  teamDisplayName: string;
+  playerName: string;
+  normalizedPlayerName: string;
+  position: Position;
+  expectedPrice: number;
+  teamAbbreviation?: string | undefined;
+  byeWeek?: number | undefined;
+}
+
 export interface LiveDraftRoomRosterPlayer {
   name: string;
   normalizedPlayerName: string;
   position: Position;
   price: number;
   expectedPrice: number;
-  source: "keeper" | "imported" | "sale";
+  source: "keeper" | "imported" | "sale" | "pick";
   saleEventId?: string | undefined;
+  pickEventId?: string | undefined;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
 }
@@ -55,7 +80,6 @@ export interface LiveDraftRoomTeamState {
   positionCounts: Record<Position, number>;
   roster: readonly LiveDraftRoomRosterPlayer[];
   slots: readonly LiveDraftRoomRosterSlot[];
-  /** Auction rooms only. Snake teams have no budget. */
   budgetDollars?: number | undefined;
   spent?: number | undefined;
   budgetRemaining?: number | undefined;
@@ -72,7 +96,6 @@ export interface LiveDraftRoomBoardPlayer {
   byeWeek?: number | undefined;
 }
 
-/** Snake rooms only. One slot on the draft board, filled once a team takes it. */
 export interface LiveDraftRoomPick {
   overall: number;
   round: number;
@@ -81,8 +104,8 @@ export interface LiveDraftRoomPick {
   ownerDisplayName: string;
   teamDisplayName: string;
   playerName?: string | undefined;
-  source?: "keeper" | "imported" | "sale" | undefined;
-  saleEventId?: string | undefined;
+  source?: "keeper" | "imported" | "pick" | undefined;
+  pickEventId?: string | undefined;
 }
 
 export interface LiveDraftRoomProjection {
@@ -95,7 +118,6 @@ export interface LiveDraftRoomProjection {
   teams: readonly LiveDraftRoomTeamState[];
   board: readonly LiveDraftRoomBoardPlayer[];
   sales: readonly LiveDraftRoomSale[];
-  /** Snake rooms only. Auction rooms have no fixed pick order. */
   picks?: readonly LiveDraftRoomPick[] | undefined;
   onTheClock?: LiveDraftRoomPick | undefined;
 }
