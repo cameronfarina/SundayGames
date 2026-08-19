@@ -1,14 +1,13 @@
 import type { SnakeLeagueSeason } from "../leagueSeason.js";
 import { isForwardRound } from "../snakeDraftEngine/draftOrder.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "./contracts/core.js";
-import type { LiveDraftRoomPick, LiveDraftRoomSale } from "./contracts/players.js";
+import type { LiveDraftRoomPick, LiveDraftRoomPickSelection } from "./contracts/players.js";
 
 const teamOrderFor = (season: SnakeLeagueSeason): readonly string[] =>
   [...season.teams]
     .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition)
     .map(team => team.id);
 
-/** Every slot in the draft, in the order the room will fill them. */
 export const emptyPicksFor = (season: SnakeLeagueSeason): LiveDraftRoomPick[] => {
   const teamOrder = teamOrderFor(season);
   const orderType = season.settings.snake.reversal === "third-round"
@@ -36,14 +35,10 @@ export const emptyPicksFor = (season: SnakeLeagueSeason): LiveDraftRoomPick[] =>
   return picks;
 };
 
-/**
- * Keepers name a round but not a slot inside it, because a team picks once per
- * round. Sales then take the remaining slots in the order they were recorded.
- */
 export const snakePicksFor = (
   season: SnakeLeagueSeason,
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[],
-  sales: readonly LiveDraftRoomSale[],
+  selections: readonly LiveDraftRoomPickSelection[],
 ): readonly LiveDraftRoomPick[] => {
   const picks = emptyPicksFor(season);
 
@@ -57,14 +52,12 @@ export const snakePicksFor = (
     pick.source = player.source ?? "keeper";
   }
 
-  let cursor = 0;
-  for (const sale of sales) {
-    while (cursor < picks.length && picks[cursor]?.playerName !== undefined) cursor += 1;
-    const pick = picks[cursor];
-    if (pick === undefined) break;
-    pick.playerName = sale.playerName;
-    pick.source = "sale";
-    pick.saleEventId = sale.saleEventId;
+  for (const selection of selections) {
+    const pick = picks.find(candidate => candidate.overall === selection.overall);
+    if (pick === undefined || pick.playerName !== undefined) continue;
+    pick.playerName = selection.playerName;
+    pick.source = "pick";
+    pick.pickEventId = selection.pickEventId;
   }
 
   return picks;
