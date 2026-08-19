@@ -4,6 +4,7 @@ export {
 } from "./domainInputs/mockDraft.js";
 export {
   initialRosterPlayersFrom,
+  liveDraftPickInputFor,
   liveDraftSaleInputFor,
   playerCatalogEntriesFrom,
 } from "./domainInputs/liveRoom.js";
