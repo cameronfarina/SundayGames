@@ -1,6 +1,7 @@
 import { cleanPlayerName, normalizePlayerName } from "../../data/normalizePlayerName.js";
 import type { LiveDraftRoomInitialRosterPlayer } from "./contracts/core.js";
 import type {
+  LiveDraftRoomPickSelection,
   LiveDraftRoomRosterPlayer,
   LiveDraftRoomSale,
 } from "./contracts/players.js";
@@ -31,4 +32,18 @@ export const rosterPlayerFromSale = (
   saleEventId: sale.saleEventId,
   ...(sale.teamAbbreviation === undefined ? {} : { teamAbbreviation: sale.teamAbbreviation }),
   ...(sale.byeWeek === undefined ? {} : { byeWeek: sale.byeWeek }),
+});
+
+export const rosterPlayerFromPick = (
+  pick: LiveDraftRoomPickSelection,
+): LiveDraftRoomRosterPlayer => ({
+  name: pick.playerName,
+  normalizedPlayerName: pick.normalizedPlayerName,
+  position: pick.position,
+  price: 0,
+  expectedPrice: pick.expectedPrice,
+  source: "pick",
+  pickEventId: pick.pickEventId,
+  ...(pick.teamAbbreviation === undefined ? {} : { teamAbbreviation: pick.teamAbbreviation }),
+  ...(pick.byeWeek === undefined ? {} : { byeWeek: pick.byeWeek }),
 });
