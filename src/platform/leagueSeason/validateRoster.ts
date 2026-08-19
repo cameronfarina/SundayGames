@@ -1,5 +1,6 @@
 import { positions } from "../../../config/league.js";
-import type { LeagueSeasonReadinessCheck, RosterRules } from "./contracts.js";
+import type { RosterRules } from "./contracts.js";
+import type { LeagueSeasonReadinessCheck } from "./readinessContracts.js";
 
 export const validateRosterSlots = (rules: RosterRules): LeagueSeasonReadinessCheck => {
   const entries = Object.entries(rules.lineup);

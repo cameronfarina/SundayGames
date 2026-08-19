@@ -1,7 +1,5 @@
-import type {
-  AnyLeagueSeason,
-  LeagueSeasonReadinessCheck,
-} from "./contracts.js";
+import type { AnyLeagueSeason } from "./contracts.js";
+import type { LeagueSeasonReadinessCheck } from "./readinessContracts.js";
 
 export const validateTeamCount = (season: AnyLeagueSeason): LeagueSeasonReadinessCheck => {
   const actual = season.teams.length;

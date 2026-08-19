@@ -1,9 +1,9 @@
 import type {
   AuctionSettings,
   FantasyTeam,
-  LeagueSeasonReadinessCheck,
   SnakeSettings,
 } from "./contracts.js";
+import type { LeagueSeasonReadinessCheck } from "./readinessContracts.js";
 
 export const validateAuctionBudget = (
   settings: AuctionSettings,

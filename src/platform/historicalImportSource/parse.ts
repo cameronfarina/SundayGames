@@ -9,7 +9,8 @@ import { nonEmptyRows, parseDelimitedRows } from "./delimitedRows.js";
 import { fileHashFor, normalizeSourceText, wideAuctionSourceHashFor } from "./hashing.js";
 import { headerIndexFor } from "./headers.js";
 import { normalizedRowFor } from "./normalizedRow.js";
-import { rowsFromSlotPriceSource, slotPriceHeaderIndex } from "./slotPrices.js";
+import { slotPriceHeaderIndex } from "./slotPriceHeaders.js";
+import { rowsFromSlotPriceSource } from "./slotPrices.js";
 import { sourceWarning } from "./warnings.js";
 import { rowsFromWideAuctionSource, wideAuctionOwnerBlocks } from "./wideAuction.js";
 

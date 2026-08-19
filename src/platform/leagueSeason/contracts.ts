@@ -3,8 +3,6 @@ import type { Position } from "../../../config/league.js";
 export type LeagueProvider = "mockd" | "espn" | "sleeper" | "yahoo";
 export type DraftFormat = "auction" | "snake";
 export type LeagueSeasonSetupStatus = "draft" | "published" | "locked";
-export type ReadinessStatus = "pass" | "warn" | "fail";
-export type ReadinessSeverity = "blocker" | "warning";
 
 export interface League {
   id: string;
@@ -128,21 +126,4 @@ export interface BuildCurrentMockdLeagueSeasonOptions {
   leagueName?: string;
   setupStatus?: LeagueSeasonSetupStatus;
   draft?: LeagueSeasonDraftSchedule;
-}
-
-export interface LeagueSeasonReadinessCheck {
-  key: string;
-  label: string;
-  status: ReadinessStatus;
-  severity: ReadinessSeverity;
-  message: string;
-}
-
-export interface LeagueSeasonReadiness {
-  status: ReadinessStatus;
-  canPublish: boolean;
-  canLock: boolean;
-  blockers: string[];
-  warnings: string[];
-  checks: LeagueSeasonReadinessCheck[];
 }

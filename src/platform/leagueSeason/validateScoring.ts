@@ -1,4 +1,5 @@
-import type { LeagueSeasonReadinessCheck, ScoringSettings } from "./contracts.js";
+import type { ScoringSettings } from "./contracts.js";
+import type { LeagueSeasonReadinessCheck } from "./readinessContracts.js";
 
 export const validateScoringSettings = (
   settings: ScoringSettings,
