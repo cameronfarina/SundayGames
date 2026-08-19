@@ -29,8 +29,8 @@ export function SlotPriceImport({ season }: SlotPriceImportProps) {
       <p className="commissioner-help">
         Use this when you know what each positional rank typically costs but do not have complete
         draft results. No owner or player names are required. Paste Position, Rank, Price rows such
-        as RB, 1, 75 and RB, 2, 72, or use a Slot column such as RB1 beside Price. Add a Season
-        column, or one price column per year, to bring several drafts at once.
+        as RB, 1, 75 and RB, 2, 72. Add a Season column or one price column per year to bring
+        several drafts at once.
       </p>
       <p className="commissioner-help">
         SundayGames matches those prices to the published ESPN board by position rank. Kickers,
