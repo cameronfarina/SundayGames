@@ -9,6 +9,7 @@ import {
   type SyncedLeague,
 } from "./contracts.js";
 import { numberValue, optionalText, recordArray, recordValue } from "./decode.js";
+import { discoverEspnAccountLeagueIds } from "./espnAccountDiscovery.js";
 import { espnRosterPositions, espnScoring } from "./espnSettings.js";
 import { espnMatchupsFor, espnTeamsFor } from "./espnTeams.js";
 import { fetchLeagueSyncJson } from "./httpJson.js";
@@ -50,8 +51,6 @@ const fetchLeaguePayload = async (
       url: espnLeagueUrl(providerLeagueId, season),
     }));
   } catch (error) {
-    // A refusal means different things depending on what the owner has already
-    // given us: no cookies yet is a prompt, saved cookies is a repair.
     const needsFirstCookies = error instanceof LeagueSyncError &&
       error.code === "credentials_rejected" && !hasCredentials(options.credentials);
     if (!needsFirstCookies) throw error;
@@ -82,6 +81,18 @@ const discoveredLeagueFor = (
   };
 };
 
+const discoverLeagues = async (input: DiscoverLeaguesInput): Promise<readonly DiscoveredLeague[]> => {
+  const handle = input.handle.trim();
+  const leagueIds = handle.length > 0
+    ? [handle]
+    : await discoverEspnAccountLeagueIds(input.season, input);
+  return await Promise.all(leagueIds.map(async providerLeagueId => discoveredLeagueFor(
+    await fetchLeaguePayload(providerLeagueId, input.season, input),
+    providerLeagueId,
+    input.season,
+  )));
+};
+
 const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
   const payload = await fetchLeaguePayload(input.providerLeagueId, input.season, input);
   const settings = recordValue(payload.settings);
@@ -108,10 +119,6 @@ export const espnLeagueSyncAdapter: LeagueSyncAdapter = {
   provider: "espn",
   isAvailable: () => true,
   needsPlayerDirectory: false,
-  discoverLeagues: async (input: DiscoverLeaguesInput) => [discoveredLeagueFor(
-    await fetchLeaguePayload(input.handle, input.season, input),
-    input.handle,
-    input.season,
-  )],
+  discoverLeagues,
   fetchLeague,
 };
