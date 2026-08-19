@@ -36,7 +36,6 @@ export type {
   RosterRules,
   ScoringSettings,
   SnakeLeagueSeasonSettings,
-  SnakeLeagueSeason,
   SnakeSettings,
   StaticLeagueConfig,
 } from "./leagueSeason/contracts.js";

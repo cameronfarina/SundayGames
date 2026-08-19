@@ -59,8 +59,7 @@ export interface KeeperPolicy {
   mode: "previous-cost-multiplier";
   multiplier: number;
   rounding: "ceil";
-  /** Absent means keepers are enabled; leagues predate the flag. */
-  enabled?: boolean;
+  enabled?: boolean; // absent means enabled; leagues predate the flag
 }
 
 interface LeagueSeasonSettingsCore {
@@ -115,7 +114,6 @@ export interface LeagueSeason<TSettings extends LeagueSeasonSettings = LeagueSea
 export type AnyLeagueSeason = LeagueSeason<LeagueSeasonSettings>;
 export type ExplicitLeagueSeason = LeagueSeason<ExplicitLeagueSeasonSettings>;
 export type AuctionLeagueSeason = LeagueSeason<AuctionLeagueSeasonSettings>;
-export type SnakeLeagueSeason = LeagueSeason<SnakeLeagueSeasonSettings>;
 export interface StaticLeagueConfig {
   leagueId: number | string;
   teams: number;
