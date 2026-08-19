@@ -9,12 +9,27 @@ import type { PlayerDirectoryRow } from "../leagueConnections.js";
 const jsonValueFromDb = (value: unknown): unknown =>
   typeof value !== "string" ? value : JSON.parse(value);
 
+const draftSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("auction"),
+    budgetDollars: z.number(),
+    minimumBidDollars: z.number(),
+  }),
+  z.object({
+    type: z.literal("snake"),
+    rounds: z.number(),
+    order: z.array(z.string()),
+  }),
+]);
+
 const settingsSchema = z.object({
   name: z.string(),
   season: z.string(),
   teamCount: z.number(),
   rosterPositions: z.array(z.string()),
   scoring: z.record(z.string(), z.number()),
+  draft: draftSchema.optional(),
+  keeperLeague: z.boolean().optional(),
   status: z.string().optional(),
   playoffTeams: z.number().optional(),
   playoffWeekStart: z.number().optional(),
@@ -66,10 +81,6 @@ const emptySettings: SyncedLeagueSettings = {
   scoring: {},
 };
 
-/**
- * A stored snapshot that no longer matches the contract is treated as absent
- * rather than fatal: the owner can always press Sync now and replace it.
- */
 export const settingsFromDb = (value: unknown): SyncedLeagueSettings => {
   const parsed = settingsSchema.safeParse(jsonValueFromDb(value));
   return parsed.success ? parsed.data : emptySettings;
@@ -85,12 +96,6 @@ export const matchupsFromDb = (value: unknown): readonly SyncedMatchup[] => {
   return parsed.success ? parsed.data : [];
 };
 
-/**
- * The directory holds twelve thousand players, so it is filtered entry by
- * entry: one odd record must not cost every roster its player names. Teams and
- * matchups above are all-or-nothing on purpose, because a league missing one
- * team would misreport the standings without saying so.
- */
 export const playerDirectoryFromDb = (
   value: unknown,
 ): Readonly<Record<string, PlayerDirectoryRow>> => {
