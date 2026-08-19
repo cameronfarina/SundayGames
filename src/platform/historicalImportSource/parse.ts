@@ -9,6 +9,7 @@ import { nonEmptyRows, parseDelimitedRows } from "./delimitedRows.js";
 import { fileHashFor, normalizeSourceText, wideAuctionSourceHashFor } from "./hashing.js";
 import { headerIndexFor } from "./headers.js";
 import { normalizedRowFor } from "./normalizedRow.js";
+import { rowsFromSlotPriceSource, slotPriceHeaderIndex } from "./slotPrices.js";
 import { sourceWarning } from "./warnings.js";
 import { rowsFromWideAuctionSource, wideAuctionOwnerBlocks } from "./wideAuction.js";
 
@@ -46,6 +47,17 @@ export const parseHistoricalImportSource = (
       fileHash: wideAuctionSourceHashFor(normalizedSourceText, inferKeepers),
       sourceRowCount: rows.length + 1,
       warnings: parsedSource.warnings,
+    };
+  }
+
+  const slotIndex = slotPriceHeaderIndex(mappedHeaderRow);
+  if (slotIndex !== null) {
+    const warnings = [...parsedSource.warnings];
+    return {
+      rows: rowsFromSlotPriceSource(sourceRows.slice(1), slotIndex, warnings),
+      fileHash,
+      sourceRowCount: sourceRows.length,
+      warnings,
     };
   }
 

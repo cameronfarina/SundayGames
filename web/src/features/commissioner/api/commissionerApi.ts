@@ -94,6 +94,11 @@ export const commissionerApi = {
     init: jsonRequest("POST", input),
     responseSchema: historicalPreviewResponseSchema,
   }),
+  previewHistoryText: async (input: SlotPriceImportInput) => await requestPlatformJson({
+    path: seasonPath(input.seasonId, "/historical-imports/preview"),
+    init: jsonRequest("POST", input),
+    responseSchema: historicalPreviewResponseSchema,
+  }),
   commitHistory: async (batchId: string, seasonId: string, seasonYear: number) =>
     await requestPlatformJson({
       path: `/historical-imports/${encodeURIComponent(batchId)}/commit`,
@@ -111,4 +116,11 @@ export interface HistoricalUploadInput {
   readonly replacementRequested: boolean;
   readonly seasonId: string;
   readonly seasonYear: number;
+}
+
+export interface SlotPriceImportInput {
+  readonly replacementRequested: boolean;
+  readonly seasonId: string;
+  readonly seasonYear: number;
+  readonly sourceText: string;
 }

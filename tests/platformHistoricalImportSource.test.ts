@@ -14,6 +14,19 @@ const behaviorNames = [
   "parses keeper booleans from commissioner-friendly tokens",
   "uses a stable sha256 file hash across trailing source whitespace",
   "rejects delimited sources that exceed row or cell limits",
+  "reads a position, a rank and a price into a slot sale",
+  "reads a slot written as one cell",
+  "keeps a season column so one sheet can carry several drafts",
+  "names no owner it could be confused with, and never a real player",
+  "marks every slot an auction sale rather than leaving it inferred",
+  "leaves a slot deeper than the published board without a published value",
+  "keeps kicker and defense slots without giving them a published value",
+  "warns about a row with no readable rank and leaves it unnamed",
+  "keeps an unreadable price for the row validation to reject",
+  "skips a blank row without warning about it",
+  "reads tab separated slot prices",
+  "leaves a sheet that names players to the header-mapped layout",
+  "leaves a wide auction sheet to the wide layout",
 ];
 
 const testDirectory = path.resolve("tests/platformHistoricalImportSource");
@@ -84,7 +97,7 @@ describe("platform historical import source test architecture", () => {
     );
 
     expect(actualNames).toEqual([...behaviorNames].sort());
-    expect(assertionCount).toBe(20);
+    expect(assertionCount).toBe(40);
   });
 
   it("keeps historical import tests focused and free of unsafe type escapes", () => {

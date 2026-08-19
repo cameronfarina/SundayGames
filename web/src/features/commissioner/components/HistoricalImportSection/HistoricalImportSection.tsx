@@ -11,6 +11,7 @@ import {
   historicalQueueReducer,
 } from "../../model/historicalFileQueue";
 import { HistoricalFileRow } from "./HistoricalFileRow.js";
+import { SlotPriceImport } from "./SlotPriceImport.js";
 import { useHistoricalImportRun } from "./useHistoricalImportRun.js";
 
 interface HistoricalImportSectionProps { readonly season: CommissionerSeason }
@@ -57,6 +58,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
       <header><h2>Draft history</h2><strong>{importedCount} imported</strong></header>
       {unavailable ? <p>Historical snake draft imports are not available yet.</p> : <>
         <p className="commissioner-help">Add prior auction results as CSV, TSV, or XLSX. Each file must use a different draft year.</p>
+        <p className="commissioner-help">Name the columns Owner, Player, Position, and Price. Add Public Value to say what the market asked for that player, or leave it out and we read it from the published ESPN board. An ESPN-style sheet with a Team header row and a price, position, and player column per team works as it is.</p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
           variant="secondary" onClick={() => { fileInput.current?.click(); }}
           onDragOver={event => { event.preventDefault(); setDragging(true); }}
@@ -83,6 +85,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
           {importLabel}
         </ProgressButton>
         {run.isPending ? <p role="status">Reading and importing draft files.</p> : null}
+        <SlotPriceImport season={season} />
       </>}
     </section>
   );

@@ -1,6 +1,7 @@
 import type {
   HistoricalImportSourceColumn,
   HistoricalImportSourceDelimiter,
+  SlotPriceSlotColumn,
 } from "./contracts.js";
 
 export const delimiters: readonly HistoricalImportSourceDelimiter[] = [",", "\t", ";"];
@@ -41,6 +42,11 @@ export const headerAliases: Record<HistoricalImportSourceColumn, ReadonlySet<str
   playerId: new Set(["playerid", "espnid"]),
   keeper: new Set(["keeper", "iskeeper"]),
   acquisitionType: new Set(["acquisition", "acquisitiontype", "type"]),
+};
+
+export const slotHeaderAliases: Record<SlotPriceSlotColumn, ReadonlySet<string>> = {
+  slot: new Set(["slot", "positionslot", "rankslot", "slotlabel"]),
+  positionRank: new Set(["rank", "positionrank", "posrank", "slotnumber"]),
 };
 
 export const truthyKeeperValues = new Set(["true", "yes", "y", "keeper", "1"]);

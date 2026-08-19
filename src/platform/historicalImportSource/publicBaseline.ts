@@ -1,6 +1,7 @@
 import {
   espnPpr300AuctionBaseline2026,
   espnPpr300AuctionBaselineValueFor,
+  type EspnPpr300AuctionBaselineValue,
 } from "../../data/espnPpr300AuctionBaseline2026.js";
 
 // The published board runs out of money long before it runs out of players, and
@@ -18,9 +19,9 @@ export const publicPriceForPlayerName = (
   return publicValue(entry.auctionValue);
 };
 
-const baselineByPositionRank = new Map(
+const baselineByPositionRank = new Map<string, EspnPpr300AuctionBaselineValue>(
   espnPpr300AuctionBaseline2026.map(player =>
-    [`${player.position}${String(player.positionRank)}`, player] as const),
+    [`${player.position}${String(player.positionRank)}`, player]),
 );
 
 /**

@@ -21,6 +21,7 @@ export type HistoricalImportSourceWarningCode =
   | "duplicate_header"
   | "invalid_acquisition_type"
   | "invalid_keeper"
+  | "invalid_position_rank"
   | "invalid_public_price"
   | "invalid_season_year"
   | "malformed_row"
@@ -61,6 +62,16 @@ export interface DelimiterScore {
   requiredHeaderCount: number;
   cellCount: number;
 }
+
+export type SlotPriceSlotColumn = "slot" | "positionRank";
+
+/**
+ * Either one cell that names the slot outright ("RB1"), or a position column
+ * beside a rank column. Both carry a price, and either may carry a season.
+ */
+export type SlotPriceHeaderIndex =
+  | { price: number; slot: number; position?: undefined; positionRank?: undefined; seasonYear?: number }
+  | { price: number; slot?: undefined; position: number; positionRank: number; seasonYear?: number };
 
 export interface WideAuctionOwnerBlock {
   ownerDisplayName: string;
