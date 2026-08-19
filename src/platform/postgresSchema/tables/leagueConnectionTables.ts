@@ -15,6 +15,8 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
       { name: "status_detail", type: "text", nullable: true },
       { name: "espn_s2", type: "text", nullable: true },
       { name: "swid", type: "text", nullable: true },
+      { name: "linked_league_id", type: "text", nullable: true },
+      { name: "linked_season_id", type: "text", nullable: true },
       { name: "last_synced_at", type: "timestamptz", nullable: true },
       createdAtColumn,
       updatedAtColumn,
@@ -26,6 +28,18 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
         columns: ["account_id"],
         references: { table: "accounts", columns: ["id"] },
         onDelete: "CASCADE",
+      },
+      {
+        name: "league_connections_linked_league_id_fkey",
+        columns: ["linked_league_id"],
+        references: { table: "leagues", columns: ["id"] },
+        onDelete: "SET NULL",
+      },
+      {
+        name: "league_connections_linked_season_id_fkey",
+        columns: ["linked_season_id"],
+        references: { table: "league_seasons", columns: ["id"] },
+        onDelete: "SET NULL",
       },
     ],
     checkConstraints: [
@@ -45,6 +59,7 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
         unique: true,
       },
       { name: "league_connections_account_id_idx", columns: ["account_id"] },
+      { name: "league_connections_linked_league_id_idx", columns: ["linked_league_id"] },
     ],
   },
   {
