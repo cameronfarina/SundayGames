@@ -106,6 +106,8 @@ export const registerAdviceTests = (): void => {
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
-  });
+    // Boots a server and drives thirteen round-trips through the draft engine,
+    // which does not fit the default budget when the suite is under load.
+  }, 30000);
 
 };
