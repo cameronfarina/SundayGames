@@ -81,7 +81,7 @@ export const boardPlayerValue = (value: unknown, path: string): LiveDraftRoomBoa
 export const rosterPlayerValue = (value: unknown, path: string): LiveDraftRoomRosterPlayer => {
   const record = recordValue(value, path);
   const source = record.source;
-  if (source !== "keeper" && source !== "imported" && source !== "sale") {
+  if (source !== "keeper" && source !== "imported" && source !== "sale" && source !== "pick") {
     throw new Error(`Invalid platform store snapshot at ${path}.source.`);
   }
   return {
@@ -92,6 +92,7 @@ export const rosterPlayerValue = (value: unknown, path: string): LiveDraftRoomRo
     expectedPrice: numberValue(record.expectedPrice, `${path}.expectedPrice`),
     source,
     saleEventId: optionalString(record.saleEventId, `${path}.saleEventId`),
+    pickEventId: optionalString(record.pickEventId, `${path}.pickEventId`),
     teamAbbreviation: optionalString(record.teamAbbreviation, `${path}.teamAbbreviation`),
     byeWeek: optionalValue(record.byeWeek, `${path}.byeWeek`, numberValue),
   };
