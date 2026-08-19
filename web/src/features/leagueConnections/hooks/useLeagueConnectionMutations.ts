@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
 import {
   connectLeague,
   discoverLeagues,
@@ -14,19 +15,23 @@ export const useLeagueConnectionMutations = () => {
   const refreshList = async (): Promise<void> => {
     await client.invalidateQueries({ queryKey: leagueConnectionQueryKeys.list() });
   };
+  const refreshLeagues = async (): Promise<void> => {
+    await client.invalidateQueries({ exact: true, queryKey: seasonQueryKeys.onboarding() });
+  };
 
   const discover = useMutation({
     mutationFn: (request: DiscoverLeaguesRequest) => discoverLeagues(request),
   });
   const connect = useMutation({
     mutationFn: (request: ConnectLeagueRequest) => connectLeague(request),
-    onSuccess: refreshList,
+    onSuccess: async () => { await Promise.all([refreshList(), refreshLeagues()]); },
   });
   const sync = useMutation({
     mutationFn: (connectionId: string) => syncLeagueConnection(connectionId),
     onSuccess: async (_result, connectionId) => {
       await Promise.all([
         refreshList(),
+        refreshLeagues(),
         client.invalidateQueries({ queryKey: leagueConnectionQueryKeys.detail(connectionId) }),
       ]);
     },
