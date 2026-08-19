@@ -18,8 +18,9 @@ const rosterPlayerSchema = z.object({
   position: liveDraftPositionSchema,
   price: z.number().int().nonnegative(),
   expectedPrice: z.number().nonnegative(),
-  source: z.enum(["keeper", "imported", "sale"]),
+  source: z.enum(["keeper", "imported", "sale", "pick"]),
   saleEventId: z.string().min(1).optional(),
+  pickEventId: z.string().min(1).optional(),
   teamAbbreviation: z.string().min(1).optional(),
   byeWeek: z.number().int().positive().optional(),
 });
@@ -35,11 +36,11 @@ export const liveDraftTeamSchema = z.object({
   ownerDisplayName: z.string().min(1),
   teamDisplayName: z.string().min(1),
   draftOrderPosition: z.number().int().positive(),
-  budgetDollars: z.number().int().nonnegative(),
-  spent: z.number().int().nonnegative(),
-  budgetRemaining: z.number().int(),
+  budgetDollars: z.number().int().nonnegative().optional(),
+  spent: z.number().int().nonnegative().optional(),
+  budgetRemaining: z.number().int().optional(),
   rosterSlotsRemaining: z.number().int().nonnegative(),
-  maxBid: z.number().int().nonnegative(),
+  maxBid: z.number().int().nonnegative().optional(),
   positionCounts: z.record(z.string(), z.number().int().nonnegative()),
   roster: z.array(rosterPlayerSchema),
   slots: z.array(rosterSlotSchema),
@@ -61,10 +62,23 @@ export const liveDraftSaleSchema = z.object({
   byeWeek: z.number().int().positive().optional(),
 });
 
+export const liveDraftPickSchema = z.object({
+  overall: z.number().int().positive(),
+  round: z.number().int().positive(),
+  pickInRound: z.number().int().positive(),
+  teamId: z.string().min(1),
+  ownerDisplayName: z.string().min(1),
+  teamDisplayName: z.string().min(1),
+  playerName: z.string().min(1).optional(),
+  source: z.enum(["keeper", "imported", "pick"]).optional(),
+  pickEventId: z.string().min(1).optional(),
+});
+
 export const liveDraftRoomSchema = z.object({
   roomId: z.string().min(1),
   leagueId: z.string().min(1),
   seasonId: z.string().min(1),
+  draftFormat: z.enum(["auction", "snake"]),
   status: z.enum(["setup", "countdown", "live", "paused", "ended"]),
   revision: z.number().int().nonnegative(),
   updatedAt: z.string().min(1),
@@ -72,6 +86,8 @@ export const liveDraftRoomSchema = z.object({
   canMutateRoom: z.boolean(),
   canExportDraft: z.boolean(),
   board: z.array(liveDraftBoardPlayerSchema),
+  picks: z.array(liveDraftPickSchema).optional(),
+  onTheClock: liveDraftPickSchema.optional(),
   selectedTeam: liveDraftTeamSchema.optional(),
   viewedTeam: liveDraftTeamSchema.optional(),
   teamSummaries: z.array(liveDraftTeamSchema),
@@ -98,6 +114,7 @@ const eventEnvelopeSchema = z.object({
   event: z.enum([
     "room.snapshot",
     "room.sale",
+    "room.pick",
     "room.started",
     "room.paused",
     "room.resumed",
@@ -135,6 +152,7 @@ export const liveDraftExportSchema = z.object({
 
 export type LiveDraftBoardPlayer = z.infer<typeof liveDraftBoardPlayerSchema>;
 export type LiveDraftExport = z.infer<typeof liveDraftExportSchema>;
+export type LiveDraftPick = z.infer<typeof liveDraftPickSchema>;
 export type LiveDraftRoom = z.infer<typeof liveDraftRoomSchema>;
 export type LiveDraftSale = z.infer<typeof liveDraftSaleSchema>;
 export type LiveDraftTeam = z.infer<typeof liveDraftTeamSchema>;
