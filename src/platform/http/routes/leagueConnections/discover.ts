@@ -28,14 +28,14 @@ export const routeLeagueConnectionDiscovery = async (
   const provider = providerFor(request.body.provider);
   if (provider === null) return invalidProvider();
   const handle = optionalString(request.body.handle);
-  if (handle === undefined) {
+  if (handle === undefined && provider !== "espn") {
     return knownError(400, "handle_required", "Enter the league or username to look up.");
   }
   const credentials = credentialsFor(request.body);
   const season = seasonFor(request, request.body.season);
   const discovery = await discoverLeaguesForProvider(options, {
     provider,
-    handle: normalizedHandle(provider, handle),
+    handle: handle === undefined ? "" : normalizedHandle(provider, handle),
     season,
     ...(credentials === undefined ? {} : { credentials }),
   });
