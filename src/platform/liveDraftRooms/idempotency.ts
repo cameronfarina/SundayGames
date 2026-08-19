@@ -45,6 +45,9 @@ const actionForEventType = (
     case "sale_logged": return "log_sale";
     case "sale_corrected": return "correct_sale";
     case "sale_undone": return "undo_sale";
+    case "pick_logged": return "log_pick";
+    case "pick_corrected": return "correct_pick";
+    case "pick_undone": return "undo_pick";
     case "room_ended": return "end";
     case "room_created": return undefined;
   }
