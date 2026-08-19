@@ -14,6 +14,16 @@ import {
 
 const providerLabels: Record<RawPlayerNewsItem["provider"], string> = {
   "rotowire-rss": "RotoWire RSS",
+  fantasypros: "FantasyPros",
+};
+
+// RotoWire splits the player off the front of the title, so the headline has to
+// put it back. FantasyPros leaves the name in place and would read twice.
+const headlineFor = (player: string, title: string): string => {
+  const sentence = ensureNewsSentence(title);
+  return playerNewsKeyFor(sentence).startsWith(playerNewsKeyFor(player))
+    ? sentence
+    : `${player}: ${sentence}`;
 };
 
 export const playerNewsItemFromRaw = (
@@ -26,16 +36,26 @@ export const playerNewsItemFromRaw = (
   const draftAction = actionForRawNews(item);
   const impactScore = draftAction === "Fade" ? -1 : draftAction === "Watch" ? -0.5 : 0;
   const sourceDate = normalizedNewsDate(item.publishedAt);
+  const metadata = playerNewsItemMetadataFor(market);
+  const analystImpact = ensureNewsSentence(withoutSourceCredit(item.analystImpact ?? ""));
 
   return {
     id: `${item.provider}-${playerNewsSlugFor(item.providerItemId || item.title)}-${index + 1}`,
     providerItemId: item.providerItemId,
     player,
     normalizedPlayerName: playerNewsKeyFor(player),
-    ...playerNewsItemMetadataFor(market),
+    ...metadata,
+    // The provider naming the team beats a catalog lookup that had only a name.
+    ...(item.providerTeamAbbreviation === undefined
+      ? {}
+      : { teamAbbreviation: item.providerTeamAbbreviation }),
     category: categoryForRawNews(item),
-    headline: `${player}: ${ensureNewsSentence(item.title)}`,
+    ...(item.categories === undefined || item.categories.length === 0
+      ? {}
+      : { categories: [...item.categories] }),
+    headline: headlineFor(player, item.title),
     fantasyImpact: ensureNewsSentence(withoutSourceCredit(item.summary)),
+    ...(analystImpact === "" ? {} : { analystImpact }),
     ...(sourceDate ? { sourceDate } : {}),
     fetchedAt: item.fetchedAt,
     source: {

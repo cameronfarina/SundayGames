@@ -2,6 +2,7 @@ import { Star } from "lucide-react";
 import { IconButton } from "../../../../shared/ui";
 import type { PlayerNewsItem as PlayerNewsItemData } from "../../api/playerNewsSchema";
 import { formatNewsTimestamp } from "../../lib/formatNewsTimestamp";
+import "./NewsItem.css";
 
 interface NewsItemProps {
   readonly followed: boolean;
@@ -14,6 +15,16 @@ const playerLine = (item: PlayerNewsItemData): string => {
   const team = item.teamAbbreviation === undefined ? "" : ` · ${item.teamAbbreviation}`;
   return `${item.player} · ${item.position}${team}`;
 };
+
+// The feed already resolved the most actionable label into `category`, so it
+// leads; anything else the provider applied follows it.
+const labelsFor = (item: PlayerNewsItemData): readonly string[] =>
+  [...new Set([item.category, ...item.categories ?? []])];
+
+const labelClassName = (label: string): string =>
+  label === "Injury"
+    ? "player-news-item__label player-news-item__label--injury"
+    : "player-news-item__label";
 
 export const NewsItem = ({ followed, item, onToggleFollow }: NewsItemProps) => {
   const timestamp = formatNewsTimestamp(item.sourceDate ?? item.fetchedAt);
@@ -38,6 +49,16 @@ export const NewsItem = ({ followed, item, onToggleFollow }: NewsItemProps) => {
         ? null
         : <span className="player-news-item__timestamp">{timestamp}</span>}
     </header>
+    <ul aria-label={`Categories for ${item.player}`} className="player-news-item__labels">
+      {labelsFor(item).map(label => <li className={labelClassName(label)} key={label}>{label}</li>)}
+    </ul>
     <p>{item.fantasyImpact}</p>
+    {item.analystImpact === undefined
+      ? null
+      : <p className="player-news-item__analysis">
+        <span>Analyst take</span>
+        {item.analystImpact}
+      </p>}
+    <p className="player-news-item__source">{item.source.provider}</p>
   </article>;
 };

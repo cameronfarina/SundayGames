@@ -13,6 +13,12 @@ export interface PlayerNewsStoredItem {
   publishedAt?: string | undefined;
   fetchedAt: string;
   tags: string[];
+  /** Provider-supplied labels. Only FantasyPros ships them; RotoWire has none. */
+  categories?: string[] | undefined;
+  /** The analyst take FantasyPros ships alongside the report itself. */
+  analystImpact?: string | undefined;
+  providerPlayerId?: string | undefined;
+  providerTeamAbbreviation?: string | undefined;
 }
 
 export interface SavePlayerNewsItemInput {
@@ -25,6 +31,12 @@ export interface SavePlayerNewsItemInput {
   publishedAt?: string | undefined;
   fetchedAt: string;
   tags: string[];
+  /** Provider-supplied labels. Only FantasyPros ships them; RotoWire has none. */
+  categories?: string[] | undefined;
+  /** The analyst take FantasyPros ships alongside the report itself. */
+  analystImpact?: string | undefined;
+  providerPlayerId?: string | undefined;
+  providerTeamAbbreviation?: string | undefined;
 }
 
 export interface PlayerNewsRepository {

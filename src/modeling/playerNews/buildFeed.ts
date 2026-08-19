@@ -1,4 +1,5 @@
 import { newestPlayerNewsFirst } from "./chronology.js";
+import { withoutDuplicateReports } from "./dedupe.js";
 import { playerNewsDraftContextFor } from "./draftContext.js";
 import { playerNewsItemFromEvidence } from "./evidenceItem.js";
 import { matchesPlayerNewsFilters, playerNewsSourceModeFrom } from "./filters.js";
@@ -24,7 +25,9 @@ export const buildPlayerNewsFeed = ({
       playerNewsItemFromEvidence(evidence, index, draftContext));
   const rawItems = sourceMode === "local"
     ? []
-    : rawNewsItems.map((item, index) => playerNewsItemFromRaw(item, index, draftContext));
+    : withoutDuplicateReports(rawNewsItems
+      .filter(item => sourceMode === "all" || item.provider === sourceMode))
+      .map((item, index) => playerNewsItemFromRaw(item, index, draftContext));
   const items = newestPlayerNewsFirst([...localItems, ...rawItems]);
   const filteredItems = items.filter(item => matchesPlayerNewsFilters(item, filters));
 

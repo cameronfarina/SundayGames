@@ -67,6 +67,7 @@ describe("platform runtime config parsing", () => {
         refreshEnabled: true,
         season: 2026,
       },
+      playerNews: { refreshEnabled: true },
       worker: {
         workerId: "worker-a",
         jobKinds: ["simulation"],
@@ -106,7 +107,21 @@ describe("platform runtime config parsing", () => {
       refreshEnabled: false,
       season: 2026,
     });
+    // RotoWire needs no key, so news refreshes unless it is switched off.
+    expect(config.playerNews).toEqual({ refreshEnabled: true });
     expect(config.worker.workerId).toMatch(/^worker_/);
     expect(config.worker.jobKinds).toEqual(["simulation"]);
+  });
+
+  it("switches the news refresh off for an offline run", () => {
+    // The end-to-end run blanks every credential, but RotoWire needs none, so
+    // only this switch keeps the run from reaching a public feed.
+    const config = readPlatformRuntimeConfig({
+      MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
+      MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
+      MOCKD_PLAYER_NEWS_REFRESH_ENABLED: "false",
+    });
+
+    expect(config.playerNews).toEqual({ refreshEnabled: false });
   });
 });

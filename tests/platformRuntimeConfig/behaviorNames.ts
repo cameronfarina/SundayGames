@@ -17,4 +17,5 @@ export const runtimeConfigBehaviorNames: readonly string[] = [
   "blocks file-backed stores for production/domain readiness",
   "blocks non-Postgres database URLs for production/domain readiness",
   "requires an explicit production bind port",
+  "switches the news refresh off for an offline run",
 ];

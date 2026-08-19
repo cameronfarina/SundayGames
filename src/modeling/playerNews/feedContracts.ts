@@ -26,8 +26,12 @@ export interface PlayerNewsItem {
   position?: string;
   teamAbbreviation?: string;
   category: PlayerNewsCategory;
+  /** Every label the provider itself applied. RotoWire supplies none. */
+  categories?: string[];
   headline: string;
   fantasyImpact: string;
+  /** The analyst take FantasyPros ships alongside the report itself. */
+  analystImpact?: string;
   sourceDate?: string;
   fetchedAt?: string;
   source: PlayerNewsSource;

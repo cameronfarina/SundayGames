@@ -36,8 +36,10 @@ export const playerNewsFeedSchema = z.object({
     position: z.string().optional(),
     teamAbbreviation: z.string().optional(),
     category: z.string(),
+    categories: z.array(z.string()).optional(),
     headline: z.string(),
     fantasyImpact: z.string(),
+    analystImpact: z.string().optional(),
     sourceDate: z.string().optional(),
     fetchedAt: z.string().optional(),
     source: z.object({

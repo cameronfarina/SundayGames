@@ -1,14 +1,18 @@
 import type {
+  FantasyProsDatasetRefresh,
   FantasyProsRefreshDependencies,
   FantasyProsRefreshLoop,
 } from "./contracts.js";
 import { refreshFantasyProsDatasets } from "./refresh.js";
 
-// Each pass only fetches datasets whose stored timestamp is past its cadence,
-// so polling more often than the cadence costs nothing.
-export const fantasyProsRefreshPollIntervalMs = 15 * 60 * 1000;
+// Each pass only fetches datasets whose stored timestamp is past its cadence, so
+// polling more often than the cadence costs nothing. It has to be shorter than
+// the shortest cadence, or jitter makes a dataset miss its window and land at
+// twice its intended interval.
+export const fantasyProsRefreshPollIntervalMs = 5 * 60 * 1000;
 
 export interface StartFantasyProsRefreshLoopOptions extends FantasyProsRefreshDependencies {
+  entries: readonly FantasyProsDatasetRefresh[];
   pollIntervalMs?: number | undefined;
 }
 
@@ -21,7 +25,7 @@ export const startFantasyProsRefreshLoop = (
   const pass = (): void => {
     if (running || stopped) return;
     running = true;
-    void refreshFantasyProsDatasets(options)
+    void refreshFantasyProsDatasets(options, options.entries)
       .catch(error => options.onError?.("refresh-pass", error))
       .finally(() => {
         running = false;

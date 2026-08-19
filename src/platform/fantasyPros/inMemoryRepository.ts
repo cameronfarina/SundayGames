@@ -84,6 +84,13 @@ export class InMemoryFantasyProsRepository implements FantasyProsRepository {
     }
   }
 
+  async playersByIds(playerIds: readonly number[]): Promise<readonly FantasyProsStoredPlayer[]> {
+    return playerIds.flatMap(playerId => {
+      const player = this.#players.get(playerId);
+      return player === undefined ? [] : [player];
+    });
+  }
+
   async players(): Promise<readonly FantasyProsStoredPlayer[]> {
     return [...this.#players.values()];
   }

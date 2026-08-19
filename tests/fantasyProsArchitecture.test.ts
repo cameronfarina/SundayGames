@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -78,10 +78,14 @@ describe("FantasyPros architecture", () => {
   it("keeps FantasyPros data out of the pricing and simulation engines", () => {
     // FantasyPros numbers are advisory display only; the draft pricing engine
     // stays FantasyPros-free so removing the integration leaves it whole.
+    // Player news is the one modeling surface FantasyPros legitimately reaches:
+    // it reports, it prices nothing, and the assertion below pins that.
     const pricingRoots = ["src/modeling", "src/platform/seasonAuctionMock", "src/platform/seasonMockResults"];
+    const reportingRoot = path.resolve("src/modeling/playerNews");
     const offenders: string[] = [];
 
     const walk = (directory: string): void => {
+      if (directory === reportingRoot) return;
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         const target = path.join(directory, entry.name);
         if (entry.isDirectory()) walk(target);
@@ -92,6 +96,37 @@ describe("FantasyPros architecture", () => {
       }
     };
     for (const root of pricingRoots) walk(path.resolve(root));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the player news feed out of everything that sets a price", () => {
+    // The exemption above is only safe while nothing that produces a price can
+    // read a news item, so the boundary is asserted rather than assumed. Every
+    // modeling module is checked, not a hand-listed few, so a new pricing
+    // module inherits the rule instead of escaping it.
+    const reportingRoot = path.resolve("src/modeling/playerNews");
+    const reportingBarrel = path.resolve("src/modeling/playerNews.ts");
+    const roots = [
+      "src/modeling",
+      "src/platform/seasonAuctionMock",
+      "src/platform/seasonMockResults",
+      "src/platform/seasonPlayerValues.ts",
+    ];
+    const offenders: string[] = [];
+
+    const inspect = (target: string): void => {
+      if (target === reportingRoot || target === reportingBarrel) return;
+      if (statSync(target).isDirectory()) {
+        for (const entry of readdirSync(target)) inspect(path.join(target, entry));
+        return;
+      }
+      if (target.endsWith(".ts")
+        && /from "[^"]*playerNews(?:\.js|\/)/u.test(readFileSync(target, "utf8"))) {
+        offenders.push(path.relative(process.cwd(), target));
+      }
+    };
+    for (const root of roots) inspect(path.resolve(root));
 
     expect(offenders).toEqual([]);
   });

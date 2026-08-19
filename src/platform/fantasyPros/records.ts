@@ -3,13 +3,21 @@ import type {
   FantasyProsScoring,
 } from "../../data/fantasyPros.js";
 
+/**
+ * Every dataset the refresh loop schedules. The news entries share the fetch
+ * log with the FantasyPros datasets so one timestamp gate covers all of them,
+ * even though RotoWire and the retention sweep spend no FantasyPros requests.
+ */
 export type FantasyProsDataset =
   | "rankings-weekly"
   | "rankings-ros"
   | "rankings-waiver"
   | "projections-weekly"
   | "projections-ros"
-  | "players";
+  | "players"
+  | "news-fantasypros"
+  | "news-rotowire"
+  | "news-retention";
 
 export const fantasyProsDatasets: readonly FantasyProsDataset[] = [
   "rankings-weekly",
@@ -18,6 +26,9 @@ export const fantasyProsDatasets: readonly FantasyProsDataset[] = [
   "projections-weekly",
   "projections-ros",
   "players",
+  "news-fantasypros",
+  "news-rotowire",
+  "news-retention",
 ];
 
 export interface FantasyProsStoredRanking {

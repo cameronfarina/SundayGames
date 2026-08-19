@@ -30,6 +30,7 @@ const fixtureClient = (): FantasyProsClient => ({
     { position, week },
   ),
   fetchPlayers: async () => parseFantasyProsPlayers(fixture("players.json")),
+  fetchNews: async () => [],
 });
 
 const countingClient = (): { client: FantasyProsClient; requests: () => number } => {
@@ -50,9 +51,16 @@ const countingClient = (): { client: FantasyProsClient; requests: () => number }
         requests += 1;
         return await inner.fetchPlayers();
       },
+      fetchNews: async request => {
+        requests += 1;
+        return await inner.fetchNews(request);
+      },
     },
   };
 };
+
+const entriesFor = (client: FantasyProsClient, repository: InMemoryFantasyProsRepository) =>
+  fantasyProsDatasetRefreshes({ client, repository });
 
 const now = new Date("2026-09-10T12:00:00.000Z");
 
@@ -60,11 +68,11 @@ describe("FantasyPros refresh gating", () => {
   it("refreshes every dataset on the first pass and stores what it fetched", async () => {
     const repository = new InMemoryFantasyProsRepository();
 
-    const results = await refreshFantasyProsDatasets({
-      client: fixtureClient(),
-      repository,
-      now: () => now,
-    });
+    const client = fixtureClient();
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(client, repository),
+    );
 
     expect(results.map(result => result.status)).toEqual(Array(6).fill("refreshed"));
     await expect(repository.rankings({ rankingType: "ros" }))
@@ -78,13 +86,13 @@ describe("FantasyPros refresh gating", () => {
     const repository = new InMemoryFantasyProsRepository();
     const { client, requests } = countingClient();
 
-    await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    const entries = entriesFor(client, repository);
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entries);
     const firstPassRequests = requests();
-    const results = await refreshFantasyProsDatasets({
-      client,
-      repository,
-      now: () => new Date(now.getTime() + 60_000),
-    });
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + 60_000) },
+      entries,
+    );
 
     expect(results.map(result => result.status)).toEqual(Array(6).fill("skipped"));
     expect(requests()).toBe(firstPassRequests);
@@ -92,14 +100,13 @@ describe("FantasyPros refresh gating", () => {
 
   it("refreshes rankings and projections on their own cadence before the catalog", async () => {
     const repository = new InMemoryFantasyProsRepository();
-    const client = fixtureClient();
-    await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    const entries = entriesFor(fixtureClient(), repository);
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entries);
 
-    const results = await refreshFantasyProsDatasets({
-      client,
-      repository,
-      now: () => new Date(now.getTime() + fantasyProsRankingsCadenceMs),
-    });
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + fantasyProsRankingsCadenceMs) },
+      entries,
+    );
 
     const statusByDataset = new Map(results.map(result => [result.dataset, result.status]));
     expect(statusByDataset.get("rankings-weekly")).toBe("refreshed");
@@ -115,8 +122,14 @@ describe("FantasyPros refresh gating", () => {
     const first = countingClient();
     const second = countingClient();
 
-    await refreshFantasyProsDatasets({ client: first.client, repository, now: () => now });
-    await refreshFantasyProsDatasets({ client: second.client, repository, now: () => now });
+    await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(first.client, repository),
+    );
+    await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(second.client, repository),
+    );
 
     expect(first.requests()).toBeGreaterThan(0);
     expect(second.requests()).toBe(0);
@@ -131,12 +144,10 @@ describe("FantasyPros refresh gating", () => {
       fetchPlayers: async () => { throw new Error("FantasyPros request to /nfl/players failed with 500."); },
     };
 
-    const results = await refreshFantasyProsDatasets({
-      client: failing,
-      repository,
-      now: () => now,
-      onError,
-    });
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => now, onError },
+      entriesFor(failing, repository),
+    );
 
     expect(results.find(result => result.dataset === "players")?.status).toBe("failed");
     expect(results.filter(result => result.status === "refreshed").length).toBe(5);
@@ -153,12 +164,12 @@ describe("FantasyPros refresh gating", () => {
     const fetchPlayers = vi.fn(async () => { throw new Error("upstream down"); });
     const client: FantasyProsClient = { ...fixtureClient(), fetchPlayers };
 
-    await refreshFantasyProsDatasets({ client, repository, now: () => now });
-    await refreshFantasyProsDatasets({
-      client,
-      repository,
-      now: () => new Date(now.getTime() + 60_000),
-    });
+    const entries = entriesFor(client, repository);
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entries);
+    await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + 60_000) },
+      entries,
+    );
 
     expect(fetchPlayers).toHaveBeenCalledOnce();
   });
@@ -177,7 +188,10 @@ describe("FantasyPros refresh gating", () => {
       fetchProjections,
     };
 
-    await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(client, repository),
+    );
 
     const weeks = fetchProjections.mock.calls.map(([request]) => request.week);
     expect(new Set(weeks)).toEqual(new Set([0, 7]));
@@ -196,7 +210,10 @@ describe("FantasyPros refresh gating", () => {
       },
     };
 
-    const results = await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(client, repository),
+    );
 
     const restOfSeason = results.find(result => result.dataset === "projections-ros");
     expect(restOfSeason?.status).toBe("partial");
@@ -215,7 +232,10 @@ describe("FantasyPros refresh gating", () => {
       fetchProjections: async () => { throw new Error("upstream down"); },
     };
 
-    const results = await refreshFantasyProsDatasets({ client, repository, now: () => now });
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(client, repository),
+    );
 
     expect(results.find(result => result.dataset === "projections-ros")?.status).toBe("failed");
     expect(results.find(result => result.dataset === "players")?.status).toBe("refreshed");
@@ -228,27 +248,26 @@ describe("FantasyPros refresh gating", () => {
     const fetchPlayers = vi.fn(async () => { throw new Error("upstream down"); });
     const client: FantasyProsClient = { ...fixtureClient(), fetchPlayers };
 
-    await refreshFantasyProsDatasets({ client, repository, now: () => now });
-    await refreshFantasyProsDatasets({
-      client,
-      repository,
-      now: () => new Date(now.getTime() + fantasyProsRetryDelayMs - 1),
-    });
+    const entries = entriesFor(client, repository);
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entries);
+    await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + fantasyProsRetryDelayMs - 1) },
+      entries,
+    );
     expect(fetchPlayers).toHaveBeenCalledOnce();
 
-    await refreshFantasyProsDatasets({
-      client,
-      repository,
-      now: () => new Date(now.getTime() + fantasyProsRetryDelayMs),
-    });
+    await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + fantasyProsRetryDelayMs) },
+      entries,
+    );
     expect(fetchPlayers).toHaveBeenCalledTimes(2);
     expect(fantasyProsRetryDelayMs).toBeLessThan(fantasyProsPlayersCadenceMs);
   });
 
   it("keeps the scheduled request budget well under the daily quota", () => {
-    const perCycle = fantasyProsDatasetRefreshes
-      .reduce((total, entry) => total + entry.requestCount, 0);
-    const perDay = fantasyProsDatasetRefreshes.reduce(
+    const entries = entriesFor(fixtureClient(), new InMemoryFantasyProsRepository());
+    const perCycle = entries.reduce((total, entry) => total + entry.requestCount, 0);
+    const perDay = entries.reduce(
       (total, entry) => total + entry.requestCount * Math.round(24 * 60 * 60 * 1000 / entry.cadenceMs),
       0,
     );

@@ -16,6 +16,12 @@ export const playerNewsProviderStatuses = (
     detail: "No-key NFL RSS feed with recent player news headlines.",
   },
   {
+    key: "fantasypros",
+    label: "FantasyPros",
+    status: "available",
+    detail: "Player news with analyst impact notes and provider-assigned categories.",
+  },
+  {
     key: "sleeper",
     label: "Sleeper",
     status: "candidate",

@@ -1,17 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { normalizePlayerName } from "../../data/normalizePlayerName.js";
-import {
-  fetchRotowireRssNews,
-  type RawPlayerNewsItem,
-  type RawPlayerNewsProvider,
-} from "../../data/playerNewsProviderAdapters.js";
 import { playerNewsFiltersFromQuery } from "../../liveDraftServer/playerNewsInput.js";
 import {
   buildPlayerNewsFeed,
   type PlayerNewsDraftState,
   type PlayerNewsPlayerMetadata,
 } from "../../modeling/playerNews.js";
-import type { PlayerNewsRepository, PlayerNewsStoredItem, SavePlayerNewsItemInput } from "../playerNews.js";
+import { rawItemFromStored } from "../playerNewsRefresh.js";
 import { platformSessionTokenForHeaders } from "../platformNodeHttp.js";
 import { authRequiredBody, internalErrorBody, writeJson } from "../platformDraftToolsAdapter/responses.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -21,48 +16,6 @@ const emptyDraftState: PlayerNewsDraftState = {
   availableTargets: [],
   events: [],
   owners: [],
-};
-
-// Stored items from a provider we no longer read are skipped here, so dropping
-// a source retires its rows without a migration.
-const rawPlayerNewsProviderValues = new Set<string>(
-  ["rotowire-rss"] satisfies RawPlayerNewsProvider[],
-);
-
-const isRawPlayerNewsProvider = (value: string): value is RawPlayerNewsProvider =>
-  rawPlayerNewsProviderValues.has(value);
-
-const saveInputFromRaw = (item: RawPlayerNewsItem): SavePlayerNewsItemInput => ({
-  provider: item.provider,
-  providerItemId: item.providerItemId,
-  canonicalUrl: item.canonicalUrl,
-  playerName: item.playerName,
-  title: item.title,
-  summary: item.summary,
-  publishedAt: item.publishedAt,
-  fetchedAt: item.fetchedAt,
-  tags: item.tags,
-});
-
-const rawItemFromStored = (item: PlayerNewsStoredItem): RawPlayerNewsItem | undefined => {
-  if (!isRawPlayerNewsProvider(item.provider)) return undefined;
-  return {
-    provider: item.provider,
-    providerItemId: item.providerItemId,
-    ...(item.canonicalUrl === undefined ? {} : { canonicalUrl: item.canonicalUrl }),
-    ...(item.playerName === undefined ? {} : { playerName: item.playerName }),
-    title: item.title,
-    summary: item.summary,
-    ...(item.publishedAt === undefined ? {} : { publishedAt: item.publishedAt }),
-    fetchedAt: item.fetchedAt,
-    tags: item.tags,
-    raw: undefined,
-  };
-};
-
-const fetchAndStoreLatestNews = async (repository: PlayerNewsRepository): Promise<void> => {
-  const items = await fetchRotowireRssNews();
-  if (items.length > 0) await repository.saveItems(items.map(saveInputFromRaw));
 };
 
 // Player news is account-scoped, not league-scoped: the feed is published
@@ -87,11 +40,32 @@ const metadataFor = async (
   }));
 };
 
+/**
+ * The catalog is read once and reused. Caching the promise itself is what makes
+ * that work across concurrent requests, but a rejected promise stays rejected,
+ * so a single catalog failure would otherwise 500 every later request until the
+ * process restarted. Dropping the memo on rejection lets the next request retry.
+ */
+const createMetadataCache = (options: CreatePlatformServerOptions) => {
+  let pending: Promise<readonly PlayerNewsPlayerMetadata[]> | undefined;
+
+  return async (): Promise<readonly PlayerNewsPlayerMetadata[]> => {
+    const inFlight = pending ?? metadataFor(options.currentPlayerCatalogProvider);
+    pending = inFlight;
+    try {
+      return await inFlight;
+    } catch (error) {
+      if (pending === inFlight) pending = undefined;
+      throw error;
+    }
+  };
+};
+
 export const createGlobalPlayerNewsHandler = (
   runtimeHolder: PlatformRuntimeHolder,
   options: CreatePlatformServerOptions,
 ) => {
-  let metadataPromise: Promise<readonly PlayerNewsPlayerMetadata[]> | undefined;
+  const playerMetadata = createMetadataCache(options);
 
   return async (request: IncomingMessage, response: ServerResponse): Promise<boolean> => {
     const url = new URL(request.url ?? "/", "http://mockd.local");
@@ -108,21 +82,17 @@ export const createGlobalPlayerNewsHandler = (
       }
 
       const filters = playerNewsFiltersFromQuery(url);
-      const repository = runtimeHolder.current().playerNewsRepository;
-      try {
-        await fetchAndStoreLatestNews(repository);
-      } catch {
-        // A reporting outage serves the last stored items rather than breaking the page.
-      }
-      const rawNewsItems = (await repository.recentItems()).flatMap(item => {
+      // Reads only. Both providers are pulled by the off-request refresh loop,
+      // so a reporting outage or a slow feed can no longer reach a reader.
+      const stored = await runtimeHolder.current().playerNewsRepository.recentItems();
+      const rawNewsItems = stored.flatMap(item => {
         const raw = rawItemFromStored(item);
         return raw === undefined ? [] : [raw];
       });
-      metadataPromise ??= metadataFor(options.currentPlayerCatalogProvider);
       writeJson(response, 200, buildPlayerNewsFeed({
         draftState: emptyDraftState,
         filters,
-        playerMetadata: await metadataPromise,
+        playerMetadata: await playerMetadata(),
         rawNewsItems,
       }));
     } catch (error) {

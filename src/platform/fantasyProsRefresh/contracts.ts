@@ -1,11 +1,9 @@
-import type { FantasyProsClient } from "../../data/fantasyPros.js";
 import type { FantasyProsDataset, FantasyProsRepository } from "../fantasyPros.js";
 
 /** Names the failing dataset, or the whole pass when the store itself is down. */
 export type FantasyProsRefreshErrorSource = FantasyProsDataset | "refresh-pass";
 
 export interface FantasyProsRefreshDependencies {
-  client: FantasyProsClient;
   repository: FantasyProsRepository;
   now?: (() => Date) | undefined;
   onError?: ((source: FantasyProsRefreshErrorSource, error: unknown) => void) | undefined;
@@ -26,15 +24,16 @@ export interface FantasyProsRefreshResult {
   rowCount: number;
 }
 
+/**
+ * A scheduled dataset. Each entry closes over whatever it needs to run, so a
+ * dataset that needs no FantasyPros key can be scheduled without one.
+ */
 export interface FantasyProsDatasetRefresh {
   dataset: FantasyProsDataset;
   cadenceMs: number;
+  /** FantasyPros requests one run costs, counted against the daily quota. */
   requestCount: number;
-  run(dependencies: {
-    client: FantasyProsClient;
-    repository: FantasyProsRepository;
-    fetchedAt: string;
-  }): Promise<FantasyProsDatasetRunResult>;
+  run(fetchedAt: string): Promise<FantasyProsDatasetRunResult>;
 }
 
 export interface FantasyProsRefreshLoop {

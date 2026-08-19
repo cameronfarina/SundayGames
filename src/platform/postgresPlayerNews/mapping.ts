@@ -16,4 +16,10 @@ export const itemFromRow = (row: PlayerNewsRow): PlayerNewsStoredItem => ({
   ...(row.published_at === null ? {} : { publishedAt: isoStringFrom(row.published_at) }),
   fetchedAt: isoStringFrom(row.fetched_at),
   tags: jsonStringArrayFromDb(row.tags_json),
+  categories: jsonStringArrayFromDb(row.categories_json),
+  ...(row.analyst_impact === null ? {} : { analystImpact: row.analyst_impact }),
+  ...(row.provider_player_id === null ? {} : { providerPlayerId: row.provider_player_id }),
+  ...(row.provider_team_id === null
+    ? {}
+    : { providerTeamAbbreviation: row.provider_team_id }),
 });

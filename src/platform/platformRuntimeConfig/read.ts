@@ -19,6 +19,7 @@ import {
 } from "./env.js";
 import {
   fantasyProsConfig,
+  playerNewsConfig,
   legacyMockBatchEnabled,
   liveDraftDataMode,
   runtimeWorkerId,
@@ -85,6 +86,7 @@ export const readPlatformRuntimeConfig = (
     simulationDataMode: parsedSimulationDataMode,
     screenshotImport: screenshotImportConfig(env),
     fantasyPros: fantasyProsConfig(env),
+    playerNews: playerNewsConfig(env),
     worker: {
       workerId: runtimeWorkerId(env),
       jobKinds: parsedWorkerJobKinds,

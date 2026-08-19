@@ -79,6 +79,13 @@ FROM fantasy_pros_players
 ORDER BY player_id
 `.trim();
 
+export const selectPlayersByIdsSql = `
+SELECT ${playerColumns.join(", ")}
+FROM fantasy_pros_players
+WHERE player_id = ANY($1::integer[])
+ORDER BY player_id
+`.trim();
+
 // The cadence comparison runs against the stored timestamp so two instances
 // racing through a zero-downtime deploy cannot both claim the same dataset.
 export const claimRefreshSql = `

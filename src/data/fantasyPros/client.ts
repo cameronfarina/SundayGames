@@ -7,12 +7,14 @@ import type {
   FantasyProsRankingSet,
   FantasyProsRankingsRequest,
 } from "./contracts.js";
+import type { FantasyProsNewsItem, FantasyProsNewsRequest } from "./newsContracts.js";
 import {
   parseFantasyProsPlayers,
   parseFantasyProsProjections,
   parseFantasyProsRankings,
   rawPlayerRecordCount,
 } from "./parse.js";
+import { parseFantasyProsNews, rawNewsRecordCount } from "./parseNews.js";
 
 export const fantasyProsBaseUrl = "https://api.fantasypros.com/public/v2/json";
 export const fantasyProsSeason = 2026;
@@ -21,6 +23,9 @@ export const fantasyProsRequestTimeoutMs = 10_000;
 // Rest-of-season rankings and projections are both requested as week 0.
 export const fantasyProsRestOfSeasonWeek = 0;
 
+// One pull covers a 15 minute cadence with room for a busy news day.
+export const fantasyProsNewsLimit = 50;
+
 /**
  * A response full of records that parses to nothing means FantasyPros changed
  * a field name, not that the dataset is empty. Fail loudly so the refresh
@@ -28,13 +33,12 @@ export const fantasyProsRestOfSeasonWeek = 0;
  */
 const assertParsedEveryRecord = (
   label: string,
-  payload: unknown,
+  rawCount: number,
   parsedCount: number,
 ): void => {
-  const rawCount = rawPlayerRecordCount(payload);
   if (rawCount > 0 && parsedCount === 0) {
     throw new Error(
-      `FantasyPros ${label} returned ${rawCount} records but none could be parsed.`,
+      `FantasyPros ${label} returned ${String(rawCount)} records but none could be parsed.`,
     );
   }
 };
@@ -80,7 +84,11 @@ export const createFantasyProsClient = (
         ...(request.week === undefined ? {} : { week: String(request.week) }),
       }));
       const set = parseFantasyProsRankings(payload, { type: request.type, scoring, week });
-      assertParsedEveryRecord(`${request.type} rankings`, payload, set.rankings.length);
+      assertParsedEveryRecord(
+        `${request.type} rankings`,
+        rawPlayerRecordCount(payload),
+        set.rankings.length,
+      );
       return set;
     },
 
@@ -97,8 +105,8 @@ export const createFantasyProsClient = (
         week: request.week,
       });
       assertParsedEveryRecord(
-        `week ${request.week} ${request.position} projections`,
-        payload,
+        `week ${String(request.week)} ${request.position} projections`,
+        rawPlayerRecordCount(payload),
         set.projections.length,
       );
       return set;
@@ -108,8 +116,20 @@ export const createFantasyProsClient = (
     fetchPlayers: async (): Promise<readonly FantasyProsPlayer[]> => {
       const payload = await requestJson("/nfl/players", searchParams({}));
       const players = parseFantasyProsPlayers(payload);
-      assertParsedEveryRecord("player catalog", payload, players.length);
+      assertParsedEveryRecord("player catalog", rawPlayerRecordCount(payload), players.length);
       return players;
+    },
+
+    // News is not season-scoped either; /nfl/<year>/news answers 403.
+    fetchNews: async (
+      request: FantasyProsNewsRequest = {},
+    ): Promise<readonly FantasyProsNewsItem[]> => {
+      const payload = await requestJson("/nfl/news", searchParams({
+        limit: String(request.limit ?? fantasyProsNewsLimit),
+      }));
+      const items = parseFantasyProsNews(payload);
+      assertParsedEveryRecord("news", rawNewsRecordCount(payload), items.length);
+      return items;
     },
   };
 };

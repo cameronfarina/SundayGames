@@ -1,14 +1,19 @@
 import type { FantasyProsClient } from "../../data/fantasyPros.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
 import {
+  fantasyProsDatasetRefreshes,
   startFantasyProsRefreshLoop,
   type FantasyProsRefreshErrorSource,
   type FantasyProsRefreshLoop,
 } from "../fantasyProsRefresh.js";
+import type { PlayerNewsRepository } from "../playerNews.js";
+import { playerNewsDatasetRefreshes } from "../playerNewsRefresh.js";
 
 export interface StartFantasyProsRefreshInput {
   client: FantasyProsClient | undefined;
   repository: FantasyProsRepository;
+  playerNewsRepository: PlayerNewsRepository;
+  playerNewsEnabled: boolean;
 }
 
 const logRefreshError = (source: FantasyProsRefreshErrorSource, error: unknown): void => {
@@ -25,13 +30,26 @@ const logRefreshError = (source: FantasyProsRefreshErrorSource, error: unknown):
 export const startFantasyProsRefreshIfConfigured = (
   input: StartFantasyProsRefreshInput,
 ): FantasyProsRefreshLoop | undefined => {
-  // Without an API key the whole feature stays dark: nothing is scheduled and
-  // the repositories keep serving whatever is already stored.
-  if (input.client === undefined) return undefined;
+  // Without an API key the FantasyPros datasets stay dark, but RotoWire news
+  // needs no key and the page no longer fetches on the request path, so news
+  // keeps its own switch rather than riding on the key.
+  const entries = [
+    ...(input.client === undefined
+      ? []
+      : fantasyProsDatasetRefreshes({ client: input.client, repository: input.repository })),
+    ...(input.playerNewsEnabled
+      ? playerNewsDatasetRefreshes({
+        newsRepository: input.playerNewsRepository,
+        fantasyProsRepository: input.repository,
+        ...(input.client === undefined ? {} : { fantasyProsClient: input.client }),
+      })
+      : []),
+  ];
+  if (entries.length === 0) return undefined;
 
   return startFantasyProsRefreshLoop({
-    client: input.client,
     repository: input.repository,
+    entries,
     onError: logRefreshError,
   });
 };

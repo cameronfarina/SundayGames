@@ -4,7 +4,6 @@ import type {
   FantasyProsRefreshResult,
   FantasyProsRefreshStatus,
 } from "./contracts.js";
-import { fantasyProsDatasetRefreshes } from "./datasets.js";
 
 /**
  * A failed dataset used to sit out its whole cadence, so one transient
@@ -26,7 +25,7 @@ const refreshDataset = async (
   dependencies: FantasyProsRefreshDependencies,
   now: Date,
 ): Promise<FantasyProsRefreshResult> => {
-  const { client, repository } = dependencies;
+  const { repository } = dependencies;
   const claimed = await repository.claimRefresh({
     dataset: entry.dataset,
     now,
@@ -56,11 +55,7 @@ const refreshDataset = async (
   };
 
   try {
-    const { rowCount, failures } = await entry.run({
-      client,
-      repository,
-      fetchedAt: now.toISOString(),
-    });
+    const { rowCount, failures } = await entry.run(now.toISOString());
     if (failures.length > 0) return await failed(rowCount, failures.join("; "));
     await repository.recordRefreshOutcome({
       dataset: entry.dataset,
@@ -76,7 +71,7 @@ const refreshDataset = async (
 
 export const refreshFantasyProsDatasets = async (
   dependencies: FantasyProsRefreshDependencies,
-  entries: readonly FantasyProsDatasetRefresh[] = fantasyProsDatasetRefreshes,
+  entries: readonly FantasyProsDatasetRefresh[],
 ): Promise<readonly FantasyProsRefreshResult[]> => {
   const now = (dependencies.now ?? (() => new Date()))();
   const results: FantasyProsRefreshResult[] = [];

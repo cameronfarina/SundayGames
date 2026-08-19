@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { JobKind } from "../jobs.js";
 import type {
   FantasyProsConfig,
+  PlayerNewsConfig,
   PlatformRuntimeConfig,
   PlatformRuntimeEnv,
   ScreenshotImportConfig,
@@ -97,6 +98,12 @@ export const fantasyProsConfig = (env: PlatformRuntimeEnv): FantasyProsConfig =>
     season: positiveIntegerEnv(env, "MOCKD_FANTASYPROS_SEASON", defaultFantasyProsSeason),
   };
 };
+
+// The news refresh reaches a public feed that needs no credential, so nothing
+// else would keep it from running during an offline end-to-end run.
+export const playerNewsConfig = (env: PlatformRuntimeEnv): PlayerNewsConfig => ({
+  refreshEnabled: booleanEnv(env, "MOCKD_PLAYER_NEWS_REFRESH_ENABLED", true),
+});
 
 export const workerJobKinds = (env: PlatformRuntimeEnv): readonly JobKind[] => {
   const value = optionalEnvString(env, "MOCKD_WORKER_JOB_KINDS");

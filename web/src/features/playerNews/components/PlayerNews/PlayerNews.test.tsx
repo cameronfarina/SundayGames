@@ -26,8 +26,37 @@ const successfulFetch = vi.fn(() => Promise.resolve(
   new Response(JSON.stringify(playerNewsFeedFixture)),
 ));
 
+const feedWithout = (provider: string) => ({
+  ...playerNewsFeedFixture,
+  items: playerNewsFeedFixture.items.filter(item => item.source.provider !== provider),
+});
+
 describe("PlayerNews", () => {
   afterEach(() => { localStorage.clear(); });
+
+  it("credits FantasyPros whenever one of its items is on screen", async () => {
+    renderNews(successfulFetch);
+    expect(await screen.findByText("Data by FantasyPros")).toBeVisible();
+  });
+
+  it("drops the credit when no FantasyPros item is showing", async () => {
+    const user = userEvent.setup();
+    renderNews(successfulFetch);
+    // Searching past the only FantasyPros item takes its attribution with it.
+    await user.type(await screen.findByLabelText("Search news"), "Achane");
+
+    expect(await screen.findByText("De'Von Achane was limited in practice.")).toBeVisible();
+    expect(screen.queryByText("Data by FantasyPros")).not.toBeInTheDocument();
+  });
+
+  it("shows no credit for a feed that carries no FantasyPros items at all", async () => {
+    renderNews(vi.fn(() => Promise.resolve(
+      new Response(JSON.stringify(feedWithout("FantasyPros"))),
+    )));
+
+    expect(await screen.findByText("De'Von Achane was limited in practice.")).toBeVisible();
+    expect(screen.queryByText("Data by FantasyPros")).not.toBeInTheDocument();
+  });
 
   it("follows players and filters the feed to My players", async () => {
     const user = userEvent.setup();

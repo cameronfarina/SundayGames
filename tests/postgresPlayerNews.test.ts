@@ -1,24 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { PostgresPlayerNewsRepository } from "../src/platform/postgresPlayerNews.js";
-import { upsertItemSql } from "../src/platform/postgresPlayerNews/sql.js";
+import { playerNewsColumns, upsertItemsSql } from "../src/platform/postgresPlayerNews/sql.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type { PostgresQueryClient, PostgresQueryResult } from "../src/platform/postgresPlatformStore.js";
 
-interface StoredRow {
-  id: string;
-  provider: string;
-  provider_item_id: string;
-  canonical_url: string | null;
-  player_name: string | null;
-  title: string;
-  summary: string;
-  published_at: string | null;
-  fetched_at: string;
-  tags_json: unknown;
-}
+const textOrNull = (value: unknown): string | null =>
+  value === null || value === undefined ? null : String(value);
 
 class PlayerNewsClient implements PostgresTransactionalQueryClient {
-  readonly rows = new Map<string, StoredRow>();
+  readonly rows = new Map<string, Record<string, unknown>>();
+  insertStatements = 0;
 
   async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
     return await operation(this);
@@ -31,48 +22,94 @@ class PlayerNewsClient implements PostgresTransactionalQueryClient {
   async query(sql: string, values: readonly unknown[] = []): Promise<PostgresQueryResult<unknown>> {
     const normalized = sql.replace(/\s+/gu, " ").trim();
     if (normalized.startsWith("INSERT INTO player_news_items")) {
-      const [id, provider, providerItemId] = values;
-      const key = `${String(provider)}\0${String(providerItemId)}`;
-      const existing = [...this.rows.values()].find(row => `${row.provider}\0${row.provider_item_id}` === key);
-      this.rows.set(existing?.id ?? String(id), {
-        id: existing?.id ?? String(id),
-        provider: String(provider),
-        provider_item_id: String(providerItemId),
-        canonical_url: values[3] === null ? null : String(values[3]),
-        player_name: values[4] === null ? null : String(values[4]),
-        title: String(values[5]),
-        summary: String(values[6]),
-        published_at: values[7] === null ? null : String(values[7]),
-        fetched_at: String(values[8]),
-        tags_json: values[9],
-      });
+      this.insertStatements += 1;
+      for (let start = 0; start < values.length; start += playerNewsColumns.length) {
+        const row = Object.fromEntries(playerNewsColumns.map((column, index) =>
+          [column, values[start + index]]));
+        const key = `${String(row.provider)}\0${String(row.provider_item_id)}`;
+        const existing = [...this.rows.values()]
+          .find(candidate => `${String(candidate.provider)}\0${String(candidate.provider_item_id)}` === key);
+        const id = existing === undefined ? String(row.id) : String(existing.id);
+        this.rows.set(id, { ...row, id });
+      }
       return { rows: [] };
     }
     if (normalized.startsWith("SELECT id, provider, provider_item_id")) {
       const cutoff = Date.parse(String(values[0]));
+      const sortKey = (row: Record<string, unknown>): number =>
+        Date.parse(String(row.published_at ?? row.fetched_at));
       const rows = [...this.rows.values()]
-        .filter(row => Date.parse(row.published_at ?? row.fetched_at) >= cutoff)
-        .sort((left, right) =>
-          Date.parse(right.published_at ?? right.fetched_at) - Date.parse(left.published_at ?? left.fetched_at));
+        .filter(row => sortKey(row) >= cutoff)
+        .sort((left, right) => sortKey(right) - sortKey(left))
+        .map(row => ({
+          ...row,
+          canonical_url: textOrNull(row.canonical_url),
+          player_name: textOrNull(row.player_name),
+          published_at: textOrNull(row.published_at),
+          analyst_impact: textOrNull(row.analyst_impact),
+          provider_player_id: textOrNull(row.provider_player_id),
+          provider_team_id: textOrNull(row.provider_team_id),
+        }));
       return { rows };
     }
     if (normalized.startsWith("DELETE FROM player_news_items")) {
       const cutoff = Date.parse(String(values[0]));
-      const toDelete = [...this.rows.values()].filter(row => Date.parse(row.published_at ?? row.fetched_at) < cutoff);
-      for (const row of toDelete) this.rows.delete(row.id);
-      return { rows: [], rowCount: toDelete.length };
+      const stale = [...this.rows.values()]
+        .filter(row => Date.parse(String(row.published_at ?? row.fetched_at)) < cutoff);
+      for (const row of stale) this.rows.delete(String(row.id));
+      return { rows: [], rowCount: stale.length };
     }
     throw new Error(`Unexpected SQL: ${normalized}`);
   }
 }
 
+const rotowireItem = (providerItemId: string, publishedAt: string) => ({
+  provider: "rotowire-rss",
+  providerItemId,
+  title: `Headline ${providerItemId}`,
+  summary: "Summary.",
+  publishedAt,
+  fetchedAt: "2026-08-17T12:00:00.000Z",
+  tags: ["News"],
+});
+
 describe("Postgres player news repository", () => {
-  it("casts the tags parameter to jsonb so Postgres does not reject it as text", () => {
+  it("casts every json parameter to jsonb so Postgres does not reject it as text", () => {
     // The fake client below is untyped and would silently accept a bare
     // text parameter; real Postgres does not. A prior version of this
     // query left tags_json uncast and broke every player-news request
     // in production despite this file's other tests passing.
-    expect(upsertItemSql).toContain("$10::jsonb");
+    const sql = upsertItemsSql(1);
+    expect(sql).toContain(`$${String(playerNewsColumns.indexOf("tags_json") + 1)}::jsonb`);
+    expect(sql).toContain(`$${String(playerNewsColumns.indexOf("categories_json") + 1)}::jsonb`);
+  });
+
+  it("writes a whole pull in one statement instead of one per item", async () => {
+    // Saving row by row on the request path is what made the news page fall
+    // over under concurrent readers.
+    const client = new PlayerNewsClient();
+    const repository = new PostgresPlayerNewsRepository(client);
+
+    await repository.saveItems(Array.from({ length: 40 }, (_unused, index) =>
+      rotowireItem(`item-${String(index)}`, "2026-08-17T06:00:00.000Z")));
+
+    expect(client.insertStatements).toBe(1);
+    expect(client.rows.size).toBe(40);
+  });
+
+  it("keeps the last copy when one pull repeats an item", async () => {
+    // A multi-row upsert cannot touch the same conflict key twice.
+    const client = new PlayerNewsClient();
+    const repository = new PostgresPlayerNewsRepository(client);
+
+    await repository.saveItems([
+      { ...rotowireItem("item-1", "2026-08-17T06:00:00.000Z"), title: "First" },
+      { ...rotowireItem("item-1", "2026-08-17T06:00:00.000Z"), title: "Second" },
+    ]);
+
+    expect(client.rows.size).toBe(1);
+    expect((await repository.recentItems(new Date("2026-08-17T12:00:00.000Z")))[0]?.title)
+      .toBe("Second");
   });
 
   it("upserts on provider and provider item id, then reads it back", async () => {
@@ -106,20 +143,54 @@ describe("Postgres player news repository", () => {
     expect(items).toEqual([expect.objectContaining({ title: "Updated headline", tags: ["Injury"] })]);
   });
 
+  it("round-trips the fields only FantasyPros supplies", async () => {
+    const client = new PlayerNewsClient();
+    const repository = new PostgresPlayerNewsRepository(client);
+    const now = new Date("2026-08-17T12:00:00.000Z");
+
+    await repository.saveItems([{
+      provider: "fantasypros",
+      providerItemId: "603053",
+      title: "Christian McCaffrey would have practiced",
+      summary: "Shanahan said McCaffrey would have practiced.",
+      publishedAt: "2026-08-17T06:00:00.000Z",
+      fetchedAt: now.toISOString(),
+      tags: ["Practice"],
+      categories: ["Commentary", "News", "Injury"],
+      analystImpact: "McCaffrey remains day-to-day.",
+      providerPlayerId: "16393",
+      providerTeamAbbreviation: "SF",
+    }]);
+
+    expect(await repository.recentItems(now)).toEqual([expect.objectContaining({
+      analystImpact: "McCaffrey remains day-to-day.",
+      categories: ["Commentary", "News", "Injury"],
+      providerPlayerId: "16393",
+      providerTeamAbbreviation: "SF",
+    })]);
+  });
+
+  it("leaves the FantasyPros columns unset for a RotoWire item", async () => {
+    const client = new PlayerNewsClient();
+    const repository = new PostgresPlayerNewsRepository(client);
+    const now = new Date("2026-08-17T12:00:00.000Z");
+
+    await repository.saveItems([rotowireItem("item-1", "2026-08-17T06:00:00.000Z")]);
+
+    const [item] = await repository.recentItems(now);
+    expect(item?.categories).toEqual([]);
+    expect(item?.analystImpact).toBeUndefined();
+    expect(item?.providerPlayerId).toBeUndefined();
+  });
+
   it("excludes items older than the retention window from recentItems", async () => {
     const client = new PlayerNewsClient();
     const repository = new PostgresPlayerNewsRepository(client);
     const now = new Date("2026-08-17T12:00:00.000Z");
 
     await repository.saveItems([
-      {
-        provider: "espn", providerItemId: "recent", title: "Recent", summary: "s",
-        publishedAt: "2026-08-16T12:00:00.000Z", fetchedAt: now.toISOString(), tags: ["News"],
-      },
-      {
-        provider: "espn", providerItemId: "stale", title: "Stale", summary: "s",
-        publishedAt: "2026-08-01T12:00:00.000Z", fetchedAt: now.toISOString(), tags: ["News"],
-      },
+      { ...rotowireItem("recent", "2026-08-16T12:00:00.000Z"), title: "Recent" },
+      { ...rotowireItem("stale", "2026-08-01T12:00:00.000Z"), title: "Stale" },
     ]);
 
     expect((await repository.recentItems(now)).map(item => item.title)).toEqual(["Recent"]);
@@ -130,10 +201,7 @@ describe("Postgres player news repository", () => {
     const repository = new PostgresPlayerNewsRepository(client);
     const now = new Date("2026-08-17T12:00:00.000Z");
 
-    await repository.saveItems([{
-      provider: "espn", providerItemId: "stale", title: "Stale", summary: "s",
-      publishedAt: "2026-08-01T12:00:00.000Z", fetchedAt: now.toISOString(), tags: ["News"],
-    }]);
+    await repository.saveItems([rotowireItem("stale", "2026-08-01T12:00:00.000Z")]);
 
     await expect(repository.deleteOlderThanRetention(now)).resolves.toBe(1);
     expect(client.rows.size).toBe(0);

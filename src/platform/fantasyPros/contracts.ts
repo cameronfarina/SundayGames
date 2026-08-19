@@ -76,6 +76,8 @@ export interface FantasyProsRepository {
   projections(query: FantasyProsProjectionsQuery): Promise<readonly FantasyProsStoredProjection[]>;
   savePlayers(input: SaveFantasyProsPlayersInput): Promise<void>;
   players(): Promise<readonly FantasyProsStoredPlayer[]>;
+  /** Resolves the handful of players a news pull mentions without loading 8,500 rows. */
+  playersByIds(playerIds: readonly number[]): Promise<readonly FantasyProsStoredPlayer[]>;
   /**
    * Reserves a refresh slot when the stored timestamp is older than the cadence.
    * The comparison happens inside the store so overlapping instances during a

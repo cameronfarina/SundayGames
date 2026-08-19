@@ -7,12 +7,14 @@ import {
   leagueArchiveMigrationId,
   leagueSlugMigrationId,
   playerNewsMigrationId,
+  playerNewsProviderDataMigrationId,
   sharedLeagueInvitationsMigrationId,
 } from "./ids.js";
 import {
   authTokenTableMigrationStatements,
   fantasyProsMigrationStatements,
   playerNewsMigrationStatements,
+  playerNewsProviderDataMigrationStatements,
 } from "./schemaStatements.js";
 
 export const ownershipPlatformSchemaMigrations: readonly PlatformSchemaMigration[] = [
@@ -110,5 +112,9 @@ END $$;`,
   {
     id: fantasyProsMigrationId,
     statements: fantasyProsMigrationStatements,
+  },
+  {
+    id: playerNewsProviderDataMigrationId,
+    statements: playerNewsProviderDataMigrationStatements,
   },
 ];

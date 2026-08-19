@@ -15,6 +15,10 @@ export const playerNewsTables: readonly PostgresTableDefinition[] = [
       { name: "published_at", type: "timestamptz", nullable: true },
       { name: "fetched_at", type: "timestamptz" },
       { name: "tags_json", type: "jsonb", default: jsonbArrayDefault },
+      { name: "categories_json", type: "jsonb", default: jsonbArrayDefault },
+      { name: "analyst_impact", type: "text", nullable: true },
+      { name: "provider_player_id", type: "text", nullable: true },
+      { name: "provider_team_id", type: "text", nullable: true },
       createdAtColumn,
     ],
     primaryKey: ["id"],
@@ -25,6 +29,7 @@ export const playerNewsTables: readonly PostgresTableDefinition[] = [
         unique: true,
       },
       { name: "player_news_items_published_at_idx", columns: ["published_at"] },
+      { name: "player_news_items_provider_player_id_idx", columns: ["provider_player_id"] },
     ],
   },
 ];

@@ -32,6 +32,7 @@ import {
   fantasyProsUpsertBatchSize,
   recordRefreshOutcomeSql,
   selectFetchLogSql,
+  selectPlayersByIdsSql,
   selectPlayersSql,
   selectProjectionsSql,
   selectRankingsSql,
@@ -96,6 +97,15 @@ export class PostgresFantasyProsRepository implements FantasyProsRepository {
 
   async players(): Promise<readonly FantasyProsStoredPlayer[]> {
     const result = await this.#client.query<FantasyProsPlayerRow>(selectPlayersSql, []);
+    return result.rows.map(playerFromRow);
+  }
+
+  async playersByIds(playerIds: readonly number[]): Promise<readonly FantasyProsStoredPlayer[]> {
+    if (playerIds.length === 0) return [];
+    const result = await this.#client.query<FantasyProsPlayerRow>(
+      selectPlayersByIdsSql,
+      [[...playerIds]],
+    );
     return result.rows.map(playerFromRow);
   }
 

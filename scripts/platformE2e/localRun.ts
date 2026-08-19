@@ -37,6 +37,7 @@ const localServerEnvironment = (config: LocalServerConfig): NodeJS.ProcessEnv =>
   MOCKD_SCREENSHOT_IMPORT_MODE: "disabled",
   OPENAI_API_KEY: "",
   FANTASYPROS_API_KEY: "",
+  MOCKD_PLAYER_NEWS_REFRESH_ENABLED: "false",
 });
 
 const startLocalServer = (config: LocalServerConfig): ChildProcess =>

@@ -129,7 +129,8 @@ Local and smoke-only variables:
 
 Optional read-only provider variables:
 
-- FantasyPros: `FANTASYPROS_API_KEY` enables the scheduled rankings, projections, and player-catalog sync. Optional `MOCKD_FANTASYPROS_REFRESH_ENABLED=false` pauses the sync without removing the key, and `MOCKD_FANTASYPROS_SEASON` overrides the requested season. Without the key every FantasyPros surface stays dark: the refresh no-ops and the repositories serve empty. The key is server-side only and never reaches the browser. Scheduled usage is 61 requests per day against a 500 per day quota.
+- FantasyPros: `FANTASYPROS_API_KEY` enables the scheduled rankings, projections, player-catalog, and player-news sync. Optional `MOCKD_FANTASYPROS_REFRESH_ENABLED=false` pauses the sync without removing the key, and `MOCKD_FANTASYPROS_SEASON` overrides the requested season. Without the key every FantasyPros surface stays dark: the refresh no-ops and the repositories serve empty. The key is server-side only and never reaches the browser. Scheduled usage is 157 requests per day against a 500 per day quota: 61 for rankings, projections, and the catalog, plus 96 for news at a fifteen-minute cadence.
+- Player news: `MOCKD_PLAYER_NEWS_REFRESH_ENABLED=false` stops the news refresh, including the keyless RotoWire feed. News is fetched only by the background refresh, never on a page request, so switching it off leaves the page serving whatever is already stored. The end-to-end runner sets it to `false` so a local run reaches no public feed.
 - Yahoo: `MOCKD_YAHOO_CLIENT_ID`, `MOCKD_YAHOO_CLIENT_SECRET`, and optional `MOCKD_YAHOO_REDIRECT_URI`.
 - ESPN local testing: `MOCKD_ESPN_LEAGUE_ID`, `MOCKD_ESPN_SWID`, `MOCKD_ESPN_S2`.
 - These are not domain blockers unless the launch explicitly includes provider sync. ESPN import/writeback is not a launch dependency.

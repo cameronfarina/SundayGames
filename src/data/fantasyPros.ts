@@ -1,6 +1,7 @@
 export {
   createFantasyProsClient,
   fantasyProsBaseUrl,
+  fantasyProsNewsLimit,
   fantasyProsRequestTimeoutMs,
   fantasyProsRestOfSeasonWeek,
   fantasyProsSeason,
@@ -9,6 +10,10 @@ export {
   fantasyProsProjectionPositions,
   fantasyProsRankingTypes,
 } from "./fantasyPros/contracts.js";
+export type {
+  FantasyProsNewsItem,
+  FantasyProsNewsRequest,
+} from "./fantasyPros/newsContracts.js";
 export type {
   FantasyProsClient,
   FantasyProsClientOptions,
@@ -24,6 +29,7 @@ export type {
   FantasyProsRankingsRequest,
   FantasyProsScoring,
 } from "./fantasyPros/contracts.js";
+export { parseFantasyProsNews } from "./fantasyPros/parseNews.js";
 export {
   parseFantasyProsPlayers,
   parseFantasyProsProjections,

@@ -8,6 +8,10 @@ import "./PlayerNews.css";
 
 type NewsScope = "all" | "followed";
 
+// FantasyPros requires visible attribution wherever its data appears, so it is
+// driven by what the reader can actually see rather than by what was fetched.
+const fantasyProsLabel = "FantasyPros";
+
 interface PlayerNewsProps {
   readonly accountId: string;
   readonly seasonId: string | undefined;
@@ -31,6 +35,8 @@ export const PlayerNews = ({ accountId, seasonId }: PlayerNewsProps) => {
     return inScope && (query.length === 0 || searchable.includes(query));
   });
 
+  const showsFantasyPros = items.some(item => item.source.provider === fantasyProsLabel);
+
   return <section aria-label="Player news feed" className="player-news">
     <div className="player-news__heading">
       <h2>Latest updates</h2>
@@ -53,5 +59,6 @@ export const PlayerNews = ({ accountId, seasonId }: PlayerNewsProps) => {
         key={item.id}
         onToggleFollow={watchlist.toggle}
       />)}</div>}
+    {showsFantasyPros ? <p className="player-news__attribution">Data by FantasyPros</p> : null}
   </section>;
 };

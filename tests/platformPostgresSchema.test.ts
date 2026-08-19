@@ -262,6 +262,20 @@ describe("platform Postgres schema contract", () => {
     expect(tableByName("draft_rooms").primaryKey).toEqual(["id"]);
   });
 
+  it("stores the structured fields only FantasyPros supplies on a news item", () => {
+    // These columns arrive by ALTER on an existing table, so the schema and the
+    // v16 migration have to agree on every one of them.
+    expectColumn("player_news_items", "categories_json", { type: "jsonb", default: "'[]'::jsonb" });
+    expectColumn("player_news_items", "analyst_impact", { type: "text", nullable: true });
+    expectColumn("player_news_items", "provider_player_id", { type: "text", nullable: true });
+    expectColumn("player_news_items", "provider_team_id", { type: "text", nullable: true });
+    expectIndexContract(
+      "player_news_items",
+      "player_news_items_provider_player_id_idx",
+      ["provider_player_id"],
+    );
+  });
+
   it("stores a stable public slug for clean league URLs", () => {
     expectColumn("leagues", "slug", { type: "text" });
     expectCheckContract("leagues", "leagues_slug_not_blank", "length(trim(slug)) > 0");

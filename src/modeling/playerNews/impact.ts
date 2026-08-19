@@ -1,7 +1,7 @@
 import type { PlayerContextEvidence } from "../../../config/playerContext.js";
 import type { RawPlayerNewsItem } from "../../data/playerNewsProviderAdapters.js";
 import type { PlayerNewsCategory, PlayerNewsDraftAction } from "./categoryContracts.js";
-import { isPlayerNewsCategory } from "./labels.js";
+import { categoryLabels, isPlayerNewsCategory } from "./labels.js";
 
 export const evidenceCategoryFor = (evidence: PlayerContextEvidence): PlayerNewsCategory => {
   const text = `${evidence.category} ${evidence.note ?? ""}`.toLowerCase();
@@ -48,5 +48,14 @@ export const actionForRawNews = (item: RawPlayerNewsItem): PlayerNewsDraftAction
   return "No model change";
 };
 
-export const categoryForRawNews = (item: RawPlayerNewsItem): PlayerNewsCategory =>
-  item.tags.find(isPlayerNewsCategory) ?? "News";
+/**
+ * A provider that labels its own items is believed over the text match, and the
+ * most actionable label wins: FantasyPros tags a torn ACL "Commentary, News,
+ * Injury", and only the last of those is worth surfacing. categoryLabels is
+ * already ordered most to least actionable.
+ */
+export const categoryForRawNews = (item: RawPlayerNewsItem): PlayerNewsCategory => {
+  const provided = item.categories ?? [];
+  const ranked = categoryLabels.find(label => provided.includes(label));
+  return ranked ?? item.tags.find(isPlayerNewsCategory) ?? "News";
+};

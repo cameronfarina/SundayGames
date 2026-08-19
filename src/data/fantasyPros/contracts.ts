@@ -1,3 +1,8 @@
+import type {
+  FantasyProsNewsItem,
+  FantasyProsNewsRequest,
+} from "./newsContracts.js";
+
 export type FantasyProsRankingType = "weekly" | "ros" | "waiver";
 export type FantasyProsScoring = "PPR" | "HALF" | "STD";
 export type FantasyProsProjectionPosition = "QB" | "RB" | "WR" | "TE" | "K" | "DST";
@@ -106,4 +111,5 @@ export interface FantasyProsClient {
   fetchRankings(request: FantasyProsRankingsRequest): Promise<FantasyProsRankingSet>;
   fetchProjections(request: FantasyProsProjectionsRequest): Promise<FantasyProsProjectionSet>;
   fetchPlayers(): Promise<readonly FantasyProsPlayer[]>;
+  fetchNews(request?: FantasyProsNewsRequest): Promise<readonly FantasyProsNewsItem[]>;
 }

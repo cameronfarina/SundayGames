@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryFantasyProsRepository } from "../src/platform/fantasyPros.js";
+import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import { readPlatformRuntimeConfig } from "../src/platform/platformRuntimeConfig.js";
 import { startFantasyProsRefreshIfConfigured } from "../src/platform/startPlatformWeb/fantasyProsRefresh.js";
 import { fantasyProsClientFor } from "../src/platform/startPlatformWeb/runtimeServices.js";
+import { stubReportingFeed } from "./support/reportingFeed.js";
 
 const configFor = (env: NodeJS.ProcessEnv = {}) => readPlatformRuntimeConfig({
   MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
@@ -11,6 +13,8 @@ const configFor = (env: NodeJS.ProcessEnv = {}) => readPlatformRuntimeConfig({
 });
 
 describe("platform web FantasyPros wiring", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
   it("builds no client without an API key", () => {
     expect(fantasyProsClientFor(configFor())).toBeUndefined();
   });
@@ -27,18 +31,45 @@ describe("platform web FantasyPros wiring", () => {
     }))).toBeUndefined();
   });
 
-  it("starts no refresh loop when the feature is dark", () => {
+  it("still refreshes the keyless news feed when FantasyPros is dark", async () => {
+    // RotoWire needs no API key, and the request path no longer fetches, so a
+    // deployment without a key must still end up with news to serve.
+    stubReportingFeed();
     const repository = new InMemoryFantasyProsRepository();
-    const claimRefresh = vi.spyOn(repository, "claimRefresh");
+    const playerNewsRepository = new InMemoryPlayerNewsRepository();
 
-    const loop = startFantasyProsRefreshIfConfigured({ client: undefined, repository });
+    const loop = startFantasyProsRefreshIfConfigured({
+      client: undefined,
+      repository,
+      playerNewsRepository,
+      playerNewsEnabled: true,
+    });
+    await vi.waitFor(async () =>
+      expect(await playerNewsRepository.recentItems()).not.toEqual([]));
+    loop?.stop();
+
+    expect((await repository.datasetStatuses()).map(status => status.dataset))
+      .toEqual(["news-rotowire", "news-retention"]);
+  });
+
+  it("schedules nothing at all when both sources are switched off", () => {
+    // An offline end-to-end run reaches no public feed, keyed or not.
+    const repository = new InMemoryFantasyProsRepository();
+
+    const loop = startFantasyProsRefreshIfConfigured({
+      client: undefined,
+      repository,
+      playerNewsRepository: new InMemoryPlayerNewsRepository(),
+      playerNewsEnabled: false,
+    });
 
     expect(loop).toBeUndefined();
-    expect(claimRefresh).not.toHaveBeenCalled();
   });
 
   it("starts a stoppable refresh loop once a client exists", async () => {
+    stubReportingFeed();
     const repository = new InMemoryFantasyProsRepository();
+    const playerNewsRepository = new InMemoryPlayerNewsRepository();
     const client = {
       fetchRankings: vi.fn(async () => ({
         type: "ros" as const,
@@ -48,13 +79,20 @@ describe("platform web FantasyPros wiring", () => {
       })),
       fetchProjections: vi.fn(async () => ({ position: "QB" as const, week: 0, projections: [] })),
       fetchPlayers: vi.fn(async () => []),
+      fetchNews: vi.fn(async () => []),
     };
 
-    const loop = startFantasyProsRefreshIfConfigured({ client, repository });
+    const loop = startFantasyProsRefreshIfConfigured({
+      client,
+      repository,
+      playerNewsRepository,
+      playerNewsEnabled: true,
+    });
     await vi.waitFor(async () =>
-      expect((await repository.datasetStatuses()).length).toBe(6));
+      expect((await repository.datasetStatuses()).length).toBe(9));
     loop?.stop();
 
     expect(client.fetchPlayers).toHaveBeenCalledOnce();
+    expect(client.fetchNews).toHaveBeenCalledOnce();
   });
 });

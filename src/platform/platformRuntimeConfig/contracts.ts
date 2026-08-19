@@ -32,6 +32,11 @@ export interface FantasyProsConfig {
   season: number;
 }
 
+export interface PlayerNewsConfig {
+  /** RotoWire needs no key, so its refresh is switched off explicitly. */
+  refreshEnabled: boolean;
+}
+
 export interface PlatformRuntimeConfig {
   host: string;
   port: number;
@@ -52,6 +57,7 @@ export interface PlatformRuntimeConfig {
   simulationDataMode: "disabled" | "local-fixtures";
   screenshotImport: ScreenshotImportConfig;
   fantasyPros: FantasyProsConfig;
+  playerNews: PlayerNewsConfig;
   worker: {
     workerId: string;
     jobKinds: readonly JobKind[];

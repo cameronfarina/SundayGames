@@ -58,6 +58,8 @@ export const startPlatformWebFromEnv = async (
   const fantasyProsRefresh = startFantasyProsRefreshIfConfigured({
     client: fantasyProsClientFor(config),
     repository: server.fantasyProsRepository,
+    playerNewsRepository: server.playerNewsRepository,
+    playerNewsEnabled: config.playerNews.refreshEnabled,
   });
   return {
     server,

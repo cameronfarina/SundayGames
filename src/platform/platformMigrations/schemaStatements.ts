@@ -53,3 +53,14 @@ export const fantasyProsMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE fantasy_pros_fetch_log")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
 ];
+
+// FantasyPros ships structured fields RotoWire has no equivalent for, so the
+// existing news rows gain columns rather than the feed gaining a second table.
+export const playerNewsProviderDataMigrationStatements: readonly string[] = [
+  "ALTER TABLE player_news_items ADD COLUMN IF NOT EXISTS categories_json jsonb DEFAULT '[]'::jsonb NOT NULL;",
+  "ALTER TABLE player_news_items ADD COLUMN IF NOT EXISTS analyst_impact text;",
+  "ALTER TABLE player_news_items ADD COLUMN IF NOT EXISTS provider_player_id text;",
+  "ALTER TABLE player_news_items ADD COLUMN IF NOT EXISTS provider_team_id text;",
+  migrationStatementStartingWith("CREATE INDEX player_news_items_provider_player_id_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];

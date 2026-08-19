@@ -200,6 +200,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-slug-v13",
       "platform-player-news-v14",
       "platform-fantasypros-v15",
+      "platform-player-news-v16",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -228,6 +229,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-slug-v13",
       "platform-player-news-v14",
       "platform-fantasypros-v15",
+      "platform-player-news-v16",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -331,6 +333,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-slug-v13",
       "platform-player-news-v14",
       "platform-fantasypros-v15",
+      "platform-player-news-v16",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -348,6 +351,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-slug-v13",
       "platform-player-news-v14",
       "platform-fantasypros-v15",
+      "platform-player-news-v16",
     ]);
   });
 

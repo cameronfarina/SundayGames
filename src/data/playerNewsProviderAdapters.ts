@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-export type RawPlayerNewsProvider = "rotowire-rss";
+export type RawPlayerNewsProvider = "rotowire-rss" | "fantasypros";
 
 export interface RawPlayerNewsItem {
   provider: RawPlayerNewsProvider;
@@ -12,6 +12,12 @@ export interface RawPlayerNewsItem {
   publishedAt?: string;
   fetchedAt: string;
   tags: string[];
+  /** Provider-supplied labels. RotoWire has none, so only tags are derived there. */
+  categories?: string[];
+  /** The analyst take FantasyPros ships alongside the report itself. */
+  analystImpact?: string;
+  providerPlayerId?: string;
+  providerTeamAbbreviation?: string;
   raw: unknown;
 }
 

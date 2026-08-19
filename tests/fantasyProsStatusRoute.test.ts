@@ -32,6 +32,9 @@ const emptyDatasets = [
   "projections-weekly",
   "projections-ros",
   "players",
+  "news-fantasypros",
+  "news-rotowire",
+  "news-retention",
 ].map(emptyDataset);
 
 describe("FantasyPros status route", () => {
@@ -88,6 +91,7 @@ describe("FantasyPros status route", () => {
             requestCount: 1,
             lastError: null,
           },
+          ...emptyDatasets.slice(6),
         ],
       },
     });
