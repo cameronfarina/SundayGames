@@ -15,6 +15,7 @@ import type { LeagueSeasonRow } from "./rows.js";
 import {
   draftScheduleFromDb,
   keeperPolicyFromDb,
+  manualInflationMultiplierFromDb,
   lineupFromDb,
   rosterMaximumsFromDb,
   scoringFromDb,
@@ -51,6 +52,10 @@ export const seasonFromRow = async (
   const expectedTeamCount = numberFromObject(settingsJson, "expectedTeamCount", teams.length);
   const scoring = scoringFromDb(row.scoring_json);
   const keeperPolicy = keeperPolicyFromDb(settingsJson);
+  const storedInflation = manualInflationMultiplierFromDb(settingsJson);
+  const manualInflation = storedInflation === undefined
+    ? {}
+    : { manualInflationMultiplier: storedInflation };
   const settings: ExplicitLeagueSeasonSettings = row.draft_format === "snake"
     ? {
       expectedTeamCount,
@@ -59,6 +64,7 @@ export const seasonFromRow = async (
       snake: snakeSettingsFromDb(row.snake_json),
       roster,
       keeperPolicy,
+      ...manualInflation,
     }
     : {
       expectedTeamCount,
@@ -70,6 +76,7 @@ export const seasonFromRow = async (
       },
       roster,
       keeperPolicy,
+      ...manualInflation,
     };
   const draft = draftScheduleFromDb(row.settings_json);
   return {

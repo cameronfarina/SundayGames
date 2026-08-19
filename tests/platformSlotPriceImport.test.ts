@@ -59,7 +59,7 @@ const inflationFor = (records: Parameters<typeof leagueInflationFor>[0]["histori
   leagueInflationFor({
     leagueId: leagueSeason.leagueId,
     seasonYear: 2026,
-    modelVersion: "league-flat-inflation-v2",
+    modelVersion: "league-flat-inflation-v3",
     scenarioIds: ["balanced"],
     baselinePrices,
     historicalSaleRecords: records,

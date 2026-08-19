@@ -158,6 +158,66 @@ describe("league inflation multiplier", () => {
     });
   });
 
+  it("uses a commissioner's own inflation number when no sale has been imported", () => {
+    const result = leagueInflationFor(input({ manualInflationMultiplier: 1.2 }));
+
+    expect(result).toMatchObject({
+      source: "manual",
+      multiplier: 1.2,
+      countedSaleCount: 0,
+      leagueDollars: 0,
+      publicDollars: 0,
+    });
+  });
+
+  it("prefers imported sales over a commissioner's own inflation number", () => {
+    const result = leagueInflationFor(input({
+      manualInflationMultiplier: 1.2,
+      historicalSaleRecords: [sale({ id: "a", priceDollars: 70, publicPriceDollars: 50 })],
+    }));
+
+    expect(result).toMatchObject({ source: "history", multiplier: 1.4 });
+  });
+
+  it("uses a commissioner's own number when imported sales carry no public value", () => {
+    const result = leagueInflationFor(input({
+      manualInflationMultiplier: 1.2,
+      historicalSaleRecords: [saleWithoutPublicPrice()],
+    }));
+
+    expect(result).toMatchObject({ source: "manual", multiplier: 1.2 });
+  });
+
+  it("prefers a commissioner's own number over the league money fallback", () => {
+    const result = leagueInflationFor(input({
+      manualInflationMultiplier: 1.2,
+      currentTeamCount: 3,
+      currentRosterSize: 1,
+      currentAuctionBudget: 100,
+    }));
+
+    expect(result).toMatchObject({ source: "manual", multiplier: 1.2 });
+  });
+
+  it("rounds a commissioner's own number to two decimal places", () => {
+    const result = leagueInflationFor(input({ manualInflationMultiplier: 1.23456 }));
+
+    expect(result.multiplier).toBe(1.23);
+  });
+
+  it("ignores an inflation number outside the range a league could pay", () => {
+    for (const manualInflationMultiplier of [0, -1, 12, Number.NaN]) {
+      const result = leagueInflationFor(input({
+        manualInflationMultiplier,
+        currentTeamCount: 3,
+        currentRosterSize: 1,
+        currentAuctionBudget: 100,
+      }));
+
+      expect(result.source).toBe("budget");
+    }
+  });
+
   it("leaves prices alone when neither history nor league money is known", () => {
     const result = leagueInflationFor(input({
       currentTeamCount: undefined,

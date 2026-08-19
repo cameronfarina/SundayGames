@@ -65,6 +65,9 @@ const pricingWorkflowInput = async (
     currentTeamCount: season.teams.length,
     currentRosterSize: season.settings.roster.rosterSize,
     currentMinimumBidDollars: season.settings.auction.minimumBidDollars,
+    ...(season.settings.manualInflationMultiplier === undefined
+      ? {}
+      : { manualInflationMultiplier: season.settings.manualInflationMultiplier }),
     currentKeeperCount: input.currentKeeperCount ?? 0,
     keeperLockedSpend: input.keeperLockedSpend ?? 0,
     ...(input.currentKeepers === undefined ? {} : { currentKeepers: input.currentKeepers }),

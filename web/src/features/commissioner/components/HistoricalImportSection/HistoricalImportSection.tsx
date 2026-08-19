@@ -11,6 +11,7 @@ import {
   historicalQueueReducer,
 } from "../../model/historicalFileQueue";
 import { HistoricalFileRow } from "./HistoricalFileRow.js";
+import { InflationSetting } from "./InflationSetting.js";
 import { SlotPriceImport } from "./SlotPriceImport.js";
 import { useHistoricalImportRun } from "./useHistoricalImportRun.js";
 
@@ -86,6 +87,7 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
         </ProgressButton>
         {run.isPending ? <p role="status">Reading and importing draft files.</p> : null}
         <SlotPriceImport season={season} />
+        <InflationSetting importedYearCount={importedCount} season={season} />
       </>}
     </section>
   );

@@ -3,6 +3,7 @@ import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "..
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { knownError, notFound } from "../../responses.js";
 import { routeSeasonHistoricalImports } from "./historicalImports.js";
+import { routeSeasonInflation } from "./inflation.js";
 import { routeSeasonKeepers } from "./keepers.js";
 import { routeSeasonLiveRoom } from "./liveRoom.js";
 import { routeSeasonPricing } from "./pricing.js";
@@ -28,6 +29,9 @@ export const routeSeason = async (
   if (action === "historical-imports") return await routeSeasonHistoricalImports(app, request, services);
   if (action === "pricing" || action === "pricing-snapshots") return await routeSeasonPricing(app, request);
   if (action === "keepers") return await routeSeasonKeepers(app, request, services);
+  if (action === "inflation" && request.segments.length === 3) {
+    return await routeSeasonInflation(app, request, services, seasonId);
+  }
   if (action === "publish" && request.segments.length === 3) return await routeSeasonPublish(app, request, seasonId);
   if (action === "snake-rounds" && request.segments.length === 3) return await routeSeasonSnakeRounds(app, request, seasonId);
   if (action === "live-room" && request.segments.length === 3) {

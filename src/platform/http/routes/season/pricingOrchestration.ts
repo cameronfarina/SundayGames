@@ -16,9 +16,10 @@ import type {
 // Prices are now one published value times one league inflation number, so
 // every earlier version computed something else. A saved snapshot is
 // immutable, so a changed formula always needs its own version.
-export const currentLeaguePricingModelVersion = "league-flat-inflation-v2";
+export const currentLeaguePricingModelVersion = "league-flat-inflation-v3";
 
 const staleKeeperPricingModelVersions = new Set([
+  "league-flat-inflation-v2",
   "league-flat-inflation-v1",
   "league-history-keepers-v4",
   "league-history-keepers-v3",

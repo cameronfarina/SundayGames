@@ -63,6 +63,7 @@ interface LeagueSeasonSettingsCore {
   expectedTeamCount: number;
   roster: RosterRules;
   keeperPolicy: KeeperPolicy;
+  manualInflationMultiplier?: number; // told to us, not derived; history wins
 }
 
 export interface AuctionLeagueSeasonSettings extends LeagueSeasonSettingsCore {

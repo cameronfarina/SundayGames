@@ -99,6 +99,12 @@ export const commissionerApi = {
     init: jsonRequest("POST", input),
     responseSchema: historicalPreviewResponseSchema,
   }),
+  setInflation: async (seasonId: string, inflationPercent: number | undefined) =>
+    await requestPlatformJson({
+      path: seasonPath(seasonId, "/inflation"),
+      init: jsonRequest("PUT", inflationPercent === undefined ? {} : { inflationPercent }),
+      responseSchema: z.object({ season: seasonSchema }),
+    }),
   commitHistory: async (batchId: string, seasonId: string, seasonYear: number) =>
     await requestPlatformJson({
       path: `/historical-imports/${encodeURIComponent(batchId)}/commit`,

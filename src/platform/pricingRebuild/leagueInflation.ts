@@ -1,7 +1,9 @@
 import type { HistoricalSaleRecord } from "../historicalImports.js";
 import {
   flatPricedPositions,
+  maximumManualInflationMultiplier,
   minimumCountedSaleDollars,
+  minimumManualInflationMultiplier,
 } from "./constants.js";
 import type {
   CreateLeagueCalibratedPricingSnapshotsInput,
@@ -57,6 +59,25 @@ export const leagueInflationFor = (
       countedSaleCount: sales.length,
       leagueDollars,
       publicDollars,
+    };
+  }
+
+  // A typed-in percentage is what a commissioner believes about a league that
+  // has imported nothing yet. Real sales always outrank a belief, so this is
+  // only reached once history has failed to produce a number.
+  const manual = input.manualInflationMultiplier;
+  if (
+    manual !== undefined
+    && Number.isFinite(manual)
+    && manual >= minimumManualInflationMultiplier
+    && manual <= maximumManualInflationMultiplier
+  ) {
+    return {
+      multiplier: rounded(manual),
+      source: "manual",
+      countedSaleCount: 0,
+      leagueDollars: 0,
+      publicDollars: 0,
     };
   }
 

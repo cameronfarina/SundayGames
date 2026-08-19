@@ -35,7 +35,7 @@ const saleFromRow = (
 const inflationFromSource = (sourceText: string) => leagueInflationFor({
   leagueId: "league-100001",
   seasonYear: 2026,
-  modelVersion: "league-flat-inflation-v2",
+  modelVersion: "league-flat-inflation-v3",
   scenarioIds: ["balanced"],
   baselinePrices,
   historicalSaleRecords: parseHistoricalImportSource(sourceText).rows.map(saleFromRow),

@@ -17,13 +17,14 @@ export interface CreateLeagueCalibratedPricingSnapshotsInput {
   currentTeamCount?: number;
   currentRosterSize?: number;
   currentMinimumBidDollars?: number;
+  manualInflationMultiplier?: number;
   currentKeeperCount?: number;
   keeperLockedSpend?: number;
   currentKeepers?: readonly CurrentKeeperPrice[];
   createdAt?: string;
 }
 
-export type LeagueInflationSource = "history" | "budget" | "unavailable";
+export type LeagueInflationSource = "history" | "manual" | "budget" | "unavailable";
 
 export interface LeagueInflationResult {
   multiplier: number;

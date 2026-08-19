@@ -38,6 +38,7 @@ const settingsCore = {
     rounding: z.literal("ceil"),
     enabled: z.boolean().optional(),
   }),
+  manualInflationMultiplier: z.number().optional(),
 };
 
 const settingsSchema = z.discriminatedUnion("draftFormat", [

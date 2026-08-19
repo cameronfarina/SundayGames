@@ -59,6 +59,11 @@ export const keeperPolicyFromDb = (value: unknown): KeeperPolicy => {
   return { ...defaultKeeperPolicy };
 };
 
+export const manualInflationMultiplierFromDb = (value: unknown): number | undefined => {
+  const stored = jsonObjectFromDb(value).manualInflationMultiplier;
+  return typeof stored === "number" && Number.isFinite(stored) ? stored : undefined;
+};
+
 export const scoringFromDb = (value: unknown): ScoringSettings => {
   const record = jsonObjectFromDb(value);
   return {
@@ -96,6 +101,9 @@ export const draftScheduleFromDb = (value: unknown): LeagueSeasonDraftSchedule |
 export const settingsJsonFor = (season: LeagueSeason): Record<string, unknown> => ({
   expectedTeamCount: season.settings.expectedTeamCount,
   keeperPolicy: season.settings.keeperPolicy,
+  ...(season.settings.manualInflationMultiplier === undefined
+    ? {}
+    : { manualInflationMultiplier: season.settings.manualInflationMultiplier }),
   ...(season.draft === undefined ? {} : { draft: season.draft }),
 });
 

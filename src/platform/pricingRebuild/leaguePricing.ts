@@ -4,6 +4,7 @@ import {
   flatPricedPositions,
   historyUnavailableWarning,
   inflationUnavailableWarning,
+  manualInflationWarning,
 } from "./constants.js";
 import type { LeagueInflationResult } from "./contracts.js";
 import { clampWholeDollars } from "./helpers.js";
@@ -24,6 +25,9 @@ export const inflationWarningsFor = (
 ): readonly string[] => {
   if (inflation.source === "unavailable") return [inflationUnavailableWarning];
   const explanation = `this league pays ${inflation.multiplier}x published market prices`;
+  if (inflation.source === "manual") {
+    return [manualInflationWarning, explanation];
+  }
   if (inflation.source === "budget") {
     return [
       historyUnavailableWarning,

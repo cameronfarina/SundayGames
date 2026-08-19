@@ -3,6 +3,7 @@ export { calculateKeeperCost, defaultScoringSettings } from "./leagueSeason/defa
 export {
   normalizeLeagueSeason,
   normalizeLeagueSeasonSettings,
+  withManualInflationMultiplier,
 } from "./leagueSeason/normalizeLeagueSeasonSettings.js";
 export { isSnakeLeagueSeason } from "./leagueSeason/formatGuards.js";
 export type { SnakeLeagueSeason } from "./leagueSeason/formatGuards.js";
