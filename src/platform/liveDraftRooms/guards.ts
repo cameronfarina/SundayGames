@@ -83,13 +83,16 @@ export const assertRoomNotEnded = (room: LiveDraftRoom): void => {
 };
 
 export const assertRoomCanBeCancelled = (room: LiveDraftRoom): void => {
-  const hasStartedOrSaleEvent = room.events.some(event =>
+  const hasStartedOrDraftEvent = room.events.some(event =>
     event.type === "room_started"
     || event.type === "sale_logged"
     || event.type === "sale_corrected"
     || event.type === "sale_undone"
+    || event.type === "pick_logged"
+    || event.type === "pick_corrected"
+    || event.type === "pick_undone"
   );
-  if ((room.status !== "setup" && room.status !== "countdown") || hasStartedOrSaleEvent) {
+  if ((room.status !== "setup" && room.status !== "countdown") || hasStartedOrDraftEvent) {
     throw new LiveDraftRoomError(
       "room_not_cancellable",
       "Only a draft room that has never started can be cancelled.",
@@ -115,10 +118,10 @@ export const assertRoomCanSynchronizeInitialRosters = (room: LiveDraftRoom): voi
 
 export const assertRoomLive = (room: LiveDraftRoom): void => {
   if (room.status === "paused") {
-    throw new LiveDraftRoomError("room_paused", "Resume the draft room before changing sales.");
+    throw new LiveDraftRoomError("room_paused", "Resume the draft room before changing the draft.");
   }
   if (room.status !== "live") {
-    throw new LiveDraftRoomError("room_not_live", "Start the draft room before logging sales.");
+    throw new LiveDraftRoomError("room_not_live", "Start the draft room before recording selections.");
   }
 };
 
