@@ -1,5 +1,5 @@
 import { InlineNotice } from "../../../../shared/ui";
-import type { LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
+import type { LeagueConnection, LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
 import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
 import { DiscoveredLeagueList } from "./DiscoveredLeagueList";
@@ -8,12 +8,13 @@ import { ProviderPicker } from "./ProviderPicker";
 import "./AddConnection.css";
 
 interface AddConnectionProps {
+  readonly connections: readonly LeagueConnection[];
   readonly mutations: ReturnType<typeof useLeagueConnectionMutations>;
   readonly providers: readonly LeagueConnectionProviderInfo[];
 }
 
-export const AddConnection = ({ mutations, providers }: AddConnectionProps) => {
-  const form = useAddConnectionForm(providers, mutations);
+export const AddConnection = ({ connections, mutations, providers }: AddConnectionProps) => {
+  const form = useAddConnectionForm(providers, mutations, connections);
   const connectable = form.chosen?.availability === "connectable";
   // The cookie step already explains the private-league refusal in full, so
   // repeating the raw provider message underneath it would only add noise.
@@ -43,9 +44,19 @@ export const AddConnection = ({ mutations, providers }: AddConnectionProps) => {
       />
       : null}
     {failure === null ? null : <InlineNotice variant="error">{failure.message}</InlineNotice>}
+    <button
+      disabled={form.connecting || form.leagues.length === 0}
+      onClick={form.connectAll}
+      type="button"
+      className="add-connection__import-all button button--primary"
+    >
+      Import all discovered leagues
+    </button>
     <DiscoveredLeagueList
       leagues={form.leagues}
       onConnect={form.connect}
+      onConnectAll={form.connectAll}
+      states={form.leagueStates}
       pending={mutations.connect.isPending}
     />
   </section>;
