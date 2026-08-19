@@ -15,9 +15,9 @@ interface HandleFormProps {
   readonly swid: string;
 }
 
-const submitLabel = (pending: boolean, showCookieStep: boolean): string => {
+const submitLabel = (pending: boolean, oneLeague: boolean): string => {
   if (pending) return "Connecting...";
-  return showCookieStep ? "Try again with these cookies" : "Connect league";
+  return oneLeague ? "Connect league" : "Find my leagues";
 };
 
 export const HandleForm = ({
@@ -31,26 +31,33 @@ export const HandleForm = ({
   provider,
   showCookieStep,
   swid,
-}: HandleFormProps) => <form
-  className="add-connection__form"
-  onSubmit={event => { event.preventDefault(); onSubmit(); }}
->
-  <TextField
-    hint={provider.handleHint}
-    id="connection-handle"
-    label={provider.handleLabel}
-    onChange={event => { onHandleChange(event.currentTarget.value); }}
-    value={handle}
-  />
-  {showCookieStep
-    ? <CookieStep
-      espnS2={espnS2}
-      onEspnS2Change={onEspnS2Change}
-      onSwidChange={onSwidChange}
-      swid={swid}
+}: HandleFormProps) => {
+  const accountReady = provider.provider === "espn"
+    && espnS2.trim().length > 0
+    && swid.trim().length > 0;
+  const canSubmit = handle.trim().length > 0 || accountReady;
+
+  return <form
+    className="add-connection__form"
+    onSubmit={event => { event.preventDefault(); onSubmit(); }}
+  >
+    <TextField
+      hint={provider.handleHint}
+      id="connection-handle"
+      label={provider.handleLabel}
+      onChange={event => { onHandleChange(event.currentTarget.value); }}
+      value={handle}
     />
-    : null}
-  <Button disabled={pending || handle.trim() === ""} type="submit">
-    {provider.handleNamesOneLeague ? submitLabel(pending, showCookieStep) : "Find my leagues"}
-  </Button>
-</form>;
+    {showCookieStep
+      ? <CookieStep
+        espnS2={espnS2}
+        onEspnS2Change={onEspnS2Change}
+        onSwidChange={onSwidChange}
+        swid={swid}
+      />
+      : null}
+    <Button disabled={pending || !canSubmit} type="submit">
+      {submitLabel(pending, provider.handleNamesOneLeague)}
+    </Button>
+  </form>;
+};
