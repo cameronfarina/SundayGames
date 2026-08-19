@@ -8,6 +8,9 @@ export const eventNameFor = (event: LiveDraftRoomEvent): LiveDraftRoomSseEventNa
     case "room_reopened":
     case "sale_corrected":
     case "sale_undone":
+    case "pick_logged":
+    case "pick_corrected":
+    case "pick_undone":
       return "room.snapshot";
     case "room_started":
       return "room.started";
