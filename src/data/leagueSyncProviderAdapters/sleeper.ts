@@ -19,13 +19,13 @@ import {
   textValue,
 } from "./decode.js";
 import { fetchLeagueSyncJson } from "./httpJson.js";
+import { sleeperDraftForLeague, sleeperKeeperLeague } from "./sleeperDraft.js";
+import { matchupsFor } from "./sleeperMatchups.js";
 import { sleeperPlayerDirectory } from "./sleeperPlayerDirectory.js";
 import { startingSlotsFor, teamsFor, type SleeperUserRecord } from "./sleeperTeams.js";
-import { matchupsFor } from "./sleeperMatchups.js";
 
 export const sleeperApiOrigin = "https://api.sleeper.app";
 export const sleeperProviderLabel = "Sleeper";
-/** Sleeper seasons run 18 weeks; a corrupt leg value must not fan out past that. */
 export const sleeperMaximumWeek = 18;
 
 const sleeperJson = async (
@@ -51,15 +51,12 @@ const userIdFor = async (
 
 const discoverLeagues = async (input: DiscoverLeaguesInput): Promise<readonly DiscoveredLeague[]> => {
   const handle = input.handle.trim().replace(/^@/u, "");
-  if (handle.length === 0) {
-    throw new LeagueSyncError("league_not_found", "Enter your Sleeper username.");
-  }
+  if (handle.length === 0) throw new LeagueSyncError("league_not_found", "Enter your Sleeper username.");
   const userId = await userIdFor(handle, input);
   const leagues = recordArray(await sleeperJson(
     `/v1/user/${encodeURIComponent(userId)}/leagues/nfl/${encodeURIComponent(input.season)}`,
     input,
   ));
-
   return leagues.flatMap(league => {
     const providerLeagueId = optionalText(league.league_id);
     if (providerLeagueId === undefined) return [];
@@ -72,7 +69,6 @@ const discoverLeagues = async (input: DiscoverLeaguesInput): Promise<readonly Di
   });
 };
 
-/** Only weeks Sleeper has already scored have matchups worth showing. */
 const scoredWeekCount = (settings: Record<string, unknown>): number => {
   const scored = optionalNumber(settings.last_scored_leg) ?? 0;
   return Math.min(Math.max(Math.trunc(scored), 0), sleeperMaximumWeek);
@@ -88,8 +84,13 @@ const fetchLeague = async (
     throw new LeagueSyncError("league_not_found", "Sleeper has no league with that ID.");
   }
   const settings = recordValue(league.settings);
-  const users: readonly SleeperUserRecord[] = recordArray(await sleeperJson(`${leaguePath}/users`, input));
-  const rosters = recordArray(await sleeperJson(`${leaguePath}/rosters`, input));
+  const [usersValue, rostersValue, draft] = await Promise.all([
+    sleeperJson(`${leaguePath}/users`, input),
+    sleeperJson(`${leaguePath}/rosters`, input),
+    sleeperDraftForLeague(input.providerLeagueId, input.season, input),
+  ]);
+  const users: readonly SleeperUserRecord[] = recordArray(usersValue);
+  const rosters = recordArray(rostersValue);
   const weeks = await Promise.all(
     Array.from({ length: scoredWeekCount(settings) }, (_unused, index) => index + 1)
       .map(async week => ({
@@ -97,8 +98,8 @@ const fetchLeague = async (
         rows: recordArray(await sleeperJson(`${leaguePath}/matchups/${week}`, input)),
       })),
   );
-
   const rosterPositions = stringArray(league.roster_positions);
+  const keeperLeague = sleeperKeeperLeague(settings);
 
   return {
     provider: "sleeper",
@@ -109,6 +110,8 @@ const fetchLeague = async (
       teamCount: numberValue(league.total_rosters, rosters.length),
       rosterPositions,
       scoring: numberMap(league.scoring_settings),
+      ...(draft === undefined ? {} : { draft }),
+      ...(keeperLeague === undefined ? {} : { keeperLeague }),
       ...(optionalText(league.status) === undefined ? {} : { status: textValue(league.status) }),
       ...(optionalNumber(settings.playoff_teams) === undefined
         ? {} : { playoffTeams: numberValue(settings.playoff_teams) }),
