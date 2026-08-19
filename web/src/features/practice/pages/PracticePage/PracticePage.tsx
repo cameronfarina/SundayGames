@@ -101,7 +101,7 @@ export function PracticePage() {
       </nav>
     )}
     {activeLeague === undefined && <aside className="practice-page__baseline">
-      <div><strong>Baseline values</strong><p>Start with current consensus values, then join a league for keeper-aware pricing and full draft simulations.</p></div>
+      <div><strong>Baseline values</strong><p>Start with current consensus values, then join or create a league for keeper-aware pricing and full draft simulations.</p></div>
       <Link to="/league?create=1">Create league</Link>
     </aside>}
     {activeLeague === undefined ? playerBoard : <div className="practice-page__workspace">
