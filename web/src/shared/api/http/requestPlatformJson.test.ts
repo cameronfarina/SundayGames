@@ -77,6 +77,40 @@ describe("requestPlatformJson", () => {
     });
   });
 
+  it("carries the offending body and the contract issues on the thrown error", async () => {
+    const body = { account: { email: "not-an-email" } };
+    const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status: 200 })));
+
+    await expect(requestPlatformJson({
+      fetcher,
+      path: "/session",
+      responseSchema: accountSchema,
+    })).rejects.toMatchObject({
+      body,
+      code: "invalid_response",
+      // Paths only: naming the field that broke is the point, and pinning the
+      // validator's own wording would just make this brittle.
+      issues: [{ path: "account.email" }, { path: "account.id" }],
+    });
+  });
+
+  it("keeps the message a person can read, with the schema detail beside it", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      account: { email: "not-an-email" },
+    }), { status: 200 })));
+
+    const attempt = () => requestPlatformJson({
+      fetcher,
+      path: "/session",
+      responseSchema: accountSchema,
+    });
+
+    await expect(attempt()).rejects.toBeInstanceOf(PlatformApiError);
+    await expect(attempt()).rejects.toThrow(
+      "The server returned data that does not match the application contract.",
+    );
+  });
+
   it("rejects unreadable success and error bodies without type assertions", async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response("not-json", { status: 200 }))

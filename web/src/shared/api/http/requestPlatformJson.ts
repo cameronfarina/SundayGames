@@ -1,5 +1,5 @@
-import type { output, ZodType } from "zod";
-import { PlatformApiError } from "./PlatformApiError";
+import type { output, ZodError, ZodType } from "zod";
+import { PlatformApiError, type PlatformApiErrorIssue } from "./PlatformApiError";
 import { platformErrorSchema } from "./platformErrorSchema";
 
 export type PlatformFetch = (
@@ -40,6 +40,18 @@ const apiErrorFor = (status: number, body: unknown): PlatformApiError => {
   });
 };
 
+/**
+ * A path segment can be a symbol, which String() renders and an implicit
+ * conversion would throw on. This runs while an error is already being built,
+ * so it takes the explicit call rather than risk throwing over the failure it
+ * is trying to describe.
+ */
+const issuePath = (segments: readonly PropertyKey[]): string =>
+  segments.map(segment => String(segment)).join(".");
+
+const contractIssues = (error: ZodError): readonly PlatformApiErrorIssue[] =>
+  error.issues.map(issue => ({ message: issue.message, path: issuePath(issue.path) }));
+
 export const requestPlatformJson = async <Schema extends ZodType>(
   options: RequestPlatformJsonOptions<Schema>,
 ): Promise<output<Schema>> => {
@@ -56,8 +68,13 @@ export const requestPlatformJson = async <Schema extends ZodType>(
 
   const parsed = options.responseSchema.safeParse(body);
   if (!parsed.success) {
+    // The message stays the one a person should read. What the payload actually
+    // got wrong rides alongside it, because a contract break with no field name
+    // attached is a failure nobody can diagnose from a report.
     throw new PlatformApiError({
+      body,
       code: "invalid_response",
+      issues: contractIssues(parsed.error),
       message: "The server returned data that does not match the application contract.",
       status: response.status,
     });
