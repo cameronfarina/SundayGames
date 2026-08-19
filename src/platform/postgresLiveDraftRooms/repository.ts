@@ -1,5 +1,6 @@
 import {
   LiveDraftRoomError,
+  type CorrectLiveDraftRoomPickInput,
   type CorrectLiveDraftRoomSaleInput,
   type CreateLiveDraftRoomInput,
   type EndLiveDraftRoomInput,
@@ -7,6 +8,7 @@ import {
   type LiveDraftRoomActor,
   type LiveDraftRoomAuthorizer,
   type LiveDraftRoomRepository,
+  type LogLiveDraftRoomPickInput,
   type LogLiveDraftRoomSaleInput,
   type MutateLiveDraftRoomInput,
   type SynchronizeLiveDraftRoomInitialRostersInput,
@@ -101,6 +103,18 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
 
   async undoLastSale(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
     return await this.runMutation(input, repository => repository.undoLastSale(input));
+  }
+
+  async logPick(input: LogLiveDraftRoomPickInput): Promise<LiveDraftRoom> {
+    return await this.runMutation(input, repository => repository.logPick(input));
+  }
+
+  async correctPick(input: CorrectLiveDraftRoomPickInput): Promise<LiveDraftRoom> {
+    return await this.runMutation(input, repository => repository.correctPick(input));
+  }
+
+  async undoLastPick(input: MutateLiveDraftRoomInput): Promise<LiveDraftRoom> {
+    return await this.runMutation(input, repository => repository.undoLastPick(input));
   }
 
   async endRoom(input: EndLiveDraftRoomInput): Promise<LiveDraftRoom> {
