@@ -21,7 +21,6 @@ const snakeSettingsSchema = z.object({
   snake: z.object({
     rounds: z.number().int().positive(),
     order: z.array(z.string()),
-    reversal: z.enum(["standard", "third-round"]),
   }),
   roster: rosterSchema,
 });

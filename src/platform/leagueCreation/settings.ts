@@ -52,7 +52,6 @@ export const settingsFor = (
     keeperPolicy: keeperPolicy(input.keeperLeague !== false),
     snake: {
       rounds: input.draft.rounds,
-      reversal: input.draft.reversal ?? "standard",
       order: input.draft.order.map(externalTeamId => {
         const teamId = teamIdByExternalId.get(externalTeamId.trim());
         if (teamId === undefined) {

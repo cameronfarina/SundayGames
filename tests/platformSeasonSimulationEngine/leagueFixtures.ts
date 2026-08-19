@@ -77,7 +77,6 @@ export const snakeSeason: LeagueSeason<SnakeLeagueSeasonSettings> = {
     snake: {
       rounds: 2,
       order: teams.map(team => team.id),
-      reversal: "standard",
     },
     roster: {
       rosterSize: 2,

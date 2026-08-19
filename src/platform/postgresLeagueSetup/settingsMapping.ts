@@ -72,12 +72,13 @@ export const scoringFromDb = (value: unknown): ScoringSettings => {
   };
 };
 
+// Legacy rows may still carry a `reversal` key from the retired third-round
+// reversal rule; ignore it rather than reject the row.
 export const snakeSettingsFromDb = (value: unknown): SnakeSettings => {
   const record = jsonObjectFromDb(value);
   return {
     rounds: numberFromObject(record, "rounds", 0),
     order: stringArrayFromDb(record.order),
-    reversal: record.reversal === "third-round" ? "third-round" : "standard",
   };
 };
 

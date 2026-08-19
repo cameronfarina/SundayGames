@@ -40,12 +40,6 @@ describe("platform store snapshot domain validation", () => {
       leagueSeasons: [{ ...season, settings: { ...season.settings, draftFormat: "invalid" } }],
     }, "settings.draftFormat");
     expectInvalid({
-      leagueSeasons: [{
-        ...season,
-        settings: { ...season.settings, snake: { ...season.settings.snake, reversal: "invalid" } },
-      }],
-    }, "settings.snake.reversal");
-    expectInvalid({
       memberships: [{ userId: "u", leagueId: "l", role: "invalid" }],
     }, "memberships[0].role");
   });

@@ -52,7 +52,6 @@ const settingsSchema = z.discriminatedUnion("draftFormat", [
     snake: z.object({
       rounds: z.number(),
       order: z.array(z.string()),
-      reversal: z.enum(["standard", "third-round"]),
     }),
   }),
 ]);

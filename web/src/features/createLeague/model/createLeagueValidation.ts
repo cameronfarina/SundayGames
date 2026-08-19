@@ -96,7 +96,7 @@ export const createLeagueSetup = (draft: LeagueDraft): ConfirmedLeagueSetup => {
     teams: draft.teams.map(confirmedTeam),
     draft: draft.draftType === "auction"
       ? { type: "auction", budgetDollars: draft.auctionBudget, minimumBidDollars: draft.minimumBid }
-      : { type: "snake", rounds: draft.snakeRounds || rounds, order: teamIds, reversal: "standard" },
+      : { type: "snake", rounds: draft.snakeRounds || rounds, order: teamIds },
     scoring: draft.scoring,
     rosterSlots: draft.roster,
   };

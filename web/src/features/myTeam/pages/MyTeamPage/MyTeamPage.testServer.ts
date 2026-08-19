@@ -47,7 +47,7 @@ export const season = (draftFormat = "auction", seasonId = "season-2026") => ({
         ? { budgetDollars: 200, minimumBidDollars: 1 }
         : undefined,
       snake: draftFormat === "snake"
-        ? { rounds: 16, order: ["owner11"], reversal: "standard" }
+        ? { rounds: 16, order: ["owner11"] }
         : undefined,
       roster: { rosterSize: 16, lineupSlotCount: 9, lineup: { QB: 1 } },
     },

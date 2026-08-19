@@ -6,7 +6,6 @@ export type {
   SnakeDraftAiConfig,
   SnakeDraftConfig,
   SnakeDraftKeeperPlacement,
-  SnakeDraftOrderType,
   SnakeDraftOwnerTendency,
   SnakeDraftPlayer,
   SnakeDraftRosterSlotConfig,

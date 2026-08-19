@@ -11,7 +11,6 @@ const baseConfig = (overrides: Partial<SnakeDraftConfig> = {}): SnakeDraftConfig
   sessionId: "snake-session",
   seed: "deterministic-seed",
   rounds: 2,
-  orderType: "standard",
   teamOrder: ["team-a", "team-b", "team-c", "team-d"],
   humanTeamId: "team-c",
   teams: [
@@ -49,7 +48,6 @@ const configForTeamCount = (teamCount: number): SnakeDraftConfig => {
     sessionId: `session-${teamCount}`,
     seed: "league-size-seed",
     rounds: 1,
-    orderType: "standard",
     teamOrder: teams.map(team => team.id),
     humanTeamId: teams.at(-1)?.id ?? "missing-team",
     teams,
@@ -111,7 +109,7 @@ describe("snake draft engine", () => {
     });
   });
 
-  it("builds standard and third-round reversal schedules from explicit team order", () => {
+  it("builds an alternating schedule from explicit team order", () => {
     const rosterSlots = [
       { slot: "ANY", count: 4, eligiblePositions: ["QB", "RB", "WR"] },
     ];
@@ -123,24 +121,12 @@ describe("snake draft engine", () => {
       adp: index + 1,
     }));
     const standard = createSnakeDraftState(baseConfig({ rounds: 4, rosterSlots, players }));
-    const reversed = createSnakeDraftState(baseConfig({
-      rounds: 4,
-      orderType: "third_round_reversal",
-      rosterSlots,
-      players,
-    }));
 
     expect(standard.board.picks.map(pick => pick.teamId)).toEqual([
       "team-a", "team-b", "team-c", "team-d",
       "team-d", "team-c", "team-b", "team-a",
       "team-a", "team-b", "team-c", "team-d",
       "team-d", "team-c", "team-b", "team-a",
-    ]);
-    expect(reversed.board.picks.map(pick => pick.teamId)).toEqual([
-      "team-a", "team-b", "team-c", "team-d",
-      "team-d", "team-c", "team-b", "team-a",
-      "team-d", "team-c", "team-b", "team-a",
-      "team-a", "team-b", "team-c", "team-d",
     ]);
   });
 

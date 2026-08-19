@@ -103,16 +103,14 @@ const auctionSettings = (
   };
 };
 
+// Legacy snapshots may still carry a `reversal` key from the retired
+// third-round reversal rule; ignore it rather than reject the snapshot.
 const snakeSettings = (
   record: Record<string, unknown>,
   path: string,
   core: DecodedCoreSettings,
 ): LeagueSeasonSettings => {
   const snake = recordValue(record.snake, `${path}.snake`);
-  const reversal = snake.reversal;
-  if (reversal !== "standard" && reversal !== "third-round") {
-    return invalidSnapshot(`${path}.snake.reversal`);
-  }
   return {
     ...core,
     draftFormat: "snake",
@@ -120,7 +118,6 @@ const snakeSettings = (
     snake: {
       rounds: integerValue(snake.rounds, `${path}.snake.rounds`),
       order: stringArrayValue(snake.order, `${path}.snake.order`),
-      reversal,
     },
   };
 };

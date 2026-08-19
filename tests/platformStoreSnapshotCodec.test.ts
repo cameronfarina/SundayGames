@@ -124,7 +124,6 @@ describe("platform store snapshot codec", () => {
         snake: {
           rounds: 18,
           order: auctionSeason.teams.map(team => team.id),
-          reversal: "third-round",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,
@@ -141,6 +140,38 @@ describe("platform store snapshot codec", () => {
 
     expect(decoded.leagueSeasons).toEqual([snakeSeason]);
     expect(decoded.leagueSeasons[0]?.settings).not.toHaveProperty("auction");
+  });
+
+  it("decodes a snapshot whose snake settings still carry the retired reversal key", () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: 4,
+          order: auctionSeason.teams.map(team => team.id),
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+    const legacySnapshotJson = {
+      ...emptyPlatformStoreSnapshot(),
+      leagueSeasons: [{
+        ...snakeSeason,
+        settings: {
+          ...snakeSeason.settings,
+          snake: { ...snakeSeason.settings.snake, reversal: "third-round" },
+        },
+      }],
+    };
+
+    const decoded = deserializePlatformStoreSnapshot(legacySnapshotJson);
+
+    expect(decoded.leagueSeasons).toEqual([snakeSeason]);
   });
 
   it("round trips immutable mock configuration snapshots and upgrades legacy sessions explicitly", () => {

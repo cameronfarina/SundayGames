@@ -311,7 +311,7 @@ describe("season keeper setup", () => {
         expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
         scoring: auctionSeason.settings.scoring,
-        snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
+        snake: { rounds: 2, order: ["team-owner11", "team-owner01"] },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
@@ -343,7 +343,7 @@ describe("season keeper setup", () => {
         expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
         scoring: auctionSeason.settings.scoring,
-        snake: { rounds: 3, order: ["team-owner11", "team-owner01"], reversal: "standard" },
+        snake: { rounds: 3, order: ["team-owner11", "team-owner01"] },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },
@@ -382,7 +382,7 @@ describe("season keeper setup", () => {
         expectedTeamCount: auctionSeason.settings.expectedTeamCount,
         draftFormat: "snake",
         scoring: auctionSeason.settings.scoring,
-        snake: { rounds: 2, order: ["team-owner11", "team-owner01"], reversal: "standard" },
+        snake: { rounds: 2, order: ["team-owner11", "team-owner01"] },
         roster: {
           ...auctionSeason.settings.roster,
           lineup: { SUPERFLEX: 1, FLEX: 1 },

@@ -35,7 +35,6 @@ export const buildSeasonSnakeMockConfig = ({
     sessionId,
     seed,
     rounds: snake.rounds,
-    orderType: snake.reversal === "third-round" ? "third_round_reversal" : "standard",
     teamOrder,
     humanTeamId,
     teams: season.teams.map(team => ({ id: team.id, name: team.displayName })),

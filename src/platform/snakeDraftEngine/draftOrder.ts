@@ -1,20 +1,15 @@
-import type { SnakeDraftConfig, SnakeDraftOrderType } from "./config.js";
+import type { SnakeDraftConfig } from "./config.js";
 import { SnakeDraftError } from "./error.js";
 import type { SnakeDraftBoardPick, SnakeDraftPickRef } from "./readModels.js";
 
-export const isForwardRound = (round: number, orderType: SnakeDraftOrderType): boolean => {
-  if (orderType === "standard") return round % 2 === 1;
-  if (round === 1) return true;
-  if (round === 2 || round === 3) return false;
-  return round % 2 === 0;
-};
+export const isForwardRound = (round: number): boolean => round % 2 === 1;
 
 export const buildPicks = (config: SnakeDraftConfig): SnakeDraftBoardPick[] => {
   const teamsById = new Map(config.teams.map(team => [team.id, team]));
   const picks: SnakeDraftBoardPick[] = [];
 
   for (let round = 1; round <= config.rounds; round += 1) {
-    const roundOrder = isForwardRound(round, config.orderType)
+    const roundOrder = isForwardRound(round)
       ? [...config.teamOrder]
       : [...config.teamOrder].reverse();
 

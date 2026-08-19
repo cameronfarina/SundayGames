@@ -3,10 +3,10 @@ import type { LeagueSeason, SnakeLeagueSeason } from "../src/platform/leagueSeas
 import { emptyPicksFor, snakePicksFor } from "../src/platform/liveDraftRooms/snakePicks.js";
 import { publishedSnakeSeason } from "./platformLiveDraftRooms/fixtures.js";
 
-const snakeSeasonWith = (rounds: number, reversal: "standard" | "third-round"): SnakeLeagueSeason => {
+const snakeSeasonWith = (rounds: number): SnakeLeagueSeason => {
   const season: LeagueSeason = publishedSnakeSeason();
   if (season.settings.draftFormat !== "snake") throw new Error("Expected a snake fixture.");
-  return { ...season, settings: { ...season.settings, snake: { ...season.settings.snake, rounds, reversal } } };
+  return { ...season, settings: { ...season.settings, snake: { ...season.settings.snake, rounds } } };
 };
 
 const orderOf = (season: SnakeLeagueSeason, round: number): readonly string[] =>
@@ -14,7 +14,7 @@ const orderOf = (season: SnakeLeagueSeason, round: number): readonly string[] =>
 
 describe("snake pick board", () => {
   it("reverses every other round so the last team picks back to back", () => {
-    const season = snakeSeasonWith(2, "standard");
+    const season = snakeSeasonWith(2);
     const first = orderOf(season, 1);
 
     expect(orderOf(season, 2)).toEqual([...first].reverse());
@@ -23,17 +23,17 @@ describe("snake pick board", () => {
     );
   });
 
-  it("keeps round two in reverse and round three the same under third-round reversal", () => {
-    const season = snakeSeasonWith(4, "third-round");
+  it("keeps every round alternating across a longer draft", () => {
+    const season = snakeSeasonWith(4);
     const first = orderOf(season, 1);
 
     expect(orderOf(season, 2)).toEqual([...first].reverse());
-    expect(orderOf(season, 3)).toEqual([...first].reverse());
-    expect(orderOf(season, 4)).toEqual(first);
+    expect(orderOf(season, 3)).toEqual(first);
+    expect(orderOf(season, 4)).toEqual([...first].reverse());
   });
 
   it("seats a keeper on its own round and hands the next open slot to the first sale", () => {
-    const season = snakeSeasonWith(2, "standard");
+    const season = snakeSeasonWith(2);
     const firstPick = emptyPicksFor(season)[0];
     if (firstPick === undefined) throw new Error("Expected a first pick.");
 

@@ -77,7 +77,6 @@ export const persistedMockDraftSessions = (): readonly MockDraftSession[] => {
       snake: {
         rounds: 16,
         order: season.teams.map(candidate => candidate.id),
-        reversal: "standard",
       },
       roster: season.settings.roster,
       keeperPolicy: season.settings.keeperPolicy,

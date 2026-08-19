@@ -22,7 +22,6 @@ export type ConfirmedLeagueDraftInput =
       type: "snake";
       rounds: number;
       order: readonly string[];
-      reversal?: "standard" | "third-round";
     };
 
 export interface ConfirmedLeagueCreationInput {

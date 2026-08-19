@@ -79,7 +79,7 @@ export interface ConfirmedLeagueSetup {
   readonly teams: readonly ConfirmedLeagueTeam[];
   readonly draft:
     | { readonly type: "auction"; readonly budgetDollars: number; readonly minimumBidDollars: number }
-    | { readonly type: "snake"; readonly rounds: number; readonly order: readonly string[]; readonly reversal: "standard" };
+    | { readonly type: "snake"; readonly rounds: number; readonly order: readonly string[] };
   readonly scoring: LeagueScoring;
   readonly rosterSlots: LeagueRoster;
 }

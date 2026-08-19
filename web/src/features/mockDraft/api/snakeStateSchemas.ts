@@ -66,7 +66,6 @@ export const snakeStateSchema = z.object({
     currentPick: pickRefSchema.optional(),
     humanTeamId: z.string().min(1),
     id: z.string().min(1),
-    orderType: z.enum(["standard", "third_round_reversal"]),
     revision: z.number().int().nonnegative(),
     rounds: z.number().int().positive(),
     status: z.enum(["setup", "active", "completed"]),

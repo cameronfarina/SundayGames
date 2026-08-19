@@ -32,15 +32,10 @@ const draftFrom = (value: unknown): ConfirmedLeagueDraftInput => {
   if (draft.type !== "snake") throw new LeagueCreationError("Draft type must be auction or snake.");
   const order = stringArray(draft.order);
   if (order === null) throw new LeagueCreationError("Snake draft order is invalid.");
-  const reversal = draft.reversal;
-  if (reversal !== undefined && reversal !== "standard" && reversal !== "third-round") {
-    throw new LeagueCreationError("Snake reversal is invalid.");
-  }
   return {
     type: "snake",
     rounds: numberField(draft, "rounds", "Snake rounds"),
     order,
-    ...(reversal === undefined ? {} : { reversal }),
   };
 };
 

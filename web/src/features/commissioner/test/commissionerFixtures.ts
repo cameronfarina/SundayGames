@@ -37,7 +37,7 @@ export const snakeSeason = seasonSchema.parse({
     ...auctionSeason.settings,
     draftFormat: "snake",
     auction: undefined,
-    snake: { rounds: 16, order: ["team-1"], reversal: "standard" },
+    snake: { rounds: 16, order: ["team-1"] },
   },
 });
 

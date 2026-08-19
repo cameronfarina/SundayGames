@@ -80,7 +80,7 @@ describe("league display", () => {
         ...seasonInput.settings,
         draftFormat: "snake",
         auction: undefined,
-        snake: { rounds: 16, order: [], reversal: "standard" },
+        snake: { rounds: 16, order: [] },
       },
     });
     const legacy = leagueSeasonSchema.parse({
@@ -93,19 +93,19 @@ describe("league display", () => {
       },
     });
 
-    expect(describeDraft(snake.settings)).toBe("16-round snake · Standard reversal");
+    expect(describeDraft(snake.settings)).toBe("16-round snake");
     expect(describeDraft(legacy.settings)).toBe("$250 auction · $2 minimum bid");
     expect(describeScoring(legacy.settings)).toBe("Scoring details unavailable");
   });
 
-  it("describes third-round reversal and omits empty roster slots", () => {
+  it("omits empty roster slots", () => {
     const snake = leagueSeasonSchema.parse({
       ...seasonInput,
       settings: {
         ...seasonInput.settings,
         draftFormat: "snake",
         auction: undefined,
-        snake: { rounds: 15, order: [], reversal: "third-round" },
+        snake: { rounds: 15, order: [] },
         roster: {
           ...seasonInput.settings.roster,
           lineup: { QB: 1, RB: 2, TE: 0 },
@@ -113,7 +113,7 @@ describe("league display", () => {
       },
     });
 
-    expect(describeDraft(snake.settings)).toBe("15-round snake · Third-round reversal");
+    expect(describeDraft(snake.settings)).toBe("15-round snake");
     expect(describeRoster(snake.settings)).toBe("16 players · 1 QB, 2 RB");
   });
 });

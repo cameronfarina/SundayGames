@@ -58,7 +58,6 @@ export const snakeSeason = (): LeagueSeason => ({
     snake: {
       rounds: 2,
       order: ["snake-team-1", "snake-team-2", "snake-team-3", "snake-team-4"],
-      reversal: "standard",
     },
     roster: {
       rosterSize: 2,

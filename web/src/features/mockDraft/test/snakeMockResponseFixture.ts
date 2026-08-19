@@ -51,7 +51,6 @@ export const snakeMockResponseFixture = () => snakeMockResponseSchema.parse({
       currentPick: { overall: 2, pickInRound: 2, round: 1, teamId: "team-owner11" },
       humanTeamId: "team-owner11",
       id: "mock-1",
-      orderType: "standard",
       revision: 3,
       rounds: 2,
       status: "active",

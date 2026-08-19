@@ -778,7 +778,7 @@ describe("Postgres league setup repository", () => {
     );
   });
 
-  it("round trips snake format, scoring, order, and reversal without auction settings", async () => {
+  it("round trips snake format, scoring, and order without auction settings", async () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client);
     const auctionSeason = buildSeason();
@@ -795,7 +795,6 @@ describe("Postgres league setup repository", () => {
         snake: {
           rounds: 18,
           order: auctionSeason.teams.map(team => team.id),
-          reversal: "third-round",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,
@@ -817,6 +816,40 @@ describe("Postgres league setup repository", () => {
       snake_json: snakeSeason.settings.snake,
       scoring_json: snakeSeason.settings.scoring,
     });
+  });
+
+  it("loads a saved league whose snake_json still carries the retired reversal key", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const auctionSeason = buildSeason();
+    const snakeSeason: AnyLeagueSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake",
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: 4,
+          order: auctionSeason.teams.map(team => team.id),
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    await repository.registerLeagueSeason({
+      season: snakeSeason,
+      memberships: [],
+      createdByUserId: "acct_owner11",
+      now,
+    });
+
+    const rosterRule = client.rosterRulesBySeason.get(snakeSeason.id);
+    if (rosterRule === undefined) throw new Error("Expected roster rules to be written.");
+    rosterRule.snake_json = { ...snakeSeason.settings.snake, reversal: "third-round" };
+
+    const loaded = await repository.findLeagueSeason(snakeSeason.id);
+    expect(loaded).toEqual(snakeSeason);
   });
 
   it("normalizes legacy auction settings before writing normalized rows", async () => {

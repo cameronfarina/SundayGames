@@ -35,7 +35,7 @@ const season: ExplicitLeagueSeason = {
       receivingTouchdown: 6,
       reception: 0.5,
     },
-    snake: { rounds: 2, order: ["team-1", "team-2", "team-3", "team-4"], reversal: "standard" },
+    snake: { rounds: 2, order: ["team-1", "team-2", "team-3", "team-4"] },
     roster: {
       rosterSize: 2,
       lineup: { RB: 1, FLEX: 1 },

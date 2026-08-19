@@ -105,7 +105,6 @@ describe("season mock results", () => {
       sessionId: "snake-results",
       seed: "snake-results-seed",
       rounds: 2,
-      orderType: "standard",
       teamOrder: teamConfigs.map(team => team.id),
       humanTeamId: "team-1",
       teams: teamConfigs,

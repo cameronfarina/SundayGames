@@ -153,7 +153,6 @@ describe("assessLeagueSeasonReadiness", () => {
         snake: {
           rounds: 16,
           order: auctionSeason.teams.map(team => team.id),
-          reversal: "standard",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,
@@ -184,7 +183,6 @@ describe("assessLeagueSeasonReadiness", () => {
         snake: {
           rounds: 0,
           order: auctionSeason.teams.map(team => team.id).slice(1),
-          reversal: "standard",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,
@@ -300,7 +298,6 @@ describe("assessLeagueSeasonReadiness", () => {
         snake: {
           rounds: 17,
           order: auctionSeason.teams.map(team => team.id),
-          reversal: "standard",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,

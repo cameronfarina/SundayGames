@@ -32,7 +32,6 @@ export interface AuctionSettings {
 export interface SnakeSettings {
   rounds: number;
   order: string[];
-  reversal: "standard" | "third-round";
 }
 
 export interface ScoringSettings {

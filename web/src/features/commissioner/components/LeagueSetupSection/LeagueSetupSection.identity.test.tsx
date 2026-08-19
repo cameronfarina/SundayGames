@@ -57,7 +57,7 @@ describe("LeagueSetupSection team identity", () => {
   it("moves a snake team to the slot it asks for and renumbers the rest", async () => {
     const twoTeamSnake = seasonSchema.parse({
       ...twoTeams,
-      settings: { ...snakeSeason.settings, expectedTeamCount: 2, snake: { rounds: 16, order: ["team-1", "team-2"], reversal: "standard" } },
+      settings: { ...snakeSeason.settings, expectedTeamCount: 2, snake: { rounds: 16, order: ["team-1", "team-2"] } },
     });
     const bodies = captureApplyBodies(twoTeamSnake);
     const user = userEvent.setup();

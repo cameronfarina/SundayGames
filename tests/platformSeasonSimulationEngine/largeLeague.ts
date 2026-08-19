@@ -57,7 +57,7 @@ export const registerLargeLeagueTests = (): void => {
         expectedTeamCount: 20,
         draftFormat: "snake",
         scoring,
-        snake: { rounds: 1, order: largeTeams.map(team => team.id), reversal: "standard" },
+        snake: { rounds: 1, order: largeTeams.map(team => team.id) },
         roster,
         keeperPolicy,
       },

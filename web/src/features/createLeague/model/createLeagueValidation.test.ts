@@ -121,7 +121,7 @@ describe("create league validation", () => {
         abbreviation: "OWN11",
     });
     expect(setup).toMatchObject({
-      draft: { type: "snake", rounds: 16, order: ["1", "2"], reversal: "standard" },
+      draft: { type: "snake", rounds: 16, order: ["1", "2"] },
     });
 
     const rosterRounds = createLeagueSetup({ ...draft, snakeRounds: 0 });

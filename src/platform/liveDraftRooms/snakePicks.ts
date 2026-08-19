@@ -11,14 +11,11 @@ const teamOrderFor = (season: SnakeLeagueSeason): readonly string[] =>
 /** Every slot in the draft, in the order the room will fill them. */
 export const emptyPicksFor = (season: SnakeLeagueSeason): LiveDraftRoomPick[] => {
   const teamOrder = teamOrderFor(season);
-  const orderType = season.settings.snake.reversal === "third-round"
-    ? "third_round_reversal"
-    : "standard";
   const teamsById = new Map(season.teams.map(team => [team.id, team]));
   const picks: LiveDraftRoomPick[] = [];
 
   for (let round = 1; round <= season.settings.snake.rounds; round += 1) {
-    const roundOrder = isForwardRound(round, orderType) ? teamOrder : [...teamOrder].reverse();
+    const roundOrder = isForwardRound(round) ? teamOrder : [...teamOrder].reverse();
     roundOrder.forEach((teamId, index) => {
       const team = teamsById.get(teamId);
       if (team === undefined) return;

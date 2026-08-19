@@ -10,8 +10,7 @@ export const selectActiveLeague = (
 
 export const describeDraft = (settings: LeagueSeasonSettings): string => {
   if ("draftFormat" in settings && settings.draftFormat === "snake") {
-    const reversal = settings.snake.reversal === "standard" ? "Standard" : "Third-round";
-    return `${String(settings.snake.rounds)}-round snake · ${reversal} reversal`;
+    return `${String(settings.snake.rounds)}-round snake`;
   }
 
   return `$${String(settings.auction.budgetDollars)} auction · $${String(settings.auction.minimumBidDollars)} minimum bid`;

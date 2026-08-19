@@ -1,5 +1,3 @@
-export type SnakeDraftOrderType = "standard" | "third_round_reversal";
-
 export interface SnakeDraftOwnerTendency {
   rankWeight?: number | undefined;
   adpWeight?: number | undefined;
@@ -54,7 +52,6 @@ export interface SnakeDraftConfig {
   sessionId: string;
   seed: string;
   rounds: number;
-  orderType: SnakeDraftOrderType;
   teamOrder: readonly string[];
   humanTeamId: string;
   teams: readonly SnakeDraftTeamConfig[];

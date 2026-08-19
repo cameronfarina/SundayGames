@@ -15,7 +15,6 @@ export const createSnakeDraftState = (config: SnakeDraftConfig): SnakeDraftState
       revision: 0,
       seed: config.seed,
       rounds: config.rounds,
-      orderType: config.orderType,
       teamOrder: [...config.teamOrder],
       humanTeamId: config.humanTeamId,
       currentPick: undefined,

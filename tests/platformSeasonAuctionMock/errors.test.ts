@@ -52,7 +52,7 @@ describe("season auction mock errors", () => {
       expectedTeamCount: season.settings.expectedTeamCount,
       draftFormat: "snake",
       scoring: season.settings.scoring,
-      snake: { rounds: 2, order: season.teams.map(team => team.id), reversal: "standard" },
+      snake: { rounds: 2, order: season.teams.map(team => team.id) },
       roster: season.settings.roster,
       keeperPolicy: season.settings.keeperPolicy,
     };

@@ -190,7 +190,7 @@ describe("confirmed league creation", () => {
         { externalTeamId: "8", displayName: "Eighth" },
         { externalTeamId: "9", displayName: "Ninth" },
       ],
-      draft: { type: "snake", rounds: 15, order: ["7", "4", "9", "8"], reversal: "standard" },
+      draft: { type: "snake", rounds: 15, order: ["7", "4", "9", "8"] },
       scoring: { ...defaultScoringSettings, reception: 1, passingTouchdown: 6 },
       rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, BENCH: 8 },
     }, () => `generated-${++nextId}`);
@@ -199,7 +199,6 @@ describe("confirmed league creation", () => {
       draftFormat: "snake",
       snake: {
         rounds: 15,
-        reversal: "standard",
         order: ["team-generated-5", "team-generated-3", "team-generated-9", "team-generated-7"],
       },
     });

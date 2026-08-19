@@ -91,17 +91,15 @@ export const settingsValue = (value: unknown): ExplicitLeagueSeasonSettings => {
     };
   }
   if (record.draftFormat === "snake") {
+    // Legacy snapshots may still carry a `reversal` key from the retired
+    // third-round reversal rule; ignore it rather than reject the snapshot.
     const snake = plainRecord(record.snake);
-    if (snake.reversal !== "standard" && snake.reversal !== "third-round") {
-      return malformedSnapshot();
-    }
     return {
       ...core,
       draftFormat: "snake",
       snake: {
         rounds: positiveInteger(snake.rounds),
         order: arrayValue(snake.order).map(nonEmptyString),
-        reversal: snake.reversal,
       },
     };
   }

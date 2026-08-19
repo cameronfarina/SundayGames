@@ -495,7 +495,6 @@ describe("platform historical import workflow", () => {
         snake: {
           rounds: auctionSeason.settings.roster.rosterSize,
           order: auctionSeason.teams.map(team => team.id),
-          reversal: "standard",
         },
         roster: auctionSeason.settings.roster,
         keeperPolicy: auctionSeason.settings.keeperPolicy,

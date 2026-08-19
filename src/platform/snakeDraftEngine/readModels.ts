@@ -1,5 +1,5 @@
 import type { SnakeDraftCommand } from "./command.js";
-import type { SnakeDraftConfig, SnakeDraftOrderType } from "./config.js";
+import type { SnakeDraftConfig } from "./config.js";
 
 export type SnakeDraftStatus = "setup" | "active" | "completed";
 
@@ -55,7 +55,6 @@ export interface SnakeDraftSessionReadModel {
   revision: number;
   seed: string;
   rounds: number;
-  orderType: SnakeDraftOrderType;
   teamOrder: readonly string[];
   humanTeamId: string;
   currentPick: SnakeDraftPickRef | undefined;
