@@ -12,6 +12,7 @@ export const titleForPath = (path: string): string => {
     case "/league": return "League | Sunday Games";
     case "/my-team": return "My team | Sunday Games";
     case "/player-news": return "Player news | Sunday Games";
+    case "/connections": return "Connections | Sunday Games";
     case "/commissioner": return "Commissioner | Sunday Games";
     case "/login": return "Sign in | Sunday Games";
     case "/signup": return "Create account | Sunday Games";

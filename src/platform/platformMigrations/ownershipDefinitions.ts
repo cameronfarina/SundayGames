@@ -6,6 +6,7 @@ import {
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
   leagueSlugMigrationId,
+  leagueSyncMigrationId,
   playerNewsMigrationId,
   playerNewsProviderDataMigrationId,
   sharedLeagueInvitationsMigrationId,
@@ -13,6 +14,7 @@ import {
 import {
   authTokenTableMigrationStatements,
   fantasyProsMigrationStatements,
+  leagueSyncMigrationStatements,
   playerNewsMigrationStatements,
   playerNewsProviderDataMigrationStatements,
 } from "./schemaStatements.js";
@@ -116,5 +118,9 @@ END $$;`,
   {
     id: playerNewsProviderDataMigrationId,
     statements: playerNewsProviderDataMigrationStatements,
+  },
+  {
+    id: leagueSyncMigrationId,
+    statements: leagueSyncMigrationStatements,
   },
 ];

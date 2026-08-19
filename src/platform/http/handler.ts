@@ -11,6 +11,7 @@ import { routeFantasyProsStatus } from "./routes/fantasyProsStatus.js";
 import { routeHistoricalImports } from "./routes/historicalImports.js";
 import { routeInvitations } from "./routes/invitations/index.js";
 import { routeJobs } from "./routes/jobs.js";
+import { routeLeagueConnections } from "./routes/leagueConnections/index.js";
 import { routeLeagueImports } from "./routes/leagueImports.js";
 import { routeLeagues } from "./routes/leagues.js";
 import { routeLiveRooms } from "./routes/liveRooms/index.js";
@@ -49,6 +50,9 @@ export const createPlatformHttpHandler = (
     }
     if (root === "fantasypros-status") {
       return await routeFantasyProsStatus(app, parsedRequest, services);
+    }
+    if (root === "league-connections") {
+      return await routeLeagueConnections(app, parsedRequest, services);
     }
     if (root === "league-imports") return await routeLeagueImports(app, parsedRequest, services);
     if (root === "leagues") return await routeLeagues(app, parsedRequest);

@@ -1,3 +1,4 @@
+import { LeagueSyncError } from "../../../data/leagueSyncProviderAdapters.js";
 import { AuthError } from "../../auth.js";
 import { DraftExportError } from "../../draftExport.js";
 import { ExportArtifactError } from "../../exportArtifacts.js";
@@ -36,12 +37,14 @@ import {
   simulationErrorStatus,
   snakeDraftErrorStatus,
 } from "./draftStatus.js";
+import { leagueSyncErrorStatus } from "./leagueSyncStatus.js";
 import {
   historicalImportErrorStatus,
   jobErrorStatus,
   platformErrorStatus,
   platformInvitationErrorStatus,
 } from "./resourceStatus.js";
+import { unhandledErrorResponse } from "./unhandledError.js";
 
 export const errorResponseFor = (
   error: unknown,
@@ -137,12 +140,8 @@ export const errorResponseFor = (
     return knownError(409, "draft_setup_write_conflict", error.message);
   }
   if (error instanceof LeagueCreationError) return knownError(400, "invalid_league_setup", error.message);
-  console.error(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level: "error",
-    event: "unhandled_platform_error",
-    message: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
-  }));
-  return knownError(500, "internal_error", "Something went wrong.");
+  if (error instanceof LeagueSyncError) {
+    return knownError(leagueSyncErrorStatus(error.code), error.code, error.message);
+  }
+  return unhandledErrorResponse(error);
 };

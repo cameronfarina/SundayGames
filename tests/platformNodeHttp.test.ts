@@ -681,6 +681,7 @@ describe("platform Node HTTP adapter", () => {
       "/commissioner",
       "/practice",
       "/player-news",
+      "/connections",
       "/my-team",
       "/mock-drafts",
       "/draft-room",

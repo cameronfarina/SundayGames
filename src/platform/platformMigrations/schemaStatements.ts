@@ -63,4 +63,15 @@ export const playerNewsProviderDataMigrationStatements: readonly string[] = [
   "ALTER TABLE player_news_items ADD COLUMN IF NOT EXISTS provider_team_id text;",
   migrationStatementStartingWith("CREATE INDEX player_news_items_provider_player_id_idx")
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+export const leagueSyncMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE league_connections")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE UNIQUE INDEX league_connections_account_league_key")
+    .replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX league_connections_account_id_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE TABLE league_connection_snapshots")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE TABLE provider_player_directories")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
 ];

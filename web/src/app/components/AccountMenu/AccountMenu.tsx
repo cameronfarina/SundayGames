@@ -70,6 +70,10 @@ export const AccountMenu = ({
       startsGroup: leagueItems.length > 0 || pageItems.length > 0,
     },
     {
+      label: "Sync leagues",
+      onSelect: () => { void navigate("/connections"); },
+    },
+    {
       destructive: true,
       disabled: signOut.isPending,
       label: signOut.isPending ? "Signing out..." : "Sign out",

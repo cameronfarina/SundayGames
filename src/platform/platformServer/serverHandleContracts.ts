@@ -5,6 +5,7 @@ import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
+import type { LeagueConnectionRepository } from "../leagueConnections.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LiveDraftRoomSetupRepository, PostgresLiveDraftRoomSetupRepository } from "../liveDraftRoomSetups.js";
 import type { LiveDraftRoomRepository } from "../liveDraftRooms.js";
@@ -40,6 +41,7 @@ export interface PlatformServer {
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
   fantasyProsRepository: FantasyProsRepository;
+  leagueConnectionRepository: LeagueConnectionRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
   invitationRepository: PlatformInvitationRepository;

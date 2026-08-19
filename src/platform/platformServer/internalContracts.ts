@@ -4,6 +4,7 @@ import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
+import type { LeagueConnectionRepository } from "../leagueConnections.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LeagueSeason } from "../leagueSeason.js";
 import type { LiveDraftRoomSetup, LiveDraftRoomSetupRepository, PostgresLiveDraftRoomSetupRepository } from "../liveDraftRoomSetups.js";
@@ -19,6 +20,7 @@ import type { PostgresExportArtifactRepository } from "../postgresExportArtifact
 import type { PostgresFantasyProsRepository } from "../postgresFantasyPros.js";
 import type { PostgresHistoricalImportRepository } from "../postgresHistoricalImports.js";
 import type { PostgresJobQueue } from "../postgresJobQueue.js";
+import type { PostgresLeagueConnectionRepository } from "../postgresLeagueConnections.js";
 import type { PostgresLeagueSetupRepository } from "../postgresLeagueSetup.js";
 import type { PostgresLiveDraftRoomRepository } from "../postgresLiveDraftRooms.js";
 import type { PostgresPlatformInvitationRepository } from "../postgresPlatformInvitations.js";
@@ -44,6 +46,7 @@ export interface RuntimeRepositories extends LoadedPlatformStore {
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
   fantasyProsRepository: FantasyProsRepository;
+  leagueConnectionRepository: LeagueConnectionRepository;
   liveDraftRoomRepository: LiveDraftRoomRepository;
   exportArtifactRepository: ExportArtifactRepository;
   invitationRepository: PlatformInvitationRepository;
@@ -57,6 +60,7 @@ export interface RuntimeRepositories extends LoadedPlatformStore {
   postgresPracticeShortlistRepository?: PostgresPracticeShortlistRepository | undefined;
   postgresPlayerNewsRepository?: PostgresPlayerNewsRepository | undefined;
   postgresFantasyProsRepository?: PostgresFantasyProsRepository | undefined;
+  postgresLeagueConnectionRepository?: PostgresLeagueConnectionRepository | undefined;
   postgresLiveDraftRoomRepository?: PostgresLiveDraftRoomRepository | undefined;
   postgresExportArtifactRepository?: PostgresExportArtifactRepository | undefined;
   postgresInvitationRepository?: PostgresPlatformInvitationRepository | undefined;

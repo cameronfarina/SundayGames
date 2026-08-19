@@ -7,6 +7,8 @@ import type { ExportArtifactRepository } from "../exportArtifacts.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
+import type { LeagueSyncFetch } from "../../data/leagueSyncProviderAdapters.js";
+import type { LeagueConnectionRepository } from "../leagueConnections.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LeagueSeason } from "../leagueSeason.js";
 import type {
@@ -53,6 +55,8 @@ export interface CreatePlatformServerOptions {
   playerNewsRepository?: PlayerNewsRepository | undefined;
   fantasyProsRepository?: FantasyProsRepository | undefined;
   fantasyProsConfigured?: boolean | undefined;
+  leagueConnectionRepository?: LeagueConnectionRepository | undefined;
+  leagueSyncFetch?: LeagueSyncFetch | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   invitationRepository?: PlatformInvitationRepository | undefined;

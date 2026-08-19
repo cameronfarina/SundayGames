@@ -33,6 +33,9 @@ export const createPlatformServerShape = (
   },
   get playerNewsRepository() { return input.runtimeHolder.current().playerNewsRepository; },
   get fantasyProsRepository() { return input.runtimeHolder.current().fantasyProsRepository; },
+  get leagueConnectionRepository() {
+    return input.runtimeHolder.current().leagueConnectionRepository;
+  },
   get liveDraftRoomRepository() { return input.runtimeHolder.current().liveDraftRoomRepository; },
   get exportArtifactRepository() { return input.runtimeHolder.current().exportArtifactRepository; },
   get invitationRepository() { return input.runtimeHolder.current().invitationRepository; },

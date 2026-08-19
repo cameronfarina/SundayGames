@@ -7,6 +7,7 @@ describe("route metadata", () => {
     ["/league", "League | Sunday Games"],
     ["/my-team", "My team | Sunday Games"],
     ["/player-news", "Player news | Sunday Games"],
+    ["/connections", "Connections | Sunday Games"],
     ["/commissioner", "Commissioner | Sunday Games"],
       ["/mock-drafts/session-1", "Mock draft | Sunday Games"],
       ["/draft-room", "Live draft | Sunday Games"],

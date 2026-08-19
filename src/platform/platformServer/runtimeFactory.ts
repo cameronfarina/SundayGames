@@ -76,6 +76,8 @@ export const createPlatformRuntimeFactory = (
     openLiveDraftRoomRevisionSubscription: subscription =>
       input.liveDraftRoomNotifier.subscribe(subscription),
     seasonSimulationRunner: input.seasonSimulationRunner,
+    leagueConnectionRepository: repositories.leagueConnectionRepository,
+    ...(options.leagueSyncFetch === undefined ? {} : { leagueSyncFetch: options.leagueSyncFetch }),
     ...(options.leagueMembersScreenshotAnalyzer === undefined
       ? {} : { leagueMembersScreenshotAnalyzer: options.leagueMembersScreenshotAnalyzer }),
     ...(applyAcceptedMembership === undefined ? {} : { applyAcceptedMembership }),

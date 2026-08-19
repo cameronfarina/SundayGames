@@ -5,6 +5,7 @@ import { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js"
 import { PostgresFantasyProsRepository } from "../postgresFantasyPros.js";
 import { PostgresHistoricalImportRepository } from "../postgresHistoricalImports.js";
 import { PostgresJobQueue } from "../postgresJobQueue.js";
+import { PostgresLeagueConnectionRepository } from "../postgresLeagueConnections.js";
 import { PostgresLeagueSetupRepository } from "../postgresLeagueSetup.js";
 import { PostgresLiveDraftRoomRepository } from "../postgresLiveDraftRooms.js";
 import { PostgresPlatformInvitationRepository } from "../postgresPlatformInvitations.js";
@@ -47,6 +48,10 @@ export const composeRuntimeRepositories = (
       sharedTransactionalClient !== undefined
     ? new PostgresFantasyProsRepository(sharedTransactionalClient)
     : undefined;
+  const postgresLeagueConnectionRepository = options.leagueConnectionRepository === undefined &&
+      sharedTransactionalClient !== undefined
+    ? new PostgresLeagueConnectionRepository(sharedTransactionalClient)
+    : undefined;
   const liveDraftClient = options.postgresLiveDraftRoomClient ??
     (options.liveDraftRoomRepository === undefined ? sharedTransactionalClient : undefined);
   const exportArtifactClient = options.postgresExportArtifactClient ??
@@ -78,6 +83,8 @@ export const composeRuntimeRepositories = (
       postgresPlayerNewsRepository ?? store.playerNews,
     fantasyProsRepository: options.fantasyProsRepository ??
       postgresFantasyProsRepository ?? store.fantasyPros,
+    leagueConnectionRepository: options.leagueConnectionRepository ??
+      postgresLeagueConnectionRepository ?? store.leagueConnections,
     liveDraftRoomRepository: options.liveDraftRoomRepository ??
       postgresLiveDraftRoomRepository ?? store.liveDraftRooms,
     exportArtifactRepository: options.exportArtifactRepository ??
@@ -98,6 +105,8 @@ export const composeRuntimeRepositories = (
     ...(postgresPracticeShortlistRepository === undefined ? {} : { postgresPracticeShortlistRepository }),
     ...(postgresPlayerNewsRepository === undefined ? {} : { postgresPlayerNewsRepository }),
     ...(postgresFantasyProsRepository === undefined ? {} : { postgresFantasyProsRepository }),
+    ...(postgresLeagueConnectionRepository === undefined
+      ? {} : { postgresLeagueConnectionRepository }),
     ...(postgresLiveDraftRoomRepository === undefined ? {} : { postgresLiveDraftRoomRepository }),
     ...(postgresExportArtifactRepository === undefined ? {} : { postgresExportArtifactRepository }),
     ...(postgresInvitationRepository === undefined ? {} : { postgresInvitationRepository }),

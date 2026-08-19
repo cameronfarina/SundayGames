@@ -1,0 +1,32 @@
+.connections-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 100%;
+}
+
+.connections-page__header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-6);
+}
+
+.connections-page__header p {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+}
+
+.connections-page__header h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.connections-page__header span {
+  color: var(--color-text-muted);
+  display: block;
+  margin-top: var(--space-3);
+  max-width: 52rem;
+}

@@ -7,6 +7,8 @@ import type {
   EspnLeagueSettingsImportOutcome,
 } from "../espnLeagueSettingsImport.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
+import type { LeagueSyncFetch } from "../../data/leagueSyncProviderAdapters.js";
+import type { LeagueConnectionRepository } from "../leagueConnections.js";
 import type { LeagueMembersScreenshotAnalyzer } from "../openAiLeagueMembersScreenshotAnalyzer.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LeagueSeason } from "../leagueSeason.js";
@@ -88,4 +90,6 @@ export interface PlatformHttpServices {
     roomId: string;
   }) => LiveDraftRoomEventStreamSubscription) | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
+  leagueConnectionRepository?: LeagueConnectionRepository | undefined;
+  leagueSyncFetch?: LeagueSyncFetch | undefined;
 }

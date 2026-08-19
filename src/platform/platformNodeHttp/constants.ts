@@ -11,7 +11,7 @@ export const appShellPaths = new Set([
   "/", "/app", "/login", "/signup", "/verify-email", "/forgot-password",
   "/reset-password", "/invite", "/setup", "/league", "/commissioner",
   "/draft-room", "/practice", "/my-team", "/mock-drafts", "/mock-results",
-  "/simulations", "/strategy", "/my-expert", "/player-news",
+  "/simulations", "/strategy", "/my-expert", "/player-news", "/connections",
 ]);
 
 const leagueAppShellPath = /^\/leagues\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/(?:commissioner|draft|mock-drafts|my-team|player-news|practice))?$/u;
@@ -32,7 +32,8 @@ export const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
 export const observableRouteRoots = new Set([
   ...[...appShellPaths].map(path => path.slice(1)),
   "accounts", "email-verifications", "fantasypros-status", "healthz",
-  "historical-imports", "invitations", "jobs", "league-imports", "leagues", "live-rooms",
+  "historical-imports", "invitations", "jobs", "league-connections", "league-imports",
+  "leagues", "live-rooms",
   "mock-sessions", "onboarding", "player-catalog", "password-resets",
   "pricing-snapshots", "readyz", "season-mock-drafts", "season-simulations",
   "practice-shortlist", "seasons", "session", "sessions",

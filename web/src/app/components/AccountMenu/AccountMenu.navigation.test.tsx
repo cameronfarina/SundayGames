@@ -43,6 +43,7 @@ const openMenu = async (canManageLeague: boolean) => {
   const router = createMemoryRouter([
     { path: "/practice", element: menu },
     { path: "/leagues/:slug/my-team", element: <h1>Team page</h1> },
+    { path: "/connections", element: <h1>Connections page</h1> },
   ], { initialEntries: ["/practice"] });
   render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>);
   const user = userEvent.setup();
@@ -81,5 +82,15 @@ describe("AccountMenu navigation", () => {
     await user.click(screen.getByRole("menuitem", { name: "My team" }));
 
     expect(await screen.findByRole("heading", { name: "Team page" })).toBeVisible();
+  });
+
+  it("reaches connected leagues from the account menu on every screen size", async () => {
+    const user = await openMenu(false);
+
+    const syncLeagues = screen.getByRole("menuitem", { name: "Sync leagues" });
+    expect(syncLeagues).toBeVisible();
+    await user.click(syncLeagues);
+
+    expect(await screen.findByRole("heading", { name: "Connections page" })).toBeVisible();
   });
 });

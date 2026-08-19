@@ -3,6 +3,7 @@ import { InMemoryExportArtifactRepository } from "../../../exportArtifacts.js";
 import { InMemoryFantasyProsRepository } from "../../../fantasyPros.js";
 import { InMemoryHistoricalImportRepository } from "../../../historicalImports.js";
 import { InMemoryJobQueue } from "../../../jobs.js";
+import { InMemoryLeagueConnectionRepository } from "../../../leagueConnections.js";
 import { InMemoryLiveDraftRoomRepository } from "../../../liveDraftRooms.js";
 import { InMemoryLiveDraftRoomSetupRepository } from "../../../liveDraftRoomSetups.js";
 import { InMemoryMockDraftSessionRepository } from "../../../mockSessions.js";
@@ -28,6 +29,7 @@ export class InMemoryPlatformRepositories {
   readonly practiceShortlists = new InMemoryPracticeShortlistRepository();
   readonly playerNews = new InMemoryPlayerNewsRepository();
   readonly fantasyPros = new InMemoryFantasyProsRepository();
+  readonly leagueConnections = new InMemoryLeagueConnectionRepository();
   readonly liveDraftRooms: InMemoryLiveDraftRoomRepository;
   readonly liveDraftRoomSetups = new InMemoryLiveDraftRoomSetupRepository();
 

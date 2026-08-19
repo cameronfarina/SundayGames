@@ -1,0 +1,228 @@
+import { describe, expect, it } from "vitest";
+import { PostgresLeagueConnectionRepository } from "../src/platform/postgresLeagueConnections.js";
+import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
+import type {
+  PostgresQueryClient,
+  PostgresQueryResult,
+} from "../src/platform/postgresPlatformStore.js";
+
+interface RecordedQuery {
+  sql: string;
+  values: readonly unknown[];
+}
+
+class RecordingClient implements PostgresTransactionalQueryClient {
+  readonly queries: RecordedQuery[] = [];
+  #nextRows: unknown[] = [];
+  #nextRowCount = 0;
+
+  answerWith(rows: readonly unknown[], rowCount = rows.length): void {
+    this.#nextRows = [...rows];
+    this.#nextRowCount = rowCount;
+  }
+
+  async transaction<T>(operation: (client: PostgresQueryClient) => Promise<T>): Promise<T> {
+    return await operation(this);
+  }
+
+  query<TRow = Record<string, unknown>>(
+    sql: string,
+    values?: readonly unknown[],
+  ): Promise<PostgresQueryResult<TRow>>;
+  async query(sql: string, values: readonly unknown[] = []): Promise<PostgresQueryResult<unknown>> {
+    this.queries.push({ sql: sql.replace(/\s+/gu, " ").trim(), values });
+    const rows = this.#nextRows;
+    const rowCount = this.#nextRowCount;
+    this.#nextRows = [];
+    this.#nextRowCount = 0;
+    return { rows, rowCount };
+  }
+}
+
+const connectionRow = {
+  id: "league_connection_1",
+  account_id: "account-1",
+  provider: "espn",
+  provider_league_id: "899513",
+  season: "2025",
+  display_name: "Pigskin Power Bottoms",
+  status: "needs_attention",
+  status_detail: "This ESPN league is private.",
+  last_synced_at: new Date("2026-08-19T12:00:00.000Z"),
+  created_at: "2026-08-18T12:00:00.000Z",
+  updated_at: new Date("2026-08-19T12:00:00.000Z"),
+};
+
+describe("postgres league connection repository", () => {
+  it("reads a connection row into the domain record", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([connectionRow]);
+
+    expect(await repository.findConnection("account-1", "league_connection_1")).toEqual({
+      id: "league_connection_1",
+      accountId: "account-1",
+      provider: "espn",
+      providerLeagueId: "899513",
+      season: "2025",
+      displayName: "Pigskin Power Bottoms",
+      status: "needs_attention",
+      statusDetail: "This ESPN league is private.",
+      lastSyncedAt: "2026-08-19T12:00:00.000Z",
+      createdAt: "2026-08-18T12:00:00.000Z",
+      updatedAt: "2026-08-19T12:00:00.000Z",
+    });
+  });
+
+  it("falls back rather than trusting an unknown provider or status from the database", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([{
+      ...connectionRow,
+      provider: "nfl-dot-com",
+      status: "half-done",
+      status_detail: null,
+      last_synced_at: null,
+    }]);
+
+    expect(await repository.findConnection("account-1", "league_connection_1")).toMatchObject({
+      provider: "sleeper",
+      status: "error",
+    });
+  });
+
+  it("binds credentials as null when the owner supplies none", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([connectionRow]);
+
+    await repository.saveConnection({
+      accountId: "account-1",
+      provider: "sleeper",
+      providerLeagueId: "289646328504385536",
+      season: "2018",
+      displayName: "Sleeper Friends League",
+      credentials: { espnS2: "   " },
+      now: new Date("2026-08-19T12:00:00.000Z"),
+    });
+
+    expect(client.queries[0]?.values.slice(1)).toEqual([
+      "account-1",
+      "sleeper",
+      "289646328504385536",
+      "2018",
+      "Sleeper Friends League",
+      null,
+      null,
+      "2026-08-19T12:00:00.000Z",
+    ]);
+  });
+
+  it("refuses to invent a connection when the upsert returns nothing", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+
+    await expect(repository.saveConnection({
+      accountId: "account-1",
+      provider: "sleeper",
+      providerLeagueId: "1",
+      season: "2018",
+      displayName: "League",
+    })).rejects.toThrow("Saving a league connection returned no row.");
+  });
+
+  it("reads credential columns without leaking absent values as empty strings", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([{ espn_s2: "s2-value", swid: null }]);
+
+    expect(await repository.findCredentials("league_connection_1")).toEqual({ espnS2: "s2-value" });
+  });
+
+  it("decodes a stored snapshot and ignores one that no longer matches the contract", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([{
+      connection_id: "league_connection_1",
+      settings_json: JSON.stringify({
+        name: "Pigskin Power Bottoms",
+        season: "2025",
+        teamCount: 12,
+        rosterPositions: ["QB"],
+        scoring: { rec: 1 },
+      }),
+      teams_json: [{ providerTeamId: "1", name: "Bad team" }],
+      matchups_json: [{ week: 1, matchupKey: "1-1", homeTeamId: "1", homePoints: 100 }],
+      synced_at: "2026-08-19T12:00:00.000Z",
+    }]);
+
+    const snapshot = await repository.findSnapshot("league_connection_1");
+
+    expect(snapshot?.settings.name).toBe("Pigskin Power Bottoms");
+    // A league missing one team would misreport standings, so the whole team
+    // list is dropped and the owner is offered a fresh sync instead.
+    expect(snapshot?.teams).toEqual([]);
+    expect(snapshot?.matchups).toHaveLength(1);
+  });
+
+  it("reports whether a delete removed anything", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([], 1);
+
+    expect(await repository.deleteConnection("account-1", "league_connection_1")).toBe(true);
+    expect(await repository.deleteConnection("account-1", "league_connection_1")).toBe(false);
+  });
+
+  it("stores and reads the cached player directory as one row per provider", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+
+    await repository.savePlayerDirectory({
+      provider: "sleeper",
+      entries: { "4035": { name: "Alvin Kamara", position: "RB" } },
+      fetchedAt: "2026-08-19T12:00:00.000Z",
+    });
+    client.answerWith([{
+      provider: "sleeper",
+      entries_json: { "4035": { name: "Alvin Kamara", position: "RB" }, bad: { position: "RB" } },
+      fetched_at: new Date("2026-08-19T12:00:00.000Z"),
+    }]);
+
+    expect(client.queries[0]?.values).toEqual([
+      "sleeper",
+      "{\"4035\":{\"name\":\"Alvin Kamara\",\"position\":\"RB\"}}",
+      "2026-08-19T12:00:00.000Z",
+    ]);
+    // One malformed entry must not cost the whole cached directory.
+    expect(await repository.findPlayerDirectory("sleeper")).toMatchObject({
+      entries: { "4035": { name: "Alvin Kamara", position: "RB" } },
+    });
+  });
+
+  it("lists connections for one account only", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([connectionRow]);
+
+    await repository.listConnections("account-1");
+
+    expect(client.queries[0]?.sql).toContain("WHERE account_id = $1");
+    expect(client.queries[0]?.values).toEqual(["account-1"]);
+  });
+
+  it("keeps the previous sync time when a failed sync only records a status", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+
+    await repository.updateConnectionStatus({
+      id: "league_connection_1",
+      status: "error",
+      statusDetail: "Sleeper did not respond.",
+      now: new Date("2026-08-19T12:00:00.000Z"),
+    });
+
+    expect(client.queries[0]?.sql).toContain("last_synced_at = COALESCE($4, last_synced_at)");
+    expect(client.queries[0]?.values[3]).toBeNull();
+  });
+});
