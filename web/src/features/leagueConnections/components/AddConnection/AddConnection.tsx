@@ -1,5 +1,8 @@
 import { InlineNotice } from "../../../../shared/ui";
-import type { LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
+import type {
+  LeagueConnection,
+  LeagueConnectionProviderInfo,
+} from "../../api/leagueConnectionsSchema";
 import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
 import { DiscoveredLeagueList } from "./DiscoveredLeagueList";
@@ -8,21 +11,20 @@ import { ProviderPicker } from "./ProviderPicker";
 import "./AddConnection.css";
 
 interface AddConnectionProps {
+  readonly connections: readonly LeagueConnection[];
   readonly mutations: ReturnType<typeof useLeagueConnectionMutations>;
   readonly providers: readonly LeagueConnectionProviderInfo[];
 }
 
-export const AddConnection = ({ mutations, providers }: AddConnectionProps) => {
-  const form = useAddConnectionForm(providers, mutations);
+export const AddConnection = ({ connections, mutations, providers }: AddConnectionProps) => {
+  const form = useAddConnectionForm(providers, mutations, connections);
   const connectable = form.chosen?.availability === "connectable";
-  // The cookie step already explains the private-league refusal in full, so
-  // repeating the raw provider message underneath it would only add noise.
   const failure = form.showCookieStep
     ? mutations.connect.error
     : mutations.discover.error ?? mutations.connect.error;
 
   return <section aria-labelledby="add-connection-title" className="add-connection">
-    <h2 id="add-connection-title">Connect a league</h2>
+    <h2 id="add-connection-title">Import leagues</h2>
     <ProviderPicker
       onSelect={form.selectProvider}
       providers={providers}
@@ -36,7 +38,7 @@ export const AddConnection = ({ mutations, providers }: AddConnectionProps) => {
         onHandleChange={form.setHandle}
         onSubmit={form.findLeagues}
         onSwidChange={form.setSwid}
-        pending={mutations.discover.isPending || mutations.connect.isPending}
+        pending={mutations.discover.isPending || form.connecting}
         provider={form.chosen}
         showCookieStep={form.showCookieStep}
         swid={form.swid}
@@ -46,7 +48,9 @@ export const AddConnection = ({ mutations, providers }: AddConnectionProps) => {
     <DiscoveredLeagueList
       leagues={form.leagues}
       onConnect={form.connect}
-      pending={mutations.connect.isPending}
+      onConnectAll={form.connectAll}
+      pending={form.connecting}
+      states={form.leagueStates}
     />
   </section>;
 };
