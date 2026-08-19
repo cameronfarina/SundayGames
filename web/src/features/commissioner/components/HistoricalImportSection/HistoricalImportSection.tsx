@@ -56,10 +56,21 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
 
   return (
     <section className="commissioner-section" id="draft-history">
-      <header><h2>Draft history</h2><strong>{importedCount} imported</strong></header>
+      <header><h2>Historical pricing</h2><strong>{importedCount} imported</strong></header>
       {unavailable ? <p>Historical snake draft imports are not available yet.</p> : <>
-        <p className="commissioner-help">Add prior auction results as CSV, TSV, or XLSX. Each file must use a different draft year.</p>
-        <p className="commissioner-help">Name the columns Owner, Player, Position, and Price. Add Public Value to say what the market asked for that player, or leave it out and we read it from the published ESPN board. An ESPN-style sheet with a Team header row and a price, position, and player column per team works as it is.</p>
+        <p className="commissioner-help">Teach SundayGames how your league spends using past auction data.</p>
+        <p className="commissioner-help">
+          Have complete draft results? Upload CSV, TSV, or XLSX files with Owner, Player, Position,
+          and Price. Add Public Value to say what the market asked for that player, or leave it out
+          and we read it from the published ESPN board. An ESPN-style sheet with a Team header row
+          and a price, position, and player column per team works as it is. Each file must use a
+          different draft year.
+        </p>
+        <p className="commissioner-help">
+          Only track what each positional rank costs? Use <strong>Paste positional price history</strong>
+          below. No owner or player names are required — use Position, Rank, Price (for example
+          RB, 1, 75) or Slot, Price (RB1, 75).
+        </p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
           variant="secondary" onClick={() => { fileInput.current?.click(); }}
           onDragOver={event => { event.preventDefault(); setDragging(true); }}
