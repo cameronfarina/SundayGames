@@ -10,7 +10,7 @@ import {
 } from "./contracts.js";
 import { numberValue, optionalText, recordArray, recordValue } from "./decode.js";
 import { discoverEspnAccountLeagueIds } from "./espnAccountDiscovery.js";
-import { espnRosterPositions, espnScoring } from "./espnSettings.js";
+import { espnDraft, espnKeeperLeague, espnRosterPositions, espnScoring } from "./espnSettings.js";
 import { espnMatchupsFor, espnTeamsFor } from "./espnTeams.js";
 import { fetchLeagueSyncJson } from "./httpJson.js";
 
@@ -98,6 +98,9 @@ const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
   const settings = recordValue(payload.settings);
   const discovered = discoveredLeagueFor(payload, input.providerLeagueId, input.season);
   const status = statusFor(payload);
+  const rosterPositions = espnRosterPositions(settings);
+  const draft = espnDraft(settings, rosterPositions);
+  const keeperLeague = espnKeeperLeague(settings);
 
   return {
     provider: "espn",
@@ -106,8 +109,10 @@ const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
       name: discovered.name,
       season: discovered.season,
       teamCount: discovered.teamCount,
-      rosterPositions: espnRosterPositions(settings),
+      rosterPositions,
       scoring: espnScoring(settings),
+      ...(draft === undefined ? {} : { draft }),
+      ...(keeperLeague === undefined ? {} : { keeperLeague }),
       ...(status === undefined ? {} : { status }),
     },
     teams: espnTeamsFor(payload),
