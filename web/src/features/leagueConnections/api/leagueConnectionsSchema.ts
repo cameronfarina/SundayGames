@@ -18,6 +18,8 @@ export const leagueConnectionSchema = z.object({
   status: leagueConnectionStatusSchema,
   statusDetail: z.string().optional(),
   lastSyncedAt: z.string().optional(),
+  linkedLeagueId: z.string().optional(),
+  linkedSeasonId: z.string().optional(),
   createdAt: z.string(),
 });
 
