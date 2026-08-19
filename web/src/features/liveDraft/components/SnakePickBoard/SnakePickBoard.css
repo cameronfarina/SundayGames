@@ -1,0 +1,52 @@
+.snake-pick-board__scroll {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.snake-pick-board__round {
+  display: grid;
+  gap: 8px;
+}
+
+.snake-pick-board__picks {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.snake-pick-board__pick {
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 32px minmax(110px, 1fr) minmax(140px, 1.4fr) auto;
+  padding: 8px 10px;
+}
+
+.snake-pick-board__pick--current {
+  border-width: 2px;
+}
+
+.snake-pick-board__number,
+.snake-pick-board__team {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.snake-pick-board__player {
+  font-weight: 600;
+}
+
+.snake-pick-board__correct {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
