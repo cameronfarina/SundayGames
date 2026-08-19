@@ -55,6 +55,9 @@ export const buildSale = (
   input: LiveDraftRoomSaleCommandInput,
   saleEventId: string,
 ): LiveDraftRoomSale => {
+  if (room.season.settings.draftFormat === "snake") {
+    throw new LiveDraftRoomError("season_not_ready", "Auction sale commands cannot be logged in a snake draft.");
+  }
   const parsed = parseSaleInput(input);
   const team = resolveTeam(room.season, parsed);
   const player = resolvePlayer(room.playerCatalog, parsed.playerName);
