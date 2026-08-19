@@ -37,6 +37,11 @@ export const draftProgress = (room: LiveDraftRoom): string => {
     0,
   );
   const filled = room.teamSummaries.reduce((count, team) => count + team.roster.length, 0);
+  if (room.draftFormat === "snake") {
+    const drafted = room.picks?.filter(pick => pick.playerName !== undefined).length ?? filled;
+    const pickTotal = room.picks?.length ?? total;
+    return `${String(drafted)} of ${String(pickTotal)} picks filled`;
+  }
   const sales = room.salesLog.length;
   const saleLabel = sales === 1 ? "sale" : "sales";
   return `${String(sales)} ${saleLabel} · ${String(filled)} of ${String(total)} spots filled`;
