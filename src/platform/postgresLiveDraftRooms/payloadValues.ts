@@ -3,6 +3,7 @@ import type {
   LiveDraftRoomBoardPlayer,
   LiveDraftRoomIncompleteTeam,
   LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPickSelection,
   LiveDraftRoomSale,
 } from "../liveDraftRooms.js";
 import {
@@ -43,6 +44,27 @@ export const saleValue = (value: unknown): LiveDraftRoomSale => {
     expectedPrice: numberValue(sale.expectedPrice),
     teamAbbreviation: optionalStringValue(sale.teamAbbreviation),
     byeWeek: optionalNumberValue(sale.byeWeek),
+  };
+};
+
+export const pickValue = (value: unknown): LiveDraftRoomPickSelection => {
+  const pick = recordValue(value);
+  return {
+    pickEventId: stringValue(pick.pickEventId),
+    input: stringValue(pick.input),
+    overall: numberValue(pick.overall),
+    round: numberValue(pick.round),
+    pickInRound: numberValue(pick.pickInRound),
+    teamId: stringValue(pick.teamId),
+    ownerId: stringValue(pick.ownerId),
+    ownerDisplayName: stringValue(pick.ownerDisplayName),
+    teamDisplayName: stringValue(pick.teamDisplayName),
+    playerName: stringValue(pick.playerName),
+    normalizedPlayerName: stringValue(pick.normalizedPlayerName),
+    position: positionValue(pick.position),
+    expectedPrice: numberValue(pick.expectedPrice),
+    teamAbbreviation: optionalStringValue(pick.teamAbbreviation),
+    byeWeek: optionalNumberValue(pick.byeWeek),
   };
 };
 
