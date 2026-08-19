@@ -7,6 +7,8 @@ export interface LeagueConnectionRow {
   display_name: string;
   status: string;
   status_detail: string | null;
+  linked_league_id: string | null;
+  linked_season_id: string | null;
   last_synced_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
