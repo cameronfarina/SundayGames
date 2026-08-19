@@ -68,8 +68,8 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
         </p>
         <p className="commissioner-help">
           Only track what each positional rank costs? Use <strong>Paste positional price history</strong>
-          below. No owner or player names are required — use Position, Rank, Price (for example
-          RB, 1, 75) or Slot, Price (RB1, 75).
+          below. No owner or player names are required. Use Position, Rank, Price, for example
+          RB, 1, 75.
         </p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
           variant="secondary" onClick={() => { fileInput.current?.click(); }}
