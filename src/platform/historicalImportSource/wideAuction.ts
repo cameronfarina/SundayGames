@@ -2,6 +2,7 @@ import type { NormalizedHistoricalImportRow } from "../historicalImports.js";
 import { cleanCell, normalizeHeader, parsePriceDollars, wideAuctionPosition } from "./cells.js";
 import { rosterRowPattern } from "./constants.js";
 import type { ParsedDelimitedRow, WideAuctionOwnerBlock } from "./contracts.js";
+import { publicPriceForPlayerName } from "./publicBaseline.js";
 
 const isWideAuctionRosterRow = (row: ParsedDelimitedRow): boolean =>
   rosterRowPattern.test(cleanCell(row.cells[0]));
@@ -40,6 +41,12 @@ const normalizedWideAuctionRow = (
 
   const keeper = inferKeeper && cleanCell(sourceRow.cells[0]) === "1";
   const priceDollars = parsePriceDollars(priceValue);
+  // A wide sheet has no public-value column, so without this the layout carries
+  // no published price at all and every sale it produces is skipped by the
+  // inflation calibration.
+  const publicPriceDollars = position === null
+    ? undefined
+    : publicPriceForPlayerName(playerName, position);
   return {
     sourceRowNumber,
     ownerDisplayName: block.ownerDisplayName,
@@ -47,6 +54,7 @@ const normalizedWideAuctionRow = (
     ...(playerName.length > 0 ? { playerName } : {}),
     ...(position !== null ? { position } : positionValue.length > 0 ? { position: positionValue } : {}),
     ...(priceDollars === undefined ? {} : { priceDollars }),
+    ...(publicPriceDollars === undefined ? {} : { publicPriceDollars }),
   };
 };
 
