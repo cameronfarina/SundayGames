@@ -1,4 +1,4 @@
-import type { AuthMailSender, AuthRepository } from "../../auth.js";
+import type { AuthMailSender, AuthRepository, SignupNotifier } from "../../auth.js";
 import type { ExportArtifactRepository } from "../../exportArtifacts.js";
 import type { HistoricalImportRepository } from "../../historicalImports.js";
 import type { JobRepository } from "../../jobs.js";
@@ -18,6 +18,7 @@ export interface PlatformAppOptions {
     verificationRequired: boolean;
     mailSender?: AuthMailSender | undefined;
     publicBaseUrl?: string | undefined;
+    signupNotifier?: SignupNotifier | undefined;
   } | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
   historicalImportRepository?: HistoricalImportRepository | undefined;

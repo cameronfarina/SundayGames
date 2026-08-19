@@ -1,6 +1,7 @@
 import type { AuthMailSender } from "./mailContracts.js";
 import type { AuthRepository } from "./repositoryContracts.js";
 import type { AccountRecord, PasswordReplacementResult, SessionRecord } from "./records.js";
+import type { SignupNotifier } from "./signupNotifierContracts.js";
 
 export interface CreateAuthServiceOptions {
   repository: AuthRepository;
@@ -11,6 +12,7 @@ export interface CreateAuthServiceOptions {
   verificationTokenTtlMs?: number | undefined;
   passwordResetTokenTtlMs?: number | undefined;
   passwordHasher?: ((password: string) => Promise<string>) | undefined;
+  signupNotifier?: SignupNotifier | undefined;
 }
 
 export interface CreateUserInput {

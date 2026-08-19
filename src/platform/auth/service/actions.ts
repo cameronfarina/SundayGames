@@ -10,6 +10,7 @@ import type {
   VerifyEmailInput,
 } from "../serviceContracts.js";
 import type { AuthServiceContext } from "./context.js";
+import { notifySignup } from "./signupNotification.js";
 
 export const requestEmailVerification = async (
   context: AuthServiceContext,
@@ -53,6 +54,7 @@ export const verifyEmail = async (
   if (account === null) {
     throw new AuthError("invalid_or_expired_token", "This link is invalid or has expired.");
   }
+  await notifySignup(context, account, now);
   return account;
 };
 

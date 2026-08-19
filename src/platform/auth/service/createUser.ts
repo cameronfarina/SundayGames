@@ -4,6 +4,7 @@ import { createId, createPendingPasswordHash, normalizeEmail, validatePassword }
 import type { AccountRecord } from "../records.js";
 import type { CreateUserInput } from "../serviceContracts.js";
 import type { AuthServiceContext } from "./context.js";
+import { notifySignup } from "./signupNotification.js";
 
 export const createUser = async (
   context: AuthServiceContext,
@@ -17,13 +18,15 @@ export const createUser = async (
     }
     validatePassword(input.password);
     const passwordHash = await context.passwordHasher(input.password);
-    return await context.repository.createAccount({
+    const account = await context.repository.createAccount({
       id: createId("acct"),
       email: normalizedEmail,
       passwordHash,
       emailVerifiedAt: now,
       now,
     });
+    await notifySignup(context, account, now);
+    return account;
   }
 
   const passwordHash = await createPendingPasswordHash(context.passwordHasher);

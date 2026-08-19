@@ -1,7 +1,7 @@
 export { describe, expect, it, vi } from "vitest";
 export { canonicalPlayerIdentityKey } from "../../../src/data/normalizePlayerName.js";
 export { espnPpr300AuctionBaseline2026Source } from "../../../src/data/espnPpr300AuctionBaseline2026.js";
-export { CapturingAuthMailSender } from "../../../src/platform/auth.js";
+export { CapturingAuthMailSender, CapturingSignupNotifier } from "../../../src/platform/auth.js";
 export {
   createClientAddressRateLimiter,
   createNormalizedEmailRateLimiter,

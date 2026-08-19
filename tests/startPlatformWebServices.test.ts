@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CapturingAuthMailSender } from "../src/platform/auth.js";
+import { CapturingAuthMailSender, CapturingSignupNotifier } from "../src/platform/auth.js";
 import { NodePostgresClient } from "../src/platform/postgresClient.js";
 import { readPlatformRuntimeConfig } from "../src/platform/platformRuntimeConfig.js";
 import { importEspnLeagueSettingsForRuntime } from "../src/platform/startPlatformWeb/espnImporter.js";
@@ -10,6 +10,7 @@ import { createPlatformWebReadinessProbe } from "../src/platform/startPlatformWe
 import {
   authMailSenderFor,
   screenshotAnalyzerFor,
+  signupNotifierFor,
 } from "../src/platform/startPlatformWeb/runtimeServices.js";
 import { staticWebAssetsFor } from "../src/platform/startPlatformWeb/staticAssets.js";
 
@@ -62,6 +63,21 @@ describe("platform web runtime services", () => {
       MOCKD_SCREENSHOT_IMPORT_MODE: "openai",
       OPENAI_API_KEY: "openai-key",
     }))).toBeDefined();
+
+    const injectedNotifier = new CapturingSignupNotifier();
+    expect(signupNotifierFor(localConfig(), injectedNotifier)).toBe(injectedNotifier);
+    expect(signupNotifierFor(localConfig(), undefined)).toBeUndefined();
+    expect(signupNotifierFor(localConfig({
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "resend-key",
+      MOCKD_EMAIL_FROM: "accounts@mockd.example",
+    }), undefined)).toBeUndefined();
+    expect(signupNotifierFor(localConfig({
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "resend-key",
+      MOCKD_EMAIL_FROM: "accounts@mockd.example",
+      MOCKD_SIGNUP_NOTIFICATION_EMAIL: "owner@example.com",
+    }), undefined)).toBeDefined();
   });
 
   it("parses JSON and preserves non-JSON ESPN responses", async () => {

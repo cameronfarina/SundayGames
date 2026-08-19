@@ -1,4 +1,4 @@
-import type { AuthMailSender } from "../auth.js";
+import type { AuthMailSender, SignupNotifier } from "../auth.js";
 import type {
   CreateNodePostgresClientOptions,
   NodePostgresClient,
@@ -14,6 +14,7 @@ export interface StartedPlatformWebProcess {
 
 export interface StartPlatformWebDependencies {
   authMailSender?: AuthMailSender | undefined;
+  signupNotifier?: SignupNotifier | undefined;
   postgresClientFactory?: ((
     options: CreateNodePostgresClientOptions,
   ) => NodePostgresClient) | undefined;

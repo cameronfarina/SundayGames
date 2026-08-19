@@ -2,6 +2,8 @@ export { AuthError } from "./auth/errors.js";
 export type { AuthErrorCode } from "./auth/errors.js";
 export { CapturingAuthMailSender } from "./auth/mailContracts.js";
 export type { AuthMailMessage, AuthMailSender } from "./auth/mailContracts.js";
+export { CapturingSignupNotifier } from "./auth/signupNotifierContracts.js";
+export type { SignupNotification, SignupNotifier } from "./auth/signupNotifierContracts.js";
 export { createSessionToken, hashAuthToken, hashPassword, hashSessionToken, normalizeEmail, verifyPassword } from "./auth/primitives.js";
 export type { AuthRepository, AuthTokenFinalizer } from "./auth/repositoryContracts.js";
 export type { AccountCredentialRecord, AccountRecord, AuthTokenPurpose, AuthTokenRecord, ConsumeAuthTokenInput, CreateAccountRecordInput, CreateCredentialSessionRecordInput, CreateOrReplacePendingAccountInput, CreateSessionRecordInput, FindUsableAuthTokenInput, PasswordReplacementResult, PendingAccountRegistrationResult, ReplaceAuthTokenInput, ReplaceDisplayNameInput, ReplacePasswordInput, ResetPasswordByTokenInput, SessionRecord, UpgradePasswordHashInput, VerifyEmailByTokenInput } from "./auth/records.js";

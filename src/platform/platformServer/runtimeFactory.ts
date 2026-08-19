@@ -31,6 +31,7 @@ export const createPlatformRuntimeFactory = (
       verificationRequired: options.emailVerificationRequired ?? false,
       ...(options.authMailSender === undefined ? {} : { mailSender: options.authMailSender }),
       ...(options.publicBaseUrl === undefined ? {} : { publicBaseUrl: options.publicBaseUrl }),
+      ...(options.signupNotifier === undefined ? {} : { signupNotifier: options.signupNotifier }),
     },
     leagueSetupRepository: repositories.leagueSetupRepository,
     historicalImportRepository: repositories.historicalImportRepository,

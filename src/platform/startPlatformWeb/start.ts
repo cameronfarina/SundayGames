@@ -15,6 +15,7 @@ import {
   authMailSenderFor,
   fantasyProsClientFor,
   screenshotAnalyzerFor,
+  signupNotifierFor,
 } from "./runtimeServices.js";
 import { startFantasyProsRefreshIfConfigured } from "./fantasyProsRefresh.js";
 import { platformWebServerOptions } from "./serverOptions.js";
@@ -44,6 +45,7 @@ export const startPlatformWebFromEnv = async (
     simulationRunner,
     postgresClient,
     authMailSender: authMailSenderFor(config, dependencies.authMailSender),
+    signupNotifier: signupNotifierFor(config, dependencies.signupNotifier),
     screenshotAnalyzer: screenshotAnalyzerFor(config),
   });
 

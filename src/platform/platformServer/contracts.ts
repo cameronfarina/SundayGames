@@ -1,4 +1,4 @@
-import type { AuthMailSender, AuthRepository } from "../auth.js";
+import type { AuthMailSender, AuthRepository, SignupNotifier } from "../auth.js";
 import type {
   ClientAddressRateLimiter,
   NormalizedEmailRateLimiter,
@@ -72,6 +72,7 @@ export interface CreatePlatformServerOptions {
   emailVerificationRequired?: boolean | undefined;
   authMailSender?: AuthMailSender | undefined;
   publicBaseUrl?: string | undefined;
+  signupNotifier?: SignupNotifier | undefined;
   trustProxy?: boolean | undefined;
   accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
   loginRateLimiter?: NormalizedEmailRateLimiter | undefined;

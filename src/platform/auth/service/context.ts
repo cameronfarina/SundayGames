@@ -7,6 +7,7 @@ import {
 } from "../primitives.js";
 import type { AuthRepository } from "../repositoryContracts.js";
 import type { CreateAuthServiceOptions } from "../serviceContracts.js";
+import type { SignupNotifier } from "../signupNotifierContracts.js";
 
 export interface AuthServiceContext {
   repository: AuthRepository;
@@ -17,6 +18,7 @@ export interface AuthServiceContext {
   verificationTokenTtlMs: number;
   passwordResetTokenTtlMs: number;
   passwordHasher: (password: string) => Promise<string>;
+  signupNotifier: SignupNotifier | undefined;
 }
 
 export const createAuthServiceContext = (options: CreateAuthServiceOptions): AuthServiceContext => ({
@@ -28,4 +30,5 @@ export const createAuthServiceContext = (options: CreateAuthServiceOptions): Aut
   verificationTokenTtlMs: options.verificationTokenTtlMs ?? defaultVerificationTokenTtlMs,
   passwordResetTokenTtlMs: options.passwordResetTokenTtlMs ?? defaultPasswordResetTokenTtlMs,
   passwordHasher: options.passwordHasher ?? hashServicePassword,
+  signupNotifier: options.signupNotifier,
 });

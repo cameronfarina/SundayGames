@@ -15,6 +15,7 @@ export const resolvePlatformAppDependencies = (
     emailVerificationRequired: authEmail?.verificationRequired ?? false,
     ...(authEmail?.mailSender === undefined ? {} : { mailSender: authEmail.mailSender }),
     ...(authEmail?.publicBaseUrl === undefined ? {} : { publicBaseUrl: authEmail.publicBaseUrl }),
+    ...(authEmail?.signupNotifier === undefined ? {} : { signupNotifier: authEmail.signupNotifier }),
   });
 
   return {

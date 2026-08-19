@@ -11,6 +11,7 @@ export const authEmailConfig = (env: PlatformRuntimeEnv): AuthEmailConfig => {
     resendApiKey: optionalEnvString(env, "RESEND_API_KEY"),
     from: optionalEnvString(env, "MOCKD_EMAIL_FROM"),
     publicBaseUrl: optionalEnvString(env, "MOCKD_PUBLIC_BASE_URL"),
+    signupNotificationEmail: optionalEnvString(env, "MOCKD_SIGNUP_NOTIFICATION_EMAIL"),
   };
 };
 

@@ -1,4 +1,4 @@
-import type { AuthMailSender } from "../auth.js";
+import type { AuthMailSender, SignupNotifier } from "../auth.js";
 import {
   createFantasyProsClient,
   pacedFantasyProsClient,
@@ -10,6 +10,7 @@ import {
 } from "../openAiLeagueMembersScreenshotAnalyzer.js";
 import type { PlatformRuntimeConfig } from "../platformRuntimeConfig.js";
 import { createResendAuthMailSender } from "../resendAuthMailSender.js";
+import { createResendSignupNotifier } from "../resendSignupNotifier.js";
 
 export const authMailSenderFor = (
   config: PlatformRuntimeConfig,
@@ -25,6 +26,25 @@ export const authMailSenderFor = (
   return createResendAuthMailSender({
     apiKey: config.authEmail.resendApiKey,
     from: config.authEmail.from,
+  });
+};
+
+export const signupNotifierFor = (
+  config: PlatformRuntimeConfig,
+  dependency: SignupNotifier | undefined,
+): SignupNotifier | undefined => {
+  if (dependency !== undefined) return dependency;
+  if (
+    config.authEmail.mode !== "resend"
+    || config.authEmail.resendApiKey === undefined
+    || config.authEmail.from === undefined
+    || config.authEmail.signupNotificationEmail === undefined
+  ) return undefined;
+
+  return createResendSignupNotifier({
+    apiKey: config.authEmail.resendApiKey,
+    from: config.authEmail.from,
+    to: config.authEmail.signupNotificationEmail,
   });
 };
 

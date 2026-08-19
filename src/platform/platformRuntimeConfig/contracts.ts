@@ -15,6 +15,7 @@ export interface AuthEmailConfig {
   resendApiKey: string | undefined;
   from: string | undefined;
   publicBaseUrl: string | undefined;
+  signupNotificationEmail: string | undefined;
 }
 
 export interface ScreenshotImportConfig {

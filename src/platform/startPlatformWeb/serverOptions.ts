@@ -1,4 +1,4 @@
-import type { AuthMailSender } from "../auth.js";
+import type { AuthMailSender, SignupNotifier } from "../auth.js";
 import { loadCurrentPostDraftProjectionSnapshot } from "../currentPostDraftProjectionSnapshot.js";
 import { loadCurrentPlayerCatalog } from "../localDemoFixtures.js";
 import type { LeagueMembersScreenshotAnalyzer } from "../openAiLeagueMembersScreenshotAnalyzer.js";
@@ -13,6 +13,7 @@ import { createPlatformWebReadinessProbe } from "./readiness.js";
 
 export interface PlatformWebServerDependencies {
   authMailSender: AuthMailSender | undefined;
+  signupNotifier: SignupNotifier | undefined;
   postgresClient: NodePostgresClient | undefined;
   screenshotAnalyzer: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
@@ -47,6 +48,9 @@ export const platformWebServerOptions = (
   ...(dependencies.authMailSender === undefined
     ? {}
     : { authMailSender: dependencies.authMailSender }),
+  ...(dependencies.signupNotifier === undefined
+    ? {}
+    : { signupNotifier: dependencies.signupNotifier }),
   ...(config.authEmail.publicBaseUrl === undefined
     ? {}
     : { publicBaseUrl: config.authEmail.publicBaseUrl }),
