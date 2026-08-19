@@ -2,6 +2,7 @@ import type { LiveDraftRoomInitialRosterPlayer } from "./core.js";
 import type {
   LiveDraftRoomBoardPlayer,
   LiveDraftRoomIncompleteTeam,
+  LiveDraftRoomPickSelection,
   LiveDraftRoomSale,
 } from "./players.js";
 
@@ -59,6 +60,24 @@ export interface LiveDraftRoomSaleUndoneEvent extends LiveDraftRoomEventBase {
   undoneSale: LiveDraftRoomSale;
 }
 
+export interface LiveDraftRoomPickLoggedEvent extends LiveDraftRoomEventBase {
+  type: "pick_logged";
+  pick: LiveDraftRoomPickSelection;
+}
+
+export interface LiveDraftRoomPickCorrectedEvent extends LiveDraftRoomEventBase {
+  type: "pick_corrected";
+  correctedPickEventId: string;
+  previousPick: LiveDraftRoomPickSelection;
+  replacementPick: LiveDraftRoomPickSelection;
+}
+
+export interface LiveDraftRoomPickUndoneEvent extends LiveDraftRoomEventBase {
+  type: "pick_undone";
+  undonePickEventId: string;
+  undonePick: LiveDraftRoomPickSelection;
+}
+
 export interface LiveDraftRoomEndedEvent extends LiveDraftRoomEventBase {
   type: "room_ended";
   incomplete: boolean;
@@ -78,5 +97,8 @@ export type LiveDraftRoomEvent =
   | LiveDraftRoomSaleLoggedEvent
   | LiveDraftRoomSaleCorrectedEvent
   | LiveDraftRoomSaleUndoneEvent
+  | LiveDraftRoomPickLoggedEvent
+  | LiveDraftRoomPickCorrectedEvent
+  | LiveDraftRoomPickUndoneEvent
   | LiveDraftRoomEndedEvent
   | LiveDraftRoomReopenedEvent;
