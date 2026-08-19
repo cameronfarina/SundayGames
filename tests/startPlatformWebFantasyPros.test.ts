@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { fantasyProsRequestSpacingMs } from "../src/data/fantasyPros.js";
 import { InMemoryFantasyProsRepository } from "../src/platform/fantasyPros.js";
 import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import { readPlatformRuntimeConfig } from "../src/platform/platformRuntimeConfig.js";
@@ -22,6 +23,35 @@ describe("platform web FantasyPros wiring", () => {
   it("builds a client once the API key is configured", () => {
     expect(fantasyProsClientFor(configFor({ FANTASYPROS_API_KEY: "test-key" })))
       .toBeDefined();
+  });
+
+  it("paces the client it builds, so a boot pass cannot burst", async () => {
+    // The spacing is wired here and nowhere else, so if this wiring is lost
+    // every FantasyPros request goes out back to back again.
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal("fetch", async () => new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+      const client = fantasyProsClientFor(configFor({ FANTASYPROS_API_KEY: "test-key" }));
+      if (client === undefined) throw new Error("Expected a configured client.");
+
+      const first = client.fetchPlayers();
+      await vi.advanceTimersByTimeAsync(0);
+      await first;
+
+      let settled = false;
+      const second = client.fetchPlayers().then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(fantasyProsRequestSpacingMs - 1);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await second;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("honours the explicit refresh opt-out even with a key present", () => {

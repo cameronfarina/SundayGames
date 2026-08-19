@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  FantasyProsRequestError,
   parseFantasyProsPlayers,
   parseFantasyProsProjections,
   parseFantasyProsRankings,
@@ -14,6 +15,7 @@ import {
   fantasyProsPlayersCadenceMs,
   fantasyProsRankingsCadenceMs,
   fantasyProsRetryDelayMs,
+  fantasyProsThrottleNotice,
   refreshFantasyProsDatasets,
 } from "../src/platform/fantasyProsRefresh.js";
 
@@ -205,7 +207,7 @@ describe("FantasyPros refresh gating", () => {
     const client: FantasyProsClient = {
       ...inner,
       fetchProjections: async request => {
-        if (request.position === "QB") throw new Error("failed with 429");
+        if (request.position === "QB") throw new Error("QB projections unavailable");
         return await inner.fetchProjections(request);
       },
     };
@@ -221,7 +223,7 @@ describe("FantasyPros refresh gating", () => {
     await expect(repository.projections({ week: 0 })).resolves.not.toEqual([]);
     const status = (await repository.datasetStatuses())
       .find(entry => entry.dataset === "projections-ros");
-    expect(status?.lastError).toContain("QB: failed with 429");
+    expect(status?.lastError).toContain("QB: QB projections unavailable");
     expect(status?.rowCount).toBeGreaterThan(0);
   });
 
@@ -276,5 +278,91 @@ describe("FantasyPros refresh gating", () => {
     expect(perCycle).toBe(16);
     expect(perDay).toBe(fantasyProsDailyRequestBudget);
     expect(perDay).toBeLessThan(100);
+  });
+});
+
+describe("FantasyPros refresh when the API refuses on rate", () => {
+  const throttled = (): FantasyProsClient => ({
+    ...fixtureClient(),
+    fetchPlayers: async () => { throw new FantasyProsRequestError("/nfl/players", 429); },
+  });
+
+  const claimableAfter = async (
+    client: FantasyProsClient,
+    elapsedMs: number,
+  ): Promise<boolean> => {
+    const repository = new InMemoryFantasyProsRepository();
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entriesFor(client, repository));
+
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + elapsedMs) },
+      entriesFor(fixtureClient(), repository),
+    );
+    return results.find(result => result.dataset === "players")?.status !== "skipped";
+  };
+
+  it("makes a throttled dataset wait its whole cadence instead of retrying in half an hour", async () => {
+    // The defect: the 30 minute rewind treats a 429 like a transient blip, so
+    // a throttled dataset spends the quota that caused the throttle all day.
+    await expect(claimableAfter(throttled(), fantasyProsRetryDelayMs)).resolves.toBe(false);
+    await expect(claimableAfter(throttled(), fantasyProsPlayersCadenceMs)).resolves.toBe(true);
+  });
+
+  it("still retries an ordinary failure on the short delay", async () => {
+    const outage: FantasyProsClient = {
+      ...fixtureClient(),
+      fetchPlayers: async () => { throw new FantasyProsRequestError("/nfl/players", 500); },
+    };
+
+    await expect(claimableAfter(outage, fantasyProsRetryDelayMs)).resolves.toBe(true);
+  });
+
+  it("says out loud that it is throttled rather than just failing", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    await refreshFantasyProsDatasets(
+      { repository, now: () => now },
+      entriesFor(throttled(), repository),
+    );
+
+    const status = (await repository.datasetStatuses())
+      .find(entry => entry.dataset === "players");
+    expect(status?.lastError).toContain(fantasyProsThrottleNotice);
+    expect(status?.lastError).toContain("failed with 429");
+  });
+
+  it("carries the throttle out of the projections loop, which stringifies its errors", async () => {
+    // Projections catch per position, so the thrown error never reaches the
+    // refresh; without the flag on the run result the signal would be lost.
+    const inner = fixtureClient();
+    const repository = new InMemoryFantasyProsRepository();
+    const client: FantasyProsClient = {
+      ...inner,
+      fetchProjections: async request => {
+        if (request.position === "QB") throw new FantasyProsRequestError("/projections", 429);
+        return await inner.fetchProjections(request);
+      },
+    };
+
+    await refreshFantasyProsDatasets({ repository, now: () => now }, entriesFor(client, repository));
+    const results = await refreshFantasyProsDatasets(
+      { repository, now: () => new Date(now.getTime() + fantasyProsRetryDelayMs) },
+      entriesFor(fixtureClient(), repository),
+    );
+
+    expect(results.find(result => result.dataset === "projections-ros")?.status).toBe("skipped");
+    const status = (await repository.datasetStatuses())
+      .find(entry => entry.dataset === "projections-ros");
+    expect(status?.lastError).toContain(fantasyProsThrottleNotice);
+  });
+
+  it("treats an untyped error mentioning 429 as an ordinary failure", async () => {
+    // Only a status the client actually read counts. Text that happens to say
+    // 429 is not evidence FantasyPros refused on rate.
+    const lookalike: FantasyProsClient = {
+      ...fixtureClient(),
+      fetchPlayers: async () => { throw new Error("upstream said 429 somewhere"); },
+    };
+
+    await expect(claimableAfter(lookalike, fantasyProsRetryDelayMs)).resolves.toBe(true);
   });
 });

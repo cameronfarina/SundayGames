@@ -1,5 +1,9 @@
 import type { AuthMailSender } from "../auth.js";
-import { createFantasyProsClient, type FantasyProsClient } from "../../data/fantasyPros.js";
+import {
+  createFantasyProsClient,
+  pacedFantasyProsClient,
+  type FantasyProsClient,
+} from "../../data/fantasyPros.js";
 import {
   createOpenAiLeagueMembersScreenshotAnalyzer,
   type LeagueMembersScreenshotAnalyzer,
@@ -45,8 +49,10 @@ export const fantasyProsClientFor = (
   if (!config.fantasyPros.refreshEnabled) return undefined;
   if (config.fantasyPros.apiKey === undefined) return undefined;
 
-  return createFantasyProsClient({
+  // Paced at the one place the production client is built, so every request
+  // the refresh makes is spaced without any caller having to remember.
+  return pacedFantasyProsClient(createFantasyProsClient({
     apiKey: config.fantasyPros.apiKey,
     season: config.fantasyPros.season,
-  });
+  }));
 };

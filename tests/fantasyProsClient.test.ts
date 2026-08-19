@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  FantasyProsRequestError,
   createFantasyProsClient,
+  isFantasyProsThrottled,
   parseFantasyProsPlayers,
   parseFantasyProsProjections,
   parseFantasyProsRankings,
@@ -267,5 +269,25 @@ describe("FantasyPros client requests", () => {
 
     await expect(client.fetchPlayers())
       .rejects.toThrow("FantasyPros request to /nfl/players failed with 403.");
+  });
+
+  it("carries the status on the error, not only inside the message", async () => {
+    // The refresh has to tell a rate refusal apart from an outage, and a
+    // status buried in prose is not something it can branch on.
+    const client = createFantasyProsClient({
+      apiKey: "test-key",
+      fetchImplementation: async () => new Response("slow down", { status: 429 }),
+    });
+
+    await expect(client.fetchPlayers()).rejects.toBeInstanceOf(FantasyProsRequestError);
+    const error = await client.fetchPlayers().catch((thrown: unknown) => thrown);
+    expect(error).toMatchObject({ status: 429 });
+    expect(isFantasyProsThrottled(error)).toBe(true);
+  });
+
+  it("counts only a real 429 as throttled", () => {
+    expect(isFantasyProsThrottled(new FantasyProsRequestError("/nfl/players", 500))).toBe(false);
+    expect(isFantasyProsThrottled(new Error("failed with 429"))).toBe(false);
+    expect(isFantasyProsThrottled(undefined)).toBe(false);
   });
 });

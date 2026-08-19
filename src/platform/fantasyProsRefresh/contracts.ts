@@ -15,6 +15,12 @@ export interface FantasyProsDatasetRunResult {
   rowCount: number;
   /** One entry per request that failed; empty means the dataset fully refreshed. */
   failures: readonly string[];
+  /**
+   * Set when a failure was FantasyPros refusing on rate. A dataset that
+   * catches its own errors turns them into strings, so the signal has to
+   * travel on the result rather than on a thrown error.
+   */
+  throttled?: boolean | undefined;
 }
 
 export interface FantasyProsRefreshResult {

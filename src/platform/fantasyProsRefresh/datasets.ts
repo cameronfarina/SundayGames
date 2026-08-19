@@ -1,6 +1,7 @@
 import {
   fantasyProsProjectionPositions,
   fantasyProsRestOfSeasonWeek,
+  isFantasyProsThrottled,
   type FantasyProsClient,
   type FantasyProsRankingType,
 } from "../../data/fantasyPros.js";
@@ -78,6 +79,7 @@ const projectionsRefresh = (
     const week = await weekFor(repository);
     const failures: string[] = [];
     let rowCount = 0;
+    let throttled = false;
     for (const position of fantasyProsProjectionPositions) {
       // One position failing must not discard the other five. Before this,
       // a single transient response zeroed the whole dataset.
@@ -91,10 +93,11 @@ const projectionsRefresh = (
         });
         rowCount += set.projections.length;
       } catch (error) {
+        if (isFantasyProsThrottled(error)) throttled = true;
         failures.push(failureText(position, error));
       }
     }
-    return { rowCount, failures };
+    return { rowCount, failures, throttled };
   },
 });
 

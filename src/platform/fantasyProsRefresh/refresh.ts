@@ -1,3 +1,4 @@
+import { isFantasyProsThrottled } from "../../data/fantasyPros.js";
 import type {
   FantasyProsDatasetRefresh,
   FantasyProsRefreshDependencies,
@@ -8,9 +9,17 @@ import type {
 /**
  * A failed dataset used to sit out its whole cadence, so one transient
  * response cost six hours of staleness. Retry sooner than that, but not so
- * soon that an outage burns the daily request budget.
+ * soon that an outage burns the daily request budget. A rate refusal is the
+ * one failure this delay does not apply to; see fantasyProsThrottleNotice.
  */
 export const fantasyProsRetryDelayMs = 30 * 60 * 1000;
+
+/**
+ * Prefixed onto the stored error so /fantasypros-status reads honestly: the
+ * dataset is not broken, it is waiting, and it is waiting on purpose.
+ */
+export const fantasyProsThrottleNotice =
+  "FantasyPros refused this refresh on rate (HTTP 429), so it waits for its next scheduled run rather than retrying sooner.";
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -35,15 +44,23 @@ const refreshDataset = async (
     return { dataset: entry.dataset, status: "skipped", requestCount: 0, rowCount: 0 };
   }
 
-  const failed = async (rowCount: number, error: string): Promise<FantasyProsRefreshResult> => {
-    dependencies.onError?.(entry.dataset, new Error(error));
+  const failed = async (
+    rowCount: number,
+    error: string,
+    throttled: boolean,
+  ): Promise<FantasyProsRefreshResult> => {
+    const recorded = throttled ? `${fantasyProsThrottleNotice} ${error}` : error;
+    dependencies.onError?.(entry.dataset, new Error(recorded));
     await repository.recordRefreshOutcome({
       dataset: entry.dataset,
       now,
       requestCount: entry.requestCount,
       rowCount,
-      error,
-      retryDelayMs: fantasyProsRetryDelayMs,
+      error: recorded,
+      // Retrying a throttled dataset in half an hour spends the very quota
+      // that caused the refusal, six requests at a time all day. Leaving the
+      // stored timestamp alone makes it wait its full cadence instead.
+      ...(throttled ? {} : { retryDelayMs: fantasyProsRetryDelayMs }),
       cadenceMs: entry.cadenceMs,
     });
     return {
@@ -55,8 +72,10 @@ const refreshDataset = async (
   };
 
   try {
-    const { rowCount, failures } = await entry.run(now.toISOString());
-    if (failures.length > 0) return await failed(rowCount, failures.join("; "));
+    const { rowCount, failures, throttled } = await entry.run(now.toISOString());
+    if (failures.length > 0) {
+      return await failed(rowCount, failures.join("; "), throttled ?? false);
+    }
     await repository.recordRefreshOutcome({
       dataset: entry.dataset,
       now,
@@ -65,7 +84,7 @@ const refreshDataset = async (
     });
     return { dataset: entry.dataset, status: "refreshed", requestCount: entry.requestCount, rowCount };
   } catch (error) {
-    return await failed(0, errorMessage(error));
+    return await failed(0, errorMessage(error), isFantasyProsThrottled(error));
   }
 };
 

@@ -15,6 +15,7 @@ import {
   rawPlayerRecordCount,
 } from "./parse.js";
 import { parseFantasyProsNews, rawNewsRecordCount } from "./parseNews.js";
+import { FantasyProsRequestError } from "./requestError.js";
 
 export const fantasyProsBaseUrl = "https://api.fantasypros.com/public/v2/json";
 export const fantasyProsSeason = 2026;
@@ -65,9 +66,7 @@ export const createFantasyProsClient = (
       headers: { accept: "application/json", "x-api-key": options.apiKey },
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) {
-      throw new Error(`FantasyPros request to ${path} failed with ${response.status}.`);
-    }
+    if (!response.ok) throw new FantasyProsRequestError(path, response.status);
     return await response.json();
   };
 

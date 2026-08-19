@@ -16,6 +16,7 @@ export {
 } from "./fantasyProsRefresh/datasets.js";
 export {
   fantasyProsRetryDelayMs,
+  fantasyProsThrottleNotice,
   refreshFantasyProsDatasets,
 } from "./fantasyProsRefresh/refresh.js";
 export {

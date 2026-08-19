@@ -10,6 +10,16 @@ export {
   fantasyProsProjectionPositions,
   fantasyProsRankingTypes,
 } from "./fantasyPros/contracts.js";
+export {
+  fantasyProsRequestSpacingMs,
+  pacedFantasyProsClient,
+} from "./fantasyPros/pacedClient.js";
+export type { PacedFantasyProsClientOptions } from "./fantasyPros/pacedClient.js";
+export {
+  FantasyProsRequestError,
+  fantasyProsThrottleStatus,
+  isFantasyProsThrottled,
+} from "./fantasyPros/requestError.js";
 export type {
   FantasyProsNewsItem,
   FantasyProsNewsRequest,
