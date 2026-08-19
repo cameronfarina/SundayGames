@@ -32,10 +32,12 @@ describe("snake pick board", () => {
     expect(orderOf(season, 4)).toEqual(first);
   });
 
-  it("seats a keeper on its own round and hands the next open slot to the first sale", () => {
+  it("seats a keeper on its own round and fills a native selection by overall pick", () => {
     const season = snakeSeasonWith(2, "standard");
-    const firstPick = emptyPicksFor(season)[0];
-    if (firstPick === undefined) throw new Error("Expected a first pick.");
+    const empty = emptyPicksFor(season);
+    const firstPick = empty[0];
+    const secondPick = empty[1];
+    if (firstPick === undefined || secondPick === undefined) throw new Error("Expected draft picks.");
 
     const picks = snakePicksFor(
       season,
@@ -48,22 +50,24 @@ describe("snake pick board", () => {
         source: "keeper",
       }],
       [{
-        saleEventId: "sale-1",
-        input: "sale",
-        teamId: firstPick.teamId,
+        pickEventId: "pick-1",
+        input: "Drafted Player",
+        overall: secondPick.overall,
+        round: secondPick.round,
+        pickInRound: secondPick.pickInRound,
+        teamId: secondPick.teamId,
         ownerId: "owner",
-        ownerDisplayName: firstPick.ownerDisplayName,
-        teamDisplayName: firstPick.teamDisplayName,
+        ownerDisplayName: secondPick.ownerDisplayName,
+        teamDisplayName: secondPick.teamDisplayName,
         playerName: "Drafted Player",
         normalizedPlayerName: "drafted player",
         position: "WR",
-        price: 0,
         expectedPrice: 0,
       }],
     );
 
     expect(picks[0]).toMatchObject({ playerName: "Kept Player", source: "keeper", round: 1 });
-    expect(picks[1]).toMatchObject({ playerName: "Drafted Player", source: "sale", saleEventId: "sale-1" });
+    expect(picks[1]).toMatchObject({ playerName: "Drafted Player", source: "pick", pickEventId: "pick-1" });
     expect(picks[2]?.playerName).toBeUndefined();
   });
 });
