@@ -1,5 +1,9 @@
 import { isSnakeLeagueSeason } from "../leagueSeason.js";
-import type { LiveDraftRoomPickCommandInput, LiveDraftRoomPickSelection } from "./contracts/players.js";
+import type {
+  LiveDraftRoomPick,
+  LiveDraftRoomPickCommandInput,
+  LiveDraftRoomPickSelection,
+} from "./contracts/players.js";
 import type { LiveDraftRoom } from "./contracts/room.js";
 import { LiveDraftRoomError } from "./error.js";
 import { positionMaximumsFor } from "./rosterCapacity.js";
@@ -13,29 +17,23 @@ const playerNameFor = (input: LiveDraftRoomPickCommandInput): string =>
 const inputLabelFor = (input: LiveDraftRoomPickCommandInput): string =>
   typeof input === "string" ? input.trim() : input.playerName.trim();
 
-export const buildPick = (
+const pickForSlot = (
   room: LiveDraftRoom,
+  slot: Pick<LiveDraftRoomPick, "overall" | "round" | "pickInRound" | "teamId">,
   input: LiveDraftRoomPickCommandInput,
   pickEventId: string,
 ): LiveDraftRoomPickSelection => {
-  if (!isSnakeLeagueSeason(room.season)) {
-    throw new LiveDraftRoomError("season_not_ready", "Snake picks can only be logged for a snake draft.");
-  }
-  const onTheClock = room.projection.onTheClock;
-  if (onTheClock === undefined) {
-    throw new LiveDraftRoomError("draft_complete", "Every snake draft slot has already been filled.");
-  }
-  const team = room.season.teams.find(candidate => candidate.id === onTheClock.teamId);
+  const team = room.season.teams.find(candidate => candidate.id === slot.teamId);
   if (team === undefined) {
-    throw new LiveDraftRoomError("team_not_found", `Unknown team "${onTheClock.teamId}".`);
+    throw new LiveDraftRoomError("team_not_found", `Unknown team "${slot.teamId}".`);
   }
   const player = resolvePlayer(room.projection.board, playerNameFor(input));
   return {
     pickEventId,
     input: inputLabelFor(input),
-    overall: onTheClock.overall,
-    round: onTheClock.round,
-    pickInRound: onTheClock.pickInRound,
+    overall: slot.overall,
+    round: slot.round,
+    pickInRound: slot.pickInRound,
     teamId: team.id,
     ownerId: team.ownerId,
     ownerDisplayName: team.ownerDisplayName,
@@ -48,6 +46,28 @@ export const buildPick = (
     ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),
   };
 };
+
+export const buildPick = (
+  room: LiveDraftRoom,
+  input: LiveDraftRoomPickCommandInput,
+  pickEventId: string,
+): LiveDraftRoomPickSelection => {
+  if (!isSnakeLeagueSeason(room.season)) {
+    throw new LiveDraftRoomError("season_not_ready", "Snake picks can only be logged for a snake draft.");
+  }
+  const onTheClock = room.projection.onTheClock;
+  if (onTheClock === undefined) {
+    throw new LiveDraftRoomError("draft_complete", "Every snake draft slot has already been filled.");
+  }
+  return pickForSlot(room, onTheClock, input, pickEventId);
+};
+
+export const buildReplacementPick = (
+  room: LiveDraftRoom,
+  previousPick: LiveDraftRoomPickSelection,
+  input: LiveDraftRoomPickCommandInput,
+  pickEventId: string,
+): LiveDraftRoomPickSelection => pickForSlot(room, previousPick, input, pickEventId);
 
 export const validatePick = (room: LiveDraftRoom, pick: LiveDraftRoomPickSelection): void => {
   const team = room.projection.teams.find(candidate => candidate.teamId === pick.teamId);
