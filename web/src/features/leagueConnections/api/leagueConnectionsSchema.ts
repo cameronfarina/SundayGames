@@ -54,8 +54,12 @@ export const discoveredLeaguesSchema = z.object({
 });
 
 export const connectionMutationSchema = z.object({ connection: leagueConnectionSchema });
-
 export const connectionRemovalSchema = z.object({ removed: z.boolean() });
+
+const syncedDraftSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("auction"), budgetDollars: z.number(), minimumBidDollars: z.number() }),
+  z.object({ type: z.literal("snake"), rounds: z.number(), order: z.array(z.string()) }),
+]);
 
 const rosterPlayerSchema = z.object({
   providerPlayerId: z.string(),
@@ -95,6 +99,8 @@ export const syncedLeagueSchema = z.object({
     teamCount: z.number(),
     rosterPositions: z.array(z.string()),
     scoring: z.record(z.string(), z.number()),
+    draft: syncedDraftSchema.optional(),
+    keeperLeague: z.boolean().optional(),
     status: z.string().optional(),
     playoffTeams: z.number().optional(),
     playoffWeekStart: z.number().optional(),
