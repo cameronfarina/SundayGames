@@ -73,10 +73,10 @@ describe("slot price historical import parsing", () => {
   });
 
   it("keeps kicker and defense slots without giving them a published value", () => {
-    const result = parse(["Slot,Price", "K1,2", "DST1,3", "DEF2,2"]);
+    const result = parse(["Slot,Price", "K1,2", "DST1,3", "DEF2,2", "D/ST3,2"]);
 
     expect(result.rows.map(row => [row.position, row.playerName, row.priceDollars]))
-      .toEqual([["K", "K1", 2], ["DST", "DST1", 3], ["DST", "DST2", 2]]);
+      .toEqual([["K", "K1", 2], ["DST", "DST1", 3], ["DST", "DST2", 2], ["DST", "DST3", 2]]);
     expect(result.rows.every(row => row.publicPriceDollars === undefined)).toBe(true);
   });
 

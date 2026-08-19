@@ -19,6 +19,13 @@ import { sourceWarning } from "./warnings.js";
 
 const combinedSlotPattern = /^([A-Za-z/]+)[\s-]*(\d+)$/u;
 
+// One unreadable row blocks the whole draft year, and the published board that
+// these sheets are copied from writes defenses as "D/ST".
+const slotPosition = (value: string): string => {
+  const position = normalizeHistoricalPosition(value).toUpperCase();
+  return position === "D/ST" ? "DST" : position;
+};
+
 interface SlotIdentity {
   position: string;
   positionRank: number | undefined;
@@ -33,7 +40,7 @@ const separateSlotIdentity = (
   const positionCell = cleanCell(row.cells[positionIndex]);
   const rankCell = cleanCell(row.cells[rankIndex]);
   return {
-    position: normalizeHistoricalPosition(positionCell).toUpperCase(),
+    position: slotPosition(positionCell),
     positionRank: parseIntegerCell(rankCell),
     sourceLabel: `${positionCell} ${rankCell}`.trim(),
   };
@@ -42,7 +49,7 @@ const separateSlotIdentity = (
 const combinedSlotIdentity = (sourceLabel: string): SlotIdentity => {
   const match = combinedSlotPattern.exec(sourceLabel);
   return {
-    position: normalizeHistoricalPosition(match?.[1] ?? sourceLabel).toUpperCase(),
+    position: slotPosition(match?.[1] ?? sourceLabel),
     positionRank: match === null ? undefined : parseIntegerCell(match[2] ?? ""),
     sourceLabel,
   };
