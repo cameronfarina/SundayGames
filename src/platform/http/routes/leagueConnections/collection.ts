@@ -14,6 +14,7 @@ import {
   serviceOptionsFor,
 } from "./context.js";
 import { normalizedHandle } from "./handles.js";
+import { importSyncedLeague } from "./importSyncedLeague.js";
 
 export const routeLeagueConnectionCollection = async (
   app: PlatformApp,
@@ -52,7 +53,18 @@ export const routeLeagueConnectionCollection = async (
     ...(credentials === undefined ? {} : { credentials }),
     now,
   });
-  const result = await syncLeagueConnection(options, saved, now);
+  const synced = await syncLeagueConnection(options, saved, now);
+  const connection = synced.snapshot === undefined
+    ? synced.connection
+    : await importSyncedLeague({
+      account,
+      app,
+      connection: synced.connection,
+      repository: options.repository,
+      sessionToken: request.sessionToken,
+      snapshot: synced.snapshot,
+      now,
+    });
 
-  return { status: 201, body: { connection: publicConnection(result.connection) } };
+  return { status: 201, body: { connection: publicConnection(connection) } };
 };
