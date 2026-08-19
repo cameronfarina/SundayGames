@@ -16,6 +16,7 @@ import { DraftStatus } from "../../components/DraftStatus/DraftStatus";
 import { FinalActions } from "../../components/FinalActions/FinalActions";
 import { PlayerBoard } from "../../components/PlayerBoard/PlayerBoard";
 import { SaleLedger } from "../../components/SaleLedger/SaleLedger";
+import { SnakePickBoard } from "../../components/SnakePickBoard/SnakePickBoard";
 import { TeamRoster } from "../../components/TeamRoster/TeamRoster";
 
 export interface WorkspaceProps {
@@ -44,10 +45,12 @@ export const LiveDraftWorkspace = ({
   const [download, setDownload] = useState<Download>();
   const [feedback, setFeedback] = useState<Feedback>();
   const [viewedTeamId, setViewedTeamId] = useState(() => selectedTeamId(room));
+  const snake = room.draftFormat === "snake";
   const latestSale = room.salesLog.at(-1);
-  const undoMessage = latestSale === undefined
-    ? "Undo the latest sale?"
-    : `Undo the latest sale of ${latestSale.playerName}?`;
+  const latestPick = room.picks?.filter(pick => pick.source === "pick").at(-1);
+  const undoMessage = snake
+    ? (latestPick === undefined ? "Undo the latest pick?" : `Undo ${latestPick.playerName ?? "the latest pick"}?`)
+    : (latestSale === undefined ? "Undo the latest sale?" : `Undo the latest sale of ${latestSale.playerName}?`);
   const perform = async (action: LiveDraftAction, pendingMessage: string) => {
     setFeedback({ message: pendingMessage, variant: "info" });
     try {
@@ -72,6 +75,10 @@ export const LiveDraftWorkspace = ({
     void perform({ action: "sales", command: command.trim() }, "Logging sale...")
       .then(() => { setCommand(""); }).catch(() => undefined);
   };
+  const logPick = () => {
+    void perform({ action: "picks", playerName: command.trim() }, "Drafting player...")
+      .then(() => { setCommand(""); }).catch(() => undefined);
+  };
   const endDraft = () => {
     if (!window.confirm("End and lock the completed draft now?")) return;
     void perform({ action: "end" }, "Checking draft rosters...").catch((error: unknown) => {
@@ -84,6 +91,10 @@ export const LiveDraftWorkspace = ({
     });
   };
   const usePlayer = (player: LiveDraftBoardPlayer) => {
+    if (snake) {
+      setCommand(player.name);
+      return;
+    }
     const team = room.teamSummaries.find(candidate => candidate.teamId === viewedTeamId);
     setCommand(team === undefined
       ? `${player.name} `
@@ -112,19 +123,28 @@ export const LiveDraftWorkspace = ({
       }} room={room}
     /> : <DraftCommandPanel
       busy={busy} command={command} {...(feedback === undefined ? {} : { feedback })}
-      onCommandChange={setCommand} onEnd={endDraft} onLogSale={logSale}
+      onCommandChange={setCommand} onEnd={endDraft} onLogPick={logPick} onLogSale={logSale}
       onPauseOrResume={() => { run({ action: room.status === "paused" ? "resume" : "pause" },
         room.status === "paused" ? "Resuming draft..." : "Pausing draft..."); }}
       onStart={() => { run({ action: "start" }, "Starting draft..."); }}
       onUndo={() => {
         if (window.confirm(undoMessage)) {
-          run({ action: "undo" }, "Undoing latest sale...");
+          run({ action: snake ? "undo-pick" : "undo" }, snake ? "Undoing latest pick..." : "Undoing latest sale...");
         }
       }} room={room}
     />}
     {room.status === "ended" && feedback !== undefined &&
       <InlineNotice variant={feedback.variant}>{feedback.message}</InlineNotice>}
     <DraftStatus connection={connection} room={room} />
+    {snake && room.picks !== undefined && <SnakePickBoard
+      canCorrect={room.canMutateRoom && room.status === "live" && !busy}
+      onCorrect={(pickEventId, playerName) => {
+        if (!window.confirm("Apply this correction to the selected pick?")) return;
+        run({ action: "pick-corrections", pickEventId, replacementPlayerName: playerName }, "Applying correction...");
+      }}
+      {...(room.onTheClock === undefined ? {} : { onTheClock: room.onTheClock })}
+      picks={room.picks}
+    />}
     <div className="live-draft__grid">
       <PlayerBoard {...(advisory === undefined ? {} : { advisory })}
         canManage={room.canMutateRoom} onUsePlayer={usePlayer}
@@ -132,14 +152,12 @@ export const LiveDraftWorkspace = ({
       <TeamRoster onTeamChange={setViewedTeamId}
         {...(viewedTeamId === undefined ? {} : { selectedTeamId: viewedTeamId })}
         teams={room.teamSummaries} />
-      <SaleLedger canCorrect={room.canMutateRoom && room.status === "live" && !busy}
+      {!snake && <SaleLedger canCorrect={room.canMutateRoom && room.status === "live" && !busy}
         onCorrect={(saleEventId, replacementSale) => {
           if (!window.confirm("Apply this correction to the selected sale?")) return false;
-          run({
-          action: "corrections", replacementSale, saleEventId,
-          }, "Applying correction...");
+          run({ action: "corrections", replacementSale, saleEventId }, "Applying correction...");
           return true;
-        }} sales={room.salesLog} />
+        }} sales={room.salesLog} />}
     </div>
   </>;
 };
