@@ -5,6 +5,7 @@ import type {
   LeagueConnectionCredentials,
   LeagueConnectionRepository,
   LeagueSnapshot,
+  LinkLeagueConnectionInput,
   SaveLeagueConnectionInput,
   StoredLeagueSnapshot,
   StoredPlayerDirectory,
@@ -20,6 +21,7 @@ import type {
 import { connectionFromRow, playerDirectoryFromRow, snapshotFromRow } from "./mapping.js";
 import {
   deleteConnectionSql,
+  linkConnectionSql,
   selectConnectionSql,
   selectConnectionsSql,
   selectCredentialsSql,
@@ -85,6 +87,18 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
     const row = result.rows[0];
     if (row === undefined) throw new Error("Saving a league connection returned no row.");
     return connectionFromRow(row);
+  }
+
+  async linkConnection(input: LinkLeagueConnectionInput): Promise<LeagueConnection | null> {
+    const result = await this.#client.query<LeagueConnectionRow>(linkConnectionSql, [
+      input.id,
+      input.accountId,
+      input.leagueId,
+      input.seasonId,
+      (input.now ?? new Date()).toISOString(),
+    ]);
+    const row = result.rows[0];
+    return row === undefined ? null : connectionFromRow(row);
   }
 
   async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void> {
