@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer, type ViteDevServer } from "vite";
-import { createWebViteConfig } from "../web/vite.config.js";
+import { apiRoots, createWebViteConfig } from "../web/vite.config.js";
+import { appShellPaths, observableRouteRoots } from "../src/platform/platformNodeHttp/constants.js";
 
 const page = '<div id="root"></div><script type="module" src="/message.ts"></script>';
 
@@ -15,11 +16,15 @@ describe("web Vite development", () => {
 
   afterEach(async () => {
     await server?.close();
+    const runningApiServer = apiServer;
     await new Promise<void>((resolveClose, reject) => {
-      if (apiServer === undefined) return resolveClose();
-      apiServer.close(error => error === undefined ? resolveClose() : reject(error));
+      if (runningApiServer === undefined) return resolveClose();
+      runningApiServer.close(error => error === undefined ? resolveClose() : reject(error));
     });
     if (directory !== undefined) await rm(directory, { force: true, recursive: true });
+    apiServer = undefined;
+    directory = undefined;
+    server = undefined;
   });
 
   it("serves edited source without restarting or rebuilding", async () => {
@@ -106,5 +111,13 @@ describe("web Vite development", () => {
     await expect(eventResponse.text()).resolves.toContain("event: room");
     await expect(fetch(`${origin}/practice`, { headers: { accept: "text/html" } })
       .then(response => response.text())).resolves.toContain("React practice");
+  });
+
+  it("proxies every platform route root the browser does not own", () => {
+    const browserRoots = new Set([...appShellPaths].map(path => path.slice(1)));
+    const unproxied = [...observableRouteRoots]
+      .filter(root => root !== "" && !browserRoots.has(root) && !apiRoots.includes(root));
+
+    expect(unproxied).toEqual([]);
   });
 });

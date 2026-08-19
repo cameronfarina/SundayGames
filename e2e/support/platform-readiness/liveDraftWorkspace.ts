@@ -21,10 +21,10 @@ export const exerciseLiveDraft = async (
   const roomId = createdRoom.roomId;
 
   await expect(
-    camPage.getByRole("heading", { name: "Live auction draft" }),
+    camPage.getByRole("heading", { name: "Live draft" }),
   ).toBeVisible();
   await expect(
-    sethPage.getByRole("heading", { name: "Live auction draft" }),
+    sethPage.getByRole("heading", { name: "Live draft" }),
   ).toBeVisible();
   await expect(
     camPage.getByRole("region", { name: "Draft command" }),

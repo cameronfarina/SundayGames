@@ -143,7 +143,7 @@ test("mobile shell and live draft preserve a commissioner sale through reconnect
   await openPageFromMobileMenu(page, "League");
   await expect(page.getByRole("heading", { name: leagueName })).toBeVisible();
   await page.getByRole("link", { name: "Enter draft" }).click();
-  await expect(page.getByRole("heading", { name: "Live auction draft" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Live draft" })).toBeVisible();
   const livePlayerBoard = page.getByRole("region", { name: "Available players" });
   const liveRoster = page.getByRole("complementary", { name: / roster$/u });
   const draftStatus = page.getByRole("region", { name: "Draft status" });

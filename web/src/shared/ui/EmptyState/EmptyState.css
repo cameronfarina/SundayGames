@@ -1,6 +1,7 @@
+/* No rules of its own: it drops into pages that already divide their sections,
+   and a second rule a gap away from theirs reads as a mistake. */
 .empty-state {
   align-items: center;
-  border-block: 1px solid var(--color-border);
   color: var(--color-text);
   display: flex;
   flex-direction: column;

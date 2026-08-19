@@ -36,7 +36,10 @@ export const DropdownMenu = ({ children, header, items, label }: DropdownMenuPro
       {children ?? "⋯"}
     </MenuPrimitive.Trigger>
     <MenuPrimitive.Portal>
-      <MenuPrimitive.Content className="dropdown-menu__content" sideOffset={6}>
+      {/* Ending on the trigger's edge keeps the panel inside whatever gutter the
+          trigger already sits in. Centred, it overhangs and collision handling
+          only pulls it back to the bare viewport edge. */}
+      <MenuPrimitive.Content align="end" className="dropdown-menu__content" sideOffset={6}>
         {header !== undefined && <div className="dropdown-menu__header">{header}</div>}
         {items.map(item => (
           <Fragment key={item.label}>

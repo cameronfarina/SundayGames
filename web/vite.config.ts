@@ -4,11 +4,18 @@ import { defineConfig, loadEnv, type Plugin, type ProxyOptions, type UserConfig 
 const frontendRuntimePath = "/__mockd/frontend-runtime";
 const defaultPlatformTarget = "http://127.0.0.1:4320";
 const defaultWebPort = 4319;
-const apiRoots: readonly string[] = [
-  "accounts", "api", "email-verifications", "healthz", "historical-imports",
-  "invitations", "league-imports", "leagues", "live-rooms", "onboarding",
-  "password-resets", "player-catalog", "practice-shortlist", "readyz",
-  "season-mock-drafts", "season-simulations", "seasons", "session", "sessions",
+/**
+ * Every root the platform answers. "simulations" is also an app shell path, so
+ * the drift test in tests/webViteDevelopment.test.ts cannot derive it: the
+ * platform redirects it to /practice, which only happens once it is proxied.
+ */
+export const apiRoots: readonly string[] = [
+  "accounts", "api", "email-verifications", "fantasypros-status", "healthz",
+  "historical-imports", "invitations", "jobs", "league-connections",
+  "league-imports", "leagues", "live-rooms", "mock-sessions", "onboarding",
+  "password-resets", "player-catalog", "practice-shortlist", "pricing-snapshots",
+  "readyz", "season-mock-drafts", "season-simulations", "seasons", "session",
+  "sessions", "simulations",
 ];
 
 export interface WebViteConfigOptions {

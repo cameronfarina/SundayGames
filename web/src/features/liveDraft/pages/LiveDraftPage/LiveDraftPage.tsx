@@ -70,8 +70,8 @@ export const LiveDraftPage = () => {
   return (
     <section aria-labelledby="live-draft-title" className="live-draft">
       <header className="live-draft__heading">
-        <p>Live draft room</p>
-        <h1 id="live-draft-title">Live auction draft</h1>
+        <p>Draft room</p>
+        <h1 id="live-draft-title">Live draft</h1>
       </header>
       {!roomLocation.ok
         ? <InlineNotice title="Draft link incomplete" variant="error">{roomLocation.message}</InlineNotice>

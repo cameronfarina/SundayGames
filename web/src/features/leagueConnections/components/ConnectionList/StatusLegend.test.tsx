@@ -7,16 +7,16 @@ describe("StatusLegend", () => {
   it("stays out of the way until it is asked for", () => {
     render(<StatusLegend />);
 
-    expect(screen.getByRole("button", { name: "What do the colours mean?" }))
+    expect(screen.getByRole("button", { name: "What do the colors mean?" }))
       .toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Synced")).not.toBeInTheDocument();
   });
 
-  it("explains all four colours on a tap, not only on hover", async () => {
+  it("explains all four colors on a tap, not only on hover", async () => {
     const user = userEvent.setup();
     render(<StatusLegend />);
 
-    await user.click(screen.getByRole("button", { name: "What do the colours mean?" }));
+    await user.click(screen.getByRole("button", { name: "What do the colors mean?" }));
 
     expect(screen.getByText("Synced")).toBeVisible();
     expect(screen.getByText("Needs attention")).toBeVisible();
@@ -28,7 +28,7 @@ describe("StatusLegend", () => {
   it("closes again when the reader is done with it", async () => {
     const user = userEvent.setup();
     render(<StatusLegend />);
-    const toggle = screen.getByRole("button", { name: "What do the colours mean?" });
+    const toggle = screen.getByRole("button", { name: "What do the colors mean?" });
 
     await user.click(toggle);
     await user.click(toggle);

@@ -1,4 +1,9 @@
 import type { SyncedLeague } from "../../api/leagueConnectionsSchema";
+import {
+  allScoringRulesLabel,
+  describeScoringRules,
+  summarizeScoring,
+} from "../../lib/scoringSummary";
 
 interface LeagueSettingsSummaryProps {
   readonly settings: SyncedLeague["settings"];
@@ -8,7 +13,7 @@ const startingSlots = (rosterPositions: readonly string[]): string =>
   rosterPositions.filter(position => position !== "BN" && position !== "IR").join(", ");
 
 export const LeagueSettingsSummary = ({ settings }: LeagueSettingsSummaryProps) => {
-  const scoring = Object.entries(settings.scoring);
+  const scoring = summarizeScoring(settings.scoring);
 
   return <dl className="league-settings">
     <div><dt>Teams</dt><dd>{settings.teamCount}</dd></div>
@@ -22,11 +27,21 @@ export const LeagueSettingsSummary = ({ settings }: LeagueSettingsSummaryProps) 
     {settings.waiverBudget === undefined
       ? null
       : <div><dt>Waiver budget</dt><dd>${settings.waiverBudget}</dd></div>}
-    {scoring.length === 0
+    {scoring.all.length === 0
       ? null
-      : <div>
+      : <div className="league-settings__scoring-row">
         <dt>Scoring</dt>
-        <dd>{scoring.map(([stat, points]) => `${stat} ${String(points)}`).join(" · ")}</dd>
+        <dd>
+          {scoring.headline.length === 0
+            ? null
+            : <p className="league-settings__scoring">{describeScoringRules(scoring.headline)}</p>}
+          {scoring.all.length === scoring.headline.length
+            ? null
+            : <details className="league-settings__scoring-all">
+              <summary>{allScoringRulesLabel(scoring.all)}</summary>
+              <p>{describeScoringRules(scoring.all)}</p>
+            </details>}
+        </dd>
       </div>}
   </dl>;
 };

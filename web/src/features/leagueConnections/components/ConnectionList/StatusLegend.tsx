@@ -2,7 +2,7 @@ import { useState } from "react";
 import { statusLegend } from "../../lib/connectionStatus";
 
 /**
- * A dot tooltip only ever explains the colour it is on. This spells out all
+ * A dot tooltip only ever explains the color it is on. This spells out all
  * four, and it opens on a tap as readily as on a pointer.
  */
 export const StatusLegend = () => {
@@ -14,7 +14,7 @@ export const StatusLegend = () => {
       className="status-legend__toggle"
       onClick={() => { setOpen(current => !current); }}
       type="button"
-    >What do the colours mean?</button>
+    >What do the colors mean?</button>
     {open
       ? <dl className="status-legend__entries">
         {statusLegend.map(entry => <div key={entry.status}>
