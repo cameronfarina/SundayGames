@@ -18,6 +18,7 @@ export const TeamRoster = ({ onTeamChange, selectedTeamId, teams }: TeamRosterPr
     label: `${String(candidate.draftOrderPosition)}. ${candidate.teamDisplayName} · ${candidate.ownerDisplayName}`,
     value: candidate.teamId,
   }));
+  const auction = team.budgetRemaining !== undefined;
 
   return (
     <aside aria-labelledby="live-team-roster-title" className="live-panel team-roster">
@@ -33,9 +34,11 @@ export const TeamRoster = ({ onTeamChange, selectedTeamId, teams }: TeamRosterPr
           value={team.teamId}
         />
         <div className="team-roster__metrics">
-          <span className="team-roster__metric">Budget left<strong>{formatDollars(team.budgetRemaining)}</strong></span>
-          <span className="team-roster__metric">Spent<strong>{formatDollars(team.spent)}</strong></span>
-          <span className="team-roster__metric">Max bid<strong>{formatDollars(team.maxBid)}</strong></span>
+          {auction && <>
+            <span className="team-roster__metric">Budget left<strong>{formatDollars(team.budgetRemaining ?? 0)}</strong></span>
+            <span className="team-roster__metric">Spent<strong>{formatDollars(team.spent ?? 0)}</strong></span>
+            <span className="team-roster__metric">Max bid<strong>{formatDollars(team.maxBid ?? 0)}</strong></span>
+          </>}
           <span className="team-roster__metric">Open slots<strong>{team.rosterSlotsRemaining}</strong></span>
         </div>
         <ol className="team-roster__slots">
@@ -45,7 +48,9 @@ export const TeamRoster = ({ onTeamChange, selectedTeamId, teams }: TeamRosterPr
               <span className={`team-roster__slot position--${slotTone}`}>{slot.slot}</span>
               {slot.player === undefined ? <span className="team-roster__open">Open</span> : <span>
                 <strong>{slot.player.name}</strong>
-                <small>{formatDollars(slot.player.price)}{slot.player.source === "keeper" ? " · Keeper" : ""}</small>
+                <small>{auction
+                  ? `${formatDollars(slot.player.price)}${slot.player.source === "keeper" ? " · Keeper" : ""}`
+                  : slot.player.source === "keeper" || slot.player.source === "imported" ? "Keeper" : "Drafted"}</small>
               </span>}
             </li>;
           })}
