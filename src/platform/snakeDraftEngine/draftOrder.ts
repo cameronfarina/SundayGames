@@ -2,7 +2,7 @@ import type { SnakeDraftConfig, SnakeDraftOrderType } from "./config.js";
 import { SnakeDraftError } from "./error.js";
 import type { SnakeDraftBoardPick, SnakeDraftPickRef } from "./readModels.js";
 
-const isForwardRound = (round: number, orderType: SnakeDraftOrderType): boolean => {
+export const isForwardRound = (round: number, orderType: SnakeDraftOrderType): boolean => {
   if (orderType === "standard") return round % 2 === 1;
   if (round === 1) return true;
   if (round === 2 || round === 3) return false;

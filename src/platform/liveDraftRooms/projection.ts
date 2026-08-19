@@ -1,4 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
+import { isSnakeLeagueSeason } from "../leagueSeason.js";
 import type { ExplicitLeagueSeason, FantasyTeam } from "../leagueSeason.js";
 import { activeSalesFor } from "./activeSales.js";
 import type {
@@ -17,6 +18,7 @@ import {
   rosterPlayerFromSale,
 } from "./rosterPlayers.js";
 import { rosterSlotsFor } from "./rosterSlots.js";
+import { onTheClockPick, snakePicksFor } from "./snakePicks.js";
 
 const teamStateFor = (
   season: ExplicitLeagueSeason,
@@ -78,6 +80,12 @@ const projectRoom = (
     );
   }
 
+  const sales = activeSales.map(activeSale => activeSale.sale);
+  const season = room.season;
+  const picks = isSnakeLeagueSeason(season)
+    ? snakePicksFor(season, room.initialRosters, sales)
+    : undefined;
+
   return {
     roomId: room.roomId,
     leagueId: room.leagueId,
@@ -91,7 +99,8 @@ const projectRoom = (
     board: room.playerCatalog.filter(player =>
       !unavailablePlayerIdentities.has(canonicalPlayerIdentityKey(player.normalizedPlayerName))
     ),
-    sales: activeSales.map(activeSale => activeSale.sale),
+    sales,
+    ...(picks === undefined ? {} : { picks, onTheClock: onTheClockPick(picks) }),
   };
 };
 
