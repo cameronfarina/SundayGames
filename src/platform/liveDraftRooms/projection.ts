@@ -1,6 +1,7 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
 import { isSnakeLeagueSeason } from "../leagueSeason.js";
 import type { ExplicitLeagueSeason, FantasyTeam } from "../leagueSeason.js";
+import { activePicksFor } from "./activePicks.js";
 import { activeSalesFor } from "./activeSales.js";
 import type {
   LiveDraftRoomProjection,
@@ -15,6 +16,7 @@ import {
 } from "./rosterCapacity.js";
 import {
   rosterPlayerFromInitial,
+  rosterPlayerFromPick,
   rosterPlayerFromSale,
 } from "./rosterPlayers.js";
 import { rosterSlotsFor } from "./rosterSlots.js";
@@ -54,6 +56,7 @@ const teamStateFor = (
 const projectRoom = (
   room: Omit<LiveDraftRoom, "projection">,
   excludedSaleEventIds: ReadonlySet<string> = new Set(),
+  excludedPickEventIds: ReadonlySet<string> = new Set(),
 ): LiveDraftRoomProjection => {
   const rostersByTeamId = new Map<string, LiveDraftRoomRosterPlayer[]>(
     room.season.teams.map(team => [team.id, []]),
@@ -70,20 +73,29 @@ const projectRoom = (
     if (roster !== undefined) roster.push(rosterPlayerFromSale(activeSale.sale));
   }
 
+  const activePicks = activePicksFor(room.events)
+    .filter(activePick => !excludedPickEventIds.has(activePick.sourceEventId));
+  for (const activePick of activePicks) {
+    const roster = rostersByTeamId.get(activePick.pick.teamId);
+    if (roster !== undefined) roster.push(rosterPlayerFromPick(activePick.pick));
+  }
+
   const unavailablePlayerIdentities = new Set<string>();
   for (const initialPlayer of room.initialRosters) {
     unavailablePlayerIdentities.add(canonicalPlayerIdentityKey(initialPlayer.playerName));
   }
   for (const activeSale of activeSales) {
-    unavailablePlayerIdentities.add(
-      canonicalPlayerIdentityKey(activeSale.sale.normalizedPlayerName),
-    );
+    unavailablePlayerIdentities.add(canonicalPlayerIdentityKey(activeSale.sale.normalizedPlayerName));
+  }
+  for (const activePick of activePicks) {
+    unavailablePlayerIdentities.add(canonicalPlayerIdentityKey(activePick.pick.normalizedPlayerName));
   }
 
   const sales = activeSales.map(activeSale => activeSale.sale);
+  const selections = activePicks.map(activePick => activePick.pick);
   const season = room.season;
   const picks = isSnakeLeagueSeason(season)
-    ? snakePicksFor(season, room.initialRosters, sales)
+    ? snakePicksFor(season, room.initialRosters, selections)
     : undefined;
 
   return {
@@ -107,7 +119,8 @@ const projectRoom = (
 export const roomWithProjection = (
   room: Omit<LiveDraftRoom, "projection">,
   excludedSaleEventIds?: ReadonlySet<string> | undefined,
+  excludedPickEventIds?: ReadonlySet<string> | undefined,
 ): LiveDraftRoom => ({
   ...room,
-  projection: projectRoom(room, excludedSaleEventIds),
+  projection: projectRoom(room, excludedSaleEventIds, excludedPickEventIds),
 });
