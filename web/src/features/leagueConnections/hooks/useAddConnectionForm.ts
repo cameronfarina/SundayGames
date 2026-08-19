@@ -14,7 +14,6 @@ const credentialsFor = (espnS2: string, swid: string) => ({
   ...(swid.trim() === "" ? {} : { swid: swid.trim() }),
 });
 
-/** The provider told us this league is private and needs a signed-in browser's cookies. */
 export const asksForCookies = (error: unknown): boolean =>
   error instanceof PlatformApiError &&
   (error.code === "credentials_required" || error.code === "credentials_rejected");
@@ -39,7 +38,7 @@ export const useAddConnectionForm = (
 
   const selectProvider = (next: LeagueConnectionProvider): void => {
     setProvider(next);
-    setShowCookieStep(false);
+    setShowCookieStep(next === "espn");
     clearResults();
   };
 
@@ -53,17 +52,19 @@ export const useAddConnectionForm = (
       ...credentialsFor(espnS2, swid),
     }, {
       onSuccess: () => {
-        setLeagues([]);
-        setHandle("");
-        setEspnS2("");
-        setSwid("");
-        setShowCookieStep(false);
+        setLeagues(current => current.filter(candidate =>
+          candidate.providerLeagueId !== league.providerLeagueId
+        ));
       },
     });
   };
 
   const findLeagues = (): void => {
-    if (provider === undefined || handle.trim() === "") return;
+    if (provider === undefined) return;
+    const accountReady = provider === "espn"
+      && espnS2.trim().length > 0
+      && swid.trim().length > 0;
+    if (handle.trim().length === 0 && !accountReady) return;
     clearResults();
     mutations.discover.mutate({
       provider,
@@ -71,8 +72,6 @@ export const useAddConnectionForm = (
       season: currentLeagueSeason,
       ...credentialsFor(espnS2, swid),
     }, {
-      // One handle can name many Sleeper leagues but only ever one ESPN league,
-      // so ESPN skips the pick-a-league step entirely.
       onSuccess: result => {
         const only = chosen?.handleNamesOneLeague === true ? result.leagues[0] : undefined;
         if (only !== undefined) connect(only);
