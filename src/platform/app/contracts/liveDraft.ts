@@ -1,6 +1,7 @@
 import type {
   CreateLiveDraftRoomInput,
   LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPickCommandInput,
   LiveDraftRoomPlayerCatalogEntry,
   LiveDraftRoomSaleCommandInput,
 } from "../../liveDraftRooms.js";
@@ -57,6 +58,15 @@ export interface LogPlatformLiveDraftSaleInput extends MutatePlatformLiveDraftRo
 export interface CorrectPlatformLiveDraftSaleInput extends MutatePlatformLiveDraftRoomInput {
   saleEventId: string;
   replacementSale: LiveDraftRoomSaleCommandInput;
+}
+
+export interface LogPlatformLiveDraftPickInput extends MutatePlatformLiveDraftRoomInput {
+  pick: LiveDraftRoomPickCommandInput;
+}
+
+export interface CorrectPlatformLiveDraftPickInput extends MutatePlatformLiveDraftRoomInput {
+  pickEventId: string;
+  replacementPick: LiveDraftRoomPickCommandInput;
 }
 
 export interface ExportPlatformLiveDraftRoomInput {
