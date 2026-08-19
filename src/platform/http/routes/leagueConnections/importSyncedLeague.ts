@@ -7,40 +7,62 @@ import type {
 } from "../../../leagueConnections.js";
 import { confirmedSetupFromSyncedLeague } from "../../../leagueSyncImport.js";
 import type { PlatformApp } from "../../contracts.js";
+import { refreshLinkedLeague } from "./refreshLinkedLeague.js";
 
 interface ImportSyncedLeagueInput {
   account: AccountRecord;
   app: PlatformApp;
   connection: LeagueConnection;
+  previousSnapshot?: StoredLeagueSnapshot | null;
   repository: LeagueConnectionRepository;
   sessionToken: string;
   snapshot: StoredLeagueSnapshot;
   now: Date;
 }
 
+const needsAttention = async (
+  repository: LeagueConnectionRepository,
+  connection: LeagueConnection,
+  message: string,
+  now: Date,
+): Promise<LeagueConnection> => {
+  await repository.updateConnectionStatus({
+    id: connection.id,
+    status: "needs_attention",
+    statusDetail: message,
+    lastSyncedAt: connection.lastSyncedAt,
+    now,
+  });
+  return { ...connection, status: "needs_attention", statusDetail: message };
+};
+
 export const importSyncedLeague = async ({
   account,
   app,
   connection,
+  previousSnapshot = null,
   repository,
   sessionToken,
   snapshot,
   now,
 }: ImportSyncedLeagueInput): Promise<LeagueConnection> => {
   if (connection.linkedLeagueId !== undefined && connection.linkedSeasonId !== undefined) {
-    return connection;
+    const issue = await refreshLinkedLeague({
+      app,
+      connection,
+      previousSnapshot,
+      sessionToken,
+      snapshot,
+      now,
+    });
+    return issue === null
+      ? connection
+      : await needsAttention(repository, connection, issue, now);
   }
 
   const setup = confirmedSetupFromSyncedLeague(connection, snapshot);
   if (setup.status === "needs_attention") {
-    await repository.updateConnectionStatus({
-      id: connection.id,
-      status: "needs_attention",
-      statusDetail: setup.message,
-      lastSyncedAt: connection.lastSyncedAt,
-      now,
-    });
-    return { ...connection, status: "needs_attention", statusDetail: setup.message };
+    return await needsAttention(repository, connection, setup.message, now);
   }
 
   const season = createLeagueSeasonFromConfirmedSetup(setup.setup);
