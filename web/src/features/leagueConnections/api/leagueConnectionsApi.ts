@@ -24,6 +24,7 @@ export interface ConnectLeagueRequest extends ConnectionCredentials {
   readonly provider: LeagueConnectionProvider;
   readonly providerLeagueId: string;
   readonly season: string;
+  readonly targetSeasonId?: string;
 }
 
 const connectionsPath = "/league-connections";
