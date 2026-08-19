@@ -108,3 +108,9 @@
   padding: var(--space-6);
   text-align: center;
 }
+
+.player-board__attribution {
+  margin: var(--space-2) 0 0;
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+}

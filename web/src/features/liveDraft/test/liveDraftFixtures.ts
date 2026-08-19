@@ -1,3 +1,4 @@
+import { liveDraftAdvisorySchema } from "../api/liveDraftAdvisorySchemas";
 import {
   liveDraftRoomSchema,
   liveDraftTeamSchema,
@@ -104,4 +105,25 @@ export const liveRoom = liveDraftRoomSchema.parse({
     status: "pending",
     blockers: ["Draft room must be ended before final export."],
   },
+});
+
+export const liveAdvisory = liveDraftAdvisorySchema.parse({
+  configured: true,
+  basis: "ros",
+  week: 4,
+  players: [{
+    normalizedPlayerName: "puka nacua",
+    rankEcr: 3,
+    tier: 1,
+    positionRank: "WR2",
+    momentum: "rising",
+    ecrDelta: 4,
+  }],
+});
+
+export const darkAdvisory = liveDraftAdvisorySchema.parse({
+  configured: false,
+  basis: "ros",
+  week: null,
+  players: [],
 });

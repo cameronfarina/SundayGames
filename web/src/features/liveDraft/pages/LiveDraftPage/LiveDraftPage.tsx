@@ -4,6 +4,7 @@ import { InlineNotice, Skeleton } from "../../../../shared/ui";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { onboardingQueryOptions } from "../../../../shared/api/onboarding/onboardingQuery";
 import { selectLeagueForRoute } from "../../../league/lib/leaguePaths";
+import { useLiveDraftAdvisory } from "../../hooks/useLiveDraftAdvisory";
 import { useLiveDraftRoom } from "../../hooks/useLiveDraftRoom";
 import { readLiveDraftLocation, type LiveDraftLocation } from "../../lib/liveDraftLocation";
 import { LiveDraftWorkspace } from "./LiveDraftWorkspace";
@@ -17,6 +18,7 @@ interface RoomContentProps {
 const RoomContent = ({ roomId, seasonId }: RoomContentProps) => {
   const location = useLocation();
   const controller = useLiveDraftRoom(roomId);
+  const advisory = useLiveDraftAdvisory(roomId);
   if (controller.loading) {
     return <div aria-label="Opening draft room" className="live-draft__loading">
       <Skeleton height="5rem" /><Skeleton height="18rem" /><Skeleton height="24rem" />
@@ -39,6 +41,7 @@ const RoomContent = ({ roomId, seasonId }: RoomContentProps) => {
     </InlineNotice>;
   }
   return <LiveDraftWorkspace
+    {...(advisory === undefined ? {} : { advisory })}
     busy={controller.busy}
     connection={controller.connection}
     createExport={controller.createExport}

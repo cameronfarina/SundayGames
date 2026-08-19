@@ -1,6 +1,7 @@
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { notFound } from "../../responses.js";
+import { routeLiveRoomAdvisory } from "./advisory.js";
 import { routeLiveRoomEventStream } from "./eventStream.js";
 import { routeLiveRoomMutation } from "./mutations.js";
 import { routeLiveRoomMyTeam } from "./myTeam.js";
@@ -15,6 +16,7 @@ export const routeLiveRooms = async (
   const [, roomId = "", action = ""] = request.segments;
   if (request.segments.length <= 2) return await routeLiveRoomResource(app, request, services);
   if (request.segments.length !== 3) return notFound();
+  if (action === "advisory") return await routeLiveRoomAdvisory(app, request, services, roomId);
   if (action === "my-team") return await routeLiveRoomMyTeam(app, request, services, roomId);
   if (action === "state") return await routeLiveRoomState(app, request, roomId);
   if (action === "export") return await routeLiveRoomExport(app, request, roomId);

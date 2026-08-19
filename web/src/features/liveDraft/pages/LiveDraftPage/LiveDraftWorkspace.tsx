@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { InlineNotice } from "../../../../shared/ui";
+import type { LiveDraftAdvisory } from "../../api/liveDraftAdvisorySchemas";
 import type {
   LiveDraftBoardPlayer,
   LiveDraftExport,
@@ -18,6 +19,7 @@ import { SaleLedger } from "../../components/SaleLedger/SaleLedger";
 import { TeamRoster } from "../../components/TeamRoster/TeamRoster";
 
 export interface WorkspaceProps {
+  readonly advisory?: LiveDraftAdvisory | undefined;
   readonly busy: boolean;
   readonly connection: LiveDraftConnection;
   readonly createExport: () => Promise<LiveDraftExport>;
@@ -30,6 +32,7 @@ interface Feedback { readonly message: string; readonly variant: "info" | "succe
 interface Download { readonly fileName: string; readonly href: string }
 
 export const LiveDraftWorkspace = ({
+  advisory,
   busy,
   connection,
   createExport,
@@ -123,7 +126,8 @@ export const LiveDraftWorkspace = ({
       <InlineNotice variant={feedback.variant}>{feedback.message}</InlineNotice>}
     <DraftStatus connection={connection} room={room} />
     <div className="live-draft__grid">
-      <PlayerBoard canManage={room.canMutateRoom} onUsePlayer={usePlayer}
+      <PlayerBoard {...(advisory === undefined ? {} : { advisory })}
+        canManage={room.canMutateRoom} onUsePlayer={usePlayer}
         players={room.board} roomIsLive={room.status === "live"} />
       <TeamRoster onTeamChange={setViewedTeamId}
         {...(viewedTeamId === undefined ? {} : { selectedTeamId: viewedTeamId })}

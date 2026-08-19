@@ -4,12 +4,22 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LiveDraftPage } from "./LiveDraftPage";
-import { liveRoom } from "../../test/liveDraftFixtures";
+import { darkAdvisory, liveRoom } from "../../test/liveDraftFixtures";
 
-export const liveDraftServer = setupServer();
+// FantasyPros is dark by default, so every existing expectation describes the
+// board exactly as it renders without the overlay.
+export const liveDraftServer = setupServer(
+  http.get("/live-rooms/:roomId/advisory", () => HttpResponse.json(darkAdvisory)),
+);
 
 export const useRoomResponse = (room = liveRoom) => {
   liveDraftServer.use(http.get("/live-rooms/:roomId", () => HttpResponse.json({ room })));
+};
+
+export const useAdvisoryResponse = (advisory = darkAdvisory) => {
+  liveDraftServer.use(
+    http.get("/live-rooms/:roomId/advisory", () => HttpResponse.json(advisory)),
+  );
 };
 
 export const renderLiveDraftPage = (entry = "/draft-room?seasonId=season-1&roomId=room-1") => {

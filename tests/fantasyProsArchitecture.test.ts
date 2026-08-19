@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 const moduleRoots = [
   "src/data/fantasyPros",
   "src/platform/fantasyPros",
+  "src/platform/fantasyProsAdvisory",
   "src/platform/fantasyProsMatching",
   "src/platform/fantasyProsRefresh",
   "src/platform/postgresFantasyPros",
@@ -14,10 +15,12 @@ const moduleRoots = [
 const facades = [
   "src/data/fantasyPros.ts",
   "src/platform/fantasyPros.ts",
+  "src/platform/fantasyProsAdvisory.ts",
   "src/platform/fantasyProsMatching.ts",
   "src/platform/fantasyProsRefresh.ts",
   "src/platform/postgresFantasyPros.ts",
   "src/platform/http/routes/fantasyProsStatus.ts",
+  "src/platform/http/routes/liveRooms/advisory.ts",
   "src/platform/postgresSchema/tables/fantasyProsTables.ts",
   "src/platform/startPlatformWeb/fantasyProsRefresh.ts",
 ];

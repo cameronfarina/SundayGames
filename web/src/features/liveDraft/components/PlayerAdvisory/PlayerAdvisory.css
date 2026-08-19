@@ -1,0 +1,30 @@
+.player-advisory {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.player-advisory__rank {
+  font-variant-numeric: tabular-nums;
+}
+
+.player-advisory__tier {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0 var(--space-1);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.player-advisory__momentum--rising {
+  color: var(--color-accent);
+}
+
+.player-advisory__momentum--falling {
+  color: var(--color-danger);
+}
+
+.player-advisory__absent {
+  color: var(--color-text-subtle);
+}

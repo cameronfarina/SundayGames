@@ -1,16 +1,20 @@
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, IconButton, TextField } from "../../../../shared/ui";
 import { useIncrementalRows } from "../../../../shared/hooks/useIncrementalRows";
+import type { LiveDraftAdvisory } from "../../api/liveDraftAdvisorySchemas";
 import type { LiveDraftBoardPlayer } from "../../api/liveDraftSchemas";
+import { advisoryBasisLabel, advisoryByPlayerName } from "../../lib/liveDraftAdvisory";
 import {
   filterBoard,
   formatDollars,
   type LiveDraftPositionFilter,
 } from "../../lib/liveDraftDisplay";
+import { PlayerAdvisory } from "../PlayerAdvisory/PlayerAdvisory";
 import "./PlayerBoard.css";
 
 interface PlayerBoardProps {
+  readonly advisory?: LiveDraftAdvisory | undefined;
   readonly canManage: boolean;
   readonly onUsePlayer: (player: LiveDraftBoardPlayer) => void;
   readonly players: readonly LiveDraftBoardPlayer[];
@@ -21,6 +25,7 @@ const positionFilters: LiveDraftPositionFilter[] = ["ALL", "QB", "RB", "WR", "TE
 const positionLabel = (position: LiveDraftPositionFilter) => position === "ALL" ? "All" : position;
 
 export const PlayerBoard = ({
+  advisory,
   canManage,
   onUsePlayer,
   players,
@@ -28,6 +33,9 @@ export const PlayerBoard = ({
 }: PlayerBoardProps) => {
   const [position, setPosition] = useState<LiveDraftPositionFilter>("ALL");
   const [search, setSearch] = useState("");
+  // An advisory that matched nobody leaves the board exactly as it was.
+  const overlay = advisory === undefined || advisory.players.length === 0 ? undefined : advisory;
+  const advisoryFor = useMemo(() => advisoryByPlayerName(overlay), [overlay]);
   const matchingPlayers = filterBoard(players, search, position);
   const { revealMore, revealRowCount, visibleRowCount } = useIncrementalRows(
     matchingPlayers.length,
@@ -70,7 +78,9 @@ export const PlayerBoard = ({
           <thead><tr>
             {canManage && <th scope="col">Use</th>}
             <th scope="col">Player</th><th scope="col">Pos</th><th scope="col">NFL</th>
-            <th scope="col">Bye</th><th scope="col">Market</th><th scope="col">Our value</th>
+            <th scope="col">Bye</th>
+            {overlay !== undefined && <th scope="col">FP rank</th>}
+            <th scope="col">Market</th><th scope="col">Our value</th>
           </tr></thead>
           <tbody>
             {visiblePlayers.map(player => (
@@ -87,6 +97,9 @@ export const PlayerBoard = ({
                 <td className={`position position--${player.position.toLowerCase()}`}>{player.position}</td>
                 <td>{player.teamAbbreviation ?? "FA"}</td>
                 <td>{player.byeWeek ?? "--"}</td>
+                {overlay !== undefined && <td>
+                  <PlayerAdvisory advisory={advisoryFor.get(player.normalizedPlayerName)} />
+                </td>}
                 <td>{formatDollars(player.marketPrice ?? player.expectedPrice)}</td>
                 <td>{formatDollars(player.expectedPrice)}</td>
               </tr>
@@ -94,6 +107,9 @@ export const PlayerBoard = ({
           </tbody>
         </table>
       </div>
+      {overlay !== undefined && <p className="player-board__attribution">
+        Data by FantasyPros · {advisoryBasisLabel(overlay)}
+      </p>}
       {revealRowCount > 0 && <div className="player-board__reveal">
         <Button onClick={revealMore} variant="secondary">
           Load {revealRowCount} more players
