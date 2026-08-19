@@ -34,6 +34,15 @@ const playerRecordFor = (ranking: FantasyProsStoredRanking): FantasyProsStoredPl
   fetchedAt: ranking.fetchedAt,
 });
 
+/**
+ * Rest-of-season ranks are requested as week 0 and FantasyPros echoes that 0
+ * back onto every row, so a stored ranking's week is a request parameter rather
+ * than a fact about the ranks. Ranks that belong to no single week report no
+ * week at all, which is what a reader of this advisory can actually use.
+ */
+const realWeek = (week: number | undefined): number | undefined =>
+  week === undefined || week < 1 ? undefined : week;
+
 // A report that is not about a player's health belongs on the news page, not on
 // a bid clock, so only the injury-flagged ones reach the board.
 const injuryFor = (
@@ -68,5 +77,5 @@ export const buildFantasyProsDraftAdvisory = (
     });
   }
   const [first] = input.rankings;
-  return { basis: input.basis, week: first?.week, players };
+  return { basis: input.basis, week: realWeek(first?.week), players };
 };

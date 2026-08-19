@@ -21,7 +21,7 @@ const player = (overrides: Partial<LiveDraftAdvisoryPlayer> = {}): LiveDraftAdvi
 const advisory = (overrides: Partial<LiveDraftAdvisory> = {}): LiveDraftAdvisory => ({
   configured: true,
   basis: "ros",
-  week: 4,
+  week: null,
   players: [],
   ...overrides,
 });

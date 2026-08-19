@@ -7,7 +7,7 @@ import { liveDraftAdvisoryQueryKey, useLiveDraftAdvisory } from "./useLiveDraftA
 const advisoryBody = {
   configured: true,
   basis: "ros",
-  week: 4,
+  week: null,
   players: [{ normalizedPlayerName: "Puka Nacua", rankEcr: 3, momentum: "rising", ecrDelta: 4 }],
 };
 

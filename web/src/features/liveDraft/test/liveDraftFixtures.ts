@@ -107,10 +107,12 @@ export const liveRoom = liveDraftRoomSchema.parse({
   },
 });
 
+// Rest-of-season is the basis a real room serves, and those ranks belong to no
+// single week, so the week is null exactly as production sends it.
 export const liveAdvisory = liveDraftAdvisorySchema.parse({
   configured: true,
   basis: "ros",
-  week: 4,
+  week: null,
   players: [{
     normalizedPlayerName: "puka nacua",
     rankEcr: 3,

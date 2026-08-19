@@ -30,6 +30,33 @@ describe("LiveDraftPage FantasyPros overlay", () => {
     expect(screen.getByText(/Data by FantasyPros/u)).toHaveTextContent("rest-of-season ranks");
   });
 
+  // Rest-of-season ranks are what a real room serves, and FantasyPros gives them
+  // no week. The board once dropped the whole column over that: the schema
+  // demanded a positive week, the room sent the 0 FantasyPros echoes back, the
+  // parse threw, and a failed advisory query renders as no overlay at all. This
+  // sends the wire shape a room actually sends, written out rather than taken
+  // from a fixture, so the column has to survive it.
+  it("draws the column for rest-of-season ranks, which carry no week", async () => {
+    useRoomResponse();
+    liveDraftServer.use(http.get("/live-rooms/:roomId/advisory", () => HttpResponse.json({
+      configured: true,
+      basis: "ros",
+      week: null,
+      players: [{
+        normalizedPlayerName: "puka nacua",
+        rankEcr: 3,
+        tier: 1,
+        positionRank: "WR2",
+        momentum: "steady",
+      }],
+    })));
+
+    renderLiveDraftPage();
+
+    expect(await screen.findByRole("columnheader", { name: "FP rank" })).toBeVisible();
+    expect(screen.getByText(/Data by FantasyPros/u)).toHaveTextContent("rest-of-season ranks");
+  });
+
   it("chips an injured player once the advisory loads", async () => {
     useRoomResponse();
     useAdvisoryResponse(injuredAdvisory);

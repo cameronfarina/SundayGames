@@ -18,7 +18,7 @@ describe("PlayerBoard FantasyPros overlay", () => {
 
   it("leaves the board alone when the advisory matched nobody", () => {
     render(<PlayerBoard
-      advisory={{ configured: true, basis: "ros", week: 4, players: [] }}
+      advisory={{ configured: true, basis: "ros", week: null, players: [] }}
       canManage={false}
       onUsePlayer={vi.fn()}
       players={liveRoom.board}

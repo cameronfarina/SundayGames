@@ -147,6 +147,22 @@ describe("FantasyPros draft advisory", () => {
     expect(advisory.week).toBe(7);
   });
 
+  it("reports no week for rest-of-season ranks, which FantasyPros numbers week 0", () => {
+    const advisory = buildFantasyProsDraftAdvisory({
+      basis: "ros",
+      rankings: [ranking({
+        week: 0,
+        playerId: 1,
+        playerName: "Puka Nacua",
+        position: "WR",
+        rankEcr: 3,
+      })],
+      candidates: [candidate("Puka Nacua", "WR")],
+    });
+
+    expect(advisory.week).toBeUndefined();
+  });
+
   it("serves nothing at all when no rankings are stored", () => {
     const advisory = buildFantasyProsDraftAdvisory({
       basis: "ros",

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { InMemoryFantasyProsRepository } from "../src/platform/fantasyPros.js";
 import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
@@ -198,6 +199,76 @@ describe("live draft room advisory route", () => {
         { normalizedPlayerName: "Jahmyr Gibbs", injury: undefined },
       ],
     });
+  });
+
+  it("serves a null week for the rest-of-season basis FantasyPros numbers week 0", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    await repository.saveRankings({
+      rankingType: "ros",
+      scoring: "PPR",
+      // What FantasyPros echoes for a rest-of-season request, and what the
+      // production rows therefore carry.
+      week: 0,
+      fetchedAt: "2026-09-10T12:00:00.000Z",
+      rankings: [{ playerId: 1, playerName: "Puka Nacua", position: "WR", rankEcr: 3 }],
+    });
+    const { handle, sessionToken } = await openRoom({
+      fantasyProsRepository: repository,
+      fantasyProsConfigured: true,
+    });
+
+    const response = await handle({ method: "GET", path: `/live-rooms/${roomId}/advisory`, sessionToken });
+
+    expect(response.body).toMatchObject({ configured: true, basis: "ros", week: null });
+  });
+
+  // The other half of the parity pair; see the note in
+  // web/src/features/liveDraft/api/liveDraftAdvisoryWire.test.ts. Read as a
+  // file rather than imported so the browser fixture stays out of the server
+  // build. Regenerate by writing this response into that file, never by hand:
+  // whatever lands there has to satisfy the browser's schema on the other side.
+  it("serves exactly the body the browser contract is written against", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    await repository.saveRankings({
+      rankingType: "ros",
+      scoring: "PPR",
+      week: 0,
+      fetchedAt: "2026-09-17T09:00:00.000Z",
+      rankings: [
+        { playerId: 1, playerName: "Puka Nacua", position: "WR", rankEcr: 3, tier: 1, positionRank: "WR2" },
+        { playerId: 2, playerName: "Jahmyr Gibbs", position: "RB", rankEcr: 2, tier: 1, positionRank: "RB1", ecrDelta: 4 },
+      ],
+    });
+    const newsRepository = new InMemoryPlayerNewsRepository();
+    await newsRepository.saveItems([{
+      provider: "fantasypros",
+      providerItemId: "603054",
+      title: "Gibbs is limited with an ankle injury",
+      summary: "",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+      fetchedAt: "2026-09-17T09:00:00.000Z",
+      tags: [],
+      categories: ["News", "Injury"],
+      providerPlayerId: "2",
+    }]);
+    const { handle, sessionToken } = await openRoom({
+      fantasyProsRepository: repository,
+      fantasyProsConfigured: true,
+      playerNewsRepository: newsRepository,
+    });
+
+    const response = await handle({
+      method: "GET",
+      path: `/live-rooms/${roomId}/advisory`,
+      sessionToken,
+      now: new Date("2026-09-17T12:00:00.000Z"),
+    });
+
+    const wirePath = new URL(
+      "../web/src/features/liveDraft/api/liveDraftAdvisory.wire.json",
+      import.meta.url,
+    );
+    expect(response.body).toEqual(JSON.parse(readFileSync(wirePath, "utf8")));
   });
 
   it("serves an empty advisory when FantasyPros is unconfigured", async () => {

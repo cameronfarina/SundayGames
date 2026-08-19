@@ -1,0 +1,26 @@
+{
+  "configured": true,
+  "basis": "ros",
+  "week": null,
+  "players": [
+    {
+      "normalizedPlayerName": "Puka Nacua",
+      "rankEcr": 3,
+      "tier": 1,
+      "positionRank": "WR2",
+      "momentum": "steady"
+    },
+    {
+      "normalizedPlayerName": "Jahmyr Gibbs",
+      "rankEcr": 2,
+      "tier": 1,
+      "positionRank": "RB1",
+      "momentum": "rising",
+      "ecrDelta": 4,
+      "injury": {
+        "headline": "Gibbs is limited with an ankle injury",
+        "publishedAt": "2026-09-17T08:30:00.000Z"
+      }
+    }
+  ]
+}
