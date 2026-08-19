@@ -67,5 +67,7 @@ export const publicConnection = (connection: LeagueConnection) => ({
   status: connection.status,
   ...(connection.statusDetail === undefined ? {} : { statusDetail: connection.statusDetail }),
   ...(connection.lastSyncedAt === undefined ? {} : { lastSyncedAt: connection.lastSyncedAt }),
+  ...(connection.linkedLeagueId === undefined ? {} : { linkedLeagueId: connection.linkedLeagueId }),
+  ...(connection.linkedSeasonId === undefined ? {} : { linkedSeasonId: connection.linkedSeasonId }),
   createdAt: connection.createdAt,
 });
