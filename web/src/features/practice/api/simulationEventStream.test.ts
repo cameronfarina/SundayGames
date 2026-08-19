@@ -105,6 +105,33 @@ describe("simulation event stream", () => {
       .rejects.toEqual(expect.objectContaining<Partial<PlatformApiError>>({ code: "invalid_response" }));
   });
 
+  it("names the field that broke when a stream event fails its schema", async () => {
+    const response = chunkedResponse('event: progress\ndata: {"completed":0,"total":0}\n\n');
+
+    await expect(consumeSimulationStream(response, { onProgress: vi.fn() }))
+      .rejects.toMatchObject({
+        body: { completed: 0, total: 0 },
+        code: "invalid_response",
+        issues: [{ path: "total" }],
+      });
+  });
+
+  it("names what broke when an error event misses the error contract", async () => {
+    const response = chunkedResponse("event: error\ndata: {}\n\n");
+
+    await expect(consumeSimulationStream(response, { onProgress: vi.fn() }))
+      .rejects.toMatchObject({
+        body: {},
+        code: "invalid_response",
+        issues: [{ path: "error" }],
+      });
+  });
+
+  it("carries no issues where there is no schema to fail", async () => {
+    await expect(consumeSimulationStream(new Response(null), { onProgress: vi.fn() }))
+      .rejects.toMatchObject({ code: "invalid_response", issues: [] });
+  });
+
   it("rejects a response without a body", async () => {
     await expect(consumeSimulationStream(new Response(null), { onProgress: vi.fn() }))
       .rejects.toEqual(expect.objectContaining<Partial<PlatformApiError>>({ code: "invalid_response" }));

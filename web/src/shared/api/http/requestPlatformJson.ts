@@ -1,5 +1,6 @@
-import type { output, ZodError, ZodType } from "zod";
-import { PlatformApiError, type PlatformApiErrorIssue } from "./PlatformApiError";
+import type { output, ZodType } from "zod";
+import { contractIssues } from "./contractIssues";
+import { PlatformApiError } from "./PlatformApiError";
 import { platformErrorSchema } from "./platformErrorSchema";
 
 export type PlatformFetch = (
@@ -39,18 +40,6 @@ const apiErrorFor = (status: number, body: unknown): PlatformApiError => {
     status,
   });
 };
-
-/**
- * A path segment can be a symbol, which String() renders and an implicit
- * conversion would throw on. This runs while an error is already being built,
- * so it takes the explicit call rather than risk throwing over the failure it
- * is trying to describe.
- */
-const issuePath = (segments: readonly PropertyKey[]): string =>
-  segments.map(segment => String(segment)).join(".");
-
-const contractIssues = (error: ZodError): readonly PlatformApiErrorIssue[] =>
-  error.issues.map(issue => ({ message: issue.message, path: issuePath(issue.path) }));
 
 export const requestPlatformJson = async <Schema extends ZodType>(
   options: RequestPlatformJsonOptions<Schema>,

@@ -1,4 +1,5 @@
-import { z, type ZodType } from "zod";
+import { z, type ZodError, type ZodType } from "zod";
+import { contractIssues } from "../../../shared/api/http/contractIssues";
 import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import { platformErrorSchema } from "../../../shared/api/http/platformErrorSchema";
 import {
@@ -40,8 +41,19 @@ export class SimulationQueueApiError extends PlatformApiError {
   }
 }
 
-const invalidResponse = (): PlatformApiError => new PlatformApiError({
+interface UnreadablePayload {
+  readonly body: unknown;
+  readonly error: ZodError;
+}
+
+// A stream event that fails its schema knows exactly which field was wrong, and
+// that is the one thing worth keeping when the read is abandoned. The sites
+// with no schema behind them — no body, no result, unreadable JSON — pass
+// nothing and carry no issues.
+const invalidResponse = (payload?: UnreadablePayload): PlatformApiError => new PlatformApiError({
+  body: payload?.body,
   code: "invalid_response",
+  issues: payload === undefined ? undefined : contractIssues(payload.error),
   message: "The server returned an unreadable simulation stream.",
   status: 200,
 });
@@ -55,8 +67,9 @@ const parsePayload = (value: string): unknown => {
 };
 
 const parseWith = <Schema extends ZodType>(schema: Schema, value: string) => {
-  const parsed = schema.safeParse(parsePayload(value));
-  if (!parsed.success) throw invalidResponse();
+  const body = parsePayload(value);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw invalidResponse({ body, error: parsed.error });
   return parsed.data;
 };
 
@@ -69,7 +82,7 @@ const errorFor = (value: string): PlatformApiError => {
     retryAfterSeconds: 5,
   });
   const parsed = platformErrorSchema.safeParse(payload);
-  if (!parsed.success) return invalidResponse();
+  if (!parsed.success) return invalidResponse({ body: payload, error: parsed.error });
   return new PlatformApiError({
     code: parsed.data.error.code,
     message: parsed.data.error.message,
