@@ -21,11 +21,13 @@ export const buildLiveDraftRoomReadModel = (
   const viewedTeam = viewedTeamId === undefined
     ? undefined
     : teamSummaries.find(team => team.teamId === viewedTeamId);
+  const draftFormat = input.room.season.settings.draftFormat === "snake" ? "snake" : "auction";
 
   return {
     roomId: input.room.roomId,
     leagueId: input.room.leagueId,
     seasonId: input.room.seasonId,
+    draftFormat,
     status: input.room.status,
     revision: input.room.revision,
     updatedAt: input.room.updatedAt.toISOString(),
@@ -33,6 +35,12 @@ export const buildLiveDraftRoomReadModel = (
     canMutateRoom,
     canExportDraft: canMutateRoom,
     board: input.room.projection.board.map(player => ({ ...player })),
+    ...(input.room.projection.picks === undefined
+      ? {}
+      : { picks: input.room.projection.picks.map(pick => ({ ...pick })) }),
+    ...(input.room.projection.onTheClock === undefined
+      ? {}
+      : { onTheClock: { ...input.room.projection.onTheClock } }),
     ...(selectedTeam === undefined ? {} : { selectedTeam }),
     ...(viewedTeam === undefined ? {} : { viewedTeam }),
     teamSummaries,
