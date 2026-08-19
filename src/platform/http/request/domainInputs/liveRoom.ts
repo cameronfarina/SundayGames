@@ -1,7 +1,9 @@
 import type {
   LiveDraftRoomInitialRosterPlayer,
+  LiveDraftRoomPickCommandInput,
   LiveDraftRoomPlayerCatalogEntry,
   LiveDraftRoomSaleCommandInput,
+  ParsedLiveDraftRoomPickInput,
   ParsedLiveDraftRoomSaleInput,
 } from "../../../liveDraftRooms.js";
 import {
@@ -35,6 +37,16 @@ export const liveDraftSaleInputFor = (
   if (typeof body.command === "string") return body.command;
   if (typeof body.sale === "string") return body.sale;
   return saleInputFor(body.structuredSale ?? body.sale);
+};
+
+export const liveDraftPickInputFor = (
+  body: Record<string, unknown>,
+): LiveDraftRoomPickCommandInput => {
+  if (typeof body.command === "string") return body.command;
+  if (typeof body.pick === "string") return body.pick;
+  const record = unknownRecord(body.structuredPick ?? body.pick) ?? {};
+  const pick: ParsedLiveDraftRoomPickInput = { playerName: stringValue(record.playerName) };
+  return pick;
 };
 
 export const playerCatalogEntriesFrom = (
