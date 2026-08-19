@@ -15,6 +15,19 @@
   text-align: center;
 }
 
+.wizard-progress__step {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.wizard-progress__step:hover {
+  color: var(--color-text);
+}
+
 .wizard-progress li[aria-current="step"] {
   border-color: var(--color-accent);
   color: var(--color-text);

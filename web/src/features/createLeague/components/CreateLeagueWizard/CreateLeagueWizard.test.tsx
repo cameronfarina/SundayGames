@@ -51,6 +51,20 @@ describe("CreateLeagueWizard", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("jumps to any visited step from the progress tabs", async () => {
+    const user = userEvent.setup();
+    renderCreateLeagueWizard();
+    const progress = screen.getByRole("list", { name: "League setup progress" });
+
+    expect(within(progress).queryByRole("button")).not.toBeInTheDocument();
+    await completeBasics(user);
+    expect(within(progress).queryByRole("button", { name: "Scoring" })).not.toBeInTheDocument();
+    await user.click(within(progress).getByRole("button", { name: "Basics" }));
+    expect(screen.getByRole("heading", { name: "League basics" })).toBeVisible();
+    await user.click(within(progress).getByRole("button", { name: "Reference" }));
+    expect(screen.getByRole("heading", { name: "Reference league" })).toBeVisible();
+  });
+
   it("creates a manual league only after every team name is present", async () => {
     let postedBody: unknown;
     server.use(http.post("/leagues", async ({ request }) => {

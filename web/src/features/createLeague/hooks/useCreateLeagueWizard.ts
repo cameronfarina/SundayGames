@@ -33,6 +33,7 @@ export const useCreateLeagueWizard = (onCreated: (seasonId: string) => void) => 
     createInitialLeagueDraft,
   );
   const [attemptedStep, setAttemptedStep] = useState<WizardStep>();
+  const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
   const review = useMutation<EspnReviewOutcome, Error, EspnReviewInput>({
     mutationFn: input => reviewEspnLeague(input),
   });
@@ -56,6 +57,7 @@ export const useCreateLeagueWizard = (onCreated: (seasonId: string) => void) => 
 
   const goTo = (step: WizardStep) => {
     setAttemptedStep(undefined);
+    setMaxVisitedIndex(current => Math.max(current, steps.indexOf(step)));
     dispatch({ type: "go-to-step", step });
   };
   const next = () => {
@@ -84,10 +86,12 @@ export const useCreateLeagueWizard = (onCreated: (seasonId: string) => void) => 
     dispatch,
     draft,
     finish,
+    goToStep: goTo,
     isFirstStep: currentIndex === 0,
     next,
     review,
     showTeamErrors: attemptedStep === "teams",
     visibleErrors,
+    visitedSteps: steps.slice(0, maxVisitedIndex + 1),
   };
 };

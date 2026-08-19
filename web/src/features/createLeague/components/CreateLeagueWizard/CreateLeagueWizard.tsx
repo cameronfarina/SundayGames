@@ -56,7 +56,11 @@ const OpenCreateLeagueWizard = ({ onClose, onCreated }: OpenCreateLeagueWizardPr
       title="Input league info"
     >
       <div className="create-league-wizard">
-        <WizardProgress current={controller.draft.step} />
+        <WizardProgress
+          current={controller.draft.step}
+          onNavigate={controller.goToStep}
+          visited={controller.visitedSteps}
+        />
         {controller.creation.error !== null && (
           <InlineNotice variant="error">{controller.creation.error.message}</InlineNotice>
         )}
