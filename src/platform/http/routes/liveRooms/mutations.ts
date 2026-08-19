@@ -1,7 +1,7 @@
 import { requireRequestAccount } from "../../auth/access.js";
 import { actionRateLimitResponse } from "../../auth/rateLimits.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
-import { liveDraftSaleInputFor } from "../../request/domainInputs.js";
+import { liveDraftPickInputFor, liveDraftSaleInputFor } from "../../request/domainInputs.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalBoolean, optionalNumber, optionalString, stringValue } from "../../request/values.js";
 import { methodNotAllowed, notFound } from "../../responses.js";
@@ -9,7 +9,8 @@ import { liveDraftRoomReadModelForRequest } from "./readModel.js";
 
 const mutationActions = new Set([
   "start", "pause", "resume", "reopen", "sales", "sale", "undo",
-  "corrections", "correction", "end",
+  "corrections", "correction", "picks", "pick", "undo-pick",
+  "pick-corrections", "pick-correction", "end",
 ]);
 
 export const isLiveRoomMutationAction = (action: string): boolean => mutationActions.has(action);
@@ -52,6 +53,15 @@ export const routeLiveRoomMutation = async (
       ...identity,
       saleEventId: stringValue(request.body.saleEventId),
       replacementSale: liveDraftSaleInputFor({ sale: request.body.replacementSale }),
+    });
+  } else if (action === "picks" || action === "pick") {
+    await app.logLiveDraftPick({ ...identity, pick: liveDraftPickInputFor(request.body) });
+  } else if (action === "undo-pick") await app.undoLastLiveDraftPick(identity);
+  else if (action === "pick-corrections" || action === "pick-correction") {
+    await app.correctLiveDraftPick({
+      ...identity,
+      pickEventId: stringValue(request.body.pickEventId),
+      replacementPick: liveDraftPickInputFor({ pick: request.body.replacementPick }),
     });
   } else if (action === "end") {
     await app.endLiveDraftRoom({ ...identity, allowIncomplete: optionalBoolean(request.body.allowIncomplete) });
