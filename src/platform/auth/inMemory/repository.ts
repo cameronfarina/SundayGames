@@ -11,13 +11,14 @@ import type {
   PasswordReplacementResult,
   PendingAccountRegistrationResult,
   ReplaceAuthTokenInput,
+  ReplaceDisplayNameInput,
   ReplacePasswordInput,
   ResetPasswordByTokenInput,
   SessionRecord,
   UpgradePasswordHashInput,
   VerifyEmailByTokenInput,
 } from "../records.js";
-import { createAccount, createOrReplacePendingAccount, findAccountById, findAccountCredentialByEmail } from "./accounts.js";
+import { createAccount, createOrReplacePendingAccount, findAccountById, findAccountCredentialByEmail, replaceDisplayName } from "./accounts.js";
 import { replacePasswordAndRevokeSessions, upgradePasswordHash } from "./passwords.js";
 import { createSession, createSessionForCredential, findSessionById, findSessionByTokenHash, revokeSession } from "./sessions.js";
 import { InMemoryAuthState } from "./state.js";
@@ -48,6 +49,9 @@ export class InMemoryAuthRepository implements AuthRepository {
   }
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): PasswordReplacementResult | null {
     return replacePasswordAndRevokeSessions(this.#state, input);
+  }
+  replaceDisplayName(input: ReplaceDisplayNameInput): AccountRecord | null {
+    return replaceDisplayName(this.#state, input);
   }
   replaceAuthToken(input: ReplaceAuthTokenInput): AuthTokenRecord | null {
     return replaceAuthToken(this.#state, input);

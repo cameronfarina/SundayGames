@@ -9,12 +9,6 @@
   width: 2.75rem;
 }
 
-.account-menu__initial {
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
 .account-menu__error {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-danger);
@@ -34,11 +28,25 @@
 }
 
 @media (max-width: 48rem) {
-  .account-menu__initial {
+  .account-menu__avatar {
     display: none;
   }
 
   .account-menu__menu-icon {
     display: inline-flex;
+  }
+}
+
+/* Where the avatar shows it becomes the button, so the trigger drops its own
+   chrome and the avatar's edge carries hover and open state instead. */
+@media (min-width: 48.0625rem) {
+  .account-menu .dropdown-menu__trigger {
+    background: none;
+    border: none;
+  }
+
+  .account-menu .dropdown-menu__trigger:hover .account-menu__avatar,
+  .account-menu .dropdown-menu__trigger[data-state="open"] .account-menu__avatar {
+    border-color: var(--color-accent);
   }
 }

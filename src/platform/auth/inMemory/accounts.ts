@@ -5,6 +5,7 @@ import type {
   CreateAccountRecordInput,
   CreateOrReplacePendingAccountInput,
   PendingAccountRegistrationResult,
+  ReplaceDisplayNameInput,
 } from "../records.js";
 import type { InMemoryAuthState } from "./state.js";
 
@@ -63,3 +64,22 @@ export const findAccountCredentialByEmail = (
 
 export const findAccountById = (state: InMemoryAuthState, accountId: string): AccountRecord | null =>
   state.accountsById.get(accountId)?.account ?? null;
+
+export const replaceDisplayName = (
+  state: InMemoryAuthState,
+  input: ReplaceDisplayNameInput,
+): AccountRecord | null => {
+  const existing = state.accountsById.get(input.accountId);
+  if (existing === undefined) return null;
+  const { emailVerifiedAt } = existing.account;
+  const account: AccountRecord = {
+    id: existing.account.id,
+    email: existing.account.email,
+    ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
+    ...(emailVerifiedAt === undefined ? {} : { emailVerifiedAt }),
+    createdAt: existing.account.createdAt,
+    updatedAt: input.now,
+  };
+  state.accountsById.set(input.accountId, { account, passwordHash: existing.passwordHash });
+  return account;
+};

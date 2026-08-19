@@ -10,7 +10,11 @@ import type {
   ResetPasswordWithTokenInput,
   VerifyEmailInput,
 } from "../../auth.js";
-import type { ChangePlatformPasswordInput, LogoutInput } from "../contracts/account.js";
+import type {
+  ChangePlatformPasswordInput,
+  LogoutInput,
+  UpdatePlatformDisplayNameInput,
+} from "../contracts/account.js";
 import type { PlatformAppContext } from "../context.js";
 import { cloneForRead } from "../shared.js";
 
@@ -61,6 +65,14 @@ export const createAuthOperations = (context: PlatformAppContext) => ({
     currentPassword: input.currentPassword,
     newPassword: input.newPassword,
     newPasswordConfirmation: input.newPasswordConfirmation,
+    now: input.now,
+  })),
+
+  updateDisplayName: async (
+    input: UpdatePlatformDisplayNameInput,
+  ): Promise<AccountRecord> => cloneForRead(await context.auth.updateDisplayName({
+    sessionToken: input.actorSessionToken,
+    displayName: input.displayName,
     now: input.now,
   })),
 });

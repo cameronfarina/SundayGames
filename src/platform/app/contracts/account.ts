@@ -10,3 +10,9 @@ export interface ChangePlatformPasswordInput {
   newPasswordConfirmation: string;
   now?: Date | undefined;
 }
+
+export interface UpdatePlatformDisplayNameInput {
+  actorSessionToken: string;
+  displayName: string;
+  now?: Date | undefined;
+}

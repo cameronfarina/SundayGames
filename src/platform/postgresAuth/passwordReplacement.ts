@@ -15,7 +15,7 @@ WITH updated_account AS (
   WHERE id = $1
     AND status = 'active'
     AND ($2::text IS NULL OR password_hash = $2)
-  RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at
+  RETURNING id, email, display_name, password_hash, email_verified_at, status, created_at, updated_at
 ),
 revoked_sessions AS (
   UPDATE sessions

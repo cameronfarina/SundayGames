@@ -41,6 +41,7 @@ export const accountFromRow = (row: AccountRow): AccountRecord => {
   return {
     id: row.id,
     email: row.email,
+    ...(row.display_name === null ? {} : { displayName: row.display_name }),
     ...(emailVerifiedAt === undefined ? {} : { emailVerifiedAt }),
     createdAt: requiredDateFromDb("accounts", "created_at", row.created_at),
     updatedAt: requiredDateFromDb("accounts", "updated_at", row.updated_at),

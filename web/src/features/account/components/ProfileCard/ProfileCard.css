@@ -1,0 +1,36 @@
+.profile-card__body {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (min-width: 34rem) {
+  .profile-card__body {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+.profile-card__avatar {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  max-width: 11rem;
+}
+
+.profile-card__avatar-note {
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+  margin: 0;
+  text-align: center;
+}
+
+.profile-card__form {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  max-width: 26rem;
+}
+
+.profile-card__form .text-field {
+  width: 100%;
+}

@@ -12,6 +12,7 @@ import type {
   PasswordReplacementResult,
   PendingAccountRegistrationResult,
   ReplaceAuthTokenInput,
+  ReplaceDisplayNameInput,
   ReplacePasswordInput,
   ResetPasswordByTokenInput,
   SessionRecord,
@@ -21,6 +22,7 @@ import type {
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 import { createAccount, createOrReplacePendingAccount } from "./accountCreation.js";
 import { findAccountById, findAccountCredentialByEmail } from "./accountQueries.js";
+import { replaceDisplayName } from "./displayName.js";
 import { replacePasswordAndRevokeSessions } from "./passwordReplacement.js";
 import { upgradePasswordHash } from "./passwordUpgrade.js";
 import { resetPasswordByToken } from "./resetPassword.js";
@@ -85,6 +87,10 @@ export class PostgresAuthRepository implements AuthRepository {
     input: ReplacePasswordInput,
   ): Promise<PasswordReplacementResult | null> {
     return await replacePasswordAndRevokeSessions(this.#client, input);
+  }
+
+  async replaceDisplayName(input: ReplaceDisplayNameInput): Promise<AccountRecord | null> {
+    return await replaceDisplayName(this.#client, input);
   }
 
   async replaceAuthToken(input: ReplaceAuthTokenInput): Promise<AuthTokenRecord | null> {

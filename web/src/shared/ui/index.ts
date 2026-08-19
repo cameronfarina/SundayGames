@@ -1,3 +1,4 @@
+export { Avatar, type AvatarProps, type AvatarSize } from "./Avatar/Avatar.js";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button/Button.js";
 export { Dialog, type DialogProps } from "./Dialog/Dialog.js";
 export { DropdownMenu, type DropdownMenuItem, type DropdownMenuProps } from "./DropdownMenu/DropdownMenu.js";

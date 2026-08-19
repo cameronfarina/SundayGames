@@ -14,7 +14,7 @@ SET password_hash = $3, updated_at = $4
 WHERE id = $1
   AND status = 'active'
   AND password_hash = $2
-RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
+RETURNING id, email, display_name, password_hash, email_verified_at, status, created_at, updated_at;
 `.trim(),
     [input.accountId, input.expectedPasswordHash, input.passwordHash, input.now],
   );

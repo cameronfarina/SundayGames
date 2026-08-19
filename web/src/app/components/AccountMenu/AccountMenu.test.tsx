@@ -38,6 +38,7 @@ const leagueFixtures = [
 ];
 
 interface MenuOverrides {
+  readonly account?: { readonly displayName?: string; readonly email: string; readonly id: string };
   readonly activeLeague?: OnboardingLeague | undefined;
   readonly canManageLeague?: boolean | undefined;
   readonly leagues?: readonly OnboardingLeague[] | undefined;
@@ -49,15 +50,17 @@ const renderMenu = (overrides: MenuOverrides = {}) => {
   queryClient.setQueryData(sessionQueryKey(), { private: "session" });
   queryClient.setQueryData(onboardingQueryOptions().queryKey, cachedOnboarding);
   const menu = <AccountMenu
+    account={overrides.account ?? { email: "example.user@example.com", id: "account-example" }}
     activeLeague={overrides.activeLeague}
     canManageLeague={overrides.canManageLeague ?? false}
-    email="example.user@example.com"
     leagues={overrides.leagues ?? []}
     onLeagueChange={overrides.onLeagueChange ?? (() => undefined)}
   />;
   const router = createMemoryRouter([
     { path: "/practice", element: menu },
     { path: "/login", element: <h1>Sign in</h1> },
+    { path: "/account-settings", element: <h1>Account settings page</h1> },
+    { path: "/connections", element: <h1>Connections page</h1> },
   ], { initialEntries: ["/practice"] });
   render(
     <QueryClientProvider client={queryClient}>
@@ -77,10 +80,34 @@ describe("AccountMenu", () => {
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
-    expect(screen.getByRole("menuitem", { name: "Change password" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
     fireEvent.pointerDown(document.body);
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("heads the menu with the display name over the email", async () => {
+    const user = userEvent.setup();
+    renderMenu({
+      account: { displayName: "Cam Farina", email: "example.user@example.com", id: "account-example" },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByText("Cam Farina")).toBeVisible();
+    expect(screen.getByText("example.user@example.com")).toBeVisible();
+  });
+
+  // The page rows above these stay in the DOM and are hidden by CSS on wider
+  // screens, so this pins the tail group a laptop actually sees.
+  it("ends the menu with settings, sync and sign out", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getAllByRole("menuitem").slice(-3).map(item => item.textContent))
+      .toEqual(["Account settings", "Sync leagues", "Sign out"]);
   });
 
   it("lists every league and marks the one being viewed", async () => {
@@ -110,21 +137,17 @@ describe("AccountMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
 
-    expect(screen.getByRole("menuitem", { name: "Change password" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
     expect(screen.queryByRole("menuitem", { name: /2026/ })).not.toBeInTheDocument();
   });
 
-  it("opens password change in a dialog", async () => {
+  it("no longer changes the password inside the menu", async () => {
     const user = userEvent.setup();
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
-    await user.click(screen.getByRole("menuitem", { name: "Change password" }));
 
-    expect(screen.getByRole("dialog", { name: "Change password" })).toBeVisible();
-    expect(screen.getByLabelText("Current password")).toHaveFocus();
-    await user.click(screen.getByRole("button", { name: "Close dialog" }));
-    expect(screen.queryByRole("dialog", { name: "Change password" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Change password" })).not.toBeInTheDocument();
   });
 
   it("prevents duplicate sign-out requests while one is pending", async () => {

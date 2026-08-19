@@ -1,0 +1,32 @@
+.connections-card__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-4);
+}
+
+.connections-card__counts dt {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.connections-card__counts dd {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin: var(--space-1) 0 0;
+}
+
+.connections-card__attention dd {
+  color: var(--color-warning);
+}
+
+.connections-card__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-4);
+}
+
+.connections-card__link {
+  color: var(--color-accent);
+  font-weight: 700;
+}

@@ -4,7 +4,7 @@ import { accountCredentialFromRow, accountFromRow, firstRow } from "./mappers.js
 import type { AccountRow } from "./rows.js";
 
 const selectAccountSql = `
-SELECT id, email, password_hash, email_verified_at, status, created_at, updated_at
+SELECT id, email, display_name, password_hash, email_verified_at, status, created_at, updated_at
 FROM accounts
 `.trim();
 

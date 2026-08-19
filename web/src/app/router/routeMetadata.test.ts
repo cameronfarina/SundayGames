@@ -17,6 +17,7 @@ describe("route metadata", () => {
       ["/leagues/sunday-games/player-news", "Player news | Sunday Games"],
       ["/leagues/sunday-games/commissioner", "Commissioner | Sunday Games"],
       ["/leagues/sunday-games", "League | Sunday Games"],
+      ["/account-settings", "Account settings | Sunday Games"],
       ["/login", "Sign in | Sunday Games"],
     ["/signup", "Create account | Sunday Games"],
     ["/unknown", "Sunday Games"],

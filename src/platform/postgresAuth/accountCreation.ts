@@ -26,7 +26,7 @@ INSERT INTO accounts (
   updated_at
 ) VALUES ($1, $2, $2, $3, $4, $5, $5)
 ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO NOTHING
-RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
+RETURNING id, email, display_name, password_hash, email_verified_at, status, created_at, updated_at;
 `.trim(),
     [input.id, input.email, input.passwordHash, input.emailVerifiedAt ?? input.now, input.now],
   );
@@ -51,7 +51,7 @@ SET password_hash = EXCLUDED.password_hash,
     auth_version = accounts.auth_version + 1,
     updated_at = EXCLUDED.updated_at
 WHERE accounts.email_verified_at IS NULL
-RETURNING id, email, password_hash, email_verified_at, auth_version, status, created_at, updated_at,
+RETURNING id, email, display_name, password_hash, email_verified_at, auth_version, status, created_at, updated_at,
   (xmax = 0) AS was_inserted;
 `.trim(),
     [input.id, input.email, input.passwordHash, input.now],

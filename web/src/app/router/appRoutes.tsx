@@ -57,6 +57,10 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
         lazy: () => import("../../features/commissioner/routes/commissionerRoute"),
       },
       {
+        path: "account-settings",
+        lazy: () => import("../../features/account/routes/accountSettingsRoute"),
+      },
+      {
         path: "leagues/:leagueSlug",
         lazy: () => import("../../features/league/routes/leagueRoute"),
       },

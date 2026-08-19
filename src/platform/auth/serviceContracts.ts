@@ -46,6 +46,12 @@ export interface ChangePasswordInput {
   now?: Date | undefined;
 }
 
+export interface UpdateDisplayNameInput {
+  sessionToken: string;
+  displayName: string;
+  now?: Date | undefined;
+}
+
 export interface ResetPasswordInput {
   email: string;
   newPassword: string;
@@ -85,6 +91,7 @@ export interface AuthService {
   logout(sessionToken: string, now?: Date): Promise<boolean>;
   revokeSession(sessionId: string, now?: Date): Promise<boolean>;
   changePassword(input: ChangePasswordInput): Promise<PasswordReplacementResult>;
+  updateDisplayName(input: UpdateDisplayNameInput): Promise<AccountRecord>;
   resetPassword(input: ResetPasswordInput): Promise<PasswordReplacementResult | null>;
   requestEmailVerification(input: RequestEmailVerificationInput): Promise<AcceptedAuthRequest>;
   verifyEmail(input: VerifyEmailInput): Promise<AccountRecord>;

@@ -63,13 +63,18 @@ const ActiveLeagueProbe = () => {
   </>;
 };
 
-const renderHeader = (leagues: Onboarding["leagues"], initialEntry: string) => {
+const renderHeader = (
+  leagues: Onboarding["leagues"],
+  initialEntry: string,
+  displayName?: string,
+) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   queryClient.setQueryData(sessionQueryKey(), {
     account: {
       createdAt: "2026-08-13T12:00:00.000Z",
+      ...(displayName === undefined ? {} : { displayName }),
       email: "example.user@example.com",
       id: "account-example",
       updatedAt: "2026-08-13T12:00:00.000Z",
@@ -104,6 +109,15 @@ const renderActiveLeagueProbe = (initialEntry: string) => {
 };
 
 describe("ProductHeader", () => {
+  it("gives the account menu the display name when the session carries one", async () => {
+    const user = userEvent.setup();
+    renderHeader([commissionerLeague], "/practice", "Cam Farina");
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByText("Cam Farina")).toBeVisible();
+  });
+
   it("switches leagues in the URL and derives commissioner access from the active league", async () => {
     const user = userEvent.setup();
     renderHeader([commissionerLeague, memberLeague], "/practice?seasonId=season-2026&runId=old&sessionId=old&simulationRun=3&view=targets");

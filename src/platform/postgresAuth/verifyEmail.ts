@@ -31,7 +31,7 @@ WHERE accounts.id = consumed_token.account_id
   AND accounts.auth_version = consumed_token.auth_version
   AND accounts.status = 'active'
   AND accounts.email_verified_at IS NULL
-RETURNING id, email, password_hash, email_verified_at, status, created_at, updated_at;
+RETURNING id, email, display_name, password_hash, email_verified_at, status, created_at, updated_at;
 `.trim(),
     [input.tokenHash, input.passwordHash, input.now],
   );

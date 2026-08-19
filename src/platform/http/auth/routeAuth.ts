@@ -126,6 +126,15 @@ export const routeAuth = async (
     services.loginRateLimiter?.reset(account.email);
     return { status: 200, headers: { "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }) }, body: { ok: true } };
   }
+  if (root === "session" && action === "profile" && request.segments.length === 2) {
+    if (request.method !== "PUT") return methodNotAllowed();
+    const account = await app.updateDisplayName({
+      actorSessionToken: request.sessionToken,
+      displayName: stringValue(request.body.displayName),
+      now: request.now,
+    });
+    return { status: 200, body: { account } };
+  }
   if (root === "session" && request.segments.length === 1) {
     if (request.method === "GET") {
       const account = await app.findAccountBySessionToken(request.sessionToken, request.now);

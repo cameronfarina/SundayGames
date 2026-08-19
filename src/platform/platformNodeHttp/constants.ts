@@ -8,7 +8,7 @@ export const dynamicGzipLevel = 6;
 export const staticBrotliQuality = 8;
 
 export const appShellPaths = new Set([
-  "/", "/app", "/login", "/signup", "/verify-email", "/forgot-password",
+  "/", "/app", "/account-settings", "/login", "/signup", "/verify-email", "/forgot-password",
   "/reset-password", "/invite", "/setup", "/league", "/commissioner",
   "/draft-room", "/practice", "/my-team", "/mock-drafts", "/mock-results",
   "/simulations", "/strategy", "/my-expert", "/player-news", "/connections",

@@ -1,0 +1,83 @@
+.avatar {
+  align-items: center;
+  background: var(--avatar-surface);
+  border: 1px solid var(--avatar-edge);
+  border-radius: 50%;
+  color: var(--avatar-ink);
+  display: inline-flex;
+  flex: none;
+  font-weight: 800;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.avatar--sm {
+  font-size: 0.8125rem;
+  height: 2rem;
+  width: 2rem;
+}
+
+.avatar--md {
+  font-size: var(--font-size-sm);
+  height: 2.75rem;
+  width: 2.75rem;
+}
+
+.avatar--lg {
+  font-size: var(--font-size-xl);
+  height: 4.5rem;
+  width: 4.5rem;
+}
+
+/* Tones are deliberately desaturated and dark: the initials carry the contrast,
+   and a wall of vivid circles would compete with the accent colour. */
+.avatar--tone-0 {
+  --avatar-surface: #16323a;
+  --avatar-edge: #24515d;
+  --avatar-ink: #7fd6e6;
+}
+
+.avatar--tone-1 {
+  --avatar-surface: #163a31;
+  --avatar-edge: #235c4d;
+  --avatar-ink: #65d9b4;
+}
+
+.avatar--tone-2 {
+  --avatar-surface: #1b3350;
+  --avatar-edge: #2b4f7a;
+  --avatar-ink: #8fbcff;
+}
+
+.avatar--tone-3 {
+  --avatar-surface: #2e2450;
+  --avatar-edge: #47387a;
+  --avatar-ink: #c0a6ff;
+}
+
+.avatar--tone-4 {
+  --avatar-surface: #3b2247;
+  --avatar-edge: #5b356d;
+  --avatar-ink: #dda2f2;
+}
+
+.avatar--tone-5 {
+  --avatar-surface: #43203a;
+  --avatar-edge: #67315a;
+  --avatar-ink: #f6a0c4;
+}
+
+.avatar--tone-6 {
+  --avatar-surface: #43301c;
+  --avatar-edge: #6a4a2a;
+  --avatar-ink: #f5c451;
+}
+
+.avatar--tone-7 {
+  --avatar-surface: #333a1d;
+  --avatar-edge: #4f5a2c;
+  --avatar-ink: #c7dc72;
+}

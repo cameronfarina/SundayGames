@@ -375,11 +375,77 @@ class FakePostgresAuthClient implements PostgresQueryClient {
       };
     }
 
+    if (normalizedSql.startsWith("UPDATE accounts SET display_name")) {
+      const [accountId, displayName, updatedAt] = values as readonly [string, string | null, Date];
+      const row = this.accounts.get(accountId);
+      if (row === undefined || row.status !== "active") return { rows: [], rowCount: 0 };
+      row.display_name = displayName;
+      row.updated_at = updatedAt;
+      return { rows: [cloneAccountRow(row) as TRow], rowCount: 1 };
+    }
+
     throw new Error(`Unexpected SQL: ${text}`);
   }
 }
 
 describe("Postgres auth repository", () => {
+  it("round-trips a display name through the accounts row", async () => {
+    const client = new FakePostgresAuthClient();
+    const repository = new PostgresAuthRepository(client);
+    const auth = createAuthService({ repository });
+    const account = await auth.createUser({
+      email: "display@example.com",
+      password: "valid password phrase",
+      now,
+    });
+    const savedAt = new Date(now.getTime() + 1);
+
+    await expect(repository.replaceDisplayName({
+      accountId: account.id,
+      displayName: "Cam Farina",
+      now: savedAt,
+    })).resolves.toMatchObject({ displayName: "Cam Farina", updatedAt: savedAt });
+
+    expect(client.accounts.get(account.id)?.display_name).toBe("Cam Farina");
+    await expect(repository.findAccountById(account.id))
+      .resolves.toMatchObject({ displayName: "Cam Farina" });
+  });
+
+  it("writes a null display name when the name is cleared", async () => {
+    const client = new FakePostgresAuthClient();
+    const repository = new PostgresAuthRepository(client);
+    const auth = createAuthService({ repository });
+    const account = await auth.createUser({
+      email: "display-clear@example.com",
+      password: "valid password phrase",
+      now,
+    });
+    await repository.replaceDisplayName({
+      accountId: account.id,
+      displayName: "Cam Farina",
+      now: new Date(now.getTime() + 1),
+    });
+
+    const cleared = await repository.replaceDisplayName({
+      accountId: account.id,
+      displayName: undefined,
+      now: new Date(now.getTime() + 2),
+    });
+
+    expect(cleared?.displayName).toBeUndefined();
+    expect(client.accounts.get(account.id)?.display_name).toBeNull();
+  });
+
+  it("reports no account when the display name target is missing", async () => {
+    const repository = new PostgresAuthRepository(new FakePostgresAuthClient());
+
+    await expect(repository.replaceDisplayName({
+      accountId: "account-that-never-existed",
+      displayName: "Cam Farina",
+      now,
+    })).resolves.toBeNull();
+  });
+
   it("persists pending signup and single-use recovery tokens as hashes", async () => {
     const client = new FakePostgresAuthClient();
     const repository = new PostgresAuthRepository(client);

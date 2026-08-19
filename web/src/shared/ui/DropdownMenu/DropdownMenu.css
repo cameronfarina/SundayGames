@@ -30,6 +30,15 @@
   z-index: 100;
 }
 
+/* Sits flush against the panel's top edge so it reads as a title bar rather
+   than a first row. */
+.dropdown-menu__header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  margin: -0.3rem 0 0.3rem;
+  padding: var(--space-3) 0.9rem;
+}
+
 .dropdown-menu__item {
   align-items: center;
   color: var(--color-text);

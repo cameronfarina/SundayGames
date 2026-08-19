@@ -1,6 +1,7 @@
 export interface AccountRow {
   id: string;
   email: string;
+  display_name: string | null;
   password_hash: string;
   email_verified_at: Date | string | null;
   status: string;

@@ -29,7 +29,7 @@ updated_account AS (
     AND accounts.auth_version = consumed_token.auth_version
     AND accounts.status = 'active'
     AND accounts.email_verified_at IS NOT NULL
-  RETURNING accounts.id, accounts.email, accounts.password_hash, accounts.email_verified_at,
+  RETURNING accounts.id, accounts.email, accounts.display_name, accounts.password_hash, accounts.email_verified_at,
     accounts.status, accounts.created_at, accounts.updated_at
 ),
 revoked_sessions AS (

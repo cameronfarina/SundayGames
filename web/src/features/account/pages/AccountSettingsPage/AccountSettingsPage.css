@@ -1,0 +1,74 @@
+.account-settings {
+  width: 100%;
+}
+
+.account-settings__header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-6);
+}
+
+.account-settings__header p {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+}
+
+.account-settings__header h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.account-settings__header span {
+  color: var(--color-text-muted);
+  display: block;
+  margin-top: var(--space-3);
+  max-width: 52rem;
+}
+
+/* Profile and sign-in sit side by side on a wide screen; connections runs the
+   full width beneath them because its counts read as a summary, not a form. */
+.account-settings__cards {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-6) 0;
+}
+
+@media (min-width: 56.25rem) {
+  .account-settings__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-settings__cards .connections-card {
+    grid-column: 1 / -1;
+  }
+}
+
+.account-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+}
+
+.account-card__heading {
+  font-size: var(--font-size-lg);
+  letter-spacing: 0;
+  margin: 0 0 var(--space-4);
+}
+
+.account-card__error,
+.account-card__success {
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.account-card__error {
+  color: var(--color-danger);
+}
+
+.account-card__success {
+  color: var(--color-accent);
+}

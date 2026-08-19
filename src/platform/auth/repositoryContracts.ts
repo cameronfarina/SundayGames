@@ -10,6 +10,7 @@ import type {
   PasswordReplacementResult,
   PendingAccountRegistrationResult,
   ReplaceAuthTokenInput,
+  ReplaceDisplayNameInput,
   ReplacePasswordInput,
   ResetPasswordByTokenInput,
   SessionRecord,
@@ -36,6 +37,7 @@ export interface AuthRepository extends AuthTokenFinalizer {
   revokeSession(sessionId: string, revokedAt: Date): MaybePromise<SessionRecord | null>;
   upgradePasswordHash(input: UpgradePasswordHashInput): MaybePromise<AccountCredentialRecord | null>;
   replacePasswordAndRevokeSessions(input: ReplacePasswordInput): MaybePromise<PasswordReplacementResult | null>;
+  replaceDisplayName(input: ReplaceDisplayNameInput): MaybePromise<AccountRecord | null>;
   replaceAuthToken(input: ReplaceAuthTokenInput): MaybePromise<AuthTokenRecord | null>;
   withAuthTokenAdmission<TResult>(
     input: FindUsableAuthTokenInput,

@@ -1,34 +1,34 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
-import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../../../features/auth/api/authApi";
-import { PasswordChangeForm } from "../../../features/auth/components/PasswordChangeForm/PasswordChangeForm";
+import { leaguePageForPath } from "../../../features/league/lib/leaguePaths";
 import { resetAccountQueryState } from "../../../features/auth/model/accountQueryBoundary";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
-import { Dialog } from "../../../shared/ui/Dialog/Dialog";
+import { Avatar } from "../../../shared/ui/Avatar/Avatar";
 import { DropdownMenu, type DropdownMenuItem } from "../../../shared/ui/DropdownMenu/DropdownMenu";
-import { leaguePageForPath } from "../../../features/league/lib/leaguePaths";
 import { navigationTargets } from "../ProductHeader/navigationTargets";
-import { accountInitial } from "./accountInitial";
+import { AccountMenuIdentity } from "./AccountMenuIdentity";
+import type { AccountIdentity } from "./AccountMenuIdentity";
 import "./AccountMenu.css";
 
+export type { AccountIdentity } from "./AccountMenuIdentity";
+
 interface AccountMenuProps {
+  readonly account: AccountIdentity;
   readonly activeLeague: OnboardingLeague | undefined;
   readonly canManageLeague: boolean;
-  readonly email: string;
   readonly leagues: readonly OnboardingLeague[];
   readonly onLeagueChange: (seasonId: string) => void;
 }
 
 export const AccountMenu = ({
+  account,
   activeLeague,
   canManageLeague,
-  email,
   leagues,
   onLeagueChange,
 }: AccountMenuProps) => {
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const currentPage = leaguePageForPath(useLocation().pathname);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -65,8 +65,8 @@ export const AccountMenu = ({
     {
       // The league rows outlast the page rows, so this divider outlasts them too.
       dividerHiddenFrom: leagueItems.length > 0 ? "laptop" : "tablet",
-      label: "Change password",
-      onSelect: () => { setPasswordDialogOpen(true); },
+      label: "Account settings",
+      onSelect: () => { void navigate("/account-settings"); },
       startsGroup: leagueItems.length > 0 || pageItems.length > 0,
     },
     {
@@ -83,22 +83,21 @@ export const AccountMenu = ({
 
   return (
     <div className="account-menu">
-      <DropdownMenu items={items} label="Account menu">
-        <span aria-hidden="true" className="account-menu__initial">
-          {accountInitial(email)}
-        </span>
+      <DropdownMenu
+        header={<AccountMenuIdentity account={account} />}
+        items={items}
+        label="Account menu"
+      >
+        <Avatar
+          className="account-menu__avatar"
+          {...(account.displayName === undefined ? {} : { displayName: account.displayName })}
+          email={account.email}
+          seed={account.id}
+        />
         <span aria-hidden="true" className="account-menu__menu-icon">
           <Menu size={18} />
         </span>
       </DropdownMenu>
-      <Dialog
-        description="Update the password you use to sign in."
-        onOpenChange={setPasswordDialogOpen}
-        open={passwordDialogOpen}
-        title="Change password"
-      >
-        <PasswordChangeForm />
-      </Dialog>
       {signOut.error !== null && (
         <p className="account-menu__error" role="alert">Could not sign out. Try again.</p>
       )}

@@ -1,6 +1,7 @@
 export interface AccountRecord {
   id: string;
   email: string;
+  displayName?: string | undefined;
   emailVerifiedAt?: Date | undefined;
   createdAt: Date;
   updatedAt: Date;
@@ -89,6 +90,13 @@ export interface ReplacePasswordInput {
   accountId: string;
   expectedPasswordHash?: string | undefined;
   passwordHash: string;
+  now: Date;
+}
+
+/** An absent display name clears the stored one and falls back to the email. */
+export interface ReplaceDisplayNameInput {
+  accountId: string;
+  displayName: string | undefined;
   now: Date;
 }
 

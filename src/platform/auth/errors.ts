@@ -2,6 +2,7 @@ export type AuthErrorCode =
   | "auth_required"
   | "duplicate_email"
   | "email_unverified"
+  | "invalid_display_name"
   | "invalid_current_password"
   | "invalid_email"
   | "invalid_or_expired_token"

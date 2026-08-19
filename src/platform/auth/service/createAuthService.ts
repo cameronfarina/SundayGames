@@ -2,6 +2,7 @@ import type { AuthService, CreateAuthServiceOptions } from "../serviceContracts.
 import { requestEmailVerification, requestPasswordReset, resetPasswordWithToken, verifyEmail } from "./actions.js";
 import { createAuthServiceContext } from "./context.js";
 import { createUser } from "./createUser.js";
+import { updateDisplayName } from "./displayName.js";
 import { changePassword, resetPassword } from "./passwords.js";
 import { login, logout, lookupSession, revokeSession } from "./sessions.js";
 
@@ -14,6 +15,7 @@ export const createAuthService = (options: CreateAuthServiceOptions): AuthServic
     logout: async (sessionToken, now) => await logout(context, sessionToken, now),
     revokeSession: async (sessionId, now) => await revokeSession(context, sessionId, now),
     changePassword: async input => await changePassword(context, input),
+    updateDisplayName: async input => await updateDisplayName(context, input),
     resetPassword: async input => await resetPassword(context, input),
     requestEmailVerification: async input => await requestEmailVerification(context, input),
     verifyEmail: async input => await verifyEmail(context, input),

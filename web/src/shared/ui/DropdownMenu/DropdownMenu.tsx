@@ -24,17 +24,20 @@ export interface DropdownMenuItem {
 
 export interface DropdownMenuProps {
   readonly children?: ReactNode;
+  /** Non-interactive block above the rows, for identity or context. */
+  readonly header?: ReactNode;
   readonly items: readonly DropdownMenuItem[];
   readonly label: string;
 }
 
-export const DropdownMenu = ({ children, items, label }: DropdownMenuProps) => (
+export const DropdownMenu = ({ children, header, items, label }: DropdownMenuProps) => (
   <MenuPrimitive.Root modal={false}>
     <MenuPrimitive.Trigger aria-label={label} className="dropdown-menu__trigger">
       {children ?? "⋯"}
     </MenuPrimitive.Trigger>
     <MenuPrimitive.Portal>
       <MenuPrimitive.Content className="dropdown-menu__content" sideOffset={6}>
+        {header !== undefined && <div className="dropdown-menu__header">{header}</div>}
         {items.map(item => (
           <Fragment key={item.label}>
           {item.startsGroup === true && (
