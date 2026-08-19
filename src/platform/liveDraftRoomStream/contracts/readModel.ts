@@ -2,6 +2,7 @@ import type {
   LiveDraftRoom,
   LiveDraftRoomActor,
   LiveDraftRoomBoardPlayer,
+  LiveDraftRoomPick,
   LiveDraftRoomRosterPlayer,
   LiveDraftRoomRosterSlot,
   LiveDraftRoomSale,
@@ -31,7 +32,6 @@ export interface LiveDraftRoomTeamSummary {
   teamDisplayName: string;
   draftOrderPosition: number;
   rosterSlotsRemaining: number;
-  /** Auction rooms only. Snake teams have no budget. */
   budgetDollars?: number | undefined;
   spent?: number | undefined;
   budgetRemaining?: number | undefined;
@@ -76,6 +76,7 @@ export interface LiveDraftRoomReadModel {
   roomId: string;
   leagueId: string;
   seasonId: string;
+  draftFormat: "auction" | "snake";
   status: LiveDraftRoomStatus;
   revision: number;
   updatedAt: string;
@@ -83,6 +84,8 @@ export interface LiveDraftRoomReadModel {
   canMutateRoom: boolean;
   canExportDraft: boolean;
   board: readonly LiveDraftRoomBoardPlayer[];
+  picks?: readonly LiveDraftRoomPick[] | undefined;
+  onTheClock?: LiveDraftRoomPick | undefined;
   selectedTeam?: LiveDraftRoomTeamSummary | undefined;
   viewedTeam?: LiveDraftRoomTeamSummary | undefined;
   teamSummaries: readonly LiveDraftRoomTeamSummary[];
