@@ -46,4 +46,7 @@ export type LiveDraftRoomMutationAction =
   | "log_sale"
   | "correct_sale"
   | "undo_sale"
+  | "log_pick"
+  | "correct_pick"
+  | "undo_pick"
   | "end";
