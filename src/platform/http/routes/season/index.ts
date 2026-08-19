@@ -8,6 +8,7 @@ import { routeSeasonLiveRoom } from "./liveRoom.js";
 import { routeSeasonPricing } from "./pricing.js";
 import { registerSeason } from "./registerSeason.js";
 import { routeSeasonPublish, routeSeasonResource, routeSeasonTeamClaim } from "./resource.js";
+import { routeSeasonSnakeRounds } from "./snakeRounds.js";
 import { routeSeasonSetupImport } from "./setupImports.js";
 
 export const routeSeason = async (
@@ -28,6 +29,7 @@ export const routeSeason = async (
   if (action === "pricing" || action === "pricing-snapshots") return await routeSeasonPricing(app, request);
   if (action === "keepers") return await routeSeasonKeepers(app, request, services);
   if (action === "publish" && request.segments.length === 3) return await routeSeasonPublish(app, request, seasonId);
+  if (action === "snake-rounds" && request.segments.length === 3) return await routeSeasonSnakeRounds(app, request, seasonId);
   if (action === "live-room" && request.segments.length === 3) {
     return await routeSeasonLiveRoom(app, request, services, seasonId);
   }

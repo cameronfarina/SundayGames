@@ -65,6 +65,11 @@ export const commissionerApi = {
     init: jsonRequest("POST", { content }),
     responseSchema: setupApplyResponseSchema,
   }),
+  setSnakeRounds: async (seasonId: string, rounds: number) => await requestPlatformJson({
+    path: seasonPath(seasonId, "/snake-rounds"),
+    init: jsonRequest("POST", { rounds }),
+    responseSchema: z.object({ season: seasonSchema }),
+  }),
   publish: async (seasonId: string) => await requestPlatformJson({
     path: seasonPath(seasonId, "/publish"),
     init: jsonRequest("POST", { confirmed: true }),

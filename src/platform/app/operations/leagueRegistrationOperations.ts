@@ -44,6 +44,29 @@ const assertDraftFormatUnchanged = async (
   );
 };
 
+const snakeRoundsOf = (season: LeagueSeason): number | undefined =>
+  season.settings.draftFormat === "snake" ? season.settings.snake.rounds : undefined;
+
+/**
+ * A started draft has a board built from the round count, so changing it would
+ * orphan picks already made. Before the first pick the commissioner is free to
+ * leave the room and fix it.
+ */
+const assertSnakeRoundsUnlocked = async (
+  context: PlatformAppContext,
+  season: LeagueSeason,
+): Promise<void> => {
+  const existing = await context.leagueSetup.findLeagueSeason(season.id);
+  if (existing === null) return;
+  const before = snakeRoundsOf(existing);
+  if (before === undefined || before === snakeRoundsOf(season)) return;
+  if (!await context.liveDraftRooms.hasStartedRoomForSeason(season.id)) return;
+  throw new PlatformAppError(
+    "draft_rounds_locked",
+    "Draft rounds cannot change once the live draft has started.",
+  );
+};
+
 const assertRegistrationAllowed = async (
   context: PlatformAppContext,
   account: AccountRecord,
@@ -65,6 +88,7 @@ const assertRegistrationAllowed = async (
   }
   assertMembershipTeams(season, memberships);
   await assertDraftFormatUnchanged(context, season);
+  await assertSnakeRoundsUnlocked(context, season);
 };
 
 export const createLeagueRegistrationOperations = (context: PlatformAppContext) => ({

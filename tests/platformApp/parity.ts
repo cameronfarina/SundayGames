@@ -24,8 +24,11 @@ export const expectedBehaviorNames: readonly string[] = [
   "can route live draft rooms and export artifacts through injected async repositories",
   "locks the draft format once a league season is published",
   "still allows a draft format change while the season is a draft",
+  "changes snake draft rounds while no draft has started",
+  "keeps every other setting editable when the rounds do not move",
+  "reports a locked round count once the live draft has started",
 ];
 
-export const expectedAssertionCount = 112;
+export const expectedAssertionCount = 115;
 export const expectedAssertionFingerprint =
-  "6f094b51d4aef40655d8332b943fbebb5faf1603cf8840780e4d9bed79785bb2";
+  "86a2158c135b8b42faa63f08e364b21d153f74afb7a11d18c06ba4a3fd9d1b9d";
