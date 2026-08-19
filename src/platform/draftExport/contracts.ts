@@ -22,7 +22,8 @@ export type DraftExportErrorCode = "duplicate_player" | "invalid_price" | "inval
 
 export interface DraftExportRosterPlayer {
   name: string;
-  price: number;
+  /** Auction rooms only. A snake pick costs nothing. */
+  price?: number | undefined;
   source?: DraftExportPlayerSource;
 }
 

@@ -1,5 +1,6 @@
 export type LiveDraftRoomErrorCode =
   | "access_denied"
+  | "draft_complete"
   | "draft_incomplete"
   | "duplicate_player"
   | "expected_revision_required"
@@ -9,6 +10,7 @@ export type LiveDraftRoomErrorCode =
   | "max_bid_exceeded"
   | "mutation_denied"
   | "no_sale_to_undo"
+  | "out_of_turn"
   | "owner_not_found"
   | "player_not_found"
   | "position_limit"

@@ -16,7 +16,7 @@ const validateSlot = (slot: DraftExportRosterSlot): void => {
 
 const validatePrice = (team: DraftExportTeamState, slot: DraftExportRosterSlot): void => {
   const player = slot.player;
-  if (player && (!Number.isFinite(player.price) || player.price < 0)) {
+  if (player?.price !== undefined && (!Number.isFinite(player.price) || player.price < 0)) {
     throw new DraftExportError(
       "invalid_price",
       `${player.name} on ${playerLocationText(team, slot)} has an invalid price.`,

@@ -1,0 +1,81 @@
+.pick-board {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: var(--space-4);
+}
+
+.pick-board h2 {
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--space-3);
+}
+
+.pick-board__scroll {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.pick-board__round {
+  flex: 0 0 auto;
+  min-width: 11rem;
+}
+
+.pick-board__round-label {
+  color: var(--color-text-muted);
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+}
+
+.pick-board__picks {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pick-board__cell {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+}
+
+.pick-board__cell--mine {
+  border-color: var(--color-accent);
+}
+
+.pick-board__cell--current {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.pick-board__cell--keeper {
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-raised));
+}
+
+.pick-board__pick-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pick-board__team {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-board__player {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

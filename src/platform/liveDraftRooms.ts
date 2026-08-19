@@ -24,6 +24,7 @@ export type {
   LiveDraftRoomProjection,
   LiveDraftRoomRosterPlayer,
   LiveDraftRoomRosterSlot,
+  LiveDraftRoomPick,
   LiveDraftRoomSale,
   LiveDraftRoomSaleCommandInput,
   LiveDraftRoomTeamState,

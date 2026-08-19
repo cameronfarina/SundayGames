@@ -37,7 +37,7 @@ export const validateInitialRosters = (
     const auction = season.settings.auction;
     if (auction !== undefined) {
       assertPositiveWholeDollar(
-        rosterPlayer.price,
+        rosterPlayer.price ?? 0,
         `Initial roster price must be a positive whole-dollar amount for ${rosterPlayer.name}.`,
       );
     }
@@ -51,13 +51,13 @@ export const validateInitialRosters = (
       throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
     }
     if (auction !== undefined) {
-      const spent = roster.reduce((total, rosteredPlayer) => total + rosteredPlayer.price, 0);
+      const spent = roster.reduce((total, rosteredPlayer) => total + (rosteredPlayer.price ?? 0), 0);
       const maxBid = maxBidFor(
         auction.budgetDollars - spent,
         rosterCapacity - roster.length,
         auction.minimumBidDollars,
       );
-      if (rosterPlayer.price > maxBid) {
+      if ((rosterPlayer.price ?? 0) > maxBid) {
         throw new LiveDraftRoomError(
           "max_bid_exceeded",
           `${team.ownerDisplayName} cannot roster ${rosterPlayer.name} for $${rosterPlayer.price}: max bid is $${maxBid}.`,

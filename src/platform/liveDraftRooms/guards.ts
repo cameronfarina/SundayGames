@@ -9,6 +9,19 @@ import { LiveDraftRoomError } from "./error.js";
 
 const writerRoles = new Set(["owner", "admin"]);
 
+/**
+ * A snake draft moves one team at a time, so the manager on the clock records
+ * their own pick. Every other change still belongs to the commissioner.
+ */
+const isOwnSnakePick = (
+  room: LiveDraftRoom,
+  actor: LiveDraftRoomActor,
+  action: LiveDraftRoomMutationAction,
+): boolean => action === "log_sale"
+  && room.season.settings.draftFormat === "snake"
+  && actor.teamId !== undefined
+  && room.projection.onTheClock?.teamId === actor.teamId;
+
 export const assertWriter = (
   room: LiveDraftRoom,
   actor: LiveDraftRoomActor,
@@ -19,6 +32,7 @@ export const assertWriter = (
   const allowedByDefault = isLeagueMember && (
     actor.userId === room.commissionerUserId
     || (actor.role !== undefined && writerRoles.has(actor.role))
+    || isOwnSnakePick(room, actor, action)
   );
   const allowed = authorizer === undefined
     ? allowedByDefault

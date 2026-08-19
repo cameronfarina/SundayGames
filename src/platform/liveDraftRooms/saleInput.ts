@@ -27,17 +27,19 @@ export const parseSaleInput = (
   }
 
   const playerName = cleanPlayerName(sale.playerName);
-  assertPositiveWholeDollar(
-    sale.price,
-    `Sale price must be a positive whole-dollar amount for ${playerName}.`,
-  );
+  if (sale.price !== undefined) {
+    assertPositiveWholeDollar(
+      sale.price,
+      `Sale price must be a positive whole-dollar amount for ${playerName}.`,
+    );
+  }
   return {
     ...(sale.ownerText === undefined ? {} : { ownerText: sale.ownerText }),
     ...(sale.ownerId === undefined ? {} : { ownerId: sale.ownerId }),
     ...(sale.teamId === undefined ? {} : { teamId: sale.teamId }),
     ...(sale.teamName === undefined ? {} : { teamName: sale.teamName }),
     playerName,
-    price: sale.price,
+    ...(sale.price === undefined ? {} : { price: sale.price }),
   };
 };
 
@@ -47,5 +49,5 @@ export const sourceInputLabelFor = (sale: LiveDraftRoomSaleCommandInput): string
     : [
       sale.ownerText ?? sale.teamName ?? sale.teamId ?? sale.ownerId ?? "unknown",
       sale.playerName,
-      String(sale.price),
+      String(sale.price ?? ""),
     ].join(" ");

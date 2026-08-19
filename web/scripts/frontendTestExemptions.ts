@@ -71,6 +71,7 @@ export const frontendTestExemptions: FrontendTestExemption[] = [
     "web/src/features/league/routes/leagueRoute.ts",
   ], "Covered by member, commissioner, and league-state integration tests."),
   ...coveredBy([
+    "web/src/features/liveDraft/api/pickSchema.ts",
     "web/src/features/liveDraft/hooks/useLiveDraftRoom.ts",
     "web/src/features/liveDraft/pages/LiveDraftPage/LiveDraftPage.tsx",
     "web/src/features/liveDraft/pages/LiveDraftPage/LiveDraftWorkspace.tsx",

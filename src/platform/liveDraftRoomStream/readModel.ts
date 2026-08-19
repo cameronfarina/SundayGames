@@ -37,6 +37,12 @@ export const buildLiveDraftRoomReadModel = (
     ...(viewedTeam === undefined ? {} : { viewedTeam }),
     teamSummaries,
     salesLog: salesLogFor(input.room),
+    ...(input.room.projection.picks === undefined ? {} : {
+      picks: input.room.projection.picks.map(pick => ({ ...pick })),
+      ...(input.room.projection.onTheClock === undefined
+        ? {}
+        : { onTheClock: { ...input.room.projection.onTheClock } }),
+    }),
     connection: {
       state: "synchronized",
       transport: "sse",

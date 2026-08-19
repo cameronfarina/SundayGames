@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { liveDraftPickSchema } from "./pickSchema";
 
 export const liveDraftPositionSchema = z.enum(["QB", "RB", "WR", "TE", "K", "DST"]);
 
@@ -16,7 +17,7 @@ const rosterPlayerSchema = z.object({
   name: z.string().min(1),
   normalizedPlayerName: z.string().min(1),
   position: liveDraftPositionSchema,
-  price: z.number().int().nonnegative(),
+  price: z.number().int().nonnegative().optional(),
   expectedPrice: z.number().nonnegative(),
   source: z.enum(["keeper", "imported", "sale"]),
   saleEventId: z.string().min(1).optional(),
@@ -35,11 +36,11 @@ export const liveDraftTeamSchema = z.object({
   ownerDisplayName: z.string().min(1),
   teamDisplayName: z.string().min(1),
   draftOrderPosition: z.number().int().positive(),
-  budgetDollars: z.number().int().nonnegative(),
-  spent: z.number().int().nonnegative(),
-  budgetRemaining: z.number().int(),
   rosterSlotsRemaining: z.number().int().nonnegative(),
-  maxBid: z.number().int().nonnegative(),
+  budgetDollars: z.number().int().nonnegative().optional(),
+  spent: z.number().int().nonnegative().optional(),
+  budgetRemaining: z.number().int().optional(),
+  maxBid: z.number().int().nonnegative().optional(),
   positionCounts: z.record(z.string(), z.number().int().nonnegative()),
   roster: z.array(rosterPlayerSchema),
   slots: z.array(rosterSlotSchema),
@@ -55,7 +56,7 @@ export const liveDraftSaleSchema = z.object({
   teamDisplayName: z.string().min(1),
   playerName: z.string().min(1),
   position: liveDraftPositionSchema,
-  price: z.number().int().nonnegative(),
+  price: z.number().int().nonnegative().optional(),
   expectedPrice: z.number().nonnegative(),
   teamAbbreviation: z.string().min(1).optional(),
   byeWeek: z.number().int().positive().optional(),
@@ -72,6 +73,8 @@ export const liveDraftRoomSchema = z.object({
   canMutateRoom: z.boolean(),
   canExportDraft: z.boolean(),
   board: z.array(liveDraftBoardPlayerSchema),
+  picks: z.array(liveDraftPickSchema).optional(),
+  onTheClock: liveDraftPickSchema.optional(),
   selectedTeam: liveDraftTeamSchema.optional(),
   viewedTeam: liveDraftTeamSchema.optional(),
   teamSummaries: z.array(liveDraftTeamSchema),
@@ -138,3 +141,5 @@ export type LiveDraftExport = z.infer<typeof liveDraftExportSchema>;
 export type LiveDraftRoom = z.infer<typeof liveDraftRoomSchema>;
 export type LiveDraftSale = z.infer<typeof liveDraftSaleSchema>;
 export type LiveDraftTeam = z.infer<typeof liveDraftTeamSchema>;
+export { liveDraftPickSchema } from "./pickSchema";
+export type { LiveDraftPick } from "./pickSchema";

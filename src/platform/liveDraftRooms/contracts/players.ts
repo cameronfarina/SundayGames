@@ -7,7 +7,8 @@ export interface ParsedLiveDraftRoomSaleInput {
   teamId?: string | undefined;
   teamName?: string | undefined;
   playerName: string;
-  price: number;
+  /** Auction rooms only. A snake pick costs nothing. */
+  price?: number | undefined;
 }
 
 export type LiveDraftRoomSaleCommandInput = string | ParsedLiveDraftRoomSaleInput;
@@ -22,7 +23,8 @@ export interface LiveDraftRoomSale {
   playerName: string;
   normalizedPlayerName: string;
   position: Position;
-  price: number;
+  /** Auction rooms only. A snake pick costs nothing. */
+  price?: number | undefined;
   expectedPrice: number;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
@@ -32,7 +34,8 @@ export interface LiveDraftRoomRosterPlayer {
   name: string;
   normalizedPlayerName: string;
   position: Position;
-  price: number;
+  /** Auction rooms only. A snake pick costs nothing. */
+  price?: number | undefined;
   expectedPrice: number;
   source: "keeper" | "imported" | "sale";
   saleEventId?: string | undefined;

@@ -18,8 +18,9 @@ const compareBoardPlayers = (
   || right.expectedPrice - left.expectedPrice
   || left.name.localeCompare(right.name);
 
-export const formatDollars = (value: number): string =>
-  `$${value.toLocaleString("en-US")}`;
+/** A snake pick has no price, so there is nothing to show but a dash. */
+export const formatDollars = (value: number | undefined): string =>
+  value === undefined ? "-" : `$${value.toLocaleString("en-US")}`;
 
 export const liveDraftStatusLabel = (status: LiveDraftRoom["status"]): string => {
   switch (status) {
@@ -74,3 +75,17 @@ export const filterSales = (
 
 export const selectedTeamId = (room: LiveDraftRoom): string | undefined =>
   room.selectedTeam?.teamId ?? room.viewedTeam?.teamId ?? room.teamSummaries[0]?.teamId;
+
+/** A snake pick names the team on the clock and carries no price. */
+export const saleCommandFor = (
+  room: LiveDraftRoom,
+  viewedTeamId: string | undefined,
+  playerName: string,
+): string => {
+  const onTheClock = room.onTheClock;
+  if (onTheClock !== undefined) return `${onTheClock.ownerDisplayName} drafted ${playerName}`;
+  const team = room.teamSummaries.find(candidate => candidate.teamId === viewedTeamId);
+  return team === undefined
+    ? `${playerName} `
+    : `${team.ownerDisplayName} drafted ${playerName} for `;
+};

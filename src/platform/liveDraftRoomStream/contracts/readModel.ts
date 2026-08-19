@@ -1,3 +1,4 @@
+import type { LiveDraftRoomPick } from "../../liveDraftRooms.js";
 import type {
   LiveDraftRoom,
   LiveDraftRoomActor,
@@ -51,7 +52,8 @@ export interface LiveDraftRoomSaleLogEntry {
   teamDisplayName: string;
   playerName: string;
   position: LiveDraftRoomSale["position"];
-  price: number;
+  /** Auction rooms only. A snake pick costs nothing. */
+  price?: number | undefined;
   expectedPrice: number;
   teamAbbreviation?: string | undefined;
   byeWeek?: number | undefined;
@@ -87,6 +89,9 @@ export interface LiveDraftRoomReadModel {
   viewedTeam?: LiveDraftRoomTeamSummary | undefined;
   teamSummaries: readonly LiveDraftRoomTeamSummary[];
   salesLog: readonly LiveDraftRoomSaleLogEntry[];
+  /** Snake rooms only. Auction rooms have no fixed pick order. */
+  picks?: readonly LiveDraftRoomPick[] | undefined;
+  onTheClock?: LiveDraftRoomPick | undefined;
   connection: LiveDraftRoomConnectionState;
   exportReadiness: LiveDraftRoomExportReadiness;
 }

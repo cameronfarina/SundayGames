@@ -18,6 +18,7 @@ describe("live draft display rules", () => {
     expect(statuses.map(liveDraftStatusLabel))
       .toEqual(["Not started", "Starting soon", "Live", "Paused", "Complete"]);
     expect(formatDollars(1234)).toBe("$1,234");
+    expect(formatDollars(undefined)).toBe("-");
   });
 
   it("reports sales and filled roster progress", () => {

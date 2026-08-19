@@ -8,12 +8,13 @@ import type {
   LiveDraftRoom,
 } from "../../api/liveDraftSchemas";
 import type { LiveDraftConnection } from "../../hooks/useLiveDraftUpdates";
-import { selectedTeamId } from "../../lib/liveDraftDisplay";
+import { saleCommandFor, selectedTeamId } from "../../lib/liveDraftDisplay";
 import { liveDraftErrorMessage } from "../../lib/liveDraftError";
 import type { LiveDraftAction } from "../../lib/liveDraftMutation";
 import { DraftCommandPanel } from "../../components/DraftCommandPanel/DraftCommandPanel";
 import { DraftStatus } from "../../components/DraftStatus/DraftStatus";
 import { FinalActions } from "../../components/FinalActions/FinalActions";
+import { PickBoard } from "../../components/PickBoard/PickBoard";
 import { PlayerBoard } from "../../components/PlayerBoard/PlayerBoard";
 import { SaleLedger } from "../../components/SaleLedger/SaleLedger";
 import { TeamRoster } from "../../components/TeamRoster/TeamRoster";
@@ -84,10 +85,7 @@ export const LiveDraftWorkspace = ({
     });
   };
   const usePlayer = (player: LiveDraftBoardPlayer) => {
-    const team = room.teamSummaries.find(candidate => candidate.teamId === viewedTeamId);
-    setCommand(team === undefined
-      ? `${player.name} `
-      : `${team.ownerDisplayName} drafted ${player.name} for `);
+    setCommand(saleCommandFor(room, viewedTeamId, player.name));
   };
   const exportDraft = () => {
     void createExport().then(result => {
@@ -125,6 +123,8 @@ export const LiveDraftWorkspace = ({
     {room.status === "ended" && feedback !== undefined &&
       <InlineNotice variant={feedback.variant}>{feedback.message}</InlineNotice>}
     <DraftStatus connection={connection} room={room} />
+    {room.picks !== undefined
+      && <PickBoard onTheClock={room.onTheClock} picks={room.picks} viewedTeamId={viewedTeamId} />}
     <div className="live-draft__grid">
       <PlayerBoard {...(advisory === undefined ? {} : { advisory })}
         canManage={room.canMutateRoom} onUsePlayer={usePlayer}

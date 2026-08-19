@@ -10,7 +10,27 @@ import { rosterFitsDraftSlots } from "./rosterSlots.js";
 import { parseSaleInput, sourceInputLabelFor } from "./saleInput.js";
 import { resolvePlayer, resolveTeam } from "./teamPlayerResolution.js";
 
+/**
+ * A snake pick belongs to whoever is on the clock. A commissioner correcting the
+ * board is allowed past this, because the room is a record of a draft happening
+ * in the world rather than the draft itself.
+ */
+const assertSnakeTurn = (room: LiveDraftRoom, sale: LiveDraftRoomSale): void => {
+  if (room.season.settings.draftFormat !== "snake") return;
+  const onTheClock = room.projection.onTheClock;
+  if (onTheClock === undefined) {
+    throw new LiveDraftRoomError("draft_complete", "Every pick in this draft is already made.");
+  }
+  if (onTheClock.teamId !== sale.teamId) {
+    throw new LiveDraftRoomError(
+      "out_of_turn",
+      `${onTheClock.ownerDisplayName} is on the clock at pick ${onTheClock.round}.${String(onTheClock.pickInRound).padStart(2, "0")}.`,
+    );
+  }
+};
+
 export const validateSale = (room: LiveDraftRoom, sale: LiveDraftRoomSale): void => {
+  assertSnakeTurn(room, sale);
   const salePlayerIdentity = canonicalPlayerIdentityKey(sale.normalizedPlayerName);
   const playerIsAlreadyRostered = room.projection.teams.some(team =>
     team.roster.some(player =>
@@ -28,7 +48,7 @@ export const validateSale = (room: LiveDraftRoom, sale: LiveDraftRoomSale): void
   if (team.rosterSlotsRemaining <= 0) {
     throw new LiveDraftRoomError("roster_full", `${team.ownerDisplayName} has no open roster slots.`);
   }
-  if (team.maxBid !== undefined && sale.price > team.maxBid) {
+  if (team.maxBid !== undefined && sale.price !== undefined && sale.price > team.maxBid) {
     throw new LiveDraftRoomError(
       "max_bid_exceeded",
       `${team.ownerDisplayName} cannot buy ${sale.playerName} for $${sale.price}: max bid is $${team.maxBid}.`,
@@ -58,10 +78,13 @@ export const buildSale = (
   const parsed = parseSaleInput(input);
   const team = resolveTeam(room.season, parsed);
   const player = resolvePlayer(room.playerCatalog, parsed.playerName);
-  assertPositiveWholeDollar(
-    parsed.price,
-    `Sale price must be a positive whole-dollar amount for ${player.name}.`,
-  );
+  const snake = room.season.settings.draftFormat === "snake";
+  if (!snake) {
+    assertPositiveWholeDollar(
+      parsed.price ?? 0,
+      `Sale price must be a positive whole-dollar amount for ${player.name}.`,
+    );
+  }
   return {
     saleEventId,
     input: sourceInputLabelFor(input),
@@ -72,7 +95,7 @@ export const buildSale = (
     playerName: player.name,
     normalizedPlayerName: player.normalizedPlayerName,
     position: player.position,
-    price: parsed.price,
+    ...(snake || parsed.price === undefined ? {} : { price: parsed.price }),
     expectedPrice: player.expectedPrice,
     ...(player.teamAbbreviation === undefined ? {} : { teamAbbreviation: player.teamAbbreviation }),
     ...(player.byeWeek === undefined ? {} : { byeWeek: player.byeWeek }),

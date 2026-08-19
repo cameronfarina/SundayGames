@@ -87,8 +87,10 @@ export const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): numb
     case "mutation_denied": return 403;
     case "room_not_found": return 404;
     case "duplicate_player":
+    case "draft_complete":
     case "draft_incomplete":
     case "idempotency_conflict":
+    case "out_of_turn":
     case "max_bid_exceeded":
     case "no_sale_to_undo":
     case "position_limit":

@@ -23,7 +23,7 @@ const sortedRoster = (
 ): LiveDraftRoomRosterPlayer[] =>
   [...roster].sort(
     (left, right) =>
-      right.price - left.price
+      (right.price ?? 0) - (left.price ?? 0)
       || right.expectedPrice - left.expectedPrice
       || left.name.localeCompare(right.name),
   );
@@ -38,7 +38,7 @@ export const rosterSlotsFor = (
     slots.filter(slot => slot.eligiblePositions.includes(player.position)).length;
   const players = sortedRoster(roster).sort((left, right) =>
     eligibleSlotCountFor(left) - eligibleSlotCountFor(right)
-    || right.price - left.price
+    || (right.price ?? 0) - (left.price ?? 0)
     || left.name.localeCompare(right.name)
   );
   const assign = (player: LiveDraftRoomRosterPlayer, visited: Set<number>): boolean => {

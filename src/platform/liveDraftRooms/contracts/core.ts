@@ -33,6 +33,8 @@ export interface LiveDraftRoomActor {
   userId: string;
   leagueId: string;
   role?: WorkspaceRole | undefined;
+  /** The team this member manages, when they have claimed one. */
+  teamId?: string | undefined;
 }
 
 export type LiveDraftRoomMutationAction =

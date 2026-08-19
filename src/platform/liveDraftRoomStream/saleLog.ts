@@ -15,7 +15,7 @@ export const saleLogEntryFor = (
   teamDisplayName: sale.teamDisplayName,
   playerName: sale.playerName,
   position: sale.position,
-  price: sale.price,
+  ...(sale.price === undefined ? {} : { price: sale.price }),
   expectedPrice: sale.expectedPrice,
   ...(sale.teamAbbreviation === undefined ? {} : { teamAbbreviation: sale.teamAbbreviation }),
   ...(sale.byeWeek === undefined ? {} : { byeWeek: sale.byeWeek }),

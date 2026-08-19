@@ -40,7 +40,7 @@ const teamStateFor = (
   const auction = season.settings.auction;
   if (auction === undefined) return common;
 
-  const spent = roster.reduce((total, player) => total + player.price, 0);
+  const spent = roster.reduce((total, player) => total + (player.price ?? 0), 0);
   const budgetRemaining = auction.budgetDollars - spent;
   return {
     ...common,
