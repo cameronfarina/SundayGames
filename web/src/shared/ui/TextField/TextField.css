@@ -9,6 +9,11 @@
   font-weight: 700;
 }
 
+.text-field__required {
+  color: var(--color-danger);
+  margin-left: 0.2rem;
+}
+
 .text-field__input {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

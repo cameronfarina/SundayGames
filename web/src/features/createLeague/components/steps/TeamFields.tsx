@@ -16,6 +16,7 @@ export const TeamFields = ({ dispatch, index, showError, team }: TeamFieldsProps
       {...(showError && team.displayName.trim().length === 0 ? { error: "Enter a team name." } : {})}
       id={`team-${String(index + 1)}-name`}
       label="Team name"
+      required
       onChange={event => {
         dispatch({ type: "set-team-field", index, field: "displayName", value: event.currentTarget.value });
       }}

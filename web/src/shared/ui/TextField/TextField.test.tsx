@@ -34,6 +34,15 @@ describe("TextField", () => {
     unmount();
   });
 
+  it("marks a required field visually without native validation", () => {
+    const { unmount } = render(<TextField id="team-name" label="Team name" required />);
+    const input = screen.getByRole("textbox", { name: "Team name" });
+    expect(input).toHaveAttribute("aria-required", "true");
+    expect(input).not.toHaveAttribute("required");
+    expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
+    unmount();
+  });
+
   it("renders without supporting copy", () => {
     const { unmount } = render(<TextField id="manager" label="Manager" />);
     expect(screen.getByRole("textbox", { name: "Manager" })).not.toHaveAttribute("aria-describedby");

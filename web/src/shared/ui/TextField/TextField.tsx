@@ -2,11 +2,13 @@ import clsx from "clsx";
 import type { InputHTMLAttributes } from "react";
 import "./TextField.css";
 
-export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
+export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type" | "required"> {
   readonly error?: string;
   readonly hint?: string;
   readonly id: string;
   readonly label: string;
+  /** Marks the label with an asterisk; validation stays in the caller. */
+  readonly required?: boolean;
 }
 
 export const TextField = ({
@@ -15,6 +17,7 @@ export const TextField = ({
   hint,
   id,
   label,
+  required,
   ...inputProps
 }: TextFieldProps) => {
   const errorId = `${id}-error`;
@@ -25,10 +28,14 @@ export const TextField = ({
 
   return (
     <div className="text-field">
-      <label className="text-field__label" htmlFor={id}>{label}</label>
+      <label className="text-field__label" htmlFor={id}>
+        {label}
+        {required === true && <span aria-hidden="true" className="text-field__required">*</span>}
+      </label>
       <input
         {...inputProps}
         aria-describedby={describedBy}
+        aria-required={required === true ? true : undefined}
         aria-invalid={error !== undefined}
         className={clsx("text-field__input", className)}
         id={id}
