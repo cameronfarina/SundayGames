@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PlayerBoard } from "./PlayerBoard";
-import { liveAdvisory, liveRoom } from "../../test/liveDraftFixtures";
+import { injuredAdvisory, liveAdvisory, liveRoom } from "../../test/liveDraftFixtures";
 
 describe("PlayerBoard FantasyPros overlay", () => {
   it("leaves the board exactly as it was when FantasyPros is dark", () => {
@@ -65,6 +65,37 @@ describe("PlayerBoard FantasyPros overlay", () => {
 
     const row = screen.getByRole("row", { name: /Unranked Rookie/u });
     expect(within(row).getByText("--")).toBeInTheDocument();
+  });
+
+  it("chips the row of a player FantasyPros filed an injury report about", () => {
+    render(<PlayerBoard
+      advisory={injuredAdvisory}
+      canManage={false}
+      onUsePlayer={vi.fn()}
+      players={liveRoom.board}
+      roomIsLive
+    />);
+
+    const row = screen.getByRole("row", { name: /Puka Nacua/u });
+    const chip = within(row).getByRole("button", {
+      name: /Nacua is questionable with a knee injury/u,
+    });
+    expect(chip).toHaveTextContent("INJ");
+    // The rank the drafter scans stays where it was; the chip rides beside it.
+    expect(within(row).getByText("3")).toBeInTheDocument();
+  });
+
+  it("adds nothing to the row of a player nobody filed a report about", () => {
+    render(<PlayerBoard
+      advisory={liveAdvisory}
+      canManage={false}
+      onUsePlayer={vi.fn()}
+      players={liveRoom.board}
+      roomIsLive
+    />);
+
+    const row = screen.getByRole("row", { name: /Puka Nacua/u });
+    expect(within(row).queryByText("INJ")).not.toBeInTheDocument();
   });
 
   it("keeps the price columns last so bidding controls stay put", () => {

@@ -1,6 +1,7 @@
 import { VisuallyHidden } from "../../../../shared/ui";
 import type { LiveDraftAdvisoryPlayer } from "../../api/liveDraftAdvisorySchemas";
 import { advisorySummary, momentumLabel } from "../../lib/liveDraftAdvisory";
+import { InjuryChip } from "../InjuryChip/InjuryChip";
 import "./PlayerAdvisory.css";
 
 interface PlayerAdvisoryProps {
@@ -23,6 +24,7 @@ export const PlayerAdvisory = ({ advisory }: PlayerAdvisoryProps) => {
         <span aria-hidden="true">{momentumMark(advisory.momentum)}</span>
         <VisuallyHidden>{momentumLabel(advisory)}</VisuallyHidden>
       </span>}
+      <InjuryChip injury={advisory.injury} />
     </span>
   );
 };

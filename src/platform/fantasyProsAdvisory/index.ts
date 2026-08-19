@@ -1,7 +1,13 @@
 import type { FantasyProsStoredPlayer, FantasyProsStoredRanking } from "../fantasyPros.js";
+import {
+  emptyFantasyProsPlayerNewsIndex,
+  fantasyProsNewsFor,
+  type FantasyProsPlayerNewsIndex,
+} from "../fantasyProsInSeason.js";
 import { buildFantasyProsPlayerIndex } from "../fantasyProsMatching.js";
 import type {
   BuildFantasyProsDraftAdvisoryInput,
+  FantasyProsAdvisoryInjury,
   FantasyProsAdvisoryPlayer,
   FantasyProsDraftAdvisory,
   FantasyProsRankMomentum,
@@ -28,6 +34,17 @@ const playerRecordFor = (ranking: FantasyProsStoredRanking): FantasyProsStoredPl
   fetchedAt: ranking.fetchedAt,
 });
 
+// A report that is not about a player's health belongs on the news page, not on
+// a bid clock, so only the injury-flagged ones reach the board.
+const injuryFor = (
+  news: FantasyProsPlayerNewsIndex,
+  ranking: FantasyProsStoredRanking,
+): FantasyProsAdvisoryInjury | undefined => {
+  const report = fantasyProsNewsFor(news, ranking.playerId);
+  if (report?.injury !== true) return undefined;
+  return { headline: report.headline, publishedAt: report.publishedAt };
+};
+
 export const buildFantasyProsDraftAdvisory = (
   input: BuildFantasyProsDraftAdvisoryInput,
 ): FantasyProsDraftAdvisory => {
@@ -35,6 +52,7 @@ export const buildFantasyProsDraftAdvisory = (
     players: input.rankings.map(playerRecordFor),
     rankings: input.rankings,
   });
+  const news = input.news ?? emptyFantasyProsPlayerNewsIndex();
   const players: FantasyProsAdvisoryPlayer[] = [];
   for (const candidate of input.candidates) {
     const ranking = index.find(candidate)?.ranking;
@@ -46,6 +64,7 @@ export const buildFantasyProsDraftAdvisory = (
       positionRank: ranking.positionRank,
       momentum: momentumFor(ranking.ecrDelta),
       ecrDelta: ranking.ecrDelta,
+      injury: injuryFor(news, ranking),
     });
   }
   const [first] = input.rankings;

@@ -21,6 +21,7 @@ export { buildFantasyProsInSeasonView } from "./fantasyProsInSeason/index.js";
 export type { BuildFantasyProsInSeasonViewInput } from "./fantasyProsInSeason/index.js";
 export {
   emptyFantasyProsPlayerNewsIndex,
+  fantasyProsNewsFor,
   loadFantasyProsPlayerNewsIndex,
 } from "./fantasyProsInSeason/news.js";
 export type { FantasyProsPlayerNewsIndex } from "./fantasyProsInSeason/news.js";

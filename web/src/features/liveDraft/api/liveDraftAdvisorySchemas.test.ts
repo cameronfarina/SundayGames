@@ -46,6 +46,42 @@ describe("liveDraftAdvisorySchema", () => {
     });
   });
 
+  it("accepts an injury report riding along with a player", () => {
+    const parsed = liveDraftAdvisorySchema.parse({
+      configured: true,
+      basis: "ros",
+      week: 4,
+      players: [{
+        normalizedPlayerName: "Jahmyr Gibbs",
+        rankEcr: 2,
+        momentum: "steady",
+        injury: {
+          headline: "Gibbs is limited with an ankle injury",
+          publishedAt: "2026-09-17T08:30:00.000Z",
+        },
+      }],
+    });
+
+    expect(parsed.players[0]?.injury).toEqual({
+      headline: "Gibbs is limited with an ankle injury",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+    });
+  });
+
+  it("rejects an injury report with no headline", () => {
+    expect(liveDraftAdvisorySchema.safeParse({
+      configured: true,
+      basis: "ros",
+      week: 1,
+      players: [{
+        normalizedPlayerName: "Nobody",
+        rankEcr: 1,
+        momentum: "steady",
+        injury: { headline: "", publishedAt: "2026-09-17T08:30:00.000Z" },
+      }],
+    }).success).toBe(false);
+  });
+
   it("rejects an unknown momentum", () => {
     expect(liveDraftAdvisorySchema.safeParse({
       configured: true,

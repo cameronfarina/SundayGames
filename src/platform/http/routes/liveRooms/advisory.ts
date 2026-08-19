@@ -3,6 +3,11 @@ import {
   buildFantasyProsDraftAdvisory,
   type FantasyProsAdvisoryBasis,
 } from "../../../fantasyProsAdvisory.js";
+import {
+  emptyFantasyProsPlayerNewsIndex,
+  loadFantasyProsPlayerNewsIndex,
+  type FantasyProsPlayerNewsIndex,
+} from "../../../fantasyProsInSeason.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { methodNotAllowed } from "../../responses.js";
@@ -22,6 +27,18 @@ const rankingsFor = async (repository: FantasyProsRepository): Promise<AdvisoryR
 
 const darkAdvisory = { basis: "ros", configured: false, players: [], week: null };
 
+// One seven-day read per request, joined against every ranked player at once.
+// The room fetches its advisory on page load and holds it for five minutes, so
+// there is no interval here to cache against.
+const newsFor = async (
+  services: PlatformHttpServices,
+  now: Date | undefined,
+): Promise<FantasyProsPlayerNewsIndex> => {
+  const repository = services.playerNewsRepository;
+  if (repository === undefined) return emptyFantasyProsPlayerNewsIndex();
+  return await loadFantasyProsPlayerNewsIndex(repository, now);
+};
+
 export const routeLiveRoomAdvisory = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -40,10 +57,14 @@ export const routeLiveRoomAdvisory = async (
   if (repository === undefined || services.fantasyProsConfigured !== true) {
     return { status: 200, body: darkAdvisory };
   }
-  const { basis, rankings } = await rankingsFor(repository);
+  const [{ basis, rankings }, news] = await Promise.all([
+    rankingsFor(repository),
+    newsFor(services, request.now),
+  ]);
   const advisory = buildFantasyProsDraftAdvisory({
     basis,
     candidates: room.playerCatalog,
+    news,
     rankings,
   });
   return {

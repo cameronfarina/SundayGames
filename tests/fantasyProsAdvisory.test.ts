@@ -4,6 +4,10 @@ import {
   buildFantasyProsDraftAdvisory,
   type FantasyProsAdvisoryCandidate,
 } from "../src/platform/fantasyProsAdvisory.js";
+import type {
+  FantasyProsPlayerNews,
+  FantasyProsPlayerNewsIndex,
+} from "../src/platform/fantasyProsInSeason.js";
 
 const fetchedAt = "2026-09-10T12:00:00.000Z";
 
@@ -151,5 +155,80 @@ describe("FantasyPros draft advisory", () => {
     });
 
     expect(advisory).toEqual({ basis: "ros", week: undefined, players: [] });
+  });
+});
+
+const newsIndex = (
+  entries: Readonly<Record<string, FantasyProsPlayerNews>>,
+): FantasyProsPlayerNewsIndex => new Map(Object.entries(entries));
+
+const gibbsRanking = ranking({
+  playerId: 1,
+  playerName: "Jahmyr Gibbs",
+  position: "RB",
+  rankEcr: 2,
+});
+
+const ankleInjury = {
+  headline: "Gibbs is limited with an ankle injury",
+  publishedAt: "2026-09-17T08:30:00.000Z",
+  injury: true,
+};
+
+describe("FantasyPros draft advisory injuries", () => {
+  it("carries the newest injury report for a matched player", () => {
+    const advisory = buildFantasyProsDraftAdvisory({
+      basis: "ros",
+      rankings: [gibbsRanking],
+      candidates: [candidate("Jahmyr Gibbs", "RB")],
+      news: newsIndex({ 1: ankleInjury }),
+    });
+
+    expect(advisory.players[0]?.injury).toEqual({
+      headline: "Gibbs is limited with an ankle injury",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+    });
+  });
+
+  it("leaves a report FantasyPros did not file under injury off the board", () => {
+    const advisory = buildFantasyProsDraftAdvisory({
+      basis: "ros",
+      rankings: [gibbsRanking],
+      candidates: [candidate("Jahmyr Gibbs", "RB")],
+      news: newsIndex({
+        1: { ...ankleInjury, headline: "Gibbs draws first-team reps", injury: false },
+      }),
+    });
+
+    expect(advisory.players[0]?.injury).toBeUndefined();
+  });
+
+  it("leaves a player nobody reported on unmarked", () => {
+    const advisory = buildFantasyProsDraftAdvisory({
+      basis: "ros",
+      rankings: [gibbsRanking],
+      candidates: [candidate("Jahmyr Gibbs", "RB")],
+      news: newsIndex({ 99: ankleInjury }),
+    });
+
+    expect(advisory.players[0]?.injury).toBeUndefined();
+  });
+
+  it("builds the same advisory it always did when no news is supplied", () => {
+    const advisory = buildFantasyProsDraftAdvisory({
+      basis: "ros",
+      rankings: [gibbsRanking],
+      candidates: [candidate("Jahmyr Gibbs", "RB")],
+    });
+
+    expect(advisory.players).toEqual([{
+      normalizedPlayerName: "jahmyr gibbs",
+      rankEcr: 2,
+      tier: undefined,
+      positionRank: undefined,
+      momentum: "steady",
+      ecrDelta: undefined,
+      injury: undefined,
+    }]);
   });
 });

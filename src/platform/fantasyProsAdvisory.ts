@@ -2,6 +2,7 @@ export type {
   BuildFantasyProsDraftAdvisoryInput,
   FantasyProsAdvisoryBasis,
   FantasyProsAdvisoryCandidate,
+  FantasyProsAdvisoryInjury,
   FantasyProsAdvisoryPlayer,
   FantasyProsDraftAdvisory,
   FantasyProsRankMomentum,

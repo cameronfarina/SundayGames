@@ -121,6 +121,16 @@ export const liveAdvisory = liveDraftAdvisorySchema.parse({
   }],
 });
 
+export const nacuaInjury = {
+  headline: "Nacua is questionable with a knee injury",
+  publishedAt: "2026-09-17T08:30:00.000Z",
+};
+
+export const injuredAdvisory = liveDraftAdvisorySchema.parse({
+  ...liveAdvisory,
+  players: liveAdvisory.players.map(player => ({ ...player, injury: nacuaInjury })),
+});
+
 export const darkAdvisory = liveDraftAdvisorySchema.parse({
   configured: false,
   basis: "ros",

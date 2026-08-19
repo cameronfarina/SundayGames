@@ -1,5 +1,7 @@
+import { formatNewsTimestamp } from "../../playerNews/lib/formatNewsTimestamp";
 import type {
   LiveDraftAdvisory,
+  LiveDraftAdvisoryInjury,
   LiveDraftAdvisoryPlayer,
 } from "../api/liveDraftAdvisorySchemas";
 
@@ -20,6 +22,12 @@ export const advisoryBasisLabel = (advisory: LiveDraftAdvisory): string => {
 export const momentumLabel = (player: LiveDraftAdvisoryPlayer): string => {
   const direction = player.momentum === "rising" ? "up" : "down";
   return `consensus rank ${direction} ${String(Math.abs(player.ecrDelta ?? 0))}`;
+};
+
+export const injuryLabel = (injury: LiveDraftAdvisoryInjury): string => {
+  const reported = formatNewsTimestamp(injury.publishedAt);
+  const report = `Injury report: ${injury.headline}`;
+  return reported === undefined ? report : `${report} (${reported})`;
 };
 
 export const advisorySummary = (player: LiveDraftAdvisoryPlayer): string => {

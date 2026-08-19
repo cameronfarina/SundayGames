@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   LiveDraftAdvisory,
   LiveDraftAdvisoryPlayer,
@@ -7,6 +7,7 @@ import {
   advisoryBasisLabel,
   advisoryByPlayerName,
   advisorySummary,
+  injuryLabel,
   momentumLabel,
 } from "./liveDraftAdvisory";
 
@@ -79,5 +80,25 @@ describe("advisorySummary", () => {
 
   it("lists the rank alone when nothing else is known", () => {
     expect(advisorySummary(player())).toBe("Consensus rank 3");
+  });
+});
+
+describe("injuryLabel", () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it("names the report and when FantasyPros filed it", () => {
+    vi.stubEnv("TZ", "America/New_York");
+
+    expect(injuryLabel({
+      headline: "Gibbs is limited with an ankle injury",
+      publishedAt: "2026-09-17T12:19:00.000Z",
+    })).toBe("Injury report: Gibbs is limited with an ankle injury (9/17 8:19am)");
+  });
+
+  it("keeps the report when the timestamp cannot be read", () => {
+    expect(injuryLabel({
+      headline: "Gibbs is limited with an ankle injury",
+      publishedAt: "not-a-date",
+    })).toBe("Injury report: Gibbs is limited with an ankle injury");
   });
 });

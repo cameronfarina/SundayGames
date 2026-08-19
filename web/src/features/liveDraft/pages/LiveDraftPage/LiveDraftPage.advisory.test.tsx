@@ -7,7 +7,7 @@ import {
   useAdvisoryResponse,
   useRoomResponse,
 } from "./LiveDraftPage.testSupport";
-import { liveAdvisory } from "../../test/liveDraftFixtures";
+import { injuredAdvisory, liveAdvisory } from "../../test/liveDraftFixtures";
 
 beforeAll(() => {
   vi.stubGlobal("EventSource", undefined);
@@ -28,6 +28,18 @@ describe("LiveDraftPage FantasyPros overlay", () => {
 
     expect(await screen.findByRole("columnheader", { name: "FP rank" })).toBeVisible();
     expect(screen.getByText(/Data by FantasyPros/u)).toHaveTextContent("rest-of-season ranks");
+  });
+
+  it("chips an injured player once the advisory loads", async () => {
+    useRoomResponse();
+    useAdvisoryResponse(injuredAdvisory);
+
+    renderLiveDraftPage();
+
+    const chip = await screen.findByRole("button", {
+      name: /Nacua is questionable with a knee injury/u,
+    });
+    expect(chip).toHaveTextContent("INJ");
   });
 
   it("draws exactly today's board when the advisory request is refused", async () => {

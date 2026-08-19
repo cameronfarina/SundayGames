@@ -1,0 +1,55 @@
+.injury-chip {
+  display: inline-flex;
+  position: relative;
+}
+
+.injury-chip__mark {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  border: 1px solid var(--color-warning);
+  border-radius: 999px;
+  color: var(--color-warning);
+  cursor: help;
+  font-size: 0.7rem;
+  font-weight: 700;
+  /* Sized off the tier badge beside it so a marked row keeps its height. */
+  line-height: 1;
+  padding: 0.15rem var(--space-1);
+}
+
+.injury-chip__mark:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * The board's scroll box clips at the bottom edge of the last row, so this
+ * tooltip opens upward where the other tooltips in the app open downward. Every
+ * row but the first then has the whole table above it to open into, and the
+ * first row still has the header row. The button's own title carries the
+ * headline regardless, since a browser draws that outside the scroll box.
+ */
+.injury-chip__tooltip {
+  background: var(--color-text);
+  border-radius: 4px;
+  bottom: calc(100% + 0.4rem);
+  color: var(--color-background);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  /* On a phone the board is scrolled right to reach this column, which leaves
+     the room to the right of the chip, and never wider than the screen. */
+  left: 0;
+  max-width: min(18rem, 60vw);
+  padding: 0.35rem 0.5rem;
+  position: absolute;
+  text-align: left;
+  text-transform: none;
+  visibility: hidden;
+  white-space: normal;
+  width: max-content;
+  z-index: 50;
+}
+
+.injury-chip:hover .injury-chip__tooltip,
+.injury-chip:focus-within .injury-chip__tooltip {
+  visibility: visible;
+}

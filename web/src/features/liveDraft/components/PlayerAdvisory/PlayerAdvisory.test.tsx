@@ -51,6 +51,25 @@ describe("PlayerAdvisory", () => {
     expect(screen.queryByText("▼")).not.toBeInTheDocument();
   });
 
+  it("chips a player FantasyPros filed an injury report about", () => {
+    render(<PlayerAdvisory advisory={player({
+      injury: {
+        headline: "Gibbs is limited with an ankle injury",
+        publishedAt: "2026-09-17T08:30:00.000Z",
+      },
+    })} />);
+
+    expect(screen.getByRole("button", { name: /Gibbs is limited with an ankle injury/u }))
+      .toHaveTextContent("INJ");
+  });
+
+  it("leaves a healthy player's row exactly as it was", () => {
+    render(<PlayerAdvisory advisory={player()} />);
+
+    expect(screen.queryByText("INJ")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("summarises the advisory in a hover title", () => {
     render(<PlayerAdvisory advisory={player({ positionRank: "WR2", tier: 1 })} />);
 

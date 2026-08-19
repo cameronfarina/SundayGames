@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryFantasyProsRepository } from "../src/platform/fantasyPros.js";
+import { InMemoryPlayerNewsRepository } from "../src/platform/playerNews.js";
 import { InMemoryPlatformStore, createPlatformApp } from "../src/platform/platformApp.js";
 import {
   createPlatformHttpHandler,
@@ -25,6 +26,33 @@ const seedRankings = async (repository: InMemoryFantasyProsRepository): Promise<
       { playerId: 3, playerName: "Xavier Legette", position: "WR", rankEcr: 190, tier: 12, positionRank: "WR72", ecrDelta: -6 },
     ],
   });
+};
+
+const seedNews = async (repository: InMemoryPlayerNewsRepository): Promise<void> => {
+  await repository.saveItems([
+    {
+      provider: "fantasypros",
+      providerItemId: "603054",
+      title: "Gibbs is limited with an ankle injury",
+      summary: "",
+      publishedAt: "2026-09-17T08:30:00.000Z",
+      fetchedAt: "2026-09-17T09:00:00.000Z",
+      tags: [],
+      categories: ["News", "Injury"],
+      providerPlayerId: "2",
+    },
+    {
+      provider: "fantasypros",
+      providerItemId: "603055",
+      title: "Nacua draws first-team reps",
+      summary: "",
+      publishedAt: "2026-09-17T08:00:00.000Z",
+      fetchedAt: "2026-09-17T09:00:00.000Z",
+      tags: [],
+      categories: ["Commentary"],
+      providerPlayerId: "1",
+    },
+  ]);
 };
 
 const openRoom = async (services: PlatformHttpServices): Promise<{
@@ -115,6 +143,60 @@ describe("live draft room advisory route", () => {
           },
         ],
       },
+    });
+  });
+
+  it("marks a ranked player FantasyPros filed an injury report about", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    await seedRankings(repository);
+    const newsRepository = new InMemoryPlayerNewsRepository();
+    await seedNews(newsRepository);
+    const { handle, sessionToken } = await openRoom({
+      fantasyProsRepository: repository,
+      fantasyProsConfigured: true,
+      playerNewsRepository: newsRepository,
+    });
+
+    const response = await handle({
+      method: "GET",
+      path: `/live-rooms/${roomId}/advisory`,
+      sessionToken,
+      now: new Date("2026-09-17T12:00:00.000Z"),
+    });
+
+    expect(response.body).toMatchObject({
+      players: [
+        // Nacua's report is commentary, so he stays unmarked.
+        { normalizedPlayerName: "Puka Nacua", injury: undefined },
+        { normalizedPlayerName: "Xavier Legette", injury: undefined },
+        {
+          normalizedPlayerName: "Jahmyr Gibbs",
+          injury: {
+            headline: "Gibbs is limited with an ankle injury",
+            publishedAt: "2026-09-17T08:30:00.000Z",
+          },
+        },
+      ],
+    });
+  });
+
+  it("serves today's advisory when no news repository is composed", async () => {
+    const repository = new InMemoryFantasyProsRepository();
+    await seedRankings(repository);
+    const { handle, sessionToken } = await openRoom({
+      fantasyProsRepository: repository,
+      fantasyProsConfigured: true,
+    });
+
+    const response = await handle({ method: "GET", path: `/live-rooms/${roomId}/advisory`, sessionToken });
+
+    expect(response.body).toMatchObject({
+      configured: true,
+      players: [
+        { normalizedPlayerName: "Puka Nacua", injury: undefined },
+        { normalizedPlayerName: "Xavier Legette", injury: undefined },
+        { normalizedPlayerName: "Jahmyr Gibbs", injury: undefined },
+      ],
     });
   });
 
