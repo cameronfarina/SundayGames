@@ -5,11 +5,9 @@ import { DraftSseParser, SseContractError, type DraftSseEvent } from "./sse.js";
 interface EventWaiter extends ExpectedDraftEvent {
   finish(diagnostic: string): void;
 }
-
 class StreamOpenError extends Error {
   constructor(readonly diagnostic: string) { super(diagnostic); }
 }
-
 export class DraftStreamConnection {
   readonly #events: DraftSseEvent[] = [];
   readonly #waiters = new Set<EventWaiter>();
