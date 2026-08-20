@@ -1,13 +1,10 @@
-import { clearMockdSessionCookie, mockdSessionCookie } from "../../platformCookies.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../request/parsedRequest.js";
 import { optionalString, stringValue } from "../request/values.js";
-import { authRequiredBody, invalidCredentialsBody, methodNotAllowed, notFound } from "../responses.js";
+import { methodNotAllowed, notFound } from "../responses.js";
 import { accountCreationDenied } from "./policy.js";
-import { publicSessionFor } from "./publicSession.js";
 import { authActionRateLimitResponse, authRateLimitResponse } from "./rateLimits.js";
-import { loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
-import { requireRequestAccount } from "./access.js";
+import { routeSessions } from "./routeSessions.js";
 
 export const authRoots = new Set([
   "accounts",
@@ -94,65 +91,7 @@ export const routeAuth = async (
     });
     return { status: 200, body: { reset: true } };
   }
-  if (root === "sessions" && request.segments.length === 1) {
-    if (request.method !== "POST") return methodNotAllowed();
-    const email = stringValue(request.body.email);
-    const limited = await loginRateLimitResponse(
-      request, email, services.loginRateLimiter, services.authClientRateLimiter,
-    );
-    if (limited !== null) return limited;
-    const login = await app.login({ email, password: stringValue(request.body.password), now: request.now });
-    if (login === null) return { status: 401, body: invalidCredentialsBody };
-    await services.loginRateLimiter?.reset(loginRateLimitKey(request, email));
-    return {
-      status: 200,
-      headers: { "Set-Cookie": mockdSessionCookie(login.sessionToken, { expires: login.session.expiresAt, secure: secureSessionCookie }) },
-      body: { account: login.account, session: publicSessionFor(login.session) },
-    };
-  }
-  if (root === "session" && action === "password" && request.segments.length === 2) {
-    if (request.method !== "PUT") return methodNotAllowed();
-    const account = await requireRequestAccount(app, request);
-    const limited = await loginRateLimitResponse(
-      request, account.email, services.loginRateLimiter, services.authClientRateLimiter,
-    );
-    if (limited !== null) return limited;
-    await app.changePassword({
-      actorSessionToken: request.sessionToken,
-      currentPassword: stringValue(request.body.currentPassword),
-      newPassword: stringValue(request.body.newPassword),
-      newPasswordConfirmation: stringValue(request.body.newPasswordConfirmation),
-      now: request.now,
-    });
-    await services.loginRateLimiter?.reset(loginRateLimitKey(request, account.email));
-    return { status: 200, headers: { "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }) }, body: { ok: true } };
-  }
-  if (root === "session" && action === "profile" && request.segments.length === 2) {
-    if (request.method !== "PUT") return methodNotAllowed();
-    const account = await app.updateDisplayName({
-      actorSessionToken: request.sessionToken,
-      displayName: stringValue(request.body.displayName),
-      now: request.now,
-    });
-    return { status: 200, body: { account } };
-  }
-  /* The landing page asks this before it renders. A signed-out visitor is the
-     normal case there, so answering 401 would print a failed request in every
-     visitor's console for something that did not fail. */
-  if (root === "session-state" && request.segments.length === 1) {
-    if (request.method !== "GET") return methodNotAllowed();
-    const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
-    return { status: 200, body: { signedIn: account !== null } };
-  }
-  if (root === "session" && request.segments.length === 1) {
-    if (request.method === "GET") {
-      const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
-      return account === null ? { status: 401, body: authRequiredBody } : { status: 200, body: { account } };
-    }
-    if (request.method === "DELETE") {
-      await app.logout({ actorSessionToken: request.sessionToken, now: request.now });
-      return { status: 200, headers: { "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }) }, body: { ok: true } };
-    }
-  }
+  const session = await routeSessions(app, request, services, secureSessionCookie);
+  if (session !== null) return session;
   return notFound();
 };
