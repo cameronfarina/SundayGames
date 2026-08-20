@@ -21,7 +21,13 @@ export const asksForCookies = (error: unknown): boolean =>
   error instanceof PlatformApiError &&
   (error.code === "credentials_required" || error.code === "credentials_rejected");
 
-export type LeagueImportStatus = "idle" | "importing" | "imported" | "linked" | "error";
+export type LeagueImportStatus =
+  | "idle"
+  | "importing"
+  | "imported"
+  | "linked"
+  | "needs_attention"
+  | "error";
 export interface LeagueImportState {
   readonly status: LeagueImportStatus;
   readonly message?: string;
@@ -29,6 +35,20 @@ export interface LeagueImportState {
 
 const leagueKey = (league: { providerLeagueId: string; season: string }): string =>
   `${league.providerLeagueId}:${league.season}`;
+
+const completedStateFor = (connection: LeagueConnection): LeagueImportState => {
+  if (connection.linkedSeasonId !== undefined) return { status: "imported" };
+  if (connection.status === "needs_attention") {
+    return {
+      status: "needs_attention",
+      message: connection.statusDetail ?? "This league needs review before it can be imported.",
+    };
+  }
+  return {
+    status: "error",
+    message: connection.statusDetail ?? "Sunday Games synced this league but could not import it.",
+  };
+};
 
 export const useAddConnectionForm = (
   providers: readonly LeagueConnectionProviderInfo[],
@@ -85,7 +105,7 @@ export const useAddConnectionForm = (
     if (provider === undefined) return;
     setLeagueState(league, { status: "importing" });
     mutations.connect.mutate(requestFor(league), {
-      onSuccess: () => { setLeagueState(league, { status: "imported" }); },
+      onSuccess: result => { setLeagueState(league, completedStateFor(result.connection)); },
       onError: error => {
         setLeagueState(league, {
           status: "error",
@@ -103,8 +123,8 @@ export const useAddConnectionForm = (
         if (state.status === "linked" || state.status === "imported") continue;
         setLeagueState(league, { status: "importing" });
         try {
-          await mutations.connect.mutateAsync(requestFor(league));
-          setLeagueState(league, { status: "imported" });
+          const result = await mutations.connect.mutateAsync(requestFor(league));
+          setLeagueState(league, completedStateFor(result.connection));
         } catch (error) {
           setLeagueState(league, {
             status: "error",
