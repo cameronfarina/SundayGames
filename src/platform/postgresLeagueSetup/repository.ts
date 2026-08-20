@@ -15,7 +15,10 @@ import { claimLeagueSeasonTeam } from "./claimTeam.js";
 import { joinLeagueSeasonTeam } from "./joinTeam.js";
 import { archiveLeague, isLeagueArchived } from "./leagueWrites.js";
 import { findMembership, membershipsForLeague } from "./membershipReads.js";
-import { registerLeagueSeason } from "./registerLeagueSeason.js";
+import {
+  registerLeagueSeason,
+  registerLeagueSeasonInTransaction,
+} from "./registerLeagueSeason.js";
 import {
   findLeagueSeason,
   findLeagueSeasonForLeagueYear,
@@ -36,6 +39,36 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
 
   async registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): Promise<LeagueSeason> {
     return await registerLeagueSeason(this.#client, this.#leagueCreationLimits, input);
+  }
+
+  async registerLeagueSeasonWithConnection(
+    input: RegisterLeagueSeasonRepositoryInput,
+    leagueConnectionId: string,
+  ): Promise<LeagueSeason> {
+    return await this.#client.transaction(async transactionClient => {
+      const season = await registerLeagueSeasonInTransaction(
+        transactionClient,
+        this.#leagueCreationLimits,
+        input,
+      );
+      const linked = await transactionClient.query<{ id: string }>(`
+UPDATE league_connections
+SET league_season_id = $2,
+    updated_at = $4
+WHERE id = $1
+  AND account_id = $3
+RETURNING id;
+`.trim(), [
+        leagueConnectionId,
+        season.id,
+        input.createdByUserId,
+        input.now ?? new Date(),
+      ]);
+      if (linked.rows[0] === undefined) {
+        throw new Error("League connection disappeared before its imported season was linked.");
+      }
+      return season;
+    });
   }
 
   async archiveLeague(input: ArchiveLeagueRepositoryInput): Promise<boolean> {

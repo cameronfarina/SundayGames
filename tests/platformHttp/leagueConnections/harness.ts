@@ -10,7 +10,10 @@ import {
   type PlatformApp,
   type PlatformHttpHandler,
 } from "../support/index.js";
-import type { LeagueCreationLimits } from "../../../src/platform/leagueSetup.js";
+import type {
+  LeagueCreationLimits,
+  LeagueSetupRepository,
+} from "../../../src/platform/leagueSetup.js";
 
 export const syncNow = new Date("2026-08-19T12:00:00.000Z");
 
@@ -46,6 +49,7 @@ export interface LeagueConnectionsHarness {
 export interface LeagueConnectionsHarnessOptions {
   withRepository?: boolean;
   leagueCreationLimits?: LeagueCreationLimits;
+  httpLeagueSetupRepository?: LeagueSetupRepository;
 }
 
 export const createLeagueConnectionsHarness = async (
@@ -64,6 +68,9 @@ export const createLeagueConnectionsHarness = async (
     leagueSyncFetch: fetcher,
     // Imported leagues resolve their public slug the same way the header does.
     onboardingRepository: new InMemoryPlatformOnboardingRepository(() => store.onboardingSnapshot()),
+    ...(options.httpLeagueSetupRepository === undefined
+      ? {}
+      : { leagueSetupRepository: options.httpLeagueSetupRepository }),
     ...(options.withRepository === false ? {} : { leagueConnectionRepository: repository }),
   });
   const { sessionToken } = await createLoggedInAccount(handle, "owner@example.com");

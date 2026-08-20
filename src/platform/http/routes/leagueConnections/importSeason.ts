@@ -17,6 +17,7 @@ export const createdImportSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   accountId: string,
+  leagueConnectionId: string,
   input: ConfirmedLeagueCreationInput,
 ): Promise<LeagueSeason> => {
   const season = createLeagueSeasonFromConfirmedSetup(input);
@@ -26,6 +27,7 @@ export const createdImportSeason = async (
     season,
     memberships: [{ userId: accountId, leagueId: season.leagueId, role: "owner" }],
     enforceCreationRateLimit: false,
+    leagueConnectionId,
     now: request.now,
   });
 };
@@ -40,6 +42,7 @@ export const overwrittenImportSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   existing: LeagueSeason,
+  leagueConnectionId: string,
   input: ConfirmedLeagueCreationInput,
 ): Promise<LeagueSeason> => await app.registerLeagueSeason({
   actorSessionToken: request.sessionToken,
@@ -47,5 +50,6 @@ export const overwrittenImportSeason = async (
   memberships: [],
   membershipWriteMode: "preserve",
   expectedSetupRevision: leagueSeasonSetupRevision(existing),
+  leagueConnectionId,
   now: request.now,
 });

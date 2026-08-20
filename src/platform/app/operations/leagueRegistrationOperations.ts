@@ -16,7 +16,7 @@ export const createLeagueRegistrationOperations = (context: PlatformAppContext) 
   registerLeagueSeason: async (input: RegisterLeagueSeasonInput): Promise<LeagueSeason> => {
     const account = await context.requireAccount(input.actorSessionToken, input.now);
     await assertRegistrationAllowed(context, account, input.season, input.memberships);
-    const registered = await context.leagueSetup.registerLeagueSeason({
+    const repositoryInput = {
       season: input.season,
       memberships: input.memberships,
       createdByUserId: account.id,
@@ -30,7 +30,14 @@ export const createLeagueRegistrationOperations = (context: PlatformAppContext) 
         ? {}
         : { enforceCreationRateLimit: input.enforceCreationRateLimit }),
       now: input.now,
-    });
+    };
+    const registered = input.leagueConnectionId !== undefined &&
+        context.leagueSetup.registerLeagueSeasonWithConnection !== undefined
+      ? await context.leagueSetup.registerLeagueSeasonWithConnection(
+        repositoryInput,
+        input.leagueConnectionId,
+      )
+      : await context.leagueSetup.registerLeagueSeason(repositoryInput);
     if (context.usesExternalLeagueSetup) {
       context.store.registerLeagueSeason({
         season: registered,

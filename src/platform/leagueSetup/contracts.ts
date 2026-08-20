@@ -62,6 +62,10 @@ export interface JoinLeagueSeasonTeamRepositoryInput
 
 export interface LeagueSetupRepository {
   registerLeagueSeason(input: RegisterLeagueSeasonRepositoryInput): MaybePromise<LeagueSeason>;
+  registerLeagueSeasonWithConnection?(
+    input: RegisterLeagueSeasonRepositoryInput,
+    leagueConnectionId: string,
+  ): MaybePromise<LeagueSeason>;
   archiveLeague(input: ArchiveLeagueRepositoryInput): MaybePromise<boolean>;
   isLeagueArchived(leagueId: string): MaybePromise<boolean>;
   claimLeagueSeasonTeam(
