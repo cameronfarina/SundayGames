@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   needsAttentionConnectionFixture,
   providerCatalogFixture,
@@ -36,6 +36,22 @@ describe("ConnectionsPage", () => {
     expect(screen.getByText("Alvin Kamara")).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Matchups (2)" }));
     expect(screen.getByRole("table", { name: /Weekly matchups/u })).toBeVisible();
+  });
+
+  it("brings the opened league into view, and again when another card is chosen", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    const user = userEvent.setup();
+    renderConnectionsPage();
+
+    await user.click(await screen.findByRole("button", { name: "View Sleeper Friends League" }));
+    await waitFor(() => { expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" }); });
+
+    // The detail is already on the page, so only the selection changes.
+    scrollIntoView.mockClear();
+    await user.click(screen.getByRole("button", { name: "View Pigskin Power Bottoms" }));
+
+    await waitFor(() => { expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" }); });
+    scrollIntoView.mockRestore();
   });
 
   it("closes the league again when the same card is chosen twice", async () => {

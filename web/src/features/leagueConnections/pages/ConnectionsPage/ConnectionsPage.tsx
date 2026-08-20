@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { InlineNotice } from "../../../../shared/ui";
 import { AddConnection } from "../../components/AddConnection/AddConnection";
@@ -20,6 +20,13 @@ export const ConnectionsPage = () => {
   const selectedConnectionId = searchParams.get(selectedConnectionParam) ?? undefined;
   const importing = connections.data?.connections
     .find(connection => connection.id === importingId);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // The league opens below the cards, which on a phone is off the screen
+  // entirely. The page follows the choice rather than leaving it down there.
+  useEffect(() => {
+    detailRef.current?.scrollIntoView({ block: "start" });
+  }, [selectedConnectionId]);
 
   const select = (connectionId: string): void => {
     const next = new URLSearchParams(searchParams);
@@ -69,9 +76,9 @@ export const ConnectionsPage = () => {
       mutations={mutations}
       onClose={closeImport}
     />}
-    {selectedConnectionId === undefined
-      ? null
-      : <LeagueDetail connectionId={selectedConnectionId} key={selectedConnectionId} />}
+    {selectedConnectionId === undefined ? null : <div ref={detailRef}>
+      <LeagueDetail connectionId={selectedConnectionId} key={selectedConnectionId} />
+    </div>}
     {connections.data === undefined
       ? null
       : <AddConnection
