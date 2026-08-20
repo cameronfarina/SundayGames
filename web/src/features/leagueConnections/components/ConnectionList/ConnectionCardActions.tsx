@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Button } from "../../../../shared/ui";
 import type { LeagueConnection } from "../../api/leagueConnectionsSchema";
 
@@ -27,23 +26,19 @@ export const ConnectionCardActions = ({
     onClick={() => { onSelect(connection.id); }}
     variant="secondary"
   >View league</Button>
-  {connection.importedLeagueSlug === undefined
-    ? <Button
-      aria-label={`Import ${connection.displayName}`}
-      disabled={pending}
-      onClick={() => { onImport(connection.id); }}
-    >Import</Button>
-    : <Link
-      aria-label={`Open ${connection.displayName} in Sunday Games`}
-      className="connection-card__open-link"
-      to={`/leagues/${connection.importedLeagueSlug}`}
-    >Open in Sunday Games</Link>}
-  <Button
+  {connection.importedLeagueSlug !== undefined ? null : <Button
+    aria-label={`Import ${connection.displayName}`}
+    disabled={pending}
+    onClick={() => { onImport(connection.id); }}
+  >Import</Button>}
+  {/* A synced connection is already current, so the only people who need this
+      button are the ones whose league did not come through. */}
+  {connection.status === "ok" ? null : <Button
     aria-label={`Sync ${connection.displayName} now`}
     disabled={pending}
     onClick={() => { onSync(connection.id); }}
     variant="secondary"
-  >Sync now</Button>
+  >Sync now</Button>}
   <Button
     aria-label={`Disconnect ${connection.displayName}`}
     disabled={pending}

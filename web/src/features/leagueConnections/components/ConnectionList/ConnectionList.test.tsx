@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { connectionListFixture } from "../../api/leagueConnections.fixture";
 import { ConnectionList } from "./ConnectionList";
@@ -20,7 +19,7 @@ const renderList = (
     selectedConnectionId: undefined,
     ...overrides,
   };
-  render(<MemoryRouter><ConnectionList {...props} /></MemoryRouter>);
+  render(<ConnectionList {...props} />);
   return props;
 };
 
@@ -52,23 +51,31 @@ describe("ConnectionList", () => {
     const utils = renderList();
 
     await user.click(screen.getByRole("button", { name: "View Sleeper Friends League" }));
-    await user.click(screen.getByRole("button", { name: "Sync Sleeper Friends League now" }));
+    await user.click(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" }));
     await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }));
 
     expect(utils.onSelect).toHaveBeenCalledWith("connection-sleeper");
-    expect(utils.onSync).toHaveBeenCalledWith("connection-sleeper");
+    expect(utils.onSync).toHaveBeenCalledWith("connection-espn");
     expect(utils.onRemove).toHaveBeenCalledWith("connection-sleeper");
+  });
+
+  it("offers a sync only on the league that is not up to date", () => {
+    renderList();
+
+    expect(screen.queryByRole("button", { name: "Sync Sleeper Friends League now" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeVisible();
   });
 
   it("marks the open league and disables a card that is mid-flight", () => {
     renderList({
-      pendingConnectionId: "connection-sleeper",
+      pendingConnectionId: "connection-espn",
       selectedConnectionId: "connection-sleeper",
     });
 
     expect(screen.getByRole("button", { name: "View Sleeper Friends League" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Sync Sleeper Friends League now" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" })).toBeEnabled();
   });
 });

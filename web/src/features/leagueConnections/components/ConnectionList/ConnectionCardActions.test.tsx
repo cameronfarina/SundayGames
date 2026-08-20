@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
   importedConnectionFixture,
+  needsAttentionConnectionFixture,
   syncedConnectionFixture,
 } from "../../api/leagueConnections.fixture";
 import { ConnectionCardActions } from "./ConnectionCardActions";
@@ -21,7 +21,7 @@ const renderActions = (
     selected: false,
     ...overrides,
   };
-  render(<MemoryRouter><ConnectionCardActions {...utils} /></MemoryRouter>);
+  render(<ConnectionCardActions {...utils} />);
   return utils;
 };
 
@@ -35,36 +35,45 @@ describe("ConnectionCardActions", () => {
     expect(utils.onImport).toHaveBeenCalledWith("connection-sleeper");
   });
 
-  it("links straight to the league an import already built", () => {
+  it("stops offering an import once one has been done", () => {
     renderActions({ connection: importedConnectionFixture });
 
-    expect(screen.getByRole("link", { name: "Open Sleeper Friends League in Sunday Games" }))
-      .toHaveAttribute("href", "/leagues/sleeper-friends-league");
     expect(screen.queryByRole("button", { name: "Import Sleeper Friends League" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("hides the sync button while the league is already up to date", () => {
+    renderActions();
+
+    expect(screen.queryByRole("button", { name: "Sync Sleeper Friends League now" }))
       .not.toBeInTheDocument();
   });
 
   it("passes the chosen connection to view, sync, and disconnect", async () => {
     const user = userEvent.setup();
-    const utils = renderActions();
+    const utils = renderActions({ connection: needsAttentionConnectionFixture });
 
-    await user.click(screen.getByRole("button", { name: "View Sleeper Friends League" }));
-    await user.click(screen.getByRole("button", { name: "Sync Sleeper Friends League now" }));
-    await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }));
+    await user.click(screen.getByRole("button", { name: "View Pigskin Power Bottoms" }));
+    await user.click(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" }));
+    await user.click(screen.getByRole("button", { name: "Disconnect Pigskin Power Bottoms" }));
 
-    expect(utils.onSelect).toHaveBeenCalledWith("connection-sleeper");
-    expect(utils.onSync).toHaveBeenCalledWith("connection-sleeper");
-    expect(utils.onRemove).toHaveBeenCalledWith("connection-sleeper");
+    expect(utils.onSelect).toHaveBeenCalledWith("connection-espn");
+    expect(utils.onSync).toHaveBeenCalledWith("connection-espn");
+    expect(utils.onRemove).toHaveBeenCalledWith("connection-espn");
   });
 
   it("stops every write while the card is mid-flight", () => {
-    renderActions({ pending: true, selected: true });
+    renderActions({
+      connection: needsAttentionConnectionFixture,
+      pending: true,
+      selected: true,
+    });
 
-    expect(screen.getByRole("button", { name: "View Sleeper Friends League" }))
+    expect(screen.getByRole("button", { name: "View Pigskin Power Bottoms" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Import Sleeper Friends League" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sync Sleeper Friends League now" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }))
+    expect(screen.getByRole("button", { name: "Import Pigskin Power Bottoms" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect Pigskin Power Bottoms" }))
       .toBeDisabled();
   });
 });

@@ -115,10 +115,21 @@
 }
 
 .connection-card header {
-  align-items: flex-start;
   display: flex;
-  gap: var(--space-4);
-  justify-content: space-between;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The dot, the provider, and the status share one row so the league name below
+   them gets the card's full width instead of a squeezed middle column. */
+.connection-card__meta {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.connection-card__meta .status-dot__mark {
+  margin-top: 0;
 }
 
 .connection-card h3 {
@@ -130,14 +141,16 @@
   color: var(--color-accent);
   font-size: var(--font-size-sm);
   font-weight: 750;
-  margin: 0 0 var(--space-2);
+  margin: 0;
   text-transform: uppercase;
 }
 
+/* Pinned to the card's top-right corner, where the eye lands first. */
 .connection-card__status {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 750;
+  margin-left: auto;
   white-space: nowrap;
 }
 
@@ -164,15 +177,4 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   margin: 0;
-}
-
-.connection-card__open-link {
-  align-items: center;
-  border: 1px solid var(--color-accent);
-  border-radius: 6px;
-  color: var(--color-accent);
-  display: inline-flex;
-  font-weight: 700;
-  min-height: 2.75rem;
-  padding: 0.65rem 1rem;
 }

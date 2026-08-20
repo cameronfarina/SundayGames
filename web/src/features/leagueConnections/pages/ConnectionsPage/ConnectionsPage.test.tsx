@@ -90,13 +90,21 @@ describe("ConnectionsPage", () => {
     renderConnectionsPage();
 
     await user.click(await screen.findByRole("button", {
-      name: "Sync Sleeper Friends League now",
+      name: "Sync Pigskin Power Bottoms now",
     }));
     await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Sync Sleeper Friends League now" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeEnabled();
     });
+  });
+
+  it("offers no sync on a league that is already up to date", async () => {
+    renderConnectionsPage();
+
+    expect(await screen.findByText("Sleeper Friends League")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Sync Sleeper Friends League now" }))
+      .not.toBeInTheDocument();
   });
 
   it("clears the open league when that connection is disconnected", async () => {

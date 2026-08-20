@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
   importedConnectionFixture,
@@ -21,7 +20,7 @@ const renderCard = (
     selected: false,
     ...overrides,
   };
-  render(<MemoryRouter><ConnectionCard {...utils} /></MemoryRouter>);
+  render(<ConnectionCard {...utils} />);
   return utils;
 };
 

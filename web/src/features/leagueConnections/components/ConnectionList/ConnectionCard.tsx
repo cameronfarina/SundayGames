@@ -28,12 +28,12 @@ export const ConnectionCard = ({
     className={`connection-card${selected ? " connection-card--selected" : ""}`}
   >
     <header>
-      <StatusDot status={connection.status} />
-      <div>
+      <div className="connection-card__meta">
+        <StatusDot status={connection.status} />
         <p className="connection-card__provider">{connection.provider}</p>
-        <h3>{connection.displayName}</h3>
+        <span className="connection-card__status">{presentation.label}</span>
       </div>
-      <span className="connection-card__status">{presentation.label}</span>
+      <h3>{connection.displayName}</h3>
     </header>
     <p className="connection-card__detail">
       {statusMessage(connection.status, connection.statusDetail)}

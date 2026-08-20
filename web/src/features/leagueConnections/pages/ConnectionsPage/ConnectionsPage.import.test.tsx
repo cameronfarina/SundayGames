@@ -82,16 +82,15 @@ describe("importing connected leagues", () => {
     expect(screen.queryByRole("heading", { name: "Import this league" })).not.toBeInTheDocument();
   });
 
-  it("sends an imported connection straight into its Sunday Games league", async () => {
+  it("names the league an imported connection produced and offers no second import", async () => {
     connectionsServer.use(http.get("/league-connections", () => HttpResponse.json({
       connections: [importedConnectionFixture],
       providers: providerCatalogFixture,
     })));
     renderConnectionsPage();
 
-    expect(await screen.findByRole("link", {
-      name: "Open Sleeper Friends League in Sunday Games",
-    })).toHaveAttribute("href", "/leagues/sleeper-friends-league");
-    expect(screen.getByText("Imported as Sleeper Friends League")).toBeVisible();
+    expect(await screen.findByText("Imported as Sleeper Friends League")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Import Sleeper Friends League" }))
+      .not.toBeInTheDocument();
   });
 });
