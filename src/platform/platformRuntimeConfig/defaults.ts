@@ -16,6 +16,7 @@ export const productionReadinessNextSteps: readonly string[] = [
   "Run `npm run platform:migrate` against the production DATABASE_URL before starting the web process.",
   "Set `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY` to a writable scratch directory; do not attach a persistent disk, because that disables zero-downtime deploys.",
   "Verify a Resend sender and configure `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`, and `MOCKD_PUBLIC_BASE_URL`.",
+  "Configure the versioned ESPN credential keyring, then run `npm run platform:credentials:backfill` after the new web release is stable.",
   "Create a commissioner account, import a staging league, and verify its settings, members, keepers, and pricing; use `npm run platform:seed:e2e` only for local rehearsal fixtures.",
   "Start `npm run platform:web` behind the domain/proxy.",
   "Run `npm run smoke` after deploy and keep the output with the release notes.",

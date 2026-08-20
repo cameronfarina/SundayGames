@@ -1,4 +1,6 @@
 import type { JobKind } from "../jobs.js";
+import type { LeagueConnectionCredentialCipher } from
+  "../leagueConnectionCredentialEncryption.js";
 
 export interface PlatformRuntimeEnv {
   readonly [key: string]: string | undefined;
@@ -54,6 +56,7 @@ export interface PlatformRuntimeConfig {
   liveDraftDataMode: "postgres" | "local-fixtures";
   provisioningToken: string | undefined;
   invitationTokenSecret: string | undefined;
+  leagueConnectionCredentialCipher: LeagueConnectionCredentialCipher | undefined;
   authEmail: AuthEmailConfig;
   simulationDataMode: "disabled" | "local-fixtures";
   screenshotImport: ScreenshotImportConfig;

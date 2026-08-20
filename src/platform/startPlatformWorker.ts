@@ -35,6 +35,7 @@ export const startPlatformWorkerFromEnv = async (
       postgresExportArtifactClient: postgresClient,
       postgresSnapshotKey: config.postgresSnapshotKey,
       initializePostgresSchema: config.initializePostgresSchema,
+      leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,
       simulationRunner,
     });
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PostgresLeagueConnectionRepository } from "../src/platform/postgresLeagueConnections.js";
+import { createLeagueConnectionCredentialCipher } from
+  "../src/platform/leagueConnectionCredentialEncryption.js";
 import type { PostgresTransactionalQueryClient } from "../src/platform/postgresJobQueue.js";
 import type {
   PostgresQueryClient,
@@ -53,6 +55,22 @@ const connectionRow = {
   created_at: "2026-08-18T12:00:00.000Z",
   updated_at: new Date("2026-08-19T12:00:00.000Z"),
 };
+
+const credentialCipher = createLeagueConnectionCredentialCipher({
+  activeKeyId: "test-v1",
+  keys: { "test-v1": Buffer.alloc(32, 7).toString("base64") },
+});
+const previousCredentialCipher = createLeagueConnectionCredentialCipher({
+  activeKeyId: "test-v0",
+  keys: { "test-v0": Buffer.alloc(32, 6).toString("base64") },
+});
+const rotatingCredentialCipher = createLeagueConnectionCredentialCipher({
+  activeKeyId: "test-v1",
+  keys: {
+    "test-v0": Buffer.alloc(32, 6).toString("base64"),
+    "test-v1": Buffer.alloc(32, 7).toString("base64"),
+  },
+});
 
 describe("postgres league connection repository", () => {
   it("reads a connection row into the domain record", async () => {
@@ -111,7 +129,7 @@ describe("postgres league connection repository", () => {
     });
   });
 
-  it("binds credentials as null when the owner supplies none", async () => {
+  it("does not store credential-shaped input for providers that cannot use it", async () => {
     const client = new RecordingClient();
     const repository = new PostgresLeagueConnectionRepository(client);
     client.answerWith([connectionRow]);
@@ -122,7 +140,7 @@ describe("postgres league connection repository", () => {
       providerLeagueId: "289646328504385536",
       season: "2018",
       displayName: "Sleeper Friends League",
-      credentials: { espnS2: "   " },
+      credentials: { espnS2: "must-not-be-stored", swid: "{MUST-NOT-BE-STORED}" },
       now: new Date("2026-08-19T12:00:00.000Z"),
     });
 
@@ -136,6 +154,27 @@ describe("postgres league connection repository", () => {
       null,
       "2026-08-19T12:00:00.000Z",
     ]);
+  });
+
+  it("never binds supplied ESPN session credentials as plaintext", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client, credentialCipher);
+    client.answerWith([connectionRow]);
+
+    await repository.saveConnection({
+      accountId: "account-1",
+      provider: "espn",
+      providerLeagueId: "899513",
+      season: "2025",
+      displayName: "Pigskin Power Bottoms",
+      credentials: { espnS2: "s2-secret-value", swid: "{SECRET-GUID}" },
+      now: new Date("2026-08-19T12:00:00.000Z"),
+    });
+
+    const persistedValues = JSON.stringify(client.queries[0]?.values);
+    expect(persistedValues).not.toContain("s2-secret-value");
+    expect(persistedValues).not.toContain("{SECRET-GUID}");
+    expect(client.queries[0]?.sql).toContain("credentials_ciphertext");
   });
 
   it("refuses to invent a connection when the upsert returns nothing", async () => {
@@ -154,9 +193,76 @@ describe("postgres league connection repository", () => {
   it("reads credential columns without leaking absent values as empty strings", async () => {
     const client = new RecordingClient();
     const repository = new PostgresLeagueConnectionRepository(client);
-    client.answerWith([{ espn_s2: "s2-value", swid: null }]);
+    client.answerWith([{
+      account_id: "account-1",
+      provider_league_id: "899513",
+      season: "2025",
+      espn_s2: "s2-value",
+      swid: null,
+      credentials_ciphertext: null,
+      credentials_key_id: null,
+      credential_row_version: "101",
+    }]);
 
     expect(await repository.findCredentials("league_connection_1")).toEqual({ espnS2: "s2-value" });
+  });
+
+  it("prefers rolling-deploy plaintext and adds ciphertext without breaking old-process reads", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client, credentialCipher);
+    client.answerWith([{
+      account_id: "account-1",
+      provider_league_id: "899513",
+      season: "2025",
+      espn_s2: "new-s2-from-old-server",
+      swid: "{NEW-GUID}",
+      credentials_ciphertext: "stale-ciphertext",
+      credentials_key_id: "test-v1",
+      credential_row_version: "102",
+    }]);
+
+    await expect(repository.findCredentials("league_connection_1")).resolves.toEqual({
+      espnS2: "new-s2-from-old-server",
+      swid: "{NEW-GUID}",
+    });
+    expect(client.queries).toHaveLength(2);
+    expect(client.queries[1]?.sql).toContain("xmin::text = $4");
+    expect(client.queries[1]?.sql).not.toContain("espn_s2 = NULL");
+    expect(client.queries[1]?.sql).not.toContain("swid = NULL");
+    expect(JSON.stringify(client.queries[1]?.values)).not.toContain("new-s2-from-old-server");
+    expect(JSON.stringify(client.queries[1]?.values)).not.toContain("{NEW-GUID}");
+  });
+
+  it("rewrites an envelope after decrypting it with a retained rotation key", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client, rotatingCredentialCipher);
+    const encrypted = previousCredentialCipher.encrypt({
+      espnS2: "old-key-s2",
+      swid: "{OLD-KEY-GUID}",
+    }, {
+      accountId: "account-1",
+      providerLeagueId: "899513",
+      season: "2025",
+    });
+    client.answerWith([{
+      account_id: "account-1",
+      provider_league_id: "899513",
+      season: "2025",
+      espn_s2: null,
+      swid: null,
+      credentials_ciphertext: encrypted.ciphertext,
+      credentials_key_id: encrypted.keyId,
+      credential_row_version: "103",
+    }]);
+
+    await expect(repository.findCredentials("league_connection_1")).resolves.toEqual({
+      espnS2: "old-key-s2",
+      swid: "{OLD-KEY-GUID}",
+    });
+    expect(client.queries).toHaveLength(2);
+    expect(client.queries[1]?.sql).toContain("credentials_ciphertext IS NOT DISTINCT FROM $4");
+    expect(client.queries[1]?.values[2]).toBe("test-v1");
+    expect(JSON.stringify(client.queries[1]?.values)).not.toContain("old-key-s2");
   });
 
   it("decodes a stored snapshot and ignores one that no longer matches the contract", async () => {

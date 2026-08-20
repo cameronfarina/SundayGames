@@ -57,6 +57,7 @@ export const platformWebServerOptions = (
   trustProxy: config.trustProxy,
   provisioningToken: config.provisioningToken,
   invitationTokenSecret: config.invitationTokenSecret,
+  leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,
   screenshotImportBodyLimitBytes:
     Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
   currentPlayerCatalogProvider: loadCurrentPlayerCatalog,

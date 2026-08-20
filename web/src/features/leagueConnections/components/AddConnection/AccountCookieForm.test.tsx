@@ -18,6 +18,20 @@ const renderForm = (overrides: Partial<Parameters<typeof AccountCookieForm>[0]> 
 };
 
 describe("AccountCookieForm", () => {
+  it("masks both session values until the owner chooses to reveal them", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    expect(screen.getByLabelText("espn_s2 cookie")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("SWID cookie")).toHaveAttribute("type", "password");
+
+    await user.click(screen.getByRole("button", { name: "Show ESPN cookie values" }));
+
+    expect(screen.getByLabelText("espn_s2 cookie")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("SWID cookie")).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "Hide ESPN cookie values" })).toBeVisible();
+  });
+
   it("says why there is no sign-in button before asking for anything", () => {
     renderForm();
 
@@ -47,8 +61,8 @@ describe("AccountCookieForm", () => {
     const utils = renderForm({ espnS2: "saved-s2", swid: "" });
 
     expect(screen.getByText(/Looks like \{AAAAAAAA-BBBB/u)).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "espn_s2 cookie" })).toHaveValue("saved-s2");
-    await user.type(screen.getByRole("textbox", { name: "SWID cookie" }), "{{");
+    expect(screen.getByLabelText("espn_s2 cookie")).toHaveValue("saved-s2");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{");
 
     expect(utils.onSwidChange).toHaveBeenCalledWith("{");
   });
@@ -57,7 +71,7 @@ describe("AccountCookieForm", () => {
     const user = userEvent.setup();
     const utils = renderForm({ espnS2: "" });
 
-    await user.type(screen.getByRole("textbox", { name: "espn_s2 cookie" }), "s");
+    await user.type(screen.getByLabelText("espn_s2 cookie"), "s");
 
     expect(utils.onEspnS2Change).toHaveBeenCalledWith("s");
   });

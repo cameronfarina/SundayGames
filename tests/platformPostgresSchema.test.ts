@@ -279,6 +279,19 @@ describe("platform Postgres schema contract", () => {
     );
   });
 
+  it("keeps encrypted ESPN credentials beside temporary rolling-deploy columns", () => {
+    expectColumn("league_connections", "credentials_ciphertext", {
+      type: "text",
+      nullable: true,
+    });
+    expectColumn("league_connections", "credentials_key_id", {
+      type: "text",
+      nullable: true,
+    });
+    expectColumn("league_connections", "espn_s2", { type: "text", nullable: true });
+    expectColumn("league_connections", "swid", { type: "text", nullable: true });
+  });
+
   it("stores a stable public slug for clean league URLs", () => {
     expectColumn("leagues", "slug", { type: "text" });
     expectCheckContract("leagues", "leagues_slug_not_blank", "length(trim(slug)) > 0");

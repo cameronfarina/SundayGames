@@ -217,6 +217,8 @@ jobs:
             --env MOCKD_EMAIL_FROM=accounts@mockd.example.com \
             --env MOCKD_PUBLIC_BASE_URL=https://mockd.example.com \
             --env MOCKD_INVITATION_TOKEN_SECRET=ci-placeholder-invitation-token-secret-at-least-32-characters \
+            --env MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID=ci-smoke \
+            --env 'MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS={"ci-smoke":"DQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0="}' \
             --env MOCKD_INITIALIZE_POSTGRES_SCHEMA=false \
             --env MOCKD_SCREENSHOT_IMPORT_MODE=disabled \
             --volume mockd-ci-draft-tools:/var/lib/mockd/draft-tools \

@@ -6,6 +6,20 @@ import {
 } from "../../src/platform/platformRuntimeConfig.js";
 
 describe("failed platform production readiness", () => {
+  it("blocks readiness when ESPN credentials cannot be encrypted", () => {
+    const report = assessPlatformProductionReadiness({
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      HOST: "0.0.0.0",
+      PORT: "4361",
+    });
+
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "ESPN credential encryption",
+      detail: "MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS is required in production.",
+    });
+  });
+
   it("blocks production/domain readiness when Postgres env is missing", () => {
     const report = assessPlatformProductionReadiness({ HOST: "0.0.0.0", PORT: "4361" });
     expect(report.ready).toBe(false);

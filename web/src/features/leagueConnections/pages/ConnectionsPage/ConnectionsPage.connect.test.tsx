@@ -52,8 +52,8 @@ describe("finding leagues to import", () => {
     await user.click(await screen.findByRole("tab", { name: "ESPN" }));
     expect(screen.getByRole("heading", { name: "Find every league on your ESPN account" }))
       .toBeVisible();
-    await user.type(screen.getByRole("textbox", { name: "espn_s2 cookie" }), "s2-value");
-    await user.type(screen.getByRole("textbox", { name: "SWID cookie" }), "{{GUID}");
+    await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
     await user.click(screen.getByRole("button", { name: "Find all my leagues" }));
 
     await waitFor(() => { expect(requests).toHaveLength(1); });

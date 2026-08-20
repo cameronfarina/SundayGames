@@ -4,6 +4,8 @@ import {
 } from "./authEmail.js";
 import type { PlatformRuntimeConfig, PlatformRuntimeEnv } from "./contracts.js";
 import { isPostgresDatabaseUrl } from "./database.js";
+import { assertProductionLeagueConnectionCredentialEncryption } from
+  "./credentialEncryption.js";
 import { optionalEnvString } from "./env.js";
 import { readPlatformRuntimeConfig } from "./read.js";
 
@@ -32,6 +34,7 @@ export const readPlatformWebRuntimeConfig = (
   if (optionalEnvString(env, "NODE_ENV") === "production") {
     assertProductionAuthEmailConfig(config.authEmail);
     assertInvitationTokenSecret(config.invitationTokenSecret);
+    assertProductionLeagueConnectionCredentialEncryption(config.leagueConnectionCredentialCipher);
   }
   return config;
 };

@@ -77,6 +77,13 @@ export const leagueImportMigrationStatements: readonly string[] = [
     " FOREIGN KEY (league_season_id) REFERENCES league_seasons (id) ON DELETE SET NULL;",
 ];
 
+export const leagueCredentialEncryptionMigrationStatements: readonly string[] = [
+  "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS credentials_ciphertext text;",
+  "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS credentials_key_id text;",
+  "ALTER TABLE league_connections DROP CONSTRAINT IF EXISTS league_connections_encrypted_credentials_pair_check;",
+  "ALTER TABLE league_connections ADD CONSTRAINT league_connections_encrypted_credentials_pair_check CHECK ((credentials_ciphertext IS NULL) = (credentials_key_id IS NULL));",
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),

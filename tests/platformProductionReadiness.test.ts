@@ -21,6 +21,10 @@ const productionEnv = {
   MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
   MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
   FANTASYPROS_API_KEY: "test-fantasypros-key",
+  MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: "credentials-2026-08",
+  MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: JSON.stringify({
+    "credentials-2026-08": Buffer.alloc(32, 11).toString("base64"),
+  }),
 };
 
 describe("platform production readiness check", () => {
@@ -57,6 +61,7 @@ describe("platform production readiness check", () => {
     expect(JSON.stringify(report)).not.toContain(productionEnv.RESEND_API_KEY);
     expect(JSON.stringify(report)).not.toContain(productionEnv.MOCKD_INVITATION_TOKEN_SECRET);
     expect(JSON.stringify(report)).not.toContain(productionEnv.FANTASYPROS_API_KEY);
+    expect(JSON.stringify(report)).not.toContain(productionEnv.MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS);
   });
 
   it("requires every platform migration to be applied", async () => {

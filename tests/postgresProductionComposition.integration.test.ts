@@ -132,6 +132,10 @@ describeWithPostgres("production Postgres composition", () => {
       MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
       MOCKD_INVITATION_TOKEN_SECRET: "production-smoke-invitation-secret-at-least-32-characters",
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: "production-smoke",
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: JSON.stringify({
+        "production-smoke": Buffer.alloc(32, 13).toString("base64"),
+      }),
       MOCKD_INITIALIZE_POSTGRES_SCHEMA: "false",
       MOCKD_SCREENSHOT_IMPORT_MODE: "disabled",
     };

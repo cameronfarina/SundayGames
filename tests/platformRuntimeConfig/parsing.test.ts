@@ -47,6 +47,7 @@ describe("platform runtime config parsing", () => {
       liveDraftDataMode: "postgres",
       provisioningToken: "production-provisioning-token",
       invitationTokenSecret: "test-invitation-secret-at-least-32-characters",
+      leagueConnectionCredentialCipher: undefined,
       authEmail: {
         mode: "auto-verify",
         resendApiKey: undefined,

@@ -15,6 +15,8 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
       { name: "status_detail", type: "text", nullable: true },
       { name: "espn_s2", type: "text", nullable: true },
       { name: "swid", type: "text", nullable: true },
+      { name: "credentials_ciphertext", type: "text", nullable: true },
+      { name: "credentials_key_id", type: "text", nullable: true },
       { name: "last_synced_at", type: "timestamptz", nullable: true },
       { name: "league_season_id", type: "text", nullable: true },
       createdAtColumn,
@@ -45,6 +47,10 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
       {
         name: "league_connections_status_check",
         expression: "status IN ('pending', 'ok', 'needs_attention', 'error')",
+      },
+      {
+        name: "league_connections_encrypted_credentials_pair_check",
+        expression: "(credentials_ciphertext IS NULL) = (credentials_key_id IS NULL)",
       },
     ],
     indexes: [

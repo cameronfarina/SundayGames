@@ -5,6 +5,7 @@ import type {
   ReadPlatformRuntimeConfigOptions,
 } from "./contracts.js";
 import { databaseUrlEnv } from "./database.js";
+import { leagueConnectionCredentialCipherFromEnv } from "./credentialEncryption.js";
 import {
   defaultDraftToolsSessionDirectory,
   defaultPostgresPoolSize,
@@ -82,6 +83,7 @@ export const readPlatformRuntimeConfig = (
     liveDraftDataMode: parsedLiveDraftDataMode,
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
     invitationTokenSecret: optionalEnvString(env, "MOCKD_INVITATION_TOKEN_SECRET"),
+    leagueConnectionCredentialCipher: leagueConnectionCredentialCipherFromEnv(env),
     authEmail: authEmailConfig(env),
     simulationDataMode: parsedSimulationDataMode,
     screenshotImport: screenshotImportConfig(env),
