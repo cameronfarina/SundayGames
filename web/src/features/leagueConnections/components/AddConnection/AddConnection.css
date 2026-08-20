@@ -100,6 +100,27 @@
   padding: var(--space-4) 0;
 }
 
+.add-connection__result-copy {
+  display: flex;
+  flex: 1 1 15rem;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.add-connection__result-actions {
+  align-items: end;
+  display: flex;
+  flex: 1 1 22rem;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.add-connection__result-actions .select-field {
+  flex: 1 1 16rem;
+  max-width: 22rem;
+}
+
 .add-connection__result-name {
   font-weight: 750;
   margin: 0 0 var(--space-2);
