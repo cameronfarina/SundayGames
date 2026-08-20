@@ -45,7 +45,8 @@ export const useAddConnectionForm = (
   const [targets, setTargets] = useState<Record<string, string>>({});
   const chosen = providers.find(candidate => candidate.provider === provider);
   const linkedKeys = useMemo(
-    () => new Set(existingConnections.map(leagueKey)),
+    () => new Set(existingConnections.flatMap(connection =>
+      connection.linkedSeasonId === undefined ? [] : [leagueKey(connection)])),
     [existingConnections],
   );
 
