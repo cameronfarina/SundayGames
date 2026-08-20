@@ -15,7 +15,6 @@ import type { PlatformPersistence } from "../../src/platform/platformServer/pers
 import { createPlatformRequestHandler } from "../../src/platform/platformServer/requestHandler.js";
 import { composeRuntimeRepositories } from "../../src/platform/platformServer/repositoryComposition.js";
 import { createRuntimeRequest } from "../../src/platform/platformServer/runtimeRequest.js";
-import { createSeasonSimulationCapture } from "../../src/platform/platformServer/simulationCapture.js";
 import { mockRunner } from "./helpers/domainFixtures.js";
 
 class RollbackTrackingPostgresClient implements PostgresTransactionalQueryClient {
@@ -105,9 +104,6 @@ describe("practice dual-write atomicity", () => {
       runtimeHolder,
       persistence,
       runRequest: createRuntimeRequest(runtimeHolder, persistence),
-      simulationCapture: createSeasonSimulationCapture(async () => {
-        throw new Error("Unexpected season simulation.");
-      }),
       liveDraftRoomNotifier: new LiveDraftRoomRevisionNotifier(),
       reloadRuntime: async () => { reloadCount += 1; },
     });

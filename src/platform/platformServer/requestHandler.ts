@@ -64,7 +64,6 @@ export const createPlatformRequestHandler = (
     });
   }
   const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
-  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   if (seasonId !== null && postgresClient !== undefined &&
       isTransactionalPostgresClient(postgresClient)) {
     return input.persistence.runInSnapshotCriticalSection(async () => {
