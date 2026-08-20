@@ -90,6 +90,32 @@ describe("league connection import HTTP", () => {
     expect(error.issues).toEqual(["Sleeper roster slot IDP_FLEX is not supported."]);
   });
 
+  it("re-syncs a snapshot stored before draft settings rode along", async () => {
+    const harness = await createLeagueConnectionsHarness(importableRoutes);
+    const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);
+    const stored = await harness.repository.findSnapshot(connectionId);
+    if (stored === null) throw new Error("expected a stored snapshot");
+    // A snapshot synced before draft settings existed has no draft type; the
+    // import should fetch a fresh one instead of asking the owner to intervene.
+    await harness.repository.saveSnapshot(connectionId, {
+      settings: {
+        name: stored.settings.name,
+        season: stored.settings.season,
+        teamCount: stored.settings.teamCount,
+        rosterPositions: stored.settings.rosterPositions,
+        scoring: stored.settings.scoring,
+      },
+      teams: stored.teams,
+      matchups: stored.matchups,
+    }, stored.syncedAt);
+
+    const response = await importLeague(harness.handle, harness.sessionToken, connectionId);
+    const body = expectBodyRecord(response.body);
+
+    expect(response.status).toBe(200);
+    expect(expectBodyRecord(body.imported).leagueName).toBe("Sleeper Friends League");
+  });
+
   it("keeps one account's connections out of another account's reach", async () => {
     const harness = await createLeagueConnectionsHarness(importableRoutes);
     const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);

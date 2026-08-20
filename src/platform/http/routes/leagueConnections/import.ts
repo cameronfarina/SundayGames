@@ -1,7 +1,9 @@
 import { LeagueCreationError } from "../../../leagueCreation.js";
 import { leagueImportConversion } from "../../../leagueImportFromSync.js";
+import type { LeagueImportConversion } from "../../../leagueImportFromSync.js";
 import type { LeagueConnection, StoredLeagueSnapshot } from "../../../leagueConnections.js";
 import type { LeagueSeason } from "../../../leagueSeason.js";
+import { syncLeagueConnection, type LeagueSyncServiceOptions } from "../../../leagueSyncService.js";
 import { requireRequestAccount } from "../../auth/access.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
@@ -19,6 +21,7 @@ import {
   invalidImportMode,
   leagueSetupLocked,
   snapshotRequired,
+  type LeagueImportMode,
 } from "./importModes.js";
 import { createdImportSeason, overwrittenImportSeason } from "./importSeason.js";
 
@@ -34,21 +37,45 @@ const importedBody = async (
   };
 };
 
+const conversionFor = (
+  connection: LeagueConnection,
+  snapshot: StoredLeagueSnapshot,
+): LeagueImportConversion => leagueImportConversion({
+  provider: connection.provider,
+  providerLeagueId: connection.providerLeagueId,
+  settings: snapshot.settings,
+  teams: snapshot.teams,
+});
+
+/**
+ * A snapshot stored before draft settings rode along with a sync cannot say
+ * what kind of draft the league runs. One fresh sync answers that on the
+ * owner's behalf before the import asks them to intervene; if the provider is
+ * unreachable, the stored snapshot's answer stands.
+ */
+const refreshedConversion = async (
+  options: LeagueSyncServiceOptions,
+  connection: LeagueConnection,
+  snapshot: StoredLeagueSnapshot,
+  now: Date,
+): Promise<{ connection: LeagueConnection; conversion: LeagueImportConversion }> => {
+  const conversion = conversionFor(connection, snapshot);
+  if (conversion.status !== "blocked") return { connection, conversion };
+  const synced = await syncLeagueConnection(options, connection, now);
+  if (synced.snapshot === undefined) return { connection, conversion };
+  return {
+    connection: synced.connection,
+    conversion: conversionFor(synced.connection, synced.snapshot),
+  };
+};
+
 const writtenSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   accountId: string,
-  snapshot: StoredLeagueSnapshot,
-  connection: LeagueConnection,
+  mode: LeagueImportMode,
+  conversion: LeagueImportConversion,
 ): Promise<LeagueSeason | PlatformHttpResponse> => {
-  const mode = importModeFrom(request.body);
-  if (mode === null) return invalidImportMode();
-  const conversion = leagueImportConversion({
-    provider: connection.provider,
-    providerLeagueId: connection.providerLeagueId,
-    settings: snapshot.settings,
-    teams: snapshot.teams,
-  });
   if (conversion.status === "blocked") return importNeedsReview(conversion.issues);
   if (mode.mode === "create") {
     return await createdImportSeason(app, request, accountId, conversion.input);
@@ -75,6 +102,8 @@ export const routeLeagueConnectionImport = async (
   const account = await requireRequestAccount(app, request);
   const options = serviceOptionsFor(services);
   if (options === null) return leagueConnectionsUnavailable();
+  const mode = importModeFrom(request.body);
+  if (mode === null) return invalidImportMode();
 
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
@@ -85,17 +114,23 @@ export const routeLeagueConnectionImport = async (
     account.id,
     connection,
   );
-  if (alreadyImported !== undefined && importModeFrom(request.body)?.mode === "create") {
+  if (alreadyImported !== undefined && mode.mode === "create") {
     return await importedBody(services, account.id, connection);
   }
   const snapshot = await options.repository.findSnapshot(connectionId);
   if (snapshot === null) return snapshotRequired();
+  const refreshed = await refreshedConversion(
+    options,
+    connection,
+    snapshot,
+    request.now ?? new Date(),
+  );
 
   try {
-    const season = await writtenSeason(app, request, account.id, snapshot, connection);
+    const season = await writtenSeason(app, request, account.id, mode, refreshed.conversion);
     if (isPlatformHttpResponse(season)) return season;
-    await options.repository.linkConnectionToSeason(connection.id, season.id);
-    const linked = { ...connection, leagueSeasonId: season.id };
+    await options.repository.linkConnectionToSeason(refreshed.connection.id, season.id);
+    const linked = { ...refreshed.connection, leagueSeasonId: season.id };
     return await importedBody(services, account.id, linked);
   } catch (error) {
     // The creation domain refuses setups this conversion could not foresee;
