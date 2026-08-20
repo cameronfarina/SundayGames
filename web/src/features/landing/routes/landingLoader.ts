@@ -4,7 +4,7 @@ import { getSessionState } from "../../auth/api/authApi";
 
 type SessionStateLoader = (signal: AbortSignal) => Promise<boolean>;
 
-const sessionStateQueryKey = ["session-state"] as const;
+const sessionStateQueryKey: readonly ["session-state"] = ["session-state"];
 
 /**
  * The landing page exists for people who are not signed in. Anyone who already

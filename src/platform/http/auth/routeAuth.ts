@@ -5,19 +5,11 @@ import { optionalString, stringValue } from "../request/values.js";
 import { authRequiredBody, invalidCredentialsBody, methodNotAllowed, notFound } from "../responses.js";
 import { accountCreationDenied } from "./policy.js";
 import { publicSessionFor } from "./publicSession.js";
-import { authActionRateLimitResponse, authRateLimitResponse } from "./rateLimits.js";
-import { loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
+import { authActionRateLimitResponse, authRateLimitResponse, loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
 import { requireRequestAccount } from "./access.js";
-
 export const authRoots = new Set([
-  "accounts",
-  "email-verifications",
-  "password-resets",
-  "session",
-  "session-state",
-  "sessions",
+  "accounts", "email-verifications", "password-resets", "session", "session-state", "sessions",
 ]);
-
 export const routeAuth = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
@@ -136,9 +128,6 @@ export const routeAuth = async (
     });
     return { status: 200, body: { account } };
   }
-  /* The landing page asks this before it renders. A signed-out visitor is the
-     normal case there, so answering 401 would print a failed request in every
-     visitor's console for something that did not fail. */
   if (root === "session-state" && request.segments.length === 1) {
     if (request.method !== "GET") return methodNotAllowed();
     const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
