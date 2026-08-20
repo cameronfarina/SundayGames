@@ -4,6 +4,7 @@ import type { LeagueConnection, StoredLeagueSnapshot } from "../../../leagueConn
 import { confirmedSetupFromSyncedLeague } from "../../../leagueSyncImport.js";
 import { leagueSeasonSetupRevision } from "../../../leagueSetup.js";
 import type { PlatformApp } from "../../contracts.js";
+import { existingTeamsForImport } from "./importTeamMapping.js";
 
 interface RefreshLinkedLeagueInput {
   app: PlatformApp;
@@ -11,8 +12,13 @@ interface RefreshLinkedLeagueInput {
   previousSnapshot: StoredLeagueSnapshot | null;
   sessionToken: string;
   snapshot: StoredLeagueSnapshot;
+  targetSeasonId?: string;
   now: Date;
 }
+
+export type RefreshLinkedLeagueResult =
+  | { status: "refreshed"; leagueId: string; seasonId: string }
+  | { status: "needs_attention"; message: string };
 
 const updatedSettings = (
   generated: LeagueSeason,
@@ -29,49 +35,55 @@ const updatedSettings = (
   };
 };
 
+const needsAttention = (message: string): RefreshLinkedLeagueResult => ({
+  status: "needs_attention",
+  message,
+});
+
 export const refreshLinkedLeague = async ({
   app,
   connection,
   previousSnapshot,
   sessionToken,
   snapshot,
+  targetSeasonId,
   now,
-}: RefreshLinkedLeagueInput): Promise<string | null> => {
-  const seasonId = connection.linkedSeasonId;
-  if (seasonId === undefined || connection.linkedLeagueId === undefined) return "The linked league is missing its season.";
+}: RefreshLinkedLeagueInput): Promise<RefreshLinkedLeagueResult> => {
+  const seasonId = targetSeasonId ?? connection.linkedSeasonId;
+  if (seasonId === undefined) return needsAttention("The linked league is missing its season.");
   const existing = await app.leagueSetupRepository.findLeagueSeason(seasonId);
-  if (existing === null) return "The linked Sunday Games league no longer exists.";
-  if (previousSnapshot === null) return "Sync once more after reviewing the linked league teams.";
+  if (existing === null) return needsAttention("The selected Sunday Games league no longer exists.");
 
   const setup = confirmedSetupFromSyncedLeague(connection, snapshot);
-  if (setup.status === "needs_attention") return setup.message;
+  if (setup.status === "needs_attention") return setup;
   const generated = createLeagueSeasonFromConfirmedSetup(setup.setup);
-  const existingByPosition = [...existing.teams]
-    .sort((left, right) => left.draftOrderPosition - right.draftOrderPosition);
-  const previousPosition = new Map(
-    previousSnapshot.teams.map((team, index) => [team.providerTeamId, index]),
-  );
+  if (generated.seasonYear !== existing.seasonYear) {
+    return needsAttention("The selected Sunday Games league is for a different season.");
+  }
+
+  const memberships = await app.listLeagueMemberships(existing.leagueId);
+  const mapping = existingTeamsForImport({
+    existingTeams: existing.teams,
+    generatedTeams: generated.teams,
+    memberships,
+    previousSnapshot,
+    snapshot,
+  });
+  if (mapping.status === "needs_attention") return mapping;
+
   const generatedToExisting = new Map<string, string>();
-  const teams = generated.teams.flatMap((team, index) => {
-    const providerTeam = snapshot.teams[index];
-    if (providerTeam === undefined) return [];
-    const priorIndex = previousPosition.get(providerTeam.providerTeamId);
-    const preserved = priorIndex === undefined ? undefined : existingByPosition[priorIndex];
-    if (preserved === undefined) return [];
+  const teams = generated.teams.map((team, index) => {
+    const preserved = mapping.existingByGeneratedIndex[index];
+    if (preserved === undefined) throw new Error("Imported team mapping was incomplete.");
     generatedToExisting.set(team.id, preserved.id);
-    return [{
+    return {
       ...team,
       id: preserved.id,
       leagueSeasonId: existing.id,
       ownerId: preserved.ownerId,
-      ownerDisplayName: preserved.ownerDisplayName,
-    }];
+    };
   });
-  if (teams.length !== generated.teams.length) {
-    return "The provider team list changed. Review team assignments before overwriting this league.";
-  }
 
-  const memberships = await app.listLeagueMemberships(existing.leagueId);
   await app.registerLeagueSeason({
     actorSessionToken: sessionToken,
     season: {
@@ -89,5 +101,5 @@ export const refreshLinkedLeague = async ({
     membershipWriteMode: "preserve",
     now,
   });
-  return null;
+  return { status: "refreshed", leagueId: existing.leagueId, seasonId: existing.id };
 };
