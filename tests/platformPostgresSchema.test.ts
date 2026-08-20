@@ -118,6 +118,14 @@ const expectColumn = (
   );
 };
 
+it("stores total revisions for connected-league sync claims and snapshots", () => {
+  expectColumn("league_connections", "sync_revision", { type: "bigint", default: "0" });
+  expectColumn("league_connection_snapshots", "sync_revision", {
+    type: "bigint",
+    default: "0",
+  });
+});
+
 const expectCheckContract = (
   tableName: string,
   constraintName: string,

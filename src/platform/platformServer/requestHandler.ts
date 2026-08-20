@@ -7,8 +7,9 @@ import { notifyLiveDraftRoomRevision } from "./liveDraftRevision.js";
 import type { PlatformPersistence } from "./persistence.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
 import { isLeagueMembersScreenshotAnalysisRequest, isSeasonSimulationRequest } from "./requestKinds.js";
-import { withTrustedNow, shouldPersistAfter } from "./requestTiming.js";
+import { isMutatingRequest, withTrustedNow, shouldPersistAfter } from "./requestTiming.js";
 import type { SeasonSimulationCapture } from "./simulationCapture.js";
+import { shouldBypassSnapshotAccess } from "./snapshotPersistencePolicy.js";
 
 interface CreateRequestHandlerOptions {
   options: CreatePlatformServerOptions;
@@ -66,9 +67,18 @@ export const createPlatformRequestHandler = (
       return response;
     });
   }
-  const response = await input.persistence.runInSnapshotCriticalSection(() =>
-    input.runRequest(requestWithNow)
-  );
+  let response: PlatformHttpResponse;
+  if (!isMutatingRequest(requestWithNow)) {
+    response = await input.persistence.runWithSnapshotReadAccess(() =>
+      input.runRequest(requestWithNow)
+    );
+  } else if (shouldBypassSnapshotAccess(input.runtimeHolder.current(), requestWithNow)) {
+    response = await input.runRequest(requestWithNow);
+  } else {
+    response = await input.persistence.runInSnapshotCriticalSection(() =>
+      input.runRequest(requestWithNow)
+    );
+  }
   notifyLiveDraftRoomRevision(input.liveDraftRoomNotifier, requestWithNow, response);
   return response;
 };

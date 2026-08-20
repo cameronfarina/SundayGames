@@ -19,14 +19,17 @@ export const saveSnapshotRow = async (
   connectionId: string,
   snapshot: LeagueSnapshot,
   syncedAt: string,
-): Promise<void> => {
-  await client.query(upsertSnapshotSql, [
+  syncRevision: string,
+): Promise<boolean> => {
+  const result = await client.query(upsertSnapshotSql, [
     connectionId,
     JSON.stringify(snapshot.settings),
     JSON.stringify(snapshot.teams),
     JSON.stringify(snapshot.matchups),
     syncedAt,
+    syncRevision,
   ]);
+  return (result.rowCount ?? 0) > 0;
 };
 
 export const findSnapshotRow = async (

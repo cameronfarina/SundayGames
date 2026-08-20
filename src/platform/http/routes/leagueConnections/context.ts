@@ -9,11 +9,21 @@ import type {
   ImportedSeasonRefresher,
   LeagueSyncServiceOptions,
 } from "../../../leagueSyncService.js";
+import { convergeImportedSeason } from "../../../leagueSyncService/importedSeasonConvergence.js";
 import type { PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
 import { knownError } from "../../responses.js";
 import type { ImportedLeague } from "./importedLeague.js";
+
+const refreshCurrentImportedSeason = async (
+  repository: NonNullable<PlatformHttpServices["leagueConnectionRepository"]>,
+  refresh: ImportedSeasonRefresher,
+  input: Parameters<ImportedSeasonRefresher>[0],
+): Promise<string | null> => {
+  const converged = await convergeImportedSeason(repository, input.connection, refresh);
+  return converged.detail;
+};
 
 export const leagueConnectionsUnavailable = (): PlatformHttpResponse => knownError(
   503,
@@ -27,10 +37,17 @@ export const serviceOptionsFor = (
 ): LeagueSyncServiceOptions | null => {
   const repository = services.leagueConnectionRepository;
   if (repository === undefined) return null;
+  const runSeasonRefresh = services.runLeagueSyncSeasonRefresh;
+  const guardedRefresh = refreshImportedSeason === undefined || runSeasonRefresh === undefined
+    ? refreshImportedSeason
+    : async (input: Parameters<ImportedSeasonRefresher>[0]) =>
+        await runSeasonRefresh(async () =>
+          await refreshCurrentImportedSeason(repository, refreshImportedSeason, input)
+        );
   return {
     adapters: leagueSyncAdapters,
     ...(services.leagueSyncFetch === undefined ? {} : { fetcher: services.leagueSyncFetch }),
-    ...(refreshImportedSeason === undefined ? {} : { refreshImportedSeason }),
+    ...(guardedRefresh === undefined ? {} : { refreshImportedSeason: guardedRefresh }),
     repository,
   };
 };

@@ -14,6 +14,7 @@ import type {
   LeagueCreationLimits,
   LeagueSetupRepository,
 } from "../../../src/platform/leagueSetup.js";
+import type { PlatformHttpServices } from "../../../src/platform/http/contracts.js";
 
 export const syncNow = new Date("2026-08-19T12:00:00.000Z");
 
@@ -50,6 +51,8 @@ export interface LeagueConnectionsHarnessOptions {
   withRepository?: boolean;
   leagueCreationLimits?: LeagueCreationLimits;
   httpLeagueSetupRepository?: LeagueSetupRepository;
+  repository?: InMemoryLeagueConnectionRepository;
+  runLeagueSyncSeasonRefresh?: PlatformHttpServices["runLeagueSyncSeasonRefresh"];
 }
 
 export const createLeagueConnectionsHarness = async (
@@ -62,7 +65,7 @@ export const createLeagueConnectionsHarness = async (
       : { leagueCreationLimits: options.leagueCreationLimits }),
   });
   const app = createPlatformApp({ store, simulationRunner: mockRunner });
-  const repository = new InMemoryLeagueConnectionRepository();
+  const repository = options.repository ?? new InMemoryLeagueConnectionRepository();
   const { fetcher, requests } = stubProviderFetch(routes);
   const handle = createPlatformHttpHandler(app, {
     leagueSyncFetch: fetcher,
@@ -72,6 +75,9 @@ export const createLeagueConnectionsHarness = async (
       ? {}
       : { leagueSetupRepository: options.httpLeagueSetupRepository }),
     ...(options.withRepository === false ? {} : { leagueConnectionRepository: repository }),
+    ...(options.runLeagueSyncSeasonRefresh === undefined
+      ? {}
+      : { runLeagueSyncSeasonRefresh: options.runLeagueSyncSeasonRefresh }),
   });
   const { sessionToken } = await createLoggedInAccount(handle, "owner@example.com");
   const other = await createLoggedInAccount(handle, "someone.else@example.com");

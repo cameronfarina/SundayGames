@@ -5,6 +5,7 @@ import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
 import { knownError, methodNotAllowed } from "../../responses.js";
 import {
+  connectionNotFound,
   credentialsFor,
   invalidProvider,
   leagueConnectionsUnavailable,
@@ -61,6 +62,7 @@ export const routeLeagueConnectionCollection = async (
     now,
   });
   const result = await syncLeagueConnection(options, saved, now);
+  if (result.connection === null) return connectionNotFound();
 
   return { status: 201, body: { connection: publicConnection(result.connection) } };
 };

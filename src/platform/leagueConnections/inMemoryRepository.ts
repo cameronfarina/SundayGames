@@ -10,6 +10,8 @@ import type {
   StoredPlayerDirectory,
   UpdateLeagueConnectionStatusInput,
 } from "./contracts.js";
+import { InMemoryLeagueConnectionSyncRevisions } from "./inMemorySyncRevisions.js";
+import { syncRevisionIsAfter } from "./syncRevision.js";
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -21,6 +23,7 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
   readonly #credentialsById = new Map<string, LeagueConnectionCredentials>();
   readonly #snapshotsByConnectionId = new Map<string, StoredLeagueSnapshot>();
   readonly #directoriesByProvider = new Map<LeagueSyncProvider, StoredPlayerDirectory>();
+  readonly #syncRevisions = new InMemoryLeagueConnectionSyncRevisions();
 
   async listConnections(accountId: string): Promise<readonly LeagueConnection[]> {
     return [...this.#connectionsById.values()]
@@ -47,6 +50,7 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
     const existing = [...this.#connectionsById.values()]
       .find(candidate => connectionKey(candidate) === key);
     const timestamp = (input.now ?? new Date()).toISOString();
+    if (existing !== undefined && existing.updatedAt > timestamp) return clone(existing);
     const connection: LeagueConnection = {
       id: existing?.id ?? `league_connection_${randomUUID()}`,
       accountId: input.accountId,
@@ -62,28 +66,42 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
       updatedAt: timestamp,
     };
     this.#connectionsById.set(connection.id, connection);
+    this.#syncRevisions.recordSavedConnection(connection.id);
     if (input.credentials !== undefined) {
       this.#credentialsById.set(connection.id, clone(input.credentials));
     }
     return clone(connection);
   }
 
-  async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void> {
+  async beginConnectionSync(id: string): Promise<string | null> {
+    return this.#syncRevisions.begin(id);
+  }
+
+  async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<boolean> {
     const existing = this.#connectionsById.get(input.id);
-    if (existing === undefined) return;
+    if (existing === undefined) return false;
+    if (
+      input.expectedSyncRevision !== undefined
+      && !this.#syncRevisions.matches(input.id, input.expectedSyncRevision)
+    ) return false;
+    const updatedAt = (input.now ?? new Date()).toISOString();
+    if (input.expectedSyncRevision === undefined && existing.updatedAt > updatedAt) return false;
     this.#connectionsById.set(input.id, {
       ...existing,
+      ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
       status: input.status,
       ...(input.statusDetail === undefined ? {} : { statusDetail: input.statusDetail }),
       ...(input.lastSyncedAt === undefined ? {} : { lastSyncedAt: input.lastSyncedAt }),
-      updatedAt: (input.now ?? new Date()).toISOString(),
+      updatedAt: existing.updatedAt > updatedAt ? existing.updatedAt : updatedAt,
     });
+    return true;
   }
 
   async linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void> {
     const existing = this.#connectionsById.get(id);
     if (existing === undefined) return;
     this.#connectionsById.set(id, { ...existing, leagueSeasonId });
+    this.#syncRevisions.advance(id);
   }
 
   async deleteConnection(accountId: string, id: string): Promise<boolean> {
@@ -92,6 +110,7 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
     this.#connectionsById.delete(id);
     this.#credentialsById.delete(id);
     this.#snapshotsByConnectionId.delete(id);
+    this.#syncRevisions.delete(id);
     return true;
   }
 
@@ -99,8 +118,17 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
     connectionId: string,
     snapshot: LeagueSnapshot,
     syncedAt: string,
-  ): Promise<void> {
-    this.#snapshotsByConnectionId.set(connectionId, clone({ ...snapshot, connectionId, syncedAt }));
+    syncRevision: string,
+  ): Promise<boolean> {
+    if (!this.#syncRevisions.matches(connectionId, syncRevision)) return false;
+    const existing = this.#snapshotsByConnectionId.get(connectionId);
+    if (existing !== undefined && syncRevisionIsAfter(existing.syncRevision, syncRevision)) return false;
+    if (existing?.syncRevision === syncRevision && existing.syncedAt > syncedAt) return false;
+    this.#snapshotsByConnectionId.set(
+      connectionId,
+      clone({ ...snapshot, connectionId, syncedAt, syncRevision }),
+    );
+    return true;
   }
 
   async findSnapshot(connectionId: string): Promise<StoredLeagueSnapshot | null> {
@@ -109,6 +137,8 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
   }
 
   async savePlayerDirectory(directory: StoredPlayerDirectory): Promise<void> {
+    const existing = this.#directoriesByProvider.get(directory.provider);
+    if (existing !== undefined && existing.fetchedAt >= directory.fetchedAt) return;
     this.#directoriesByProvider.set(directory.provider, clone(directory));
   }
 

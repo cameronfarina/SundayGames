@@ -65,6 +65,7 @@ export const routeLeagueConnectionSync = async (
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
   const result = await syncLeagueConnection(options, connection, request.now ?? new Date());
+  if (result.connection === null) return connectionNotFound();
   const imported = await importedLeagueFor(
     services.onboardingRepository,
     account.id,

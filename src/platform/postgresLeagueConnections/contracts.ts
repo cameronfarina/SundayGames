@@ -30,6 +30,11 @@ export interface LeagueConnectionSnapshotRow {
   teams_json: unknown;
   matchups_json: unknown;
   synced_at: Date | string;
+  sync_revision: string | number;
+}
+
+export interface LeagueConnectionSyncRevisionRow {
+  sync_revision: string | number;
 }
 
 export interface ProviderPlayerDirectoryRow {

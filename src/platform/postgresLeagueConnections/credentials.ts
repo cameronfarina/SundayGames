@@ -10,7 +10,7 @@ import {
   populateLegacyCredentialEnvelopeSql,
   rotateEncryptedCredentialsSql,
   selectCredentialsSql,
-} from "./sql.js";
+} from "./credentialSql.js";
 
 const trimmedOrNull = (value: string | undefined): string | null => {
   const trimmed = value?.trim() ?? "";
@@ -80,7 +80,6 @@ export class PostgresLeagueConnectionCredentialStore {
         rotated.keyId,
         row.credentials_ciphertext,
         row.credentials_key_id,
-        new Date().toISOString(),
       ]);
     }
     return credentials;
@@ -99,7 +98,6 @@ export class PostgresLeagueConnectionCredentialStore {
       encrypted.ciphertext,
       encrypted.keyId,
       row.credential_row_version,
-      new Date().toISOString(),
     ]);
   }
 }

@@ -13,7 +13,10 @@ import type {
 import type { LeagueConnectionCredentialCipher } from
   "../leagueConnectionCredentialEncryption.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
-import type { LeagueConnectionRow } from "./contracts.js";
+import type {
+  LeagueConnectionRow,
+  LeagueConnectionSyncRevisionRow,
+} from "./contracts.js";
 import { PostgresLeagueConnectionCredentialStore } from "./credentials.js";
 import { connectionFromRow } from "./mapping.js";
 import {
@@ -23,6 +26,7 @@ import {
   saveSnapshotRow,
 } from "./snapshotQueries.js";
 import {
+  beginConnectionSyncSql,
   deleteConnectionSql,
   linkConnectionToSeasonSql,
   selectConnectionSql,
@@ -86,14 +90,26 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
     return connectionFromRow(row);
   }
 
-  async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void> {
-    await this.#client.query(updateConnectionStatusSql, [
+  async beginConnectionSync(id: string): Promise<string | null> {
+    const result = await this.#client.query<LeagueConnectionSyncRevisionRow>(
+      beginConnectionSyncSql,
+      [id],
+    );
+    const row = result.rows[0];
+    return row === undefined ? null : String(row.sync_revision);
+  }
+
+  async updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<boolean> {
+    const result = await this.#client.query(updateConnectionStatusSql, [
       input.id,
       input.status,
       input.statusDetail ?? null,
       input.lastSyncedAt ?? null,
       (input.now ?? new Date()).toISOString(),
+      input.expectedSyncRevision ?? null,
+      input.displayName ?? null,
     ]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void> {
@@ -113,8 +129,9 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
     connectionId: string,
     snapshot: LeagueSnapshot,
     syncedAt: string,
-  ): Promise<void> {
-    await saveSnapshotRow(this.#client, connectionId, snapshot, syncedAt);
+    syncRevision: string,
+  ): Promise<boolean> {
+    return await saveSnapshotRow(this.#client, connectionId, snapshot, syncedAt, syncRevision);
   }
 
   async findSnapshot(connectionId: string): Promise<StoredLeagueSnapshot | null> {

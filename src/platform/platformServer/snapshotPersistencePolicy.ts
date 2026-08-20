@@ -4,6 +4,9 @@ import {
   isExportArtifactOnlyMutationRequest,
   isJobAndSimulationOnlyMutationRequest,
   isJobOnlyMutationRequest,
+  isLeagueConnectionImportRequest,
+  isLeagueConnectionOnlyMutationRequest,
+  isLeagueConnectionSyncRequest,
   isLeagueMembersScreenshotAnalysisRequest,
   isLiveDraftRoomOnlyMutationRequest,
   isPracticeShortlistOnlyMutationRequest,
@@ -44,5 +47,20 @@ export const shouldSkipSnapshotPersist = (
     (externalShortlist && isPracticeShortlistOnlyMutationRequest(request)) ||
     (externalJobs && externalSimulations && isJobAndSimulationOnlyMutationRequest(request)) ||
     (externalLiveRooms && isLiveDraftRoomOnlyMutationRequest(request)) ||
-    (externalExports && isExportArtifactOnlyMutationRequest(request));
+    (externalExports && isExportArtifactOnlyMutationRequest(request)) ||
+    shouldBypassSnapshotAccess(runtime, request);
+};
+
+export const shouldBypassSnapshotAccess = (
+  runtime: PlatformRuntime,
+  request: PlatformHttpRequest,
+): boolean => {
+  const externalLeagueConnections =
+    runtime.leagueConnectionRepository !== runtime.store.leagueConnections;
+  if (!externalLeagueConnections) return false;
+  if (isLeagueConnectionOnlyMutationRequest(request)) return true;
+
+  const externalLeagueSetup = runtime.leagueSetupRepository !== runtime.store;
+  return externalLeagueSetup &&
+    (isLeagueConnectionSyncRequest(request) || isLeagueConnectionImportRequest(request));
 };

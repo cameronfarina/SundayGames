@@ -72,3 +72,28 @@ export const isSeasonSimulationRequest = (request: PlatformHttpRequest): boolean
   const segments = pathSegmentsFor(request);
   return segments !== null && segments.length === 1 && segments[0] === "season-simulations";
 };
+
+export const isLeagueConnectionOnlyMutationRequest = (
+  request: PlatformHttpRequest,
+): boolean => {
+  const method = request.method.toUpperCase();
+  const segments = pathSegmentsFor(request);
+  if (segments === null || segments[0] !== "league-connections") return false;
+  return (method === "POST" && segments.length === 1) ||
+    (method === "POST" && segments.length === 2 && segments[1] === "discover") ||
+    (method === "DELETE" && segments.length === 2);
+};
+
+export const isLeagueConnectionSyncRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments[0] === "league-connections" &&
+    segments.length === 3 && segments[2] === "sync";
+};
+
+export const isLeagueConnectionImportRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments[0] === "league-connections" &&
+    segments.length === 3 && segments[2] === "import";
+};

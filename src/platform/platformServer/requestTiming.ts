@@ -3,6 +3,9 @@ import type { PlatformClock } from "./contracts.js";
 
 const mutatingHttpMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
 
+export const isMutatingRequest = (request: PlatformHttpRequest): boolean =>
+  mutatingHttpMethods.has(request.method.toUpperCase());
+
 export const withTrustedNow = (
   request: PlatformHttpRequest,
   now: PlatformClock | undefined,
@@ -17,6 +20,6 @@ export const shouldPersistAfter = (
   request: PlatformHttpRequest,
   responseStatus: number,
 ): boolean =>
-  mutatingHttpMethods.has(request.method.toUpperCase()) &&
+  isMutatingRequest(request) &&
   responseStatus >= 200 &&
   responseStatus < 300;

@@ -1,10 +1,16 @@
 import type { ConfirmedLeagueCreationInput } from "../../../leagueCreation.js";
 import { createLeagueSeasonFromConfirmedSetup } from "../../../leagueCreation.js";
+import type { LeagueImportConversion } from "../../../leagueImportFromSync.js";
 import type { LeagueSeason } from "../../../leagueSeason.js";
 import { leagueSeasonSetupRevision } from "../../../leagueSetup.js";
 import { seasonFromLeagueImport } from "../../../leagueImportFromSync.js";
-import type { PlatformApp } from "../../contracts.js";
+import type { PlatformApp, PlatformHttpResponse } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
+import {
+  importNeedsReview,
+  leagueSetupLocked,
+  type LeagueImportMode,
+} from "./importModes.js";
 
 /**
  * An imported league is created the same way the wizard creates one, so it is
@@ -53,3 +59,37 @@ export const overwrittenImportSeason = async (
   leagueConnectionId,
   now: request.now,
 });
+
+export const writeImportSeason = async (
+  app: PlatformApp,
+  request: ParsedPlatformHttpRequest,
+  accountId: string,
+  leagueConnectionId: string,
+  mode: LeagueImportMode,
+  conversion: LeagueImportConversion,
+): Promise<LeagueSeason | PlatformHttpResponse> => {
+  if (conversion.status === "blocked") return importNeedsReview(conversion.issues);
+  if (mode.mode === "create") {
+    return await createdImportSeason(
+      app,
+      request,
+      accountId,
+      leagueConnectionId,
+      conversion.input,
+    );
+  }
+
+  const existing = await app.getLeagueSeason({
+    actorSessionToken: request.sessionToken,
+    seasonId: mode.seasonId,
+    now: request.now,
+  });
+  if (await app.hasLiveDraftRoomForSeason(existing.id)) return leagueSetupLocked();
+  return await overwrittenImportSeason(
+    app,
+    request,
+    existing,
+    leagueConnectionId,
+    conversion.input,
+  );
+};

@@ -1,7 +1,7 @@
 import type { PlatformHttpResponse } from "../platformHttp.js";
 import { PostgresPlatformStoreError } from "../postgresPlatformStore.js";
 import type { PlatformRuntimeHolder } from "./internalContracts.js";
-import { serializeAsyncOperations } from "./serialization.js";
+import { createAsyncReadWriteLock } from "./serialization.js";
 
 export const snapshotWriteConflictResponse: PlatformHttpResponse = {
   status: 409,
@@ -19,6 +19,7 @@ export const isSnapshotWriteConflict = (error: unknown): error is PostgresPlatfo
 export interface PlatformPersistence {
   rawPersist(): Promise<void>;
   persist(): Promise<void>;
+  runWithSnapshotReadAccess<T>(operation: () => Promise<T>): Promise<T>;
   runInSnapshotCriticalSection<T>(operation: () => Promise<T>): Promise<T>;
 }
 
@@ -26,9 +27,15 @@ export const createPlatformPersistence = (
   runtimeHolder: PlatformRuntimeHolder,
   reloadRuntime: () => Promise<void>,
 ): PlatformPersistence => {
-  const runSerialized = serializeAsyncOperations();
-  const runInSnapshotCriticalSection = async <T>(operation: () => Promise<T>): Promise<T> =>
-    runtimeHolder.current().postgresStore === undefined ? operation() : runSerialized(operation);
+  const snapshotAccess = createAsyncReadWriteLock();
+  const runWithSnapshotReadAccess = async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (runtimeHolder.current().postgresStore === undefined) return await operation();
+    return await snapshotAccess.read(operation);
+  };
+  const runInSnapshotCriticalSection = async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (runtimeHolder.current().postgresStore === undefined) return await operation();
+    return await snapshotAccess.write(operation);
+  };
   const rawPersist = async (): Promise<void> => {
     const runtime = runtimeHolder.current();
     try {
@@ -42,6 +49,7 @@ export const createPlatformPersistence = (
   return {
     rawPersist,
     persist: () => runInSnapshotCriticalSection(rawPersist),
+    runWithSnapshotReadAccess,
     runInSnapshotCriticalSection,
   };
 };

@@ -9,18 +9,16 @@ import type {
   LeagueSnapshot,
   StoredLeagueSnapshot,
 } from "../leagueConnections.js";
+import { admitLeagueConnectionSync } from "./connectionAdmission.js";
+import { authoritativeSyncResult } from "./authoritativeResult.js";
 import { failureFor, type LeagueSyncFailure } from "./failureStatus.js";
 import { playerDirectoryFor } from "./playerDirectory.js";
+import {
+  refreshImportedSeasonDetail,
+  type ImportedSeasonRefresher,
+} from "./refreshImportedSeason.js";
 
-/**
- * Refreshes the Sunday Games league a connection was imported into. It answers
- * with the one thing the owner has to read, or null when the refresh needed no
- * explanation. The sync service holds no app, so the HTTP layer supplies this.
- */
-export type ImportedSeasonRefresher = (input: {
-  connection: LeagueConnection;
-  snapshot: LeagueSnapshot;
-}) => Promise<string | null>;
+export type { ImportedSeasonRefresher } from "./refreshImportedSeason.js";
 
 export interface LeagueSyncServiceOptions {
   adapters: Readonly<Record<LeagueSyncProvider, LeagueSyncAdapter>>;
@@ -30,34 +28,18 @@ export interface LeagueSyncServiceOptions {
 }
 
 export interface SyncConnectionResult {
-  connection: LeagueConnection;
+  connection: LeagueConnection | null;
   failure?: LeagueSyncFailure | undefined;
   snapshot?: StoredLeagueSnapshot | undefined;
 }
 
-/**
- * A snapshot is worth saving even when the league it feeds cannot take it, so
- * a refresh that fails hands back its reason instead of losing the sync.
- */
-const refreshDetailFor = async (
-  options: LeagueSyncServiceOptions,
-  connection: LeagueConnection,
-  snapshot: LeagueSnapshot,
-): Promise<string | null> => {
-  const refresh = options.refreshImportedSeason;
-  if (refresh === undefined || connection.leagueSeasonId === undefined) return null;
-  try {
-    return await refresh({ connection, snapshot });
-  } catch {
-    return "This league synced, but the Sunday Games league it created could not be updated.";
-  }
-};
-
-export const syncLeagueConnection = async (
+const executeLeagueConnectionSync = async (
   options: LeagueSyncServiceOptions,
   connection: LeagueConnection,
   now: Date,
 ): Promise<SyncConnectionResult> => {
+  const syncRevision = await options.repository.beginConnectionSync(connection.id);
+  if (syncRevision === null) return await authoritativeSyncResult(options.repository, connection);
   const adapter = options.adapters[connection.provider];
 
   try {
@@ -80,15 +62,34 @@ export const syncLeagueConnection = async (
       teams: league.teams,
       matchups: league.matchups,
     };
-    await options.repository.saveSnapshot(connection.id, snapshot, syncedAt);
-    const refreshDetail = await refreshDetailFor(options, connection, snapshot);
-    await options.repository.updateConnectionStatus({
+    const saved = await options.repository.saveSnapshot(
+      connection.id,
+      snapshot,
+      syncedAt,
+      syncRevision,
+    );
+    if (!saved) {
+      return await authoritativeSyncResult(options.repository, connection);
+    }
+    const refreshDetail = await refreshImportedSeasonDetail(
+      options.refreshImportedSeason,
+      connection,
+      snapshot,
+      syncedAt,
+      syncRevision,
+    );
+    const statusSaved = await options.repository.updateConnectionStatus({
       id: connection.id,
+      displayName: league.settings.name,
       status: refreshDetail === null ? "ok" : "needs_attention",
       ...(refreshDetail === null ? {} : { statusDetail: refreshDetail }),
       lastSyncedAt: syncedAt,
+      expectedSyncRevision: syncRevision,
       now,
     });
+    if (!statusSaved) {
+      return await authoritativeSyncResult(options.repository, connection);
+    }
 
     return {
       connection: {
@@ -99,24 +100,37 @@ export const syncLeagueConnection = async (
         statusDetail: refreshDetail ?? undefined,
       },
       snapshot: {
+        ...snapshot,
         connectionId: connection.id,
-        settings: league.settings,
-        teams: league.teams,
-        matchups: league.matchups,
         syncedAt,
+        syncRevision,
       },
     };
   } catch (error) {
     const failure = failureFor(error);
-    await options.repository.updateConnectionStatus({
+    const statusSaved = await options.repository.updateConnectionStatus({
       id: connection.id,
       status: failure.status,
       statusDetail: failure.message,
+      expectedSyncRevision: syncRevision,
       now,
     });
+    if (!statusSaved) {
+      return await authoritativeSyncResult(options.repository, connection);
+    }
     return {
       connection: { ...connection, status: failure.status, statusDetail: failure.message },
       failure,
     };
   }
 };
+
+export const syncLeagueConnection = async (
+  options: LeagueSyncServiceOptions,
+  connection: LeagueConnection,
+  now: Date,
+): Promise<SyncConnectionResult> => await admitLeagueConnectionSync(
+  options.repository,
+  connection.id,
+  async () => await executeLeagueConnectionSync(options, connection, now),
+);

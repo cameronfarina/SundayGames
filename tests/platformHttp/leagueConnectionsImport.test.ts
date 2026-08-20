@@ -138,7 +138,7 @@ describe("league connection import HTTP", () => {
       },
       teams: stored.teams,
       matchups: stored.matchups,
-    }, stored.syncedAt);
+    }, stored.syncedAt, stored.syncRevision);
 
     const response = await importLeague(harness.handle, harness.sessionToken, connectionId);
     const body = expectBodyRecord(response.body);
