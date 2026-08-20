@@ -55,6 +55,10 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: MOCKD_INVITATION_TOKEN_SECRET
         generateValue: true
+      - key: MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID
+        sync: false
+      - key: MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS
+        sync: false
       - key: MOCKD_TRUST_PROXY
         value: "true"
       - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA

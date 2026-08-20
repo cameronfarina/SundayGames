@@ -10,8 +10,11 @@ import type {
   StoredPlayerDirectory,
   UpdateLeagueConnectionStatusInput,
 } from "../leagueConnections.js";
+import type { LeagueConnectionCredentialCipher } from
+  "../leagueConnectionCredentialEncryption.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
-import type { LeagueConnectionCredentialRow, LeagueConnectionRow } from "./contracts.js";
+import type { LeagueConnectionRow } from "./contracts.js";
+import { PostgresLeagueConnectionCredentialStore } from "./credentials.js";
 import { connectionFromRow } from "./mapping.js";
 import {
   findPlayerDirectoryRow,
@@ -24,21 +27,20 @@ import {
   linkConnectionToSeasonSql,
   selectConnectionSql,
   selectConnectionsSql,
-  selectCredentialsSql,
   updateConnectionStatusSql,
   upsertConnectionSql,
 } from "./sql.js";
 
-const trimmedOrNull = (value: string | undefined): string | null => {
-  const trimmed = value?.trim() ?? "";
-  return trimmed.length === 0 ? null : trimmed;
-};
-
 export class PostgresLeagueConnectionRepository implements LeagueConnectionRepository {
   readonly #client: PostgresTransactionalQueryClient;
+  readonly #credentials: PostgresLeagueConnectionCredentialStore;
 
-  constructor(client: PostgresTransactionalQueryClient) {
+  constructor(
+    client: PostgresTransactionalQueryClient,
+    credentialCipher?: LeagueConnectionCredentialCipher,
+  ) {
     this.#client = client;
+    this.#credentials = new PostgresLeagueConnectionCredentialStore(client, credentialCipher);
   }
 
   async listConnections(accountId: string): Promise<readonly LeagueConnection[]> {
@@ -56,19 +58,18 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
   }
 
   async findCredentials(id: string): Promise<LeagueConnectionCredentials | null> {
-    const result = await this.#client.query<LeagueConnectionCredentialRow>(
-      selectCredentialsSql,
-      [id],
-    );
-    const row = result.rows[0];
-    if (row === undefined) return null;
-    return {
-      ...(row.espn_s2 === null ? {} : { espnS2: row.espn_s2 }),
-      ...(row.swid === null ? {} : { swid: row.swid }),
-    };
+    return await this.#credentials.find(id);
   }
 
   async saveConnection(input: SaveLeagueConnectionInput): Promise<LeagueConnection> {
+    const credentialContext = {
+      accountId: input.accountId,
+      providerLeagueId: input.providerLeagueId,
+      season: input.season,
+    };
+    const credentials = input.provider === "espn"
+      ? this.#credentials.encryptedFor(input.credentials, credentialContext)
+      : undefined;
     const result = await this.#client.query<LeagueConnectionRow>(upsertConnectionSql, [
       `league_connection_${randomUUID()}`,
       input.accountId,
@@ -76,8 +77,8 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
       input.providerLeagueId,
       input.season,
       input.displayName,
-      trimmedOrNull(input.credentials?.espnS2),
-      trimmedOrNull(input.credentials?.swid),
+      credentials?.ciphertext ?? null,
+      credentials?.keyId ?? null,
       (input.now ?? new Date()).toISOString(),
     ]);
     const row = result.rows[0];

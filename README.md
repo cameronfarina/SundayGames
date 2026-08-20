@@ -111,6 +111,11 @@ Production needs:
 - `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`.
 - Email delivery for signup and password resets (`MOCKD_AUTH_EMAIL_MODE`,
   `RESEND_API_KEY`, `MOCKD_EMAIL_FROM`).
+- A versioned ESPN credential keyring. Set
+  `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID` to the active key id and
+  `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS` to a JSON object whose values are
+  canonical base64-encoded 32-byte keys. Generate a key with
+  `openssl rand -base64 32`; keep the JSON only in the hosting secret store.
 
 Optional: set `MOCKD_SCREENSHOT_IMPORT_MODE=openai` and `OPENAI_API_KEY` to let
 commissioners import league members from a screenshot.
@@ -120,6 +125,12 @@ Run migrations before serving traffic:
 ```bash
 DATABASE_URL=postgres://... npm run platform:migrate
 ```
+
+After the encrypted-credential release is stable and every old web instance
+has stopped, secure legacy credential rows with
+`npm run platform:credentials:backfill`. The command encrypts ESPN credentials,
+discards cookie values historically saved on non-ESPN connections, and rewrites
+envelopes that still use a retained rotation key. It is safe to rerun.
 
 ## Analysis tools
 

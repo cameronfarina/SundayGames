@@ -37,9 +37,20 @@ npm run platform:render:validate -- /path/to/render-schema.json /path/to/render.
 2. In Render, choose **New > Blueprint** and connect this repository.
 3. Select `render.yaml` and review both resources before applying it.
 4. Verify a sending domain in Resend. Add `RESEND_API_KEY`, set `MOCKD_EMAIL_FROM` to that verified sender, and set `MOCKD_PUBLIC_BASE_URL` to the generated Render HTTPS origin for staging.
-5. Confirm no provisioning token or password-hash variables are present in the Blueprint.
-6. Apply the Blueprint and wait for the web service and database to become healthy.
-7. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, or the public HTTPS origin. OpenAI is not required.
+5. Generate a 32-byte key with `openssl rand -base64 32` in a trusted operator environment. Set `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID` to a stable id such as `credentials-2026-08`, then set `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS` to a JSON object that maps that id to the generated value. Keep both settings in Render's secret environment only.
+6. Confirm no provisioning token or password-hash variables are present in the Blueprint.
+7. Apply the Blueprint and wait for the web service and database to become healthy.
+8. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, the public HTTPS origin, or a valid credential keyring. OpenAI is not required.
+
+For the credential-encryption release, wait until the new web process is stable and the old zero-downtime process has stopped before opening a Render Shell and running `npm run platform:credentials:backfill`. Do not run it while rollback to the old release is still likely. The command encrypts ESPN credentials and discards cookie values historically saved on Sleeper or Yahoo connections. Verify that no legacy values remain:
+
+```sql
+SELECT count(*)
+FROM league_connections
+WHERE espn_s2 IS NOT NULL OR swid IS NOT NULL;
+```
+
+The result must be zero before the next logical database export.
 
 Do not add the public domain yet. Use the generated `onrender.com` hostname for setup and staging smoke.
 
@@ -92,6 +103,8 @@ npm run platform:restore:rehearse -- --backup=/secure/backups/mockd.dump
 
 Backup creation refuses an unprovisioned schema, records the source database identity, and captures snapshot-consistent counts for every application table. The rehearsal verifies the backup hash, size, and source identity; refuses a non-empty or ambiguously named target; restores in one transaction; reapplies compiled migrations; runs compiled production readiness; and requires every restored application-table count to match the manifest. Keep the emitted JSON result with the launch record.
 
+The dump contains ESPN credential envelopes after the backfill, not the raw cookie values. It does not contain the Render keyring. Keep the matching keyring in the secret store for the full backup retention window and attach it only to the isolated restored app used for the ESPN sync check. The dump still contains other private data and must keep the same restricted handling.
+
 If the database is private-only, temporarily allow only the operator's current IP while running these commands, then restore an empty external allowlist immediately.
 
 ## 4. Activate Monitoring
@@ -134,6 +147,8 @@ Before each manual release, record the current web deploy ID plus the UTC time, 
 For the hosted-snake release, apply `platform-snake-live-room-v20` and complete the web swap before creating a snake room. The old release remains safe for existing auction rooms because their recorded sales still have prices, but its snapshot decoder rejects every snake room. Keep snake room creation disabled operationally while application rollback is still likely. Once the first hosted snake room is created, roll forward; use the recorded pre-room Postgres recovery point only if roll-forward is impossible.
 
 If a future release includes a destructive or backward-incompatible migration, mark it no-go until it has an explicit expand/migrate/contract sequence. If data must be reverted, enable maintenance mode, restore Postgres to the pre-release recovery point, restore the web-disk snapshot only when private draft-session data also needs reversal, roll back the web service, then rerun readiness and deployed smoke before disabling maintenance mode.
+
+The encrypted-credential schema expansion lets the old release keep syncing existing plaintext connections during the swap. A read by the new release may add an encrypted envelope to a legacy row, but it deliberately keeps `espn_s2` and `swid` until the operator runs the backfill. The old release cannot read a connection created or repaired by the new release. After backfill, it cannot sync any saved ESPN connection because every credential is envelope-only. Prefer rolling forward. Before backfill, a rollback keeps legacy connections working but owners of newly written connections must paste fresh credentials after the fixed release returns. After backfill, rollback requires either restoring the pre-backfill database recovery point or having every affected owner paste fresh credentials after the fixed release returns.
 
 Automatic deploys stay off. During the draft-day freeze, do not start a manual web deploy except as part of the documented incident response.
 

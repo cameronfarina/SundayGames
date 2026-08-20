@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button, TextField } from "../../../../shared/ui";
 
 interface AccountCookieFormProps {
@@ -21,10 +22,14 @@ export const AccountCookieForm = ({
   onSwidChange,
   pending,
   swid,
-}: AccountCookieFormProps) => <form
-  className="add-connection__form cookie-step"
-  onSubmit={event => { event.preventDefault(); onSubmit(); }}
->
+}: AccountCookieFormProps) => {
+  const [valuesVisible, setValuesVisible] = useState(false);
+  const credentialType = valuesVisible ? "text" : "password";
+
+  return <form
+    className="add-connection__form cookie-step"
+    onSubmit={event => { event.preventDefault(); onSubmit(); }}
+  >
   <h3>Find every league on your ESPN account</h3>
   <p>
     ESPN does not offer a "sign in with ESPN" button, so there is no way to hand you off to
@@ -42,19 +47,33 @@ export const AccountCookieForm = ({
     <li>Paste both below. Keep the curly braces around SWID.</li>
   </ol>
   <TextField
+    autoComplete="off"
     id="connection-espn-s2"
     label="espn_s2 cookie"
     onChange={event => { onEspnS2Change(event.currentTarget.value); }}
+    spellCheck={false}
+    type={credentialType}
     value={espnS2}
   />
   <TextField
+    autoComplete="off"
     hint="Looks like {AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}"
     id="connection-swid"
     label="SWID cookie"
     onChange={event => { onSwidChange(event.currentTarget.value); }}
+    spellCheck={false}
+    type={credentialType}
     value={swid}
   />
+  <Button
+    aria-pressed={valuesVisible}
+    onClick={() => { setValuesVisible(current => !current); }}
+    variant="secondary"
+  >
+    {valuesVisible ? "Hide ESPN cookie values" : "Show ESPN cookie values"}
+  </Button>
   <Button disabled={pending || espnS2.trim() === "" || swid.trim() === ""} type="submit">
     {pending ? "Looking..." : "Find all my leagues"}
   </Button>
 </form>;
+};

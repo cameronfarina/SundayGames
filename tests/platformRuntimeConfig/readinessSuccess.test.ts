@@ -5,6 +5,13 @@ import {
   platformProductionReadinessExitCode,
 } from "../../src/platform/platformRuntimeConfig.js";
 
+const credentialEncryptionEnv = {
+  MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: "credentials-2026-08",
+  MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: JSON.stringify({
+    "credentials-2026-08": Buffer.alloc(32, 11).toString("base64"),
+  }),
+};
+
 describe("successful platform production readiness", () => {
   it("reports production/domain readiness for a Postgres-backed deploy target", () => {
     const report = assessPlatformProductionReadiness({
@@ -20,6 +27,7 @@ describe("successful platform production readiness", () => {
       MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
       MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
+      ...credentialEncryptionEnv,
     });
 
     expect(report).toMatchObject({
@@ -53,6 +61,11 @@ describe("successful platform production readiness", () => {
         status: "pass",
         label: "League invitation signing",
         detail: "A durable league invitation signing secret is configured.",
+      },
+      {
+        status: "pass",
+        label: "ESPN credential encryption",
+        detail: "A versioned active encryption key is configured for stored ESPN credentials.",
       },
       {
         status: "pass",
@@ -105,6 +118,7 @@ describe("successful platform production readiness", () => {
       MOCKD_EMAIL_FROM: "Mockd <accounts@mockd.example.com>",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
       MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
+      ...credentialEncryptionEnv,
     });
 
     expect(report.ready).toBe(true);

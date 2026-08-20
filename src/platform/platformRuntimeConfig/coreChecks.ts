@@ -10,6 +10,10 @@ import type {
 } from "./contracts.js";
 import { databaseUrlEnv, isPostgresDatabaseUrl } from "./database.js";
 import { booleanEnv, errorMessage, optionalEnvString } from "./env.js";
+import {
+  assertProductionLeagueConnectionCredentialEncryption,
+  leagueConnectionCredentialCipherFromEnv,
+} from "./credentialEncryption.js";
 
 export const storageChecks = (
   env: PlatformRuntimeEnv,
@@ -93,6 +97,27 @@ export const invitationCheck = (
     return {
       status: "fail",
       label: "League invitation signing",
+      detail: errorMessage(error),
+    };
+  }
+};
+
+export const leagueConnectionCredentialEncryptionCheck = (
+  env: PlatformRuntimeEnv,
+): PlatformProductionReadinessCheck => {
+  try {
+    assertProductionLeagueConnectionCredentialEncryption(
+      leagueConnectionCredentialCipherFromEnv(env),
+    );
+    return {
+      status: "pass",
+      label: "ESPN credential encryption",
+      detail: "A versioned active encryption key is configured for stored ESPN credentials.",
+    };
+  } catch (error) {
+    return {
+      status: "fail",
+      label: "ESPN credential encryption",
       detail: errorMessage(error),
     };
   }

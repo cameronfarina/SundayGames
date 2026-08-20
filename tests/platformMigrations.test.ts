@@ -217,6 +217,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-v18",
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
+      "platform-league-credential-encryption-v21",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -249,6 +250,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-v18",
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
+      "platform-league-credential-encryption-v21",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -356,6 +358,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-v18",
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
+      "platform-league-credential-encryption-v21",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -377,6 +380,15 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-v18",
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
+      "platform-league-credential-encryption-v21",
+    ]);
+  });
+
+  it("applies snake price support before credential encryption", () => {
+    expect(requiredPlatformPostgresMigrationIds.slice(-3)).toEqual([
+      "platform-league-import-v19",
+      "platform-snake-live-room-v20",
+      "platform-league-credential-encryption-v21",
     ]);
   });
 
@@ -428,6 +440,27 @@ describe("platform Postgres migrations", () => {
     );
     // Deleting the imported league clears the link instead of the connection.
     expect(client.statements).toContainEqual(expect.stringContaining("ON DELETE SET NULL"));
+  });
+
+  it("adds rolling-safe encrypted credential columns without rewriting plaintext rows", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-league-credential-encryption-v21")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS credentials_ciphertext text;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS credentials_key_id text;",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "league_connections_encrypted_credentials_pair_check",
+    ));
+    expect(client.statements.join("\n")).not.toContain("UPDATE league_connections SET espn_s2");
   });
 
   it("stores historical public values and lets users import the same provider league independently", async () => {

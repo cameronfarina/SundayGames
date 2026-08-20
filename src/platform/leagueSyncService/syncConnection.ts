@@ -59,13 +59,15 @@ export const syncLeagueConnection = async (
   now: Date,
 ): Promise<SyncConnectionResult> => {
   const adapter = options.adapters[connection.provider];
-  const credentials = await options.repository.findCredentials(connection.id) ?? undefined;
-  const requestOptions = {
-    ...(credentials === undefined ? {} : { credentials }),
-    ...(options.fetcher === undefined ? {} : { fetcher: options.fetcher }),
-  };
 
   try {
+    const credentials = connection.provider === "espn"
+      ? await options.repository.findCredentials(connection.id) ?? undefined
+      : undefined;
+    const requestOptions = {
+      ...(credentials === undefined ? {} : { credentials }),
+      ...(options.fetcher === undefined ? {} : { fetcher: options.fetcher }),
+    };
     const directory = await playerDirectoryFor(adapter, options.repository, requestOptions, now);
     const league = await adapter.fetchLeague({
       ...requestOptions,

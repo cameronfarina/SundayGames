@@ -50,7 +50,10 @@ export const composeRuntimeRepositories = (
     : undefined;
   const postgresLeagueConnectionRepository = options.leagueConnectionRepository === undefined &&
       sharedTransactionalClient !== undefined
-    ? new PostgresLeagueConnectionRepository(sharedTransactionalClient)
+    ? new PostgresLeagueConnectionRepository(
+        sharedTransactionalClient,
+        options.leagueConnectionCredentialCipher,
+      )
     : undefined;
   const liveDraftClient = options.postgresLiveDraftRoomClient ??
     (options.liveDraftRoomRepository === undefined ? sharedTransactionalClient : undefined);

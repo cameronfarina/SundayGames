@@ -59,6 +59,8 @@ Screenshot analysis remains optional. Set `MOCKD_SCREENSHOT_IMPORT_MODE=openai` 
 
 Hosted live-draft mutations are limited to 30 changes per account and room each minute. Postgres retains one full room recovery base and the two newest compact revision snapshots. Compact snapshots contain only mutable room metadata; normalized draft events and recorded sales or picks remain the authoritative audit trail, and room projections are rebuilt from that trail during restart.
 
+Hosted ESPN session values are write-only, masked in the connection form, and stored in versioned AES-256-GCM envelopes. Production readiness requires an active credential key plus the retained decryption keyring. The keyring stays in the hosting secret store and outside Postgres backups; restore and key-rotation procedures live in the production runbook.
+
 ## Hosted Domain Gate
 
 A public domain is no-go until `docs/ai-plans/fantasy-draft-platform/production-runbook.md` is all pass.

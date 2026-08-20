@@ -9,6 +9,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   readonly label: string;
   /** Marks the label with an asterisk; validation stays in the caller. */
   readonly required?: boolean;
+  readonly type?: "password" | "text";
 }
 
 export const TextField = ({
@@ -18,6 +19,7 @@ export const TextField = ({
   id,
   label,
   required,
+  type = "text",
   ...inputProps
 }: TextFieldProps) => {
   const errorId = `${id}-error`;
@@ -39,7 +41,7 @@ export const TextField = ({
         aria-invalid={error !== undefined}
         className={clsx("text-field__input", className)}
         id={id}
-        type="text"
+        type={type}
       />
       {error === undefined && hint !== undefined && (
         <span className="text-field__hint" id={hintId}>{hint}</span>

@@ -14,7 +14,13 @@ export interface LeagueConnectionRow {
 }
 
 export interface LeagueConnectionCredentialRow {
+  account_id: string;
+  credential_row_version: string;
+  credentials_ciphertext: string | null;
+  credentials_key_id: string | null;
   espn_s2: string | null;
+  provider_league_id: string;
+  season: string;
   swid: string | null;
 }
 

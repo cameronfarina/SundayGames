@@ -111,6 +111,8 @@ Implemented bootstrap variables:
 - `RESEND_API_KEY`: production Resend API credential. It is sent only in the HTTPS authorization header.
 - `MOCKD_EMAIL_FROM`: verified Resend sender, such as `Mockd <accounts@example.com>`.
 - `MOCKD_PUBLIC_BASE_URL`: public HTTPS origin used for verification and reset links. It must not contain a path, query, or fragment.
+- `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID`: the key id used for new ESPN credential envelopes. Use a date- or release-based id containing only letters, digits, dots, underscores, or hyphens.
+- `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS`: a secret-store-only JSON object from key id to canonical base64-encoded 32-byte key. Generate each value with `openssl rand -base64 32`. Keep retired keys in this object until the rotation query below reports no rows for them. The keyring is not stored in Postgres or included in database backups.
 - `MOCKD_TRUST_PROXY`: defaults to `false`. Set it to `true` only when the web process is network-restricted behind a trusted proxy. Trusted mode prefers Cloudflare's overwritten `CF-Connecting-IP`, then supports validated standard forwarding headers for other trusted proxy deployments; malformed values fall back to the socket address. Render routes public traffic through Cloudflare and documents `CF-Connecting-IP` as the trusted client-address header.
 - `MOCKD_LIVE_DRAFT_DATA_MODE`: defaults to `postgres`. Production startup and readiness reject `local-fixtures`.
 - `MOCKD_PROVISIONING_TOKEN`: optional secret for deployment-only HTTP bootstrap routes. Normal production setup happens in the product, so leave this unset unless an approved recovery workflow needs those routes.
@@ -164,6 +166,8 @@ Run these against the exact commit that will serve the domain.
 
    Migration `platform-snake-live-room-v20` only makes recorded draft prices nullable. The previous release remains compatible with auction rooms because auction writes still include a price, but its snapshot decoder does not accept a snake room at all. Deploy v20 and the new web process first, verify the release, and wait until application rollback is no longer expected before creating the first hosted snake room. Creating that room is the roll-forward boundary; restoring the database to a point before it was created is the fallback if roll-forward cannot recover the release.
 
+   Migration `platform-league-credential-encryption-v21` is additive. It leaves the old `espn_s2` and `swid` columns in place so the previous web process can finish a zero-downtime deploy. New writes use only the encrypted envelope columns, so the previous release cannot read a connection created or repaired by the new release. When the new release reads an existing plaintext connection, it may populate the envelope columns but does not clear the legacy columns. Existing plaintext connections therefore remain readable by both releases until the explicit backfill. After the new release is stable and every old web process has stopped, run `npm run platform:credentials:backfill`. Do not run the backfill before deciding the release will not roll back: it atomically refreshes the envelope from any current ESPN plaintext, makes every stored ESPN credential envelope-only, and discards cookie values historically saved on non-ESPN connections.
+
 3. Check production/domain runtime readiness:
 
    ```bash
@@ -171,7 +175,10 @@ Run these against the exact commit that will serve the domain.
    MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY=/var/lib/mockd/draft-tools \
    MOCKD_ALLOW_PUBLIC_SIGNUP=true MOCKD_AUTH_EMAIL_MODE=resend \
    RESEND_API_KEY="$RESEND_API_KEY" MOCKD_EMAIL_FROM="$MOCKD_EMAIL_FROM" \
-   MOCKD_PUBLIC_BASE_URL="$MOCKD_PUBLIC_BASE_URL" npm run platform:ready
+   MOCKD_PUBLIC_BASE_URL="$MOCKD_PUBLIC_BASE_URL" \
+   MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID="$MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID" \
+   MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS="$MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS" \
+   npm run platform:ready
    ```
 
    This preflight checks runtime config, Postgres connectivity, required migration IDs, and writable private draft storage. The human checklist below still gates league setup, backups, DNS, smoke, and rollback.
@@ -400,6 +407,18 @@ Backup expectations:
 - Durable storage backups for uploaded imports and generated exports.
 - No backup of `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`. It is container-local scratch for the classic draft-tools routes, and a restart discards it by design.
 
+`pg_dump` includes the entire `league_connections` table. Before the first backup after this migration, run the credential backfill and require the following query to return zero. Otherwise that backup still contains legacy plaintext ESPN session material.
+
+```sql
+SELECT count(*) AS legacy_plaintext_credentials
+FROM league_connections
+WHERE espn_s2 IS NOT NULL OR swid IS NOT NULL;
+```
+
+After it returns zero, database backups contain authenticated credential envelopes rather than plaintext cookie values. Backups remain sensitive because they contain other private application data. The encryption keyring is intentionally outside the dump; a restored app needs the matching retained keys before it can sync ESPN. For rotation, add the new key, make it active, deploy, rerun `npm run platform:credentials:backfill`, then verify `SELECT credentials_key_id, count(*) FROM league_connections WHERE credentials_key_id IS NOT NULL GROUP BY credentials_key_id;` before removing an old key.
+
+The plaintext columns are temporary compatibility fields. Remove them with two later releases: first deploy code that no longer selects or writes `espn_s2` and `swid`; after every process runs that code and the zero-plaintext query still passes, deploy a separate contract migration that drops the columns. Never put the code removal and column drop in the same zero-downtime release.
+
 Restore expectations:
 
 - Restore to an isolated database first.
@@ -528,13 +547,13 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
 | Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, `platform-auth-ownership-v8` is applied, and `league_season_draft_setups` exists. |
-| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
+| Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, the active ESPN credential key id and retained keyring, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
 | League setup | A commissioner created and published the staging league through the product; settings, team mappings, historical imports, keepers, and active pricing are correct; no `platform:seed:e2e` fixture accounts are present in production. |
 | Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |
 | Draft commands | Sale, undo, end, idempotency, stale revision, budget, roster, and position maximum validation pass in staging. |
 | Export | Final export artifact is created after room end and content is readable after restore. |
-| Backups | Automated backups and alerts are enabled, the pre-cutover UTC recovery point and logical export are recorded, and restore rehearsal has passed within 7 days. |
+| Backups | Automated backups and alerts are enabled, the ESPN plaintext query returns zero, the pre-cutover UTC recovery point and logical export are recorded, the matching credential keyring is retained outside Postgres, and restore rehearsal has passed within 7 days. |
 | Monitoring | Uptime, 5xx, Postgres availability, backup failure, and draft-window mutation alerts route to named owners. |
-| Provider risk | Yahoo/ESPN sync is either disabled or read-only configured. ESPN cookies are not collected in hosted production. |
+| Provider risk | Yahoo remains unavailable until its approved API path exists. ESPN credentials are write-only in the browser, masked by default, encrypted in Postgres, absent from public responses, and verified after restore with a dedicated staging connection. |
 | Degraded mode | Manual draft board fallback, recovery owner, and user comms are ready for draft night. |

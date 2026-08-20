@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readPlatformWebRuntimeConfig } from "../../src/platform/platformRuntimeConfig.js";
 
+const credentialKeyId = "credentials-2026-08";
+const credentialKeys = JSON.stringify({
+  [credentialKeyId]: Buffer.alloc(32, 11).toString("base64"),
+});
+
 describe("platform web runtime config", () => {
   it("requires explicit shared storage settings for the default web mode", () => {
     expect(() => readPlatformWebRuntimeConfig({
@@ -31,6 +36,13 @@ describe("platform web runtime config", () => {
       MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
       MOCKD_PUBLIC_BASE_URL: "http://mockd.example.com/path",
     })).toThrow("MOCKD_PUBLIC_BASE_URL must be a valid HTTPS origin.");
+    expect(() => readPlatformWebRuntimeConfig({
+      ...base,
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "secret",
+      MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
+      MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
+    })).toThrow("MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS is required in production.");
     expect(readPlatformWebRuntimeConfig({
       ...base,
       MOCKD_AUTH_EMAIL_MODE: "resend",
@@ -38,6 +50,8 @@ describe("platform web runtime config", () => {
       MOCKD_EMAIL_FROM: "accounts@mockd.example.com",
       MOCKD_PUBLIC_BASE_URL: "https://mockd.example.com",
       MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: credentialKeyId,
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: credentialKeys,
     }).authEmail.mode).toBe("resend");
   });
 });

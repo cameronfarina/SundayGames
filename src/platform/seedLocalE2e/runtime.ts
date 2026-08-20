@@ -29,6 +29,7 @@ export const loadLocalE2eSeedRuntime = async (
     postgresSimulationClient: postgresClient,
     postgresSnapshotKey: config.postgresSnapshotKey,
     initializePostgresSchema: config.initializePostgresSchema,
+    leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,
     simulationRunner: createDisabledSimulationRunner(),
   });
   const storage: LocalE2eSeedStorage = config.databaseUrl === undefined

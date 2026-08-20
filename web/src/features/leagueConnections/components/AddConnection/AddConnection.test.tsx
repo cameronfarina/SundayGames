@@ -40,7 +40,7 @@ describe("AddConnection", () => {
 
     await user.click(screen.getByRole("tab", { name: "ESPN" }));
 
-    expect(screen.getByRole("textbox", { name: "espn_s2 cookie" })).toBeVisible();
+    expect(screen.getByLabelText("espn_s2 cookie")).toBeVisible();
     expect(screen.getByRole("button", { name: "Find all my leagues" })).toBeVisible();
     // The single-league path still exists, just out of the way.
     expect(screen.getByText("Only want one league? Connect it by ID")).toBeVisible();

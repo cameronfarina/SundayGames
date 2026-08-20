@@ -93,6 +93,17 @@ const connectionFor = async (repository: InMemoryLeagueConnectionRepository) =>
   });
 
 describe("league connection sync", () => {
+  it("does not load stored credentials for a provider that cannot use them", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const findCredentials = vi.spyOn(repository, "findCredentials");
+    const { adapter } = stubAdapter();
+    const connection = await connectionFor(repository);
+
+    await syncLeagueConnection(serviceFor(adapter, repository), connection, now);
+
+    expect(findCredentials).not.toHaveBeenCalled();
+  });
+
   it("stores the league, renames the connection, and marks it healthy", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
     const { adapter } = stubAdapter();
@@ -153,10 +164,21 @@ describe("league connection sync", () => {
 
   it("passes saved ESPN cookies to the provider without exposing them", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
-    const { adapter, fetchLeague } = stubAdapter();
+    const { adapter: sleeperAdapter } = stubAdapter();
+    const fetchLeague = vi.fn(async (
+      _input: FetchLeagueInput,
+      _directory: PlayerDirectory,
+    ) => syncedLeague);
+    const espnAdapter: LeagueSyncAdapter = {
+      provider: "espn",
+      isAvailable: () => true,
+      needsPlayerDirectory: false,
+      discoverLeagues: async () => [],
+      fetchLeague,
+    };
     const connection = await repository.saveConnection({
       accountId: "account-1",
-      provider: "sleeper",
+      provider: "espn",
       providerLeagueId: "league-1",
       season: "2018",
       displayName: "Pending league",
@@ -164,7 +186,10 @@ describe("league connection sync", () => {
       now,
     });
 
-    const result = await syncLeagueConnection(serviceFor(adapter, repository), connection, now);
+    const result = await syncLeagueConnection({
+      adapters: { sleeper: sleeperAdapter, espn: espnAdapter, yahoo: espnAdapter },
+      repository,
+    }, connection, now);
 
     expect(fetchLeague.mock.calls[0]?.[0]).toMatchObject({
       credentials: { espnS2: "s2-value", swid: "{GUID}" },

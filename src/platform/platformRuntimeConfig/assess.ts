@@ -10,7 +10,13 @@ import {
 } from "./database.js";
 import { productionReadinessNextSteps } from "./defaults.js";
 import { errorMessage, optionalEnvString } from "./env.js";
-import { accountCheck, emailCheck, invitationCheck, storageChecks } from "./coreChecks.js";
+import {
+  accountCheck,
+  emailCheck,
+  invitationCheck,
+  leagueConnectionCredentialEncryptionCheck,
+  storageChecks,
+} from "./coreChecks.js";
 import { readPlatformRuntimeConfig } from "./read.js";
 import {
   bindCheck,
@@ -34,6 +40,7 @@ export const assessPlatformProductionReadiness = (
     accountCheck(env),
     emailCheck(env),
     invitationCheck(env),
+    leagueConnectionCredentialEncryptionCheck(env),
     liveDraftCheck(env),
     privateStorageCheck(env),
     bind.check,

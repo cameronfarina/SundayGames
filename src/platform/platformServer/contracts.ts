@@ -9,6 +9,8 @@ import type { HistoricalImportRepository } from "../historicalImports.js";
 import type { JobRepository } from "../jobs.js";
 import type { LeagueSyncFetch } from "../../data/leagueSyncProviderAdapters.js";
 import type { LeagueConnectionRepository } from "../leagueConnections.js";
+import type { LeagueConnectionCredentialCipher } from
+  "../leagueConnectionCredentialEncryption.js";
 import type { LeagueSetupRepository } from "../leagueSetup.js";
 import type { LeagueSeason } from "../leagueSeason.js";
 import type {
@@ -56,6 +58,7 @@ export interface CreatePlatformServerOptions {
   fantasyProsRepository?: FantasyProsRepository | undefined;
   fantasyProsConfigured?: boolean | undefined;
   leagueConnectionRepository?: LeagueConnectionRepository | undefined;
+  leagueConnectionCredentialCipher?: LeagueConnectionCredentialCipher | undefined;
   leagueSyncFetch?: LeagueSyncFetch | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;

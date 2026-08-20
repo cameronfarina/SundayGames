@@ -59,6 +59,8 @@
     "platform:password:hash": "tsx scripts/hash-production-password.ts",
     "platform:password:reset": "node dist/src/platform/resetProductionPassword.js",
     "platform:backup:postgres": "tsx scripts/backup-postgres.ts",
+    "platform:credentials:backfill": "node dist/src/platform/backfillLeagueConnectionCredentials.js",
+    "platform:credentials:backfill:dev": "tsx src/platform/backfillLeagueConnectionCredentials.ts",
     "platform:restore:rehearse": "tsx scripts/rehearse-postgres-restore.ts",
     "platform:render:validate": "tsx scripts/validate-render-blueprint.ts",
     "platform:seed:e2e": "tsx src/platform/seedLocalE2e.ts",

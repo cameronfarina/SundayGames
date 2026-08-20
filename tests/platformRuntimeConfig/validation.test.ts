@@ -76,4 +76,23 @@ describe("platform runtime config validation", () => {
       MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
     })).toThrow("MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is only supported outside production.");
   });
+
+  it("validates the credential keyring without echoing its secret values", () => {
+    const secretValue = "do-not-echo-this-key";
+    let thrown: unknown;
+    try {
+      readPlatformRuntimeConfig({
+        MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: "credentials-v1",
+        MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: JSON.stringify({
+          "credentials-v1": secretValue,
+        }),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(String(thrown)).toContain("canonical base64-encoded 32-byte key");
+    expect(String(thrown)).not.toContain(secretValue);
+  });
 });
