@@ -18,11 +18,16 @@ describe("AddConnection", () => {
     const { result } = renderHook(() => useLeagueConnectionMutations(), { wrapper });
 
     render(<QueryClientProvider client={new QueryClient()}>
-      <AddConnection mutations={result.current} providers={providerCatalogFixture} />
+      <AddConnection
+        connections={[]}
+        mutations={result.current}
+        providers={providerCatalogFixture}
+        targets={[]}
+      />
     </QueryClientProvider>);
 
-    expect(screen.getByRole("heading", { name: "Connect a league" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Import leagues" })).toBeVisible();
     expect(screen.getAllByRole("tab")).toHaveLength(3);
-    expect(screen.queryByRole("button", { name: "Find leagues" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Find my leagues" })).not.toBeInTheDocument();
   });
 });
