@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { liveDraftPickSchema } from "../../api/liveDraftSchemas";
 import { pickLabel } from "../../lib/pickLabel";
@@ -33,17 +33,37 @@ const keeperPick = liveDraftPickSchema.parse({
   source: "keeper",
 });
 
+const roundRow = (round: number) => screen.getAllByRole("row")[round];
+
 describe("PickBoard", () => {
   afterEach(() => { document.body.replaceChildren(); });
 
-  it("groups picks by round and names the team on the clock", () => {
+  it("gives every team a column and every round a row", () => {
     render(<PickBoard onTheClock={picks[1]} picks={picks} viewedTeamId="team-Owner11" />);
 
-    expect(screen.getByText("Round 1")).toBeVisible();
-    expect(screen.getByText("Round 2")).toBeVisible();
+    expect(screen.getAllByRole("columnheader").map(header => header.textContent))
+      .toEqual(["Round", "Owner11", "Owner04"]);
+    expect(screen.getAllByRole("rowheader").map(header => header.textContent)).toEqual(["1", "2"]);
     expect(screen.getByText("Ja'Marr Chase")).toBeVisible();
     expect(screen.getByText("On the clock")).toBeVisible();
     expect(screen.getAllByText("-")).toHaveLength(2);
+  });
+
+  it("keeps a team's picks in one column when the round reverses", () => {
+    render(<PickBoard picks={picks} viewedTeamId="team-Owner11" />);
+
+    const secondRound = roundRow(2);
+    if (secondRound === undefined) throw new Error("Expected a row for round 2.");
+    expect(within(secondRound).getAllByText(/^\d\.\d\d$/u).map(label => label.textContent))
+      .toEqual(["2.02", "2.01"]);
+  });
+
+  it("leaves a cell empty when a team has no pick in the round", () => {
+    render(<PickBoard picks={[...picks, pick(5, 3, 1, "Owner11")]} />);
+
+    const thirdRound = roundRow(3);
+    if (thirdRound === undefined) throw new Error("Expected a row for round 3.");
+    expect(within(thirdRound).getAllByRole("cell").at(-1)).toBeEmptyDOMElement();
   });
 
   it("writes a pick the way managers say it", () => {
