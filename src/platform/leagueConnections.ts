@@ -4,6 +4,7 @@ export type {
   LeagueConnectionRepository,
   LeagueConnectionStatus,
   LeagueSnapshot,
+  LinkLeagueConnectionInput,
   PlayerDirectoryRow,
   SaveLeagueConnectionInput,
   StoredLeagueSnapshot,
