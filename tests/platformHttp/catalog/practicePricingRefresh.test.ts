@@ -130,7 +130,7 @@ describe("platform HTTP pricing refresh", () => {
       },
     });
     expect(preflight).toHaveBeenCalledWith(expect.objectContaining({
-      modelVersion: "league-flat-inflation-v3",
+      modelVersion: "league-flat-inflation-v4",
     }));
 
     const mockResponse = await handle({

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canonicalPlayerIdentityKey } from "../src/data/normalizePlayerName.js";
+import { slotPriceOwnerDisplayName } from "../src/platform/historicalImports/slotPriceProvenance.js";
 import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
 import { createLeagueCalibratedPricingSnapshots } from "../src/platform/pricingRebuild.js";
 import { playerCatalogWithPricingSnapshot } from "../src/platform/http/routes/season/pricingOrchestration.js";
@@ -325,6 +326,135 @@ describe("league-calibrated pricing rebuild", () => {
 
     expect(snapshots.map(snapshot => snapshot.scenarioId)).toEqual(["balanced"]);
     expect(snapshots[0]?.rows[0]).toMatchObject({ marketPrice: 50, scenarioPrice: 50 });
+  });
+
+  describe("slot price floors", () => {
+    const slotFloorBaselinePrices = [
+      { name: "Alpha Runner", normalizedName: "alpha runner", position: "RB", price: 63 },
+      { name: "Bravo Runner", normalizedName: "bravo runner", position: "RB", price: 61 },
+      { name: "Charlie Receiver", normalizedName: "charlie receiver", position: "WR", price: 55 },
+      { name: "Foxtrot Kicker", normalizedName: "foxtrot kicker", position: "K", price: 4 },
+    ] satisfies readonly PricingSourcePrice[];
+
+    const slotSale = (
+      overrides: Partial<HistoricalSaleRecord> = {},
+    ): HistoricalSaleRecord => historicalSale({
+      id: `slot-${overrides.playerName ?? "RB1"}-${String(overrides.seasonYear ?? 2025)}`,
+      ownerId: "owner-slot-prices",
+      ownerDisplayName: slotPriceOwnerDisplayName,
+      playerId: "player-slot",
+      playerName: "RB1",
+      ...overrides,
+    });
+
+    const slotSaleWithoutPublicPrice = (
+      overrides: Partial<HistoricalSaleRecord> = {},
+    ): HistoricalSaleRecord => {
+      const sale = slotSale(overrides);
+      delete sale.publicPriceDollars;
+
+      return sale;
+    };
+
+    const snapshotFor = (
+      historicalSaleRecords: readonly HistoricalSaleRecord[],
+      extra: Record<string, unknown> = {},
+    ) => createLeagueCalibratedPricingSnapshots({
+      leagueId: "league-100001",
+      seasonYear: 2026,
+      modelVersion: "league-flat-inflation-v4",
+      scenarioIds: ["expected"],
+      baselinePrices: slotFloorBaselinePrices,
+      historicalSaleRecords,
+      ...extra,
+    })[0];
+
+    it("floors this year's top ranks at the league's slot prices", () => {
+      const snapshot = snapshotFor([
+        slotSale({ priceDollars: 77, publicPriceDollars: 70 }),
+        slotSale({ playerName: "RB2", priceDollars: 68, publicPriceDollars: 66 }),
+      ]);
+
+      expect(snapshot?.rows.map(row => `${row.playerName} $${String(row.scenarioPrice)}`))
+        .toEqual([
+          "Alpha Runner $77",
+          "Bravo Runner $68",
+          "Charlie Receiver $59",
+          "Foxtrot Kicker $2",
+        ]);
+      expect(snapshot?.rows[0]?.warnings).toContain(
+        "imported slot prices set a floor for each position rank",
+      );
+    });
+
+    it("keeps the inflated price when it clears the slot floor", () => {
+      const snapshot = snapshotFor([
+        slotSale({ priceDollars: 40, publicPriceDollars: 20 }),
+      ]);
+
+      expect(snapshot?.rows[0]).toMatchObject({
+        playerName: "Alpha Runner",
+        scenarioPrice: 126,
+      });
+    });
+
+    it("averages a slot's price across seasons", () => {
+      const snapshot = snapshotFor([
+        slotSale({ seasonYear: 2024, priceDollars: 70, publicPriceDollars: 70 }),
+        slotSale({ seasonYear: 2025, priceDollars: 80, publicPriceDollars: 70 }),
+      ]);
+
+      expect(snapshot?.rows[0]).toMatchObject({
+        playerName: "Alpha Runner",
+        scenarioPrice: 75,
+      });
+    });
+
+    it("never floors kickers or defenses", () => {
+      const snapshot = snapshotFor([
+        slotSaleWithoutPublicPrice({ playerName: "K1", position: "K", priceDollars: 8 }),
+      ]);
+
+      expect(snapshot?.rows[3]).toMatchObject({
+        playerName: "Foxtrot Kicker",
+        scenarioPrice: 2,
+      });
+    });
+
+    it("caps a slot floor at one team's auction budget", () => {
+      const snapshot = snapshotFor(
+        [slotSaleWithoutPublicPrice({ priceDollars: 150 })],
+        { currentAuctionBudget: 100 },
+      );
+
+      expect(snapshot?.rows[0]).toMatchObject({
+        playerName: "Alpha Runner",
+        scenarioPrice: 100,
+      });
+    });
+
+    it("ignores slot prices from a season that has not happened", () => {
+      const snapshot = snapshotFor([
+        slotSaleWithoutPublicPrice({ seasonYear: 2027, priceDollars: 90 }),
+      ]);
+
+      expect(snapshot?.rows[0]).toMatchObject({
+        playerName: "Alpha Runner",
+        scenarioPrice: 63,
+      });
+    });
+
+    it("includes floor-only slot records in input identity", () => {
+      const floored = snapshotFor([slotSaleWithoutPublicPrice({ priceDollars: 70 })]);
+      const repriced = snapshotFor([slotSaleWithoutPublicPrice({ priceDollars: 71 })]);
+
+      expect(floored?.rows[0]).toMatchObject({
+        playerName: "Alpha Runner",
+        scenarioPrice: 70,
+      });
+      expect(repriced?.inputSnapshot.hash).not.toBe(floored?.inputSnapshot.hash);
+      expect(repriced?.snapshotId).not.toBe(floored?.snapshotId);
+    });
   });
 
   it("separates Gibbs' $57 published price from his league simulation price", async () => {

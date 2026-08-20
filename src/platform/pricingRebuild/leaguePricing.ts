@@ -13,10 +13,12 @@ export const leaguePriceFor = (
   baselinePrice: PricingSourcePrice,
   multiplier: number,
   maximumPrice: number,
+  floorDollars = 0,
 ): number => flatPricedPositions.has(baselinePrice.position)
   ? flatPricedDollars
   : Math.max(
     flatPricedDollars,
+    clampWholeDollars(floorDollars, maximumPrice),
     clampWholeDollars(baselinePrice.price * multiplier, maximumPrice),
   );
 

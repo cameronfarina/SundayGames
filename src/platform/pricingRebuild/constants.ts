@@ -14,5 +14,7 @@ export const inflationUnavailableWarning =
   "league inflation unavailable; using published market prices unchanged";
 export const manualInflationWarning =
   "no auction history imported; using the inflation percentage set for this league";
+export const slotFloorWarning =
+  "imported slot prices set a floor for each position rank";
 export const scenarioAssumptionsUnavailableWarning =
   "scenario-specific assumptions unavailable; using the league-calibrated value";
