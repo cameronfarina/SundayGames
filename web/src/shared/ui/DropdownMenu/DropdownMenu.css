@@ -27,7 +27,9 @@
   /* No side padding: a row runs the full width, so its marker sits on the
      panel's left edge instead of floating inside it. */
   padding: 0.3rem 0;
-  z-index: 100;
+  /* A menu opened from inside a dialog renders behind it below the dialog's
+     200/201 layers. Keep this above the highest z-index in Dialog.css. */
+  z-index: 300;
 }
 
 /* Sits flush against the panel's top edge so it reads as a title bar rather
