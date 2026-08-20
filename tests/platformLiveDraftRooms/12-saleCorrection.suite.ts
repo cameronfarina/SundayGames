@@ -80,4 +80,59 @@ describe("live draft rooms", () => {
       }),
     ]);
   });
+
+  it("keeps a corrected auction sale in its original order when undoing the latest sale", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    createRoom(repository);
+    startRoom(repository);
+    const first = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 2,
+      idempotencyKey: "sale:ordered:puka",
+      sale: "owner11 puka 62",
+    });
+    const firstSale = first.projection.sales[0];
+    if (firstSale === undefined) throw new Error("Expected the first auction sale.");
+    const second = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: first.revision,
+      idempotencyKey: "sale:ordered:xavier",
+      sale: "owner04 xavier 2",
+    });
+    const secondSale = second.projection.sales[1];
+    if (secondSale === undefined) throw new Error("Expected the second auction sale.");
+    const corrected = repository.correctSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: second.revision,
+      idempotencyKey: "correct:ordered:puka",
+      saleEventId: firstSale.saleEventId,
+      replacementSale: { ownerText: "Owner01", playerName: "Puka Nacua", price: 41 },
+    });
+
+    expect(corrected.projection.sales.map(sale => sale.playerName)).toEqual([
+      "Puka Nacua",
+      "Xavier Legette",
+    ]);
+    const undone = repository.undoLastSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: corrected.revision,
+      idempotencyKey: "undo:ordered:latest",
+    });
+
+    expect(undone.projection.sales).toEqual([
+      expect.objectContaining({
+        saleEventId: "room_sunday-rev-5-sale_corrected",
+        playerName: "Puka Nacua",
+        price: 41,
+      }),
+    ]);
+    expect(undone.events.at(-1)).toMatchObject({
+      type: "sale_undone",
+      undoneSaleEventId: secondSale.saleEventId,
+    });
+  });
 });

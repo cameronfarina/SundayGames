@@ -65,6 +65,7 @@ export const liveRoom = liveDraftRoomSchema.parse({
   updatedAt: "2026-08-13T18:00:00.000Z",
   role: "commissioner",
   canMutateRoom: true,
+  canLogPick: false,
   canExportDraft: true,
   board: [{
     name: "Puka Nacua",

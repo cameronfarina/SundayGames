@@ -1,4 +1,4 @@
-import type { AuctionLeagueSeason } from "../../leagueSeason.js";
+import type { ExplicitLeagueSeason } from "../../leagueSeason.js";
 import type { LiveDraftRoom } from "../../liveDraftRooms.js";
 import type { LiveDraftRoomSetup } from "../../liveDraftRoomSetups.js";
 import { leagueSeasonValue } from "./league.js";
@@ -19,10 +19,12 @@ import {
   stringValue,
 } from "./primitives.js";
 
-const auctionSeasonValue = (value: unknown, path: string): AuctionLeagueSeason => {
+const explicitSeasonValue = (value: unknown, path: string): ExplicitLeagueSeason => {
   const season = leagueSeasonValue(value, path);
   const settings = season.settings;
-  if (settings.draftFormat !== "auction") return invalidSnapshot(`${path}.settings.draftFormat`);
+  if (settings.draftFormat !== "auction" && settings.draftFormat !== "snake") {
+    return invalidSnapshot(`${path}.settings.draftFormat`);
+  }
   return { ...season, settings };
 };
 
@@ -40,7 +42,7 @@ export const liveRoomValue = (value: unknown, path: string): LiveDraftRoom => {
     createdAt: dateValue(record.createdAt, `${path}.createdAt`),
     updatedAt: dateValue(record.updatedAt, `${path}.updatedAt`),
     endedAt: optionalValue(record.endedAt, `${path}.endedAt`, dateValue),
-    season: auctionSeasonValue(record.season, `${path}.season`),
+    season: explicitSeasonValue(record.season, `${path}.season`),
     playerCatalog: arrayValue(record.playerCatalog, `${path}.playerCatalog`, boardPlayerValue),
     initialRosters: arrayValue(record.initialRosters, `${path}.initialRosters`, initialRosterPlayerValue),
     events: arrayValue(record.events, `${path}.events`, liveEventValue),

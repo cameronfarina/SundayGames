@@ -130,12 +130,11 @@ unavailable states rather than generated advice.
   and personal columns.
 - Durable interactive auction and snake mocks support arbitrary 4 to 20 team
   league shapes, deterministic replay, AI owners, keepers, undo, and completion.
-- Hosted live rooms use league-personalized values and remain auction-only for
-  the initial release.
+- Hosted live rooms support auction sales and snake picks with league-personalized values.
 - `My Team` derives final rosters from completed live rooms and gates weekly
   recommendations on current projection data.
-- Historical snake calibration and hosted snake rooms remain explicit rollout
-  boundaries rather than partially working controls.
+- Historical snake calibration remains an explicit rollout boundary rather than
+  a partially working control.
 
 ## Implementation Slices
 
@@ -163,5 +162,5 @@ unavailable states rather than generated advice.
 
 The unified routes replace current user-facing entry points only after their
 critical workflows pass E2E. Compatibility redirects remain for old bookmarks.
-Production must never advertise snake live drafting or weekly coach advice until
-the corresponding readiness checks pass with real data.
+Production must never advertise weekly coach advice until its readiness checks
+pass with real data.

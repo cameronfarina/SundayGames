@@ -26,7 +26,6 @@ export type LiveDraftRoomErrorCode =
   | "roster_full"
   | "sale_not_active"
   | "season_not_ready"
-  | "snake_live_room_unavailable"
   | "stale_revision"
   | "team_not_found";
 

@@ -19,11 +19,11 @@ const expectedSuiteFiles: readonly string[] = [
 ];
 
 const expectedParity = {
-  registrationCount: 39,
-  runtimeBehaviorCount: 47,
-  assertionCount: 117,
-  behaviorDigest: "7f06240d4a7c5882c661370a1b39f0f8cd4bcfe2ac5e382e7de1c55784a875ae",
-  assertionDigest: "d83d53517966eb318c04023315a05f93ae5f64e8f92dd58c343a8511e553cf38",
+  registrationCount: 40,
+  runtimeBehaviorCount: 48,
+  assertionCount: 120,
+  behaviorDigest: "a3bec2aa273a57bcaf5b61f0e22b16a8658fb3a700173b8ec75b4eddfb7c3a09",
+  assertionDigest: "7be4f1b17c329f8b53b072b22878acce0dab78d56955888b0ca03f9e41e6a2ea",
 };
 
 export const assertLiveDraftRoomSuiteParity = (entryUrl: string): void => {

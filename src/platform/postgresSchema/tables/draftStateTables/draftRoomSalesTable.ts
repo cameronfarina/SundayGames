@@ -12,7 +12,7 @@ export const draftRoomSalesTable: PostgresTableDefinition = {
     { name: "player_name", type: "text" },
     { name: "normalized_player_name", type: "text" },
     { name: "position", type: "text" },
-    { name: "price", type: "integer" },
+    { name: "price", type: "integer", nullable: true },
     { name: "expected_price", type: "integer", nullable: true },
     { name: "live_price", type: "integer", nullable: true },
     { name: "status", type: "text" },

@@ -13,12 +13,13 @@ const writerRoles = new Set(["owner", "admin"]);
  * A snake draft moves one team at a time, so the manager on the clock records
  * their own pick. Every other change still belongs to the commissioner.
  */
-const isOwnSnakePick = (
+export const isOwnSnakePick = (
   room: LiveDraftRoom,
   actor: LiveDraftRoomActor,
   action: LiveDraftRoomMutationAction,
 ): boolean => action === "log_sale"
   && room.season.settings.draftFormat === "snake"
+  && actor.role === "member"
   && actor.teamId !== undefined
   && room.projection.onTheClock?.teamId === actor.teamId;
 

@@ -131,6 +131,8 @@ Only after in-product setup, recovery, monitoring, and deployed smoke pass:
 
 Before each manual release, record the current web deploy ID plus the UTC time, confirm that time is inside the displayed PITR window, and create/download a logical database export. If the new release fails before serving traffic, roll back the web service from its Render **Events** page to the recorded deploy. Current launch migrations are additive, so the older app should tolerate them; verify `/readyz` and login immediately.
 
+For the hosted-snake release, apply `platform-snake-live-room-v20` and complete the web swap before creating a snake room. The old release remains safe for existing auction rooms because their recorded sales still have prices, but its snapshot decoder rejects every snake room. Keep snake room creation disabled operationally while application rollback is still likely. Once the first hosted snake room is created, roll forward; use the recorded pre-room Postgres recovery point only if roll-forward is impossible.
+
 If a future release includes a destructive or backward-incompatible migration, mark it no-go until it has an explicit expand/migrate/contract sequence. If data must be reverted, enable maintenance mode, restore Postgres to the pre-release recovery point, restore the web-disk snapshot only when private draft-session data also needs reversal, roll back the web service, then rerun readiness and deployed smoke before disabling maintenance mode.
 
 Automatic deploys stay off. During the draft-day freeze, do not start a manual web deploy except as part of the documented incident response.

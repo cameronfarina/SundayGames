@@ -19,13 +19,14 @@ const saleInputFor = (value: unknown): ParsedLiveDraftRoomSaleInput => {
   const ownerId = optionalString(record.ownerId);
   const teamId = optionalString(record.teamId);
   const teamName = optionalString(record.teamName);
+  const price = optionalNumber(record.price);
   return {
     playerName: stringValue(record.playerName),
-    price: optionalNumber(record.price) ?? Number.NaN,
     ...(ownerText === undefined ? {} : { ownerText }),
     ...(ownerId === undefined ? {} : { ownerId }),
     ...(teamId === undefined ? {} : { teamId }),
     ...(teamName === undefined ? {} : { teamName }),
+    ...(price === undefined ? {} : { price }),
   };
 };
 

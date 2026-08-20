@@ -90,6 +90,19 @@ describe("platform Postgres migrations", () => {
       .toHaveLength(requiredPlatformPostgresMigrationIds.length);
   });
 
+  it("allows existing databases to persist price-less snake picks", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-snake-live-room-v20")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await applyPlatformPostgresMigrations(client);
+
+    expect(client.statements).toContain(
+      "ALTER TABLE draft_room_sales ALTER COLUMN price DROP NOT NULL;",
+    );
+  });
+
   it("backfills stable league slugs before enforcing their public URL contract", async () => {
     const client = new RecordingPostgresClient();
     [
@@ -203,6 +216,7 @@ describe("platform Postgres migrations", () => {
       "platform-player-news-v16",
       "platform-league-sync-v18",
       "platform-league-import-v19",
+      "platform-snake-live-room-v20",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -234,6 +248,7 @@ describe("platform Postgres migrations", () => {
       "platform-player-news-v16",
       "platform-league-sync-v18",
       "platform-league-import-v19",
+      "platform-snake-live-room-v20",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -340,6 +355,7 @@ describe("platform Postgres migrations", () => {
       "platform-player-news-v16",
       "platform-league-sync-v18",
       "platform-league-import-v19",
+      "platform-snake-live-room-v20",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -360,6 +376,7 @@ describe("platform Postgres migrations", () => {
       "platform-player-news-v16",
       "platform-league-sync-v18",
       "platform-league-import-v19",
+      "platform-snake-live-room-v20",
     ]);
   });
 

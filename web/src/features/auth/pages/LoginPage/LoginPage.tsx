@@ -8,7 +8,7 @@ export const LoginPage = () => {
 
   return (
     <AuthShell
-      description="Open your leagues, practice plans, and live auction rooms."
+      description="Open your leagues, practice plans, and live draft rooms."
       footer={<>New here? <Link to={`/signup${location.search}`}>Create account</Link></>}
       title="Sign in"
     >

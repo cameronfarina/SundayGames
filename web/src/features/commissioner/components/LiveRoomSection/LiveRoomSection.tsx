@@ -41,38 +41,35 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
   });
   const published = publish.data?.season.setupStatus === "published" || season.setupStatus !== "draft";
   const activeRoom = archive.isSuccess ? null : create.data?.room ?? league.liveDraft;
-  const auction = season.settings.draftFormat === "auction";
 
   return (
     <section className="commissioner-section" id="live-room">
       <header><h2>Live draft room</h2></header>
-      {!auction ? <p>Hosted live rooms currently support auction drafts only.</p> : <>
-        <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
-        {!published ? <Button aria-busy={publish.isPending} onClick={() => { publish.mutate(); }} disabled={publish.isPending}>
-          {publish.isPending ? "Publishing league..." : "Publish reviewed league"}
-        </Button> : null}
-        {activeRoom === null ? <div className="commissioner-inline-form">
-          <label htmlFor="draft-starts-at">Draft date and time</label>
-          <input className="commissioner-date-input" id="draft-starts-at" type="datetime-local" value={startsAt} onChange={event => { setStartsAt(event.target.value); }} />
-          <Button aria-busy={create.isPending} onClick={() => { create.mutate(); }} disabled={!published || create.isPending}>
-            {create.isPending ? "Creating room..." : "Create room"}
+      <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
+      {!published ? <Button aria-busy={publish.isPending} onClick={() => { publish.mutate(); }} disabled={publish.isPending}>
+        {publish.isPending ? "Publishing league..." : "Publish reviewed league"}
+      </Button> : null}
+      {activeRoom === null ? <div className="commissioner-inline-form">
+        <label htmlFor="draft-starts-at">Draft date and time</label>
+        <input className="commissioner-date-input" id="draft-starts-at" type="datetime-local" value={startsAt} onChange={event => { setStartsAt(event.target.value); }} />
+        <Button aria-busy={create.isPending} onClick={() => { create.mutate(); }} disabled={!published || create.isPending}>
+          {create.isPending ? "Creating room..." : "Create room"}
+        </Button>
+      </div> : <div className="commissioner-actions">
+        <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft room</Link>
+        {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
+          <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
+            {archive.isPending ? "Archiving room..." : "Confirm archive"}
           </Button>
-        </div> : <div className="commissioner-actions">
-          <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft room</Link>
-          {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
-            <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
-              {archive.isPending ? "Archiving room..." : "Confirm archive"}
-            </Button>
-            <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep room</Button>
-          </>}
-        </div>}
-        {publish.isPending ? <p role="status">Publishing league...</p> : null}
-        {create.isPending ? <p role="status">Creating live room...</p> : null}
-        {archive.isPending ? <p role="status">Archiving live room...</p> : null}
-        {publish.isError ? <p role="alert">{errorMessage(publish.error)}</p> : null}
-        {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
-        {archive.isError ? <p role="alert">{errorMessage(archive.error)}</p> : null}
-      </>}
+          <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep room</Button>
+        </>}
+      </div>}
+      {publish.isPending ? <p role="status">Publishing league...</p> : null}
+      {create.isPending ? <p role="status">Creating live room...</p> : null}
+      {archive.isPending ? <p role="status">Archiving live room...</p> : null}
+      {publish.isError ? <p role="alert">{errorMessage(publish.error)}</p> : null}
+      {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
+      {archive.isError ? <p role="alert">{errorMessage(archive.error)}</p> : null}
     </section>
   );
 }

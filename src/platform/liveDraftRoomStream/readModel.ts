@@ -2,6 +2,7 @@ import type {
   BuildLiveDraftRoomReadModelInput,
   LiveDraftRoomReadModel,
 } from "./contracts/readModel.js";
+import { isOwnSnakePick } from "../liveDraftRooms.js";
 import { liveDraftRoomSseRetryMilliseconds } from "./constants.js";
 import { exportReadinessFor } from "./exportReadiness.js";
 import { eventStreamIdFor } from "./identifiers.js";
@@ -15,6 +16,8 @@ export const buildLiveDraftRoomReadModel = (
 ): LiveDraftRoomReadModel => {
   const role = roleFor(input.room, input.actor);
   const canMutateRoom = canMutateRoomFor(role);
+  const canLogPick = input.room.season.settings.draftFormat === "snake"
+    && (canMutateRoom || isOwnSnakePick(input.room, input.actor, "log_sale"));
   const teamSummaries = input.room.projection.teams.map(teamSummaryFor);
   const selectedTeam = selectedTeamFor(input, role, teamSummaries);
   const viewedTeamId = viewedTeamIdFor(input, selectedTeam);
@@ -31,6 +34,7 @@ export const buildLiveDraftRoomReadModel = (
     updatedAt: input.room.updatedAt.toISOString(),
     role,
     canMutateRoom,
+    canLogPick,
     canExportDraft: canMutateRoom,
     board: input.room.projection.board.map(player => ({ ...player })),
     ...(selectedTeam === undefined ? {} : { selectedTeam }),

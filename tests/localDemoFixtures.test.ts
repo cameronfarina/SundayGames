@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { loadCurrentPlayerCatalog } from "../src/platform/localDemoFixtures.js";
+import { leagueConfig, ownerOrder } from "../config/league.js";
+import { buildCurrentMockdLeagueSeason } from "../src/platform/leagueSeason.js";
+import {
+  currentLeagueInitialRostersFor,
+  loadCurrentPlayerCatalog,
+} from "../src/platform/localDemoFixtures.js";
 
 describe("current player catalog valuation inputs", () => {
+  it("does not inject price-only auction keepers into snake fixture rooms", () => {
+    const auctionSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig);
+    const snakeSeason = {
+      ...auctionSeason,
+      settings: {
+        expectedTeamCount: auctionSeason.settings.expectedTeamCount,
+        draftFormat: "snake" as const,
+        scoring: auctionSeason.settings.scoring,
+        snake: {
+          rounds: auctionSeason.settings.roster.rosterSize,
+          order: auctionSeason.teams.map(team => team.id),
+        },
+        roster: auctionSeason.settings.roster,
+        keeperPolicy: auctionSeason.settings.keeperPolicy,
+      },
+    };
+
+    expect(currentLeagueInitialRostersFor(snakeSeason)).toEqual([]);
+  });
+
   it("exposes an immutable process-cached catalog", async () => {
     const catalog = await loadCurrentPlayerCatalog();
 

@@ -75,7 +75,7 @@ describe("LiveDraftPage states", () => {
   });
 
   it("renders members without commissioner controls", async () => {
-    useRoomResponse({ ...liveRoom, canMutateRoom: false, role: "member" });
+    useRoomResponse({ ...liveRoom, canLogPick: false, canMutateRoom: false, role: "member" });
     renderLiveDraftPage();
     expect(await screen.findByRole("heading", { name: "Short King roster" })).toBeVisible();
     expect(screen.queryByRole("textbox", { name: "Sale command" })).not.toBeInTheDocument();

@@ -10,6 +10,14 @@ describe("live draft wire schemas", () => {
     expect(liveDraftRoomResponseSchema.parse({ room: liveRoom })).toEqual({ room: liveRoom });
   });
 
+  it("treats an auction room from the previous server as unable to log snake picks", () => {
+    const previousServerRoom: Partial<typeof liveRoom> = { ...liveRoom };
+    delete previousServerRoom.canLogPick;
+
+    expect(liveDraftRoomResponseSchema.parse({ room: previousServerRoom }).room)
+      .toMatchObject({ canLogPick: false, canMutateRoom: true });
+  });
+
   it("rejects malformed room projections", () => {
     expect(liveDraftRoomResponseSchema.safeParse({
       room: { ...liveRoom, revision: "two" },
