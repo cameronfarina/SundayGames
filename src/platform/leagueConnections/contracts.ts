@@ -21,6 +21,8 @@ export interface LeagueConnection {
   status: LeagueConnectionStatus;
   statusDetail?: string | undefined;
   lastSyncedAt?: string | undefined;
+  /** The Sunday Games season this connection was imported into, once it has. */
+  leagueSeasonId?: string | undefined;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +79,7 @@ export interface LeagueConnectionRepository {
   findCredentials(id: string): Promise<LeagueConnectionCredentials | null>;
   saveConnection(input: SaveLeagueConnectionInput): Promise<LeagueConnection>;
   updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void>;
+  linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void>;
   deleteConnection(accountId: string, id: string): Promise<boolean>;
   saveSnapshot(connectionId: string, snapshot: LeagueSnapshot, syncedAt: string): Promise<void>;
   findSnapshot(connectionId: string): Promise<StoredLeagueSnapshot | null>;

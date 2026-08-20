@@ -5,6 +5,7 @@ import {
   fantasyProsMigrationId,
   historicalPricingOwnershipMigrationId,
   leagueArchiveMigrationId,
+  leagueImportMigrationId,
   leagueSlugMigrationId,
   leagueSyncMigrationId,
   playerNewsMigrationId,
@@ -14,6 +15,7 @@ import {
 import {
   authTokenTableMigrationStatements,
   fantasyProsMigrationStatements,
+  leagueImportMigrationStatements,
   leagueSyncMigrationStatements,
   playerNewsMigrationStatements,
   playerNewsProviderDataMigrationStatements,
@@ -122,5 +124,9 @@ END $$;`,
   {
     id: leagueSyncMigrationId,
     statements: leagueSyncMigrationStatements,
+  },
+  {
+    id: leagueImportMigrationId,
+    statements: leagueImportMigrationStatements,
   },
 ];

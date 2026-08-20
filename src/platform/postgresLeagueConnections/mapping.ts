@@ -46,6 +46,7 @@ export const connectionFromRow = (row: LeagueConnectionRow): LeagueConnection =>
   status: statusFrom(row.status),
   ...(row.status_detail === null ? {} : { statusDetail: row.status_detail }),
   ...(row.last_synced_at === null ? {} : { lastSyncedAt: isoStringFrom(row.last_synced_at) }),
+  ...(row.league_season_id === null ? {} : { leagueSeasonId: row.league_season_id }),
   createdAt: isoStringFrom(row.created_at),
   updatedAt: isoStringFrom(row.updated_at),
 });

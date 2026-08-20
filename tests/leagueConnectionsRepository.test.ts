@@ -53,6 +53,16 @@ describe("in-memory league connection repository", () => {
     expect(await repository.listConnections("account-1")).toHaveLength(1);
   });
 
+  it("remembers the imported season across a later reconnect", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+
+    const saved = await repository.saveConnection({ ...saveInput, now });
+    await repository.linkConnectionToSeason(saved.id, "season-1");
+    const reconnected = await repository.saveConnection({ ...saveInput, now });
+
+    expect(reconnected.leagueSeasonId).toBe("season-1");
+  });
+
   it("keeps saved credentials when a later save omits them", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
 

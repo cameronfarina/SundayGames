@@ -15,6 +15,7 @@ export const playerNewsMigrationId = "platform-player-news-v14";
 export const fantasyProsMigrationId = "platform-fantasypros-v15";
 export const playerNewsProviderDataMigrationId = "platform-player-news-v16";
 export const leagueSyncMigrationId = "platform-league-sync-v18";
+export const leagueImportMigrationId = "platform-league-import-v19";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

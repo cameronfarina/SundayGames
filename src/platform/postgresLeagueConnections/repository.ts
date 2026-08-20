@@ -11,24 +11,22 @@ import type {
   UpdateLeagueConnectionStatusInput,
 } from "../leagueConnections.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
-import type {
-  LeagueConnectionCredentialRow,
-  LeagueConnectionRow,
-  LeagueConnectionSnapshotRow,
-  ProviderPlayerDirectoryRow,
-} from "./contracts.js";
-import { connectionFromRow, playerDirectoryFromRow, snapshotFromRow } from "./mapping.js";
+import type { LeagueConnectionCredentialRow, LeagueConnectionRow } from "./contracts.js";
+import { connectionFromRow } from "./mapping.js";
+import {
+  findPlayerDirectoryRow,
+  findSnapshotRow,
+  savePlayerDirectoryRow,
+  saveSnapshotRow,
+} from "./snapshotQueries.js";
 import {
   deleteConnectionSql,
+  linkConnectionToSeasonSql,
   selectConnectionSql,
   selectConnectionsSql,
   selectCredentialsSql,
-  selectPlayerDirectorySql,
-  selectSnapshotSql,
   updateConnectionStatusSql,
   upsertConnectionSql,
-  upsertPlayerDirectorySql,
-  upsertSnapshotSql,
 } from "./sql.js";
 
 const trimmedOrNull = (value: string | undefined): string | null => {
@@ -97,6 +95,14 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
     ]);
   }
 
+  async linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void> {
+    await this.#client.query(linkConnectionToSeasonSql, [
+      id,
+      leagueSeasonId,
+      new Date().toISOString(),
+    ]);
+  }
+
   async deleteConnection(accountId: string, id: string): Promise<boolean> {
     const result = await this.#client.query(deleteConnectionSql, [accountId, id]);
     return (result.rowCount ?? 0) > 0;
@@ -107,38 +113,18 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
     snapshot: LeagueSnapshot,
     syncedAt: string,
   ): Promise<void> {
-    await this.#client.query(upsertSnapshotSql, [
-      connectionId,
-      JSON.stringify(snapshot.settings),
-      JSON.stringify(snapshot.teams),
-      JSON.stringify(snapshot.matchups),
-      syncedAt,
-    ]);
+    await saveSnapshotRow(this.#client, connectionId, snapshot, syncedAt);
   }
 
   async findSnapshot(connectionId: string): Promise<StoredLeagueSnapshot | null> {
-    const result = await this.#client.query<LeagueConnectionSnapshotRow>(
-      selectSnapshotSql,
-      [connectionId],
-    );
-    const row = result.rows[0];
-    return row === undefined ? null : snapshotFromRow(row);
+    return await findSnapshotRow(this.#client, connectionId);
   }
 
   async savePlayerDirectory(directory: StoredPlayerDirectory): Promise<void> {
-    await this.#client.query(upsertPlayerDirectorySql, [
-      directory.provider,
-      JSON.stringify(directory.entries),
-      directory.fetchedAt,
-    ]);
+    await savePlayerDirectoryRow(this.#client, directory);
   }
 
   async findPlayerDirectory(provider: LeagueSyncProvider): Promise<StoredPlayerDirectory | null> {
-    const result = await this.#client.query<ProviderPlayerDirectoryRow>(
-      selectPlayerDirectorySql,
-      [provider],
-    );
-    const row = result.rows[0];
-    return row === undefined ? null : playerDirectoryFromRow(row);
+    return await findPlayerDirectoryRow(this.#client, provider);
   }
 }

@@ -57,6 +57,7 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
       status: existing?.status ?? "pending",
       ...(existing?.statusDetail === undefined ? {} : { statusDetail: existing.statusDetail }),
       ...(existing?.lastSyncedAt === undefined ? {} : { lastSyncedAt: existing.lastSyncedAt }),
+      ...(existing?.leagueSeasonId === undefined ? {} : { leagueSeasonId: existing.leagueSeasonId }),
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
@@ -77,6 +78,12 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
       ...(input.lastSyncedAt === undefined ? {} : { lastSyncedAt: input.lastSyncedAt }),
       updatedAt: (input.now ?? new Date()).toISOString(),
     });
+  }
+
+  async linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void> {
+    const existing = this.#connectionsById.get(id);
+    if (existing === undefined) return;
+    this.#connectionsById.set(id, { ...existing, leagueSeasonId });
   }
 
   async deleteConnection(accountId: string, id: string): Promise<boolean> {

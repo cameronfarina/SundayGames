@@ -16,6 +16,7 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
       { name: "espn_s2", type: "text", nullable: true },
       { name: "swid", type: "text", nullable: true },
       { name: "last_synced_at", type: "timestamptz", nullable: true },
+      { name: "league_season_id", type: "text", nullable: true },
       createdAtColumn,
       updatedAtColumn,
     ],
@@ -26,6 +27,14 @@ export const leagueConnectionTables: readonly PostgresTableDefinition[] = [
         columns: ["account_id"],
         references: { table: "accounts", columns: ["id"] },
         onDelete: "CASCADE",
+      },
+      // Deleting the imported league unlinks the connection; it must not take
+      // the connection and its snapshot with it.
+      {
+        name: "league_connections_league_season_id_fkey",
+        columns: ["league_season_id"],
+        references: { table: "league_seasons", columns: ["id"] },
+        onDelete: "SET NULL",
       },
     ],
     checkConstraints: [

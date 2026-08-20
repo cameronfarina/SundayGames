@@ -8,6 +8,7 @@ export interface LeagueConnectionRow {
   status: string;
   status_detail: string | null;
   last_synced_at: Date | string | null;
+  league_season_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }

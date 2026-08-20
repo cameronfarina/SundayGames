@@ -1,6 +1,6 @@
 const connectionColumns = `
   id, account_id, provider, provider_league_id, season, display_name,
-  status, status_detail, last_synced_at, created_at, updated_at
+  status, status_detail, last_synced_at, league_season_id, created_at, updated_at
 `.trim();
 
 export const upsertConnectionSql = `
@@ -42,6 +42,12 @@ SET
   status_detail = $3,
   last_synced_at = COALESCE($4, last_synced_at),
   updated_at = $5
+WHERE id = $1
+`.trim();
+
+export const linkConnectionToSeasonSql = `
+UPDATE league_connections
+SET league_season_id = $2, updated_at = $3
 WHERE id = $1
 `.trim();
 

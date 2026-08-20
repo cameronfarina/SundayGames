@@ -202,6 +202,7 @@ describe("platform Postgres migrations", () => {
       "platform-fantasypros-v15",
       "platform-player-news-v16",
       "platform-league-sync-v18",
+      "platform-league-import-v19",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -232,6 +233,7 @@ describe("platform Postgres migrations", () => {
       "platform-fantasypros-v15",
       "platform-player-news-v16",
       "platform-league-sync-v18",
+      "platform-league-import-v19",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -337,6 +339,7 @@ describe("platform Postgres migrations", () => {
       "platform-fantasypros-v15",
       "platform-player-news-v16",
       "platform-league-sync-v18",
+      "platform-league-import-v19",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -356,6 +359,7 @@ describe("platform Postgres migrations", () => {
       "platform-fantasypros-v15",
       "platform-player-news-v16",
       "platform-league-sync-v18",
+      "platform-league-import-v19",
     ]);
   });
 
@@ -391,6 +395,22 @@ describe("platform Postgres migrations", () => {
     );
     expect(client.statements).toContainEqual(expect.stringContaining("pending_league_key"));
     expect(client.statements).toContainEqual(expect.stringContaining("invitation_kind = 'league'"));
+  });
+
+  it("remembers which season a connection imported without risking the connection", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-league-import-v19")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS league_season_id text;",
+    );
+    // Deleting the imported league clears the link instead of the connection.
+    expect(client.statements).toContainEqual(expect.stringContaining("ON DELETE SET NULL"));
   });
 
   it("stores historical public values and lets users import the same provider league independently", async () => {

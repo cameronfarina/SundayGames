@@ -49,6 +49,7 @@ const connectionRow = {
   status: "needs_attention",
   status_detail: "This ESPN league is private.",
   last_synced_at: new Date("2026-08-19T12:00:00.000Z"),
+  league_season_id: null,
   created_at: "2026-08-18T12:00:00.000Z",
   updated_at: new Date("2026-08-19T12:00:00.000Z"),
 };
@@ -72,6 +73,25 @@ describe("postgres league connection repository", () => {
       createdAt: "2026-08-18T12:00:00.000Z",
       updatedAt: "2026-08-19T12:00:00.000Z",
     });
+  });
+
+  it("reports the season a connection was imported into", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([{ ...connectionRow, league_season_id: "season-1" }]);
+
+    expect(await repository.findConnection("account-1", "league_connection_1"))
+      .toMatchObject({ leagueSeasonId: "season-1" });
+  });
+
+  it("links a connection to the season it produced", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+
+    await repository.linkConnectionToSeason("league_connection_1", "season-1");
+
+    expect(client.queries[0]?.sql).toContain("SET league_season_id = $2");
+    expect(client.queries[0]?.values.slice(0, 2)).toEqual(["league_connection_1", "season-1"]);
   });
 
   it("falls back rather than trusting an unknown provider or status from the database", async () => {

@@ -65,6 +65,18 @@ export const playerNewsProviderDataMigrationStatements: readonly string[] = [
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
 
+/**
+ * A connection remembers the Sunday Games season it imported. Clearing the link
+ * when that season goes away is the whole point of SET NULL: losing the league
+ * must not take the connection, and its snapshot, down with it.
+ */
+export const leagueImportMigrationStatements: readonly string[] = [
+  "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS league_season_id text;",
+  "ALTER TABLE league_connections DROP CONSTRAINT IF EXISTS league_connections_league_season_id_fkey;",
+  "ALTER TABLE league_connections ADD CONSTRAINT league_connections_league_season_id_fkey" +
+    " FOREIGN KEY (league_season_id) REFERENCES league_seasons (id) ON DELETE SET NULL;",
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
