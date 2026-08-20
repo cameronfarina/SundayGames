@@ -63,6 +63,7 @@
     "platform:credentials:backfill:dev": "tsx src/platform/backfillLeagueConnectionCredentials.ts",
     "platform:restore:rehearse": "tsx scripts/rehearse-postgres-restore.ts",
     "platform:render:validate": "tsx scripts/validate-render-blueprint.ts",
+    "platform:load": "tsx scripts/run-platform-load.ts",
     "platform:seed:e2e": "tsx src/platform/seedLocalE2e.ts",
     "platform:web": "node dist/src/platform/startPlatformWeb.js",
     "platform:web:dev": "tsx src/platform/startPlatformWeb.ts",

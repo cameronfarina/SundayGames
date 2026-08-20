@@ -13,3 +13,4 @@ data/private/
 data/processed/mock-prep/
 output/*.tmp.xlsx
 player-news-*.png
+*platform-load-manifest*
