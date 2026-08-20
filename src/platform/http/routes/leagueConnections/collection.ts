@@ -43,6 +43,7 @@ export const routeLeagueConnectionCollection = async (
     return knownError(400, "league_required", "Choose which league to connect.");
   }
   const credentials = credentialsFor(request.body);
+  const targetSeasonId = optionalString(request.body.targetSeasonId);
   const now = request.now ?? new Date();
   const saved = await options.repository.saveConnection({
     accountId: account.id,
@@ -65,6 +66,7 @@ export const routeLeagueConnectionCollection = async (
       repository: options.repository,
       sessionToken: request.sessionToken,
       snapshot: synced.snapshot,
+      ...(targetSeasonId === undefined ? {} : { targetSeasonId }),
       now,
     });
 
