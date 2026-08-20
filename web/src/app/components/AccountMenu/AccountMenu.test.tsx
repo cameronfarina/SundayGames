@@ -121,6 +121,7 @@ describe("AccountMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
 
+    expect(screen.getByText("Leagues")).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "The Sunday Games · 2026" }))
       .toHaveAttribute("aria-current", "true");
     const other = screen.getByRole("menuitem", { name: "Dynasty Home · 2026" });
@@ -139,6 +140,7 @@ describe("AccountMenu", () => {
 
     expect(screen.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
     expect(screen.queryByRole("menuitem", { name: /2026/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Leagues")).not.toBeInTheDocument();
   });
 
   it("no longer changes the password inside the menu", async () => {

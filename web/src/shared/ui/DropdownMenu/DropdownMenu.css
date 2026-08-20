@@ -39,6 +39,16 @@
   padding: var(--space-3) 0.9rem;
 }
 
+/* Quieter and smaller than a row, so it reads as a heading over the rows
+   rather than as another thing to press. */
+.dropdown-menu__label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  padding: var(--space-2) 0.9rem 0.2rem;
+}
+
 .dropdown-menu__item {
   align-items: center;
   color: var(--color-text);
@@ -77,6 +87,7 @@
 
 @media (min-width: 48.0625rem) {
   .dropdown-menu__item--hidden-from-tablet,
+  .dropdown-menu__label--hidden-from-tablet,
   .dropdown-menu__separator--hidden-from-tablet {
     display: none;
   }
@@ -84,6 +95,7 @@
 
 @media (min-width: 56.25rem) {
   .dropdown-menu__item--hidden-from-laptop,
+  .dropdown-menu__label--hidden-from-laptop,
   .dropdown-menu__separator--hidden-from-laptop {
     display: none;
   }

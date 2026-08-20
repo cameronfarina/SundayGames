@@ -42,7 +42,9 @@ export const AccountMenu = ({
   // A laptop shows the league picker in the header, so these repeat it only
   // where that picker is hidden. One league is a label, not a choice, so it
   // carries no marker.
-  const leagueItems: DropdownMenuItem[] = leagues.map(league => ({
+  const leagueItems: DropdownMenuItem[] = leagues.map((league, index) => ({
+    // Unheaded, these rows read as commands rather than as the account's leagues.
+    ...(index === 0 ? { groupLabel: "Leagues" } : {}),
     hiddenFrom: "laptop",
     label: `${league.leagueName} · ${String(league.seasonYear)}`,
     onSelect: () => { onLeagueChange(league.seasonId); },

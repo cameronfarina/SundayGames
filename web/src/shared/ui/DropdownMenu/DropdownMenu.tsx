@@ -12,6 +12,9 @@ export interface DropdownMenuItem {
   /** Hides this group's divider from this width up, for when every row above
       the divider is gone. */
   readonly dividerHiddenFrom?: DropdownMenuWidth;
+  /** Names the run of rows this one opens. It follows the row's own hiddenFrom,
+      so a heading never outlives the rows it heads. */
+  readonly groupLabel?: string;
   /** Hidden from this width up, where the surrounding page shows this control. */
   readonly hiddenFrom?: DropdownMenuWidth;
   readonly label: string;
@@ -51,6 +54,14 @@ export const DropdownMenu = ({ children, header, items, label }: DropdownMenuPro
                   && `dropdown-menu__separator--hidden-from-${item.dividerHiddenFrom}`,
               )}
             />
+          )}
+          {item.groupLabel !== undefined && (
+            <MenuPrimitive.Label
+              className={clsx(
+                "dropdown-menu__label",
+                item.hiddenFrom !== undefined && `dropdown-menu__label--hidden-from-${item.hiddenFrom}`,
+              )}
+            >{item.groupLabel}</MenuPrimitive.Label>
           )}
           <MenuPrimitive.Item
             className={clsx(

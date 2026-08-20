@@ -42,6 +42,22 @@ describe("DropdownMenu", () => {
     unmount();
   });
 
+  it("heads a run of rows without making the heading pressable", async () => {
+    const { unmount } = render(
+      <DropdownMenu
+        items={[{ groupLabel: "Leagues", label: "The Sunday Games", onSelect: vi.fn() }]}
+        label="Account menu"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByText("Leagues")).toHaveClass("dropdown-menu__label");
+    expect(screen.getAllByRole("menuitem").map(item => item.textContent))
+      .toEqual(["The Sunday Games"]);
+    unmount();
+  });
+
   it("falls back to a familiar menu symbol", () => {
     const { unmount } = render(<DropdownMenu items={[]} label="More actions" />);
     expect(screen.getByRole("button", { name: "More actions" })).toHaveTextContent("⋯");
