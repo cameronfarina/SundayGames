@@ -6,9 +6,11 @@ import type {
   LeagueConnectionProvider,
   LeagueConnectionProviderInfo,
 } from "../api/leagueConnectionsSchema";
+import type { ConnectLeagueRequest } from "../api/leagueConnectionsApi";
 import type { useLeagueConnectionMutations } from "./useLeagueConnectionMutations";
 
 export const currentLeagueSeason = "2026";
+export const newLeagueImportTarget = "new";
 
 const credentialsFor = (espnS2: string, swid: string) => ({
   ...(espnS2.trim() === "" ? {} : { espnS2: espnS2.trim() }),
@@ -40,6 +42,7 @@ export const useAddConnectionForm = (
   const [showCookieStep, setShowCookieStep] = useState(false);
   const [leagues, setLeagues] = useState<readonly DiscoveredLeague[]>([]);
   const [states, setStates] = useState<Record<string, LeagueImportState>>({});
+  const [targets, setTargets] = useState<Record<string, string>>({});
   const chosen = providers.find(candidate => candidate.provider === provider);
   const linkedKeys = useMemo(
     () => new Set(existingConnections.map(leagueKey)),
@@ -48,26 +51,39 @@ export const useAddConnectionForm = (
 
   const stateFor = (league: DiscoveredLeague): LeagueImportState =>
     states[leagueKey(league)] ?? { status: linkedKeys.has(leagueKey(league)) ? "linked" : "idle" };
+  const targetFor = (league: DiscoveredLeague): string =>
+    targets[leagueKey(league)] ?? newLeagueImportTarget;
   const setLeagueState = (league: DiscoveredLeague, state: LeagueImportState): void => {
     setStates(current => ({ ...current, [leagueKey(league)]: state }));
+  };
+  const setTarget = (league: DiscoveredLeague, targetSeasonId: string): void => {
+    setTargets(current => ({ ...current, [leagueKey(league)]: targetSeasonId }));
   };
   const clearResults = (): void => {
     setLeagues([]);
     setStates({});
+    setTargets({});
     mutations.discover.reset();
     mutations.connect.reset();
   };
 
-  const connect = (league: DiscoveredLeague): void => {
-    if (provider === undefined) return;
-    setLeagueState(league, { status: "importing" });
-    mutations.connect.mutate({
+  const requestFor = (league: DiscoveredLeague): ConnectLeagueRequest => {
+    if (provider === undefined) throw new Error("Choose a provider before importing a league.");
+    const targetSeasonId = targetFor(league);
+    return {
       provider,
       providerLeagueId: league.providerLeagueId,
       displayName: league.name,
       season: league.season,
       ...credentialsFor(espnS2, swid),
-    }, {
+      ...(targetSeasonId === newLeagueImportTarget ? {} : { targetSeasonId }),
+    };
+  };
+
+  const connect = (league: DiscoveredLeague): void => {
+    if (provider === undefined) return;
+    setLeagueState(league, { status: "importing" });
+    mutations.connect.mutate(requestFor(league), {
       onSuccess: () => { setLeagueState(league, { status: "imported" }); },
       onError: error => {
         setLeagueState(league, {
@@ -86,13 +102,7 @@ export const useAddConnectionForm = (
         if (state.status === "linked" || state.status === "imported") continue;
         setLeagueState(league, { status: "importing" });
         try {
-          await mutations.connect.mutateAsync({
-            provider,
-            providerLeagueId: league.providerLeagueId,
-            displayName: league.name,
-            season: league.season,
-            ...credentialsFor(espnS2, swid),
-          });
+          await mutations.connect.mutateAsync(requestFor(league));
           setLeagueState(league, { status: "imported" });
         } catch (error) {
           setLeagueState(league, {
@@ -132,11 +142,12 @@ export const useAddConnectionForm = (
     clearResults();
   };
   const leagueStates = Object.fromEntries(leagues.map(league => [leagueKey(league), stateFor(league)]));
+  const targetSeasonIds = Object.fromEntries(leagues.map(league => [leagueKey(league), targetFor(league)]));
   const connecting = Object.values(leagueStates).some(state => state.status === "importing");
 
   return {
     chosen, connect, connectAll, connecting, espnS2, findLeagues, handle,
     leagueStates, leagues, provider, selectProvider, setEspnS2, setHandle,
-    setSwid, showCookieStep, swid,
+    setSwid, setTarget, showCookieStep, swid, targetSeasonIds,
   };
 };
