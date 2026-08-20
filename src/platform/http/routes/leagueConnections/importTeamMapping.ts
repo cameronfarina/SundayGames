@@ -20,6 +20,13 @@ const orderedTeams = (teams: readonly FantasyTeam[]): FantasyTeam[] =>
 
 const normalized = (value: string): string => value.trim().toLowerCase().replace(/\s+/gu, " ");
 
+const completeTeams = (
+  teams: readonly (FantasyTeam | undefined)[],
+): FantasyTeam[] | null => {
+  const complete = teams.filter((team): team is FantasyTeam => team !== undefined);
+  return complete.length === teams.length ? complete : null;
+};
+
 const managerNames = (team: FantasyTeam): ReadonlySet<string> => new Set(
   [team.ownerDisplayName, ...(team.managerDisplayNames ?? [])].map(normalized).filter(Boolean),
 );
@@ -32,13 +39,10 @@ const priorMapping = (
   const priorPosition = new Map(
     previousSnapshot.teams.map((team, index) => [team.providerTeamId, index]),
   );
-  const mapped = snapshot.teams.map(team => {
+  return completeTeams(snapshot.teams.map(team => {
     const index = priorPosition.get(team.providerTeamId);
     return index === undefined ? undefined : existing[index];
-  });
-  return mapped.some(team => team === undefined)
-    ? null
-    : mapped as readonly FantasyTeam[];
+  }));
 };
 
 export const existingTeamsForImport = ({
@@ -102,5 +106,8 @@ export const existingTeamsForImport = ({
     mapped[index] = remainingExisting[cursor];
     cursor += 1;
   }
-  return { status: "ready", existingByGeneratedIndex: mapped as readonly FantasyTeam[] };
+  const complete = completeTeams(mapped);
+  return complete === null
+    ? { status: "needs_attention", message: "Sunday Games could not map every imported team safely." }
+    : { status: "ready", existingByGeneratedIndex: complete };
 };
