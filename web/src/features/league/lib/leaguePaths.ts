@@ -24,6 +24,11 @@ export const leaguePath = (
   page: LeaguePageName,
 ): string => `/leagues/${encodeURIComponent(league.leagueSlug)}${pageSuffix[page]}`;
 
+/** Claiming happens in a section of the league page, not on a route of its own. */
+export const claimTeamPath = (
+  league: Pick<OnboardingLeague, "leagueSlug">,
+): string => `${leaguePath(league, "league")}#claim-your-team`;
+
 export const selectLeagueForRoute = (
   leagues: readonly OnboardingLeague[],
   leagueSlug: string | undefined,

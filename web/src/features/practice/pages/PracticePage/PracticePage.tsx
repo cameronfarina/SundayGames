@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { leaguePath } from "../../../league/lib/leaguePaths";
+import { claimTeamPath, leaguePath } from "../../../league/lib/leaguePaths";
 import type { PracticePlayer } from "../../api/playerCatalogSchema";
 import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import { PracticePlayerBoard } from "../../components/PracticePlayerBoard/PracticePlayerBoard";
@@ -118,6 +118,7 @@ export function PracticePage() {
         {history.isPending ? <p role="status">Loading previous simulations…</p> : history.isError
           ? <section className="practice-page__error"><p>{history.error.message}</p><button onClick={() => { void history.refetch(); }} type="button">Retry history</button></section>
           : <SimulationWorkspace
+          claimHref={claimTeamPath(activeLeague)}
           history={history.data}
           onOpenHistory={route.openSimulation}
           onRun={request => { runMutation.mutate(request, { onSuccess: response => {

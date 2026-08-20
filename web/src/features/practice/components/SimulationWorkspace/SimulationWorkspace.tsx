@@ -10,6 +10,7 @@ interface RunRequest {
 }
 
 interface SimulationWorkspaceProps {
+  readonly claimHref: string;
   readonly history: readonly SimulationHistoryItem[];
   readonly onOpenHistory: (historyId: string, runNumber: number) => void;
   readonly onRun: (request: RunRequest) => void;
@@ -36,7 +37,9 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
   return (
     <section aria-labelledby="simulation-workspace-title" className="simulation-workspace">
       <div><p className="practice-eyebrow">Simulations</p><h2 id="simulation-workspace-title">Run full-league drafts</h2></div>
-      {!props.teamClaimed && <p className="simulation-workspace__notice">Claim a team before running private league simulations.</p>}
+      {!props.teamClaimed && <p className="simulation-workspace__notice">
+        <a href={props.claimHref}>Claim a team</a> before running private league simulations.
+      </p>}
       <form onSubmit={submit}>
         <label><span>Optional roster rules</span><textarea
           name="instructions"

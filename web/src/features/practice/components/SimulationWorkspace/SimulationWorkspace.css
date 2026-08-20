@@ -15,6 +15,14 @@
   padding-left: 0.75rem;
 }
 
+/* The notice already carries the warning colour, so the link is told apart by
+   its underline rather than by a second colour. */
+.simulation-workspace__notice a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .simulation-workspace__helper {
   color: var(--color-text-muted);
   font-size: 0.8rem;

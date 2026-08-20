@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OnboardingLeague } from "../../../shared/api/onboarding/onboardingSchema";
 import {
+  claimTeamPath,
   cleanLeagueSearch,
   leaguePageForPath,
   leaguePath,
@@ -28,6 +29,11 @@ describe("league paths", () => {
     expect(leaguePath(active, "practice")).toBe("/leagues/sunday-games/practice");
     expect(leaguePath(active, "draft")).toBe("/leagues/sunday-games/draft");
     expect(leaguePath(active, "league")).toBe("/leagues/sunday-games");
+  });
+
+  it("points every claim invitation at the same section of the league page", () => {
+    expect(claimTeamPath(league("sunday-games", "season-1")))
+      .toBe("/leagues/sunday-games#claim-your-team");
   });
 
   it("selects a league by slug while retaining legacy season links", () => {

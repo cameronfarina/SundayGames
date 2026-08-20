@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
-import { leaguePath } from "../../../league/lib/leaguePaths";
+import { claimTeamPath } from "../../../league/lib/leaguePaths";
 import "./EmptyTeamState.css";
 
 interface EmptyTeamStateProps {
@@ -25,12 +25,7 @@ export const EmptyTeamState = ({ league }: EmptyTeamStateProps) => {
     <section className="my-team-empty" aria-labelledby="my-team-empty-title">
       <h2 id="my-team-empty-title">Claim your team</h2>
       <p>Select your team in {league.leagueName} to see private keeper, budget, and draft results.</p>
-      <a
-        className="my-team-primary-link"
-        href={`${leaguePath(league, "league")}#claim-your-team`}
-      >
-        Choose team
-      </a>
+      <a className="my-team-primary-link" href={claimTeamPath(league)}>Choose team</a>
     </section>
   );
 };

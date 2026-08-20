@@ -52,7 +52,8 @@ describe("PracticePage states", () => {
     const view = render(<PracticePage />, { wrapper: providersFor("/practice?seasonId=season-1") });
 
     expect(await screen.findByText("No players are available for this board yet.")).toBeInTheDocument();
-    expect(await screen.findByText("Claim a team before running private league simulations.")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Claim a team" }))
+      .toHaveAttribute("href", "/leagues/sunday-games#claim-your-team");
     expect(screen.getByRole("button", { name: "Run simulations" })).toBeDisabled();
     view.unmount();
   });
