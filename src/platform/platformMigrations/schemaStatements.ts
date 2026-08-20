@@ -26,6 +26,13 @@ export const authTokenTableMigrationStatements: readonly string[] = [
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
 
+export const authRateLimitMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE auth_rate_limit_windows")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX auth_rate_limit_windows_scope_reset_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];
+
 export const playerNewsMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE player_news_items")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),

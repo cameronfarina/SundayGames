@@ -1,5 +1,11 @@
 import { AuthError } from "../errors.js";
-import { hashSessionToken, normalizeEmail, validatePassword, verifyServicePassword } from "../primitives.js";
+import {
+  hashSessionToken,
+  normalizeEmail,
+  validateCurrentPassword,
+  validatePassword,
+  verifyServicePassword,
+} from "../primitives.js";
 import type { PasswordReplacementResult } from "../records.js";
 import type { AuthenticatedSession, ChangePasswordInput, ResetPasswordInput } from "../serviceContracts.js";
 import type { AuthServiceContext } from "./context.js";
@@ -28,7 +34,7 @@ export const changePassword = async (
   if (credential === null) {
     throw new AuthError("auth_required", "Sign in before changing your password.");
   }
-  validatePassword(input.currentPassword);
+  validateCurrentPassword(input.currentPassword);
   if (!(await verifyServicePassword(input.currentPassword, credential.passwordHash))) {
     throw new AuthError("invalid_current_password", "Current password is incorrect.");
   }

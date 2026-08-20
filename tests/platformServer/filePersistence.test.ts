@@ -11,7 +11,7 @@ describePlatformServer(({ createListeningServer, servers, storePath }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     await platformServer.liveDraftRoomSetupRepository?.save({
@@ -70,7 +70,7 @@ describePlatformServer(({ createListeningServer, servers, storePath }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -97,7 +97,7 @@ describePlatformServer(({ createListeningServer, servers, storePath }) => {
     await expect(jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password1!" }),
     })).resolves.toMatchObject({ status: 201 });
     expect(await readFile(dataFilePath, "utf8")).toBe(workspaceBefore);
     expect(await readFile(`${dataFilePath}.auth.json`, "utf8")).toContain("fast-auth@example.com");
@@ -105,7 +105,7 @@ describePlatformServer(({ createListeningServer, servers, storePath }) => {
     const login = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "fast-auth@example.com", password: "secure password1!" }),
     });
     expect(login.status).toBe(200);
     expect(await readFile(dataFilePath, "utf8")).toBe(workspaceBefore);

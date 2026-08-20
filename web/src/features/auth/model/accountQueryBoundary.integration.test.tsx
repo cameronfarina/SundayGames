@@ -80,9 +80,9 @@ describe("account query boundaries", () => {
     ], { initialEntries: ["/account"] });
     render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
 
-    await userEvent.type(screen.getByLabelText("Current password"), "account a password");
-    await userEvent.type(screen.getByLabelText("New password"), "replacement password");
-    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");
+    await userEvent.type(screen.getByLabelText("Current password"), "account a password1!");
+    await userEvent.type(screen.getByLabelText("New password"), "replacement password1!");
+    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password1!{Enter}");
     await screen.findByRole("button", { name: "Sign in" });
 
     expect(client.getQueryData(sessionQueryKey())).toBeUndefined();
@@ -90,7 +90,7 @@ describe("account query boundaries", () => {
     expect(client.getQueryData(privateAccountQuery.queryKey)).toBeUndefined();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Email" }), accountB.email);
-    await userEvent.type(screen.getByLabelText("Password"), "account b password");
+    await userEvent.type(screen.getByLabelText("Password"), "account b password1!");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => { expect(router.state.location.pathname).toBe("/practice"); });
     expect(await screen.findByText("account-b account-b")).toBeVisible();

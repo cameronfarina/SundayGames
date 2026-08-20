@@ -45,10 +45,10 @@ const mockRunner: SimulationMockBatchRunner = ({
 
 const setupRegisteredSeason = async () => {
   const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-  await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-  await app.createAccount({ email: "owner04@example.com", password: "owner04 password", now });
-  const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
-  const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password", now });
+  await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+  await app.createAccount({ email: "owner04@example.com", password: "owner04 password!", now });
+  const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
+  const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password!", now });
   if (owner11 === null || owner04 === null) throw new Error("Expected fixture logins.");
 
   const season = buildCurrentMockdLeagueSeason(["Owner11", "Owner04", "Owner01"], {
@@ -439,10 +439,10 @@ describe("platform setup import HTTP helpers", () => {
 
   it("does not trust registered emails or client-provided account ids during setup import", async () => {
     const { app, owner11, season } = await setupRegisteredSeason();
-    await app.createAccount({ email: "owner01@example.com", password: "owner01 password", now });
-    await app.createAccount({ email: "outsider@example.com", password: "outsider password", now });
-    const owner01 = await app.login({ email: "owner01@example.com", password: "owner01 password", now });
-    const outsider = await app.login({ email: "outsider@example.com", password: "outsider password", now });
+    await app.createAccount({ email: "owner01@example.com", password: "owner01 password!", now });
+    await app.createAccount({ email: "outsider@example.com", password: "outsider password1!", now });
+    const owner01 = await app.login({ email: "owner01@example.com", password: "owner01 password!", now });
+    const outsider = await app.login({ email: "outsider@example.com", password: "outsider password1!", now });
     if (owner01 === null || outsider === null) throw new Error("Expected fixture logins.");
 
     const response = await applyLeagueSetupImport(app, {
@@ -476,8 +476,8 @@ describe("platform setup import HTTP helpers", () => {
   it("keeps a registered non-member pending until the matching account accepts the invitation", async () => {
     const { app, owner11, season } = await setupRegisteredSeason();
     const invitationRepository = new InMemoryPlatformInvitationRepository();
-    await app.createAccount({ email: "victim@example.com", password: "victim password", now });
-    const victim = await app.login({ email: "victim@example.com", password: "victim password", now });
+    await app.createAccount({ email: "victim@example.com", password: "victim password1!", now });
+    const victim = await app.login({ email: "victim@example.com", password: "victim password1!", now });
     if (victim === null) throw new Error("Expected victim fixture login.");
 
     const response = await applyLeagueSetupImport(app, {
@@ -634,10 +634,10 @@ describe("platform setup import HTTP helpers", () => {
       leagueSetupRepository,
       simulationRunner: mockRunner,
     });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    await app.createAccount({ email: "owner04@example.com", password: "owner04 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    await app.createAccount({ email: "owner04@example.com", password: "owner04 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner04 = await app.login({ email: "owner04@example.com", password: "owner04 password!", now });
     if (owner11 === null || owner04 === null) throw new Error("Expected fixture logins.");
     const season = buildCurrentMockdLeagueSeason(["Owner11", "Owner04", "Owner01"], {
       ...leagueConfig,

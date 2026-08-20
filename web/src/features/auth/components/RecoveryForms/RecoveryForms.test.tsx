@@ -6,6 +6,7 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { authRoutes } from "../../routes/authRoutes";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
+import { passwordInputPattern, passwordRequirements } from "../../model/passwordPolicy";
 
 const jsonResponse = (body: unknown, status = 200): Response => new Response(
   JSON.stringify(body),
@@ -59,11 +60,10 @@ describe("authentication recovery", () => {
     }));
     const navigation = mountRoute("/reset-password?token=reset-token");
     expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "6");
-    expect(screen.getByText(
-      "Use at least 6 characters.",
-    )).toBeVisible();
-    await userEvent.type(screen.getByLabelText("New password"), "replacement password");
-    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");
+    expect(screen.getByLabelText("New password")).toHaveAttribute("pattern", passwordInputPattern);
+    expect(screen.getByText(passwordRequirements)).toBeVisible();
+    await userEvent.type(screen.getByLabelText("New password"), "replacement password1!");
+    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password1!{Enter}");
     expect(screen.getByRole("button", { name: "Updating password..." })).toBeDisabled();
     await waitFor(() => {
       expect(navigation.state.location.pathname).toBe("/login");
@@ -76,8 +76,8 @@ describe("authentication recovery", () => {
       error: { code: "invalid_or_expired_token", message: "This link is invalid or has expired." },
     }, 400)));
     mountRoute("/reset-password?token=expired");
-    await userEvent.type(screen.getByLabelText("New password"), "replacement password");
-    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password{Enter}");
+    await userEvent.type(screen.getByLabelText("New password"), "replacement password1!");
+    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password1!{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
   });
 

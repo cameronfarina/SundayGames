@@ -3,8 +3,8 @@ import { describe, it, InMemoryPlatformStore, PlatformAppError, baselinePrices, 
 describe("platform app service", () => {
   it("runs shared historical imports and league pricing rebuilds behind commissioner permissions", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
     const importSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

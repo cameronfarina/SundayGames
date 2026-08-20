@@ -4,7 +4,10 @@ import type { SyntheticEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { verifyEmail } from "../../api/authApi";
 import { authErrorMessage } from "../../model/authErrorMessage";
-import { minimumPasswordCharacters } from "../../model/passwordPolicy";
+import {
+  minimumPasswordCharacters,
+  passwordInputPattern,
+} from "../../model/passwordPolicy";
 import { EmailRequestForm } from "../EmailRequestForm/EmailRequestForm";
 import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "../AuthForm/AuthForm.css";
@@ -51,6 +54,7 @@ export const EmailVerificationForm = ({
             disabled={verification.isPending}
             id="verification-password"
             minLength={minimumPasswordCharacters}
+            pattern={passwordInputPattern}
             onChange={event => { setPassword(event.currentTarget.value); }}
             required
             type="password"
@@ -66,6 +70,7 @@ export const EmailVerificationForm = ({
             disabled={verification.isPending}
             id="verification-confirmation"
             minLength={minimumPasswordCharacters}
+            pattern={passwordInputPattern}
             onChange={event => { setConfirmation(event.currentTarget.value); }}
             required
             type="password"

@@ -74,6 +74,8 @@ The launch Blueprint disables screenshot analysis, so commissioners enter league
 
 Owners normally recover access through **Forgot password** on the sign-in page. The operator command remains an emergency-only fallback when email delivery is unavailable. The target email comes from the environment and the replacement password comes from exactly one non-interactive stdin line, so neither belongs in command arguments:
 
+New passwords must contain at least 6 characters, one ASCII digit, and one punctuation or symbol character. Spaces are allowed, but do not satisfy the punctuation-or-symbol requirement. The same rule applies to signup, verification, reset, change-password, and operator password commands.
+
 ```bash
 printf '%s' "$PASSWORD_FROM_SECURE_SOURCE" | \
 MOCKD_PASSWORD_RESET_EMAIL='owner@example.com' \

@@ -4,6 +4,7 @@ import type {
   PostgresQueryResult,
 } from "../../../src/platform/postgresPlatformStore.js";
 import { FakePostgresClient } from "./fakeSnapshotPostgresClient.js";
+import { fakeAuthRateLimitQuery } from "./fakeAuthRateLimitQuery.js";
 import { platformPostgresExportQuery } from "./platformPostgresExportQueries.js";
 import { platformPostgresReadQuery } from "./platformPostgresReadQueries.js";
 import { platformPostgresRoomQuery } from "./platformPostgresRoomQueries.js";
@@ -93,7 +94,8 @@ export class FakeTransactionalPlatformPostgresClient
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResult<unknown>> {
     const normalizedSql = normalizeSql(text);
-    const result = platformPostgresReadQuery(this, normalizedSql, values)
+    const result = fakeAuthRateLimitQuery(normalizedSql)
+      ?? platformPostgresReadQuery(this, normalizedSql, values)
       ?? platformPostgresRoomQuery(this, normalizedSql, values)
       ?? platformPostgresExportQuery(this, normalizedSql, values);
 

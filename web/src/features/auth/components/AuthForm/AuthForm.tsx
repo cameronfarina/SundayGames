@@ -8,7 +8,10 @@ import { createAccount } from "../../api/signupApi";
 import { resetAccountQueryState } from "../../model/accountQueryBoundary";
 import { authErrorMessage } from "../../model/authErrorMessage";
 import { invitationTokenFromReturnTo, safeReturnPath } from "../../model/authNavigation";
-import { minimumPasswordCharacters } from "../../model/passwordPolicy";
+import {
+  minimumPasswordCharacters,
+  passwordInputPattern,
+} from "../../model/passwordPolicy";
 import { PasswordGuidance } from "../PasswordGuidance/PasswordGuidance";
 import "./AuthForm.css";
 
@@ -96,6 +99,7 @@ export const AuthForm = (props: AuthFormProps) => {
             disabled={authentication.isPending}
             id="auth-password"
             minLength={minimumPasswordCharacters}
+            {...(mode === "signup" ? { pattern: passwordInputPattern } : {})}
             name="password"
             onChange={event => { setPassword(event.currentTarget.value); }}
             required

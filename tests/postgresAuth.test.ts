@@ -395,7 +395,7 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "display@example.com",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
     const savedAt = new Date(now.getTime() + 1);
@@ -417,7 +417,7 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "display-clear@example.com",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
     await repository.replaceDisplayName({
@@ -472,31 +472,31 @@ describe("Postgres auth repository", () => {
     const secondToken = new URL(secondMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
     await expect(auth.verifyEmail({
       token: firstToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
     }))
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
     await expect(auth.verifyEmail({
       token: secondToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
     }))
       .resolves.toMatchObject({ emailVerifiedAt: new Date(now.getTime() + 2_000) });
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker first password",
+      password: "attacker first password1!",
       now: new Date(now.getTime() + 2_001),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker last password",
+      password: "attacker last password1!",
       now: new Date(now.getTime() + 2_001),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_001),
     })).resolves.not.toBeNull();
 
@@ -505,14 +505,14 @@ describe("Postgres auth repository", () => {
     const resetToken = new URL(resetMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
     await expect(auth.resetPasswordWithToken({
       token: resetToken,
-      newPassword: "final secure password",
-      newPasswordConfirmation: "final secure password",
+      newPassword: "final secure password1!",
+      newPasswordConfirmation: "final secure password1!",
       now: new Date(now.getTime() + 4_000),
     })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
     await expect(auth.resetPasswordWithToken({
       token: resetToken,
-      newPassword: "another secure password",
-      newPasswordConfirmation: "another secure password",
+      newPassword: "another secure password1!",
+      newPasswordConfirmation: "another secure password1!",
       now: new Date(now.getTime() + 5_000),
     })).rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
   });
@@ -588,7 +588,7 @@ describe("Postgres auth repository", () => {
 
     const account = await auth.createUser({
       email: " Owner11@Example.com ",
-      password: "correct horse battery staple",
+      password: "correct horse battery staple1!",
       now,
     });
 
@@ -607,11 +607,11 @@ describe("Postgres auth repository", () => {
       email_verified_at: now,
       password_hash: expect.stringMatching(/^scrypt\$/),
     });
-    expect(JSON.stringify([...client.accounts.values()])).not.toContain("correct horse battery staple");
+    expect(JSON.stringify([...client.accounts.values()])).not.toContain("correct horse battery staple1!");
 
     await expect(auth.createUser({
       email: "OWNER11@example.com",
-      password: "second secure password",
+      password: "second secure password1!",
       now: new Date(now.getTime() + 1_000),
     })).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
   });
@@ -622,7 +622,7 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "coach@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
 
@@ -634,7 +634,7 @@ describe("Postgres auth repository", () => {
 
     const login = await auth.login({
       email: " COACH@MOCKD.APP ",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
       sessionTtlMs: 1_000,
     });
@@ -676,12 +676,12 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "disabled@example.com",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
     const login = await auth.login({
       email: "disabled@example.com",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
       sessionTtlMs: 10_000,
     });
@@ -693,7 +693,7 @@ describe("Postgres auth repository", () => {
 
     await expect(auth.login({
       email: "disabled@example.com",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now: new Date(now.getTime() + 1),
     })).resolves.toBeNull();
     await expect(auth.lookupSession(login.sessionToken, new Date(now.getTime() + 2))).resolves.toBeNull();
@@ -706,13 +706,13 @@ describe("Postgres auth repository", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "postgres-password@example.com",
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     });
-    const firstLogin = await auth.login({ email: account.email, password: "current secure password", now });
+    const firstLogin = await auth.login({ email: account.email, password: "current secure password1!", now });
     const secondLogin = await auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now: new Date(now.getTime() + 1),
     });
     if (firstLogin === null || secondLogin === null) throw new Error("Expected logins.");
@@ -720,9 +720,9 @@ describe("Postgres auth repository", () => {
 
     await expect(auth.changePassword({
       sessionToken: firstLogin.sessionToken,
-      currentPassword: "current secure password",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      currentPassword: "current secure password1!",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now: changedAt,
     })).resolves.toMatchObject({
       account: { id: account.id, updatedAt: changedAt },
@@ -730,7 +730,7 @@ describe("Postgres auth repository", () => {
     });
 
     expect([...client.sessions.values()].every(session => session.revoked_at?.getTime() === changedAt.getTime())).toBe(true);
-    expect([...client.accounts.values()][0]?.password_hash).not.toContain("replacement secure password");
+    expect([...client.accounts.values()][0]?.password_hash).not.toContain("replacement secure password1!");
     client.sessions.set("sess_stale_race", {
       id: "sess_stale_race",
       account_id: account.id,
@@ -746,7 +746,7 @@ describe("Postgres auth repository", () => {
     await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
     await expect(auth.login({
       email: account.email,
-      password: "replacement secure password",
+      password: "replacement secure password1!",
       now: new Date(now.getTime() + 4),
     })).resolves.toMatchObject({ account: { id: account.id } });
   });

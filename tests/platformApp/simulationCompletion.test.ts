@@ -14,7 +14,7 @@ describe("platform app service", () => {
       simulationRepository,
       simulationRunner: mockRunner,
     });
-    const owner11 = await signUpAndLogin(app, "failed-season-sim@example.com", "owner11 password", now);
+    const owner11 = await signUpAndLogin(app, "failed-season-sim@example.com", "owner11 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "published" });
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
     if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");

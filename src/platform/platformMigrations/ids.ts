@@ -19,6 +19,7 @@ export const leagueImportMigrationId = "platform-league-import-v19";
 export const snakeLiveRoomMigrationId = "platform-snake-live-room-v20";
 export const leagueCredentialEncryptionMigrationId =
   "platform-league-credential-encryption-v21";
+export const authRateLimitsMigrationId = "platform-auth-rate-limits-v22";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

@@ -70,7 +70,7 @@ describeWithPostgres("Postgres authentication token admission", () => {
 
   it("admits one hash per single-use token across concurrent requests", async () => {
     const mail = new CapturingAuthMailSender();
-    const storedHash = hashPassword("mailbox proven password");
+    const storedHash = hashPassword("mailbox proven password1!");
     let hashCalls = 0;
     const auth = createAuthService({
       repository: new PostgresAuthRepository(client),
@@ -90,8 +90,8 @@ describeWithPostgres("Postgres authentication token admission", () => {
       { length: concurrentAttempts },
       () => auth.verifyEmail({
         token: verificationToken,
-        newPassword: "mailbox proven password",
-        newPasswordConfirmation: "mailbox proven password",
+        newPassword: "mailbox proven password1!",
+        newPasswordConfirmation: "mailbox proven password1!",
         now,
       }),
     ));
@@ -105,8 +105,8 @@ describeWithPostgres("Postgres authentication token admission", () => {
       { length: concurrentAttempts },
       () => auth.resetPasswordWithToken({
         token: resetToken,
-        newPassword: "replacement secure password",
-        newPasswordConfirmation: "replacement secure password",
+        newPassword: "replacement secure password1!",
+        newPasswordConfirmation: "replacement secure password1!",
         now,
       }),
     ));

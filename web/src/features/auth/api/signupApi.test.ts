@@ -27,7 +27,7 @@ describe("signup API", () => {
       email: "cam@example.com",
       fetcher,
       invitationToken: "invite-token",
-      password: "secure password",
+      password: "secure password1!",
       returnTo: "/invite?token=invite-token",
     })).resolves.toMatchObject({ account: { id: "account-cam" } });
     await expect(createAccount({
@@ -38,7 +38,7 @@ describe("signup API", () => {
     expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",
       invitationToken: "invite-token",
-      password: "secure password",
+      password: "secure password1!",
       returnTo: "/invite?token=invite-token",
     }));
   });

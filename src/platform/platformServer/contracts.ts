@@ -1,7 +1,7 @@
 import type { AuthMailSender, AuthRepository, SignupNotifier } from "../auth.js";
 import type {
+  AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
-  NormalizedEmailRateLimiter,
 } from "../authRateLimit.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
@@ -77,12 +77,12 @@ export interface CreatePlatformServerOptions {
   publicBaseUrl?: string | undefined;
   signupNotifier?: SignupNotifier | undefined;
   trustProxy?: boolean | undefined;
-  accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  verificationRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  passwordResetRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  passwordResetConsumeRateLimiter?: ClientAddressRateLimiter | undefined;
-  authClientRateLimiter?: ClientAddressRateLimiter | undefined;
+  accountRateLimiter?: AuthAttemptRateLimiter | undefined;
+  loginRateLimiter?: AuthAttemptRateLimiter | undefined;
+  verificationRateLimiter?: AuthAttemptRateLimiter | undefined;
+  passwordResetRateLimiter?: AuthAttemptRateLimiter | undefined;
+  passwordResetConsumeRateLimiter?: AuthAttemptRateLimiter | undefined;
+  authClientRateLimiter?: AuthAttemptRateLimiter | undefined;
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
   screenshotImportIngressRateLimiter?: ClientAddressRateLimiter | undefined;
   historicalImportAccountRateLimiter?: ClientAddressRateLimiter | undefined;

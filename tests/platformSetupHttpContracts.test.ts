@@ -37,22 +37,22 @@ const setup = async () => {
   });
   const owner = await app.createAccount({
     email: "owner@example.com",
-    password: "owner password secure",
+    password: "owner password secure1!",
     now,
   });
   const member = await app.createAccount({
     email: "member@example.com",
-    password: "member password secure",
+    password: "member password secure1!",
     now,
   });
   const ownerLogin = await app.login({
     email: owner.email,
-    password: "owner password secure",
+    password: "owner password secure1!",
     now,
   });
   const memberLogin = await app.login({
     email: member.email,
-    password: "member password secure",
+    password: "member password secure1!",
     now,
   });
   if (ownerLogin === null || memberLogin === null) {

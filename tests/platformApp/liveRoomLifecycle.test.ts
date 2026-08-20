@@ -8,7 +8,7 @@ describe("platform app service", () => {
       liveDraftRoomRepository,
       simulationRunner: mockRunner,
     });
-    const owner11 = await signUpAndLogin(app, "owner11-snake-room@example.com", "owner11 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-snake-room@example.com", "owner11 password!", now);
     const season = asSnakeSeason(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "Snake League",
       setupStatus: "published",
@@ -40,8 +40,8 @@ describe("platform app service", () => {
 
   it("cancels a setup room idempotently so league setup can resume and the room can be recreated", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11-cancel@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04-cancel@example.com", "owner04 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-cancel@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04-cancel@example.com", "owner04 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

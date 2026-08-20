@@ -161,8 +161,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
@@ -201,8 +201,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
@@ -267,8 +267,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
 
     await fileStore.save();
@@ -288,15 +288,15 @@ describe("file-backed platform store", () => {
     expect(savedWorkspace).not.toContain(owner11.sessionToken);
     expect(savedAuth).not.toContain(owner11.sessionToken);
     expect(savedAuth).not.toContain("sessionToken");
-    expect(savedAuth).not.toContain("owner11 password");
+    expect(savedAuth).not.toContain("owner11 password!");
   });
 
   it("does not restore stale credentials when the auth sidecar is missing", async () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     await fileStore.save();
 
@@ -312,8 +312,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     await writePlatformStoreSnapshot(path, fileStore.store.snapshot());
 
@@ -332,8 +332,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     await rm(path, { force: true });
     await mkdir(path);
@@ -347,11 +347,11 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
     await fileStore.save();
     const workspaceBefore = await readFile(path, "utf8");
 
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     const workspaceSnapshot = vi.spyOn(fileStore.store, "snapshot");
     await fileStore.saveAuth();
@@ -371,8 +371,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
@@ -464,8 +464,8 @@ describe("file-backed platform store", () => {
     const path = await storePath();
     const fileStore = new FilePlatformStore(path);
     const app = createPlatformApp({ store: fileStore.store, simulationRunner: mockRunner });
-    await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",

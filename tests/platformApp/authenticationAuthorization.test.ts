@@ -3,10 +3,10 @@ import { describe, it, InMemoryPlatformStore, PlatformAppError, buildCurrentMock
 describe("platform app service", () => {
   it("changes the signed-in account password and invalidates all active sessions", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const firstLogin = await signUpAndLogin(app, "password@example.com", "current secure password", now);
+    const firstLogin = await signUpAndLogin(app, "password@example.com", "current secure password1!", now);
     const secondLogin = await app.login({
       email: firstLogin.account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now: new Date(now.getTime() + 1),
     });
     if (secondLogin === null) throw new Error("Expected second login.");
@@ -14,9 +14,9 @@ describe("platform app service", () => {
 
     await expect(app.changePassword({
       actorSessionToken: firstLogin.sessionToken,
-      currentPassword: "current secure password",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      currentPassword: "current secure password1!",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now: changedAt,
     })).resolves.toEqual({
       account: { ...firstLogin.account, updatedAt: changedAt },
@@ -28,7 +28,7 @@ describe("platform app service", () => {
 
   it("requires an owner or admin actor when registering league season data", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

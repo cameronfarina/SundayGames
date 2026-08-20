@@ -28,12 +28,12 @@ describePlatformServer(({ createListeningServer, temporaryDirectory }) => {
     const prepAccount = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "prep@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "prep@example.com", password: "secure password1!" }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "prep@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "prep@example.com", password: "secure password1!" }),
     });
     const sessionToken = sessionTokenFrom(login);
     const accountId = stringProperty(propertyValue(prepAccount.body, "account"), "id");
@@ -62,12 +62,12 @@ describePlatformServer(({ createListeningServer, temporaryDirectory }) => {
     await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "outsider@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "outsider@example.com", password: "secure password1!" }),
     });
     const outsiderLogin = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "outsider@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "outsider@example.com", password: "secure password1!" }),
     });
     const outsiderSessionToken = sessionTokenFrom(outsiderLogin);
 

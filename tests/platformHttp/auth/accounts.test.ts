@@ -10,7 +10,7 @@ it("creates accounts, logs in, and returns stable auth error responses", async (
       path: "/accounts",
       body: {
         email: "  Owner11@Example.com ",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });
@@ -28,7 +28,7 @@ it("creates accounts, logs in, and returns stable auth error responses", async (
       path: "/accounts",
       body: {
         email: "owner11@example.com",
-        password: "different password",
+        password: "different password1!",
         now,
       },
     });
@@ -69,7 +69,7 @@ it("creates accounts, logs in, and returns stable auth error responses", async (
       headers: { host: "mockd.example.com" },
       body: {
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });
@@ -131,7 +131,7 @@ it("limits production account creation to matching pending invitations", async (
       method: "POST",
       path: "/accounts",
       now,
-      body: { email: "other@example.com", password: "secure password" },
+      body: { email: "other@example.com", password: "secure password1!" },
     })).resolves.toEqual({
       status: 403,
       body: {
@@ -148,7 +148,7 @@ it("limits production account creation to matching pending invitations", async (
       now,
       body: {
         email: "owner04@example.com",
-        password: "secure password",
+        password: "secure password1!",
         invitationToken: "valid-invitation-token",
       },
     })).resolves.toMatchObject({
@@ -162,7 +162,7 @@ it("limits production account creation to matching pending invitations", async (
       now,
       body: {
         email: "new-manager@example.com",
-        password: "secure password",
+        password: "secure password1!",
         invitationToken: "shared-league-token",
       },
     })).resolves.toMatchObject({

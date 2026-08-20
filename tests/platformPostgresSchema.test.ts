@@ -9,6 +9,7 @@ const expectedTableOrder = [
   "accounts",
   "account_auth_tokens",
   "sessions",
+  "auth_rate_limit_windows",
   "leagues",
   "league_memberships",
   "league_seasons",
@@ -496,6 +497,7 @@ describe("platform Postgres schema contract", () => {
         + platformPostgresSchema.deferredForeignKeys.length,
     );
     expect(migrationSql).toContain("create table accounts");
+    expect(migrationSql).toContain("create table auth_rate_limit_windows");
     expect(migrationSql).toContain("email_normalized text not null");
     expect(migrationSql).toContain("constraint accounts_email_normalized_key unique (email_normalized)");
     expect(migrationSql).toContain("create unique index mock_session_events_revision_idempotency_key");

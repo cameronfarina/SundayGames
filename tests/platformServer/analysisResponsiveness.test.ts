@@ -30,12 +30,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const account = await platformServer.app.createAccount({
       email: "screenshot-health@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: account.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected screenshot health fixture login.");
@@ -94,12 +94,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const account = await platformServer.app.createAccount({
       email: "league-create-screenshot-health@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: account.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected league-creation screenshot fixture login.");

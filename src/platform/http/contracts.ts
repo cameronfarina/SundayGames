@@ -1,6 +1,6 @@
 import type {
+  AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
-  NormalizedEmailRateLimiter,
 } from "../authRateLimit.js";
 import type {
   EspnLeagueSettingsImportInput,
@@ -76,12 +76,12 @@ export interface PlatformHttpServices {
   provisioningToken?: string | undefined;
   allowPublicSignup?: boolean | undefined;
   emailVerificationRequired?: boolean | undefined;
-  accountRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  loginRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  verificationRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  passwordResetRateLimiter?: NormalizedEmailRateLimiter | undefined;
-  passwordResetConsumeRateLimiter?: ClientAddressRateLimiter | undefined;
-  authClientRateLimiter?: ClientAddressRateLimiter | undefined;
+  accountRateLimiter?: AuthAttemptRateLimiter | undefined;
+  loginRateLimiter?: AuthAttemptRateLimiter | undefined;
+  verificationRateLimiter?: AuthAttemptRateLimiter | undefined;
+  passwordResetRateLimiter?: AuthAttemptRateLimiter | undefined;
+  passwordResetConsumeRateLimiter?: AuthAttemptRateLimiter | undefined;
+  authClientRateLimiter?: AuthAttemptRateLimiter | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   screenshotImportRateLimiter?: ClientAddressRateLimiter | undefined;
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;

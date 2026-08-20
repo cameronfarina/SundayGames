@@ -9,8 +9,8 @@ describePlatformServer(({ createListeningServer, storePath }) => {
       dataFilePath,
       jobRepository,
     });
-    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {

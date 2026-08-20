@@ -10,12 +10,12 @@ describePlatformServer(({ createListeningServer }) => {
     await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password1!" }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "new-commissioner@example.com", password: "secure password1!" }),
     });
     const sessionToken = sessionTokenFrom(login);
     const headers = {
@@ -93,7 +93,7 @@ describePlatformServer(({ createListeningServer }) => {
       },
       body: JSON.stringify({
         email: "proxy-user@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 

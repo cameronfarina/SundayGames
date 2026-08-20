@@ -32,7 +32,7 @@ describe("auth API", () => {
       },
     }));
 
-    await expect(login({ email: "cam@example.com", fetcher, password: "secure password" }))
+    await expect(login({ email: "cam@example.com", fetcher, password: "secure password1!" }))
       .resolves.toMatchObject({ session: { id: "session-1" } });
   });
 
@@ -76,22 +76,22 @@ describe("auth API", () => {
     await expect(verifyEmail({
       fetcher,
       token: "verify",
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
     })).resolves.toBe(true);
     await expect(requestPasswordReset({ email: "cam@example.com", fetcher }))
       .resolves.toBe("Reset sent.");
     await expect(resetPassword({
       fetcher,
-      newPassword: "replacement password",
-      newPasswordConfirmation: "replacement password",
+      newPassword: "replacement password1!",
+      newPasswordConfirmation: "replacement password1!",
       token: "reset",
     })).resolves.toBe(true);
     await expect(changePassword({
-      currentPassword: "secure password",
+      currentPassword: "secure password1!",
       fetcher,
-      newPassword: "replacement password",
-      newPasswordConfirmation: "replacement password",
+      newPassword: "replacement password1!",
+      newPasswordConfirmation: "replacement password1!",
     })).resolves.toBe(true);
   });
 });

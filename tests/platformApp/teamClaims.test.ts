@@ -3,9 +3,9 @@ import { describe, it, InMemoryPlatformStore, PlatformAppError, buildCurrentMock
 describe("platform app service", () => {
   it("lets league members claim one current team without taking another user's team", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
-    const sam = await signUpAndLogin(app, "sam@example.com", "sam secure password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
+    const sam = await signUpAndLogin(app, "sam@example.com", "sam secure password1!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",
@@ -77,8 +77,8 @@ describe("platform app service", () => {
 
   it("locks an assigned team claim after a live draft has started", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

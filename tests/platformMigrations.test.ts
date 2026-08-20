@@ -218,6 +218,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
+      "platform-auth-rate-limits-v22",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -251,6 +252,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
+      "platform-auth-rate-limits-v22",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -359,6 +361,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
+      "platform-auth-rate-limits-v22",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -381,14 +384,16 @@ describe("platform Postgres migrations", () => {
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
+      "platform-auth-rate-limits-v22",
     ]);
   });
 
-  it("applies snake price support before credential encryption", () => {
-    expect(requiredPlatformPostgresMigrationIds.slice(-3)).toEqual([
+  it("applies snake, credential, and auth migrations in reserved order", () => {
+    expect(requiredPlatformPostgresMigrationIds.slice(-4)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
+      "platform-auth-rate-limits-v22",
     ]);
   });
 
@@ -461,6 +466,21 @@ describe("platform Postgres migrations", () => {
       "league_connections_encrypted_credentials_pair_check",
     ));
     expect(client.statements.join("\n")).not.toContain("UPDATE league_connections SET espn_s2");
+  });
+
+  it("adds shared authentication rate-limit windows in migration v22", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-auth-rate-limits-v22")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS auth_rate_limit_windows"),
+    );
+    expect(client.statements.at(-1)).toBe("INSERT INTO platform_schema_migrations (id) VALUES ($1)");
   });
 
   it("stores historical public values and lets users import the same provider league independently", async () => {

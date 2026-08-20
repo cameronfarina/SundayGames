@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { passwordInputPattern, passwordRequirements } from "../../model/passwordPolicy";
 import { EmailVerificationForm } from "./EmailVerificationForm";
 
 const jsonResponse = (body: unknown, status = 200): Response => new Response(
@@ -39,17 +40,16 @@ describe("EmailVerificationForm", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ verified: true })));
     const router = mountForm();
     expect(screen.getByLabelText("Choose password")).toHaveAttribute("minlength", "6");
-    expect(screen.getByText(
-      "Use at least 6 characters.",
-    )).toBeVisible();
-    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
-    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");
+    expect(screen.getByLabelText("Choose password")).toHaveAttribute("pattern", passwordInputPattern);
+    expect(screen.getByText(passwordRequirements)).toBeVisible();
+    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password1!");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password1!{Enter}");
     await waitFor(() => { expect(router.state.location.pathname).toBe("/login"); });
     expect(router.state.location.search).toBe("?emailVerified=1&returnTo=%2Fleague");
     expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
       token: "verify-token",
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
     }));
   });
 
@@ -58,8 +58,8 @@ describe("EmailVerificationForm", () => {
       error: { code: "invalid_or_expired_token", message: "This link is invalid or has expired." },
     }, 400)));
     mountForm();
-    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
-    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");
+    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password1!");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password1!{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
     expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
   });
@@ -68,8 +68,8 @@ describe("EmailVerificationForm", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
     mountForm();
 
-    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password");
-    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password{Enter}");
+    await userEvent.type(screen.getByLabelText("Choose password"), "mailbox proven password1!");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "mailbox proven password1!{Enter}");
 
     expect(await screen.findByRole("button", { name: "Finishing account..." })).toBeDisabled();
     expect(screen.getByLabelText("Choose password")).toBeDisabled();

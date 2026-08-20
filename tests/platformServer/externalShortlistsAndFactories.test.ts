@@ -12,12 +12,12 @@ describePlatformServer(({ createListeningServer, storePath }) => {
     });
     await platformServer.app.createAccount({
       email: "shortlist-storage@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: "shortlist-storage@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected shortlist fixture login.");

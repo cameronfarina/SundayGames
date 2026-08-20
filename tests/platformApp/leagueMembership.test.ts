@@ -3,9 +3,9 @@ import { describe, it, InMemoryPlatformStore, PlatformAppError, buildCurrentMock
 describe("platform app service", () => {
   it("blocks outsider setup overwrites and replaces omitted league memberships", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
-    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password1!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",
@@ -63,8 +63,8 @@ describe("platform app service", () => {
 
   it("blocks outsider registration for a new season in an existing league", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const outsider = await signUpAndLogin(app, "outsider@example.com", "outsider password1!", now);
     const season2026 = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

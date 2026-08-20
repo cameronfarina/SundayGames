@@ -70,7 +70,7 @@ describe("platform auth foundation", () => {
 
     const accountPromise = auth.createUser({
       email: "async-password@mockd.app",
-      password: "a secure password",
+      password: "a secure password1!",
       now,
     });
 
@@ -86,7 +86,7 @@ describe("platform auth foundation", () => {
 
     const account = await auth.createUser({
       email: "  Example.User+Mockd@Example.COM  ",
-      password: "correct horse battery staple",
+      password: "correct horse battery staple1!",
       now,
     });
 
@@ -105,14 +105,14 @@ describe("platform auth foundation", () => {
 
     await auth.createUser({
       email: "team@mockd.app",
-      password: "first secure password",
+      password: "first secure password1!",
       now,
     });
 
     await expect(
       auth.createUser({
         email: " TEAM@MOCKD.APP ",
-        password: "second secure password",
+        password: "second secure password1!",
         now,
       }),
     ).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
@@ -131,12 +131,36 @@ describe("platform auth foundation", () => {
     ));
   });
 
+  it.each([
+    ["abcdef!", "Password must include at least one number."],
+    ["abcdef1", "Password must include at least one punctuation or symbol character."],
+    ["abcde1 ", "Password must include at least one punctuation or symbol character."],
+  ])("rejects a new password that does not satisfy the full policy", async (password, message) => {
+    const auth = createAuthService({ repository: new InMemoryAuthRepository() });
+
+    await expect(auth.createUser({
+      email: "password-policy@mockd.app",
+      password,
+      now,
+    })).rejects.toThrow(new AuthError("invalid_password", message));
+  });
+
+  it("accepts whitespace in a password when the required number and symbol are also present", async () => {
+    const auth = createAuthService({ repository: new InMemoryAuthRepository() });
+
+    await expect(auth.createUser({
+      email: "password-whitespace@mockd.app",
+      password: "ab 12!",
+      now,
+    })).resolves.toMatchObject({ email: "password-whitespace@mockd.app" });
+  });
+
   it("logs in with a password and returns the raw session token only in the login result", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "coach@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
 
@@ -148,7 +172,7 @@ describe("platform auth foundation", () => {
 
     const login = expectLoginResult(await auth.login({
       email: " COACH@MOCKD.APP ",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
       sessionTtlMs: 60_000,
     }));
@@ -172,19 +196,19 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository });
     await auth.createUser({
       email: "concurrent-login@mockd.app",
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     });
     const login = auth.login({
       email: "concurrent-login@mockd.app",
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     });
     await repository.sessionCreationStarted;
 
     await expect(auth.resetPassword({
       email: "concurrent-login@mockd.app",
-      newPassword: "replacement secure password",
+      newPassword: "replacement secure password1!",
       now: new Date(now.getTime() + 1),
     })).resolves.not.toBeNull();
     repository.allowSessionCreation();
@@ -235,12 +259,12 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
     const account = await auth.createUser({
       email: "session@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
     const login = expectLoginResult(await auth.login({
       email: "session@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
       sessionTtlMs: 1_000,
     }));
@@ -256,12 +280,12 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository: new InMemoryAuthRepository() });
     await auth.createUser({
       email: "logout@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     });
     const login = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now,
     }));
 
@@ -270,7 +294,7 @@ describe("platform auth foundation", () => {
 
     const secondLogin = expectLoginResult(await auth.login({
       email: "logout@mockd.app",
-      password: "valid password phrase",
+      password: "valid password phrase1!",
       now: new Date(now.getTime() + 3),
     }));
 
@@ -283,26 +307,26 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "change-password@mockd.app",
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     });
     const firstLogin = expectLoginResult(await auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     }));
     const secondLogin = expectLoginResult(await auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now: new Date(now.getTime() + 1),
     }));
     const changedAt = new Date(now.getTime() + 2);
 
     await expect(auth.changePassword({
       sessionToken: firstLogin.sessionToken,
-      currentPassword: "current secure password",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      currentPassword: "current secure password1!",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now: changedAt,
     })).resolves.toEqual({
       account: { ...account, updatedAt: changedAt },
@@ -313,12 +337,12 @@ describe("platform auth foundation", () => {
     await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 3))).resolves.toBeNull();
     await expect(auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now: new Date(now.getTime() + 4),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: account.email,
-      password: "replacement secure password",
+      password: "replacement secure password1!",
       now: new Date(now.getTime() + 4),
     })).resolves.toMatchObject({ account: { id: account.id } });
   });
@@ -328,20 +352,20 @@ describe("platform auth foundation", () => {
     const auth = createAuthService({ repository });
     const account = await auth.createUser({
       email: "unchanged-password@mockd.app",
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     });
     const login = expectLoginResult(await auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now,
     }));
 
     await expect(auth.changePassword({
       sessionToken: login.sessionToken,
       currentPassword: "wrong current password",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now: new Date(now.getTime() + 1),
     })).rejects.toThrow(new AuthError(
       "invalid_current_password",
@@ -349,9 +373,9 @@ describe("platform auth foundation", () => {
     ));
     await expect(auth.changePassword({
       sessionToken: login.sessionToken,
-      currentPassword: "current secure password",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "different secure password",
+      currentPassword: "current secure password1!",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "different secure password1!",
       now: new Date(now.getTime() + 2),
     })).rejects.toThrow(new AuthError(
       "password_confirmation_mismatch",
@@ -359,9 +383,9 @@ describe("platform auth foundation", () => {
     ));
     await expect(auth.changePassword({
       sessionToken: login.sessionToken,
-      currentPassword: "current secure password",
-      newPassword: "current secure password",
-      newPasswordConfirmation: "current secure password",
+      currentPassword: "current secure password1!",
+      newPassword: "current secure password1!",
+      newPasswordConfirmation: "current secure password1!",
       now: new Date(now.getTime() + 3),
     })).rejects.toThrow(new AuthError(
       "password_unchanged",
@@ -373,7 +397,7 @@ describe("platform auth foundation", () => {
     });
     await expect(auth.login({
       email: account.email,
-      password: "current secure password",
+      password: "current secure password1!",
       now: new Date(now.getTime() + 4),
     })).resolves.toMatchObject({ account: { id: account.id } });
   });
@@ -381,7 +405,7 @@ describe("platform auth foundation", () => {
   it("keeps raw passwords and raw session tokens out of public records", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
-    const rawPassword = "do not store this password";
+    const rawPassword = "do not store this password1!";
     const account = await auth.createUser({
       email: "private@mockd.app",
       password: rawPassword,

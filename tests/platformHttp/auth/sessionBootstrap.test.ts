@@ -92,7 +92,7 @@ it("uses trusted request time instead of client-provided body or query time for 
       now,
       body: {
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now: new Date("2099-01-01T00:00:00.000Z"),
       },
     });
@@ -102,7 +102,7 @@ it("uses trusted request time instead of client-provided body or query time for 
       now,
       body: {
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now: new Date("2099-01-01T00:00:00.000Z"),
       },
     });

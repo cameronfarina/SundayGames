@@ -100,7 +100,7 @@ describeWithPostgres("Postgres production provisioning rollback", () => {
     const repository = createTransactionalProductionProvisioningRepository(
       new AuditFailureClient(provisioningClient),
     );
-    const passwordHash = hashPassword("a sufficiently long production password");
+    const passwordHash = hashPassword("a sufficiently long production password1!");
     const env = Object.fromEntries(ownerOrder.map(owner => [passwordEnvFor(owner), passwordHash]));
 
     await expect(executeProductionProvisioning({

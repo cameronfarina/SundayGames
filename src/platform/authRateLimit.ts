@@ -12,12 +12,17 @@ export interface AuthRateLimitDecision {
   retryAfterMs: number;
 }
 
-export interface NormalizedEmailRateLimiter {
+export interface AuthAttemptRateLimiter {
+  consume(key: string, now?: Date): AuthRateLimitDecision | Promise<AuthRateLimitDecision>;
+  reset(key: string): void | Promise<void>;
+}
+
+export interface NormalizedEmailRateLimiter extends AuthAttemptRateLimiter {
   consume(email: string, now?: Date): AuthRateLimitDecision;
   reset(email: string): void;
 }
 
-export interface ClientAddressRateLimiter {
+export interface ClientAddressRateLimiter extends AuthAttemptRateLimiter {
   consume(clientAddress: string, now?: Date): AuthRateLimitDecision;
   reset(clientAddress: string): void;
 }

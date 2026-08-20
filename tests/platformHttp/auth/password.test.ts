@@ -8,7 +8,7 @@ it("changes a signed-in password, clears the cookie, and requires every device t
     const secondLogin = await handle({
       method: "POST",
       path: "/sessions",
-      body: { email: firstLogin.account.email, password: "secure password" },
+      body: { email: firstLogin.account.email, password: "secure password1!" },
     });
     const secondToken = sessionTokenFrom(secondLogin);
 
@@ -17,9 +17,9 @@ it("changes a signed-in password, clears the cookie, and requires every device t
       path: "/session/password",
       sessionToken: "",
       body: {
-        currentPassword: "secure password",
-        newPassword: "replacement secure password",
-        newPasswordConfirmation: "replacement secure password",
+        currentPassword: "secure password1!",
+        newPassword: "replacement secure password1!",
+        newPasswordConfirmation: "replacement secure password1!",
       },
     })).resolves.toMatchObject({
       status: 401,
@@ -31,8 +31,8 @@ it("changes a signed-in password, clears the cookie, and requires every device t
       sessionToken: firstLogin.sessionToken,
       body: {
         currentPassword: "wrong current password",
-        newPassword: "replacement secure password",
-        newPasswordConfirmation: "replacement secure password",
+        newPassword: "replacement secure password1!",
+        newPasswordConfirmation: "replacement secure password1!",
       },
     })).resolves.toMatchObject({
       status: 403,
@@ -45,9 +45,9 @@ it("changes a signed-in password, clears the cookie, and requires every device t
       sessionToken: firstLogin.sessionToken,
       now: new Date(now.getTime() + 2),
       body: {
-        currentPassword: "secure password",
-        newPassword: "replacement secure password",
-        newPasswordConfirmation: "replacement secure password",
+        currentPassword: "secure password1!",
+        newPassword: "replacement secure password1!",
+        newPasswordConfirmation: "replacement secure password1!",
       },
     });
     expect(response).toMatchObject({
@@ -62,12 +62,12 @@ it("changes a signed-in password, clears the cookie, and requires every device t
     await expect(handle({
       method: "POST",
       path: "/sessions",
-      body: { email: firstLogin.account.email, password: "secure password" },
+      body: { email: firstLogin.account.email, password: "secure password1!" },
     })).resolves.toMatchObject({ status: 401 });
     await expect(handle({
       method: "POST",
       path: "/sessions",
-      body: { email: firstLogin.account.email, password: "replacement secure password" },
+      body: { email: firstLogin.account.email, password: "replacement secure password1!" },
     })).resolves.toMatchObject({ status: 200 });
   });
 });

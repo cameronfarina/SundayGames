@@ -41,33 +41,33 @@ describe("email ownership and password recovery", () => {
     );
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker supplied password",
+      password: "attacker supplied password1!",
       now,
     })).resolves.toBeNull();
 
     const token = verificationTokenFrom(mailSender.messages[0]!.actionUrl);
     await expect(auth.verifyEmail({
       token,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 1_000),
     }))
       .resolves.toMatchObject({ emailVerifiedAt: new Date(now.getTime() + 1_000) });
     await expect(auth.verifyEmail({
       token,
-      newPassword: "another secure password",
-      newPasswordConfirmation: "another secure password",
+      newPassword: "another secure password1!",
+      newPasswordConfirmation: "another secure password1!",
       now: new Date(now.getTime() + 2_000),
     }))
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker supplied password",
+      password: "attacker supplied password1!",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
   });
@@ -118,30 +118,30 @@ describe("email ownership and password recovery", () => {
     expect(secondToken).not.toBe(firstToken);
     await expect(auth.verifyEmail({
       token: firstToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
     }))
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
     await auth.verifyEmail({
       token: secondToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
     });
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker first password",
+      password: "attacker first password1!",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker last password",
+      password: "attacker last password1!",
       now: new Date(now.getTime() + 3_000),
     })).resolves.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
       now: new Date(now.getTime() + 3_000),
     })).resolves.not.toBeNull();
 
@@ -152,12 +152,12 @@ describe("email ownership and password recovery", () => {
     expect(mailSender.messages).toHaveLength(2);
     await expect(auth.login({
       email: "owner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
       now: new Date(now.getTime() + 5_000),
     })).resolves.not.toBeNull();
     await expect(auth.login({
       email: "owner@example.com",
-      password: "attacker controlled password",
+      password: "attacker controlled password1!",
       now: new Date(now.getTime() + 5_000),
     })).resolves.toBeNull();
   });
@@ -234,8 +234,8 @@ describe("email ownership and password recovery", () => {
       mailSender,
       publicBaseUrl: "https://mockd.example.com",
     });
-    await auth.createUser({ email: "owner@example.com", password: "first secure password", now });
-    const session = await auth.login({ email: "owner@example.com", password: "first secure password", now });
+    await auth.createUser({ email: "owner@example.com", password: "first secure password1!", now });
+    const session = await auth.login({ email: "owner@example.com", password: "first secure password1!", now });
     expect(session).not.toBeNull();
 
     await expect(auth.requestPasswordReset({ email: "missing@example.com", now })).resolves.toEqual({ accepted: true });
@@ -246,15 +246,15 @@ describe("email ownership and password recovery", () => {
 
     await expect(auth.resetPasswordWithToken({
       token,
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now: new Date(now.getTime() + 1_000),
     })).resolves.toMatchObject({ revokedSessionCount: 1 });
     await expect(auth.lookupSession(session!.sessionToken, new Date(now.getTime() + 2_000))).resolves.toBeNull();
     await expect(auth.resetPasswordWithToken({
       token,
-      newPassword: "another secure password",
-      newPasswordConfirmation: "another secure password",
+      newPassword: "another secure password1!",
+      newPasswordConfirmation: "another secure password1!",
       now: new Date(now.getTime() + 2_000),
     })).rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
   });
@@ -266,8 +266,8 @@ describe("email ownership and password recovery", () => {
 
     await expect(auth.resetPasswordWithToken({
       token: "invalid-token",
-      newPassword: "replacement secure password",
-      newPasswordConfirmation: "replacement secure password",
+      newPassword: "replacement secure password1!",
+      newPasswordConfirmation: "replacement secure password1!",
       now,
     })).rejects.toThrow(new AuthError(
       "invalid_or_expired_token",
@@ -287,13 +287,13 @@ describe("email ownership and password recovery", () => {
       verificationTokenTtlMs: 1_000,
       passwordResetTokenTtlMs: 1_000,
     });
-    await auth.createUser({ email: "owner@example.com", password: "secure password", now });
+    await auth.createUser({ email: "owner@example.com", password: "secure password1!", now });
     const verificationToken = verificationTokenFrom(mailSender.messages[0]!.actionUrl);
 
     await expect(auth.verifyEmail({
       token: verificationToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 1_001),
     }))
       .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));

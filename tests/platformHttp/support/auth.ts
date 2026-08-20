@@ -17,7 +17,7 @@ export const createLoggedInAccount = async (
     path: "/accounts",
     body: {
       email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     },
   });
@@ -26,7 +26,7 @@ export const createLoggedInAccount = async (
     path: "/sessions",
     body: {
       email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     },
   });

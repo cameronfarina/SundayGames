@@ -1,27 +1,66 @@
 import { normalizeEmail } from "../../auth.js";
 import type {
+  AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
-  NormalizedEmailRateLimiter,
 } from "../../authRateLimit.js";
 import type { PlatformHttpErrorBody, PlatformHttpResponse } from "../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../request/parsedRequest.js";
 
-export const authRateLimitResponse = (
+export const authRateLimitResponse = async (
   email: string,
   request: ParsedPlatformHttpRequest,
-  emailLimiter: NormalizedEmailRateLimiter | undefined,
-  clientLimiter: ClientAddressRateLimiter | undefined,
-): PlatformHttpResponse<PlatformHttpErrorBody> | null => {
-  const decisions = [
+  emailLimiter: AuthAttemptRateLimiter | undefined,
+  clientLimiter: AuthAttemptRateLimiter | undefined,
+): Promise<PlatformHttpResponse<PlatformHttpErrorBody> | null> => {
+  const decisions = await Promise.all([
     emailLimiter?.consume(normalizeEmail(email), request.now),
     clientLimiter?.consume(request.clientAddress, request.now),
-  ].filter(decision => decision !== undefined);
+  ].filter(decision => decision !== undefined));
   const denied = decisions.find(decision => !decision.allowed);
   if (denied === undefined) return null;
   return {
     status: 429,
     headers: { "Retry-After": String(Math.max(1, Math.ceil(denied.retryAfterMs / 1_000))) },
     body: { error: { code: "auth_rate_limited", message: "Too many attempts. Try again later." } },
+  };
+};
+
+export const loginRateLimitKey = (
+  request: ParsedPlatformHttpRequest,
+  email: string,
+): string => `${request.clientAddress}\n${normalizeEmail(email)}`;
+
+export const loginRateLimitResponse = async (
+  request: ParsedPlatformHttpRequest,
+  email: string,
+  loginLimiter: AuthAttemptRateLimiter | undefined,
+  clientLimiter: AuthAttemptRateLimiter | undefined,
+): Promise<PlatformHttpResponse<PlatformHttpErrorBody> | null> => {
+  const decisions = await Promise.all([
+    loginLimiter?.consume(loginRateLimitKey(request, email), request.now),
+    clientLimiter?.consume(request.clientAddress, request.now),
+  ].filter(decision => decision !== undefined));
+  const denied = decisions.find(decision => !decision.allowed);
+  if (denied === undefined) return null;
+  return {
+    status: 429,
+    headers: { "Retry-After": String(Math.max(1, Math.ceil(denied.retryAfterMs / 1_000))) },
+    body: { error: { code: "auth_rate_limited", message: "Too many attempts. Try again later." } },
+  };
+};
+
+export const authActionRateLimitResponse = async (
+  request: ParsedPlatformHttpRequest,
+  limiter: AuthAttemptRateLimiter | undefined,
+  key: string,
+  message: string,
+): Promise<PlatformHttpResponse<PlatformHttpErrorBody> | null> => {
+  const decision = await limiter?.consume(key, request.now);
+  if (decision === undefined || decision.allowed) return null;
+  return {
+    status: 429,
+    headers: { "Retry-After": String(Math.max(1, Math.ceil(decision.retryAfterMs / 1_000))) },
+    body: { error: { code: "rate_limited", message } },
   };
 };
 

@@ -35,7 +35,7 @@ describe("platform web local fixture preview", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "preview-user@example.com",
-        password: "secure preview password",
+        password: "secure preview password1!",
       }),
     });
     expect(accountResponse.status).toBe(201);
@@ -60,7 +60,7 @@ describe("platform web local fixture preview", () => {
       },
       body: JSON.stringify({
         email: "provisioned-user@example.com",
-        password: "secure provisioned password",
+        password: "secure provisioned password1!",
       }),
     });
     expect(response.status).toBe(201);

@@ -86,4 +86,23 @@ export const authTables: readonly PostgresTableDefinition[] = [
       { name: "sessions_expires_at_idx", columns: ["expires_at"] },
     ],
   },
+  {
+    name: "auth_rate_limit_windows",
+    columns: [
+      { name: "scope", type: "text" },
+      { name: "key_hash", type: "text" },
+      { name: "attempt_count", type: "integer" },
+      { name: "reset_at", type: "timestamptz" },
+      { name: "updated_at", type: "timestamptz" },
+    ],
+    primaryKey: ["scope", "key_hash"],
+    checkConstraints: [
+      { name: "auth_rate_limit_windows_scope_not_blank", expression: "length(trim(scope)) > 0" },
+      { name: "auth_rate_limit_windows_key_hash_not_blank", expression: "length(trim(key_hash)) > 0" },
+      { name: "auth_rate_limit_windows_attempt_count_check", expression: "attempt_count > 0" },
+    ],
+    indexes: [
+      { name: "auth_rate_limit_windows_scope_reset_at_idx", columns: ["scope", "reset_at"] },
+    ],
+  },
 ];

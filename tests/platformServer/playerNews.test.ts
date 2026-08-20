@@ -18,12 +18,12 @@ describePlatformServer(({ createListeningServer }) => {
       currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
     });
     await jsonFetch(baseUrl, "/accounts", {
-      body: JSON.stringify({ email: "news@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "news@example.com", password: "secure password1!" }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
-      body: JSON.stringify({ email: "news@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "news@example.com", password: "secure password1!" }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
