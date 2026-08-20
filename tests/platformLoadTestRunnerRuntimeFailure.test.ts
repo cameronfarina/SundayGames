@@ -12,12 +12,15 @@ afterEach(async () => {
 describe("platform mixed load runtime stream gate", () => {
   it("fails when a connected client closes after successful mutation fanout", async () => {
     const streams = new Set<ServerResponse>();
+    let roomRevision = 1;
     const server = createServer((request, response) => {
       if (request.url?.endsWith("/event-stream") === true) {
         streams.add(response);
         response.on("close", () => streams.delete(response));
         response.writeHead(200, { "Content-Type": "text/event-stream" });
-        response.write("event: room.snapshot\ndata: {\"roomId\":\"room\",\"revision\":1}\n\n");
+        response.write(
+          `event: room.snapshot\ndata: {"roomId":"room","revision":${String(roomRevision)}}\n\n`,
+        );
         return;
       }
       request.resume();
@@ -37,6 +40,7 @@ describe("platform mixed load runtime stream gate", () => {
         response.writeHead(200).end(JSON.stringify({ historyId: "history", summary: {} }));
         return;
       }
+      roomRevision = 2;
       for (const stream of streams) {
         stream.write("event: room.sale\ndata: {\"roomId\":\"room\",\"revision\":2}\n\n");
       }

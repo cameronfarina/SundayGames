@@ -26,7 +26,7 @@ export class DraftStreamConnection {
     readonly onRuntimeFailure: (diagnostic: string) => void,
   ) {}
 
-  async open(): Promise<LoadMeasurement> {
+  async open(expectedInitialRevision?: number): Promise<LoadMeasurement> {
     const startedAt = performance.now();
     const controller = new AbortController();
     this.#controller = controller;
@@ -48,7 +48,7 @@ export class DraftStreamConnection {
       if (response.body === null) throw new StreamOpenError("missing_response_body");
       this.#reader = response.body.getReader();
       this.#parser = new DraftSseParser();
-      await this.#readInitialSnapshot();
+      await this.#readInitialSnapshot(expectedInitialRevision);
       this.#monitor = this.#consume();
       return elapsedMeasurement("ok", startedAt, status);
     } catch (error) {
@@ -61,7 +61,7 @@ export class DraftStreamConnection {
     }
   }
 
-  async #readInitialSnapshot(): Promise<void> {
+  async #readInitialSnapshot(expectedRevision?: number): Promise<void> {
     while (true) {
       const next = await this.#reader?.read();
       if (next === undefined || next.done) throw new StreamOpenError("invalid_initial_snapshot");
@@ -80,6 +80,9 @@ export class DraftStreamConnection {
       const initial = events[0];
       if (initial?.event !== "room.snapshot" || initial.roomId !== this.client.roomId) {
         throw new StreamOpenError("invalid_initial_snapshot");
+      }
+      if (expectedRevision !== undefined && initial.revision !== expectedRevision) {
+        throw new StreamOpenError("unexpected_initial_snapshot_revision");
       }
       for (const event of events) this.#record(event);
       return;
@@ -106,6 +109,10 @@ export class DraftStreamConnection {
   }
 
   #record(event: DraftSseEvent): void {
+    if (event.roomId !== this.client.roomId) {
+      this.onRuntimeFailure("unexpected_room_event");
+      return;
+    }
     this.#events.push(event);
     if (this.#events.length > 100) this.#events.shift();
     for (const waiter of [...this.#waiters]) {

@@ -1,6 +1,6 @@
 # Platform load testing
 
-Use this harness to exercise the mixed workload expected during draft night. A scenario keeps 12 authenticated event streams open per league while it reconnects one client per room, applies one paced mutation per room, verifies that all 12 clients receive the exact resulting event and revision, performs 1,000 player-news reads, and submits 25 season simulations.
+Use this harness to exercise the mixed workload expected during draft night. A scenario keeps 12 authenticated event streams open per league, applies one paced mutation per room, verifies that all 12 clients receive the exact resulting event and revision, then reconnects one client per room and requires its current snapshot to match the committed revision. The same run performs 1,000 player-news reads and submits 25 season simulations.
 
 The harness changes draft rooms. Use disposable test accounts and rooms whose current state matches the manifest mutations. Never point it at ordinary production leagues. A remote run requires an approved maintenance window and the explicit `--allow-remote` flag.
 
@@ -92,9 +92,10 @@ The JSON report contains sanitized target origin, scenario settings, start and f
 
 A pass requires:
 
-- every initial and reconnected draft stream to satisfy the exact SSE contract;
+- every initial draft stream to satisfy the exact SSE contract;
 - every room mutation to return the expected JSON contract;
-- all 12 current clients in every room to observe the exact event name and new revision within five seconds;
+- all 12 current clients in every room to observe the exact event name, room identity, and new revision within five seconds;
+- every post-mutation reconnect to return a current-room snapshot at the exact committed revision;
 - no unexpected stream close or malformed SSE event;
 - no simulation submission error and no more than 1% player-news errors;
 - p95 latency below five seconds for stream connections and fanout, two seconds for news, and three seconds for mutations and simulation submission; and

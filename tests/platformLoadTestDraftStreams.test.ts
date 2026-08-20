@@ -166,7 +166,7 @@ describe("platform live-draft stream load", () => {
       ],
     });
 
-    const reconnects = await batch.reconnectFirstClientPerRoom(["room"]);
+    const reconnects = await batch.reconnectFirstClientPerRoom([{ revision: 1, roomId: "room" }]);
     expect(reconnects).toEqual([expect.objectContaining({ diagnostic: "ok", ok: true })]);
     expect(responses).toHaveLength(3);
 
@@ -185,5 +185,73 @@ describe("platform live-draft stream load", () => {
       expect.objectContaining({ diagnostic: "ok", ok: true }),
     ]);
     await batch.close();
+  });
+
+  it("rejects live fanout events carrying another room identity", async () => {
+    const responses: ServerResponse[] = [];
+    const server = createServer((_request, response) => {
+      responses.push(response);
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.write("event: room.snapshot\ndata: {\"roomId\":\"room\",\"revision\":1}\n\n");
+    });
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (typeof address !== "object" || address === null) throw new Error("Expected test port.");
+    const batch = await openDraftStreamBatch({
+      baseUrl: new URL(`http://127.0.0.1:${String(address.port)}`),
+      clients: [{ roomId: "room", sessionToken: "session" }],
+    });
+
+    const observed = batch.waitForRoomEvent({
+      event: "room.sale",
+      revision: 2,
+      roomId: "room",
+      timeoutMs: 20,
+    });
+    const response = responses[0];
+    if (response === undefined) throw new Error("Expected stream response.");
+    response.write("event: room.sale\ndata: {\"roomId\":\"other-room\",\"revision\":2}\n\n");
+
+    const measurements = await observed;
+    const diagnostics = batch.runtimeDiagnostics();
+    await batch.close();
+
+    expect(measurements).toEqual([
+      expect.objectContaining({ diagnostic: "event_timeout", ok: false }),
+    ]);
+    expect(diagnostics).toEqual({ unexpected_room_event: 1 });
+  });
+
+  it("rejects cached fanout events carrying another room identity", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.write(
+        "event: room.snapshot\ndata: {\"roomId\":\"room\",\"revision\":1}\n\n"
+        + "event: room.sale\ndata: {\"roomId\":\"other-room\",\"revision\":2}\n\n",
+      );
+    });
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (typeof address !== "object" || address === null) throw new Error("Expected test port.");
+    const batch = await openDraftStreamBatch({
+      baseUrl: new URL(`http://127.0.0.1:${String(address.port)}`),
+      clients: [{ roomId: "room", sessionToken: "session" }],
+    });
+
+    const measurements = await batch.waitForRoomEvent({
+      event: "room.sale",
+      revision: 2,
+      roomId: "room",
+      timeoutMs: 20,
+    });
+    const diagnostics = batch.runtimeDiagnostics();
+    await batch.close();
+
+    expect(measurements).toEqual([
+      expect.objectContaining({ diagnostic: "event_timeout", ok: false }),
+    ]);
+    expect(diagnostics).toEqual({ unexpected_room_event: 1 });
   });
 });

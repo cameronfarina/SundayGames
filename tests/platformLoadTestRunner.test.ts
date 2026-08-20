@@ -40,13 +40,16 @@ describe("platform mixed load runner", () => {
   it("reports mixed stream, reconnect, mutation, fanout, news, and simulation gates", async () => {
     const counts = { mutations: 0, news: 0, simulations: 0, streams: 0 };
     const streams = new Set<ServerResponse>();
+    let roomRevision = 1;
     const server = createServer((request, response) => {
       if (request.url?.endsWith("/event-stream") === true) {
         counts.streams += 1;
         streams.add(response);
         response.on("close", () => streams.delete(response));
         response.writeHead(200, { "Content-Type": "text/event-stream" });
-        response.write("event: room.snapshot\ndata: {\"roomId\":\"room-1\",\"revision\":1}\n\n");
+        response.write(
+          `event: room.snapshot\ndata: {"roomId":"room-1","revision":${String(roomRevision)}}\n\n`,
+        );
         return;
       }
       request.resume();
@@ -62,6 +65,7 @@ describe("platform mixed load runner", () => {
         return;
       }
       counts.mutations += 1;
+      roomRevision = 2;
       for (const stream of streams) {
         stream.write("event: room.sale\ndata: {\"roomId\":\"room-1\",\"revision\":2}\n\n");
       }

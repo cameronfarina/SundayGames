@@ -14,10 +14,15 @@ export interface WaitForRoomEventInput extends ExpectedDraftEvent {
   readonly roomId: string;
 }
 
+export interface ExpectedRoomRevision {
+  readonly revision: number;
+  readonly roomId: string;
+}
+
 export interface OpenDraftStreamBatchResult {
   readonly measurements: readonly LoadMeasurement[];
   close(): Promise<void>;
-  reconnectFirstClientPerRoom(roomIds: readonly string[]): Promise<readonly LoadMeasurement[]>;
+  reconnectFirstClientPerRoom(rooms: readonly ExpectedRoomRevision[]): Promise<readonly LoadMeasurement[]>;
   runtimeDiagnostics(): Readonly<Record<string, number>>;
   unexpectedClosureCount(): number;
   waitForRoomEvent(input: WaitForRoomEventInput): Promise<readonly LoadMeasurement[]>;
@@ -39,8 +44,10 @@ export const openDraftStreamBatch = async (
     measurements,
     runtimeDiagnostics: () => ({ ...diagnostics }),
     unexpectedClosureCount: () => Object.values(diagnostics).reduce((sum, count) => sum + count, 0),
-    async reconnectFirstClientPerRoom(roomIds): Promise<readonly LoadMeasurement[]> {
-      return await Promise.all([...new Set(roomIds)].map(async roomId => {
+    async reconnectFirstClientPerRoom(rooms): Promise<readonly LoadMeasurement[]> {
+      const uniqueRooms = [...new Map(rooms.map(room => [room.roomId, room])).values()];
+      return await Promise.all(uniqueRooms.map(async room => {
+        const { roomId } = room;
         const index = connections.findIndex(connection => connection.client.roomId === roomId);
         const previous = connections[index];
         if (index < 0 || previous === undefined) {
@@ -49,7 +56,7 @@ export const openDraftStreamBatch = async (
         await previous.close();
         const replacement = createConnection(previous.client);
         connections[index] = replacement;
-        return await replacement.open();
+        return await replacement.open(room.revision);
       }));
     },
     async waitForRoomEvent(expected): Promise<readonly LoadMeasurement[]> {

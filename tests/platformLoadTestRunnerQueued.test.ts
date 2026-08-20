@@ -14,6 +14,7 @@ describe("platform mixed load queued simulation gate", () => {
     const streams = new Set<ServerResponse>();
     let simulationCount = 0;
     let jobReads = 0;
+    let roomRevision = 1;
     const server = createServer((request, response) => {
       response.setHeader("Content-Type", "application/json");
       if (request.url?.endsWith("/event-stream") === true) {
@@ -21,7 +22,9 @@ describe("platform mixed load queued simulation gate", () => {
         response.on("close", () => streams.delete(response));
         response.setHeader("Content-Type", "text/event-stream");
         response.writeHead(200);
-        response.write("event: room.snapshot\ndata: {\"roomId\":\"room\",\"revision\":1}\n\n");
+        response.write(
+          `event: room.snapshot\ndata: {"roomId":"room","revision":${String(roomRevision)}}\n\n`,
+        );
         return;
       }
       request.resume();
@@ -51,6 +54,7 @@ describe("platform mixed load queued simulation gate", () => {
         response.writeHead(200).end(JSON.stringify({ job: { id: jobId, status: "completed" } }));
         return;
       }
+      roomRevision = 2;
       for (const stream of streams) {
         stream.write("event: room.sale\ndata: {\"roomId\":\"room\",\"revision\":2}\n\n");
       }

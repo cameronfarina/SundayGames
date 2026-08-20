@@ -49,7 +49,6 @@ export const runDraftMutationLoad = async (
 ): Promise<DraftMutationLoadResult> => {
   const roomResults = await Promise.all(input.mutations.map(async (mutation, index) => {
     await sleep(index * input.paceMs);
-    const [reconnect] = await input.streams.reconnectFirstClientPerRoom([mutation.roomId]);
     const [mutationResult] = await runAuthenticatedHttpBurst(input.baseUrl, [{
       body: mutation.body,
       method: "POST",
@@ -66,6 +65,12 @@ export const runDraftMutationLoad = async (
           roomId: mutation.roomId,
           timeoutMs: input.eventTimeoutMs,
         });
+    const [reconnect] = mutationResult?.roomRevision === undefined
+      ? [{ diagnostic: "mutation_failed_before_reconnect", durationMs: 0, ok: false }]
+      : await input.streams.reconnectFirstClientPerRoom([{
+          revision: mutationResult.roomRevision,
+          roomId: mutation.roomId,
+        }]);
     return {
       fanout,
       mutation: mutationResult ?? {
