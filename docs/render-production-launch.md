@@ -15,7 +15,7 @@ The web service carries no persistent disk, so Render deploys it with zero downt
 
 Two effects survive the swap window. Live draft rooms reconnect their event stream and catch up from their last revision. A season simulation runs inside the instance that started it, so a simulation still in flight when the old instance stops is lost and the user must run it again.
 
-Deploying during a live draft window is now far safer, but it is not free. Render deploys every commit to main and CI runs in parallel, so a bad commit serves real traffic until the rollback job replaces it. Prefer to hold non-urgent pushes until the draft ends.
+Deploying during a live draft window is now far safer, but it is not free. Render waits for the linked GitHub checks before deploying a commit from `main`, then gates traffic on `/readyz`. Prefer to hold non-urgent pushes until the draft ends so a healthy release cannot interrupt an active room unexpectedly.
 
 The web service still stays at one instance. Going higher needs a review of in-process state first, including the draft-tools store cache and the live-room event-stream subscribers.
 

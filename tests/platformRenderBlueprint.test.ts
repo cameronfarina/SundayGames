@@ -80,7 +80,7 @@ describe("Render production blueprint", () => {
       runtime: "docker",
       plan: "starter",
       region: "virginia",
-      autoDeployTrigger: "commit",
+      autoDeployTrigger: "checksPass",
       preDeployCommand: "npm run platform:migrate",
       healthCheckPath: "/readyz",
       numInstances: 1,

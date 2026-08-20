@@ -65,4 +65,12 @@ describe("production deployment workflows", () => {
     expect(content).toContain("pinned provider schema");
     expect(content).not.toContain("render.com/schema/render.yaml.json");
   });
+
+  it("does not roll back production when a commit fails before deployment", async () => {
+    const content = await workflow("ci.yml");
+
+    expect(content).not.toContain("rollback-on-failure:");
+    expect(content).not.toContain("secrets.RENDER_API_KEY");
+    expect(content).not.toContain("api.render.com/v1/services");
+  });
 });
