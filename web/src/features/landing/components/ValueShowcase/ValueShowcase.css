@@ -1,0 +1,66 @@
+.value-showcase {
+  border-top: 1px solid var(--color-border);
+}
+
+.value-showcase__inner {
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 4.5rem var(--landing-gutter);
+}
+
+.value-showcase__copy {
+  margin: 0 auto var(--space-12);
+  max-width: 44rem;
+  text-align: center;
+}
+
+.value-showcase__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 0.9rem;
+  text-transform: uppercase;
+}
+
+.value-showcase h2 {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.018em;
+  line-height: 1.1;
+  margin: 0 0 var(--space-6);
+  text-wrap: balance;
+}
+
+.value-showcase__body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* Centred, so it drops the left rule the split bands use. */
+.value-showcase__note {
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: var(--space-6) 0 0;
+}
+
+@media (max-width: 60rem) {
+  .value-showcase__inner {
+    padding: 3.5rem var(--landing-gutter);
+  }
+
+  .value-showcase__copy {
+    margin-bottom: var(--space-8);
+  }
+
+  .value-showcase h2 {
+    font-size: 1.875rem;
+  }
+
+  .value-showcase__body {
+    font-size: var(--font-size-base);
+  }
+}

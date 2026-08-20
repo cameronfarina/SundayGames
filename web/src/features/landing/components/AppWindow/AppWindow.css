@@ -1,0 +1,97 @@
+/* Every still on the page sits inside this window. A visitor reads it as a
+   screenshot of the product, not as a control that failed to respond. */
+.app-window {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.app-window__chrome {
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--space-4);
+  padding: 0.6rem var(--space-4);
+}
+
+/* Three window dots, drawn rather than spelled out. */
+.app-window__dots {
+  background: var(--color-border-strong);
+  border-radius: 50%;
+  box-shadow: 0.85rem 0 0 var(--color-border-strong), 1.7rem 0 0 var(--color-border-strong);
+  height: 0.6rem;
+  margin-right: 1.7rem;
+  width: 0.6rem;
+}
+
+.app-window__address {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.app-window__nav {
+  align-items: center;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+}
+
+.app-window__tabs {
+  display: flex;
+  gap: var(--space-6);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-window__tab {
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  padding: 0.85rem 0;
+  white-space: nowrap;
+}
+
+.app-window__tab--active {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.app-window__league {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The still cannot be used, so it should not invite the try. */
+.app-window__body {
+  background: var(--color-background);
+  padding: var(--space-6);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The panel inside already carries its own edge. A second shadow inside the
+   window reads as two floating cards instead of one page. */
+.app-window__body > * {
+  box-shadow: none;
+}
+
+/* The real header drops its tabs on a narrow screen. The still does the same,
+   rather than squeezing five of them into a phone. */
+@media (max-width: 48rem) {
+  .app-window__nav {
+    display: none;
+  }
+
+  .app-window__body {
+    padding: var(--space-3);
+  }
+}

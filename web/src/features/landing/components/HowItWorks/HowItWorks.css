@@ -1,0 +1,61 @@
+.how-it-works {
+  --how-it-works-number-size: 1.75rem;
+  --how-it-works-indent: calc(var(--how-it-works-number-size) + var(--space-3));
+
+  border-top: 1px solid var(--color-border);
+  margin-top: 5rem;
+}
+
+/* The three steps size to their own copy and sit as one centred group, so the
+   strip does not hang off the left edge of a wide screen. */
+.how-it-works__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  justify-content: center;
+  list-style: none;
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 3rem var(--landing-gutter);
+}
+
+.how-it-works__number {
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  color: var(--color-accent);
+  display: inline-flex;
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  height: var(--how-it-works-number-size);
+  justify-content: center;
+  width: var(--how-it-works-number-size);
+}
+
+.how-it-works__title {
+  align-items: center;
+  display: flex;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+
+.how-it-works__detail {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+  padding-left: var(--how-it-works-indent);
+}
+
+@media (min-width: 48rem) {
+  .how-it-works__inner {
+    flex-direction: row;
+    gap: 4rem;
+  }
+
+  .how-it-works__inner li {
+    max-width: 20rem;
+  }
+}

@@ -4,6 +4,7 @@ import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson
 import {
   changePassword,
   getSession,
+  getSessionState,
   login,
   requestPasswordReset,
   resetPassword,
@@ -50,6 +51,14 @@ describe("auth API", () => {
       account: { email: "cam@example.com" },
     });
     expect(fetcher).toHaveBeenCalledWith("/session", expect.objectContaining({ method: "GET" }));
+  });
+
+  it("answers whether a visitor is signed in without failing when they are not", async () => {
+    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(jsonResponse({ signedIn: false }));
+
+    await expect(getSessionState({ fetcher })).resolves.toBe(false);
+    expect(fetcher)
+      .toHaveBeenCalledWith("/session-state", expect.objectContaining({ method: "GET" }));
   });
 
   it("preserves login errors and rejects malformed success data", async () => {

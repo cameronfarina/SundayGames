@@ -14,6 +14,7 @@ export const authRoots = new Set([
   "email-verifications",
   "password-resets",
   "session",
+  "session-state",
   "sessions",
 ]);
 
@@ -134,6 +135,14 @@ export const routeAuth = async (
       now: request.now,
     });
     return { status: 200, body: { account } };
+  }
+  /* The landing page asks this before it renders. A signed-out visitor is the
+     normal case there, so answering 401 would print a failed request in every
+     visitor's console for something that did not fail. */
+  if (root === "session-state" && request.segments.length === 1) {
+    if (request.method !== "GET") return methodNotAllowed();
+    const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
+    return { status: 200, body: { signedIn: account !== null } };
   }
   if (root === "session" && request.segments.length === 1) {
     if (request.method === "GET") {

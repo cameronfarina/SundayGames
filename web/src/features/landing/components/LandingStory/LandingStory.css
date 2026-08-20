@@ -1,0 +1,102 @@
+.landing-story {
+  border-top: 1px solid var(--color-border);
+}
+
+/* Copy starts at the top of the band, level with the top of the still beside
+   it. Vertical centring left short copy floating in the middle of a tall panel. */
+.landing-story__inner {
+  align-items: start;
+  display: grid;
+  gap: 4rem;
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 4.5rem var(--landing-gutter);
+}
+
+/* Grid items default to their content's minimum width. Without this the wide
+   board still would stretch the whole band past the edge of a phone screen,
+   instead of scrolling inside its own panel the way the real board does. */
+.landing-story__media,
+.landing-story__copy {
+  min-width: 0;
+}
+
+.landing-story__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 0.9rem;
+  text-transform: uppercase;
+}
+
+.landing-story h2 {
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  margin: 0 0 var(--space-6);
+  text-wrap: balance;
+}
+
+.landing-story__body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 30rem;
+  text-wrap: pretty;
+}
+
+.landing-story__bullets {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-6) 0 0;
+  padding: 0;
+}
+
+.landing-story__bullets li {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  padding-top: var(--space-3);
+}
+
+/* The line that lands the point, once the paragraph has explained it. */
+.landing-story__note {
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: var(--space-6) 0 0;
+  padding-left: var(--space-4);
+}
+
+@media (min-width: 60rem) {
+  .landing-story__inner {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  }
+
+  .landing-story--media-right .landing-story__inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  }
+
+  .landing-story--media-right .landing-story__media {
+    order: 2;
+  }
+}
+
+@media (max-width: 60rem) {
+  .landing-story__inner {
+    gap: var(--space-8);
+    padding: 3.5rem var(--landing-gutter);
+  }
+
+  .landing-story h2 {
+    font-size: 1.875rem;
+  }
+
+  .landing-story__body {
+    font-size: var(--font-size-base);
+  }
+}

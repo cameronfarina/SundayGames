@@ -1,0 +1,56 @@
+/* Every measurement the landing page shares lives here, so the header, the
+   sections and the footer line up on one column. */
+.landing-layout {
+  --landing-gutter: var(--space-6);
+  --landing-max-width: 77.5rem;
+}
+
+.landing-layout__main:focus {
+  outline: none;
+}
+
+.landing-cta {
+  align-items: center;
+  background: var(--color-accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-background);
+  display: inline-flex;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  gap: var(--space-2);
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.9rem 1.75rem;
+  text-decoration: none;
+  transition: background-color 140ms ease;
+}
+
+.landing-cta:hover {
+  background: var(--color-accent-strong);
+}
+
+.landing-cta--compact {
+  font-size: var(--font-size-sm);
+  min-height: 2.5rem;
+  padding: 0.55rem var(--space-4);
+}
+
+/* Wide screens get a wider column. At 1240px the page reads as a narrow strip
+   with black on both sides, and every band feels cramped. */
+@media (min-width: 90rem) {
+  .landing-layout {
+    --landing-gutter: var(--space-10);
+    --landing-max-width: 92rem;
+  }
+}
+
+@media (max-width: 40rem) {
+  .landing-layout {
+    --landing-gutter: var(--space-4);
+  }
+
+  .landing-closing .landing-cta {
+    display: flex;
+  }
+}

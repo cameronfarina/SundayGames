@@ -1,0 +1,98 @@
+/* A real tour rather than a gallery: one wide screen at a time, with the tabs
+   above it naming the path a visitor takes through the product. */
+.product-tour {
+  border-top: 1px solid var(--color-border);
+}
+
+.product-tour__inner {
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 4.5rem var(--landing-gutter);
+}
+
+.product-tour__heading h2 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  margin: 0 0 var(--space-8);
+}
+
+.product-tour__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.product-tour__tab {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+}
+
+.product-tour__tab:hover {
+  color: var(--color-text);
+}
+
+.product-tour__tab[aria-selected="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.product-tour__frame {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-overlay);
+  margin: 0 auto;
+  max-width: 70rem;
+  overflow: hidden;
+}
+
+.product-tour__chrome {
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--space-4);
+  padding: 0.6rem var(--space-4);
+}
+
+/* Three window dots, drawn rather than spelled out. */
+.product-tour__dots {
+  background: var(--color-border-strong);
+  border-radius: 50%;
+  box-shadow: 0.85rem 0 0 var(--color-border-strong), 1.7rem 0 0 var(--color-border-strong);
+  height: 0.6rem;
+  margin-right: 1.7rem;
+  width: 0.6rem;
+}
+
+.product-tour__address {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.product-tour__frame img {
+  aspect-ratio: 16 / 10;
+  display: block;
+  object-fit: cover;
+  object-position: top center;
+  width: 100%;
+}
+
+@media (max-width: 60rem) {
+  .product-tour__inner {
+    padding: 3.5rem var(--landing-gutter);
+  }
+
+  .product-tour__heading h2 {
+    font-size: 1.875rem;
+  }
+
+}

@@ -1,0 +1,91 @@
+/* A still of the first thing a new visitor does: point Sunday Games at the
+   league they already play in. */
+.connect-preview {
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-6);
+}
+
+.connect-preview__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 var(--space-1);
+  text-transform: uppercase;
+}
+
+.connect-preview h3 {
+  font-size: var(--font-size-xl);
+  margin: 0 0 var(--space-4);
+}
+
+.connect-preview__platforms {
+  display: flex;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.connect-preview__platform {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+}
+
+.connect-preview__platform--selected {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.connect-preview__field {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+
+.connect-preview__field > span:first-child {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.connect-preview__input {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.8rem;
+}
+
+.connect-preview__button {
+  background: var(--color-accent);
+  border-radius: var(--radius-md);
+  color: var(--color-background);
+  font-weight: 700;
+  margin: 0 0 var(--space-6);
+  padding: 0.7rem;
+  text-align: center;
+}
+
+.connect-preview__leagues {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.connect-preview__leagues li {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--space-3) 0;
+}
+
+.connect-preview__leagues span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

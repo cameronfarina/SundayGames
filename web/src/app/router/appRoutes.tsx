@@ -1,12 +1,24 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { Navigate, type RouteObject } from "react-router-dom";
+import type { RouteObject } from "react-router-dom";
 import { authRoutes } from "../../features/auth/routes/authRoutes";
 import { createProtectedLoader } from "../../features/auth/routes/protectedLoader";
+import { LandingPage } from "../../features/landing/pages/LandingPage/LandingPage";
+import { createLandingLoader } from "../../features/landing/routes/landingLoader";
 import { AppLayout } from "../layouts/AppLayout/AppLayout";
+import { LandingLayout } from "../layouts/LandingLayout/LandingLayout";
 import { PublicLayout } from "../layouts/PublicLayout/PublicLayout";
 import { RouteErrorPage } from "./RouteErrorPage/RouteErrorPage";
 
 export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
+  {
+    element: <LandingLayout />,
+    errorElement: <RouteErrorPage />,
+    children: [{
+      Component: LandingPage,
+      loader: createLandingLoader(queryClient),
+      path: "/",
+    }],
+  },
   {
     element: <PublicLayout />,
     errorElement: <RouteErrorPage />,
@@ -23,7 +35,6 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
     errorElement: <RouteErrorPage />,
     loader: createProtectedLoader(queryClient),
     children: [
-      { index: true, element: <Navigate replace to="/practice" /> },
       {
         path: "practice",
         lazy: () => import("../../features/practice/routes/practiceRoute"),
