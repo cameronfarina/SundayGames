@@ -9,7 +9,9 @@ const defaultSecurityHeaders = {
 const htmlSecurityHeaders = {
   "Content-Security-Policy": [
     "default-src 'self'", "base-uri 'self'", "object-src 'none'", "script-src 'self'",
-    "style-src 'self'", "style-src-attr 'unsafe-inline'", "img-src 'self' data: blob:",
+    // Radix popovers inject a scroll-lock <style> element when they open, so
+    // style ELEMENTS need 'unsafe-inline' alongside style attributes.
+    "style-src 'self' 'unsafe-inline'", "style-src-attr 'unsafe-inline'", "img-src 'self' data: blob:",
     "font-src 'self'", "connect-src 'self'", "form-action 'self'",
     "frame-ancestors 'none'", "manifest-src 'self'", "worker-src 'self' blob:",
   ].join("; "),

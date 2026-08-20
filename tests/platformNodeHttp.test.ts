@@ -552,7 +552,7 @@ describe("platform Node HTTP adapter", () => {
 
     expect(htmlResponse.headers.get("content-security-policy")).toBe(
       "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; "
-      + "style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; "
+      + "style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; "
       + "font-src 'self'; connect-src 'self'; "
       + "form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self' blob:",
     );
