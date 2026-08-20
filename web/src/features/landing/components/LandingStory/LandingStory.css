@@ -2,13 +2,15 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Copy starts at the top of the band, level with the top of the still beside
+   it. Vertical centring left short copy floating in the middle of a tall panel. */
 .landing-story__inner {
-  align-items: center;
+  align-items: start;
   display: grid;
-  gap: 4.5rem;
+  gap: 4rem;
   margin: 0 auto;
   max-width: var(--landing-max-width);
-  padding: 6rem var(--landing-gutter);
+  padding: 4.5rem var(--landing-gutter);
 }
 
 /* Grid items default to their content's minimum width. Without this the wide
@@ -45,13 +47,38 @@
   text-wrap: pretty;
 }
 
+.landing-story__bullets {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-6) 0 0;
+  padding: 0;
+}
+
+.landing-story__bullets li {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  padding-top: var(--space-3);
+}
+
+/* The line that lands the point, once the paragraph has explained it. */
+.landing-story__note {
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: var(--space-6) 0 0;
+  padding-left: var(--space-4);
+}
+
 @media (min-width: 60rem) {
   .landing-story__inner {
-    grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
   }
 
   .landing-story--media-right .landing-story__inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
   }
 
   .landing-story--media-right .landing-story__media {

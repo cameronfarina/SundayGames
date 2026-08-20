@@ -6,12 +6,12 @@ export const AuctionPreview = () => <section aria-label="Live auction" className
     <div>
       <span className="auction-preview__position">WR</span>
       <h3>Puka Nacua</h3>
-      <p>Nominated by Barn Formal</p>
+      <p>Nominated by Turf Toe Tigers</p>
     </div>
     <div className="auction-preview__bid">
       <strong>Current bid $54</strong>
-      <span>Average Joes has the high bid</span>
-      <span>Your max bid $61</span>
+      <span>Red Zone Rebels has the high bid</span>
+      <span>Your max bid $67</span>
     </div>
   </div>
   <div className="auction-preview__actions">

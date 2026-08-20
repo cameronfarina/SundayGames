@@ -13,7 +13,17 @@ const valueClassName = (targeted: boolean): string =>
     ? "board-preview__value board-preview__value--mine"
     : "board-preview__value";
 
-export const BoardPreview = () => <div className="board-preview">
+interface BoardPreviewProps {
+  /** Player to draw the eye to. Used by the hero, which points a callout at one row. */
+  readonly highlight?: string;
+}
+
+const rowClassName = (position: string, focused: boolean): string => {
+  const base = `board-preview__row board-preview__row--${position.toLowerCase()}`;
+  return focused ? `${base} board-preview__row--focused` : base;
+};
+
+export const BoardPreview = ({ highlight }: BoardPreviewProps) => <div className="board-preview">
   <div className="board-preview__heading">
     <div>
       <p className="board-preview__eyebrow">Player board</p>
@@ -45,7 +55,7 @@ export const BoardPreview = () => <div className="board-preview">
       </thead>
       <tbody>
         {boardPreviewRows.map(row => <tr
-          className={`board-preview__row board-preview__row--${row.position.toLowerCase()}`}
+          className={rowClassName(row.position, row.name === highlight)}
           key={row.name}
         >
           <td className="board-preview__target-column">

@@ -7,8 +7,8 @@ describe("TargetsPreview", () => {
     render(<TargetsPreview />);
 
     expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual([
-      "Jahmyr GibbsRBMaximum bid$64SaveRemove Jahmyr Gibbs",
-      "Puka NacuaWRMaximum bid$61SaveRemove Puka Nacua",
+      "Jahmyr GibbsRBMaximum bid$75SaveRemove Jahmyr Gibbs",
+      "Puka NacuaWRMaximum bid$67SaveRemove Puka Nacua",
       "Trey McBrideTEMaximum bid$34SaveRemove Trey McBride",
     ]);
   });
@@ -16,7 +16,7 @@ describe("TargetsPreview", () => {
   it("draws attention to the bid the viewer just set", () => {
     render(<TargetsPreview />);
 
-    expect(screen.getByText("$61")).toHaveClass("targets-preview__money--focused");
+    expect(screen.getByText("$67")).toHaveClass("targets-preview__money--focused");
     expect(screen.getByText("$34")).not.toHaveClass("targets-preview__money--focused");
   });
 });

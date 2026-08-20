@@ -1,34 +1,41 @@
-import { LandingCarousel } from "../../components/LandingCarousel/LandingCarousel";
+import { AppWindow } from "../../components/AppWindow/AppWindow";
+import { ConnectPreview } from "../../components/ConnectPreview/ConnectPreview";
+import { HowItWorks } from "../../components/HowItWorks/HowItWorks";
 import { LandingClosing } from "../../components/LandingClosing/LandingClosing";
-import { LandingMasthead } from "../../components/LandingMasthead/LandingMasthead";
+import { LandingHero } from "../../components/LandingHero/LandingHero";
+import { LandingProof } from "../../components/LandingProof/LandingProof";
 import { LandingStory } from "../../components/LandingStory/LandingStory";
-import { AuctionPreview } from "../../components/previews/AuctionPreview";
-import { BoardPreview } from "../../components/previews/BoardPreview";
+import { MockRoom } from "../../components/MockRoom/MockRoom";
+import { ProductTour } from "../../components/ProductTour/ProductTour";
+import { ValueShowcase } from "../../components/ValueShowcase/ValueShowcase";
 import { TargetsPreview } from "../../components/previews/TargetsPreview";
 
 export const LandingPage = () => <>
-  <LandingMasthead />
+  <LandingHero />
+  <HowItWorks />
   <LandingStory
-    body="The board shows what the room will pay and what the math says. You set your own number in the last column. Every mock and every simulation then runs on your price."
-    eyebrow="The board"
-    heading="Argue with the market."
-    media={<BoardPreview />}
-    mediaSide="left"
-  />
-  <LandingStory
-    body="Nacua is up. Three owners have bid. Eight seconds on the clock and it is your turn. Get that wrong here, not in August with your league watching."
-    eyebrow="The mock"
-    heading="Feel the panic first."
-    media={<AuctionPreview />}
+    body="Your format, scoring, keepers and league history change what every player is worth. Connect your league and Sunday Games builds the rest of your draft room around the competition you actually face."
+    bullets={[
+      "Your scoring and roster settings",
+      "Your league’s draft history",
+      "Your keeper and budget conditions",
+    ]}
+    eyebrow="Start with your league"
+    heading="Generic rankings don’t know your league."
+    media={<AppWindow><ConnectPreview /></AppWindow>}
     mediaSide="right"
   />
+  <ValueShowcase />
+  <MockRoom />
   <LandingStory
-    body="Star the players you want. Write down the most you will pay. The plan holds when the room heats up."
-    eyebrow="The plan"
-    heading="Decide your ceiling while you are calm."
-    media={<TargetsPreview />}
+    body="Set your targets and maximum bids, then see how every choice affects the rest of your roster. When the draft moves differently than expected, you already have another path."
+    eyebrow="Your draft plan"
+    heading="Know your move before you need it."
+    media={<AppWindow activeLabel="Practice"><TargetsPreview /></AppWindow>}
     mediaSide="left"
+    note="Because no draft goes exactly to plan."
   />
-  <LandingCarousel />
+  <ProductTour />
+  <LandingProof />
   <LandingClosing />
 </>;

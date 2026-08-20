@@ -9,19 +9,25 @@ describe("LandingPage", () => {
 
     expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
       .toEqual([
-        "Argue with the market.",
-        "Feel the panic first.",
-        "Decide your ceiling while you are calm.",
-        "See it before you sign up.",
-        "Your draft is coming. Be ready for it.",
+        "Generic rankings don’t know your league.",
+        "See what players are worth here.",
+        "Your opponents aren’t random. Your mocks shouldn’t be.",
+        "Know your move before you need it.",
+        "From league history to the final pick.",
+        "One player. Three different prices.",
       ]);
   });
 
-  it("repeats one call to action rather than competing for the click", () => {
+  it("asks for the same one thing at the top and at the bottom", () => {
     render(<MemoryRouter><LandingPage /></MemoryRouter>);
 
-    const actions = screen.getAllByRole("link");
+    expect(screen.getAllByRole("link").map(action => action.textContent))
+      .toEqual(["Connect my league", "Connect my league"]);
+  });
 
-    expect(actions.map(action => action.textContent)).toEqual(["Start free", "Start free"]);
+  it("never claims a platform the product cannot read", () => {
+    render(<MemoryRouter><LandingPage /></MemoryRouter>);
+
+    expect(screen.queryByText(/Yahoo/u)).toBeNull();
   });
 });

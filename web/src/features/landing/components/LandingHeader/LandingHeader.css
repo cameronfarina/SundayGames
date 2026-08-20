@@ -35,19 +35,19 @@
   gap: var(--space-6);
 }
 
-.landing-header__login {
+.landing-header__link {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 700;
   text-decoration: none;
 }
 
-.landing-header__login:hover {
+.landing-header__link:hover {
   color: var(--color-text);
 }
 
 @media (max-width: 40rem) {
-  .landing-header__login {
+  .landing-header__link {
     display: none;
   }
 }

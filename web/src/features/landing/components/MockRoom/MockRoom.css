@@ -1,0 +1,134 @@
+.mock-room {
+  border-top: 1px solid var(--color-border);
+}
+
+.mock-room__inner {
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 4.5rem var(--landing-gutter);
+}
+
+.mock-room__copy {
+  margin-bottom: var(--space-10);
+  max-width: 44rem;
+}
+
+.mock-room__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 0.9rem;
+  text-transform: uppercase;
+}
+
+.mock-room h2 {
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  margin: 0 0 var(--space-6);
+  text-wrap: balance;
+}
+
+.mock-room__body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.mock-room__note {
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: var(--space-6) 0 0;
+  padding-left: var(--space-4);
+}
+
+/* The card that explains the room: one rival, read out of the league's history. */
+.mock-room__tendency {
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-6);
+}
+
+.mock-room__team {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-4);
+}
+
+.mock-room__rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.mock-room__rows > div {
+  align-items: baseline;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+  padding-top: var(--space-3);
+}
+
+.mock-room__rows dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.mock-room__rows dd {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  margin: 0;
+  text-align: right;
+}
+
+.mock-room__source {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+  margin: var(--space-4) 0 0;
+}
+
+/* Wide enough to sit side by side. The card reads next to the bidding it
+   explains, rather than on top of it. */
+@media (min-width: 62rem) {
+  .mock-room__stage {
+    align-items: center;
+    display: flex;
+    gap: var(--space-6);
+  }
+
+  .mock-room__stage > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mock-room__tendency {
+    flex: none;
+    width: 21rem;
+  }
+}
+
+@media (max-width: 62rem) {
+  .mock-room__inner {
+    padding: 3.5rem var(--landing-gutter);
+  }
+
+  .mock-room h2 {
+    font-size: 1.875rem;
+  }
+
+  .mock-room__body {
+    font-size: var(--font-size-base);
+  }
+
+  .mock-room__tendency {
+    margin-top: var(--space-6);
+  }
+}

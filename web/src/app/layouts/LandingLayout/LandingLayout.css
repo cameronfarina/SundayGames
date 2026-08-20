@@ -36,12 +36,20 @@
   padding: 0.55rem var(--space-4);
 }
 
+/* Wide screens get a wider column. At 1240px the page reads as a narrow strip
+   with black on both sides, and every band feels cramped. */
+@media (min-width: 90rem) {
+  .landing-layout {
+    --landing-gutter: var(--space-10);
+    --landing-max-width: 92rem;
+  }
+}
+
 @media (max-width: 40rem) {
   .landing-layout {
     --landing-gutter: var(--space-4);
   }
 
-  .landing-masthead .landing-cta,
   .landing-closing .landing-cta {
     display: flex;
   }

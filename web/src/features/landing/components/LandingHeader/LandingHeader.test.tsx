@@ -10,4 +10,13 @@ describe("LandingHeader", () => {
     expect(screen.getByRole("link", { name: "Log in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Start free" })).toHaveAttribute("href", "/signup");
   });
+
+  it("points at the two sections that explain the product", () => {
+    render(<MemoryRouter><LandingHeader /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: "How it works" }))
+      .toHaveAttribute("href", "#how-it-works");
+    expect(screen.getByRole("link", { name: "Product tour" }))
+      .toHaveAttribute("href", "#product-tour");
+  });
 });

@@ -1,0 +1,57 @@
+/* Floats over the board so the comparison reads before the table does. */
+.value-callout {
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--color-background) 88%, transparent);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  left: calc(var(--space-8) * -1);
+  /* Sits level with the first row, which is the row it describes. */
+  top: 8rem;
+  padding: var(--space-4) var(--space-6);
+  position: absolute;
+}
+
+.value-callout__player {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  margin: 0 0 var(--space-3);
+}
+
+.value-callout__rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.value-callout__rows > div {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+}
+
+.value-callout dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.value-callout dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* The number the product exists to produce. */
+.value-callout__mine dd {
+  color: var(--color-accent);
+  font-size: var(--font-size-xl);
+  text-shadow: 0 0 1.5rem color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+@media (max-width: 62rem) {
+  .value-callout {
+    left: auto;
+    right: var(--space-4);
+  }
+}

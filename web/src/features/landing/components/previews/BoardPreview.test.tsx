@@ -9,17 +9,17 @@ describe("BoardPreview", () => {
     const row = screen.getByRole("row", { name: /Jahmyr Gibbs/u });
     const cells = within(row).getAllByRole("cell").map(cell => cell.textContent);
 
-    expect(cells).toEqual(["", "1", "Jahmyr Gibbs", "RB", "$57", "$61", "$64"]);
+    expect(cells).toEqual(["", "1", "Jahmyr Gibbs", "RB", "$57", "$72", "$75"]);
   });
 
-  it("draws the eye to the prices the viewer moved off the market", () => {
+  it("draws the eye to the players the viewer is targeting", () => {
     render(<BoardPreview />);
 
     const moved = screen.getByRole("row", { name: /Jahmyr Gibbs/u });
     const untouched = screen.getByRole("row", { name: /Bijan Robinson/u });
 
-    expect(within(moved).getByText("64")).toHaveClass("board-preview__value--mine");
-    expect(within(untouched).getByText("58")).not.toHaveClass("board-preview__value--mine");
+    expect(within(moved).getByText("75")).toHaveClass("board-preview__value--mine");
+    expect(within(untouched).getByText("72")).not.toHaveClass("board-preview__value--mine");
   });
 
   it("shows every position filter and says which one is on", () => {

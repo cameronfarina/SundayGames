@@ -8,7 +8,7 @@ describe("preview data", () => {
       return row === undefined ? [] : [[target.maximumBid, row.mine]];
     });
 
-    expect(bidsOnBoard).toEqual([[64, 64], [61, 61]]);
+    expect(bidsOnBoard).toEqual([[75, 75], [67, 67]]);
   });
 
   it("stars exactly the players the plan carries a bid for", () => {

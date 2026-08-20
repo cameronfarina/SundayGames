@@ -8,8 +8,8 @@ describe("AuctionPreview", () => {
 
     expect(screen.getByRole("heading", { name: "Puka Nacua" })).toBeVisible();
     expect(screen.getByText("Current bid $54")).toBeVisible();
-    expect(screen.getByText("Average Joes has the high bid")).toBeVisible();
-    expect(screen.getByText("Your max bid $61")).toBeVisible();
+    expect(screen.getByText("Red Zone Rebels has the high bid")).toBeVisible();
+    expect(screen.getByText("Your max bid $67")).toBeVisible();
     expect(screen.getByText("Bid $55")).toBeVisible();
   });
 

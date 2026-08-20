@@ -1,0 +1,109 @@
+/* The front door leads with the product, not a mood. The board is real and
+   readable; the copy sits beside it on the same column the rest of the page
+   uses, so the page speaks in one voice from the first screen down. */
+.landing-hero {
+  overflow: hidden;
+}
+
+.landing-hero__inner {
+  align-items: center;
+  display: grid;
+  gap: 4rem;
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  padding: 5.5rem var(--landing-gutter) 0;
+}
+
+.landing-hero__eyebrow {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+.landing-hero h1 {
+  font-size: 3.75rem;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+  margin: 0 0 var(--space-6);
+  text-wrap: balance;
+}
+
+.landing-hero__body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+  margin: 0 0 var(--space-8);
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+
+.landing-hero__trust {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+  margin: var(--space-4) 0 0;
+  max-width: 28rem;
+}
+
+.landing-hero__connected {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0.35rem 0.8rem;
+}
+
+.landing-hero__dot {
+  background: var(--color-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  height: 0.5rem;
+  width: 0.5rem;
+}
+
+.landing-hero__board {
+  position: relative;
+}
+
+/* The board runs past the bottom of the first screen on purpose: it reads as a
+   real screen the visitor has landed inside, not a picture of one. */
+.landing-hero__board .board-preview {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 0;
+  padding-bottom: var(--space-10);
+}
+
+@media (min-width: 62rem) {
+  .landing-hero__inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    padding-top: 6.5rem;
+  }
+
+  .landing-hero__product {
+    margin-right: calc(var(--landing-gutter) * -3);
+  }
+}
+
+@media (max-width: 62rem) {
+  .landing-hero__inner {
+    gap: var(--space-10);
+    padding-top: 3.5rem;
+  }
+
+  .landing-hero h1 {
+    font-size: 2.5rem;
+  }
+
+  .landing-hero__body {
+    font-size: var(--font-size-base);
+  }
+}

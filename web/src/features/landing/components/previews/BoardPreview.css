@@ -103,6 +103,13 @@
   display: none;
 }
 
+/* The hero points a callout at one row, so that row keeps its colour while the
+   rest of the board recedes behind the glass. */
+.board-preview__row--focused {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  border-left-color: var(--color-accent);
+}
+
 .board-preview__name {
   font-weight: 700;
 }
