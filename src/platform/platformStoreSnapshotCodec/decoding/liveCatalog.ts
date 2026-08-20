@@ -84,11 +84,12 @@ export const rosterPlayerValue = (value: unknown, path: string): LiveDraftRoomRo
   if (source !== "keeper" && source !== "imported" && source !== "sale") {
     throw new Error(`Invalid platform store snapshot at ${path}.source.`);
   }
+  const price = optionalValue(record.price, `${path}.price`, numberValue);
   return {
     name: stringValue(record.name, `${path}.name`),
     normalizedPlayerName: stringValue(record.normalizedPlayerName, `${path}.normalizedPlayerName`),
     position: positionValue(record.position, `${path}.position`),
-    price: numberValue(record.price, `${path}.price`),
+    ...(price === undefined ? {} : { price }),
     expectedPrice: numberValue(record.expectedPrice, `${path}.expectedPrice`),
     source,
     saleEventId: optionalString(record.saleEventId, `${path}.saleEventId`),

@@ -22,12 +22,12 @@ Runs in production at [sundaygames.io](https://sundaygames.io).
 
 **For a manager**
 
-- Claim your team and see your roster and budget.
+- Claim your team and see your roster, draft position, and auction budget when applicable.
 - Build a target list with your own maximum bids.
 - Run simulated auctions to test a plan before draft day.
 - Run interactive mock drafts against the simulated room.
 - Read player news matched to the players you follow.
-- Bid in the live draft room.
+- Make picks or record auction buys in the live draft room.
 
 ## How it works
 
@@ -38,7 +38,7 @@ Three parts:
 - **Platform server** (`src/platform/`) — accounts, leagues, seasons, keepers,
   imports, pricing, and the HTTP API. Stores data in Postgres.
 - **Draft engine** (`src/liveDraftServer/`, `src/modeling/`) — the auction
-  simulation, the bidding logic, and the live room state.
+  simulation, draft logic, and live room state.
 
 Player prices come from three steps. A public baseline gives every player a
 starting value. Your league's imported draft history adjusts those values toward
@@ -144,7 +144,7 @@ Run `npm run` with no arguments to see the full list. Most commands accept
 ```
 web/                  React app
 src/platform/         accounts, leagues, pricing, HTTP API
-src/liveDraftServer/  live auction room and draft state
+src/liveDraftServer/  legacy live auction engine
 src/modeling/         simulation, projections, player news
 src/data/             baseline values and player data
 config/               league defaults

@@ -42,4 +42,23 @@ describe("SaleLedger", () => {
     expect(screen.getByText("Sales will appear here for everyone.")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Correct sale/ })).not.toBeInTheDocument();
   });
+
+  it("uses pick language and price-less correction commands for snake drafts", async () => {
+    const user = userEvent.setup();
+    const [sale] = liveRoom.salesLog;
+    if (sale === undefined) throw new Error("Expected a sale fixture.");
+    render(<SaleLedger
+      canCorrect
+      draftMode="snake"
+      onCorrect={vi.fn(() => true)}
+      sales={[{ ...sale, price: undefined }]}
+    />);
+
+    expect(screen.getByRole("heading", { name: "All picks" })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Search all picks" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Correct pick of De'Von Achane" }));
+    expect(screen.getByRole("textbox", { name: "Correct pick" }))
+      .toHaveValue("Owner11 drafted De'Von Achane");
+    expect(screen.queryByText("-")).not.toBeInTheDocument();
+  });
 });

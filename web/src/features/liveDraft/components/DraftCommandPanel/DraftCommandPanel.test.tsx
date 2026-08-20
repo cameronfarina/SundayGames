@@ -54,7 +54,7 @@ describe("DraftCommandPanel", () => {
     render(<DraftCommandPanel
       {...handlers}
       command=""
-      room={{ ...liveRoom, canMutateRoom: false, role: "member" }}
+      room={{ ...liveRoom, canLogPick: false, canMutateRoom: false, role: "member" }}
     />);
     expect(screen.getByText(/League members can follow/)).toBeVisible();
     expect(screen.queryByRole("textbox", { name: "Sale command" })).not.toBeInTheDocument();
@@ -82,5 +82,45 @@ describe("DraftCommandPanel", () => {
     />);
     expect(screen.getByRole("button", { name: "Log sale" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("Logging sale...")).toBeVisible();
+  });
+
+  it("uses pick language for snake lifecycle controls and member guidance", () => {
+    const { rerender } = render(<DraftCommandPanel
+      {...handlers}
+      command=""
+      room={{ ...liveRoom, picks: [], salesLog: [] }}
+    />);
+    expect(screen.getByRole("button", { name: "Undo latest pick" })).toBeDisabled();
+
+    rerender(<DraftCommandPanel
+      {...handlers}
+      command=""
+      room={{
+        ...liveRoom,
+        canLogPick: false,
+        canMutateRoom: false,
+        picks: [],
+        role: "member",
+        salesLog: [],
+      }}
+    />);
+    expect(screen.getByText(/live board, picks, and rosters/)).toBeVisible();
+    expect(screen.queryByText(/sales, budgets/)).not.toBeInTheDocument();
+  });
+
+  it("requires a player before submitting a snake pick", async () => {
+    const user = userEvent.setup();
+    const onLogSale = vi.fn();
+    render(<DraftCommandPanel
+      {...handlers}
+      command=""
+      onLogSale={onLogSale}
+      room={{ ...liveRoom, picks: [] }}
+    />);
+
+    await user.click(screen.getByRole("button", { name: "Make pick" }));
+
+    expect(screen.getByText("Choose a player for the team on the clock.")).toBeVisible();
+    expect(onLogSale).not.toHaveBeenCalled();
   });
 });

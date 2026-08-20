@@ -11,7 +11,6 @@ import { auctionSeason, jsonResponse, ownerLeague, requestPath, snakeSeason } fr
 import { LiveRoomSection } from "./LiveRoomSection";
 
 const publishedSeason = seasonSchema.parse({ ...auctionSeason, setupStatus: "published" });
-
 const LocationOutput = () => {
   const location = useLocation();
   return <span data-testid="location">{location.pathname}{location.search}</span>;
@@ -93,7 +92,7 @@ describe("LiveRoomSection", () => {
     expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
     expect(bodies[0]).toContain("startsAt");
   });
-  it("shows unsupported snake copy and mutation errors", async () => {
+  it("offers snake room setup and reports mutation errors", async () => {
     const errorFetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({
       error: { code: "publish_failed", message: "Review setup first." },
     }, 422)));
@@ -104,7 +103,8 @@ describe("LiveRoomSection", () => {
     view.rerender(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
       <LiveRoomSection league={ownerLeague} season={snakeSeason} />
     </QueryClientProvider></MemoryRouter>);
-    expect(screen.getByText("Hosted live rooms currently support auction drafts only.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish reviewed league" })).toBeVisible();
+    expect(screen.queryByText(/support auction drafts only/i)).not.toBeInTheDocument();
   });
 
   it("reports create and archive failures", async () => {

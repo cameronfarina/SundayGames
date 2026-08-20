@@ -78,4 +78,51 @@ describe("TeamRoster", () => {
     expect(screen.getByRole("listitem")).toHaveClass("team-roster__slot-row");
     expect(screen.getByText("Open")).toHaveClass("team-roster__open");
   });
+
+  it("omits auction budgets and prices from a snake roster", () => {
+    const [rosterPlayer] = liveTeam.roster;
+    if (rosterPlayer === undefined) throw new Error("Expected a roster player fixture.");
+    render(<TeamRoster
+      onTeamChange={vi.fn()}
+      teams={[{
+        ...liveTeam,
+        budgetDollars: undefined,
+        budgetRemaining: undefined,
+        maxBid: undefined,
+        spent: undefined,
+        roster: [{ ...rosterPlayer, price: undefined, source: "sale" }],
+        slots: [{
+          slot: "RB1",
+          player: { ...rosterPlayer, price: undefined, source: "sale" },
+        }],
+      }]}
+    />);
+
+    expect(screen.getByText("Open slots")).toHaveTextContent("Open slots1");
+    expect(screen.queryByText(/Budget left|Spent|Max bid/)).not.toBeInTheDocument();
+    expect(screen.getByText("De'Von Achane")).toBeVisible();
+    expect(screen.queryByText("-")).not.toBeInTheDocument();
+  });
+
+  it("keeps the keeper label but hides a snake keeper's persisted zero-dollar price", () => {
+    const [rosterPlayer] = liveTeam.roster;
+    if (rosterPlayer === undefined) throw new Error("Expected a roster player fixture.");
+    render(<TeamRoster
+      onTeamChange={vi.fn()}
+      teams={[{
+        ...liveTeam,
+        budgetDollars: undefined,
+        budgetRemaining: undefined,
+        maxBid: undefined,
+        spent: undefined,
+        slots: [{
+          slot: "RB1",
+          player: { ...rosterPlayer, price: 0, source: "keeper" },
+        }],
+      }]}
+    />);
+
+    expect(screen.getByText("Keeper")).toBeVisible();
+    expect(screen.queryByText("$0")).not.toBeInTheDocument();
+  });
 });

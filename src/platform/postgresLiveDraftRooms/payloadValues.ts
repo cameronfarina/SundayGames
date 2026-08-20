@@ -29,6 +29,7 @@ const sourceValue = (
 
 export const saleValue = (value: unknown): LiveDraftRoomSale => {
   const sale = recordValue(value);
+  const price = optionalNumberValue(sale.price);
   return {
     saleEventId: stringValue(sale.saleEventId),
     input: stringValue(sale.input),
@@ -39,7 +40,7 @@ export const saleValue = (value: unknown): LiveDraftRoomSale => {
     playerName: stringValue(sale.playerName),
     normalizedPlayerName: stringValue(sale.normalizedPlayerName),
     position: positionValue(sale.position),
-    price: numberValue(sale.price),
+    ...(price === undefined ? {} : { price }),
     expectedPrice: numberValue(sale.expectedPrice),
     teamAbbreviation: optionalStringValue(sale.teamAbbreviation),
     byeWeek: optionalNumberValue(sale.byeWeek),

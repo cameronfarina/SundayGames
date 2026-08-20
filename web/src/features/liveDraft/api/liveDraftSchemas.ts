@@ -71,6 +71,7 @@ export const liveDraftRoomSchema = z.object({
   updatedAt: z.string().min(1),
   role: z.enum(["commissioner", "member", "observer"]),
   canMutateRoom: z.boolean(),
+  canLogPick: z.boolean().default(false),
   canExportDraft: z.boolean(),
   board: z.array(liveDraftBoardPlayerSchema),
   picks: z.array(liveDraftPickSchema).optional(),

@@ -2,7 +2,10 @@ import type { LeagueSeason } from "../../../leagueSeason.js";
 import type {
   PlatformLeagueMembership,
 } from "../../../leagueSetup.js";
-import type { LiveDraftRoomAuthorizer } from "../../../liveDraftRooms.js";
+import {
+  isOwnSnakePick,
+  type LiveDraftRoomAuthorizer,
+} from "../../../liveDraftRooms.js";
 import { cloneForRead } from "../../shared.js";
 import type { LeagueMemoryState } from "../leagueMemoryState.js";
 
@@ -56,5 +59,11 @@ export const createLiveDraftRoomAuthorizer = (
 ): LiveDraftRoomAuthorizer => ({ actor, action, room }) => {
   const membership = findMembership(state, actor.userId, room.leagueId);
   if (actor.leagueId !== room.leagueId || membership === null) return false;
-  return action === "read" || mutationRoles.has(membership.role);
+  return action === "read"
+    || mutationRoles.has(membership.role)
+    || isOwnSnakePick(room, {
+      ...actor,
+      role: membership.role,
+      teamId: membership.teamId,
+    }, action);
 };

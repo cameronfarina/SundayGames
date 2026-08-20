@@ -1,6 +1,7 @@
 export { LiveDraftRoomError } from "./liveDraftRooms/error.js";
 export type { LiveDraftRoomErrorCode } from "./liveDraftRooms/error.js";
 export { assertHostedLiveDraftRoomFormat } from "./liveDraftRooms/format.js";
+export { isOwnSnakePick } from "./liveDraftRooms/guards.js";
 export { InMemoryLiveDraftRoomRepository } from "./liveDraftRooms/repository/InMemoryLiveDraftRoomRepository.js";
 export type {
   LiveDraftRoomActor,

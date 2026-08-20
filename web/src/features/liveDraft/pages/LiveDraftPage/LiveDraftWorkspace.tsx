@@ -2,11 +2,7 @@ import { useState } from "react";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import { InlineNotice } from "../../../../shared/ui";
 import type { LiveDraftAdvisory } from "../../api/liveDraftAdvisorySchemas";
-import type {
-  LiveDraftBoardPlayer,
-  LiveDraftExport,
-  LiveDraftRoom,
-} from "../../api/liveDraftSchemas";
+import type { LiveDraftBoardPlayer, LiveDraftExport, LiveDraftRoom } from "../../api/liveDraftSchemas";
 import type { LiveDraftConnection } from "../../hooks/useLiveDraftUpdates";
 import { saleCommandFor, selectedTeamId } from "../../lib/liveDraftDisplay";
 import { liveDraftErrorMessage } from "../../lib/liveDraftError";
@@ -46,9 +42,11 @@ export const LiveDraftWorkspace = ({
   const [feedback, setFeedback] = useState<Feedback>();
   const [viewedTeamId, setViewedTeamId] = useState(() => selectedTeamId(room));
   const latestSale = room.salesLog.at(-1);
+  const snake = room.picks !== undefined;
+  const transactionNoun = snake ? "pick" : "sale";
   const undoMessage = latestSale === undefined
-    ? "Undo the latest sale?"
-    : `Undo the latest sale of ${latestSale.playerName}?`;
+    ? `Undo the latest ${transactionNoun}?`
+    : `Undo the latest ${transactionNoun} of ${latestSale.playerName}?`;
   const perform = async (action: LiveDraftAction, pendingMessage: string) => {
     setFeedback({ message: pendingMessage, variant: "info" });
     try {
@@ -70,7 +68,10 @@ export const LiveDraftWorkspace = ({
     void perform(action, pendingMessage).catch(() => undefined);
   };
   const logSale = () => {
-    void perform({ action: "sales", command: command.trim() }, "Logging sale...")
+    void perform(
+      { action: "sales", command: command.trim() },
+      snake ? "Recording pick..." : "Logging sale...",
+    )
       .then(() => { setCommand(""); }).catch(() => undefined);
   };
   const endDraft = () => {
@@ -116,7 +117,7 @@ export const LiveDraftWorkspace = ({
       onStart={() => { run({ action: "start" }, "Starting draft..."); }}
       onUndo={() => {
         if (window.confirm(undoMessage)) {
-          run({ action: "undo" }, "Undoing latest sale...");
+          run({ action: "undo" }, `Undoing latest ${transactionNoun}...`);
         }
       }} room={room}
     />}
@@ -127,12 +128,14 @@ export const LiveDraftWorkspace = ({
       && <PickBoard onTheClock={room.onTheClock} picks={room.picks} viewedTeamId={viewedTeamId} />}
     <div className="live-draft__grid">
       <PlayerBoard {...(advisory === undefined ? {} : { advisory })}
-        canManage={room.canMutateRoom} onUsePlayer={usePlayer}
+        canManage={room.canMutateRoom || room.canLogPick}
+        commandNoun={snake ? "pick" : "sale"} onUsePlayer={usePlayer}
         players={room.board} roomIsLive={room.status === "live"} />
       <TeamRoster onTeamChange={setViewedTeamId}
         {...(viewedTeamId === undefined ? {} : { selectedTeamId: viewedTeamId })}
         teams={room.teamSummaries} />
       <SaleLedger canCorrect={room.canMutateRoom && room.status === "live" && !busy}
+        draftMode={snake ? "snake" : "auction"}
         onCorrect={(saleEventId, replacementSale) => {
           if (!window.confirm("Apply this correction to the selected sale?")) return false;
           run({

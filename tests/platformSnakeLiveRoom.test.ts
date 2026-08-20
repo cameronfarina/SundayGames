@@ -24,6 +24,98 @@ const firstTwoPlayers = () => {
 };
 
 describe("snake live draft room", () => {
+  it("skips keeper slots and preserves picks through undo, correction, pause, and end", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSnakeSeason();
+    const firstTeam = season.teams[0];
+    if (firstTeam === undefined) throw new Error("Expected a first snake team.");
+    const room = createRoom(repository, {
+      season,
+      initialRosters: [{
+        teamId: firstTeam.id,
+        playerName: "Puka Nacua",
+        position: "WR",
+        price: 1,
+        keeperRound: 1,
+        source: "keeper",
+      }],
+    });
+
+    expect(room.projection.picks?.[0]).toMatchObject({
+      overall: 1,
+      playerName: "Puka Nacua",
+      source: "keeper",
+    });
+    expect(room.projection.onTheClock).toMatchObject({ overall: 2 });
+    startRoom(repository);
+    const onTheClock = room.projection.picks?.[1];
+    if (onTheClock === undefined) throw new Error("Expected a second snake pick.");
+    const picked = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 2,
+      idempotencyKey: "pick:lifecycle:first",
+      sale: { teamId: onTheClock.teamId, playerName: "Xavier Legette" },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const undone = repository.undoLastSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 3,
+      idempotencyKey: "pick:lifecycle:undo",
+    });
+
+    expect(undone.projection.onTheClock).toMatchObject({ overall: 2 });
+    const repicked = repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 4,
+      idempotencyKey: "pick:lifecycle:second",
+      sale: { teamId: onTheClock.teamId, playerName: "Xavier Legette" },
+    });
+    const originalPick = repicked.events.at(-1);
+    if (originalPick?.type !== "sale_logged") throw new Error("Expected a recorded pick event.");
+    const corrected = repository.correctSale({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 5,
+      idempotencyKey: "pick:lifecycle:correct",
+      saleEventId: originalPick.id,
+      replacementSale: { teamId: onTheClock.teamId, playerName: "Amon-Ra St. Brown" },
+    });
+
+    expect(corrected.projection.picks?.[1]).toMatchObject({
+      overall: 2,
+      playerName: "Amon-Ra St. Brown",
+      source: "sale",
+    });
+    expect(corrected.projection.sales.at(-1)?.price).toBeUndefined();
+    expect(corrected.projection.onTheClock).toMatchObject({ overall: 3 });
+    const paused = repository.pauseRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 6,
+      idempotencyKey: "pick:lifecycle:pause",
+    });
+    const resumed = repository.resumeRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 7,
+      idempotencyKey: "pick:lifecycle:resume",
+    });
+    const ended = repository.endRoom({
+      roomId: "room_sunday",
+      actor: commissioner,
+      expectedRevision: 8,
+      idempotencyKey: "pick:lifecycle:end",
+      allowIncomplete: true,
+    });
+
+    expect(paused.status).toBe("paused");
+    expect(resumed.status).toBe("live");
+    expect(ended).toMatchObject({ status: "ended", revision: 9 });
+  });
+
   it("records a pick without a price and moves the clock on", () => {
     const { repository, room } = snakeRoom();
     const onTheClock = room.projection.onTheClock;
@@ -107,6 +199,29 @@ describe("snake live draft room", () => {
       idempotencyKey: "pick:denied",
       sale: { teamId: onTheClock.teamId, playerName: first.name },
       now: new Date(now.getTime() + 2_000),
+    })).toThrow(new LiveDraftRoomError(
+      "mutation_denied",
+      "Only the commissioner or league admins can change this draft room.",
+    ));
+  });
+
+  it("does not let an observer pick for a team they can view", () => {
+    const { repository, room } = snakeRoom();
+    const onTheClock = room.projection.onTheClock;
+    if (onTheClock === undefined) throw new Error("Expected a team on the clock.");
+    const { first } = firstTwoPlayers();
+
+    expect(() => repository.logSaleCommand({
+      roomId: "room_sunday",
+      actor: {
+        userId: "user_observer",
+        leagueId: "league-100001",
+        role: "observer",
+        teamId: onTheClock.teamId,
+      },
+      expectedRevision: 2,
+      idempotencyKey: "pick:observer-denied",
+      sale: { teamId: onTheClock.teamId, playerName: first.name },
     })).toThrow(new LiveDraftRoomError(
       "mutation_denied",
       "Only the commissioner or league admins can change this draft room.",

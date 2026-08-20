@@ -105,7 +105,6 @@ export const liveDraftRoomErrorStatus = (code: LiveDraftRoomError["code"]): numb
     case "roster_full":
     case "sale_not_active":
     case "season_not_ready":
-    case "snake_live_room_unavailable":
     case "stale_revision": return 409;
     case "expected_revision_required":
     case "idempotency_key_required":

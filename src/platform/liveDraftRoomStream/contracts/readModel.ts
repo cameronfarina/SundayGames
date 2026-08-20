@@ -83,6 +83,7 @@ export interface LiveDraftRoomReadModel {
   updatedAt: string;
   role: LiveDraftRoomViewerRole;
   canMutateRoom: boolean;
+  canLogPick: boolean;
   canExportDraft: boolean;
   board: readonly LiveDraftRoomBoardPlayer[];
   selectedTeam?: LiveDraftRoomTeamSummary | undefined;

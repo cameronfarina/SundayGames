@@ -322,6 +322,44 @@ describe("live draft room stream contract", () => {
     });
   });
 
+  it("does not advertise an on-clock pick action to a snake observer", () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    const season = publishedSeason();
+    const snakeSeason: LeagueSeason = {
+      ...season,
+      settings: {
+        expectedTeamCount: season.settings.expectedTeamCount,
+        draftFormat: "snake",
+        ...(season.settings.scoring === undefined ? {} : { scoring: season.settings.scoring }),
+        snake: { rounds: 1, order: season.teams.map(team => team.id) },
+        roster: season.settings.roster,
+        keeperPolicy: season.settings.keeperPolicy,
+      },
+    };
+    const room = repository.createRoom({
+      season: snakeSeason,
+      roomId: "room_snake_observer",
+      commissionerUserId: commissioner.userId,
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const onTheClock = room.projection.onTheClock;
+    if (onTheClock === undefined) throw new Error("Expected a team on the clock.");
+
+    const observerModel = buildLiveDraftRoomReadModel({
+      room,
+      actor: actorWithTeam(observer, onTheClock.teamId),
+    });
+    const memberModel = buildLiveDraftRoomReadModel({
+      room,
+      actor: actorWithTeam(member, onTheClock.teamId),
+    });
+
+    expect(observerModel).toMatchObject({ role: "observer", canLogPick: false });
+    expect(memberModel).toMatchObject({ role: "member", canLogPick: true });
+  });
+
   it("streams keeper synchronization as a fresh room snapshot", () => {
     const repository = new InMemoryLiveDraftRoomRepository();
     const created = createRoom(repository);

@@ -16,6 +16,7 @@ import "./PlayerBoard.css";
 interface PlayerBoardProps {
   readonly advisory?: LiveDraftAdvisory | undefined;
   readonly canManage: boolean;
+  readonly commandNoun?: "pick" | "sale" | undefined;
   readonly onUsePlayer: (player: LiveDraftBoardPlayer) => void;
   readonly players: readonly LiveDraftBoardPlayer[];
   readonly roomIsLive: boolean;
@@ -27,6 +28,7 @@ const positionLabel = (position: LiveDraftPositionFilter) => position === "ALL" 
 export const PlayerBoard = ({
   advisory,
   canManage,
+  commandNoun = "sale",
   onUsePlayer,
   players,
   roomIsLive,
@@ -90,7 +92,7 @@ export const PlayerBoard = ({
               >
                 {canManage && <td><IconButton
                   disabled={!roomIsLive}
-                  label={`Use ${player.name} in sale command`}
+                  label={`Use ${player.name} in ${commandNoun} command`}
                   onClick={() => { onUsePlayer(player); }}
                 ><Plus aria-hidden="true" size={18} /></IconButton></td>}
                 <th className="player-board__player-name" scope="row">{player.name}</th>

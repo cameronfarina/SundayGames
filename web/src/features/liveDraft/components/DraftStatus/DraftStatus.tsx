@@ -23,15 +23,18 @@ const connectionLabels: Record<LiveDraftConnection, string> = {
 
 export const DraftStatus = ({ connection, room }: DraftStatusProps) => {
   const latestSale = room.salesLog.at(-1);
+  const snake = room.picks !== undefined;
   return (
     <section aria-label="Draft status" className="live-panel draft-status">
       <div><span>Status</span><strong>{liveDraftStatusLabel(room.status)}</strong></div>
       <div><span>Connection</span><strong>{connectionLabels[connection]}</strong></div>
       <div><span>Draft progress</span><strong>{draftProgress(room)}</strong></div>
       <div><span>Players available</span><strong>{room.board.length}</strong></div>
-      <div className="draft-status__latest"><span>Latest sale</span><strong>{latestSale === undefined
-        ? "No sales yet"
-        : `${latestSale.playerName} to ${latestSale.ownerDisplayName} for ${formatDollars(latestSale.price)}`}
+      <div className="draft-status__latest"><span>{snake ? "Latest pick" : "Latest sale"}</span><strong>{latestSale === undefined
+        ? `No ${snake ? "picks" : "sales"} yet`
+        : `${latestSale.playerName} to ${latestSale.ownerDisplayName}${snake
+          ? ""
+          : ` for ${formatDollars(latestSale.price)}`}`}
       </strong></div>
       <p>Revision {room.revision}</p>
     </section>

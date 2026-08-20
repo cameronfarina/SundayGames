@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import type { LiveDraftRoom } from "../liveDraftRooms.js";
+import {
+  InMemoryLiveDraftRoomRepository,
+  type LiveDraftRoom,
+} from "../liveDraftRooms.js";
 import { deserializePlatformStoreSnapshot } from "../platformStoreSnapshotCodec.js";
 import type { CompactDraftRoomSnapshotV2 } from "./contracts.js";
 import { isRecord } from "./json.js";
@@ -41,7 +44,9 @@ export const roomFromSnapshotJson = (value: unknown): LiveDraftRoom => {
   if (room === undefined) {
     throw new Error("Postgres draft room snapshot did not contain a live draft room.");
   }
-  return room;
+  const repository = new InMemoryLiveDraftRoomRepository();
+  repository.replaceRooms([room]);
+  return repository.getRoom(room.roomId);
 };
 
 export const isCompactSnapshot = (value: unknown): value is CompactDraftRoomSnapshotV2 => {

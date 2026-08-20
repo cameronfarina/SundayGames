@@ -1,7 +1,7 @@
 import { InMemoryLiveDraftRoomRepository, InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, it, mockRunner, now, playerCatalog, snakePlayerCatalog, snakeSeason } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
-it("provisions a snake hosted room", async () => {
+  it("provisions a snake hosted room", async () => {
     const liveDraftRoomRepository = new InMemoryLiveDraftRoomRepository();
     const app = createPlatformApp({
       store: new InMemoryPlatformStore(),

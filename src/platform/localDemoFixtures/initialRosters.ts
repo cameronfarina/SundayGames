@@ -20,8 +20,11 @@ const initialRosterPlayerFor = (
 
 export const currentLeagueInitialRostersFor = (
   season: LeagueSeason,
-): readonly LiveDraftRoomInitialRosterPlayer[] =>
-  keepers.flatMap(keeper => {
+): readonly LiveDraftRoomInitialRosterPlayer[] => {
+  // Bundled demo keepers carry auction prices, not the rounds required by snake rooms.
+  if (season.settings.draftFormat === "snake") return [];
+  return keepers.flatMap(keeper => {
     const player = initialRosterPlayerFor(season, keeper);
     return player === undefined ? [] : [player];
   });
+};

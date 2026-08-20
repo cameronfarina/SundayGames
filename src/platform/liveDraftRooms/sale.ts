@@ -75,10 +75,10 @@ export const buildSale = (
   input: LiveDraftRoomSaleCommandInput,
   saleEventId: string,
 ): LiveDraftRoomSale => {
-  const parsed = parseSaleInput(input);
+  const snake = room.season.settings.draftFormat === "snake";
+  const parsed = parseSaleInput(input, snake);
   const team = resolveTeam(room.season, parsed);
   const player = resolvePlayer(room.playerCatalog, parsed.playerName);
-  const snake = room.season.settings.draftFormat === "snake";
   if (!snake) {
     assertPositiveWholeDollar(
       parsed.price ?? 0,

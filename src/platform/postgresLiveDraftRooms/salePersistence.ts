@@ -30,7 +30,7 @@ INSERT INTO draft_room_sales (
       sale.playerName,
       sale.normalizedPlayerName,
       sale.position,
-      sale.price,
+      sale.price ?? null,
       sale.expectedPrice,
       event.occurredAt,
     ],

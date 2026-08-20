@@ -26,6 +26,7 @@ export const roomStatusValue = (value: unknown, path: string): LiveDraftRoomStat
 
 export const saleValue = (value: unknown, path: string): LiveDraftRoomSale => {
   const record = recordValue(value, path);
+  const price = optionalValue(record.price, `${path}.price`, numberValue);
   return {
     saleEventId: stringValue(record.saleEventId, `${path}.saleEventId`),
     input: stringValue(record.input, `${path}.input`),
@@ -36,7 +37,7 @@ export const saleValue = (value: unknown, path: string): LiveDraftRoomSale => {
     playerName: stringValue(record.playerName, `${path}.playerName`),
     normalizedPlayerName: stringValue(record.normalizedPlayerName, `${path}.normalizedPlayerName`),
     position: positionValue(record.position, `${path}.position`),
-    price: numberValue(record.price, `${path}.price`),
+    ...(price === undefined ? {} : { price }),
     expectedPrice: numberValue(record.expectedPrice, `${path}.expectedPrice`),
     teamAbbreviation: optionalString(record.teamAbbreviation, `${path}.teamAbbreviation`),
     byeWeek: optionalValue(record.byeWeek, `${path}.byeWeek`, numberValue),
@@ -65,17 +66,21 @@ const positionCountsValue = (value: unknown, path: string) => {
 
 const teamStateValue = (value: unknown, path: string): LiveDraftRoomTeamState => {
   const record = recordValue(value, path);
+  const budgetDollars = optionalValue(record.budgetDollars, `${path}.budgetDollars`, numberValue);
+  const spent = optionalValue(record.spent, `${path}.spent`, numberValue);
+  const budgetRemaining = optionalValue(record.budgetRemaining, `${path}.budgetRemaining`, numberValue);
+  const maxBid = optionalValue(record.maxBid, `${path}.maxBid`, numberValue);
   return {
     teamId: stringValue(record.teamId, `${path}.teamId`),
     ownerId: stringValue(record.ownerId, `${path}.ownerId`),
     ownerDisplayName: stringValue(record.ownerDisplayName, `${path}.ownerDisplayName`),
     teamDisplayName: stringValue(record.teamDisplayName, `${path}.teamDisplayName`),
     draftOrderPosition: integerValue(record.draftOrderPosition, `${path}.draftOrderPosition`),
-    budgetDollars: numberValue(record.budgetDollars, `${path}.budgetDollars`),
-    spent: numberValue(record.spent, `${path}.spent`),
-    budgetRemaining: numberValue(record.budgetRemaining, `${path}.budgetRemaining`),
+    ...(budgetDollars === undefined ? {} : { budgetDollars }),
+    ...(spent === undefined ? {} : { spent }),
+    ...(budgetRemaining === undefined ? {} : { budgetRemaining }),
     rosterSlotsRemaining: integerValue(record.rosterSlotsRemaining, `${path}.rosterSlotsRemaining`),
-    maxBid: numberValue(record.maxBid, `${path}.maxBid`),
+    ...(maxBid === undefined ? {} : { maxBid }),
     positionCounts: positionCountsValue(record.positionCounts, `${path}.positionCounts`),
     roster: arrayValue(record.roster, `${path}.roster`, rosterPlayerValue),
     slots: arrayValue(record.slots, `${path}.slots`, slotValue),

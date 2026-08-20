@@ -29,13 +29,6 @@ export const routeSeasonLiveRoom = async (
     return { status: 200, body: { ok: true } };
   }
   if (request.method !== "POST") return methodNotAllowed();
-  if (season.settings.draftFormat === "snake") {
-    return knownError(
-      409,
-      "snake_live_room_unavailable",
-      "Hosted live rooms currently support auction drafts. Use Mock Draft for this snake league.",
-    );
-  }
   const startsAt = dateValue(request.body.startsAt);
   if (request.body.startsAt !== undefined && startsAt === undefined) {
     return knownError(400, "invalid_draft_time", "Choose a valid draft date and time.");

@@ -43,13 +43,17 @@ export const DraftCommandPanel = ({
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (command.trim().length === 0) {
-      setValidation("Enter an owner, player, and sale price.");
+      setValidation(room.picks === undefined
+        ? "Enter an owner, player, and sale price."
+        : "Choose a player for the team on the clock.");
       return;
     }
     setValidation(undefined);
     onLogSale();
   };
   const canManage = room.canMutateRoom && room.status !== "ended";
+  const canLogPick = room.canLogPick && room.status !== "ended";
+  const snake = room.picks !== undefined;
   const live = room.status === "live";
   const paused = room.status === "paused";
 
@@ -60,20 +64,23 @@ export const DraftCommandPanel = ({
         <span>{room.role === "commissioner" ? "Commissioner" : room.role}</span>
       </header>
       <div className="draft-command__body">
-        {canManage && <>
+        {(canManage || canLogPick) && <>
           <form className="draft-command__sale" onSubmit={submit}>
             <TextField
               {...(validation === undefined ? {} : { error: validation })}
               id="live-sale-command"
-              label="Sale command"
+              label={snake ? "Pick command" : "Sale command"}
               onChange={event => { onCommandChange(event.currentTarget.value); }}
-              placeholder="Owner11 drafted Puka Nacua for 62"
+              placeholder={snake
+                ? "Owner11 drafted Puka Nacua"
+                : "Owner11 drafted Puka Nacua for 62"}
               value={command}
             />
             <ProgressButton busy={busy} disabled={!live} percent={busy ? 60 : 0} type="submit">
-              Log sale
+              {snake ? "Make pick" : "Log sale"}
             </ProgressButton>
           </form>
+          {canManage &&
           <div aria-label="Draft lifecycle controls" className="draft-command__actions">
             <Button disabled={busy || !["setup", "countdown"].includes(room.status)} onClick={onStart} variant="secondary">
               Start draft
@@ -82,13 +89,16 @@ export const DraftCommandPanel = ({
               {paused ? "Resume draft" : "Pause draft"}
             </Button>
             <Button disabled={busy || !live || room.salesLog.length === 0} onClick={onUndo} variant="secondary">
-              Undo latest sale
+              Undo latest {snake ? "pick" : "sale"}
             </Button>
             <Button disabled={busy || (!live && !paused)} onClick={onEnd} variant="danger">End draft</Button>
-          </div>
+          </div>}
         </>}
-        {!room.canMutateRoom && <p className="draft-command__member-note">
-          League members can follow the live board, sales, budgets, and rosters here.
+        {!room.canMutateRoom && !room.canLogPick && <p className="draft-command__member-note">
+          League members can follow the live board, {snake ? "picks" : "sales, budgets"}, and rosters here.
+        </p>}
+        {!room.canMutateRoom && room.canLogPick && <p className="draft-command__member-note">
+          Your team is on the clock. Choose an available player to make your pick.
         </p>}
         {feedback !== undefined && <InlineNotice variant={feedback.variant}>{feedback.message}</InlineNotice>}
       </div>

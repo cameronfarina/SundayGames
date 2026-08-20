@@ -23,7 +23,7 @@ describe("Postgres draft-state table schema", () => {
   it("preserves the public table order and complete schema contract", () => {
     expect(draftStateTables.map(table => table.name)).toEqual(expectedTableNames);
     expect(fingerprint(draftStateTables)).toBe(
-      "e26196364a675179f3331878b1f263a60c2c37761cba2fef286b3a08e89599a6",
+      "777bd04d5d057c1a5ffa2aa821cadc027e5a14d8987f8394787b12af4019aa11",
     );
   });
 
@@ -32,7 +32,7 @@ describe("Postgres draft-state table schema", () => {
 
     expect(statements).toHaveLength(10);
     expect(fingerprint(statements)).toBe(
-      "6fec3156a7928ddaf25f34ec253a6bddfcce8ef0aad8a06eefa8ef575aec961f",
+      "48fd862159cd62efbd87063ee5ae87ee800876a418284ca9c2f93a36a9ea467d",
     );
   });
 });

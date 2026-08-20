@@ -24,6 +24,8 @@ const commissioner: LiveDraftRoomActor = {
 
 const playerCatalog: readonly LiveDraftRoomPlayerCatalogEntry[] = [
   { name: "Puka Nacua", position: "WR", expectedPrice: 73 },
+  { name: "Xavier Legette", position: "WR", expectedPrice: 2 },
+  { name: "Amon-Ra St. Brown", position: "WR", expectedPrice: 67 },
   { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 72 },
 ] satisfies readonly LiveDraftRoomPlayerCatalogEntry[];
 
@@ -74,7 +76,7 @@ interface DraftRoomSaleRow {
   player_name: string;
   normalized_player_name: string;
   position: string;
-  price: number;
+  price: number | null;
   expected_price: number | null;
   status: string;
   voided_by_event_id: string | null;
@@ -422,7 +424,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         price,
         expectedPrice,
         createdAt,
-      ] = values as readonly [string, string, string, string, string, string, string, number, number, Date];
+      ] = values as readonly [string, string, string, string, string, string, string, number | null, number, Date];
 
       this.sales.set(id, {
         id,
@@ -531,6 +533,97 @@ describe("Postgres live draft rooms", () => {
     expect(room.roomId).toBe("room_snake");
     expect(client.rooms.size).toBe(1);
     expect(client.events).toHaveLength(1);
+  });
+
+  it("preserves snake pick slots through correction, later undo, and reload", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const season = publishedSnakeSeason();
+    const firstTeam = season.teams[0];
+    if (firstTeam === undefined) throw new Error("Expected a snake fixture team.");
+    const created = await repository.createRoom({
+      season,
+      roomId: "room_snake_picks",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-snake-room",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const firstPick = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "snake-pick-1",
+      sale: { teamId: firstTeam.id, playerName: "Puka Nacua" },
+      now: new Date(now.getTime() + 2_000),
+    });
+    const secondOnClock = firstPick.projection.onTheClock;
+    if (secondOnClock === undefined) throw new Error("Expected a second snake pick.");
+    const secondPick = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: firstPick.revision,
+      idempotencyKey: "snake-pick-2",
+      sale: { teamId: secondOnClock.teamId, playerName: "Xavier Legette" },
+      now: new Date(now.getTime() + 3_000),
+    });
+    const secondPickEvent = secondPick.events.at(-1);
+    if (secondPickEvent?.type !== "sale_logged") {
+      throw new Error("Expected the second snake pick event.");
+    }
+    const thirdOnClock = secondPick.projection.onTheClock;
+    if (thirdOnClock === undefined) throw new Error("Expected a third snake pick.");
+    const thirdPick = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: secondPick.revision,
+      idempotencyKey: "snake-pick-3",
+      sale: { teamId: thirdOnClock.teamId, playerName: "Amon-Ra St. Brown" },
+      now: new Date(now.getTime() + 4_000),
+    });
+    const corrected = await repository.correctSale({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: thirdPick.revision,
+      idempotencyKey: "correct-snake-pick-2",
+      saleEventId: secondPickEvent.id,
+      replacementSale: { teamId: secondOnClock.teamId, playerName: "Jahmyr Gibbs" },
+      now: new Date(now.getTime() + 5_000),
+    });
+    const undone = await repository.undoLastSale({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: corrected.revision,
+      idempotencyKey: "undo-snake-pick-3",
+      now: new Date(now.getTime() + 6_000),
+    });
+    const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(created.roomId);
+
+    expect(corrected.projection.picks?.slice(0, 3)).toMatchObject([
+      { overall: 1, playerName: "Puka Nacua", teamId: firstTeam.id },
+      { overall: 2, playerName: "Jahmyr Gibbs", teamId: secondOnClock.teamId },
+      { overall: 3, playerName: "Amon-Ra St. Brown", teamId: thirdOnClock.teamId },
+    ]);
+    expect(reloaded).toEqual(undone);
+    expect(reloaded.projection.picks?.slice(0, 3)).toMatchObject([
+      { overall: 1, playerName: "Puka Nacua", teamId: firstTeam.id },
+      { overall: 2, playerName: "Jahmyr Gibbs", teamId: secondOnClock.teamId },
+      { overall: 3, teamId: thirdOnClock.teamId },
+    ]);
+    expect(reloaded.projection.picks?.[2]).not.toHaveProperty("playerName");
+    expect(reloaded.projection.sales.map(sale => sale.playerName)).toEqual([
+      "Puka Nacua",
+      "Jahmyr Gibbs",
+    ]);
+    expect(reloaded.projection.sales.every(sale => sale.price === undefined)).toBe(true);
+    expect([...client.sales.values()].every(sale => sale.price === null)).toBe(true);
   });
 
   it("persists idempotent keeper and catalog synchronization until the room starts", async () => {

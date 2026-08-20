@@ -463,6 +463,7 @@ describe("platform Postgres schema contract", () => {
       "status IN ('requested', 'queued', 'running', 'completed', 'failed', 'canceled')",
     );
 
+    expectColumn("draft_room_sales", "price", { type: "integer", nullable: true });
     expectColumn("draft_room_exports", "content_type", { type: "text" });
     expectColumn("draft_room_exports", "byte_length", { type: "integer" });
     expectColumn("draft_room_export_contents", "content_base64", { type: "text" });

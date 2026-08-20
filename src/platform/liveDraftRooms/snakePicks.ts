@@ -41,6 +41,7 @@ export const snakePicksFor = (
   season: SnakeLeagueSeason,
   initialRosters: readonly LiveDraftRoomInitialRosterPlayer[],
   sales: readonly LiveDraftRoomSale[],
+  saleSequenceIndices: readonly number[] = sales.map((_sale, index) => index),
 ): readonly LiveDraftRoomPick[] => {
   const picks = emptyPicksFor(season);
 
@@ -54,10 +55,10 @@ export const snakePicksFor = (
     pick.source = player.source ?? "keeper";
   }
 
-  let cursor = 0;
-  for (const sale of sales) {
-    while (cursor < picks.length && picks[cursor]?.playerName !== undefined) cursor += 1;
-    const pick = picks[cursor];
+  const openPicks = picks.filter(pick => pick.playerName === undefined);
+  for (const [index, sale] of sales.entries()) {
+    const sequenceIndex = saleSequenceIndices[index];
+    const pick = sequenceIndex === undefined ? undefined : openPicks[sequenceIndex];
     if (pick === undefined) break;
     pick.playerName = sale.playerName;
     pick.source = "sale";

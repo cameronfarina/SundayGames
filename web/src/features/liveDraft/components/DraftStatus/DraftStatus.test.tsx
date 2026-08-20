@@ -18,4 +18,29 @@ describe("DraftStatus", () => {
     expect(screen.getByText("Polling")).toBeVisible();
     expect(screen.getByText("No sales yet")).toBeVisible();
   });
+
+  it("describes price-less snake picks without auction language", () => {
+    const [sale] = liveRoom.salesLog;
+    if (sale === undefined) throw new Error("Expected a sale fixture.");
+    render(<DraftStatus connection="connected" room={{
+      ...liveRoom,
+      picks: [{
+        overall: 1,
+        round: 1,
+        pickInRound: 1,
+        teamId: "team-1",
+        ownerDisplayName: "Owner11",
+        teamDisplayName: "Short King",
+        playerName: "De'Von Achane",
+        source: "sale",
+        saleEventId: "sale-1",
+      }],
+      salesLog: [{ ...sale, price: undefined }],
+    }} />);
+
+    expect(screen.getByText("1 pick · 1 of 4 spots filled")).toBeVisible();
+    expect(screen.getByText("Latest pick")).toBeVisible();
+    expect(screen.getByText("De'Von Achane to Owner11")).toBeVisible();
+    expect(screen.queryByText(/Latest sale|for -/)).not.toBeInTheDocument();
+  });
 });

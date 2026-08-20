@@ -81,9 +81,10 @@ const projectRoom = (
   }
 
   const sales = activeSales.map(activeSale => activeSale.sale);
+  const saleSequenceIndices = activeSales.map(activeSale => activeSale.sequenceIndex);
   const season = room.season;
   const picks = isSnakeLeagueSeason(season)
-    ? snakePicksFor(season, room.initialRosters, sales)
+    ? snakePicksFor(season, room.initialRosters, sales, saleSequenceIndices)
     : undefined;
 
   return {

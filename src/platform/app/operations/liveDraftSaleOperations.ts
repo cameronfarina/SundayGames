@@ -12,7 +12,7 @@ export const createLiveDraftSaleOperations = (context: PlatformAppContext) => ({
   logLiveDraftSale: async (input: LogPlatformLiveDraftSaleInput): Promise<LiveDraftRoom> => {
     const account = await context.requireAccount(input.actorSessionToken, input.now);
     const room = await context.liveDraftRooms.getRoom(input.roomId);
-    const membership = await context.requireSharedMutation(account, room.leagueId);
+    const membership = await context.requireSharedRead(account, room.leagueId);
     return cloneForRead(await context.liveDraftRooms.logSaleCommand({
       roomId: input.roomId,
       actor: liveActorFor(account, room.leagueId, membership),

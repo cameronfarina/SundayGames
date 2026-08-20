@@ -54,7 +54,7 @@ The normalized schema statements are the initial schema contract. Run `platform:
 
 League setup Postgres mode persists leagues, league seasons, fantasy teams, roster rule sets, and league memberships in normalized tables. Provider imports register the season and link its league connection in one transaction, so a failed link cannot leave an orphaned league. The current app layer mirrors registered seasons and memberships into the in-memory store only as a compatibility bridge for existing live-room authorization and read-model code; setup route writes themselves remain owned by the league setup repository. Until the remaining legacy modules move to normalized repositories, non-setup mutations that save bridge-owned state may still serialize that mirrored league setup as compatibility data.
 
-The board and interactive mock engines support auction and snake leagues with 4 to 20 teams, league-specific roster rules, keepers, and values. Hosted real draft rooms are auction-only for this release. Historical auction imports feed calibrated pricing; historical snake draft calibration is not yet available and the product must say so explicitly. Do not advertise hosted snake drafting or historical snake calibration until their production checks pass.
+The board, interactive mock engines, and hosted real draft rooms support auction and snake leagues with 4 to 20 teams, league-specific roster rules, keepers, and values. Snake rooms follow the commissioner-edited team order, reverse even rounds, skip keeper slots, and let only the manager on the clock make their own pick. Historical auction imports feed calibrated pricing; historical snake draft calibration is not yet available and the product must say so explicitly. Do not advertise historical snake calibration until its production checks pass.
 
 Historical import Postgres mode persists preview batches in `historical_import_batches` and committed auction sale rows in `historical_draft_sales`. Preview row validation state is stored in the batch JSON payload until commit, then committed records are inserted inside the same repository transaction that marks the batch committed or supersedes the replaced batch. Current calibration reads join sale rows to committed batches so superseded imports remain auditable but do not feed active pricing.
 
@@ -161,6 +161,8 @@ Run these against the exact commit that will serve the domain.
    ```
 
    Expected output is `Applied N platform migration statements.` A repeat run should be safe and can print `Applied 0 platform migration statements.`
+
+   Migration `platform-snake-live-room-v20` only makes recorded draft prices nullable. The previous release remains compatible with auction rooms because auction writes still include a price, but its snapshot decoder does not accept a snake room at all. Deploy v20 and the new web process first, verify the release, and wait until application rollback is no longer expected before creating the first hosted snake room. Creating that room is the roll-forward boundary; restoring the database to a point before it was created is the fallback if roll-forward cannot recover the release.
 
 3. Check production/domain runtime readiness:
 
@@ -369,11 +371,12 @@ Event-stream connection limits:
 
 - Commissioner prepares league settings, teams, owners, keepers, and historical imports before draft day.
 - Commissioner publishes the league season and active pricing snapshot.
-- Commissioner creates a live auction room from that published season.
+- Commissioner creates an auction or snake live room from that published season.
 - League members log in, open the room, and select the team they want to view.
-- Commissioner logs sales with fast commands like `cam puka 62`.
-- Each sale runs validation, appends a draft event, updates projections, increments `revision`, and broadcasts over SSE.
-- Board, rosters, budgets, max bid, team errors, sale log, and export state all read from Postgres-backed projections.
+- In auction rooms, the commissioner logs sales with fast commands like `cam puka 62`.
+- In snake rooms, the commissioner or manager on the clock chooses an available player without a price.
+- Each sale or pick runs validation, appends a draft event, updates projections, increments `revision`, and broadcasts over SSE.
+- Board, rosters, draft order, auction budgets, event log, and export state all read from Postgres-backed projections.
 - Draft end freezes the final room state and allows final export generation.
 
 ## ESPN Reality
