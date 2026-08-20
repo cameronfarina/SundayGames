@@ -143,6 +143,44 @@ describe("live draft room stream contract", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("discovers a newer room revision after the local notifier times out", async () => {
+    const repository = new InMemoryLiveDraftRoomRepository();
+    let room = createRoom(repository);
+    const controller = new AbortController();
+    const close = vi.fn();
+    const stream = createLiveDraftRoomEventStream({
+      initialRoom: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      loadUpdate: async afterRevision => ({
+        events: liveDraftRoomEventsAfterRevision({ room, actor: commissioner, afterRevision }),
+        room: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      }),
+      subscription: { close, waitForRevision: vi.fn().mockResolvedValue(false) },
+      signal: controller.signal,
+      heartbeatMilliseconds: 10,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+
+    await iterator.next();
+    room = repository.startRoom({
+      roomId: room.roomId,
+      actor: commissioner,
+      expectedRevision: room.revision,
+      idempotencyKey: "start:other-process",
+      now: new Date(now.getTime() + 1_000),
+    });
+
+    const update = await iterator.next();
+    expect(update).toMatchObject({
+      done: false,
+      value: expect.stringContaining("event: room.started\n"),
+    });
+    expect(update.value).toContain('"revision":2');
+
+    controller.abort();
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined });
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("builds role-aware snapshots with selected/viewed teams, shared room state, and export readiness", () => {
     const room = buildLiveRoom();
     const camTeam = room.projection.teams.find(team => team.ownerDisplayName === "Owner11");

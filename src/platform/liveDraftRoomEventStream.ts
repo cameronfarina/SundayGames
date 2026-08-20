@@ -74,17 +74,12 @@ export const createLiveDraftRoomEventStream = (
       yield formattedRoomEvent(input.initialRoom, "room.snapshot");
 
       while (!signalIsAborted(input.signal)) {
-        const changed = await input.subscription.waitForRevision({
+        await input.subscription.waitForRevision({
           afterRevision: revision,
           signal: input.signal,
           timeoutMs: input.heartbeatMilliseconds ?? defaultLiveDraftRoomHeartbeatMilliseconds,
         });
         if (signalIsAborted(input.signal)) return;
-        if (!changed) {
-          yield heartbeatComment;
-          continue;
-        }
-
         const update = await input.loadUpdate(revision);
         if (update.room.revision <= revision) {
           yield heartbeatComment;
