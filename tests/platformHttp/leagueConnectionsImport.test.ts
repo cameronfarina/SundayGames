@@ -116,6 +116,24 @@ describe("league connection import HTTP", () => {
       .toMatchObject({ error: { code: "invalid_import_mode" } });
   });
 
+  it("says nothing about an imported league that has since gone away", async () => {
+    const harness = await createLeagueConnectionsHarness(importableRoutes);
+    const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);
+    await harness.repository.linkConnectionToSeason(connectionId, "season-that-was-deleted");
+
+    const response = await harness.handle({
+      method: "GET",
+      path: "/league-connections",
+      sessionToken: harness.sessionToken,
+    });
+    const [connection] = expectRecordArray(expectBodyRecord(response.body).connections);
+
+    expect(connection).toBeDefined();
+    expect(connection?.importedSeasonId).toBeUndefined();
+    expect(connection?.importedLeagueSlug).toBeUndefined();
+    expect(connection?.importedLeagueName).toBeUndefined();
+  });
+
   it("requires a signed-in account", async () => {
     const harness = await createLeagueConnectionsHarness(importableRoutes);
     const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);

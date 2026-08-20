@@ -139,6 +139,43 @@ describe("sleeper league sync adapter", () => {
     expect(requests.filter(url => url.includes("/matchups/"))).toHaveLength(1);
   });
 
+  it("reads an auction budget and treats a linear draft as a snake", async () => {
+    const { fetcher } = stubFetch([
+      { match: "/drafts", body: [{ type: "linear", settings: { rounds: 12, budget: 200 } }] },
+      ...sleeperRoutes.filter(route => route.match !== "/drafts"),
+    ]);
+
+    const league = await leagueSyncAdapters.sleeper.fetchLeague({
+      providerLeagueId: "289646328504385536",
+      season: "2018",
+      fetcher,
+    }, directory);
+
+    // Sunday Games runs one snake format, so Sleeper's non-reversing snake is
+    // the same draft as far as an import is concerned.
+    expect(league.settings.draftType).toBe("snake");
+    expect(league.settings.snakeRounds).toBe(12);
+    expect(league.settings.auctionBudget).toBe(200);
+  });
+
+  it("leaves the draft unread when Sleeper has no draft for the league", async () => {
+    const { fetcher } = stubFetch([
+      { match: "/drafts", body: [] },
+      ...sleeperRoutes.filter(route => route.match !== "/drafts"),
+    ]);
+
+    const league = await leagueSyncAdapters.sleeper.fetchLeague({
+      providerLeagueId: "289646328504385536",
+      season: "2018",
+      fetcher,
+    }, directory);
+
+    expect(league.settings.draftType).toBeUndefined();
+    expect(league.settings.snakeRounds).toBeUndefined();
+    // The keeper count comes from the league, not the draft, so it survives.
+    expect(league.settings.keeperCount).toBe(1);
+  });
+
   it("trims the player dump to the fields a roster renders", () => {
     expect(directory.PHI).toEqual({
       name: "Philadelphia Eagles",
