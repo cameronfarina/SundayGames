@@ -17,6 +17,7 @@ interface ImportSyncedLeagueInput {
   repository: LeagueConnectionRepository;
   sessionToken: string;
   snapshot: StoredLeagueSnapshot;
+  targetSeasonId?: string;
   now: Date;
 }
 
@@ -36,6 +37,25 @@ const needsAttention = async (
   return { ...connection, status: "needs_attention", statusDetail: message };
 };
 
+const linkConnection = async (
+  repository: LeagueConnectionRepository,
+  connection: LeagueConnection,
+  accountId: string,
+  leagueId: string,
+  seasonId: string,
+  now: Date,
+): Promise<LeagueConnection> => {
+  const linked = await repository.linkConnection({
+    id: connection.id,
+    accountId,
+    leagueId,
+    seasonId,
+    now,
+  });
+  if (linked === null) throw new Error("The synced league connection disappeared while importing.");
+  return linked;
+};
+
 export const importSyncedLeague = async ({
   account,
   app,
@@ -44,10 +64,19 @@ export const importSyncedLeague = async ({
   repository,
   sessionToken,
   snapshot,
+  targetSeasonId,
   now,
 }: ImportSyncedLeagueInput): Promise<LeagueConnection> => {
   if (connection.linkedLeagueId !== undefined && connection.linkedSeasonId !== undefined) {
-    const issue = await refreshLinkedLeague({
+    if (targetSeasonId !== undefined && targetSeasonId !== connection.linkedSeasonId) {
+      return await needsAttention(
+        repository,
+        connection,
+        "This provider league is already linked to a different Sunday Games league.",
+        now,
+      );
+    }
+    const refreshed = await refreshLinkedLeague({
       app,
       connection,
       previousSnapshot,
@@ -55,9 +84,42 @@ export const importSyncedLeague = async ({
       snapshot,
       now,
     });
-    return issue === null
+    return refreshed.status === "refreshed"
       ? connection
-      : await needsAttention(repository, connection, issue, now);
+      : await needsAttention(repository, connection, refreshed.message, now);
+  }
+
+  if (targetSeasonId !== undefined) {
+    const targetUsed = (await repository.listConnections(account.id)).some(candidate =>
+      candidate.id !== connection.id && candidate.linkedSeasonId === targetSeasonId);
+    if (targetUsed) {
+      return await needsAttention(
+        repository,
+        connection,
+        "That Sunday Games league is already linked to another provider league.",
+        now,
+      );
+    }
+    const overwritten = await refreshLinkedLeague({
+      app,
+      connection,
+      previousSnapshot: null,
+      sessionToken,
+      snapshot,
+      targetSeasonId,
+      now,
+    });
+    if (overwritten.status === "needs_attention") {
+      return await needsAttention(repository, connection, overwritten.message, now);
+    }
+    return await linkConnection(
+      repository,
+      connection,
+      account.id,
+      overwritten.leagueId,
+      overwritten.seasonId,
+      now,
+    );
   }
 
   const setup = confirmedSetupFromSyncedLeague(connection, snapshot);
@@ -72,13 +134,12 @@ export const importSyncedLeague = async ({
     memberships: [{ userId: account.id, leagueId: season.leagueId, role: "owner" }],
     now,
   });
-  const linked = await repository.linkConnection({
-    id: connection.id,
-    accountId: account.id,
-    leagueId: registered.leagueId,
-    seasonId: registered.id,
+  return await linkConnection(
+    repository,
+    connection,
+    account.id,
+    registered.leagueId,
+    registered.id,
     now,
-  });
-  if (linked === null) throw new Error("The synced league connection disappeared while importing.");
-  return linked;
+  );
 };
