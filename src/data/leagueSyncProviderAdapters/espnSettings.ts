@@ -1,3 +1,4 @@
+import type { SyncedLeagueSettings } from "./contracts.js";
 import { numberValue, optionalNumber, recordArray, recordValue, textValue } from "./decode.js";
 import { espnLineupSlotNames } from "./espnCatalog.js";
 
@@ -46,4 +47,31 @@ export const espnRosterPositions = (
       { length: slot.count },
       () => espnLineupSlotNames[slot.slotId] ?? slot.slotId,
     ));
+};
+
+/** ESPN also runs offline and autopick drafts, which name no format to import. */
+const espnDraftType = (value: unknown): "auction" | "snake" | undefined => {
+  const type = textValue(value).toUpperCase();
+  if (type === "AUCTION") return "auction";
+  return type === "SNAKE" ? "snake" : undefined;
+};
+
+/**
+ * ESPN reports a keeper count of zero for redraft leagues rather than omitting
+ * it, so the count is passed through as it stands and the import decides what
+ * counts as a keeper league. ESPN publishes no auction minimum bid.
+ */
+export const espnDraftSettings = (
+  settings: Record<string, unknown>,
+): Pick<SyncedLeagueSettings, "auctionBudget" | "draftType" | "keeperCount"> => {
+  const draft = recordValue(settings.draftSettings);
+  const draftType = espnDraftType(draft.type);
+  const auctionBudget = optionalNumber(draft.auctionBudget);
+  const keeperCount = optionalNumber(draft.keeperCount);
+
+  return {
+    ...(draftType === undefined ? {} : { draftType }),
+    ...(auctionBudget === undefined ? {} : { auctionBudget }),
+    ...(keeperCount === undefined ? {} : { keeperCount }),
+  };
 };

@@ -19,6 +19,11 @@ const settingsSchema = z.object({
   playoffTeams: z.number().optional(),
   playoffWeekStart: z.number().optional(),
   waiverBudget: z.number().optional(),
+  draftType: z.enum(["auction", "snake"]).optional(),
+  auctionBudget: z.number().optional(),
+  minimumBid: z.number().optional(),
+  snakeRounds: z.number().optional(),
+  keeperCount: z.number().optional(),
 });
 
 const rosterPlayerSchema = z.object({

@@ -40,8 +40,20 @@ export const sleeperLeaguePayload = {
     waiver_budget: 100,
     last_scored_leg: 1,
     leg: 16,
+    max_keepers: 1,
   },
 };
+
+export const sleeperDraftsPayload = [
+  {
+    draft_id: "289646328504385537",
+    league_id: "289646328504385536",
+    type: "snake",
+    status: "complete",
+    season: "2018",
+    settings: { teams: 12, rounds: 15, slots_flex: 1 },
+  },
+];
 
 export const sleeperLeagueUsersPayload = [
   {
@@ -104,6 +116,7 @@ export const espnLeaguePayload = {
     rosterSettings: {
       lineupSlotCounts: { "1": 1, "15": 1, "16": 1, "17": 1, "20": 2, "21": 1, "23": 2, "99": 1 },
     },
+    draftSettings: { type: "AUCTION", auctionBudget: 200, keeperCount: 2 },
     scoringSettings: {
       scoringItems: [
         { statId: 43, points: 6 },
@@ -174,6 +187,56 @@ export const espnLeaguePayload = {
     { id: 1, matchupPeriodId: 1, winner: "HOME", home: { teamId: 2, totalPoints: 112.24 }, away: { teamId: 10, totalPoints: 69.82 } },
     { id: 2, matchupPeriodId: 1, winner: "HOME", home: { teamId: 1, totalPoints: 102.79 } },
     { id: 3, matchupPeriodId: 2, winner: "UNDECIDED", away: { teamId: 4, totalPoints: 0 } },
+  ],
+};
+
+/**
+ * The fan profile lists one entry per team the account holds, so a co-managed
+ * league repeats. Other sports and other seasons share the same list.
+ */
+export const espnFanProfilePayload = {
+  preferences: [
+    {
+      id: "fantasy-1",
+      type: "FANTASY_FOOTBALL_TEAM",
+      metaData: {
+        entity: {
+          gameId: "ffl",
+          leagueId: 899513,
+          seasonId: 2025,
+          teamId: 1,
+          leagueName: "Pigskin Power Bottoms",
+        },
+      },
+    },
+    {
+      id: "fantasy-2",
+      type: "FANTASY_FOOTBALL_TEAM",
+      metaData: {
+        entity: { gameId: "ffl", seasonId: 2025, teamId: 4, leagueId: 899513 },
+      },
+    },
+    {
+      id: "fantasy-3",
+      type: "FANTASY_FOOTBALL_TEAM",
+      metaData: {
+        entity: {
+          gameId: "ffl",
+          seasonId: 2025,
+          entryURL: "https://fantasy.espn.com/football/team?leagueId=424242&teamId=3&seasonId=2025",
+        },
+      },
+    },
+    {
+      id: "fantasy-basketball",
+      type: "FANTASY_BASKETBALL_TEAM",
+      metaData: { entity: { gameId: "fba", leagueId: 777, seasonId: 2025 } },
+    },
+    {
+      id: "fantasy-last-year",
+      type: "FANTASY_FOOTBALL_TEAM",
+      metaData: { entity: { gameId: "ffl", leagueId: 111222, seasonId: 2024 } },
+    },
   ],
 };
 

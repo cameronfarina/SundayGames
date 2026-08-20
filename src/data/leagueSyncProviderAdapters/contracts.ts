@@ -69,6 +69,16 @@ export interface SyncedLeagueSettings {
   playoffTeams?: number | undefined;
   playoffWeekStart?: number | undefined;
   waiverBudget?: number | undefined;
+  /**
+   * The draft shape, when the provider publishes it. League import builds a real
+   * Sunday Games league out of these, so a provider that hides one leaves it
+   * undefined and the owner finishes that part in the wizard instead.
+   */
+  draftType?: "auction" | "snake" | undefined;
+  auctionBudget?: number | undefined;
+  minimumBid?: number | undefined;
+  snakeRounds?: number | undefined;
+  keeperCount?: number | undefined;
 }
 
 export interface SyncedRosterPlayer {

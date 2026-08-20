@@ -19,6 +19,7 @@ import {
   textValue,
 } from "./decode.js";
 import { fetchLeagueSyncJson } from "./httpJson.js";
+import { sleeperDraftSettings } from "./sleeperDrafts.js";
 import { sleeperPlayerDirectory } from "./sleeperPlayerDirectory.js";
 import { startingSlotsFor, teamsFor, type SleeperUserRecord } from "./sleeperTeams.js";
 import { matchupsFor } from "./sleeperMatchups.js";
@@ -90,6 +91,7 @@ const fetchLeague = async (
   const settings = recordValue(league.settings);
   const users: readonly SleeperUserRecord[] = recordArray(await sleeperJson(`${leaguePath}/users`, input));
   const rosters = recordArray(await sleeperJson(`${leaguePath}/rosters`, input));
+  const drafts = recordArray(await sleeperJson(`${leaguePath}/drafts`, input));
   const weeks = await Promise.all(
     Array.from({ length: scoredWeekCount(settings) }, (_unused, index) => index + 1)
       .map(async week => ({
@@ -116,6 +118,7 @@ const fetchLeague = async (
         ? {} : { playoffWeekStart: numberValue(settings.playoff_week_start) }),
       ...(optionalNumber(settings.waiver_budget) === undefined
         ? {} : { waiverBudget: numberValue(settings.waiver_budget) }),
+      ...sleeperDraftSettings(drafts, settings),
     },
     teams: teamsFor(rosters, users, directory, startingSlotsFor(rosterPositions)),
     matchups: weeks.flatMap(({ week, rows }) => matchupsFor(week, rows)),

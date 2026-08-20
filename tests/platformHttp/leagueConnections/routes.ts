@@ -1,6 +1,7 @@
 import {
   espnLeaguePayload,
   espnPrivateLeagueErrorBody,
+  sleeperDraftsPayload,
   sleeperLeaguePayload,
   sleeperLeagueUsersPayload,
   sleeperMatchupsWeekOnePayload,
@@ -23,6 +24,7 @@ export const sleeperRoutes: readonly StubRoute[] = [
   { match: "/users", body: sleeperLeagueUsersPayload },
   { match: "/rosters", body: sleeperRostersPayload },
   { match: "/players/nfl", body: sleeperPlayersPayload },
+  { match: "/drafts", body: sleeperDraftsPayload },
   { match: "/v1/league/289646328504385536", body: sleeperLeaguePayload },
 ];
 

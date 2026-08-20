@@ -9,6 +9,7 @@ import { sleeperPlayerDirectory } from "../src/data/leagueSyncProviderAdapters/s
 import {
   espnLeaguePayload,
   espnPrivateLeagueErrorBody,
+  sleeperDraftsPayload,
   sleeperLeaguePayload,
   sleeperLeagueUsersPayload,
   sleeperMatchupsWeekOnePayload,
@@ -48,6 +49,7 @@ const sleeperRoutes: readonly StubRoute[] = [
   { match: "/users", body: sleeperLeagueUsersPayload },
   { match: "/rosters", body: sleeperRostersPayload },
   { match: "/players/nfl", body: sleeperPlayersPayload },
+  { match: "/drafts", body: sleeperDraftsPayload },
   { match: "/v1/league/289646328504385536", body: sleeperLeaguePayload },
 ];
 
@@ -112,6 +114,9 @@ describe("sleeper league sync adapter", () => {
       playoffTeams: 6,
       playoffWeekStart: 14,
       waiverBudget: 100,
+      draftType: "snake",
+      snakeRounds: 15,
+      keeperCount: 1,
     });
     const [first] = league.teams;
     expect(first?.name).toBe("Giant Dolphins");
@@ -170,6 +175,41 @@ describe("espn league sync adapter", () => {
     expect(league.settings.rosterPositions).toEqual([
       "TQB", "DP", "DST", "K", "BN", "BN", "IR", "FLEX", "FLEX", "99",
     ]);
+  });
+
+  it("reads the draft format so an import does not have to guess it", async () => {
+    const { fetcher } = stubFetch(espnRoutes);
+
+    const league = await leagueSyncAdapters.espn.fetchLeague({
+      providerLeagueId: "899513",
+      season: "2025",
+      fetcher,
+    }, {});
+
+    expect(league.settings.draftType).toBe("auction");
+    expect(league.settings.auctionBudget).toBe(200);
+    expect(league.settings.keeperCount).toBe(2);
+    // ESPN publishes no minimum bid, so the import supplies its own default.
+    expect(league.settings.minimumBid).toBeUndefined();
+  });
+
+  it("leaves the draft format unread when ESPN runs an offline draft", async () => {
+    const { fetcher } = stubFetch([{
+      match: "/leagues/899513",
+      body: {
+        ...espnLeaguePayload,
+        settings: { ...espnLeaguePayload.settings, draftSettings: { type: "OFFLINE" } },
+      },
+    }]);
+
+    const league = await leagueSyncAdapters.espn.fetchLeague({
+      providerLeagueId: "899513",
+      season: "2025",
+      fetcher,
+    }, {});
+
+    expect(league.settings.draftType).toBeUndefined();
+    expect(league.settings.auctionBudget).toBeUndefined();
   });
 
   it("names owners from the member list and sorts starters ahead of the bench", async () => {
