@@ -27,6 +27,9 @@ const labelFor = (state: LeagueImportState): string => {
   if (state.status === "importing") return "Importing...";
   if (state.status === "imported") return "Imported";
   if (state.status === "linked") return "Already linked";
+  if (state.status === "needs_attention") {
+    return `Needs attention: ${state.message ?? "Review this league before importing."}`;
+  }
   if (state.status === "error") return state.message ?? "Import failed";
   return "Ready to import";
 };
@@ -53,6 +56,7 @@ export const DiscoveredLeagueList = ({
         const key = keyFor(league);
         const state = states[key] ?? { status: "idle" };
         const done = state.status === "imported" || state.status === "linked";
+        const retry = state.status === "error" || state.status === "needs_attention";
         const seasonYear = Number(league.season);
         const options = [
           { value: newLeagueImportTarget, label: "Create a new Sunday Games league" },
@@ -83,7 +87,7 @@ export const DiscoveredLeagueList = ({
               onClick={() => { onConnect(league); }}
               variant="secondary"
             >
-              {state.status === "error" ? `Retry ${league.name}` : `Import ${league.name}`}
+              {retry ? `Retry ${league.name}` : `Import ${league.name}`}
             </Button>
           </div>
         </li>;
