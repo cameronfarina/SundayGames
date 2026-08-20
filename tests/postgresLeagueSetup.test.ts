@@ -141,10 +141,12 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
   readonly teams = new Map<string, TeamRow>();
   readonly rosterRulesBySeason = new Map<string, RosterRuleRow>();
   readonly memberships = new Map<string, MembershipRow>();
+  readonly connectionSeasonIds = new Map<string, string | null>();
   readonly referencedTeamIds = new Set<string>();
   readonly queries: Array<{ text: string; values: readonly unknown[]; inTransaction: boolean }> = [];
   failNextTeamClaimWithUniqueViolation = false;
   invitationAvailable = true;
+  failNextConnectionLink = false;
   transactionCount = 0;
 
   #inTransaction = false;
@@ -160,6 +162,7 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
     const memberships = new Map(
       [...this.memberships].map(([id, row]) => [id, cloneMembership(row)]),
     );
+    const connectionSeasonIds = new Map(this.connectionSeasonIds);
     this.#inTransaction = true;
     try {
       return await operation(this);
@@ -169,11 +172,15 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       this.teams.clear();
       this.rosterRulesBySeason.clear();
       this.memberships.clear();
+      this.connectionSeasonIds.clear();
       for (const [id, row] of leagues) this.leagues.set(id, row);
       for (const [id, row] of seasons) this.seasons.set(id, row);
       for (const [id, row] of teams) this.teams.set(id, row);
       for (const [id, row] of rosterRules) this.rosterRulesBySeason.set(id, row);
       for (const [id, row] of memberships) this.memberships.set(id, row);
+      for (const [id, seasonId] of connectionSeasonIds) {
+        this.connectionSeasonIds.set(id, seasonId);
+      }
       throw error;
     } finally {
       this.#inTransaction = false;
@@ -233,6 +240,17 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       league.archived_by_user_id ??= archivedByUserId;
       league.updated_at = archivedAt;
       return { rows: [{ id: leagueId } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE league_connections SET league_season_id")) {
+      if (this.failNextConnectionLink) {
+        this.failNextConnectionLink = false;
+        throw new Error("connection link failed");
+      }
+      const [connectionId, seasonId] = values as readonly [string, string];
+      if (!this.connectionSeasonIds.has(connectionId)) return { rows: [], rowCount: 0 };
+      this.connectionSeasonIds.set(connectionId, seasonId);
+      return { rows: [{ id: connectionId } as TRow], rowCount: 1 };
     }
 
     if (normalizedSql === "SELECT archived_at IS NOT NULL AS archived FROM leagues WHERE id = $1 LIMIT 1") {
@@ -648,6 +666,49 @@ const membershipsFor = (
   });
 
 describe("Postgres league setup repository", () => {
+  it("registers an imported season and links its provider connection in one transaction", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    client.connectionSeasonIds.set("league_connection_1", null);
+
+    await expect(repository.registerLeagueSeasonWithConnection({
+      season,
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
+      now,
+    }, "league_connection_1")).resolves.toEqual(season);
+
+    expect(client.connectionSeasonIds.get("league_connection_1")).toBe(season.id);
+    expect(client.transactionCount).toBe(1);
+    expect(client.queries.at(-1)?.values).toEqual([
+      "league_connection_1",
+      season.id,
+      "acct_owner11",
+      now,
+    ]);
+  });
+
+  it("rolls back a newly imported season when its provider connection cannot be linked", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const repository = new PostgresLeagueSetupRepository(client);
+    const season = buildSeason();
+    client.connectionSeasonIds.set("league_connection_1", null);
+    client.failNextConnectionLink = true;
+
+    await expect(repository.registerLeagueSeasonWithConnection({
+      season,
+      memberships: membershipsFor(season, ["Owner11"]),
+      createdByUserId: "acct_owner11",
+      now,
+    }, "league_connection_1")).rejects.toThrow("connection link failed");
+
+    expect(client.leagues.has(season.leagueId)).toBe(false);
+    expect(client.seasons.has(season.id)).toBe(false);
+    expect(client.connectionSeasonIds.get("league_connection_1")).toBeNull();
+    expect(client.transactionCount).toBe(1);
+  });
+
   it("locks and enforces per-account league creation limits inside the registration transaction", async () => {
     const client = new FakePostgresLeagueSetupClient();
     const repository = new PostgresLeagueSetupRepository(client, {

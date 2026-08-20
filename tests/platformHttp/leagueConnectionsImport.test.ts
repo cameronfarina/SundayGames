@@ -7,6 +7,7 @@ import {
 } from "./leagueConnections/importFixtures.js";
 import { connectSleeperLeague, connectionIdFrom, sleeperOutageRoutes } from "./leagueConnections/routes.js";
 import { syncNow } from "./leagueConnections/harness.js";
+import type { RegisterLeagueSeasonRepositoryInput } from "../../src/platform/leagueSetup.js";
 import {
   describe,
   expect,
@@ -14,7 +15,17 @@ import {
   expectRecordArray,
   expectString,
   it,
+  InMemoryPlatformStore,
 } from "./support/index.js";
+
+class CapabilityAdvertisingLeagueSetupRepository extends InMemoryPlatformStore {
+  registerLeagueSeasonWithConnection(
+    input: RegisterLeagueSeasonRepositoryInput,
+    _leagueConnectionId: string,
+  ) {
+    return this.registerLeagueSeason(input);
+  }
+}
 
 describe("league connection import HTTP", () => {
   it("turns a synced connection into a real Sunday Games league", async () => {
@@ -62,6 +73,26 @@ describe("league connection import HTTP", () => {
       sessionToken: harness.sessionToken,
     });
     expect(expectRecordArray(expectBodyRecord(onboarding.body).leagues)).toHaveLength(1);
+  });
+
+  it("uses fallback linking when only the HTTP services repository advertises atomic imports", async () => {
+    const harness = await createLeagueConnectionsHarness(importableRoutes, {
+      httpLeagueSetupRepository: new CapabilityAdvertisingLeagueSetupRepository(),
+    });
+    const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);
+
+    const response = await importLeague(harness.handle, harness.sessionToken, connectionId);
+    const account = await harness.app.findAccountBySessionToken(harness.sessionToken);
+    if (account === null) throw new Error("Expected the import owner account.");
+    const savedConnection = await harness.repository.findConnection(
+      account.id,
+      connectionId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(savedConnection?.leagueSeasonId).toBe(
+      expectString(expectBodyRecord(expectBodyRecord(response.body).imported).seasonId),
+    );
   });
 
   it("asks the owner to sync before there is anything to import", async () => {

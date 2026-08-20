@@ -1,6 +1,5 @@
 import { LeagueCreationError } from "../../../leagueCreation.js";
-import { leagueImportConversion } from "../../../leagueImportFromSync.js";
-import type { LeagueImportConversion } from "../../../leagueImportFromSync.js";
+import { leagueImportConversion, type LeagueImportConversion } from "../../../leagueImportFromSync.js";
 import type { LeagueConnection, StoredLeagueSnapshot } from "../../../leagueConnections.js";
 import type { LeagueSeason } from "../../../leagueSeason.js";
 import { syncLeagueConnection, type LeagueSyncServiceOptions } from "../../../leagueSyncService.js";
@@ -73,12 +72,13 @@ const writtenSeason = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
   accountId: string,
+  leagueConnectionId: string,
   mode: LeagueImportMode,
   conversion: LeagueImportConversion,
 ): Promise<LeagueSeason | PlatformHttpResponse> => {
   if (conversion.status === "blocked") return importNeedsReview(conversion.issues);
   if (mode.mode === "create") {
-    return await createdImportSeason(app, request, accountId, conversion.input);
+    return await createdImportSeason(app, request, accountId, leagueConnectionId, conversion.input);
   }
 
   const existing = await app.getLeagueSeason({
@@ -89,7 +89,7 @@ const writtenSeason = async (
   // A room already built from this season's draft board must not be rewritten
   // underneath the people sitting in it.
   if (await app.hasLiveDraftRoomForSeason(existing.id)) return leagueSetupLocked();
-  return await overwrittenImportSeason(app, request, existing, conversion.input);
+  return await overwrittenImportSeason(app, request, existing, leagueConnectionId, conversion.input);
 };
 
 export const routeLeagueConnectionImport = async (
@@ -127,9 +127,18 @@ export const routeLeagueConnectionImport = async (
   );
 
   try {
-    const season = await writtenSeason(app, request, account.id, mode, refreshed.conversion);
+    const season = await writtenSeason(
+      app,
+      request,
+      account.id,
+      refreshed.connection.id,
+      mode,
+      refreshed.conversion,
+    );
     if (isPlatformHttpResponse(season)) return season;
-    await options.repository.linkConnectionToSeason(refreshed.connection.id, season.id);
+    if (app.leagueSetupRepository.registerLeagueSeasonWithConnection === undefined) {
+      await options.repository.linkConnectionToSeason(refreshed.connection.id, season.id);
+    }
     const linked = { ...refreshed.connection, leagueSeasonId: season.id };
     return await importedBody(services, account.id, linked);
   } catch (error) {

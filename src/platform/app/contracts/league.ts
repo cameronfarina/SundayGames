@@ -9,6 +9,8 @@ export interface RegisterLeagueSeasonInput {
   membershipWriteMode?: "replace" | "preserve";
   /** False only for provider imports; the active-league quota still applies. */
   enforceCreationRateLimit?: boolean;
+  /** Links a provider connection atomically when the setup repository supports it. */
+  leagueConnectionId?: string;
   now?: Date | undefined;
 }
 
