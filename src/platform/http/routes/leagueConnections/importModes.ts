@@ -39,7 +39,9 @@ export const leagueSetupLocked = (): PlatformHttpResponse => knownError(
 
 /**
  * Everything the owner has to settle at the provider before this league can
- * become a Sunday Games league, in the provider's own terms.
+ * become a Sunday Games league, in the provider's own terms. The list rides
+ * inside the error rather than beside it, so the one thing a caller reads to
+ * find out what went wrong holds the whole answer.
  */
 export const importNeedsReview = (issues: readonly string[]): PlatformHttpResponse => ({
   status: 422,
@@ -47,7 +49,7 @@ export const importNeedsReview = (issues: readonly string[]): PlatformHttpRespon
     error: {
       code: "import_needs_review",
       message: "This league needs a few settings sorted out before it can be imported.",
+      issues: [...issues],
     },
-    issues: [...issues],
   },
 });

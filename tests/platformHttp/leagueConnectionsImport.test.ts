@@ -82,11 +82,12 @@ describe("league connection import HTTP", () => {
     const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);
 
     const response = await importLeague(harness.handle, harness.sessionToken, connectionId);
-    const body = expectBodyRecord(response.body);
+    const error = expectBodyRecord(expectBodyRecord(response.body).error);
 
     expect(response.status).toBe(422);
-    expect(body).toMatchObject({ error: { code: "import_needs_review" } });
-    expect(body.issues).toEqual(["Sleeper roster slot IDP_FLEX is not supported."]);
+    expect(error.code).toBe("import_needs_review");
+    // The issues ride inside the error, where a caller already looks on failure.
+    expect(error.issues).toEqual(["Sleeper roster slot IDP_FLEX is not supported."]);
   });
 
   it("keeps one account's connections out of another account's reach", async () => {
