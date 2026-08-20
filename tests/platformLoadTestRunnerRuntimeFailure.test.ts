@@ -41,11 +41,12 @@ describe("platform mixed load runtime stream gate", () => {
         return;
       }
       roomRevision = 2;
+      const streamToClose = [...streams].at(-1);
       for (const stream of streams) {
         stream.write("event: room.sale\ndata: {\"roomId\":\"room\",\"revision\":2}\n\n");
       }
       response.writeHead(200).end(JSON.stringify({ room: { roomId: "room", revision: 2 } }));
-      setTimeout(() => [...streams][0]?.end(), 5);
+      setTimeout(() => streamToClose?.end(), 5);
     });
     servers.push(server);
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

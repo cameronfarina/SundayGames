@@ -19,7 +19,6 @@ import { defaultPracticePersistenceMode } from "../practicePersistenceMode.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
 import type { LoadedPlatformStore, RuntimeRepositories } from "./internalContracts.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
-
 export const composeRuntimeRepositories = (
   options: CreatePlatformServerOptions,
   loaded: LoadedPlatformStore,
@@ -39,8 +38,7 @@ export const composeRuntimeRepositories = (
       isTransactionalPostgresClient(options.postgresClient)
     ? options.postgresClient
     : undefined;
-  const configuredPracticeMode = options.practicePersistenceMode ??
-    defaultPracticePersistenceMode;
+  const configuredPracticeMode = options.practicePersistenceMode ?? defaultPracticePersistenceMode;
   const seasonSimulationAdmissionRepository = sharedTransactionalClient === undefined ||
       options.jobRepository !== undefined || options.simulationRepository !== undefined
     ? undefined : new PostgresSeasonSimulationAdmissionRepository(sharedTransactionalClient);
@@ -103,7 +101,6 @@ export const composeRuntimeRepositories = (
   if (mockDraftPersistenceMode === "normalized-only") {
     store.mockDraftSessions.replaceSessions([]);
   }
-
   return {
     ...loaded,
     authRepository,

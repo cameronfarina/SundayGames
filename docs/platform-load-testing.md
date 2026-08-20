@@ -4,9 +4,9 @@ Use this harness to exercise the mixed workload expected during draft night. A s
 
 The harness changes draft rooms. Use disposable test accounts and rooms whose current state matches the manifest mutations. Never point it at ordinary production leagues. A remote run requires an approved maintenance window and the explicit `--allow-remote` flag.
 
-## Current scaling dependency
+## Admission is not a capacity claim
 
-The 30- and 50-league scenarios require 360 and 600 simultaneous draft streams. The current server admits at most 200 streams globally, so these scenarios are expected to fail at stream admission until the v24 configurable-cap work is integrated. Do not report either scenario as green by reducing the client count or ignoring 429 responses.
+The 30- and 50-league scenarios require 360 and 600 simultaneous draft streams. The v24 server defaults to a shared 650-stream ceiling, so neither scenario is rejected solely by the old process-local 200-stream limit. Do not report either scenario as green by reducing the client count or ignoring 429 responses.
 
 A local or CI run with Postgres proves functional concurrency only. It does not prove Render Starter capacity. Capacity claims require the unchanged 30- and 50-league scenarios against a controlled Render Starter target with representative networking and service configuration.
 
@@ -101,10 +101,10 @@ A pass requires:
 - p95 latency below five seconds for stream connections and fanout, two seconds for news, and three seconds for mutations and simulation submission; and
 - for queued simulation responses, every returned job ID to reach `completed` before the terminal timeout. `failed`, `canceled`, invalid responses, and timeouts fail the run.
 
-On the current synchronous simulation route, a strict `200` result completes the submission and the completion summary is `null`. After worker isolation integrates the queued `202` response, the same harness polls `/jobs/:id` until the queue has drained to terminal completion.
+The worker-backed simulation route returns a queued `202` response. The harness polls every returned `/jobs/:id` handle until the queue has drained to terminal completion.
 
 ## CI and capacity follow-up
 
-The existing `production-container` CI job has real Postgres but seeds only one local E2E room and two accounts. After v24 makes the stream cap configurable, add a dedicated disposable-data seed for 30/50 rooms and enough accounts, then run this harness against the production container. Keep that job labeled **functional concurrency**: shared GitHub runners cannot establish Render Starter capacity.
+The existing `production-container` CI job has real Postgres but seeds only one local E2E room and two accounts. Add a dedicated disposable-data seed for 30/50 rooms and enough accounts, then run this harness against the production container. Keep that job labeled **functional concurrency**: shared GitHub runners cannot establish Render Starter capacity.
 
 Run the actual capacity gate separately against an approved, controlled Render Starter deployment. Preserve all stream, reconnect, mutation, fanout, and queued-job terminal gates when moving the scenario between CI and Render.
