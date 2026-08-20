@@ -5,7 +5,10 @@ import type {
 } from "../../api/leagueConnectionsSchema";
 import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
-import { DiscoveredLeagueList } from "./DiscoveredLeagueList";
+import {
+  DiscoveredLeagueList,
+  type LeagueImportTarget,
+} from "./DiscoveredLeagueList";
 import { HandleForm } from "./HandleForm";
 import { ProviderPicker } from "./ProviderPicker";
 import "./AddConnection.css";
@@ -14,9 +17,15 @@ interface AddConnectionProps {
   readonly connections: readonly LeagueConnection[];
   readonly mutations: ReturnType<typeof useLeagueConnectionMutations>;
   readonly providers: readonly LeagueConnectionProviderInfo[];
+  readonly targets: readonly LeagueImportTarget[];
 }
 
-export const AddConnection = ({ connections, mutations, providers }: AddConnectionProps) => {
+export const AddConnection = ({
+  connections,
+  mutations,
+  providers,
+  targets,
+}: AddConnectionProps) => {
   const form = useAddConnectionForm(providers, mutations, connections);
   const connectable = form.chosen?.availability === "connectable";
   const failure = form.showCookieStep
@@ -49,8 +58,11 @@ export const AddConnection = ({ connections, mutations, providers }: AddConnecti
       leagues={form.leagues}
       onConnect={form.connect}
       onConnectAll={form.connectAll}
+      onTargetChange={form.setTarget}
       pending={form.connecting}
       states={form.leagueStates}
+      targetSeasonIds={form.targetSeasonIds}
+      targets={targets}
     />
   </section>;
 };
