@@ -1,5 +1,5 @@
 import { createLeagueConnectionsHarness, syncNow } from "./leagueConnections/harness.js";
-import { espnRoutes, sleeperRoutes } from "./leagueConnections/routes.js";
+import { espnAccountRoutes, espnRoutes, sleeperRoutes } from "./leagueConnections/routes.js";
 import {
   describe,
   expect,
@@ -103,6 +103,62 @@ describe("league connections HTTP", () => {
     expect(expectBodyRecord(response.body)).toMatchObject({
       error: { code: "league_not_found" },
     });
+  });
+
+  it("finds every ESPN league on the account from cookies alone", async () => {
+    const harness = await createLeagueConnectionsHarness(espnAccountRoutes);
+
+    const response = await harness.handle({
+      method: "POST",
+      path: "/league-connections/discover",
+      sessionToken: harness.sessionToken,
+      body: {
+        provider: "espn",
+        handle: "",
+        season: "2025",
+        espnS2: "s2-value",
+        swid: "{GUID}",
+      },
+    });
+    const body = expectBodyRecord(response.body);
+
+    expect(response.status).toBe(200);
+    expect(expectRecordArray(body.leagues)).toEqual([{
+      providerLeagueId: "899513",
+      name: "Pigskin Power Bottoms",
+      season: "2025",
+      teamCount: 12,
+    }]);
+    expect(harness.requests[0]).toContain("fan.api.espn.com");
+  });
+
+  it("asks for ESPN cookies when no league id is given either", async () => {
+    const harness = await createLeagueConnectionsHarness(espnAccountRoutes);
+
+    const response = await harness.handle({
+      method: "POST",
+      path: "/league-connections/discover",
+      sessionToken: harness.sessionToken,
+      body: { provider: "espn", handle: "", season: "2025" },
+    });
+
+    expect(response.status).toBe(422);
+    expect(expectBodyRecord(response.body))
+      .toMatchObject({ error: { code: "credentials_required" } });
+  });
+
+  it("still needs a username before looking up Sleeper", async () => {
+    const harness = await createLeagueConnectionsHarness(sleeperRoutes);
+
+    const response = await harness.handle({
+      method: "POST",
+      path: "/league-connections/discover",
+      sessionToken: harness.sessionToken,
+      body: { provider: "sleeper", handle: "", season: "2018" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(expectBodyRecord(response.body)).toMatchObject({ error: { code: "handle_required" } });
   });
 
   it("refuses a provider this app does not sync", async () => {

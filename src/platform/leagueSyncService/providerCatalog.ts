@@ -23,6 +23,11 @@ export interface LeagueSyncProviderCatalogEntry {
    * choose and the league can be connected the moment it is found.
    */
   handleNamesOneLeague: boolean;
+  /**
+   * True when one lookup returns every league the owner plays in, so the add
+   * screen can offer to find them all instead of asking league by league.
+   */
+  supportsAccountDiscovery: boolean;
 }
 
 export const leagueSyncProviderCatalog = (): readonly LeagueSyncProviderCatalogEntry[] => [
@@ -36,6 +41,7 @@ export const leagueSyncProviderCatalog = (): readonly LeagueSyncProviderCatalogE
     detail: "Sleeper leagues connect with just a username. No password, no cookies.",
     supportsCookieCredentials: false,
     handleNamesOneLeague: false,
+    supportsAccountDiscovery: true,
   },
   {
     provider: "espn",
@@ -48,6 +54,7 @@ export const leagueSyncProviderCatalog = (): readonly LeagueSyncProviderCatalogE
       "Paste your league's address and Sunday Games takes it from there. Public leagues connect straight away.",
     supportsCookieCredentials: true,
     handleNamesOneLeague: true,
+    supportsAccountDiscovery: true,
   },
   {
     provider: "yahoo",
@@ -59,5 +66,6 @@ export const leagueSyncProviderCatalog = (): readonly LeagueSyncProviderCatalogE
     detail: yahooPendingReviewMessage,
     supportsCookieCredentials: false,
     handleNamesOneLeague: false,
+    supportsAccountDiscovery: false,
   },
 ];

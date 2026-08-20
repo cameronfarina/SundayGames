@@ -6,6 +6,7 @@ import type {
   SyncedLeague,
 } from "./contracts.js";
 import { recordValue } from "./decode.js";
+import { espnAccountLeagues } from "./espnFanProfile.js";
 import { espnDiscoveredLeague, fetchEspnLeaguePayload } from "./espnLeagueRequest.js";
 import { espnDraftSettings, espnRosterPositions, espnScoring } from "./espnSettings.js";
 import { espnMatchupsFor, espnTeamsFor } from "./espnTeams.js";
@@ -41,9 +42,15 @@ const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
   };
 };
 
+/**
+ * With no league id the owner is asking for everything their ESPN account
+ * plays in, which only the signed-in fan profile can answer. A league id still
+ * works on its own, so a public league never needs cookies.
+ */
 const discoverLeagues = async (
   input: DiscoverLeaguesInput,
 ): Promise<readonly DiscoveredLeague[]> => {
+  if (input.handle.trim().length === 0) return await espnAccountLeagues(input);
   return [espnDiscoveredLeague(
     await fetchEspnLeaguePayload(input.handle, input.season, input),
     input.handle,

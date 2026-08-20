@@ -7,6 +7,7 @@ import {
 } from "../src/data/leagueSyncProviderAdapters.js";
 import { sleeperPlayerDirectory } from "../src/data/leagueSyncProviderAdapters/sleeperPlayerDirectory.js";
 import {
+  espnFanProfilePayload,
   espnLeaguePayload,
   espnPrivateLeagueErrorBody,
   sleeperDraftsPayload,
@@ -299,6 +300,44 @@ describe("espn league sync adapter", () => {
     });
 
     expect(headers[0]).toMatchObject({ cookie: "espn_s2=s2-value; SWID={GUID}" });
+  });
+
+  it("lists every football league on the account when no league id is given", async () => {
+    const { fetcher, requests } = stubFetch([
+      { match: "fan.api.espn.com", body: espnFanProfilePayload },
+      { match: "/leagues/899513", body: espnLeaguePayload },
+      { match: "/leagues/424242", body: {}, status: 404 },
+    ]);
+
+    const leagues = await leagueSyncAdapters.espn.discoverLeagues({
+      handle: "  ",
+      season: "2025",
+      credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      fetcher,
+    });
+
+    // The co-managed duplicate collapses, basketball and last season drop out,
+    // and the league the account can no longer open is skipped, not fatal.
+    expect(leagues).toEqual([{
+      providerLeagueId: "899513",
+      name: "Pigskin Power Bottoms",
+      season: "2025",
+      teamCount: 12,
+    }]);
+    expect(requests[0]).toBe("https://fan.api.espn.com/apis/v2/fans/%7BGUID%7D");
+  });
+
+  it("asks for cookies before looking up an account with none", async () => {
+    const { fetcher, requests } = stubFetch([
+      { match: "fan.api.espn.com", body: espnFanProfilePayload },
+    ]);
+
+    await expect(leagueSyncAdapters.espn.discoverLeagues({
+      handle: "",
+      season: "2025",
+      fetcher,
+    })).rejects.toMatchObject({ code: "credentials_required" });
+    expect(requests).toEqual([]);
   });
 
   it("reports an unknown league as missing", async () => {

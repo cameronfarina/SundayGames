@@ -1,4 +1,5 @@
 import {
+  espnFanProfilePayload,
   espnLeaguePayload,
   espnPrivateLeagueErrorBody,
   sleeperDraftsPayload,
@@ -31,6 +32,11 @@ export const sleeperRoutes: readonly StubRoute[] = [
 export const espnRoutes: readonly StubRoute[] = [
   { match: "/leagues/899513", body: espnLeaguePayload },
   { match: "/leagues/1?", body: espnPrivateLeagueErrorBody, status: 401 },
+];
+
+export const espnAccountRoutes: readonly StubRoute[] = [
+  { match: "fan.api.espn.com", body: espnFanProfilePayload },
+  ...espnRoutes,
 ];
 
 export const sleeperOutageRoutes: readonly StubRoute[] = [

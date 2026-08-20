@@ -27,8 +27,10 @@ export const routeLeagueConnectionDiscovery = async (
 
   const provider = providerFor(request.body.provider);
   if (provider === null) return invalidProvider();
-  const handle = optionalString(request.body.handle);
-  if (handle === undefined) {
+  // ESPN is the one provider that can list an account's leagues without being
+  // told which one, so only there does a blank handle mean something.
+  const handle = optionalString(request.body.handle) ?? "";
+  if (handle.length === 0 && provider !== "espn") {
     return knownError(400, "handle_required", "Enter the league or username to look up.");
   }
   const credentials = credentialsFor(request.body);

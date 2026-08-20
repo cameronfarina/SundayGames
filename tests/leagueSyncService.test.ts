@@ -197,10 +197,11 @@ describe("provider catalog", () => {
       entry.availability,
       entry.supportsCookieCredentials,
       entry.handleNamesOneLeague,
+      entry.supportsAccountDiscovery,
     ])).toEqual([
-      ["sleeper", "connectable", false, false],
-      ["espn", "connectable", true, true],
-      ["yahoo", "unavailable", false, false],
+      ["sleeper", "connectable", false, false, true],
+      ["espn", "connectable", true, true, true],
+      ["yahoo", "unavailable", false, false, false],
     ]);
   });
 });
