@@ -48,6 +48,8 @@ export const syncedConnectionFixture: LeagueConnection = {
   displayName: "Sleeper Friends League",
   status: "ok",
   lastSyncedAt: "2026-08-19T12:00:00.000Z",
+  linkedLeagueId: "league-sleeper-friends",
+  linkedSeasonId: "season-sleeper-friends-2026",
   createdAt: "2026-08-18T12:00:00.000Z",
 };
 
