@@ -28,9 +28,7 @@ export const AddConnection = ({
 }: AddConnectionProps) => {
   const form = useAddConnectionForm(providers, mutations, connections);
   const connectable = form.chosen?.availability === "connectable";
-  const failure = form.showCookieStep
-    ? mutations.connect.error
-    : mutations.discover.error ?? mutations.connect.error;
+  const failure = mutations.discover.error ?? mutations.connect.error;
 
   return <section aria-labelledby="add-connection-title" className="add-connection">
     <h2 id="add-connection-title">Import leagues</h2>
