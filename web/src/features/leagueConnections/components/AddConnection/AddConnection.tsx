@@ -2,6 +2,7 @@ import { InlineNotice } from "../../../../shared/ui";
 import type { LeagueConnection, LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
 import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
+import { AccountCookieForm } from "./AccountCookieForm";
 import { DiscoveredLeagueList } from "./DiscoveredLeagueList";
 import { HandleForm } from "./HandleForm";
 import { ProviderPicker } from "./ProviderPicker";
@@ -15,12 +16,20 @@ interface AddConnectionProps {
 
 export const AddConnection = ({ connections, mutations, providers }: AddConnectionProps) => {
   const form = useAddConnectionForm(providers, mutations, connections);
-  const connectable = form.chosen?.availability === "connectable";
-  // The cookie step already explains the private-league refusal in full, so
-  // repeating the raw provider message underneath it would only add noise.
-  const failure = form.showCookieStep
-    ? mutations.connect.error
-    : mutations.discover.error ?? mutations.connect.error;
+  const provider = form.chosen;
+  const searching = mutations.discover.isPending;
+  // ESPN can list a whole account from two cookies, so the single-league form
+  // steps aside and waits behind a disclosure for the people who still want it.
+  const byAccount = provider?.supportsAccountDiscovery === true
+    && provider.supportsCookieCredentials;
+  const handleForm = provider === undefined ? null : <HandleForm
+    handle={form.handle}
+    onHandleChange={form.setHandle}
+    onSubmit={form.findLeagues}
+    pending={searching}
+    provider={provider}
+    submitLabel={byAccount ? "Find this league" : "Find my leagues"}
+  />;
 
   return <section aria-labelledby="add-connection-title" className="add-connection">
     <h2 id="add-connection-title">Connect a league</h2>
@@ -29,35 +38,31 @@ export const AddConnection = ({ connections, mutations, providers }: AddConnecti
       providers={providers}
       selected={form.provider}
     />
-    {form.chosen !== undefined && connectable
-      ? <HandleForm
+    {provider?.availability !== "connectable" ? null : <>
+      {byAccount ? <AccountCookieForm
         espnS2={form.espnS2}
-        handle={form.handle}
         onEspnS2Change={form.setEspnS2}
-        onHandleChange={form.setHandle}
-        onSubmit={form.findLeagues}
+        onSubmit={form.findAccountLeagues}
         onSwidChange={form.setSwid}
-        pending={mutations.discover.isPending || mutations.connect.isPending}
-        provider={form.chosen}
-        showCookieStep={form.showCookieStep}
+        pending={searching}
         swid={form.swid}
-      />
-      : null}
-    {failure === null ? null : <InlineNotice variant="error">{failure.message}</InlineNotice>}
-    <button
-      disabled={form.connecting || form.leagues.length === 0}
-      onClick={form.connectAll}
-      type="button"
-      className="add-connection__import-all button button--primary"
-    >
-      Import all discovered leagues
-    </button>
+      /> : null}
+      {byAccount
+        ? <details className="add-connection__single">
+          <summary>Only want one league? Connect it by ID</summary>
+          {handleForm}
+        </details>
+        : handleForm}
+    </>}
+    {mutations.discover.error === null
+      ? null
+      : <InlineNotice variant="error">{mutations.discover.error.message}</InlineNotice>}
     <DiscoveredLeagueList
       leagues={form.leagues}
-      onConnect={form.connect}
-      onConnectAll={form.connectAll}
+      onImport={form.importLeague}
+      onImportAll={form.importAll}
+      running={form.importing}
       states={form.leagueStates}
-      pending={mutations.connect.isPending}
     />
   </section>;
 };

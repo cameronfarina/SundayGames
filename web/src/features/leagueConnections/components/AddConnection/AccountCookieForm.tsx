@@ -1,24 +1,31 @@
-import { TextField } from "../../../../shared/ui";
+import { Button, TextField } from "../../../../shared/ui";
 
-interface CookieStepProps {
+interface AccountCookieFormProps {
   readonly espnS2: string;
   readonly onEspnS2Change: (value: string) => void;
+  readonly onSubmit: () => void;
   readonly onSwidChange: (value: string) => void;
+  readonly pending: boolean;
   readonly swid: string;
 }
 
 /**
- * Only shown after ESPN has actually refused the league. ESPN publishes no
- * sign-in handoff, so the owner's own browser cookies are the only key that
- * exists — the copy says so rather than leaving them to wonder.
+ * ESPN publishes no sign-in handoff, so the owner's own browser cookies are the
+ * only key that exists. They are asked for up front rather than after a refusal,
+ * because the same two values open every league on the account at once.
  */
-export const CookieStep = ({
+export const AccountCookieForm = ({
   espnS2,
   onEspnS2Change,
+  onSubmit,
   onSwidChange,
+  pending,
   swid,
-}: CookieStepProps) => <div className="cookie-step">
-  <h3>This league is private</h3>
+}: AccountCookieFormProps) => <form
+  className="add-connection__form cookie-step"
+  onSubmit={event => { event.preventDefault(); onSubmit(); }}
+>
+  <h3>Find every league on your ESPN account</h3>
   <p>
     ESPN does not offer a "sign in with ESPN" button, so there is no way to hand you off to
     them. Instead you copy two values your browser already holds. It is a one-time step.
@@ -47,4 +54,7 @@ export const CookieStep = ({
     onChange={event => { onSwidChange(event.currentTarget.value); }}
     value={swid}
   />
-</div>;
+  <Button disabled={pending || espnS2.trim() === "" || swid.trim() === ""} type="submit">
+    {pending ? "Looking..." : "Find all my leagues"}
+  </Button>
+</form>;

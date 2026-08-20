@@ -6,6 +6,7 @@ import "./ConnectionList.css";
 
 interface ConnectionListProps {
   readonly connections: readonly LeagueConnection[];
+  readonly onImport: (connectionId: string) => void;
   readonly onRemove: (connectionId: string) => void;
   readonly onSelect: (connectionId: string) => void;
   readonly onSync: (connectionId: string) => void;
@@ -15,6 +16,7 @@ interface ConnectionListProps {
 
 export const ConnectionList = ({
   connections,
+  onImport,
   onRemove,
   onSelect,
   onSync,
@@ -34,6 +36,7 @@ export const ConnectionList = ({
       {connections.map(connection => <div key={connection.id} role="listitem">
         <ConnectionCard
           connection={connection}
+          onImport={onImport}
           onRemove={onRemove}
           onSelect={onSelect}
           onSync={onSync}

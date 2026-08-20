@@ -1,10 +1,11 @@
-import { Button } from "../../../../shared/ui";
 import type { LeagueConnection } from "../../api/leagueConnectionsSchema";
 import { formatSyncedAt, statusMessage, statusPresentation } from "../../lib/connectionStatus";
+import { ConnectionCardActions } from "./ConnectionCardActions";
 import { StatusDot } from "./StatusDot";
 
 interface ConnectionCardProps {
   readonly connection: LeagueConnection;
+  readonly onImport: (connectionId: string) => void;
   readonly onRemove: (connectionId: string) => void;
   readonly onSelect: (connectionId: string) => void;
   readonly onSync: (connectionId: string) => void;
@@ -14,6 +15,7 @@ interface ConnectionCardProps {
 
 export const ConnectionCard = ({
   connection,
+  onImport,
   onRemove,
   onSelect,
   onSync,
@@ -39,25 +41,19 @@ export const ConnectionCard = ({
     <p className="connection-card__synced">
       {connection.season} season · {formatSyncedAt(connection.lastSyncedAt)}
     </p>
-    <div className="connection-card__actions">
-      <Button
-        aria-label={`View ${connection.displayName}`}
-        aria-pressed={selected}
-        onClick={() => { onSelect(connection.id); }}
-        variant="secondary"
-      >View league</Button>
-      <Button
-        aria-label={`Sync ${connection.displayName} now`}
-        disabled={pending}
-        onClick={() => { onSync(connection.id); }}
-        variant="secondary"
-      >Sync now</Button>
-      <Button
-        aria-label={`Disconnect ${connection.displayName}`}
-        disabled={pending}
-        onClick={() => { onRemove(connection.id); }}
-        variant="danger"
-      >Disconnect</Button>
-    </div>
+    {connection.importedLeagueName === undefined
+      ? null
+      : <p className="connection-card__imported">
+        Imported as {connection.importedLeagueName}
+      </p>}
+    <ConnectionCardActions
+      connection={connection}
+      onImport={onImport}
+      onRemove={onRemove}
+      onSelect={onSelect}
+      onSync={onSync}
+      pending={pending}
+      selected={selected}
+    />
   </article>;
 };

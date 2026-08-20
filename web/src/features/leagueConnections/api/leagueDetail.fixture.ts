@@ -14,6 +14,10 @@ export const connectionDetailFixture: LeagueConnectionDetail = {
       playoffTeams: 6,
       playoffWeekStart: 14,
       waiverBudget: 100,
+      draftType: "auction",
+      auctionBudget: 200,
+      minimumBid: 1,
+      keeperCount: 2,
     },
     teams: [
       {

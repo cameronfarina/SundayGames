@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   connectionListFixture,
   discoveredLeaguesFixture,
+  leagueImportFixture,
 } from "./leagueConnections.fixture";
 import { connectionDetailFixture } from "./leagueDetail.fixture";
 import {
   discoveredLeaguesSchema,
+  importReviewSchema,
   leagueConnectionDetailSchema,
   leagueConnectionListSchema,
+  leagueImportSchema,
 } from "./leagueConnectionsSchema";
 
 describe("league connection schemas", () => {
@@ -23,6 +26,27 @@ describe("league connection schemas", () => {
       connection: connectionListFixture.connections[1],
       league: null,
     }).league).toBeNull();
+  });
+
+  it("reads the league an import produced", () => {
+    const parsed = leagueImportSchema.parse(leagueImportFixture);
+
+    expect(parsed.imported.leagueSlug).toBe("sleeper-friends-league");
+    expect(parsed.connection.importedSeasonId).toBe("season-imported");
+  });
+
+  it("keeps the draft settings a synced league now carries", () => {
+    const settings = leagueConnectionDetailSchema.parse(connectionDetailFixture).league?.settings;
+
+    expect(settings?.draftType).toBe("auction");
+    expect(settings?.auctionBudget).toBe(200);
+    expect(settings?.keeperCount).toBe(2);
+  });
+
+  it("reads the reasons out of a refused import", () => {
+    expect(importReviewSchema.parse({ error: { issues: ["Slot HC is not supported."] } })
+      .error.issues).toEqual(["Slot HC is not supported."]);
+    expect(importReviewSchema.safeParse({ error: { code: "boom" } }).success).toBe(false);
   });
 
   it("rejects a provider or status this app cannot render", () => {

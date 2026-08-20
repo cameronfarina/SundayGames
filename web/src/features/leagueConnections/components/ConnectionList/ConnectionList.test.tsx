@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { connectionListFixture } from "../../api/leagueConnections.fixture";
 import { ConnectionList } from "./ConnectionList";
@@ -11,6 +12,7 @@ const renderList = (
 ) => {
   const props = {
     connections,
+    onImport: vi.fn(),
     onRemove: vi.fn(),
     onSelect: vi.fn(),
     onSync: vi.fn(),
@@ -18,7 +20,7 @@ const renderList = (
     selectedConnectionId: undefined,
     ...overrides,
   };
-  render(<ConnectionList {...props} />);
+  render(<MemoryRouter><ConnectionList {...props} /></MemoryRouter>);
   return props;
 };
 

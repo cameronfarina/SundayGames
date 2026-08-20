@@ -5,6 +5,7 @@ import {
   discoveredLeaguesSchema,
   leagueConnectionDetailSchema,
   leagueConnectionListSchema,
+  leagueImportSchema,
   type LeagueConnectionProvider,
 } from "./leagueConnectionsSchema";
 
@@ -24,6 +25,16 @@ export interface ConnectLeagueRequest extends ConnectionCredentials {
   readonly provider: LeagueConnectionProvider;
   readonly providerLeagueId: string;
   readonly season: string;
+}
+
+/** Either build a brand new Sunday Games league, or rebuild one already run here. */
+export type ImportLeagueRequest =
+  | { readonly mode: "create" }
+  | { readonly mode: "overwrite"; readonly seasonId: string };
+
+export interface ImportLeagueVariables {
+  readonly connectionId: string;
+  readonly request: ImportLeagueRequest;
 }
 
 const connectionsPath = "/league-connections";
@@ -67,6 +78,13 @@ export const syncLeagueConnection = async (connectionId: string) =>
     path: `${connectionsPath}/${encodeURIComponent(connectionId)}/sync`,
     init: jsonRequest("POST", {}),
     responseSchema: connectionMutationSchema,
+  });
+
+export const importLeagueConnection = async ({ connectionId, request }: ImportLeagueVariables) =>
+  await requestPlatformJson({
+    path: `${connectionsPath}/${encodeURIComponent(connectionId)}/import`,
+    init: jsonRequest("POST", request),
+    responseSchema: leagueImportSchema,
   });
 
 export const removeLeagueConnection = async (connectionId: string) =>

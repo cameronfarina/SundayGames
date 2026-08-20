@@ -29,6 +29,8 @@ describe("LeaguePage states", () => {
     expect(await screen.findByRole("heading", { name: "Your leagues" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Create a league" })).toHaveAttribute("href", "/league?create=1");
     expect(screen.getByText(/private invitation link/i)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Import the leagues you already play in" }))
+      .toHaveAttribute("href", "/connections");
   });
 
   it("does not silently replace a stale requested league", async () => {

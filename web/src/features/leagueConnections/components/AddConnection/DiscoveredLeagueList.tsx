@@ -1,69 +1,66 @@
+import { Link } from "react-router-dom";
 import { Button } from "../../../../shared/ui";
 import type { DiscoveredLeague } from "../../api/leagueConnectionsSchema";
-import type { LeagueImportState } from "../../hooks/useAddConnectionForm";
+import {
+  discoveredLeagueKey,
+  importStateLabel,
+  isImportRunning,
+  type LeagueImportState,
+  type LeagueImportStates,
+} from "../../lib/discoveredLeagueState";
 
 interface DiscoveredLeagueListProps {
   readonly leagues: readonly DiscoveredLeague[];
-  readonly onConnect: (league: DiscoveredLeague) => void;
-  readonly onConnectAll: () => void;
-  readonly states: Record<string, LeagueImportState>;
-  readonly pending: boolean;
+  readonly onImport: (league: DiscoveredLeague) => void;
+  readonly onImportAll: () => void;
+  readonly running: boolean;
+  readonly states: LeagueImportStates;
 }
 
-const leagueStateKey = (league: DiscoveredLeague): string => `${league.providerLeagueId}:${league.season}`;
-
-const stateLabel = (state: LeagueImportState): string => {
-  switch (state.status) {
-    case "importing": return "Importing...";
-    case "imported": return "Imported";
-    case "linked": return "Linked";
-    case "error": return state.message ?? "Unable to import this league.";
-    case "idle": return "Ready";
-  }
+const actionLabel = (state: LeagueImportState, league: DiscoveredLeague): string => {
+  if (isImportRunning(state)) return "Importing...";
+  return state.status === "error"
+    ? `Retry ${league.name}`
+    : `Connect and import ${league.name}`;
 };
 
 export const DiscoveredLeagueList = ({
   leagues,
-  onConnect,
-  onConnectAll,
+  onImport,
+  onImportAll,
+  running,
   states,
-  pending,
 }: DiscoveredLeagueListProps) => {
   if (leagues.length === 0) return null;
 
   return <>
+    <Button disabled={running} onClick={onImportAll}>Import all</Button>
     <ul aria-label="Leagues found" className="add-connection__results">
       {leagues.map(league => {
-        const state = states[leagueStateKey(league)] ?? { status: "idle" };
-        const connecting = pending || state.status === "importing";
-        const buttonLabel = state.status === "importing"
-          ? "Importing..."
-          : state.status === "error"
-            ? `Retry ${league.name}`
-            : `Connect ${league.name}`;
-        return <li key={league.providerLeagueId}>
+        const state = states[discoveredLeagueKey(league)] ?? { status: "idle" };
+        const issues = state.issues ?? [];
+        return <li key={discoveredLeagueKey(league)}>
           <div>
             <p className="add-connection__result-name">{league.name}</p>
             <span>{league.season} season · {league.teamCount} teams</span>
-            <span className="add-connection__result-state">{stateLabel(state)}</span>
+            <span className="add-connection__result-state">{importStateLabel(state)}</span>
+            {issues.length === 0
+              ? null
+              : <ul className="add-connection__result-issues">
+                {issues.map(issue => <li key={issue}>{issue}</li>)}
+              </ul>}
           </div>
-          <Button
-            disabled={connecting}
-            onClick={() => { onConnect(league); }}
-            variant="secondary"
-          >
-            {buttonLabel}
-          </Button>
+          {state.leagueSlug === undefined
+            ? <Button
+              disabled={running || isImportRunning(state)}
+              onClick={() => { onImport(league); }}
+              variant="secondary"
+            >{actionLabel(state, league)}</Button>
+            : <Link className="add-connection__open-link" to={`/leagues/${state.leagueSlug}`}>
+              Open in Sunday Games
+            </Link>}
         </li>;
       })}
     </ul>
-    <button
-      className="add-connection__import-all button button--secondary"
-      disabled={pending}
-      onClick={onConnectAll}
-      type="button"
-    >
-      Import all discovered leagues
-    </button>
   </>;
 };

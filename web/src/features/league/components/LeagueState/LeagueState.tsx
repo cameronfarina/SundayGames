@@ -13,6 +13,10 @@ export function NoLeague() {
       <Link className="league-button league-button--primary" to="/league?create=1">
         Create a league
       </Link>
+      <p>
+        Already playing on Sleeper or ESPN?{" "}
+        <Link to="/connections">Import the leagues you already play in</Link>.
+      </p>
     </section>
   );
 }

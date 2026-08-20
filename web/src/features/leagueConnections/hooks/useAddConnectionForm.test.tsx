@@ -2,14 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import {
-  comradesLeagueFixture,
   discoveredLeaguesFixture,
+  leagueImportFixture,
   providerCatalogFixture,
   syncedConnectionFixture,
 } from "../api/leagueConnections.fixture";
-import { asksForCookies, currentLeagueSeason, useAddConnectionForm } from "./useAddConnectionForm";
+import { currentLeagueSeason, useAddConnectionForm } from "./useAddConnectionForm";
 import { useLeagueConnectionMutations } from "./useLeagueConnectionMutations";
 
 const wrapper = ({ children }: PropsWithChildren) => (
@@ -18,14 +17,15 @@ const wrapper = ({ children }: PropsWithChildren) => (
   </QueryClientProvider>
 );
 
-type StubResponse = (path: string) => Response;
-
 const pathOf = (target: RequestInfo | URL): string => {
   if (typeof target === "string") return target;
   return target instanceof URL ? target.href : target.url;
 };
 
-const renderForm = (respond: StubResponse) => {
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), { status });
+
+const renderForm = (respond: (path: string) => Response) => {
   const fetcher = vi.fn((target: RequestInfo | URL, init?: RequestInit) => {
     void init;
     return Promise.resolve(respond(pathOf(target)));
@@ -38,26 +38,20 @@ const renderForm = (respond: StubResponse) => {
   return { fetcher, result };
 };
 
-const jsonResponse = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body), { status });
-
 const alwaysDiscovers = (): Response => jsonResponse(discoveredLeaguesFixture);
 
-const espnLeagueOnly = {
-  provider: "espn",
-  season: "2026",
-  leagues: [{
-    providerLeagueId: "899513",
-    name: "Pigskin Power Bottoms",
-    season: "2026",
-    teamCount: 12,
-  }],
+const wholeFlow = (path: string): Response => {
+  if (path.endsWith("/discover")) return jsonResponse(discoveredLeaguesFixture);
+  return jsonResponse(path.endsWith("/import")
+    ? leagueImportFixture
+    : { connection: syncedConnectionFixture });
 };
 
 describe("useAddConnectionForm", () => {
   it("does nothing until a provider and a handle are both present", () => {
     const { fetcher, result } = renderForm(alwaysDiscovers);
 
+    act(() => { result.current.setHandle("feiyingx"); });
     act(() => { result.current.findLeagues(); });
     act(() => { result.current.selectProvider("sleeper"); });
     act(() => { result.current.findLeagues(); });
@@ -66,7 +60,7 @@ describe("useAddConnectionForm", () => {
     expect(result.current.chosen?.label).toBe("Sleeper");
   });
 
-  it("sends the current season with the lookup and keeps several leagues to choose from", async () => {
+  it("sends the current season with the lookup and keeps every league it found", async () => {
     const { fetcher, result } = renderForm(alwaysDiscovers);
 
     act(() => { result.current.selectProvider("sleeper"); });
@@ -81,90 +75,47 @@ describe("useAddConnectionForm", () => {
     }));
   });
 
-  it("connects a one-league provider without a second step", async () => {
-    const paths: string[] = [];
-    const { result } = renderForm(path => {
-      paths.push(path);
-      return jsonResponse(path.endsWith("/discover")
-        ? espnLeagueOnly
-        : { connection: syncedConnectionFixture });
-    });
-
-    act(() => { result.current.selectProvider("espn"); });
-    act(() => { result.current.setHandle("899513"); });
-    act(() => { result.current.findLeagues(); });
-
-    await waitFor(() => { expect(paths).toHaveLength(2); });
-    expect(paths[1]).toBe("/league-connections");
-    // Nothing to pick from, so the owner is never shown a one-item list.
-    expect(result.current.leagues).toEqual([]);
-    await waitFor(() => { expect(result.current.handle).toBe(""); });
-  });
-
-  it("reveals the cookie step only when the provider refuses for want of credentials", async () => {
-    const { result } = renderForm(() => jsonResponse(
-      { error: { code: "credentials_required", message: "This league is private." } },
-      422,
-    ));
-
-    act(() => { result.current.selectProvider("espn"); });
-    act(() => { result.current.setHandle("1"); });
-    act(() => { result.current.findLeagues(); });
-
-    await waitFor(() => { expect(result.current.showCookieStep).toBe(true); });
-  });
-
-  it("leaves the cookie step hidden for a failure cookies cannot fix", async () => {
-    const { result } = renderForm(() => jsonResponse(
-      { error: { code: "league_not_found", message: "No such league." } },
-      404,
-    ));
-
-    act(() => { result.current.selectProvider("espn"); });
-    act(() => { result.current.setHandle("12345"); });
-    act(() => { result.current.findLeagues(); });
-
-    await waitFor(() => { expect(result.current.chosen?.provider).toBe("espn"); });
-    expect(result.current.showCookieStep).toBe(false);
-  });
-
-  it("carries trimmed cookies into the lookup", async () => {
+  it("asks ESPN for the whole account once both cookies are pasted", async () => {
     const { fetcher, result } = renderForm(alwaysDiscovers);
 
-    act(() => { result.current.selectProvider("sleeper"); });
-    act(() => {
-      result.current.setHandle("feiyingx");
-      result.current.setEspnS2(" s2-value ");
-      result.current.setSwid(" {GUID} ");
-    });
-    act(() => { result.current.findLeagues(); });
+    act(() => { result.current.selectProvider("espn"); });
+    act(() => { result.current.setEspnS2(" s2-value "); });
+    act(() => { result.current.findAccountLeagues(); });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    act(() => { result.current.setSwid(" {GUID} "); });
+    act(() => { result.current.findAccountLeagues(); });
 
     await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
-    expect(fetcher.mock.calls[0]?.[1]?.body).toContain("\"espnS2\":\"s2-value\"");
-    expect(fetcher.mock.calls[0]?.[1]?.body).toContain("\"swid\":\"{GUID}\"");
+    // A blank handle is the whole point: the cookies name the account, not a league.
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      provider: "espn",
+      handle: "",
+      season: currentLeagueSeason,
+      espnS2: "s2-value",
+      swid: "{GUID}",
+    }));
   });
 
-  it("clears the typed handle and cookies once a league is connected", async () => {
-    const { result } = renderForm(() => jsonResponse({ connection: syncedConnectionFixture }));
+  it("clears the typed handle and cookies once a league is imported", async () => {
+    const { result } = renderForm(wholeFlow);
 
     act(() => { result.current.selectProvider("sleeper"); });
     act(() => {
       result.current.setHandle("feiyingx");
       result.current.setEspnS2("s2-value");
+      result.current.setSwid("{GUID}");
     });
-    act(() => { result.current.connect(comradesLeagueFixture); });
+    act(() => { result.current.findLeagues(); });
+    await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
+
+    const league = result.current.leagues[0];
+    if (league === undefined) throw new Error("Expected a discovered league.");
+    act(() => { result.current.importLeague(league); });
 
     await waitFor(() => { expect(result.current.handle).toBe(""); });
     expect(result.current.espnS2).toBe("");
     expect(result.current.swid).toBe("");
-  });
-
-  it("ignores a connect before a provider is chosen", () => {
-    const { fetcher, result } = renderForm(alwaysDiscovers);
-
-    act(() => { result.current.connect(comradesLeagueFixture); });
-
-    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("drops earlier results when the owner switches provider", async () => {
@@ -179,17 +130,13 @@ describe("useAddConnectionForm", () => {
 
     expect(result.current.leagues).toEqual([]);
     expect(result.current.provider).toBe("espn");
+    expect(result.current.handle).toBe("");
   });
-});
 
-describe("asksForCookies", () => {
-  it("recognises only the two refusals a pasted cookie can fix", () => {
-    const platformError = (code: string) =>
-      new PlatformApiError({ code, message: "nope", status: 422 });
+  it("reports nothing as importing before anything has been asked for", () => {
+    const { result } = renderForm(alwaysDiscovers);
 
-    expect(asksForCookies(platformError("credentials_required"))).toBe(true);
-    expect(asksForCookies(platformError("credentials_rejected"))).toBe(true);
-    expect(asksForCookies(platformError("league_not_found"))).toBe(false);
-    expect(asksForCookies(new Error("boom"))).toBe(false);
+    expect(result.current.importing).toBe(false);
+    expect(result.current.leagueStates).toEqual({});
   });
 });

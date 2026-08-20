@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   discoveredLeaguesFixture,
+  leagueImportFixture,
   syncedConnectionFixture,
 } from "../api/leagueConnections.fixture";
 import { useLeagueConnectionMutations } from "./useLeagueConnectionMutations";
@@ -54,5 +55,23 @@ describe("league connection mutations", () => {
       queryKey: ["league-connections", "detail", "connection-sleeper"],
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["league-connections", "list"] });
+  });
+
+  it("refreshes onboarding after an import so the header picker sees the new league", async () => {
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    respondWith(leagueImportFixture);
+    const { result } = renderHook(() => useLeagueConnectionMutations(), { wrapper });
+
+    result.current.importLeague.mutate({
+      connectionId: "connection-sleeper",
+      request: { mode: "create" },
+    });
+
+    await waitFor(() => { expect(result.current.importLeague.isSuccess).toBe(true); });
+    expect(result.current.importLeague.data?.imported.leagueSlug).toBe("sleeper-friends-league");
+    expect(invalidate).toHaveBeenCalledWith({ exact: true, queryKey: ["onboarding"] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["league-connections", "detail", "connection-sleeper"],
+    });
   });
 });

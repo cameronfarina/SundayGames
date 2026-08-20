@@ -2,6 +2,7 @@ import type {
   DiscoveredLeague,
   LeagueConnection,
   LeagueConnectionProviderInfo,
+  LeagueImport,
 } from "./leagueConnectionsSchema";
 
 export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
@@ -15,6 +16,7 @@ export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
     detail: "Sleeper leagues connect with just a username. No password, no cookies.",
     supportsCookieCredentials: false,
     handleNamesOneLeague: false,
+    supportsAccountDiscovery: true,
   },
   {
     provider: "espn",
@@ -23,9 +25,10 @@ export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
     handleKind: "espn-league-id",
     handleLabel: "ESPN league ID or league URL",
     handleHint: "Paste the league URL from ESPN, or just the leagueId number in it.",
-    detail: "Paste your league's address and Sunday Games takes it from there.",
+    detail: "Two cookies from your browser find every league on your ESPN account.",
     supportsCookieCredentials: true,
     handleNamesOneLeague: true,
+    supportsAccountDiscovery: true,
   },
   {
     provider: "yahoo",
@@ -37,6 +40,7 @@ export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
     detail: "Yahoo reviews every Fantasy API application by hand, and Sunday Games is in that queue.",
     supportsCookieCredentials: false,
     handleNamesOneLeague: false,
+    supportsAccountDiscovery: false,
   },
 ];
 
@@ -49,6 +53,13 @@ export const syncedConnectionFixture: LeagueConnection = {
   status: "ok",
   lastSyncedAt: "2026-08-19T12:00:00.000Z",
   createdAt: "2026-08-18T12:00:00.000Z",
+};
+
+export const importedConnectionFixture: LeagueConnection = {
+  ...syncedConnectionFixture,
+  importedSeasonId: "season-imported",
+  importedLeagueSlug: "sleeper-friends-league",
+  importedLeagueName: "Sleeper Friends League",
 };
 
 export const needsAttentionConnectionFixture: LeagueConnection = {
@@ -86,4 +97,14 @@ export const discoveredLeaguesFixture = {
     },
     comradesLeagueFixture,
   ],
+};
+
+export const leagueImportFixture: LeagueImport = {
+  connection: importedConnectionFixture,
+  imported: {
+    seasonId: "season-imported",
+    leagueId: "league-imported",
+    leagueSlug: "sleeper-friends-league",
+    leagueName: "Sleeper Friends League",
+  },
 };

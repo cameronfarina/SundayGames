@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   connectionListFixture,
   discoveredLeaguesFixture,
+  leagueImportFixture,
   syncedConnectionFixture,
 } from "./leagueConnections.fixture";
 import { connectionDetailFixture } from "./leagueDetail.fixture";
@@ -10,6 +11,7 @@ import {
   discoverLeagues,
   getLeagueConnectionDetail,
   getLeagueConnections,
+  importLeagueConnection,
   removeLeagueConnection,
   syncLeagueConnection,
 } from "./leagueConnectionsApi";
@@ -81,6 +83,34 @@ describe("league connections API", () => {
         body: JSON.stringify({ provider: "sleeper", handle: "feiyingx", season: "2026" }),
       }),
     );
+  });
+
+  it("asks for a brand new league and reads back the one it built", async () => {
+    const fetcher = stubFetch(leagueImportFixture);
+
+    const result = await importLeagueConnection({
+      connectionId: "connection sleeper",
+      request: { mode: "create" },
+    });
+
+    expect(result.imported.leagueSlug).toBe("sleeper-friends-league");
+    expect(fetcher).toHaveBeenCalledWith(
+      "/league-connections/connection%20sleeper/import",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ mode: "create" }) }),
+    );
+  });
+
+  it("names the season a replacement import overwrites", async () => {
+    const fetcher = stubFetch(leagueImportFixture);
+
+    await importLeagueConnection({
+      connectionId: "connection-sleeper",
+      request: { mode: "overwrite", seasonId: "season-9" },
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      body: JSON.stringify({ mode: "overwrite", seasonId: "season-9" }),
+    }));
   });
 
   it("creates a connection, syncs it, and removes it", async () => {

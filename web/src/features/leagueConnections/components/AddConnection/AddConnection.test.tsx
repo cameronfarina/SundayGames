@@ -1,28 +1,71 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, renderHook, screen } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { providerCatalogFixture } from "../../api/leagueConnections.fixture";
 import { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
 import { AddConnection } from "./AddConnection";
 
-const wrapper = ({ children }: PropsWithChildren) => (
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    {children}
-  </QueryClientProvider>
-);
+const Harness = () => {
+  const mutations = useLeagueConnectionMutations();
+  return <AddConnection
+    connections={[]}
+    mutations={mutations}
+    providers={providerCatalogFixture}
+  />;
+};
+
+const renderAddConnection = () => {
+  vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter><Harness /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
 
 describe("AddConnection", () => {
   it("asks for a provider before asking for anything else", () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
-    const { result } = renderHook(() => useLeagueConnectionMutations(), { wrapper });
-
-    render(<QueryClientProvider client={new QueryClient()}>
-      <AddConnection mutations={result.current} providers={providerCatalogFixture} />
-    </QueryClientProvider>);
+    renderAddConnection();
 
     expect(screen.getByRole("heading", { name: "Connect a league" })).toBeVisible();
     expect(screen.getAllByRole("tab")).toHaveLength(3);
-    expect(screen.queryByRole("button", { name: "Find leagues" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("leads ESPN with the cookies that open the whole account", async () => {
+    const user = userEvent.setup();
+    renderAddConnection();
+
+    await user.click(screen.getByRole("tab", { name: "ESPN" }));
+
+    expect(screen.getByRole("textbox", { name: "espn_s2 cookie" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Find all my leagues" })).toBeVisible();
+    // The single-league path still exists, just out of the way.
+    expect(screen.getByText("Only want one league? Connect it by ID")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Find this league" })).toBeInTheDocument();
+  });
+
+  it("asks Sleeper for a username and nothing else", async () => {
+    const user = userEvent.setup();
+    renderAddConnection();
+
+    await user.click(screen.getByRole("tab", { name: "Sleeper" }));
+
+    expect(screen.getByRole("textbox", { name: "Sleeper username" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Find my leagues" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "espn_s2 cookie" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Only want one league? Connect it by ID")).not.toBeInTheDocument();
+  });
+
+  it("explains that Yahoo cannot be connected yet and offers no form", async () => {
+    const user = userEvent.setup();
+    renderAddConnection();
+
+    await user.click(screen.getByRole("tab", { name: "Yahoo" }));
+
+    expect(screen.getByText(/Yahoo reviews every Fantasy API application/u)).toBeVisible();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

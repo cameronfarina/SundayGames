@@ -2,10 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   connectLeague,
   discoverLeagues,
+  importLeagueConnection,
   removeLeagueConnection,
   syncLeagueConnection,
   type ConnectLeagueRequest,
   type DiscoverLeaguesRequest,
+  type ImportLeagueVariables,
 } from "../api/leagueConnectionsApi";
 import { leagueConnectionQueryKeys } from "./useLeagueConnectionQueries";
 import { seasonQueryKeys } from "../../../shared/api/queries/seasonQueryKeys";
@@ -26,6 +28,18 @@ export const useLeagueConnectionMutations = () => {
     mutationFn: (request: ConnectLeagueRequest) => connectLeague(request),
     onSuccess: async () => { await Promise.all([refreshList(), refreshOnboarding()]); },
   });
+  // An imported league is a real league, so the header picker and the account's
+  // onboarding read both go stale the moment one lands.
+  const importLeague = useMutation({
+    mutationFn: (variables: ImportLeagueVariables) => importLeagueConnection(variables),
+    onSuccess: async (_result, { connectionId }) => {
+      await Promise.all([
+        refreshList(),
+        refreshOnboarding(),
+        client.invalidateQueries({ queryKey: leagueConnectionQueryKeys.detail(connectionId) }),
+      ]);
+    },
+  });
   const sync = useMutation({
     mutationFn: (connectionId: string) => syncLeagueConnection(connectionId),
     onSuccess: async (_result, connectionId) => {
@@ -40,5 +54,5 @@ export const useLeagueConnectionMutations = () => {
     onSuccess: refreshList,
   });
 
-  return { connect, discover, remove, sync };
+  return { connect, discover, importLeague, remove, sync };
 };

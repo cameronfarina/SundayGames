@@ -19,6 +19,9 @@ export const leagueConnectionSchema = z.object({
   statusDetail: z.string().optional(),
   lastSyncedAt: z.string().optional(),
   createdAt: z.string(),
+  importedSeasonId: z.string().optional(),
+  importedLeagueSlug: z.string().optional(),
+  importedLeagueName: z.string().optional(),
 });
 
 export const leagueConnectionProviderInfoSchema = z.object({
@@ -31,6 +34,7 @@ export const leagueConnectionProviderInfoSchema = z.object({
   detail: z.string(),
   supportsCookieCredentials: z.boolean(),
   handleNamesOneLeague: z.boolean(),
+  supportsAccountDiscovery: z.boolean(),
 });
 
 export const leagueConnectionListSchema = z.object({
@@ -97,6 +101,11 @@ export const syncedLeagueSchema = z.object({
     playoffTeams: z.number().optional(),
     playoffWeekStart: z.number().optional(),
     waiverBudget: z.number().optional(),
+    draftType: z.enum(["auction", "snake"]).optional(),
+    auctionBudget: z.number().optional(),
+    minimumBid: z.number().optional(),
+    snakeRounds: z.number().optional(),
+    keeperCount: z.number().optional(),
   }),
   teams: z.array(syncedTeamSchema),
   matchups: z.array(syncedMatchupSchema),
@@ -108,12 +117,31 @@ export const leagueConnectionDetailSchema = z.object({
   league: syncedLeagueSchema.nullable(),
 });
 
+export const leagueImportSchema = z.object({
+  connection: leagueConnectionSchema,
+  imported: z.object({
+    seasonId: z.string(),
+    leagueId: z.string(),
+    leagueSlug: z.string(),
+    leagueName: z.string(),
+  }),
+});
+
+/**
+ * A refused import names every setting a person has to fix, so the reasons ride
+ * alongside the sentence instead of being flattened into it.
+ */
+export const importReviewSchema = z.object({
+  error: z.object({ issues: z.array(z.string()) }),
+});
+
 export type LeagueConnection = z.output<typeof leagueConnectionSchema>;
 export type LeagueConnectionDetail = z.output<typeof leagueConnectionDetailSchema>;
 export type LeagueConnectionProvider = z.output<typeof leagueConnectionProviderSchema>;
 export type LeagueConnectionProviderInfo = z.output<typeof leagueConnectionProviderInfoSchema>;
 export type LeagueConnectionStatus = z.output<typeof leagueConnectionStatusSchema>;
 export type DiscoveredLeague = z.output<typeof discoveredLeagueSchema>;
+export type LeagueImport = z.output<typeof leagueImportSchema>;
 export type SyncedLeague = z.output<typeof syncedLeagueSchema>;
 export type SyncedTeam = z.output<typeof syncedTeamSchema>;
 export type SyncedMatchup = z.output<typeof syncedMatchupSchema>;

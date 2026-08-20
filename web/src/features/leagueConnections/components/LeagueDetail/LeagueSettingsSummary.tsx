@@ -1,4 +1,5 @@
 import type { SyncedLeague } from "../../api/leagueConnectionsSchema";
+import { draftSummary, keeperSummary } from "../../lib/draftSummary";
 import {
   allScoringRulesLabel,
   describeScoringRules,
@@ -14,10 +15,14 @@ const startingSlots = (rosterPositions: readonly string[]): string =>
 
 export const LeagueSettingsSummary = ({ settings }: LeagueSettingsSummaryProps) => {
   const scoring = summarizeScoring(settings.scoring);
+  const draft = draftSummary(settings);
+  const keepers = keeperSummary(settings.keeperCount);
 
   return <dl className="league-settings">
     <div><dt>Teams</dt><dd>{settings.teamCount}</dd></div>
     <div><dt>Starting lineup</dt><dd>{startingSlots(settings.rosterPositions)}</dd></div>
+    {draft === undefined ? null : <div><dt>Draft</dt><dd>{draft}</dd></div>}
+    {keepers === undefined ? null : <div><dt>Keepers</dt><dd>{keepers}</dd></div>}
     {settings.playoffTeams === undefined
       ? null
       : <div><dt>Playoff teams</dt><dd>{settings.playoffTeams}</dd></div>}
