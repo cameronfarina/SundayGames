@@ -7,8 +7,8 @@ describePlatformServer(({ createListeningServer }) => {
     const { platformServer, baseUrl } = await createListeningServer({
       postgresClient,
     });
-    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
-    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password", now });
+    await platformServer.app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
+    const owner11 = await platformServer.app.login({ email: "owner11@example.com", password: "owner11 password!", now });
     if (owner11 === null) throw new Error("Expected login.");
 
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -77,7 +77,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "queued-http@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -93,7 +93,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "queued-http@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     expect(login.status).toBe(200);

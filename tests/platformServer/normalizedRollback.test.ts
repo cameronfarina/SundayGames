@@ -11,12 +11,12 @@ describePlatformServer(({ createListeningServer }) => {
     const created = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password1!" }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password1!" }),
     });
     const accountId = stringProperty(propertyValue(created.body, "account"), "id");
     const sessionToken = sessionTokenFrom(login);

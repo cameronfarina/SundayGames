@@ -35,7 +35,7 @@ const expectSingleWinner = (
 const setup = () => {
   const repository = new InMemoryAuthRepository();
   const mail = new CapturingAuthMailSender();
-  const storedHash = hashPassword("mailbox proven password");
+  const storedHash = hashPassword("mailbox proven password1!");
   let hashCalls = 0;
   const auth = createAuthService({
     repository,
@@ -62,8 +62,8 @@ describe("single-use authentication token admission", () => {
       { length: concurrentAttempts },
       () => fixture.auth.verifyEmail({
         token,
-        newPassword: "mailbox proven password",
-        newPasswordConfirmation: "mailbox proven password",
+        newPassword: "mailbox proven password1!",
+        newPasswordConfirmation: "mailbox proven password1!",
         now,
       }),
     ));
@@ -77,8 +77,8 @@ describe("single-use authentication token admission", () => {
     await fixture.auth.createUser({ email: "reset@example.com", now });
     await fixture.auth.verifyEmail({
       token: tokenFromLatestMessage(fixture.mail),
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now,
     });
     await fixture.auth.requestPasswordReset({ email: "reset@example.com", now });
@@ -89,8 +89,8 @@ describe("single-use authentication token admission", () => {
       { length: concurrentAttempts },
       () => fixture.auth.resetPasswordWithToken({
         token,
-        newPassword: "replacement secure password",
-        newPasswordConfirmation: "replacement secure password",
+        newPassword: "replacement secure password1!",
+        newPasswordConfirmation: "replacement secure password1!",
         now,
       }),
     ));
@@ -102,7 +102,7 @@ describe("single-use authentication token admission", () => {
   it("keeps a token usable when password hashing fails before final consumption", async () => {
     const repository = new InMemoryAuthRepository();
     const mail = new CapturingAuthMailSender();
-    const storedHash = hashPassword("mailbox proven password");
+    const storedHash = hashPassword("mailbox proven password1!");
     let hashCalls = 0;
     const auth = createAuthService({
       repository,
@@ -119,8 +119,8 @@ describe("single-use authentication token admission", () => {
     const token = tokenFromLatestMessage(mail);
     const input = {
       token,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
       now,
     };
 

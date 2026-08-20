@@ -18,7 +18,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
@@ -26,7 +26,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const accountId = stringProperty(propertyValue(created.body, "account"), "id");

@@ -41,7 +41,7 @@ const provisioningInput = {
     .map(keeper => ({ owner: keeper.owner, player: keeper.player })),
 };
 
-const provisioningPasswordHash = hashPassword("a sufficiently long production password");
+const provisioningPasswordHash = hashPassword("a sufficiently long production password1!");
 const provisioningEnv = Object.fromEntries(ownerOrder.map(owner => [
   passwordHashEnvFor(owner),
   provisioningPasswordHash,

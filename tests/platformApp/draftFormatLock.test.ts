@@ -6,7 +6,7 @@ const seasonWithStatus = (leagueName: string, setupStatus: "draft" | "published"
 describe("platform app service", () => {
   it("locks the draft format once a league season is published", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11-format@example.com", "owner11 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-format@example.com", "owner11 password!", now);
     const season = seasonWithStatus("League 100001", "published");
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
     if (camTeam === undefined) throw new Error("Expected fixture team.");
@@ -38,7 +38,7 @@ describe("platform app service", () => {
 
   it("still allows a draft format change while the season is a draft", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11-draft@example.com", "owner11 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11-draft@example.com", "owner11 password!", now);
     const season = seasonWithStatus("League 100002", "draft");
     const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
     if (camTeam === undefined) throw new Error("Expected fixture team.");

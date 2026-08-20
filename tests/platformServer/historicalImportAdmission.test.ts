@@ -25,12 +25,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const owner = await platformServer.app.createAccount({
       email: "historical-import-limited@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: owner.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected historical import fixture login.");
@@ -80,12 +80,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const owner = await platformServer.app.createAccount({
       email: "historical-import-concurrent@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: owner.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected historical import fixture login.");

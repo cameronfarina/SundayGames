@@ -176,7 +176,7 @@ describe("local E2E platform seed", () => {
     try {
       await runtime.app.createAccount({
         email: localDemoEmail,
-        password: "not the seed password",
+        password: "not the seed password1!",
         now,
       });
       await runtime.persist();

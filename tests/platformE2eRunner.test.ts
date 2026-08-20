@@ -20,9 +20,9 @@ describe("platform E2E runner", () => {
     const config = resolvePlatformE2eRunConfig(
       {
         MOCKD_E2E_DEPLOYED_COMMISSIONER_EMAIL: " commissioner@mockd.test ",
-        MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD: " commissioner password ",
+        MOCKD_E2E_DEPLOYED_COMMISSIONER_PASSWORD: " commissioner password1! ",
         MOCKD_E2E_DEPLOYED_MEMBER_EMAIL: " member@mockd.test ",
-        MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD: " member password ",
+        MOCKD_E2E_DEPLOYED_MEMBER_PASSWORD: " member password1! ",
         MOCKD_E2E_DEPLOYED_SEASON_ID: " smoke-season-2026 ",
       },
       ["--base-url=https://staging.mockd.test", "--project=chromium"],
@@ -34,9 +34,9 @@ describe("platform E2E runner", () => {
       smokeRunId: undefined,
       deployedSmoke: {
         commissionerEmail: "commissioner@mockd.test",
-        commissionerPassword: "commissioner password",
+        commissionerPassword: "commissioner password1!",
         memberEmail: "member@mockd.test",
-        memberPassword: "member password",
+        memberPassword: "member password1!",
         seasonId: "smoke-season-2026",
       },
       playwrightArgs: ["--project=chromium"],

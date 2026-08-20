@@ -1,11 +1,15 @@
 import type { PlatformSchemaMigration } from "./contracts.js";
 import { corePlatformSchemaMigrations } from "./coreDefinitions.js";
 import {
+  authRateLimitsMigrationId,
   leagueCredentialEncryptionMigrationId,
   snakeLiveRoomMigrationId,
 } from "./ids.js";
 import { ownershipPlatformSchemaMigrations } from "./ownershipDefinitions.js";
-import { leagueCredentialEncryptionMigrationStatements } from "./schemaStatements.js";
+import {
+  authRateLimitMigrationStatements,
+  leagueCredentialEncryptionMigrationStatements,
+} from "./schemaStatements.js";
 
 export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   ...corePlatformSchemaMigrations,
@@ -19,6 +23,10 @@ export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: leagueCredentialEncryptionMigrationId,
     statements: leagueCredentialEncryptionMigrationStatements,
+  },
+  {
+    id: authRateLimitsMigrationId,
+    statements: authRateLimitMigrationStatements,
   },
 ];
 

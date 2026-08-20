@@ -31,12 +31,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const account = await platformServer.app.createAccount({
       email: "simulation-health@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: account.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected simulation health fixture login.");
@@ -70,7 +70,7 @@ describePlatformServer(({ createListeningServer }) => {
     const queuedMutation = platformServer.handler({
       method: "POST",
       path: "/accounts",
-      body: { email: "after-simulation-capture@example.com", password: "secure password" },
+      body: { email: "after-simulation-capture@example.com", password: "secure password1!" },
       now,
     });
     await expect(Promise.race([
@@ -125,12 +125,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const account = await platformServer.app.createAccount({
       email: "stream-cancel@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: account.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected stream cancellation fixture login.");

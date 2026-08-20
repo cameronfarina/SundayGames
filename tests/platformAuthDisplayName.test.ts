@@ -10,7 +10,7 @@ import {
 } from "../src/platform/auth.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
-const password = "valid password phrase";
+const password = "valid password phrase1!";
 
 const signedIn = async (): Promise<{ auth: AuthService; login: LoginResult }> => {
   const auth = createAuthService({ repository: new InMemoryAuthRepository() });

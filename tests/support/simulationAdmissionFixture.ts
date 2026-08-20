@@ -27,12 +27,12 @@ export const simulationAdmissionFixture = async () => {
   const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: runner });
   const account = await app.createAccount({
     email: "simulation-admission@example.com",
-    password: "secure password",
+    password: "secure password1!",
     now: simulationAdmissionNow,
   });
   const login = await app.login({
     email: account.email,
-    password: "secure password",
+    password: "secure password1!",
     now: simulationAdmissionNow,
   });
   if (login === null) throw new Error("Expected simulation admission login.");

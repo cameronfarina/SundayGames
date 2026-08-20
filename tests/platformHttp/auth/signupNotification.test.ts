@@ -45,8 +45,8 @@ it("notifies the site owner once a production signup verifies its email", async 
       now: new Date(now.getTime() + 1_000),
       body: {
         token: verificationToken,
-        newPassword: "mailbox proven password",
-        newPasswordConfirmation: "mailbox proven password",
+        newPassword: "mailbox proven password1!",
+        newPasswordConfirmation: "mailbox proven password1!",
       },
     });
 
@@ -68,7 +68,7 @@ it("notifies the site owner immediately for local auto-verified signup", async (
       method: "POST",
       path: "/accounts",
       now,
-      body: { email: "local@example.com", password: "a valid local password" },
+      body: { email: "local@example.com", password: "a valid local password1!" },
     });
 
     expect(signupNotifier.notifications).toEqual([{ email: "local@example.com", signedUpAt: now }]);
@@ -89,7 +89,7 @@ it("never blocks signup when the notifier fails", async () => {
       method: "POST",
       path: "/accounts",
       now,
-      body: { email: "resilient@example.com", password: "a valid local password" },
+      body: { email: "resilient@example.com", password: "a valid local password1!" },
     })).resolves.toMatchObject({ status: 201 });
   });
 });

@@ -37,7 +37,7 @@ it("maps known domain errors and unexpected failures without leaking stack trace
       path: "/accounts",
       body: {
         email: "fail@example.com",
-        password: "secure password",
+        password: "secure password1!",
       },
     });
 
@@ -68,7 +68,7 @@ it("logs the underlying failure server-side when responding with internal_error"
       await failingHandle({
         method: "POST",
         path: "/accounts",
-        body: { email: "fail@example.com", password: "secure password" },
+        body: { email: "fail@example.com", password: "secure password1!" },
       });
 
       const logged = consoleError.mock.calls.map(call => call.join(" ")).join("\n");

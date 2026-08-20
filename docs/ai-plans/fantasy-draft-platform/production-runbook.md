@@ -60,6 +60,16 @@ Historical import Postgres mode persists preview batches in `historical_import_b
 
 HTTP auth timestamps are server-controlled. Client body/query `now` values are ignored for account creation, login, session lookup, and protected route authorization; tests and server composition inject trusted request time through the platform server clock.
 
+Signup, verification-resend, and password-reset requests persist or replace their
+single-use token before starting best-effort email delivery. Their generic HTTP
+response does not wait for Resend, so account state and provider failures do not
+change the response. Delivery failures emit only the structured
+`auth_email_delivery_failed` event and token purpose; logs omit the address,
+token, action URL, and provider error. Authentication email has no durable
+outbox in the first production topology. A web-process stop after token commit
+can therefore lose that delivery attempt, and the user must submit the request
+again to create and send a replacement token.
+
 ## Domain Readiness Gate
 
 Complete these before sending public domain traffic to Mockd:
@@ -139,7 +149,7 @@ Optional read-only provider variables:
 
 Production variables still missing from code:
 
-- No implemented allowed-origin, cookie-domain, object-storage, rate-limit tuning, metrics, or alert env names exist yet. Auth endpoints have bounded in-process email and client-address limits; keep one web replica for the first release and add shared edge limits before scaling horizontally. If the chosen host requires any missing setting to make the public domain safe, domain readiness is no-go until code exposes and verifies it.
+- No implemented allowed-origin, cookie-domain, object-storage, rate-limit tuning, metrics, or alert env names exist yet. Auth endpoints keep fixed-window attempt state in Postgres in production, so limits are shared across web replicas. Login limits are client-address scoped; signup, verification-email, and password-reset-email limits also share normalized-email protection against mail bombing. If the chosen host requires any missing setting to make the public domain safe, domain readiness is no-go until code exposes and verifies it.
 
 ## Migrate, Seed, And Smoke
 
@@ -440,7 +450,7 @@ Required rehearsal before domain cutover:
 6. Take a manual backup of that source database and record its backup ID.
 7. Restore that backup into a second isolated database.
 8. Run the same SQL against the restored database. Counts must match the source counts unless the difference is explained.
-9. Start web against the restored database. Log in with a restored test account, such as `commissioner@mockd.local` / `mockd local e2e password` from `platform:seed:e2e`, open the restored room, and read/download the export artifact.
+9. Start web against the restored database. Log in with a restored test account, such as `commissioner@mockd.local` / `mockd local demo password1!` from `platform:seed:e2e`, open the restored room, and read/download the export artifact.
 10. Record backup ID, restore target, started/finished timestamps, verification counts, browser result, owner, and any data loss.
 
 Verification SQL:

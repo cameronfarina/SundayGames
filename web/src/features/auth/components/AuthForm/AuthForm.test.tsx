@@ -7,6 +7,7 @@ import { authRoutes } from "../../routes/authRoutes";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { sessionQueryKey, useSessionQuery } from "../../api/sessionQuery";
 import { createProtectedLoader } from "../../routes/protectedLoader";
+import { passwordInputPattern, passwordRequirements } from "../../model/passwordPolicy";
 
 const account = {
   createdAt: "2026-08-13T12:00:00.000Z",
@@ -42,10 +43,9 @@ const mountRoute = (path: string) => {
 };
 const enterCredentials = async () => {
   await userEvent.type(await screen.findByRole("textbox", { name: "Email" }), "cam@example.com");
-  await userEvent.type(screen.getByLabelText("Password"), "secure password");
+  await userEvent.type(screen.getByLabelText("Password"), "secure password1!");
 };
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
-
 describe("AuthForm", () => {
   it("submits login on Enter and redirects only to a safe return path", async () => {
     const fetcher = vi.fn<PlatformFetch>()
@@ -77,7 +77,6 @@ describe("AuthForm", () => {
       expect(navigation.state.location.pathname).toBe("/practice");
     });
   });
-
   it("keeps server errors visible and offers unverified accounts a recovery path", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({
       error: {
@@ -93,7 +92,6 @@ describe("AuthForm", () => {
       .toHaveAttribute("href", expect.stringContaining("%2Finvite%3Ftoken%3Dleague-token"));
     expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();
   });
-
   it("caches the auto-login session before protected signup navigation", async () => {
     const fetcher = vi.fn<PlatformFetch>()
       .mockResolvedValueOnce(jsonResponse({ passwordRequired: true }))
@@ -105,7 +103,8 @@ describe("AuthForm", () => {
     vi.stubGlobal("fetch", fetcher);
     const signupPath = "/signup?returnTo=%2Fleague%3FseasonId%3Dseason-1";
     const { queryClient, router: navigation } = mountRoute(signupPath);
-    expect(await screen.findByText("Use at least 6 characters.")).toBeVisible();
+    expect(await screen.findByText(passwordRequirements)).toBeVisible();
+    expect(screen.getByLabelText("Password")).toHaveAttribute("pattern", passwordInputPattern);
     await enterCredentials();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(screen.getByRole("button", { name: "Creating account..." })).toBeDisabled();
@@ -117,7 +116,7 @@ describe("AuthForm", () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",
-      password: "secure password",
+      password: "secure password1!",
       returnTo: "/league?seasonId=season-1",
     }));
     expect(fetcher).toHaveBeenNthCalledWith(

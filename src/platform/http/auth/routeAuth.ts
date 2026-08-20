@@ -2,15 +2,11 @@ import { clearMockdSessionCookie, mockdSessionCookie } from "../../platformCooki
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../request/parsedRequest.js";
 import { optionalString, stringValue } from "../request/values.js";
-import {
-  authRequiredBody,
-  invalidCredentialsBody,
-  methodNotAllowed,
-  notFound,
-} from "../responses.js";
+import { authRequiredBody, invalidCredentialsBody, methodNotAllowed, notFound } from "../responses.js";
 import { accountCreationDenied } from "./policy.js";
 import { publicSessionFor } from "./publicSession.js";
-import { actionRateLimitResponse, authRateLimitResponse } from "./rateLimits.js";
+import { authActionRateLimitResponse, authRateLimitResponse } from "./rateLimits.js";
+import { loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
 import { requireRequestAccount } from "./access.js";
 
 export const authRoots = new Set([
@@ -35,7 +31,7 @@ export const routeAuth = async (
     if (request.method !== "POST") return methodNotAllowed();
     const denied = await accountCreationDenied(request, services);
     if (denied !== null) return denied;
-    const limited = authRateLimitResponse(
+    const limited = await authRateLimitResponse(
       stringValue(request.body.email), request, services.accountRateLimiter, services.authClientRateLimiter,
     );
     if (limited !== null) return limited;
@@ -52,7 +48,7 @@ export const routeAuth = async (
   }
   if (root === "email-verifications" && request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
-    const limited = authRateLimitResponse(
+    const limited = await authRateLimitResponse(
       stringValue(request.body.email), request, services.verificationRateLimiter, services.authClientRateLimiter,
     );
     if (limited !== null) return limited;
@@ -75,7 +71,7 @@ export const routeAuth = async (
   }
   if (root === "password-resets" && request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
-    const limited = authRateLimitResponse(
+    const limited = await authRateLimitResponse(
       stringValue(request.body.email), request, services.passwordResetRateLimiter, services.authClientRateLimiter,
     );
     if (limited !== null) return limited;
@@ -84,7 +80,7 @@ export const routeAuth = async (
   }
   if (root === "password-resets" && action === "consume") {
     if (request.method !== "POST") return methodNotAllowed();
-    const limited = actionRateLimitResponse(
+    const limited = await authActionRateLimitResponse(
       request, services.passwordResetConsumeRateLimiter, request.clientAddress,
       "Too many password reset attempts. Try again later.",
     );
@@ -100,11 +96,13 @@ export const routeAuth = async (
   if (root === "sessions" && request.segments.length === 1) {
     if (request.method !== "POST") return methodNotAllowed();
     const email = stringValue(request.body.email);
-    const limited = authRateLimitResponse(email, request, services.loginRateLimiter, services.authClientRateLimiter);
+    const limited = await loginRateLimitResponse(
+      request, email, services.loginRateLimiter, services.authClientRateLimiter,
+    );
     if (limited !== null) return limited;
     const login = await app.login({ email, password: stringValue(request.body.password), now: request.now });
     if (login === null) return { status: 401, body: invalidCredentialsBody };
-    services.loginRateLimiter?.reset(email);
+    await services.loginRateLimiter?.reset(loginRateLimitKey(request, email));
     return {
       status: 200,
       headers: { "Set-Cookie": mockdSessionCookie(login.sessionToken, { expires: login.session.expiresAt, secure: secureSessionCookie }) },
@@ -114,7 +112,9 @@ export const routeAuth = async (
   if (root === "session" && action === "password" && request.segments.length === 2) {
     if (request.method !== "PUT") return methodNotAllowed();
     const account = await requireRequestAccount(app, request);
-    const limited = authRateLimitResponse(account.email, request, services.loginRateLimiter, services.authClientRateLimiter);
+    const limited = await loginRateLimitResponse(
+      request, account.email, services.loginRateLimiter, services.authClientRateLimiter,
+    );
     if (limited !== null) return limited;
     await app.changePassword({
       actorSessionToken: request.sessionToken,
@@ -123,7 +123,7 @@ export const routeAuth = async (
       newPasswordConfirmation: stringValue(request.body.newPasswordConfirmation),
       now: request.now,
     });
-    services.loginRateLimiter?.reset(account.email);
+    await services.loginRateLimiter?.reset(loginRateLimitKey(request, account.email));
     return { status: 200, headers: { "Set-Cookie": clearMockdSessionCookie({ secure: secureSessionCookie }) }, body: { ok: true } };
   }
   if (root === "session" && action === "profile" && request.segments.length === 2) {

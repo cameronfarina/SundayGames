@@ -13,7 +13,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     expect(created.status).toBe(201);
@@ -31,7 +31,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "stale-local@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -52,7 +52,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "stale-local@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     expect(failedLocalLogin).toMatchObject({
@@ -69,7 +69,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     expect(committedLogin.status).toBe(200);
@@ -92,7 +92,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "first@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -102,7 +102,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "second@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -119,7 +119,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "first@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const secondLogin = await jsonFetch(baseUrl, "/sessions", {
@@ -127,7 +127,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "second@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 

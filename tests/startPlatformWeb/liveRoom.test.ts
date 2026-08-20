@@ -29,12 +29,12 @@ describe("platform web local live draft setup", () => {
     await handle({
       method: "POST",
       path: "/accounts",
-      body: { email: "league-owner@example.com", password: "secure owner password" },
+      body: { email: "league-owner@example.com", password: "secure owner password1!" },
     });
     const login = await handle({
       method: "POST",
       path: "/sessions",
-      body: { email: "league-owner@example.com", password: "secure owner password" },
+      body: { email: "league-owner@example.com", password: "secure owner password1!" },
     });
     const loginBody = recordValue(login.body);
     const account = recordValue(loginBody.account);

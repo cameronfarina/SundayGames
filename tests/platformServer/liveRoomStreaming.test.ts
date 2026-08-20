@@ -15,22 +15,22 @@ describePlatformServer(({ createListeningServer }) => {
     const camCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password1!" }),
     });
     const sethCreated = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner04@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner04@example.com", password: "secure password1!" }),
     });
     const camLogin = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner11@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner11@example.com", password: "secure password1!" }),
     });
     const sethLogin = await jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner04@example.com", password: "secure password" }),
+      body: JSON.stringify({ email: "owner04@example.com", password: "secure password1!" }),
     });
     const camAccountId = stringProperty(propertyValue(camCreated.body, "account"), "id");
     const sethAccountId = stringProperty(propertyValue(sethCreated.body, "account"), "id");

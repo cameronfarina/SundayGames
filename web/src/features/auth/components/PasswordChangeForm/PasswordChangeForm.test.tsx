@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { passwordInputPattern, passwordRequirements } from "../../model/passwordPolicy";
 import { PasswordChangeForm } from "./PasswordChangeForm";
 
 const jsonResponse = (body: unknown, status = 200): Response => new Response(
@@ -22,9 +23,9 @@ const mountForm = () => {
   return router;
 };
 const fillForm = async () => {
-  await userEvent.type(screen.getByLabelText("Current password"), "secure password");
-  await userEvent.type(screen.getByLabelText("New password"), "replacement password");
-  await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password");
+  await userEvent.type(screen.getByLabelText("Current password"), "secure password1!");
+  await userEvent.type(screen.getByLabelText("New password"), "replacement password1!");
+  await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement password1!");
 };
 
 afterEach(() => {
@@ -42,12 +43,9 @@ describe("PasswordChangeForm", () => {
     const currentPassword = screen.getByLabelText("Current password");
     const newPassword = screen.getByLabelText("New password");
     expect(newPassword).toHaveAttribute("minlength", "6");
-    expect(screen.getByText(
-      "Use at least 6 characters.",
-    )).toBeVisible();
-    expect(newPassword).toHaveAccessibleDescription(
-      "Use at least 6 characters.",
-    );
+    expect(newPassword).toHaveAttribute("pattern", passwordInputPattern);
+    expect(screen.getByText(passwordRequirements)).toBeVisible();
+    expect(newPassword).toHaveAccessibleDescription(passwordRequirements);
     expect(currentPassword).not.toHaveAccessibleDescription();
     await fillForm();
     await userEvent.type(screen.getByLabelText("Confirm new password"), "{Enter}");

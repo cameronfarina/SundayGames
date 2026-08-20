@@ -144,7 +144,7 @@ describeWithPostgres("production Postgres composition", () => {
     const baseUrl = runtime.server.url;
     const signup = await postJson(baseUrl, "/accounts", {
       email: "commissioner@example.com",
-      password: "secure password",
+      password: "secure password1!",
     });
     expect(signup).toMatchObject({ status: 202, body: { accepted: true } });
 
@@ -155,13 +155,13 @@ describeWithPostgres("production Postgres composition", () => {
     expect(verificationToken).not.toBe("");
     await expect(postJson(baseUrl, "/email-verifications/consume", {
       token: verificationToken,
-      newPassword: "mailbox proven password",
-      newPasswordConfirmation: "mailbox proven password",
+      newPassword: "mailbox proven password1!",
+      newPasswordConfirmation: "mailbox proven password1!",
     })).resolves.toMatchObject({ status: 200, body: { verified: true } });
 
     const login = await postJson(baseUrl, "/sessions", {
       email: "commissioner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
     });
     expect(login.status).toBe(200);
     const cookie = sessionCookieFor(login.setCookie);
@@ -296,7 +296,7 @@ describeWithPostgres("production Postgres composition", () => {
     const restartedBaseUrl = runtime.server.url;
     const restartedLogin = await postJson(restartedBaseUrl, "/sessions", {
       email: "commissioner@example.com",
-      password: "mailbox proven password",
+      password: "mailbox proven password1!",
     });
     expect(restartedLogin).toMatchObject({
       status: 200,

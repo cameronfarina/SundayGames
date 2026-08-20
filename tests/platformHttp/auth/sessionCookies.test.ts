@@ -11,7 +11,7 @@ it("marks session cookies Secure for HTTPS and forwarded HTTPS requests", async 
       path: "/accounts",
       body: {
         email: "https@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });
@@ -23,7 +23,7 @@ it("marks session cookies Secure for HTTPS and forwarded HTTPS requests", async 
       headers: { host: "localhost:3000" },
       body: {
         email: "https@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     } satisfies PlatformHttpRequest;
@@ -52,7 +52,7 @@ it("marks session cookies Secure for HTTPS and forwarded HTTPS requests", async 
       headers: { host: "localhost:3000", "x-forwarded-proto": "https,http" },
       body: {
         email: "https@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });
@@ -70,7 +70,7 @@ it("keeps loopback HTTP session cookies compatible with local development", asyn
       path: "/accounts",
       body: {
         email: "local@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });
@@ -81,7 +81,7 @@ it("keeps loopback HTTP session cookies compatible with local development", asyn
       headers: { host: "127.0.0.1:3000" },
       body: {
         email: "local@example.com",
-        password: "secure password",
+        password: "secure password1!",
         now,
       },
     });

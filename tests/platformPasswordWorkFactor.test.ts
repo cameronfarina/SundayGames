@@ -41,10 +41,10 @@ class PausedPasswordUpgradeRepository extends InMemoryAuthRepository {
 
 describe("password work-factor policy", () => {
   it("creates OWASP-equivalent scrypt hashes", () => {
-    const passwordHash = hashPassword("correct horse battery staple");
+    const passwordHash = hashPassword("correct horse battery staple1!");
 
     expect(passwordHash).toMatch(/^scrypt\$32768\$8\$3\$/);
-    expect(verifyPassword("correct horse battery staple", passwordHash)).toBe(true);
+    expect(verifyPassword("correct horse battery staple1!", passwordHash)).toBe(true);
     expect(passwordHashNeedsRehash(passwordHash)).toBe(false);
   });
 
@@ -62,7 +62,7 @@ describe("password work-factor policy", () => {
   });
 
   it("rejects passwords over 1024 UTF-8 bytes before hashing", () => {
-    expect(() => hashPassword("a".repeat(1_024))).not.toThrow();
+    expect(() => hashPassword(`1!${"a".repeat(1_022)}`)).not.toThrow();
     expect(() => hashPassword(`${"a".repeat(1_023)}é`)).toThrow(new AuthError(
       "invalid_password",
       "Password must be no more than 1024 UTF-8 bytes.",
@@ -128,7 +128,7 @@ describe("password work-factor policy", () => {
     repository.replacePasswordAndRevokeSessions({
       accountId: "acct_race",
       expectedPasswordHash: legacyPasswordHash,
-      passwordHash: hashPassword("replacement password"),
+      passwordHash: hashPassword("replacement password1!"),
       now: new Date(now.getTime() + 1),
     });
     repository.allowUpgrade();

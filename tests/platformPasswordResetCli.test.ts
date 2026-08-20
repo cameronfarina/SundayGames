@@ -44,12 +44,12 @@ describe("production password reset CLI", () => {
   it("resets the env-selected account from one stdin password and revokes every session", async () => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
-    await auth.createUser({ email: "owner@example.com", password: "current secure password", now });
-    const firstLogin = await auth.login({ email: "owner@example.com", password: "current secure password", now });
-    const secondLogin = await auth.login({ email: "owner@example.com", password: "current secure password", now });
+    await auth.createUser({ email: "owner@example.com", password: "current secure password1!", now });
+    const firstLogin = await auth.login({ email: "owner@example.com", password: "current secure password1!", now });
+    const secondLogin = await auth.login({ email: "owner@example.com", password: "current secure password1!", now });
     if (firstLogin === null || secondLogin === null) throw new Error("Expected logins.");
 
-    const result = await runCli("replacement secure password\n", {
+    const result = await runCli("replacement secure password1!\n", {
       email: " OWNER@EXAMPLE.COM ",
       repository,
     });
@@ -59,14 +59,14 @@ describe("production password reset CLI", () => {
       stdout: "Password reset complete.\n",
       stderr: "",
     });
-    expect(result.stdout).not.toContain("replacement secure password");
+    expect(result.stdout).not.toContain("replacement secure password1!");
     expect(result.stdout).not.toContain("scrypt$");
     expect(result.close).toHaveBeenCalledOnce();
     await expect(auth.lookupSession(firstLogin.sessionToken, new Date(now.getTime() + 1))).resolves.toBeNull();
     await expect(auth.lookupSession(secondLogin.sessionToken, new Date(now.getTime() + 1))).resolves.toBeNull();
-    await expect(auth.login({ email: "owner@example.com", password: "current secure password", now }))
+    await expect(auth.login({ email: "owner@example.com", password: "current secure password1!", now }))
       .resolves.toBeNull();
-    await expect(auth.login({ email: "owner@example.com", password: "replacement secure password", now }))
+    await expect(auth.login({ email: "owner@example.com", password: "replacement secure password1!", now }))
       .resolves.toMatchObject({ account: { email: "owner@example.com" } });
   });
 
@@ -79,7 +79,7 @@ describe("production password reset CLI", () => {
   ])("fails closed for %s without exposing credential material", async (_label, input, options) => {
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
-    await auth.createUser({ email: "owner@example.com", password: "current secure password", now });
+    await auth.createUser({ email: "owner@example.com", password: "current secure password1!", now });
 
     const result = await runCli(input, { ...options, repository });
 
@@ -89,13 +89,28 @@ describe("production password reset CLI", () => {
     expect(result.stderr).not.toMatch(/first password|second password|replacement secure password|argv secret|scrypt\$/);
   });
 
+  it("rejects an operator reset password outside the application policy", async () => {
+    const repository = new InMemoryAuthRepository();
+    const auth = createAuthService({ repository });
+    await auth.createUser({ email: "owner@example.com", password: "current secure password1!", now });
+
+    const result = await runCli("abcdef1\n", { email: "owner@example.com", repository });
+
+    expect(result).toMatchObject({ exitCode: 1, stdout: "", stderr: "Password reset failed.\n" });
+    await expect(auth.login({
+      email: "owner@example.com",
+      password: "current secure password1!",
+      now,
+    })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
+  });
+
   it("reports a completed reset as successful when database cleanup fails", async () => {
     let stdout = "";
     let stderr = "";
     const repository = new InMemoryAuthRepository();
     const auth = createAuthService({ repository });
-    await auth.createUser({ email: "owner@example.com", password: "current secure password", now });
-    const stdin = Object.assign(Readable.from(["replacement secure password\n"]), {
+    await auth.createUser({ email: "owner@example.com", password: "current secure password1!", now });
+    const stdin = Object.assign(Readable.from(["replacement secure password1!\n"]), {
       isTTY: false,
     });
 
@@ -120,7 +135,7 @@ describe("production password reset CLI", () => {
     expect(stderr).toBe("Password reset complete, but database cleanup failed.\n");
     await expect(auth.login({
       email: "owner@example.com",
-      password: "replacement secure password",
+      password: "replacement secure password1!",
       now,
     })).resolves.toMatchObject({ account: { email: "owner@example.com" } });
   });

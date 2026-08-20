@@ -14,22 +14,22 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const owner = await platformServer.app.createAccount({
       email: "screenshot-owner@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const member = await platformServer.app.createAccount({
       email: "screenshot-member@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const ownerLogin = await platformServer.app.login({
       email: owner.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const memberLogin = await platformServer.app.login({
       email: member.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (ownerLogin === null || memberLogin === null) throw new Error("Expected fixture logins.");
@@ -88,12 +88,12 @@ describePlatformServer(({ createListeningServer }) => {
     });
     const owner = await platformServer.app.createAccount({
       email: "screenshot-limited@example.com",
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     const login = await platformServer.app.login({
       email: owner.email,
-      password: "secure password",
+      password: "secure password1!",
       now,
     });
     if (login === null) throw new Error("Expected fixture login.");

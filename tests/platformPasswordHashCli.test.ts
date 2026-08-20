@@ -30,18 +30,31 @@ const runCli = async (
 
 describe("production password hash CLI", () => {
   it.each([
-    ["without a terminal newline", "correct horse battery staple"],
-    ["with a terminal newline", "correct horse battery staple\n"],
-    ["with a CRLF terminal newline", "correct horse battery staple\r\n"],
+    ["without a terminal newline", "correct horse battery staple1!"],
+    ["with a terminal newline", "correct horse battery staple1!\n"],
+    ["with a CRLF terminal newline", "correct horse battery staple1!\r\n"],
   ])("emits only an accepted hash %s", async (_label, input) => {
     const result = await runCli(input);
     const hash = result.stdout.trimEnd();
 
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
     expect(result.stdout).toMatch(/^scrypt\$32768\$8\$3\$[^\n]+\n$/);
-    expect(verifyPassword("correct horse battery staple", hash)).toBe(true);
-    expect(result.stdout).not.toContain("correct horse battery staple");
+    expect(verifyPassword("correct horse battery staple1!", hash)).toBe(true);
+    expect(result.stdout).not.toContain("correct horse battery staple1!");
   });
+
+  it.each(["abcdef!", "abcdef1", "abcde1 "])(
+    "rejects a password outside the application policy %#",
+    async input => {
+      const result = await runCli(input);
+
+      expect(result).toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "Unable to generate password hash from stdin.\n",
+      });
+    },
+  );
 
   it.each(["", "\n", "\r\n", "\n\n"])(
     "fails closed for empty input %#",

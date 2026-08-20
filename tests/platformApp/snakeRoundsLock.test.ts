@@ -9,7 +9,7 @@ const withRounds = (season: LeagueSeason, rounds: number): LeagueSeason => {
 
 const registerSnakeLeague = async () => {
   const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-  const owner11 = await signUpAndLogin(app, "owner11-rounds@example.com", "owner11 password", now);
+  const owner11 = await signUpAndLogin(app, "owner11-rounds@example.com", "owner11 password!", now);
   const season = asSnakeSeason(buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
     leagueName: "League 100001",
     setupStatus: "published",

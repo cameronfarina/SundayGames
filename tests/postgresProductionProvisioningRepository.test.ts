@@ -99,7 +99,7 @@ const document = (): ResolvedProductionProvisioningDocument => {
     ...parsed,
     accounts: parsed.accounts.map(account => ({
       ...account,
-      passwordHash: hashPassword("a sufficiently long production password"),
+      passwordHash: hashPassword("a sufficiently long production password1!"),
     })),
   };
 };

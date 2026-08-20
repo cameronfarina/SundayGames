@@ -14,6 +14,8 @@ export const defaultVerificationTokenTtlMs = 1000 * 60 * 60 * 24;
 export const defaultPasswordResetTokenTtlMs = 1000 * 60 * 30;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const asciiDigitPattern = /[0-9]/u;
+const punctuationOrSymbolPattern = /[\p{P}\p{S}]/u;
 
 export const normalizeEmail = (email: string): string => {
   const normalizedEmail = email.trim().toLowerCase();
@@ -24,17 +26,32 @@ export const normalizeEmail = (email: string): string => {
 };
 
 export const validatePassword = (password: string): void => {
-  const issue = passwordValidationIssue(password);
-  if (issue === "too_short") {
-    throw new AuthError("invalid_password", "Password must be at least 6 characters.");
+  validatePasswordLength(password, true);
+  if (!asciiDigitPattern.test(password)) {
+    throw new AuthError("invalid_password", "Password must include at least one number.");
   }
-  if (issue === "too_long") {
-    throw new AuthError("invalid_password", "Password must be no more than 1024 UTF-8 bytes.");
+  if (!punctuationOrSymbolPattern.test(password)) {
+    throw new AuthError(
+      "invalid_password",
+      "Password must include at least one punctuation or symbol character.",
+    );
   }
 };
 
 export const validateLoginPassword = (password: string): void => {
-  if (passwordValidationIssue(password) === "too_long") {
+  validatePasswordLength(password, false);
+};
+
+export const validateCurrentPassword = (password: string): void => {
+  validatePasswordLength(password, true);
+};
+
+const validatePasswordLength = (password: string, requireMinimum: boolean): void => {
+  const issue = passwordValidationIssue(password);
+  if (requireMinimum && issue === "too_short") {
+    throw new AuthError("invalid_password", "Password must be at least 6 characters.");
+  }
+  if (issue === "too_long") {
     throw new AuthError("invalid_password", "Password must be no more than 1024 UTF-8 bytes.");
   }
 };
@@ -59,7 +76,6 @@ export const createId = (prefix: "acct" | "auth" | "sess"): string =>
   `${prefix}_${randomBytes(16).toString("base64url")}`;
 
 export const hashServicePassword = async (password: string): Promise<string> => {
-  validatePassword(password);
   return await createPasswordHash(password);
 };
 

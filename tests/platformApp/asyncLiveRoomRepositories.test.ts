@@ -10,8 +10,8 @@ describe("platform app service", () => {
       exportArtifactRepository,
       simulationRunner: mockRunner,
     });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

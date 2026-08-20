@@ -28,7 +28,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "start-helper@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 

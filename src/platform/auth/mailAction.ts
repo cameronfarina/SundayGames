@@ -1,5 +1,5 @@
 import { sameOriginAuthenticationReturnPath } from "../authenticationReturnPath.js";
-import type { AuthMailSender } from "./mailContracts.js";
+import type { AuthMailMessage, AuthMailSender } from "./mailContracts.js";
 import { createAuthToken, createId, hashAuthToken } from "./primitives.js";
 import type { AuthRepository } from "./repositoryContracts.js";
 import type { AccountRecord, AuthTokenPurpose } from "./records.js";
@@ -15,6 +15,29 @@ export interface SendAuthActionInput {
   ttlMs: number;
   expectedCredentialVersion?: number | undefined;
 }
+
+const logDeliveryFailure = (purpose: AuthTokenPurpose): void => {
+  try {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "error",
+      event: "auth_email_delivery_failed",
+      purpose,
+    }));
+  } catch {
+    // Observability must never turn best-effort delivery into an unhandled rejection.
+  }
+};
+
+const deliverBestEffort = (
+  mailSender: AuthMailSender,
+  message: AuthMailMessage,
+  purpose: AuthTokenPurpose,
+): void => {
+  void Promise.resolve()
+    .then(() => mailSender.send(message))
+    .catch(() => { logDeliveryFailure(purpose); });
+};
 
 export const sendAuthAction = async (input: SendAuthActionInput): Promise<void> => {
   if (input.mailSender === undefined || input.publicBaseUrl === undefined) {
@@ -38,12 +61,12 @@ export const sendAuthAction = async (input: SendAuthActionInput): Promise<void> 
   const returnTo = sameOriginAuthenticationReturnPath(input.returnTo, input.publicBaseUrl);
   if (returnTo !== undefined) actionUrl.searchParams.set("returnTo", returnTo);
   const verification = input.purpose === "email_verification";
-  await input.mailSender.send({
+  deliverBestEffort(input.mailSender, {
     to: input.account.email,
     subject: verification ? "Finish your Sunday Games account" : "Reset your Sunday Games password",
     text: verification
       ? `Verify your email and choose your Sunday Games password: ${actionUrl.toString()}`
       : `Reset your Sunday Games password: ${actionUrl.toString()}`,
     actionUrl: actionUrl.toString(),
-  });
+  }, input.purpose);
 };

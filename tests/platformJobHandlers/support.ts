@@ -53,10 +53,10 @@ export const createSimulationJobFixture = async () => {
   const persist = vi.fn(() => {
     progressEvents.push("persist");
   });
-  await app.createAccount({ email: "owner11@example.com", password: "owner11 password", now });
+  await app.createAccount({ email: "owner11@example.com", password: "owner11 password!", now });
   const owner11 = await app.login({
     email: "owner11@example.com",
-    password: "owner11 password",
+    password: "owner11 password!",
     now,
   });
   if (owner11 === null) throw new Error("Expected owner11@example.com login.");

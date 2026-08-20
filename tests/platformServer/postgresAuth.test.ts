@@ -15,7 +15,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const login = await jsonFetch(baseUrl, "/sessions", {
@@ -23,7 +23,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const accountId = stringProperty(propertyValue(created.body, "account"), "id");
@@ -130,7 +130,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "auth-only@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -161,7 +161,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "legacy@example.com",
-        password: "legacy password",
+        password: "legacy password1!",
       }),
     });
     expect(JSON.stringify(postgresClient.row?.snapshot_json)).toContain("legacy@example.com");
@@ -189,7 +189,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const login = await jsonFetch(loadedBaseUrl, "/sessions", {
@@ -197,7 +197,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
     const accountId = stringProperty(propertyValue(created.body, "account"), "id");

@@ -3,8 +3,8 @@ import { describe, it, InMemoryPlatformStore, PlatformAppError, buildCurrentMock
 describe("platform app service", () => {
   it("lets a server worker execute an existing simulation while preserving private team ownership checks", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
-    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password", now);
-    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password", now);
+    const owner11 = await signUpAndLogin(app, "owner11@example.com", "owner11 password!", now);
+    const owner04 = await signUpAndLogin(app, "owner04@example.com", "owner04 password!", now);
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
       leagueName: "League 100001",
       setupStatus: "published",

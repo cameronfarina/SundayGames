@@ -32,7 +32,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "  Owner11@Example.com ",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -54,7 +54,7 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -102,14 +102,14 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         token: verificationToken,
-        newPassword: "mailbox proven password",
-        newPasswordConfirmation: "mailbox proven password",
+        newPassword: "mailbox proven password1!",
+        newPasswordConfirmation: "mailbox proven password1!",
       }),
     })).resolves.toMatchObject({ status: 200, body: { verified: true } });
     await expect(jsonFetch(baseUrl, "/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@example.com", password: "mailbox proven password" }),
+      body: JSON.stringify({ email: "owner@example.com", password: "mailbox proven password1!" }),
     })).resolves.toMatchObject({ status: 200 });
 
     await jsonFetch(baseUrl, "/password-resets", {
@@ -124,8 +124,8 @@ describePlatformServer(({ createListeningServer }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         token: resetToken,
-        newPassword: "replacement password",
-        newPasswordConfirmation: "replacement password",
+        newPassword: "replacement password1!",
+        newPasswordConfirmation: "replacement password1!",
       }),
     })).resolves.toMatchObject({ status: 200, body: { reset: true } });
   });

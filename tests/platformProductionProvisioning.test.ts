@@ -107,7 +107,7 @@ const validDocument = {
   ],
 } as const;
 
-const currentPasswordHash = hashPassword("a sufficiently long production password");
+const currentPasswordHash = hashPassword("a sufficiently long production password1!");
 const canonicalSalt = Buffer.alloc(16, 1).toString("base64url");
 const canonicalDerivedKey = Buffer.alloc(64, 2).toString("base64url");
 const legacyPasswordHash = [

@@ -56,7 +56,7 @@ This seeds a demo league and starts the app at `http://127.0.0.1:4319/login`
 with hot reload. Sign in with:
 
 - Email: `commissioner@mockd.local`
-- Password: `mockd local demo password`
+- Password: `mockd local demo password1!`
 
 One command runs both the web app and the API. Stopping it stops both.
 

@@ -33,7 +33,7 @@ it("verifies production signups and resets passwords without enumerating account
       method: "POST",
       path: "/sessions",
       now,
-      body: { email: "owner@example.com", password: "attacker supplied password" },
+      body: { email: "owner@example.com", password: "attacker supplied password1!" },
     })).resolves.toMatchObject({
       status: 401,
       body: { error: { code: "invalid_credentials" } },
@@ -58,8 +58,8 @@ it("verifies production signups and resets passwords without enumerating account
       now: new Date(now.getTime() + 1_000),
       body: {
         token: verificationToken,
-        newPassword: "mailbox proven password",
-        newPasswordConfirmation: "mailbox proven password",
+        newPassword: "mailbox proven password1!",
+        newPasswordConfirmation: "mailbox proven password1!",
       },
     })).resolves.toEqual({ status: 200, body: { verified: true } });
     const mailCountAfterVerification = mailSender.messages.length;
@@ -74,13 +74,13 @@ it("verifies production signups and resets passwords without enumerating account
       method: "POST",
       path: "/sessions",
       now: new Date(now.getTime() + 2_000),
-      body: { email: "owner@example.com", password: "attacker supplied password" },
+      body: { email: "owner@example.com", password: "attacker supplied password1!" },
     })).resolves.toMatchObject({ status: 401 });
     await expect(handle({
       method: "POST",
       path: "/sessions",
       now: new Date(now.getTime() + 2_000),
-      body: { email: "owner@example.com", password: "mailbox proven password" },
+      body: { email: "owner@example.com", password: "mailbox proven password1!" },
     })).resolves.toMatchObject({ status: 200 });
 
     const missingReset = await handle({
@@ -106,8 +106,8 @@ it("verifies production signups and resets passwords without enumerating account
       now: new Date(now.getTime() + 3_000),
       body: {
         token: resetToken,
-        newPassword: "replacement password",
-        newPasswordConfirmation: "replacement password",
+        newPassword: "replacement password1!",
+        newPasswordConfirmation: "replacement password1!",
       },
     })).resolves.toEqual({ status: 200, body: { reset: true } });
   });

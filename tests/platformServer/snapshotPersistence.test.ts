@@ -14,7 +14,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 
@@ -49,7 +49,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: "owner11@example.com",
-        password: "secure password",
+        password: "secure password1!",
       }),
     });
 

@@ -5,6 +5,7 @@ import type {
 } from "../../../src/platform/postgresPlatformStore.js";
 import { FakePostgresAuthClient } from "./fakeAuthPostgresClient.js";
 import { FakePostgresClient } from "./fakeSnapshotPostgresClient.js";
+import { fakeAuthRateLimitQuery } from "./fakeAuthRateLimitQuery.js";
 import { normalizeSql, stringValueAt } from "./postgresRowUtilities.js";
 
 export class FakeTransactionalPostgresAuthClient
@@ -54,6 +55,9 @@ export class FakeTransactionalPostgresAuthClient
     if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
       return { rows: [] };
     }
+
+    const authRateLimitResult = fakeAuthRateLimitQuery(normalizedSql);
+    if (authRateLimitResult !== undefined) return authRateLimitResult;
 
     if (
       normalizedSql.includes("FROM draft_rooms") &&
