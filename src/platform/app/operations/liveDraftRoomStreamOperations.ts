@@ -22,7 +22,7 @@ const currentRoomContext = async (
   const membership = await context.requireSharedRead(account, identity.leagueId);
   const actor = liveActorFor(account, identity.leagueId, membership);
   const room = await context.liveDraftRooms.getCurrentRoomForActor({ roomId: input.roomId, actor });
-  return { actor, room };
+  return { account, actor, room };
 };
 
 const roomWithStreamEvents = async (
@@ -43,6 +43,26 @@ const roomWithStreamEvents = async (
 };
 
 export const createLiveDraftRoomStreamOperations = (context: PlatformAppContext) => ({
+  authorizeLiveDraftRoomEventStream: async (input: GetPlatformLiveDraftRoomInput) => {
+    const { account, actor, room } = await currentRoomContext(context, input);
+    return {
+      accountId: account.id,
+      initialRoom: cloneForRead(buildLiveDraftRoomReadModel({
+        room,
+        actor,
+        selectedTeamId: input.selectedTeamId,
+        viewedTeamId: input.viewedTeamId,
+      })),
+      loadRevision: async (): Promise<number> => {
+        const identity = await context.liveDraftRooms.getRoomRevision(input.roomId);
+        if (identity.leagueId !== room.leagueId) {
+          throw new Error("Live draft room identity changed during an authorized event stream.");
+        }
+        return identity.revision;
+      },
+    };
+  },
+
   getLiveDraftRoomRevision: async (input: GetPlatformLiveDraftRoomInput): Promise<number> => {
     const account = await context.requireAccount(input.actorSessionToken, input.now);
     const room = await context.liveDraftRooms.getRoomRevision(input.roomId);

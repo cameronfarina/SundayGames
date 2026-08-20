@@ -1,13 +1,11 @@
 import { createLiveDraftRoomEventStream } from "../../../liveDraftRoomEventStream.js";
 import type { LiveDraftRoomEventStreamSubscription } from "../../../liveDraftRoomEventStream.js";
 import { LiveDraftRoomWaitLimitError } from "../../../liveDraftRoomRealtime.js";
-import { requireRequestAccount } from "../../auth/access.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
 import { methodNotAllowed } from "../../responses.js";
 import { knownError } from "../../responses.js";
-import { liveDraftRoomReadModelForRequest } from "./readModel.js";
 
 export const routeLiveRoomEventStream = async (
   app: PlatformApp,
@@ -20,11 +18,16 @@ export const routeLiveRoomEventStream = async (
   if (openSubscription === undefined) {
     return knownError(503, "live_draft_stream_unavailable", "Live draft updates are unavailable.");
   }
-  const account = await requireRequestAccount(app, request);
-  const initialRoom = await liveDraftRoomReadModelForRequest(app, request, roomId);
+  const access = await app.authorizeLiveDraftRoomEventStream({
+    actorSessionToken: request.sessionToken,
+    roomId,
+    selectedTeamId: optionalString(request.query.selectedTeamId),
+    viewedTeamId: optionalString(request.query.viewedTeamId),
+    now: request.now,
+  });
   let subscription: LiveDraftRoomEventStreamSubscription;
   try {
-    subscription = await openSubscription({ accountId: account.id, roomId });
+    subscription = await openSubscription({ accountId: access.accountId, roomId });
   } catch (error) {
     if (!(error instanceof LiveDraftRoomWaitLimitError)) throw error;
     return {
@@ -40,14 +43,10 @@ export const routeLiveRoomEventStream = async (
   }
   try {
     const body = createLiveDraftRoomEventStream({
-      initialRoom,
+      initialRoom: access.initialRoom,
       subscription,
       signal: request.signal,
-      loadRevision: async () => await app.getLiveDraftRoomRevision({
-        actorSessionToken: request.sessionToken,
-        roomId,
-        now: request.now,
-      }),
+      loadRevision: access.loadRevision,
       loadUpdate: async afterRevision => await app.getLiveDraftRoomStreamUpdate({
         actorSessionToken: request.sessionToken,
         roomId,

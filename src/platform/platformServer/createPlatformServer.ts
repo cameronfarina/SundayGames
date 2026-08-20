@@ -79,7 +79,7 @@ export const createPlatformServer = async (
     reloadRuntime,
   });
   const draftToolsAdapter = createDraftToolsAdapter(runtimeHolder, options);
-  const server = createNodeServer(handler, draftToolsAdapter, runtimeHolder, options, admissions);
+  const nodeServer = createNodeServer(handler, draftToolsAdapter, runtimeHolder, options, admissions);
   const liveDraftRoomRevisionListener = isPostgresNotificationClient(revisionNotificationClient)
     ? await startPostgresLiveDraftRoomRevisionListener(
         revisionNotificationClient,
@@ -87,12 +87,13 @@ export const createPlatformServer = async (
       )
     : undefined;
   return createPlatformServerShape({
-    server,
+    server: nodeServer.server,
     runtimeHolder,
     handler,
     draftToolsAdapter,
     jobHandlers: createDelegatingJobHandlers(runtimeHolder, persistence),
     persist: persistence.persist,
+    abortAndDrainActiveStreams: nodeServer.abortAndDrainActiveStreams,
     closeLiveDraftRoomRevisionListener: async () => {
       await liveDraftRoomRevisionListener?.close();
     },

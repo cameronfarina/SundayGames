@@ -13,6 +13,7 @@ interface PlatformServerShapeOptions {
   draftToolsAdapter: PlatformDraftToolsAdapter;
   jobHandlers: PlatformJobHandlers;
   persist: () => Promise<void>;
+  abortAndDrainActiveStreams: () => Promise<void>;
   closeLiveDraftRoomRevisionListener: () => Promise<void>;
 }
 
@@ -52,7 +53,10 @@ export const createPlatformServerShape = (
   jobHandlers: input.jobHandlers,
   persist: input.persist,
   close: async () => {
-    await closeServer(input.server);
+    const serverClosed = closeServer(input.server);
+    await input.abortAndDrainActiveStreams();
+    input.server.closeIdleConnections();
+    await serverClosed;
     await input.closeLiveDraftRoomRevisionListener();
     await input.draftToolsAdapter.close();
   },

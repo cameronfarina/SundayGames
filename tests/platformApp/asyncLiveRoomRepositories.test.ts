@@ -1,6 +1,54 @@
-import { describe, it, AsyncLiveDraftRoomRepository, InMemoryPlatformStore, PlatformAppError, RecordingExportArtifactRepository, buildCurrentMockdLeagueSeason, createPlatformApp, expect, leagueConfig, mockRunner, now, ownerOrder, playerCatalog, signUpAndLogin } from "./support/index.js";
+import { describe, it, vi } from "vitest";
+import { AsyncLiveDraftRoomRepository, InMemoryPlatformStore, PlatformAppError, RecordingExportArtifactRepository, buildCurrentMockdLeagueSeason, createPlatformApp, expect, leagueConfig, mockRunner, now, ownerOrder, playerCatalog, signUpAndLogin } from "./support/index.js";
 
 describe("platform app service", () => {
+  it("authorizes a live-room stream once and polls its revision through one repository read", async () => {
+    const liveDraftRoomRepository = new AsyncLiveDraftRoomRepository();
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      liveDraftRoomRepository,
+      simulationRunner: mockRunner,
+    });
+    const owner11 = await signUpAndLogin(app, "stream-owner11@example.com", "owner11 password!", now);
+    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
+      leagueName: "League stream admission",
+      setupStatus: "published",
+    });
+    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
+    if (camTeam === undefined) throw new Error("Expected fixture team.");
+    await app.registerLeagueSeason({
+      actorSessionToken: owner11.sessionToken,
+      season,
+      memberships: [
+        { userId: owner11.account.id, leagueId: season.leagueId, role: "owner", ownerId: camTeam.ownerId, teamId: camTeam.id },
+      ],
+    });
+    await app.createLiveDraftRoom({
+      actorSessionToken: owner11.sessionToken,
+      seasonId: season.id,
+      roomId: "room_stream_admission",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      now,
+    });
+    const revisionReads = vi.spyOn(liveDraftRoomRepository, "getRoomRevision");
+
+    const access = await app.authorizeLiveDraftRoomEventStream({
+      actorSessionToken: owner11.sessionToken,
+      roomId: "room_stream_admission",
+      now,
+    });
+    revisionReads.mockClear();
+
+    await expect(access.loadRevision()).resolves.toBe(1);
+    expect(revisionReads).toHaveBeenCalledOnce();
+    expect(revisionReads).toHaveBeenCalledWith("room_stream_admission");
+    expect(access).toMatchObject({
+      accountId: owner11.account.id,
+      initialRoom: { revision: 1, role: "commissioner" },
+    });
+  });
+
   it("can route live draft rooms and export artifacts through injected async repositories", async () => {
     const liveDraftRoomRepository = new AsyncLiveDraftRoomRepository();
     const exportArtifactRepository = new RecordingExportArtifactRepository();

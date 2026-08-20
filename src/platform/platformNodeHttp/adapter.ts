@@ -15,6 +15,7 @@ import { bodyLimitForRequest } from "./requestKinds.js";
 import { startRequestAbortLifecycle } from "./requestAbort.js";
 import { ensurePlatformRequestId } from "./requestId.js";
 import { setTransportSecurityHeader } from "./securityHeaders.js";
+import { isAsyncTextStream } from "./streamResponse.js";
 import { writePlatformResponse } from "./writePlatformResponse.js";
 
 export const createPlatformNodeHttpAdapter = (
@@ -29,6 +30,7 @@ export const createPlatformNodeHttpAdapter = (
   const screenshotImportPreflight = options.screenshotImportPreflight;
   const historicalImportPreflight = options.historicalImportPreflight;
   const trustProxy = options.trustProxy ?? false;
+  const activeStreamRegistry = options.activeStreamRegistry;
 
   return async (request, response) => {
     ensurePlatformRequestId(request, response);
@@ -61,7 +63,16 @@ export const createPlatformNodeHttpAdapter = (
           abortLifecycle.signal,
         );
         const platformResponse = await handle(platformRequest);
-        if (!response.destroyed) await writePlatformResponse(request, response, platformResponse);
+        if (!response.destroyed) {
+          const writeResponse = async (): Promise<void> => {
+            await writePlatformResponse(request, response, platformResponse);
+          };
+          if (activeStreamRegistry !== undefined && isAsyncTextStream(platformResponse.body)) {
+            await activeStreamRegistry.run({ abort: abortLifecycle.abort, write: writeResponse });
+          } else {
+            await writeResponse();
+          }
+        }
       } finally {
         admission.permit?.release();
         abortLifecycle.removeListeners();
