@@ -55,7 +55,7 @@ export const refreshLinkedLeague = async ({
   if (existing === null) return needsAttention("The selected Sunday Games league no longer exists.");
 
   const setup = confirmedSetupFromSyncedLeague(connection, snapshot);
-  if (setup.status === "needs_attention") return setup;
+  if (setup.status === "needs_attention") return needsAttention(setup.message);
   const generated = createLeagueSeasonFromConfirmedSetup(setup.setup);
   if (generated.seasonYear !== existing.seasonYear) {
     return needsAttention("The selected Sunday Games league is for a different season.");
@@ -69,7 +69,7 @@ export const refreshLinkedLeague = async ({
     previousSnapshot,
     snapshot,
   });
-  if (mapping.status === "needs_attention") return mapping;
+  if (mapping.status === "needs_attention") return needsAttention(mapping.message);
 
   const generatedToExisting = new Map<string, string>();
   const teams = generated.teams.map((team, index) => {
