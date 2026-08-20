@@ -25,7 +25,7 @@ export interface TargetPreviewRow {
 
 export const boardPreviewRows: readonly BoardPreviewRow[] = [
   { market: 57, mine: 75, name: "Jahmyr Gibbs", position: "RB", rank: 1, simulation: 72, targeted: true },
-  { market: 58, mine: 72, name: "Bijan Robinson", position: "RB", rank: 2, simulation: 69, targeted: false },
+  { market: 56, mine: 72, name: "Bijan Robinson", position: "RB", rank: 2, simulation: 69, targeted: false },
   { market: 56, mine: 69, name: "Ja'Marr Chase", position: "WR", rank: 3, simulation: 67, targeted: false },
   { market: 56, mine: 67, name: "Puka Nacua", position: "WR", rank: 4, simulation: 65, targeted: true },
   { market: 54, mine: 67, name: "Jaxon Smith-Njigba", position: "WR", rank: 5, simulation: 65, targeted: false },
