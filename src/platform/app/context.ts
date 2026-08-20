@@ -30,5 +30,6 @@ export const createPlatformAppContext = (options: PlatformAppOptions): PlatformA
     ...privateTeamAccess,
     ...mockResultAccess,
     simulationRunner: options.simulationRunner,
+    seasonSimulationRunner: options.seasonSimulationRunner,
   };
 };

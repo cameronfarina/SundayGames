@@ -72,6 +72,24 @@ describe("simulation event stream", () => {
       }));
   });
 
+  it("reconnects from a durable pending handle until the result is available", async () => {
+    const result = { historyId: "history-1", summary };
+    const reconnect = vi.fn().mockResolvedValue(chunkedResponse(
+      `event: result\ndata: ${JSON.stringify(result)}\n\n`,
+    ));
+    const response = chunkedResponse(
+      'event: pending\ndata: {"historyId":"history-1","jobId":"job-1","status":"pending"}\n\n',
+    );
+
+    await expect(consumeSimulationStream(response, { onProgress: vi.fn(), reconnect }))
+      .resolves.toEqual(result);
+    expect(reconnect).toHaveBeenCalledWith({
+      historyId: "history-1",
+      jobId: "job-1",
+      status: "pending",
+    });
+  });
+
   it("surfaces per-account queue denials as retryable typed errors", async () => {
     const response = chunkedResponse(
       'event: error\ndata: {"error":{"code":"simulation_account_queue_full","message":"Try shortly."}}\n\n',

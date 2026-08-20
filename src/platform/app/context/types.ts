@@ -11,6 +11,8 @@ import type {
   SimulationRepository,
 } from "../../simulations.js";
 import type { InMemoryPlatformStore } from "../store/InMemoryPlatformStore.js";
+import type { SeasonSimulationRunner } from "../../seasonSimulationRunner.js";
+import type { SeasonSimulationAdmissionRepository } from "../../seasonSimulationAdmissions.js";
 import type { AccountAccess } from "./accountAccess.js";
 import type { MembershipAccess } from "./membershipAccess.js";
 import type { MockResultAccess } from "./mockResultAccess.js";
@@ -25,6 +27,8 @@ export interface PlatformAppDependencies {
   readonly historicalImports: HistoricalImportRepository;
   readonly jobs: JobRepository;
   readonly simulations: SimulationRepository;
+  readonly seasonSimulationAdmissions: SeasonSimulationAdmissionRepository | undefined;
+  readonly seasonSimulationProducerEnabled: boolean;
   readonly practiceShortlists: PracticeShortlistRepository;
   readonly liveDraftRooms: LiveDraftRoomRepository;
   readonly mockDraftSessions: MockDraftSessionRepository;
@@ -36,4 +40,5 @@ export interface PlatformAppContext
   extends PlatformAppDependencies, AccountAccess, MembershipAccess, PrivateTeamAccess,
     SeasonAccess, MockResultAccess {
   readonly simulationRunner: SimulationMockBatchRunner;
+  readonly seasonSimulationRunner: SeasonSimulationRunner | undefined;
 }

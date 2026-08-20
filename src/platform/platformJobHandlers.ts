@@ -1,4 +1,7 @@
-import type { ExecutePlatformSimulationRunForWorkerInput } from "./platformApp.js";
+import type {
+  ExecutePlatformSeasonSimulationRunForWorkerInput,
+  ExecutePlatformSimulationRunForWorkerInput,
+} from "./platformApp.js";
 import {
   platformJobTypes,
   type DraftRoomExportJobPayload,
@@ -6,7 +9,6 @@ import {
   type HistoricalImportParseJobPayload,
   type HistoricalImportParseJobResult,
   type PlatformJobHandler,
-  type PlatformJobHandlerContext,
   type PlatformJobHandlers,
   type PlatformJobPayload,
   type PlatformJobResult,
@@ -17,9 +19,12 @@ import {
   type SimulationRunExecutionJobResult,
 } from "./platformJobOrchestrator.js";
 import type { SimulationRun } from "./simulations.js";
+import { createSeasonSimulationExecutionHandler } from "./seasonSimulationJobHandler.js";
+export { createSeasonSimulationExecutionHandler } from "./seasonSimulationJobHandler.js";
 
 export interface SimulationRunExecutionApp {
   executeSimulationRunForWorker(input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun>;
+  executeSeasonSimulationRunForWorker(input: ExecutePlatformSeasonSimulationRunForWorkerInput): Promise<SimulationRun>;
 }
 
 export interface CreateSimulationRunExecutionHandlerInput {
@@ -97,6 +102,10 @@ export const createNoopPlatformJobHandlers = (): PlatformJobHandlers => ({
     SimulationRunExecutionJobPayload,
     SimulationRunExecutionJobResult
   >(platformJobTypes.simulationRunExecution),
+  [platformJobTypes.seasonSimulationExecution]: unsupportedPlatformJobHandler<
+    import("./platformJobOrchestrator.js").SeasonSimulationExecutionJobPayload,
+    import("./platformJobOrchestrator.js").SeasonSimulationExecutionJobResult
+  >(platformJobTypes.seasonSimulationExecution),
   [platformJobTypes.historicalImportParse]: unsupportedPlatformJobHandler<
     HistoricalImportParseJobPayload,
     HistoricalImportParseJobResult
@@ -116,4 +125,5 @@ export const createPlatformJobHandlers = (
 ): PlatformJobHandlers => ({
   ...createNoopPlatformJobHandlers(),
   [platformJobTypes.simulationRunExecution]: createSimulationRunExecutionHandler(input),
+  [platformJobTypes.seasonSimulationExecution]: createSeasonSimulationExecutionHandler(input),
 });

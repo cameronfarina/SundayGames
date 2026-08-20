@@ -45,7 +45,7 @@ export const shouldSkipSnapshotPersist = (
   const externalLiveRooms = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
   const externalExports = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
   return isLeagueMembersScreenshotAnalysisRequest(request) ||
-    isSeasonSimulationRequest(request) ||
+    (externalJobs && externalSimulations && isSeasonSimulationRequest(request)) ||
     usesFileAuthSidecarFor(runtime, request) ||
     (externalAuth && isAuthOnlyMutationRequest(request)) ||
     (externalLeagueSetup && isLeagueSetupOnlyMutationRequest(request)) ||

@@ -53,8 +53,12 @@ export class InMemorySimulationRepository implements SimulationRepository {
     return run;
   }
 
-  markFailed(runId: string): SimulationRun {
+  markFailed(runId: string, executionStartedAt?: Date): SimulationRun {
     const run = this.find(runId);
+    if (
+      executionStartedAt !== undefined
+      && run.startedAt?.getTime() !== executionStartedAt.getTime()
+    ) return run;
     if (run.status !== "canceled") run.status = "failed";
     return run;
   }
@@ -78,9 +82,16 @@ export class InMemorySimulationRepository implements SimulationRepository {
     return run;
   }
 
-  complete(runId: string, result: SimulationResult): SimulationRun {
+  complete(runId: string, result: SimulationResult, executionStartedAt?: Date): SimulationRun {
     const run = this.find(runId);
     if (run.status === "canceled") return run;
+    if (executionStartedAt !== undefined &&
+        run.startedAt?.getTime() !== executionStartedAt.getTime()) {
+      throw new SimulationError(
+        "simulation_execution_superseded",
+        "Simulation completion was superseded by a newer execution.",
+      );
+    }
     run.status = "completed";
     run.completedAt = result.completedAt;
     run.result = result;

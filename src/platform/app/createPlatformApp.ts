@@ -12,6 +12,8 @@ import { createPracticeOperations } from "./operations/practiceOperations.js";
 import { createPricingOperations } from "./operations/pricingOperations.js";
 import { createSimulationJobOperations } from "./operations/simulationJobOperations.js";
 import { createSimulationRunOperations } from "./operations/simulationRunOperations.js";
+import { createSeasonSimulationWorkerOperations } from "./operations/seasonSimulationWorkerOperations.js";
+import { createSeasonSimulationAdmissionOperations } from "./operations/seasonSimulationAdmissionOperations.js";
 import { createTeamClaimOperations } from "./operations/teamClaimOperations.js";
 
 export const createPlatformApp = (options: PlatformAppOptions) => {
@@ -25,6 +27,8 @@ export const createPlatformApp = (options: PlatformAppOptions) => {
     ...createTeamClaimOperations(context),
     ...createPracticeOperations(context),
     ...createSimulationRunOperations(context),
+    ...createSeasonSimulationWorkerOperations(context),
+    ...createSeasonSimulationAdmissionOperations(context),
     ...createSimulationJobOperations(context),
     ...createHistoricalImportOperations(context),
     ...createPricingOperations(context),

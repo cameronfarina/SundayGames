@@ -1,8 +1,8 @@
-import { InMemoryLiveDraftRoomSetupRepository, InMemoryPlatformStore, createClientAddressRateLimiter, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectAsyncTextStream, expectBodyRecord, expectString, it, mockRunner, now, playerCatalog, snakePlayerCatalog, snakeSeason } from "../support/index.js";
+import { InMemoryLiveDraftRoomSetupRepository, InMemoryPlatformStore, createClientAddressRateLimiter, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, dispatchNextQueuedSeasonSimulation, dispatchQueuedSeasonSimulation, expect, expectAsyncTextStream, expectBodyRecord, expectString, it, mockRunner, now, playerCatalog, seasonSimulationRunner, snakePlayerCatalog, snakeSeason } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
 it("runs private league-aware simulations for a claimed team", async () => {
-    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner, seasonSimulationRunner });
     const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
@@ -61,7 +61,7 @@ it("runs private league-aware simulations for a claimed team", async () => {
       body: { seasonId: season.id, count: 101, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_run_count" } } });
 
-    const simulationResponse = await handle({
+    const queuedSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
@@ -73,6 +73,9 @@ it("runs private league-aware simulations for a claimed team", async () => {
         note: "Compare a first-round target.",
       },
     });
+    expect(queuedSimulationResponse).toMatchObject({ status: 202 });
+    const historyId = await dispatchQueuedSeasonSimulation(app, queuedSimulationResponse);
+    const simulationResponse = await handle({ method: "GET", path: `/season-simulations/${historyId}`, sessionToken: owner11.sessionToken });
     expect(simulationResponse).toMatchObject({
       status: 200,
       body: {
@@ -89,20 +92,19 @@ it("runs private league-aware simulations for a claimed team", async () => {
       },
     });
     const summary = expectBodyRecord(expectBodyRecord(simulationResponse.body).summary);
-    const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
     expect(summary).not.toHaveProperty("runs");
     expect(summary.outcomes).toEqual([
       expect.objectContaining({ favorite: false, rank: 1, runNumber: 1 }),
       expect.objectContaining({ favorite: false, rank: 2, runNumber: 2 }),
     ]);
-    const newerSimulationResponse = await handle({
+    const queuedNewerSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 1_000),
       body: { seasonId: season.id, count: 1, strategy: "Draft Player 2 by round 2" },
     });
-    const newerHistoryId = expectString(expectBodyRecord(newerSimulationResponse.body).historyId);
+    const newerHistoryId = await dispatchQueuedSeasonSimulation(app, queuedNewerSimulationResponse);
     await expect(handle({
       method: "GET",
       path: "/season-simulations",
@@ -215,6 +217,7 @@ it("runs private league-aware simulations for a claimed team", async () => {
       headers: { accept: "text/event-stream" },
       body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
     });
+    await dispatchNextQueuedSeasonSimulation(app);
     expect(streamedSimulationResponse).toMatchObject({
       status: 200,
       headers: {
@@ -227,7 +230,7 @@ it("runs private league-aware simulations for a claimed team", async () => {
     const stream = expectAsyncTextStream(streamedSimulationResponse.body);
     let streamedEvents = "";
     for await (const chunk of stream) streamedEvents += chunk;
-    expect(streamedEvents).toContain('event: progress\ndata: {"completed":1,"total":2}');
+    expect(streamedEvents).toContain('event: progress\ndata: {"completed":0,"total":2}');
     expect(streamedEvents).toContain('event: progress\ndata: {"completed":2,"total":2}');
     expect(streamedEvents).toContain('event: result\ndata: {"historyId":');
     expect(streamedEvents).toContain('"summary":{"completedCount":2,"draftFormat":"snake"');

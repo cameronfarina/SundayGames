@@ -53,6 +53,8 @@ export type {
   CompletePlatformSeasonSimulationRunInput,
   CreatePlatformSimulationRunInput,
   EnqueuePlatformSimulationRunJobInput,
+  EnqueuePlatformSeasonSimulationRunJobInput,
+  ExecutePlatformSeasonSimulationRunForWorkerInput,
   ExecutePlatformSimulationRunForWorkerInput,
   ExecutePlatformSimulationRunInput,
   GetPlatformJobInput,

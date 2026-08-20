@@ -6,6 +6,9 @@ import {
 } from "../src/platform/postgresClient.js";
 import { applyPlatformPostgresMigrations } from "../src/platform/platformMigrations.js";
 import { PostgresSimulationRepository } from "../src/platform/postgresSimulations.js";
+import { PostgresSeasonSimulationAdmissionRepository } from
+  "../src/platform/postgresSeasonSimulationAdmissions.js";
+import type { RunSeasonSimulationsInput } from "../src/platform/seasonSimulationEngine.js";
 import { maximumRetainedSimulationRunsPerUser } from "../src/platform/simulationLimits.js";
 import { SimulationError } from "../src/platform/simulations.js";
 
@@ -91,5 +94,39 @@ describeWithPostgres("Postgres simulation admission", () => {
       ["user_cam"],
     );
     expect(count.rows[0]?.count).toBe(maximumRetainedSimulationRunsPerUser);
+  }, 30_000);
+
+  it("atomically admits one season run/job and resolves an exact retry to the same handles", async () => {
+    await client.query("DELETE FROM simulation_runs WHERE user_id = $1", ["user_cam"]);
+    const repository = new PostgresSeasonSimulationAdmissionRepository(client);
+    const input = {
+      userId: "user_cam",
+      leagueId: "league_100001",
+      seasonId: "season_2026",
+      ownerId: "owner_cam",
+      teamId: "team_cam",
+      count: 2,
+      seedPrefix: "season-stable-request",
+      idempotencyKey: "season-stable-request",
+      simulationInput: {} as RunSeasonSimulationsInput,
+      strategyText: "balanced",
+    };
+
+    const first = await repository.admit(input);
+    const retry = await repository.admit(input);
+    expect(retry.run.id).toBe(first.run.id);
+    expect(retry.job.id).toBe(first.job.id);
+
+    await expect(repository.admit({
+      ...input,
+      seedPrefix: "season-second-request",
+      idempotencyKey: "season-second-request",
+    })).rejects.toMatchObject({ code: "simulation_account_queue_full" });
+    const rolledBack = await client.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM simulation_runs
+       WHERE user_id = $1 AND idempotency_key = $2`,
+      ["user_cam", "season-second-request"],
+    );
+    expect(rolledBack.rows[0]?.count).toBe(0);
   }, 30_000);
 });

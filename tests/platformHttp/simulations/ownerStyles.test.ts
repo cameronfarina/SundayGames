@@ -1,4 +1,4 @@
-import { InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectBodyRecord, expectString, it, mockRunner, snakeSeason } from "../support/index.js";
+import { InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, dispatchQueuedSeasonSimulation, expect, expectBodyRecord, expectString, it, mockRunner, runSeasonSimulations, snakeSeason } from "../support/index.js";
 import type { LeagueSeason } from "../support/index.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../../../src/platform/liveDraftRooms.js";
 
@@ -27,7 +27,12 @@ const historyCsv = Buffer.from([
 
 describe("platform HTTP contract", () => {
   it("bids studs down in season simulations when imported history shows stud-avoiders", async () => {
-    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      simulationRunner: mockRunner,
+      seasonSimulationRunner: async (input, options) =>
+        runSeasonSimulations(input, { onProgress: options?.onProgress }),
+    });
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: styleCatalog, initialRosters: [] }),
     });
@@ -89,8 +94,8 @@ describe("platform HTTP contract", () => {
       sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
     });
-    expect(simulationResponse).toMatchObject({ status: 200 });
-    const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
+    expect(simulationResponse).toMatchObject({ status: 202 });
+    const historyId = await dispatchQueuedSeasonSimulation(app, simulationResponse);
 
     const detailResponse = await handle({
       method: "GET",

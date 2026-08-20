@@ -10,7 +10,16 @@ import {
 
 interface StreamCallbacks {
   readonly onProgress: (progress: SimulationProgress) => void;
+  readonly reconnect?: ((handle: SimulationPendingHandle) => Promise<Response>) | undefined;
 }
+
+const simulationPendingHandleSchema = z.object({
+  historyId: z.string(),
+  jobId: z.string(),
+  status: z.literal("pending"),
+});
+
+export type SimulationPendingHandle = z.infer<typeof simulationPendingHandleSchema>;
 
 const simulationQueueErrorSchema = z.object({
   error: z.object({
@@ -41,10 +50,7 @@ export class SimulationQueueApiError extends PlatformApiError {
   }
 }
 
-interface UnreadablePayload {
-  readonly body: unknown;
-  readonly error: ZodError;
-}
+interface UnreadablePayload { readonly body: unknown; readonly error: ZodError }
 
 // A stream event that fails its schema knows exactly which field was wrong, and
 // that is the one thing worth keeping when the read is abandoned. The sites
@@ -90,10 +96,7 @@ const errorFor = (value: string): PlatformApiError => {
   });
 };
 
-interface ParsedEvent {
-  readonly data: string;
-  readonly name: string;
-}
+interface ParsedEvent { readonly data: string; readonly name: string }
 
 const parseEvent = (block: string): ParsedEvent | undefined => {
   const lines = block.split(/\r?\n/u);
@@ -109,30 +112,36 @@ export const consumeSimulationStream = async (
   response: Response,
   callbacks: StreamCallbacks,
 ) => {
-  if (response.body === null) throw invalidResponse();
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result: ReturnType<typeof simulationResponseSchema.parse> | undefined;
+  let currentResponse = response;
 
   for (;;) {
-    const chunk = await reader.read();
-    buffer += decoder.decode(chunk.value, { stream: !chunk.done });
-    const blocks = buffer.split(/\r?\n\r?\n/u);
-    buffer = blocks.splice(-1, 1).join("");
-    for (const block of blocks) {
-      const event = parseEvent(block);
-      if (event?.name === "progress") {
-        callbacks.onProgress(parseWith(simulationProgressSchema, event.data));
-      } else if (event?.name === "result") {
-        result = parseWith(simulationResponseSchema, event.data);
-      } else if (event?.name === "error") {
-        throw errorFor(event.data);
+    if (currentResponse.body === null) throw invalidResponse();
+    const reader = currentResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result: ReturnType<typeof simulationResponseSchema.parse> | undefined;
+    let pending: SimulationPendingHandle | undefined;
+    for (;;) {
+      const chunk = await reader.read();
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      const blocks = buffer.split(/\r?\n\r?\n/u);
+      buffer = blocks.splice(-1, 1).join("");
+      for (const block of blocks) {
+        const event = parseEvent(block);
+        if (event?.name === "progress") {
+          callbacks.onProgress(parseWith(simulationProgressSchema, event.data));
+        } else if (event?.name === "result") {
+          result = parseWith(simulationResponseSchema, event.data);
+        } else if (event?.name === "pending") {
+          pending = parseWith(simulationPendingHandleSchema, event.data);
+        } else if (event?.name === "error") {
+          throw errorFor(event.data);
+        }
       }
+      if (chunk.done) break;
     }
-    if (chunk.done) break;
+    if (result !== undefined) return result;
+    if (pending === undefined || callbacks.reconnect === undefined) throw invalidResponse();
+    currentResponse = await callbacks.reconnect(pending);
   }
-
-  if (result === undefined) throw invalidResponse();
-  return result;
 };

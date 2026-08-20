@@ -24,6 +24,7 @@ export const findRunningLockedJob = (
   store: InMemoryJobStore,
   jobId: string,
   workerId: string,
+  claimLockedAt: Date,
 ): JobRecord => {
   const job = store.jobById(jobId);
 
@@ -37,6 +38,9 @@ export const findRunningLockedJob = (
 
   if (job.workerId !== workerId) {
     throw new JobError("job_lock_mismatch", "Job is locked by another worker.");
+  }
+  if (job.lockedAt?.getTime() !== claimLockedAt.getTime()) {
+    throw new JobError("job_lock_mismatch", "Worker no longer owns its claimed execution.");
   }
 
   return job;

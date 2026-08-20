@@ -3,7 +3,11 @@ import { parseLiveDraftStrategyKey } from "../../../../modeling/liveDraftStrateg
 import type { LiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import { loadLeagueScoredWeekOneProjections } from "../../../currentPostDraftProjectionSnapshot.js";
 import { buildSeasonPlayerValues, snapshotPlayerValues } from "../../../seasonPlayerValues.js";
-import type { RunSeasonSimulationsInput, SeasonSimulationTargetConstraint } from "../../../seasonSimulationEngine.js";
+import {
+  SeasonSimulationError,
+  type RunSeasonSimulationsInput,
+  type SeasonSimulationTargetConstraint,
+} from "../../../seasonSimulationEngine.js";
 import { seasonSimulationTextInputFromUnknown } from "../../../simulationHttpInput.js";
 import { actionRateLimitResponse } from "../../auth/rateLimits.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
@@ -14,12 +18,12 @@ import { currentPricingSnapshotForSeason } from "../season/pricingOrchestration.
 
 export interface PreparedSeasonSimulation {
   input: RunSeasonSimulationsInput;
-  accountId: string;
   leagueId: string;
   seasonId: string;
   ownerId: string;
   teamId: string;
   runCount: number;
+  requestId: string;
   seedPrefix: string;
   strategyInput: string;
   note?: string | undefined;
@@ -38,6 +42,14 @@ export const prepareSeasonSimulation = async (
   services: PlatformHttpServices,
   runCount: number,
 ): Promise<PreparedSeasonSimulation | PlatformHttpResponse> => {
+  const suppliedRequestId = optionalString(request.body.requestId);
+  const requestId = suppliedRequestId === undefined ? randomUUID() : suppliedRequestId;
+  if (requestId.length > 128) {
+    throw new SeasonSimulationError(
+      "invalid_request_id",
+      "Simulation request ID cannot exceed 128 characters.",
+    );
+  }
   const textInput = seasonSimulationTextInputFromUnknown(request.body);
   const context = await seasonMockDraftContextFor(app, request, services, stringValue(request.body.seasonId));
   if (!isSeasonMockDraftContext(context)) return context;
@@ -77,7 +89,7 @@ export const prepareSeasonSimulation = async (
     ...(context.season.settings.draftFormat === "auction" && target.maxBid !== undefined
       ? { maxAuctionPrice: target.maxBid } : {}),
   }));
-  const seedPrefix = `season-simulation:${context.season.id}:${randomUUID()}`;
+  const seedPrefix = `season-simulation:${context.season.id}:${requestId}`;
   const input: RunSeasonSimulationsInput = {
     season: context.season,
     setup: context.setup,
@@ -92,12 +104,12 @@ export const prepareSeasonSimulation = async (
   };
   return {
     input,
-    accountId: context.membership.userId,
     leagueId: context.season.leagueId,
     seasonId: context.season.id,
     ownerId: context.membership.ownerId,
     teamId: context.membership.teamId,
     runCount,
+    requestId,
     seedPrefix,
     strategyInput,
     ...(textInput.note === undefined ? {} : { note: textInput.note }),

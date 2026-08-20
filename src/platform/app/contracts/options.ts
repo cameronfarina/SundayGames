@@ -11,6 +11,8 @@ import type {
   SimulationRepository,
 } from "../../simulations.js";
 import type { InMemoryPlatformStore } from "../store/InMemoryPlatformStore.js";
+import type { SeasonSimulationRunner } from "../../seasonSimulationRunner.js";
+import type { SeasonSimulationAdmissionRepository } from "../../seasonSimulationAdmissions.js";
 
 export interface PlatformAppOptions {
   store?: InMemoryPlatformStore | undefined;
@@ -25,9 +27,12 @@ export interface PlatformAppOptions {
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;
   simulationRepository?: SimulationRepository | undefined;
+  seasonSimulationAdmissionRepository?: SeasonSimulationAdmissionRepository | undefined;
+  seasonSimulationProducerEnabled?: boolean | undefined;
   practiceShortlistRepository?: PracticeShortlistRepository | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
   mockDraftSessionRepository?: MockDraftSessionRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
+  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
 }

@@ -47,8 +47,8 @@ export class PostgresSimulationRepository implements SimulationRepository {
     return await markRunning(this.#context, runId, now);
   }
 
-  async markFailed(runId: string): Promise<SimulationRun> {
-    return await markFailed(this.#context, runId);
+  async markFailed(runId: string, executionStartedAt?: Date): Promise<SimulationRun> {
+    return await markFailed(this.#context, runId, executionStartedAt);
   }
 
   async markCanceled(runId: string): Promise<SimulationRun> {
@@ -59,8 +59,12 @@ export class PostgresSimulationRepository implements SimulationRepository {
     return await resetForRerun(this.#context, runId);
   }
 
-  async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
-    return await complete(this.#context, runId, result);
+  async complete(
+    runId: string,
+    result: SimulationResult,
+    executionStartedAt?: Date,
+  ): Promise<SimulationRun> {
+    return await complete(this.#context, runId, result, executionStartedAt);
   }
 
   async setOutcomeFavorite(

@@ -23,6 +23,8 @@ export const authRateLimitsMigrationId = "platform-auth-rate-limits-v22";
 export const leagueSyncRevisionMigrationId = "platform-league-sync-revisions-v23";
 export const liveDraftScaleMigrationId = "platform-live-draft-scale-v24";
 export const practicePersistenceMigrationId = "platform-practice-persistence-v25";
+export const simulationWorkerReliabilityMigrationId =
+  "platform-simulation-worker-reliability-v26";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

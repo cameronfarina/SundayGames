@@ -11,6 +11,7 @@ import {
   isHistoricalImportParseJobPayload,
   isPricingRebuildJobPayload,
   isSimulationRunExecutionJobPayload,
+  isSeasonSimulationExecutionJobPayload,
   platformJobTypeFrom,
 } from "./payloadValidation.js";
 import { platformJobTypes } from "./platformJobTypes.js";
@@ -67,6 +68,13 @@ export const runClaimedPlatformJob = async ({
     switch (type) {
       case platformJobTypes.simulationRunExecution: {
         if (!isSimulationRunExecutionJobPayload(job.inputJson)) throw invalidPayloadError(type);
+        const handler = handlers[type];
+        if (handler === undefined) throw missingHandlerError(type);
+        resultSummary = await handler(job.inputJson, context);
+        break;
+      }
+      case platformJobTypes.seasonSimulationExecution: {
+        if (!isSeasonSimulationExecutionJobPayload(job.inputJson)) throw invalidPayloadError(type);
         const handler = handlers[type];
         if (handler === undefined) throw missingHandlerError(type);
         resultSummary = await handler(job.inputJson, context);

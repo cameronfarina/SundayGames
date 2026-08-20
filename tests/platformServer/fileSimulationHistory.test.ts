@@ -1,4 +1,4 @@
-import { InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder, propertyValue, readFile } from "./helpers/index.js";
+import { InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, dispatchNextPlatformJob, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder, propertyValue, readFile } from "./helpers/index.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer, storePath }) => {
@@ -54,7 +54,13 @@ describePlatformServer(({ createListeningServer, storePath }) => {
       sessionToken: login.sessionToken,
       body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
       now,
-    })).resolves.toMatchObject({ status: 200 });
+    })).resolves.toMatchObject({ status: 202 });
+    await dispatchNextPlatformJob({
+      repository: platformServer.jobRepository,
+      workerId: "file-simulation-history-worker",
+      handlers: platformServer.jobHandlers,
+    });
+    await platformServer.persist();
 
     const saved: unknown = JSON.parse(await readFile(dataFilePath, "utf8"));
     expect(propertyValue(saved, "simulationRuns")).toEqual([

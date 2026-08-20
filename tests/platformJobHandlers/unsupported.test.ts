@@ -31,6 +31,9 @@ describe("unsupported platform job handlers", () => {
         executeSimulationRunForWorker: async () => {
           throw new Error("Unexpected simulation execution.");
         },
+        executeSeasonSimulationRunForWorker: async () => {
+          throw new Error("Unexpected season simulation execution.");
+        },
       },
     });
     const context: PlatformJobHandlerContext = {

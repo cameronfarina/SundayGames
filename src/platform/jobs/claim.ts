@@ -26,9 +26,16 @@ export const claimNextJob = (
 ): JobRecord | null => {
   const now = input.now ?? new Date();
   const lockTtlMs = input.lockTtlMs ?? defaultLockTtlMs;
-  const job = store.values().filter(candidate => isClaimable(candidate, input, now)).sort(
-    byOldestCreation,
-  )[0];
+  const jobs = store.values();
+  const lastClaimedAt = (candidate: JobRecord): number => Math.max(
+    ...jobs
+      .filter(job => job.kind === candidate.kind && job.userId === candidate.userId)
+      .map(job => job.startedAt?.getTime() ?? Number.NEGATIVE_INFINITY),
+  );
+  const job = jobs.filter(candidate => isClaimable(candidate, input, now)).sort((left, right) => {
+    const fairnessOrder = lastClaimedAt(left) - lastClaimedAt(right);
+    return fairnessOrder === 0 ? byOldestCreation(left, right) : fairnessOrder;
+  })[0];
 
   if (job === undefined) return null;
 

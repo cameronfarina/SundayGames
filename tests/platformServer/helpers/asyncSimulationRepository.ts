@@ -33,8 +33,8 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.markRunning(runId, runAt);
   }
 
-  async markFailed(runId: string): Promise<SimulationRun> {
-    return this.inner.markFailed(runId);
+  async markFailed(runId: string, executionStartedAt?: Date): Promise<SimulationRun> {
+    return this.inner.markFailed(runId, executionStartedAt);
   }
 
   async markCanceled(runId: string): Promise<SimulationRun> {
@@ -45,8 +45,12 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.resetForRerun(runId);
   }
 
-  async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
-    return this.inner.complete(runId, result);
+  async complete(
+    runId: string,
+    result: SimulationResult,
+    executionStartedAt?: Date,
+  ): Promise<SimulationRun> {
+    return this.inner.complete(runId, result, executionStartedAt);
   }
 
   async setOutcomeFavorite(

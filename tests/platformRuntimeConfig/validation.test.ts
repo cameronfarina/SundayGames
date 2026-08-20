@@ -41,27 +41,28 @@ describe("platform runtime config validation", () => {
     })).toThrow("MOCKD_ENABLE_LEGACY_MOCK_BATCH cannot be enabled in production.");
   });
 
+  it("keeps the versioned season job producer off for the compatibility deploy", () => {
+    expect(readPlatformRuntimeConfig({ NODE_ENV: "production" })
+      .seasonSimulationProducerEnabled).toBe(false);
+    expect(readPlatformRuntimeConfig({
+      NODE_ENV: "production",
+      MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED: "true",
+    }).seasonSimulationProducerEnabled).toBe(true);
+  });
+
   it("can require Postgres for production entrypoints", () => {
     expect(() => readPlatformRuntimeConfig({}, { requireDatabase: true }))
       .toThrow("DATABASE_URL is required.");
   });
 
-  it("rejects simulation workers when simulation data is disabled", () => {
-    expect(() => readPlatformRuntimeConfig({
+  it("runs durable season simulation workers without local fixture data", () => {
+    const config = readPlatformRuntimeConfig({
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
     }, {
       requireDatabase: true,
-      requireRunnableWorker: true,
-    })).toThrow(
-      "MOCKD_SIMULATION_DATA_MODE=local-fixtures is required when workers claim simulation jobs.",
-    );
-    expect(readPlatformRuntimeConfig({
-      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
-      MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
-    }, {
-      requireDatabase: true,
-      requireRunnableWorker: true,
-    }).worker.jobKinds).toEqual(["simulation"]);
+    });
+    expect(config.simulationDataMode).toBe("disabled");
+    expect(config.worker.jobKinds).toEqual(["simulation"]);
   });
 
   it("can require any durable store for the production web entrypoint", () => {

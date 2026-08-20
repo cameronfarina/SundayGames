@@ -137,3 +137,8 @@ export const createNodeSeasonSimulationRunner = ({
     timeoutMs,
   });
 };
+
+export const createDisabledSeasonSimulationRunner = (): SeasonSimulationRunner =>
+  async () => {
+    throw new Error("Season simulation execution is disabled in the web process.");
+  };

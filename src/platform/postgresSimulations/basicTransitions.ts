@@ -27,6 +27,7 @@ RETURNING *, NULL::text AS result_id, NULL::jsonb AS summary_json,
 export const markFailed = async (
   context: SimulationRepositoryContext,
   runId: string,
+  executionStartedAt?: Date,
 ): Promise<SimulationRun> => {
   const existingRun = await findById(runId, context.client);
   if (existingRun === null) {
@@ -35,8 +36,11 @@ export const markFailed = async (
   if (existingRun.status === "canceled") return existingRun;
   const now = new Date();
   await context.client.query(
-    "UPDATE simulation_runs SET status = 'failed', updated_at = $2 WHERE id = $1",
-    [runId, now],
+    `UPDATE simulation_runs
+SET status = 'failed', updated_at = $2
+WHERE id = $1
+  AND ($3::timestamptz IS NULL OR started_at = $3)`,
+    [runId, now, executionStartedAt ?? null],
   );
   return await findRequired(runId, context.client);
 };

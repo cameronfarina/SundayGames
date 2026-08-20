@@ -3,6 +3,8 @@ import type { MockBatch } from "../../../src/modeling/mockBatch.js";
 import type { LeagueSeason } from "../../../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../../../src/platform/liveDraftRooms.js";
 import type { SimulationMockBatchRunner } from "../../../src/platform/simulations.js";
+import { runSeasonSimulations } from "../../../src/platform/seasonSimulationEngine.js";
+import type { SeasonSimulationRunner } from "../../../src/platform/seasonSimulationRunner.js";
 
 export const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -93,5 +95,8 @@ export const mockRunner: SimulationMockBatchRunner = ({
     ownerPlayerExposure: [],
   },
 });
+
+export const seasonSimulationRunner: SeasonSimulationRunner = async (input, options) =>
+  runSeasonSimulations(input, { onProgress: options?.onProgress });
 
 export { leagueConfig, ownerOrder };

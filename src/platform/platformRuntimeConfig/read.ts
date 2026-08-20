@@ -51,15 +51,6 @@ export const readPlatformRuntimeConfig = (
   ) throw new Error("DATABASE_URL or MOCKD_PLATFORM_DATA_FILE is required.");
   const parsedSimulationDataMode = simulationDataMode(env);
   const parsedWorkerJobKinds = workerJobKinds(env);
-  if (
-    options.requireRunnableWorker === true &&
-    parsedWorkerJobKinds.includes("simulation") &&
-    parsedSimulationDataMode !== "local-fixtures"
-  ) {
-    throw new Error(
-      "MOCKD_SIMULATION_DATA_MODE=local-fixtures is required when workers claim simulation jobs.",
-    );
-  }
   return {
     host: optionalEnvString(env, "HOST") ?? "127.0.0.1",
     port: positiveIntegerEnv(env, "PORT", 0),
@@ -81,6 +72,11 @@ export const readPlatformRuntimeConfig = (
       optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ??
       defaultDraftToolsSessionDirectory,
     legacyMockBatchEnabled: legacyMockBatchEnabled(env),
+    seasonSimulationProducerEnabled: booleanEnv(
+      env,
+      "MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED",
+      optionalEnvString(env, "NODE_ENV") !== "production",
+    ),
     allowPublicSignup: booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP"),
     trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
     liveDraftDataMode: parsedLiveDraftDataMode,

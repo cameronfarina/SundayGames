@@ -34,6 +34,10 @@ export interface RunPlatformWorkerLoopInput extends RunPlatformWorkerOnceInput {
 }
 
 const defaultPollIntervalMs = 1_000;
+const workerLivenessHeartbeatIntervalMs = 15_000;
+const allJobKinds: readonly JobKind[] = [
+  "import", "model_run", "simulation", "season_simulation", "export",
+];
 
 const sleepFor = async (milliseconds: number): Promise<void> => {
   await new Promise<void>(resolve => {
@@ -62,7 +66,25 @@ export const runPlatformWorkerOnce = async ({
     ...(heartbeatScheduler === undefined ? {} : { heartbeatScheduler }),
   };
 
-  return await dispatchNextPlatformJob(dispatchInput);
+  const recordLiveness = async (): Promise<void> => {
+    await repository.recordWorkerHeartbeat?.({
+      workerId,
+      jobKinds: jobKinds ?? allJobKinds,
+      ...(now === undefined ? {} : { now }),
+    });
+  };
+  await recordLiveness();
+  const heartbeat = setInterval(() => {
+    void recordLiveness().catch(error => {
+      console.error("Worker liveness heartbeat failed.", error);
+    });
+  }, workerLivenessHeartbeatIntervalMs);
+  heartbeat.unref();
+  try {
+    return await dispatchNextPlatformJob(dispatchInput);
+  } finally {
+    clearInterval(heartbeat);
+  }
 };
 
 export const runPlatformWorkerLoop = async ({

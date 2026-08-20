@@ -5,9 +5,12 @@ import type {
   CompleteJobInput,
   FailJobInput,
   HeartbeatJobInput,
+  JobQueueHealth,
+  JobQueueHealthInput,
   JobRecord,
   JobRepository,
   RerunJobInput,
+  RecordWorkerHeartbeatInput,
   SubmitJobInput,
   UpdateJobProgressInput,
 } from "../jobs.js";
@@ -28,6 +31,7 @@ import {
   listJobsForUser,
 } from "./userHistory.js";
 import { heartbeatJob, updateJobProgress } from "./workerLifecycle.js";
+import { getQueueHealth, recordWorkerHeartbeat } from "./workerHealth.js";
 
 export class PostgresJobQueue implements JobRepository {
   readonly #context: JobQueueContext;
@@ -70,6 +74,14 @@ export class PostgresJobQueue implements JobRepository {
 
   async rerunJob(input: RerunJobInput): Promise<JobRecord> {
     return await rerunJob(this.#context, input);
+  }
+
+  async recordWorkerHeartbeat(input: RecordWorkerHeartbeatInput): Promise<void> {
+    await recordWorkerHeartbeat(this.#context, input);
+  }
+
+  async getQueueHealth(input: JobQueueHealthInput): Promise<JobQueueHealth> {
+    return await getQueueHealth(this.#context, input);
   }
 
   async listForUser(userId: string): Promise<JobRecord[]> {

@@ -7,8 +7,11 @@ import {
   type FailJobInput,
   type HeartbeatJobInput,
   type JobRecord,
+  type JobQueueHealth,
+  type JobQueueHealthInput,
   type JobRepository,
   type RerunJobInput,
+  type RecordWorkerHeartbeatInput,
   type SubmitJobInput,
   type UpdateJobProgressInput,
 } from "../../../src/platform/jobs.js";
@@ -51,6 +54,14 @@ export class AsyncJobRepository implements JobRepository {
 
   async rerunJob(input: RerunJobInput): Promise<JobRecord> {
     return this.inner.rerunJob(input);
+  }
+
+  async recordWorkerHeartbeat(input: RecordWorkerHeartbeatInput): Promise<void> {
+    this.inner.recordWorkerHeartbeat(input);
+  }
+
+  async getQueueHealth(input: JobQueueHealthInput): Promise<JobQueueHealth> {
+    return this.inner.getQueueHealth(input);
   }
 
   async listForUser(userId: string): Promise<JobRecord[]> {

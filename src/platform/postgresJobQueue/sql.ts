@@ -15,7 +15,11 @@ WITH candidate AS (
         AND lock_expires_at <= $1
       )
     )
-  ORDER BY created_at ASC, id ASC
+  ORDER BY (
+    SELECT MAX(previous.started_at)
+    FROM jobs AS previous
+    WHERE previous.kind = jobs.kind AND previous.user_id = jobs.user_id
+  ) ASC NULLS FIRST, created_at ASC, id ASC
   FOR UPDATE SKIP LOCKED
   LIMIT 1
 )

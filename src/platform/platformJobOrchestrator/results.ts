@@ -14,6 +14,13 @@ export interface SimulationRunExecutionJobResult extends JsonObject {
   warningCount?: number | undefined;
 }
 
+export interface SeasonSimulationExecutionJobResult extends JsonObject {
+  type: typeof platformJobTypes.seasonSimulationExecution;
+  simulationRunId: string;
+  runCount: number;
+  completedRunCount: number;
+}
+
 export interface HistoricalImportParseJobResult extends JsonObject {
   type: typeof platformJobTypes.historicalImportParse;
   importBatchId: string;
@@ -42,6 +49,7 @@ export interface DraftRoomExportJobResult extends JsonObject {
 
 export type PlatformJobResult =
   | SimulationRunExecutionJobResult
+  | SeasonSimulationExecutionJobResult
   | HistoricalImportParseJobResult
   | PricingRebuildJobResult
   | DraftRoomExportJobResult;

@@ -1,5 +1,6 @@
-import { InMemoryPlatformStore, SeasonSimulationError, buildCurrentMockdLeagueSeason, canonicalPlayerIdentityKey, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, defaultScoringSettings, describe, expect, expectBodyRecord, expectNumber, expectNumberRecord, expectRecordArray, it, leagueConfig, mockRunner, ownerOrder, playerCatalog } from "../support/index.js";
+import { InMemoryPlatformStore, SeasonSimulationError, buildCurrentMockdLeagueSeason, canonicalPlayerIdentityKey, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, defaultScoringSettings, describe, dispatchQueuedSeasonSimulation, expect, expectBodyRecord, expectNumber, expectNumberRecord, expectRecordArray, it, leagueConfig, mockRunner, ownerOrder, playerCatalog } from "../support/index.js";
 import type { LeagueSeason, LiveDraftRoomPlayerCatalogEntry, SeasonSimulationTargetConstraint } from "../support/index.js";
+import type { SeasonSimulationRunner } from "../../../src/platform/seasonSimulationRunner.js";
 
 describe("platform HTTP contract", () => {
 it("uses one pricing snapshot across the player catalog, mock drafts, and simulations", async () => {
@@ -32,37 +33,41 @@ it("uses one pricing snapshot across the player catalog, mock drafts, and simula
     let simulationTargetConstraints: readonly SeasonSimulationTargetConstraint[] | undefined;
     let simulationAccountId: string | undefined;
     let rejectForAccountCapacity = false;
-    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
+    const seasonSimulationRunner: SeasonSimulationRunner = async (input, options) => {
+      simulationExpectedPrices = input.playerExpectedPrices;
+      simulationHumanValues = input.playerHumanValues;
+      simulationTargetConstraints = input.targetConstraints;
+      simulationAccountId = options?.accountId;
+      if (rejectForAccountCapacity) {
+        throw new SeasonSimulationError(
+          "simulation_account_queue_full",
+          "Too many simulations are already running for this account. Try again shortly.",
+        );
+      }
+      return {
+        draftFormat: "auction",
+        runCount: input.runCount,
+        completedCount: input.runCount,
+        seedPrefix: input.seedPrefix ?? "market-source-test",
+        strategy: {
+          rawInput: input.strategyInput ?? "",
+          preferredPositions: [],
+          summary: "Balanced",
+          warnings: [],
+        },
+        playerExposure: [],
+        positionCounts: {},
+        runs: [],
+      };
+    };
+    const app = createPlatformApp({
+      store: new InMemoryPlatformStore(),
+      simulationRunner: mockRunner,
+      seasonSimulationRunner,
+    });
     const handle = createPlatformHttpHandler(app, {
       currentPlayerCatalogProvider: async () => currentCatalog,
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: currentCatalog, initialRosters: [] }),
-      seasonSimulationRunner: async (input, options) => {
-        simulationExpectedPrices = input.playerExpectedPrices;
-        simulationHumanValues = input.playerHumanValues;
-        simulationTargetConstraints = input.targetConstraints;
-        simulationAccountId = options?.accountId;
-        if (rejectForAccountCapacity) {
-          throw new SeasonSimulationError(
-            "simulation_account_queue_full",
-            "Too many simulations are already running for this account. Try again shortly.",
-          );
-        }
-        return {
-          draftFormat: "auction",
-          runCount: input.runCount,
-          completedCount: input.runCount,
-          seedPrefix: input.seedPrefix ?? "market-source-test",
-          strategy: {
-            rawInput: input.strategyInput ?? "",
-            preferredPositions: [],
-            summary: "Balanced",
-            warnings: [],
-          },
-          playerExposure: [],
-          positionCounts: {},
-          runs: [],
-        };
-      },
     });
     const owner11 = await createLoggedInAccount(handle, "market-source@example.com");
     const baseSeason = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, { setupStatus: "draft" });
@@ -196,12 +201,14 @@ it("uses one pricing snapshot across the player catalog, mock drafts, and simula
       body: { item: { playerName: "Puka Nacua", maxBid: 57 } },
     });
 
-    await expect(handle({
+    const queuedSimulation = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
-    })).resolves.toMatchObject({ status: 200 });
+    });
+    expect(queuedSimulation).toMatchObject({ status: 202 });
+    await dispatchQueuedSeasonSimulation(app, queuedSimulation);
     expect(simulationAccountId).toBe(owner11.account.id);
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Puka Nacua")])
       .toBe(pukaPricing.scenarioPrice);
@@ -219,16 +226,7 @@ it("uses one pricing snapshot across the player catalog, mock drafts, and simula
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
-    })).resolves.toEqual({
-      status: 429,
-      headers: { "Retry-After": "5" },
-      body: {
-        error: {
-          code: "simulation_account_queue_full",
-          message: "Too many simulations are already running for this account. Try again shortly.",
-        },
-      },
-    });
+    })).resolves.toMatchObject({ status: 202, body: { status: "queued" } });
     rejectForAccountCapacity = false;
 
   });

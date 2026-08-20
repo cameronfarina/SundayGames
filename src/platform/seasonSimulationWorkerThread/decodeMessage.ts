@@ -10,6 +10,7 @@ import {
 } from "./primitives.js";
 import { setupValue } from "./setup.js";
 import { targetConstraintsValue } from "./targetConstraints.js";
+import { historicalSalesValue } from "./historicalSales.js";
 
 const decodeMessage = (value: unknown): RunSeasonSimulationsInput => {
   const message = recordValue(value);
@@ -20,6 +21,9 @@ const decodeMessage = (value: unknown): RunSeasonSimulationsInput => {
   const playerExpectedPrices = optionalNumberRecord(input.playerExpectedPrices);
   const playerHumanValues = optionalNumberRecord(input.playerHumanValues);
   const week1Projections = optionalNumberRecord(input.week1Projections);
+  const historicalSaleRecords = input.historicalSaleRecords === undefined
+    ? undefined
+    : historicalSalesValue(input.historicalSaleRecords);
 
   return {
     season: seasonValue(input.season),
@@ -32,6 +36,7 @@ const decodeMessage = (value: unknown): RunSeasonSimulationsInput => {
     ...(playerExpectedPrices === undefined ? {} : { playerExpectedPrices }),
     ...(playerHumanValues === undefined ? {} : { playerHumanValues }),
     ...(week1Projections === undefined ? {} : { week1Projections }),
+    ...(historicalSaleRecords === undefined ? {} : { historicalSaleRecords }),
   };
 };
 

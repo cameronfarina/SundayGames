@@ -18,10 +18,14 @@ export interface SimulationRepository {
   fetchForUser(runId: string, userId: string): MaybePromise<SimulationRun | null>;
   find(runId: string): MaybePromise<SimulationRun>;
   markRunning(runId: string, now: Date): MaybePromise<SimulationRun>;
-  markFailed(runId: string): MaybePromise<SimulationRun>;
+  markFailed(runId: string, executionStartedAt?: Date): MaybePromise<SimulationRun>;
   markCanceled(runId: string): MaybePromise<SimulationRun>;
   resetForRerun(runId: string): MaybePromise<SimulationRun>;
-  complete(runId: string, result: SimulationResult): MaybePromise<SimulationRun>;
+  complete(
+    runId: string,
+    result: SimulationResult,
+    executionStartedAt?: Date,
+  ): MaybePromise<SimulationRun>;
   setOutcomeFavorite(
     runId: string,
     runNumber: number,

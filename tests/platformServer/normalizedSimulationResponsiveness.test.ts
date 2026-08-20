@@ -98,7 +98,7 @@ describePlatformServer(({ createListeningServer }) => {
 
     releaseSetupRead.resolve();
     await expect(Promise.all([simulation, unrelated])).resolves.toMatchObject([
-      { status: 200 },
+      { status: 202 },
       [{ status: 200 }, { status: 201 }],
     ]);
   });

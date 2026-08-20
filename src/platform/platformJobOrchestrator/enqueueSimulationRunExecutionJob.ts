@@ -26,7 +26,6 @@ export function enqueueSimulationRunExecutionJob(
   if (input.keeperScenarioId !== undefined) payload.keeperScenarioId = input.keeperScenarioId;
   if (input.seedPrefix !== undefined) payload.seedPrefix = input.seedPrefix;
   if (input.strategyKey !== undefined) payload.strategyKey = input.strategyKey;
-
   return submitPlatformJob({
     ...input,
     idempotencyKey: undefined,

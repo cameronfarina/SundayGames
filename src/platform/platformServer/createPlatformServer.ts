@@ -19,7 +19,6 @@ import { initializePostgresSchemas, isTransactionalPostgresClient } from "./post
 import { createPlatformRequestHandler } from "./requestHandler.js";
 import { createRuntimeRequest } from "./runtimeRequest.js";
 import { createPlatformRuntimeFactory } from "./runtimeFactory.js";
-import { createSeasonSimulationCapture } from "./simulationCapture.js";
 import { loadPlatformStore } from "./storeLoader.js";
 
 export const createPlatformServer = async (
@@ -59,16 +58,14 @@ export const createPlatformServer = async (
         retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
       })
     : undefined;
-  const simulationCapture = createSeasonSimulationCapture(
-    options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner(),
-  );
+  const seasonSimulationRunner = options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner();
   runtimeFactory = createPlatformRuntimeFactory({
     options,
     admissions,
     liveDraftRoomNotifier,
     liveDraftRoomStreamAdmission,
-    seasonSimulationRunner: simulationCapture.runner,
-    persistForJobs: persistence.rawPersist,
+    seasonSimulationRunner,
+    persistForJobs: persistence.persist,
     runInSnapshotCriticalSection: persistence.runInSnapshotCriticalSection,
   });
   runtimeHolder.replace(runtimeFactory(await loadPlatformStore(options)));
@@ -78,7 +75,6 @@ export const createPlatformServer = async (
     runtimeHolder,
     persistence,
     runRequest,
-    simulationCapture,
     liveDraftRoomNotifier,
     reloadRuntime,
   });

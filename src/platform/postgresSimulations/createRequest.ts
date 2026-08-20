@@ -17,10 +17,11 @@ import { findByIdempotency } from "./lookups.js";
 import { runFromRow } from "./runCodec.js";
 import { insertSimulationRunSql, pruneTerminalRunsSql } from "./sql.js";
 import { firstRow, type SimulationRepositoryContext, type SimulationRunRow } from "./types.js";
+import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 
-export const createRequest = async (
-  context: SimulationRepositoryContext,
+export const createRequestWithClient = async (
   input: CreateSimulationRequestInput,
+  client: PostgresQueryClient,
 ): Promise<SimulationRun> => {
   const createdAt = input.createdAt ?? new Date();
   assertSimulationCount(input.count);
@@ -42,32 +43,37 @@ export const createRequest = async (
     inputHash,
     createdAt,
   };
-  return await context.client.transaction(async client => {
-    await client.query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE", [input.userId]);
-    const existingRun = await findByIdempotency(input, client);
-    if (existingRun !== null) {
-      if (existingRun.request.inputHash !== inputHash) {
-        throw new SimulationError(
-          "idempotency_conflict",
-          "A simulation request already exists for this idempotency key with different input.",
-        );
-      }
-      return existingRun;
+  await client.query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE", [input.userId]);
+  const existingRun = await findByIdempotency(input, client);
+  if (existingRun !== null) {
+    if (existingRun.request.inputHash !== inputHash) {
+      throw new SimulationError(
+        "idempotency_conflict",
+        "A simulation request already exists for this idempotency key with different input.",
+      );
     }
-    await client.query(pruneTerminalRunsSql, [
-      input.userId,
-      maximumRetainedSimulationRunsPerUser,
-    ]);
-    const result = await client.query<SimulationRunRow>(insertSimulationRunSql, [
-      createSimulationId(), input.leagueId, input.seasonId, input.userId,
-      input.ownerId, input.teamId, input.idempotencyKey, inputHash,
-      jsonbParameter(request), createdAt, maximumRetainedSimulationRunsPerUser,
-    ]);
-    const insertedRow = firstRow(result);
-    if (insertedRow !== undefined) return runFromRow(insertedRow);
-    throw new SimulationError(
-      "simulation_capacity_reached",
-      "Finish or cancel an active simulation before starting another one.",
-    );
-  });
+    return existingRun;
+  }
+  await client.query(pruneTerminalRunsSql, [
+    input.userId,
+    maximumRetainedSimulationRunsPerUser,
+  ]);
+  const result = await client.query<SimulationRunRow>(insertSimulationRunSql, [
+    createSimulationId(), input.leagueId, input.seasonId, input.userId,
+    input.ownerId, input.teamId, input.idempotencyKey, inputHash,
+    jsonbParameter(request), createdAt, maximumRetainedSimulationRunsPerUser,
+  ]);
+  const insertedRow = firstRow(result);
+  if (insertedRow !== undefined) return runFromRow(insertedRow);
+  throw new SimulationError(
+    "simulation_capacity_reached",
+    "Finish or cancel an active simulation before starting another one.",
+  );
+};
+
+export const createRequest = async (
+  context: SimulationRepositoryContext,
+  input: CreateSimulationRequestInput,
+): Promise<SimulationRun> => {
+  return await context.client.transaction(async client => await createRequestWithClient(input, client));
 };

@@ -26,7 +26,7 @@ export const executeSimulationRun = async ({
       softTargets: run.request.strategy.softTargets,
     });
   } catch (error) {
-    await repository.markFailed(run.id);
+    await repository.markFailed(run.id, runAt);
     throw error;
   }
 
@@ -41,5 +41,5 @@ export const executeSimulationRun = async ({
     forcedSales,
     summary: batch.summary,
   };
-  return await repository.complete(run.id, result);
+  return await repository.complete(run.id, result, runAt);
 };

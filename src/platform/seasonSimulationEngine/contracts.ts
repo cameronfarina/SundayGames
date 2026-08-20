@@ -30,12 +30,14 @@ export interface ParsedSeasonSimulationStrategy {
 export type SeasonSimulationErrorCode =
   | "human_team_missing"
   | "invalid_configuration"
+  | "invalid_request_id"
   | "invalid_run_count"
   | "invalid_seed_prefix"
   | "simulation_account_queue_full"
   | "simulation_busy"
   | "simulation_canceled"
   | "simulation_failed"
+  | "simulation_worker_unavailable"
   | "simulation_timeout";
 
 export const maximumSeasonSimulationRunCount = 100;

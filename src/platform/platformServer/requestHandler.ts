@@ -6,9 +6,8 @@ import type { PlatformRuntimeHolder } from "./internalContracts.js";
 import { notifyLiveDraftRoomRevision } from "./liveDraftRevision.js";
 import type { PlatformPersistence } from "./persistence.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
-import { isLeagueMembersScreenshotAnalysisRequest, isSeasonSimulationRequest } from "./requestKinds.js";
-import { isMutatingRequest, withTrustedNow, shouldPersistAfter } from "./requestTiming.js";
-import type { SeasonSimulationCapture } from "./simulationCapture.js";
+import { isLeagueMembersScreenshotAnalysisRequest } from "./requestKinds.js";
+import { isMutatingRequest, withTrustedNow } from "./requestTiming.js";
 import { shouldBypassSnapshotAccess } from "./snapshotPersistencePolicy.js";
 
 interface CreateRequestHandlerOptions {
@@ -16,7 +15,6 @@ interface CreateRequestHandlerOptions {
   runtimeHolder: PlatformRuntimeHolder;
   persistence: PlatformPersistence;
   runRequest: PlatformHttpHandler;
-  simulationCapture: SeasonSimulationCapture;
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
   reloadRuntime: () => Promise<void>;
 }
@@ -29,19 +27,6 @@ export const createPlatformRequestHandler = (
     return input.runRequest(requestWithNow);
   }
   const runtime = input.runtimeHolder.current();
-  if (isSeasonSimulationRequest(requestWithNow)) {
-    const prepare = () => input.simulationCapture.prepare(() => input.runRequest(requestWithNow));
-    const prepared = shouldBypassSnapshotAccess(runtime, requestWithNow)
-      ? await prepare()
-      : await input.persistence.runInSnapshotCriticalSection(prepare);
-    const response = await prepared.response;
-    const currentRuntime = input.runtimeHolder.current();
-    if (currentRuntime.simulationRepository === currentRuntime.store.simulations &&
-        shouldPersistAfter(requestWithNow, response.status)) {
-      await input.persistence.persist();
-    }
-    return response;
-  }
   const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   const postgresClient = input.options.postgresClient;
   if (seasonId !== null && postgresClient !== undefined &&

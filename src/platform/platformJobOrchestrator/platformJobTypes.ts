@@ -1,5 +1,6 @@
 interface PlatformJobTypeMap {
   readonly simulationRunExecution: "simulation-run-execution";
+  readonly seasonSimulationExecution: "season-simulation-execution-v1";
   readonly historicalImportParse: "historical-import-parse";
   readonly pricingRebuild: "pricing-rebuild";
   readonly draftRoomExport: "draft-room-export";
@@ -7,6 +8,7 @@ interface PlatformJobTypeMap {
 
 export const platformJobTypes: PlatformJobTypeMap = {
   simulationRunExecution: "simulation-run-execution",
+  seasonSimulationExecution: "season-simulation-execution-v1",
   historicalImportParse: "historical-import-parse",
   pricingRebuild: "pricing-rebuild",
   draftRoomExport: "draft-room-export",

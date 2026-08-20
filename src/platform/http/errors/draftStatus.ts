@@ -66,7 +66,8 @@ export const auctionMockErrorStatus = (code: GenericAuctionMockError["code"]): n
 export const simulationErrorStatus = (code: SimulationError["code"]): number => {
   switch (code) {
     case "simulation_not_found": return 404;
-    case "idempotency_conflict": return 409;
+    case "idempotency_conflict":
+    case "simulation_execution_superseded": return 409;
     case "simulation_capacity_reached": return 429;
     case "duplicate_hard_lock":
     case "invalid_count":

@@ -11,7 +11,6 @@ export const startPlatformWorkerFromEnv = async (
 ): Promise<PlatformWorkerLoopStats> => {
   const config = readPlatformRuntimeConfig(env, {
     requireDatabase: true,
-    requireRunnableWorker: true,
   });
   const databaseUrl = config.databaseUrl;
   if (databaseUrl === undefined) throw new Error("DATABASE_URL is required.");

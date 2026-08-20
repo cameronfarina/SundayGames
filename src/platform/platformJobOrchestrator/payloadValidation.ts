@@ -13,6 +13,7 @@ import type {
   HistoricalImportParseJobPayload,
   PricingRebuildJobPayload,
   SimulationRunExecutionJobPayload,
+  SeasonSimulationExecutionJobPayload,
 } from "./payloads.js";
 import {
   platformJobTypes,
@@ -26,6 +27,7 @@ export const platformJobTypeFrom = (value: JsonValue): PlatformJobType | null =>
 
   switch (value.type) {
     case platformJobTypes.simulationRunExecution:
+    case platformJobTypes.seasonSimulationExecution:
     case platformJobTypes.historicalImportParse:
     case platformJobTypes.pricingRebuild:
     case platformJobTypes.draftRoomExport:
@@ -54,6 +56,17 @@ const isDraftRoomExportFormat = (
   value: JsonValue | undefined,
 ): value is DraftRoomExportFormat => value === "csv" || value === "xlsx";
 
+const isSeasonSimulationExecutionJobInput = (
+  value: JsonValue | undefined,
+): boolean => (
+  value !== undefined
+  && isJsonObject(value)
+  && value.input !== undefined
+  && isJsonObject(value.input)
+  && typeof value.strategyText === "string"
+  && isOptionalString(value.note)
+);
+
 export const isSimulationRunExecutionJobPayload = (
   value: JsonValue,
 ): value is SimulationRunExecutionJobPayload =>
@@ -65,6 +78,16 @@ export const isSimulationRunExecutionJobPayload = (
     && isOptionalString(value.keeperScenarioId)
     && isOptionalString(value.seedPrefix)
     && isOptionalString(value.strategyKey);
+
+export const isSeasonSimulationExecutionJobPayload = (
+  value: JsonValue,
+): value is SeasonSimulationExecutionJobPayload =>
+  isJsonObject(value)
+    && value.type === platformJobTypes.seasonSimulationExecution
+    && typeof value.simulationRunId === "string"
+    && isPositiveInteger(value.runCount)
+    && isOptionalString(value.seedPrefix)
+    && isSeasonSimulationExecutionJobInput(value.seasonSimulation);
 
 export const isHistoricalImportParseJobPayload = (
   value: JsonValue,

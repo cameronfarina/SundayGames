@@ -67,6 +67,7 @@ interface RunSimulationRequest extends RequestContext {
   readonly count: number;
   readonly note: string;
   readonly onProgress: (progress: SimulationProgress) => void;
+  readonly requestId?: string | undefined;
   readonly seasonId: string;
   readonly strategy: string;
   readonly strategyPreset: string;
@@ -74,10 +75,12 @@ interface RunSimulationRequest extends RequestContext {
 
 export const runSimulations = async (request: RunSimulationRequest) => {
   const fetcher = request.fetcher ?? fetch;
+  const requestId = request.requestId ?? crypto.randomUUID();
   const response = await fetcher("/season-simulations", {
     body: JSON.stringify({
       count: request.count,
       note: request.note,
+      requestId,
       seasonId: request.seasonId,
       strategy: request.strategy,
       strategyPreset: request.strategyPreset,
@@ -94,5 +97,16 @@ export const runSimulations = async (request: RunSimulationRequest) => {
       responseSchema: simulationResponseSchema,
     });
   }
-  return await consumeSimulationStream(response, { onProgress: request.onProgress });
+  return await consumeSimulationStream(response, {
+    onProgress: request.onProgress,
+    reconnect: async handle => await fetcher(
+      `/season-simulations/${encodeURIComponent(handle.historyId)}/observe?jobId=${encodeURIComponent(handle.jobId)}`,
+      {
+        credentials: "same-origin",
+        headers: { Accept: "text/event-stream" },
+        method: "GET",
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
+      },
+    ),
+  });
 };

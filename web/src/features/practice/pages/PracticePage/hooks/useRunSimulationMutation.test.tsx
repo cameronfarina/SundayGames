@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { PlatformFetch } from "../../../../../shared/api/http/requestPlatformJson";
 import { practiceQueryKeys } from "./practiceQueryKeys";
 import { useRunSimulationMutation } from "./useRunSimulationMutation";
@@ -81,5 +82,37 @@ describe("useRunSimulationMutation", () => {
         .rejects.toThrow("Busy.");
     });
     expect(result.current.progress).toBeUndefined();
+  });
+
+  it("reuses the user-operation request ID after an ambiguous retry", async () => {
+    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: "simulation_busy", message: "Busy." },
+    }), { status: 409 }));
+    vi.stubGlobal("fetch", fetcher);
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => useRunSimulationMutation("season-1", "balanced"),
+      { wrapper },
+    );
+    const retry = async (count: number) => await result.current.mutation.mutateAsync({
+      count,
+      note: "same operation",
+      strategy: "balanced",
+    });
+
+    await act(async () => { await expect(retry(2)).rejects.toThrow("Busy."); });
+    await act(async () => { await expect(retry(2)).rejects.toThrow("Busy."); });
+    await act(async () => { await expect(retry(3)).rejects.toThrow("Busy."); });
+    const requestIds = fetcher.mock.calls.map(call => {
+      const body = call[1]?.body;
+      if (typeof body !== "string") throw new Error("Expected a JSON request body.");
+      const parsed: unknown = JSON.parse(body);
+      return z.object({ requestId: z.string() }).parse(parsed).requestId;
+    });
+    expect(requestIds[1]).toBe(requestIds[0]);
+    expect(requestIds[2]).not.toBe(requestIds[0]);
   });
 });

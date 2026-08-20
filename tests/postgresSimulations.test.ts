@@ -359,14 +359,19 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
     }
 
     if (normalizedSql.startsWith("UPDATE simulation_runs SET status = 'completed'")) {
-      const [runId, completedAt] = values as readonly [string, Date];
+      const [runId, completedAt, executionStartedAt] = values as readonly [string, Date, Date | null];
       const row = this.#requireRow(runId);
+
+      if (executionStartedAt !== null &&
+          row.started_at?.getTime() !== executionStartedAt.getTime()) {
+        return { rows: [], rowCount: 0 };
+      }
 
       row.status = "completed";
       row.completed_at = completedAt;
       row.updated_at = completedAt;
 
-      return { rows: [], rowCount: 1 };
+      return { rows: [this.#joinedRow(row) as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("DELETE FROM simulation_results")) {

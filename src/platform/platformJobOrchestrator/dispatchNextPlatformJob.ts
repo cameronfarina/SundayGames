@@ -25,6 +25,10 @@ export const dispatchNextPlatformJob = async ({
   });
 
   if (job === null) return null;
+  const claimLockedAt = job.lockedAt;
+  if (claimLockedAt === undefined) {
+    throw new Error(`Claimed job ${job.id} did not include its execution token.`);
+  }
 
   try {
     const handledJob = await runClaimedPlatformJob({
@@ -37,7 +41,12 @@ export const dispatchNextPlatformJob = async ({
       heartbeatScheduler,
     });
     const boundaryJob = handledJob.latestJob.cancellationRequestedAt === undefined
-      ? await repository.heartbeatJob({ jobId: job.id, workerId, lockTtlMs })
+      ? await repository.heartbeatJob({
+          jobId: job.id,
+          workerId,
+          claimLockedAt,
+          lockTtlMs,
+        })
       : handledJob.latestJob;
     const completedAt = now ?? new Date();
 
@@ -45,6 +54,7 @@ export const dispatchNextPlatformJob = async ({
       return await repository.cancelJobAtRunBoundary({
         jobId: job.id,
         workerId,
+        claimLockedAt,
         now: completedAt,
       });
     }
@@ -52,6 +62,7 @@ export const dispatchNextPlatformJob = async ({
     return await repository.completeJob({
       jobId: job.id,
       workerId,
+      claimLockedAt,
       resultSummary: handledJob.resultSummary,
       now: completedAt,
     });
@@ -62,6 +73,7 @@ export const dispatchNextPlatformJob = async ({
       return await repository.cancelJobAtRunBoundary({
         jobId: job.id,
         workerId,
+        claimLockedAt,
         now: failedAt,
       });
     }
@@ -69,6 +81,7 @@ export const dispatchNextPlatformJob = async ({
     return await repository.failJob({
       jobId: job.id,
       workerId,
+      claimLockedAt,
       error,
       now: failedAt,
     });

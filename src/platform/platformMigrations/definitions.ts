@@ -6,6 +6,7 @@ import {
   leagueSyncRevisionMigrationId,
   liveDraftScaleMigrationId,
   practicePersistenceMigrationId,
+  simulationWorkerReliabilityMigrationId,
   snakeLiveRoomMigrationId,
 } from "./ids.js";
 import { ownershipPlatformSchemaMigrations } from "./ownershipDefinitions.js";
@@ -15,6 +16,7 @@ import {
   leagueCredentialEncryptionMigrationStatements,
   leagueSyncRevisionMigrationStatements,
   liveDraftScaleMigrationStatements,
+  simulationWorkerReliabilityMigrationStatements,
 } from "./schemaStatements.js";
 
 export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
@@ -45,6 +47,10 @@ export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: practicePersistenceMigrationId,
     statements: practicePersistenceMigrationStatements,
+  },
+  {
+    id: simulationWorkerReliabilityMigrationId,
+    statements: simulationWorkerReliabilityMigrationStatements,
   },
 ];
 

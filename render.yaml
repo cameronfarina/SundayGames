@@ -75,3 +75,33 @@ services:
         sync: false
       - key: MOCKD_ENABLE_LEGACY_MOCK_BATCH
         value: "false"
+      # Activate only in a follow-up deploy after every old web replica has stopped.
+      - key: MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED
+        value: "false"
+
+  - type: worker
+    name: sundaygames-simulation-worker
+    runtime: docker
+    plan: starter
+    region: virginia
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: npm run platform:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mockd-postgres
+          property: connectionString
+      - key: MOCKD_WORKER_JOB_KINDS
+        value: season_simulation
+      - key: MOCKD_INITIALIZE_POSTGRES_SCHEMA
+        value: "false"
+      - key: MOCKD_POSTGRES_POOL_SIZE
+        value: "2"
+      - key: MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS
+        value: "15000"
+      - key: MOCKD_POSTGRES_SNAPSHOT_KEY
+        value: mockd-production

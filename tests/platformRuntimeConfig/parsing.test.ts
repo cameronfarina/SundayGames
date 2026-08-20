@@ -45,6 +45,7 @@ describe("platform runtime config parsing", () => {
       initializePostgresSchema: true,
       draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
       legacyMockBatchEnabled: false,
+      seasonSimulationProducerEnabled: true,
       allowPublicSignup: true,
       trustProxy: true,
       liveDraftDataMode: "postgres",

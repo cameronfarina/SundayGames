@@ -83,11 +83,13 @@ export const errorResponseFor = (
     const status = error.code === "human_team_missing" ? 403
       : error.code === "invalid_configuration" ? 409
         : error.code === "simulation_account_queue_full" ? 429
-          : error.code === "simulation_busy" || error.code === "simulation_timeout" ? 503
+          : error.code === "simulation_busy" || error.code === "simulation_timeout" ||
+              error.code === "simulation_worker_unavailable" ? 503
             : error.code === "simulation_canceled" ? 408
               : error.code === "simulation_failed" ? 500 : 400;
     const response = knownError(status, error.code, error.message);
-    return error.code === "simulation_busy" || error.code === "simulation_account_queue_full"
+    return error.code === "simulation_busy" || error.code === "simulation_account_queue_full" ||
+        error.code === "simulation_worker_unavailable"
       ? { ...response, headers: { "Retry-After": "5" } } : response;
   }
   if (error instanceof SimulationError) {

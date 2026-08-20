@@ -105,6 +105,7 @@ export interface CreatePlatformServerOptions {
   bodyLimitBytes?: number | undefined;
   screenshotImportBodyLimitBytes?: number | undefined;
   legacyMockBatchEnabled?: boolean | undefined;
+  seasonSimulationProducerEnabled?: boolean | undefined;
   draftToolsSessionDirectory?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   now?: PlatformClock | undefined;

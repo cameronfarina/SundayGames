@@ -9,6 +9,7 @@ import {
   createPlatformHttpHandler,
   createPricingSnapshot,
   describe,
+  dispatchQueuedSeasonSimulation,
   expect,
   expectBodyRecord,
   expectNumberRecord,
@@ -24,16 +25,15 @@ import {
 describe("platform HTTP pricing refresh", () => {
   it("refreshes legacy keeper pricing across Practice, mocks, and simulations", async () => {
     const store = new InMemoryPlatformStore();
-    const app = createPlatformApp({ store, simulationRunner: mockRunner });
     const repository = new InMemoryLiveDraftRoomSetupRepository();
     const currentCatalog = await loadCurrentPlayerCatalog();
     const pollutedCatalog = currentCatalog.map(player => player.name === "Jahmyr Gibbs"
       ? { ...player, expectedPrice: 88, marketPrice: 88 }
       : player);
     let simulationExpectedPrices: Readonly<Record<string, number>> | undefined;
-    const handle = createPlatformHttpHandler(app, {
-      currentPlayerCatalogProvider: async () => currentCatalog,
-      liveDraftRoomSetupRepository: repository,
+    const app = createPlatformApp({
+      store,
+      simulationRunner: mockRunner,
       seasonSimulationRunner: async input => {
         simulationExpectedPrices = input.playerExpectedPrices;
         return {
@@ -52,6 +52,10 @@ describe("platform HTTP pricing refresh", () => {
           runs: [],
         };
       },
+    });
+    const handle = createPlatformHttpHandler(app, {
+      currentPlayerCatalogProvider: async () => currentCatalog,
+      liveDraftRoomSetupRepository: repository,
     });
     const login = await createLoggedInAccount(handle, "refresh-practice-pricing@example.com");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
@@ -146,12 +150,14 @@ describe("platform HTTP pricing refresh", () => {
     expect(expectNumberRecord(mockPayload.playerExpectedPrices)[canonicalPlayerIdentityKey("Jahmyr Gibbs")])
       .toBe(70);
 
-    await expect(handle({
+    const queuedSimulation = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: login.sessionToken,
       body: { seasonId: season.id, count: 1 },
-    })).resolves.toMatchObject({ status: 200 });
+    });
+    expect(queuedSimulation).toMatchObject({ status: 202 });
+    await dispatchQueuedSeasonSimulation(app, queuedSimulation);
     expect(simulationExpectedPrices?.[canonicalPlayerIdentityKey("Jahmyr Gibbs")]).toBe(70);
   });
 });

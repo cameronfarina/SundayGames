@@ -117,6 +117,7 @@ describe("Render production blueprint", () => {
     });
     expect(envFor(web, "MOCKD_TRUST_PROXY")?.value).toBe("true");
     expect(envFor(web, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
+    expect(envFor(web, "MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED")?.value).toBe("false");
     expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODE")?.value).toBe("disabled");
     expect(envFor(web, "MOCKD_SCREENSHOT_IMPORT_MODEL")).toBeUndefined();
     expect(envFor(web, "OPENAI_API_KEY")).toBeUndefined();
@@ -129,7 +130,31 @@ describe("Render production blueprint", () => {
     const worker = blueprint.services.find(service => service.name === "mockd-worker");
 
     expect(worker).toBeUndefined();
-    expect(blueprint.services).toHaveLength(1);
+  });
+
+  it("deploys season simulations on a Starter background worker", async () => {
+    const blueprint = await loadBlueprint();
+    const worker = blueprint.services.find(
+      service => service.name === "sundaygames-simulation-worker",
+    );
+    if (worker === undefined) throw new Error("Expected the Sunday Games simulation worker.");
+
+    expect(worker).toEqual(expect.objectContaining({
+      type: "worker",
+      runtime: "docker",
+      plan: "starter",
+      region: "virginia",
+      autoDeployTrigger: "checksPass",
+      dockerCommand: "npm run platform:worker",
+    }));
+    expect(envFor(worker, "DATABASE_URL")?.fromDatabase).toEqual({
+      name: "mockd-postgres",
+      property: "connectionString",
+    });
+    expect(envFor(worker, "NODE_ENV")?.value).toBe("production");
+    expect(envFor(worker, "MOCKD_WORKER_JOB_KINDS")?.value).toBe("season_simulation");
+    expect(envFor(worker, "MOCKD_INITIALIZE_POSTGRES_SCHEMA")?.value).toBe("false");
+    expect(envFor(worker, "MOCKD_SIMULATION_DATA_MODE")).toBeUndefined();
   });
 
   it("contains no provisioning or password secrets", async () => {

@@ -25,6 +25,7 @@ const expectedTableOrder = [
   "player_prices",
   "league_season_draft_setups",
   "jobs",
+  "platform_worker_heartbeats",
   "strategy_plans",
   "strategy_plan_versions",
   "target_lists",

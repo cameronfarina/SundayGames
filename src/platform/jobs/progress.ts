@@ -12,7 +12,7 @@ export const updateJobProgress = (
   input: UpdateJobProgressInput,
 ): JobRecord => {
   const now = input.now ?? new Date();
-  const job = findRunningLockedJob(store, input.jobId, input.workerId);
+  const job = findRunningLockedJob(store, input.jobId, input.workerId, input.claimLockedAt);
 
   job.progress = { ...input.progress };
   job.heartbeatAt = now;
@@ -27,7 +27,7 @@ export const heartbeatJob = (
 ): JobRecord => {
   const now = input.now ?? new Date();
   const lockTtlMs = input.lockTtlMs ?? defaultLockTtlMs;
-  const job = findRunningLockedJob(store, input.jobId, input.workerId);
+  const job = findRunningLockedJob(store, input.jobId, input.workerId, input.claimLockedAt);
 
   job.heartbeatAt = now;
   job.lockExpiresAt = new Date(now.getTime() + lockTtlMs);

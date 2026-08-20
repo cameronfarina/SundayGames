@@ -5,6 +5,7 @@ import type {
   PlatformJobPayload,
   PricingRebuildJobPayload,
   SimulationRunExecutionJobPayload,
+  SeasonSimulationExecutionJobPayload,
 } from "./payloads.js";
 import type { PlatformJobRepository } from "./repositoryContracts.js";
 import type {
@@ -13,6 +14,7 @@ import type {
   PlatformJobResult,
   PricingRebuildJobResult,
   SimulationRunExecutionJobResult,
+  SeasonSimulationExecutionJobResult,
 } from "./results.js";
 import { platformJobTypes } from "./platformJobTypes.js";
 
@@ -32,6 +34,10 @@ export type PlatformJobHandlers = {
   [platformJobTypes.simulationRunExecution]: PlatformJobHandler<
     SimulationRunExecutionJobPayload,
     SimulationRunExecutionJobResult
+  >;
+  [platformJobTypes.seasonSimulationExecution]: PlatformJobHandler<
+    SeasonSimulationExecutionJobPayload,
+    SeasonSimulationExecutionJobResult
   >;
   [platformJobTypes.historicalImportParse]: PlatformJobHandler<
     HistoricalImportParseJobPayload,

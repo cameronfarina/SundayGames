@@ -42,4 +42,33 @@ describe("simulation retention", () => {
       ),
     );
   });
+
+  it("rejects completion from a superseded simulation execution", () => {
+    const repository = new InMemorySimulationRepository();
+    const run = repository.createRequest(requestInput("execution-fence"));
+    const firstClaimedAt = new Date(now.getTime() + 1_000);
+    const secondClaimedAt = new Date(now.getTime() + 2_000);
+    repository.markRunning(run.id, firstClaimedAt);
+    repository.markRunning(run.id, secondClaimedAt);
+
+    expect(() => repository.complete(run.id, {
+      runId: run.id,
+      requestId: run.request.id,
+      completedAt: firstClaimedAt,
+      runCount: run.request.count,
+      seedPrefix: run.request.seedPrefix,
+      hardLockCount: 0,
+      softTargetCount: 0,
+      forcedSales: [],
+      summary: {
+        runCount: run.request.count,
+        scenarios: [],
+        players: [],
+        owners: [],
+        ownerPlayerExposure: [],
+      },
+    }, firstClaimedAt)).toThrow("superseded by a newer execution");
+    repository.markFailed(run.id, firstClaimedAt);
+    expect(repository.find(run.id)).toMatchObject({ status: "running", startedAt: secondClaimedAt });
+  });
 });

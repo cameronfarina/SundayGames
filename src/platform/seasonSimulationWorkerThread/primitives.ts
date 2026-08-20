@@ -18,8 +18,15 @@ export const stringValue = (value: unknown): string =>
 export const numberValue = (value: unknown): number =>
   typeof value === "number" ? value : invalidWorkerMessage();
 
-export const dateValue = (value: unknown): Date =>
-  value instanceof Date ? value : invalidWorkerMessage();
+export const dateValue = (value: unknown): Date => {
+  if (value instanceof Date) return value;
+  if (typeof value !== "string") return invalidWorkerMessage();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? invalidWorkerMessage() : date;
+};
+
+export const booleanValue = (value: unknown): boolean =>
+  typeof value === "boolean" ? value : invalidWorkerMessage();
 
 export const arrayValue = (value: unknown): readonly unknown[] =>
   Array.isArray(value) ? value : invalidWorkerMessage();

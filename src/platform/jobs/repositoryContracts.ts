@@ -9,6 +9,9 @@ import type {
   JobRecord,
   MaybePromise,
   RerunJobInput,
+  RecordWorkerHeartbeatInput,
+  JobQueueHealth,
+  JobQueueHealthInput,
   SubmitJobInput,
   UpdateJobProgressInput,
 } from "./contracts.js";
@@ -23,6 +26,8 @@ export interface JobRepository {
   cancelJob(input: CancelJobInput): MaybePromise<JobRecord>;
   cancelJobAtRunBoundary(input: CancelJobAtRunBoundaryInput): MaybePromise<JobRecord>;
   rerunJob(input: RerunJobInput): MaybePromise<JobRecord>;
+  recordWorkerHeartbeat(input: RecordWorkerHeartbeatInput): MaybePromise<void>;
+  getQueueHealth(input: JobQueueHealthInput): MaybePromise<JobQueueHealth>;
   listPageForUser(input: ListJobsForUserInput): MaybePromise<JobHistoryPage>;
   listForUser(userId: string): MaybePromise<JobRecord[]>;
   fetchForUser(jobId: string, userId: string): MaybePromise<JobRecord | null>;

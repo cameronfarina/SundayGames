@@ -44,10 +44,13 @@ export const createPlatformRuntimeFactory = (
     jobRepository: repositories.jobRepository,
     simulationRepository: repositories.simulationRepository,
     mockDraftSessionRepository: repositories.mockDraftSessionRepository,
+    seasonSimulationAdmissionRepository: repositories.seasonSimulationAdmissionRepository,
+    seasonSimulationProducerEnabled: options.seasonSimulationProducerEnabled,
     practiceShortlistRepository: repositories.practiceShortlistRepository,
     liveDraftRoomRepository: repositories.liveDraftRoomRepository,
     exportArtifactRepository: repositories.exportArtifactRepository,
     simulationRunner: options.simulationRunner,
+    seasonSimulationRunner: input.seasonSimulationRunner,
   });
   const applyAcceptedMembership = createAcceptedMembershipApplier(repositories);
   const runLeagueSyncSeasonRefresh =
@@ -93,7 +96,6 @@ export const createPlatformRuntimeFactory = (
         admission: input.liveDraftRoomStreamAdmission,
         subscription,
       }),
-    seasonSimulationRunner: input.seasonSimulationRunner,
     leagueConnectionRepository: repositories.leagueConnectionRepository,
     ...(options.leagueSyncFetch === undefined ? {} : { leagueSyncFetch: options.leagueSyncFetch }),
     ...(runLeagueSyncSeasonRefresh === undefined ? {} : { runLeagueSyncSeasonRefresh }),

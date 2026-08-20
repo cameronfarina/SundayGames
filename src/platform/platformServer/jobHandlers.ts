@@ -7,9 +7,9 @@ export const createDelegatingJobHandlers = (
   persistence: PlatformPersistence,
 ): PlatformJobHandlers => ({
   [platformJobTypes.simulationRunExecution]: (payload, context) =>
-    persistence.runInSnapshotCriticalSection(() => Promise.resolve(
       runtimeHolder.current().rawJobHandlers[platformJobTypes.simulationRunExecution](payload, context),
-    )),
+  [platformJobTypes.seasonSimulationExecution]: (payload, context) =>
+    runtimeHolder.current().rawJobHandlers[platformJobTypes.seasonSimulationExecution](payload, context),
   [platformJobTypes.historicalImportParse]: (payload, context) =>
     persistence.runInSnapshotCriticalSection(() => Promise.resolve(
       runtimeHolder.current().rawJobHandlers[platformJobTypes.historicalImportParse](payload, context),

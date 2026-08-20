@@ -35,7 +35,7 @@ export const jobTables: readonly PostgresTableDefinition[] = [
       { name: "jobs_user_league_season_idempotency_key", columns: ["user_id", "league_id", "league_season_id", "idempotency_key"] },
     ],
     checkConstraints: [
-      { name: "jobs_kind_check", expression: "kind IN ('import', 'model_run', 'simulation', 'export', 'maintenance')" },
+      { name: "jobs_kind_check", expression: "kind IN ('import', 'model_run', 'simulation', 'season_simulation', 'export', 'maintenance')" },
       { name: "jobs_status_check", expression: "status IN ('queued', 'running', 'completed', 'failed', 'canceled')" },
       { name: "jobs_attempts_check", expression: "attempt_count >= 0 AND max_attempts > 0" },
     ],
@@ -64,6 +64,20 @@ export const jobTables: readonly PostgresTableDefinition[] = [
       { name: "jobs_expired_lease_idx", columns: ["status", "lock_expires_at"] },
       { name: "jobs_locked_by_locked_at_idx", columns: ["locked_by", "locked_at"] },
       { name: "jobs_user_status_idx", columns: ["user_id", "status"] },
+      { name: "jobs_kind_user_started_at_idx", columns: ["kind", "user_id", "started_at"] },
+    ],
+  },
+  {
+    name: "platform_worker_heartbeats",
+    columns: [
+      { name: "worker_id", type: "text" },
+      { name: "job_kinds_json", type: "jsonb", default: jsonbDefault },
+      { name: "started_at", type: "timestamptz" },
+      { name: "last_seen_at", type: "timestamptz" },
+    ],
+    primaryKey: ["worker_id"],
+    indexes: [
+      { name: "platform_worker_heartbeats_last_seen_at_idx", columns: ["last_seen_at"] },
     ],
   },
 ];

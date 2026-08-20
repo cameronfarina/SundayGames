@@ -12,19 +12,28 @@ export const complete = async (
   context: SimulationRepositoryContext,
   runId: string,
   result: SimulationResult,
+  executionStartedAt?: Date,
 ): Promise<SimulationRun> => await context.client.transaction(async client => {
   const existingRun = await findById(runId, client);
   if (existingRun === null) {
     throw new SimulationError("simulation_not_found", "Simulation run was not found.");
   }
   if (existingRun.status === "canceled") return existingRun;
-  await client.query(`
+  const completion = await client.query<{ id: string }>(`
 UPDATE simulation_runs
 SET status = 'completed',
     completed_at = $2,
     updated_at = $2
 WHERE id = $1
-`.trim(), [runId, result.completedAt]);
+  AND ($3::timestamptz IS NULL OR started_at = $3)
+RETURNING id
+`.trim(), [runId, result.completedAt, executionStartedAt ?? null]);
+  if (completion.rows.length === 0) {
+    throw new SimulationError(
+      "simulation_execution_superseded",
+      "Simulation completion was superseded by a newer execution.",
+    );
+  }
   await client.query(`
 INSERT INTO simulation_results (
   id, simulation_run_id, summary_json, result_set_json, created_at
