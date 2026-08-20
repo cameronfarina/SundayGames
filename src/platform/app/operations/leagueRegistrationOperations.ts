@@ -39,9 +39,12 @@ export const createLeagueRegistrationOperations = (context: PlatformAppContext) 
       )
       : await context.leagueSetup.registerLeagueSeason(repositoryInput);
     if (context.usesExternalLeagueSetup) {
+      const registeredMemberships = await context.leagueSetup.membershipsForLeague(
+        registered.leagueId,
+      );
       context.store.registerLeagueSeason({
         season: registered,
-        memberships: input.memberships,
+        memberships: registeredMemberships,
         createdByUserId: account.id,
         enforceCreationLimits: false,
         ...(input.membershipWriteMode === undefined

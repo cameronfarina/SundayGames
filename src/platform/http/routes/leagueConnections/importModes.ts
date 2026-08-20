@@ -31,6 +31,12 @@ export const snapshotRequired = (): PlatformHttpResponse => knownError(
   "Sync this league before importing it.",
 );
 
+export const leagueImportChanged = (): PlatformHttpResponse => knownError(
+  409,
+  "league_import_changed",
+  "This connected league changed while it was imported. Try again.",
+);
+
 export const leagueSetupLocked = (): PlatformHttpResponse => knownError(
   409,
   "league_setup_locked",

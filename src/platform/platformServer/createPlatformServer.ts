@@ -48,6 +48,7 @@ export const createPlatformServer = async (
     liveDraftRoomNotifier,
     seasonSimulationRunner: simulationCapture.runner,
     persistForJobs: persistence.rawPersist,
+    runInSnapshotCriticalSection: persistence.runInSnapshotCriticalSection,
   });
   runtimeHolder.replace(runtimeFactory(await loadPlatformStore(options)));
   const runRequest = createRuntimeRequest(runtimeHolder, persistence);

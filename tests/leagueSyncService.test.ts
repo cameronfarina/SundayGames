@@ -17,6 +17,16 @@ import {
 
 const now = new Date("2026-08-19T12:00:00.000Z");
 
+const deferred = () => {
+  let resolve = (): void => {
+    throw new Error("Deferred promise resolved before initialization.");
+  };
+  const promise = new Promise<void>(promiseResolve => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+};
+
 const syncedLeague: SyncedLeague = {
   provider: "sleeper",
   providerLeagueId: "league-1",
@@ -92,6 +102,15 @@ const connectionFor = async (repository: InMemoryLeagueConnectionRepository) =>
     now,
   });
 
+const repositoryView = (
+  repository: InMemoryLeagueConnectionRepository,
+): InMemoryLeagueConnectionRepository => new Proxy(repository, {
+  get: (target, property) => {
+    const value: unknown = Reflect.get(target, property);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+});
+
 describe("league connection sync", () => {
   it("does not load stored credentials for a provider that cannot use them", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
@@ -116,6 +135,10 @@ describe("league connection sync", () => {
       status: "ok",
       lastSyncedAt: now.toISOString(),
     });
+    expect(await repository.findConnection(connection.accountId, connection.id)).toMatchObject({
+      displayName: "Sleeper Friends League",
+      status: "ok",
+    });
     expect((await repository.findSnapshot(connection.id))?.teams).toHaveLength(1);
   });
 
@@ -136,6 +159,169 @@ describe("league connection sync", () => {
     expect(fetchPlayerDirectory).toHaveBeenCalledTimes(2);
   });
 
+  it("does not let an older slow sync replace a newer stored snapshot or season refresh", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const connection = await connectionFor(repository);
+    await repository.linkConnectionToSeason(connection.id, "season-1");
+    const linkedConnection = { ...connection, leagueSeasonId: "season-1" };
+    const olderFetchEntered = deferred();
+    const releaseOlderFetch = deferred();
+    const newerFetchEntered = deferred();
+    let fetchCount = 0;
+    const adapter: LeagueSyncAdapter = {
+      provider: "sleeper",
+      isAvailable: () => true,
+      needsPlayerDirectory: false,
+      discoverLeagues: async () => [],
+      fetchLeague: async () => {
+        fetchCount += 1;
+        if (fetchCount === 1) {
+          olderFetchEntered.resolve();
+          await releaseOlderFetch.promise;
+          return {
+            ...syncedLeague,
+            settings: { ...syncedLeague.settings, name: "Older slow result" },
+          };
+        }
+        newerFetchEntered.resolve();
+        return {
+          ...syncedLeague,
+          settings: { ...syncedLeague.settings, name: "Newer fast result" },
+        };
+      },
+    };
+    const refreshedNames: string[] = [];
+    const options: LeagueSyncServiceOptions = {
+      ...serviceFor(adapter, repository),
+      refreshImportedSeason: async ({ snapshot }) => {
+        refreshedNames.push(snapshot.settings.name);
+        return null;
+      },
+    };
+    const older = syncLeagueConnection(options, linkedConnection, now);
+    await olderFetchEntered.promise;
+    const newerNow = new Date(now.getTime() + 60_000);
+    const newer = syncLeagueConnection(options, linkedConnection, newerNow);
+
+    const admissionBeforeRelease = await Promise.race([
+      newerFetchEntered.promise.then(() => "entered"),
+      new Promise(resolve => setTimeout(() => resolve("waiting"), 25)),
+    ]);
+
+    releaseOlderFetch.resolve();
+    await Promise.all([older, newer]);
+
+    expect(await repository.findSnapshot(connection.id)).toMatchObject({
+      settings: { name: "Newer fast result" },
+      syncedAt: newerNow.toISOString(),
+    });
+    expect(admissionBeforeRelease).toBe("waiting");
+    expect(refreshedNames).toEqual(["Older slow result", "Newer fast result"]);
+  });
+
+  it("uses revisions across repository identities when request timestamps tie", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const connection = await connectionFor(repository);
+    await repository.linkConnectionToSeason(connection.id, "season-1");
+    const linkedConnection = { ...connection, leagueSeasonId: "season-1" };
+    const slowFetchEntered = deferred();
+    const releaseSlowFetch = deferred();
+    let fetchCount = 0;
+    const adapter: LeagueSyncAdapter = {
+      provider: "sleeper",
+      isAvailable: () => true,
+      needsPlayerDirectory: false,
+      discoverLeagues: async () => [],
+      fetchLeague: async () => {
+        fetchCount += 1;
+        if (fetchCount === 1) {
+          slowFetchEntered.resolve();
+          await releaseSlowFetch.promise;
+          return {
+            ...syncedLeague,
+            settings: { ...syncedLeague.settings, name: "Old slow result" },
+          };
+        }
+        return {
+          ...syncedLeague,
+          settings: { ...syncedLeague.settings, name: "New fast result" },
+        };
+      },
+    };
+    const refreshedNames: string[] = [];
+    const optionsForView = (view: InMemoryLeagueConnectionRepository): LeagueSyncServiceOptions => ({
+      ...serviceFor(adapter, view),
+      refreshImportedSeason: async ({ snapshot: refreshed }) => {
+        refreshedNames.push(refreshed.settings.name);
+        return null;
+      },
+    });
+    const slow = syncLeagueConnection(
+      optionsForView(repositoryView(repository)),
+      linkedConnection,
+      now,
+    );
+    await slowFetchEntered.promise;
+    const fast = syncLeagueConnection(
+      optionsForView(repositoryView(repository)),
+      linkedConnection,
+      now,
+    );
+
+    await fast;
+    releaseSlowFetch.resolve();
+    await slow;
+
+    expect(await repository.findSnapshot(connection.id)).toMatchObject({
+      settings: { name: "New fast result" },
+    });
+    expect(refreshedNames).toEqual(["New fast result"]);
+  });
+
+  it("returns the stored connection when an owner edit invalidates the in-flight sync", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const connection = await connectionFor(repository);
+    const adapter: LeagueSyncAdapter = {
+      provider: "sleeper",
+      isAvailable: () => true,
+      needsPlayerDirectory: false,
+      discoverLeagues: async () => [],
+      fetchLeague: async () => {
+        const newerRevision = await repository.beginConnectionSync(connection.id);
+        if (newerRevision === null) throw new Error("Missing newer test sync.");
+        await repository.saveSnapshot(
+          connection.id,
+          {
+            ...syncedLeague,
+            settings: { ...syncedLeague.settings, name: "Newer provider snapshot" },
+          },
+          now.toISOString(),
+          newerRevision,
+        );
+        await repository.saveConnection({
+          accountId: connection.accountId,
+          provider: connection.provider,
+          providerLeagueId: connection.providerLeagueId,
+          season: connection.season,
+          displayName: "Owner-edited name",
+          now: new Date(now.getTime() + 60_000),
+        });
+        return {
+          ...syncedLeague,
+          settings: { ...syncedLeague.settings, name: "Stale provider name" },
+        };
+      },
+    };
+
+    const result = await syncLeagueConnection(serviceFor(adapter, repository), connection, now);
+
+    expect(result.connection).toMatchObject({
+      displayName: "Owner-edited name",
+      status: "pending",
+    });
+    expect(result.connection?.lastSyncedAt).toBeUndefined();
+  });
+
   it("syncs on a stored directory when the player dump is unreachable", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
     const connection = await connectionFor(repository);
@@ -148,7 +334,7 @@ describe("league connection sync", () => {
       new Date(now.getTime() + playerDirectoryMaxAgeMs + 1),
     );
 
-    expect(result.connection.status).toBe("ok");
+    expect(result.connection?.status).toBe("ok");
     expect(offline.fetchLeague).toHaveBeenCalledOnce();
   });
 
@@ -159,7 +345,7 @@ describe("league connection sync", () => {
 
     const result = await syncLeagueConnection(serviceFor(adapter, repository), connection, now);
 
-    expect(result.connection.status).toBe("error");
+    expect(result.connection?.status).toBe("error");
   });
 
   it("passes saved ESPN cookies to the provider without exposing them", async () => {

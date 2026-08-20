@@ -44,9 +44,11 @@ export interface SaveLeagueConnectionInput {
 
 export interface UpdateLeagueConnectionStatusInput {
   id: string;
+  displayName?: string | undefined;
   status: LeagueConnectionStatus;
   statusDetail?: string | undefined;
   lastSyncedAt?: string | undefined;
+  expectedSyncRevision?: string | undefined;
   now?: Date | undefined;
 }
 
@@ -59,6 +61,7 @@ export interface LeagueSnapshot {
 export interface StoredLeagueSnapshot extends LeagueSnapshot {
   connectionId: string;
   syncedAt: string;
+  syncRevision: string;
 }
 
 export interface StoredPlayerDirectory {
@@ -78,10 +81,16 @@ export interface LeagueConnectionRepository {
   findConnection(accountId: string, id: string): Promise<LeagueConnection | null>;
   findCredentials(id: string): Promise<LeagueConnectionCredentials | null>;
   saveConnection(input: SaveLeagueConnectionInput): Promise<LeagueConnection>;
-  updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<void>;
+  beginConnectionSync(id: string): Promise<string | null>;
+  updateConnectionStatus(input: UpdateLeagueConnectionStatusInput): Promise<boolean>;
   linkConnectionToSeason(id: string, leagueSeasonId: string): Promise<void>;
   deleteConnection(accountId: string, id: string): Promise<boolean>;
-  saveSnapshot(connectionId: string, snapshot: LeagueSnapshot, syncedAt: string): Promise<void>;
+  saveSnapshot(
+    connectionId: string,
+    snapshot: LeagueSnapshot,
+    syncedAt: string,
+    syncRevision: string,
+  ): Promise<boolean>;
   findSnapshot(connectionId: string): Promise<StoredLeagueSnapshot | null>;
   savePlayerDirectory(directory: StoredPlayerDirectory): Promise<void>;
   findPlayerDirectory(provider: LeagueSyncProvider): Promise<StoredPlayerDirectory | null>;

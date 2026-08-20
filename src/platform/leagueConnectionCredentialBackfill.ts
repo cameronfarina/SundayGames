@@ -56,8 +56,7 @@ const clearLegacyCredentialsSql = `
 UPDATE league_connections
 SET
   espn_s2 = NULL,
-  swid = NULL,
-  updated_at = $2
+  swid = NULL
 WHERE id = $1
 `.trim();
 
@@ -67,8 +66,7 @@ SET
   credentials_ciphertext = $2,
   credentials_key_id = $3,
   espn_s2 = NULL,
-  swid = NULL,
-  updated_at = $4
+  swid = NULL
 WHERE id = $1
 `.trim();
 
@@ -86,12 +84,10 @@ export const backfillLeagueConnectionCredentials = async (
   client: PostgresTransactionalQueryClient,
   cipher: LeagueConnectionCredentialCipher,
   batchSize = defaultBatchSize,
-  now: Date = new Date(),
 ): Promise<LeagueConnectionCredentialBackfillResult> => {
   if (!Number.isInteger(batchSize) || batchSize <= 0) {
     throw new Error("Credential backfill batch size must be a positive integer.");
   }
-  const updatedAt = now.toISOString();
   return await client.transaction(async transactionClient => {
     const result = await transactionClient.query<CredentialBackfillRow>(
       selectCredentialBackfillRowsSql,
@@ -111,10 +107,7 @@ export const backfillLeagueConnectionCredentials = async (
     let migrated = 0;
     for (const row of result.rows) {
       if (row.provider !== "espn") {
-        const update = await transactionClient.query(clearLegacyCredentialsSql, [
-          row.id,
-          updatedAt,
-        ]);
+        const update = await transactionClient.query(clearLegacyCredentialsSql, [row.id]);
         migrated += update.rowCount ?? 0;
         continue;
       }
@@ -140,7 +133,6 @@ export const backfillLeagueConnectionCredentials = async (
         row.id,
         encrypted.ciphertext,
         encrypted.keyId,
-        updatedAt,
       ]);
       migrated += update.rowCount ?? 0;
     }

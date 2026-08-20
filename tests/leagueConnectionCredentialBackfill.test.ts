@@ -115,7 +115,6 @@ describe("league connection credential backfill", () => {
       client,
       rotatingCipher,
       25,
-      new Date("2026-08-20T12:00:00.000Z"),
     )).resolves.toEqual({ complete: false, examined: 3, migrated: 3 });
 
     expect(client.queries[0]?.sql).toContain("FOR UPDATE SKIP LOCKED");
@@ -128,7 +127,9 @@ describe("league connection credential backfill", () => {
     expect(client.queries.slice(1).map(query => query.values[2]))
       .toEqual(["credentials-v1", "credentials-v1", "credentials-v1"]);
     expect(client.queries.slice(1).every(query =>
-      query.sql.includes("espn_s2 = NULL") && query.sql.includes("swid = NULL")
+      query.sql.includes("espn_s2 = NULL")
+      && query.sql.includes("swid = NULL")
+      && !query.sql.includes("updated_at")
     )).toBe(true);
     const mixedUpdate = client.queries[3];
     expect(rotatingCipher.decrypt({
@@ -162,7 +163,6 @@ describe("league connection credential backfill", () => {
       client,
       refusingCipher,
       25,
-      new Date("2026-08-20T12:00:00.000Z"),
     )).resolves.toEqual({ complete: false, examined: 1, migrated: 1 });
 
     expect(client.queries[0]?.sql).toContain("WHERE espn_s2 IS NOT NULL");
@@ -170,10 +170,8 @@ describe("league connection credential backfill", () => {
     expect(client.queries[1]?.sql).toContain("espn_s2 = NULL");
     expect(client.queries[1]?.sql).toContain("swid = NULL");
     expect(client.queries[1]?.sql).not.toContain("credentials_ciphertext = $2");
-    expect(client.queries[1]?.values).toEqual([
-      "connection-sleeper",
-      "2026-08-20T12:00:00.000Z",
-    ]);
+    expect(client.queries[1]?.sql).not.toContain("updated_at");
+    expect(client.queries[1]?.values).toEqual(["connection-sleeper"]);
   });
 
   it("does not report completion while an eligible row is locked elsewhere", async () => {

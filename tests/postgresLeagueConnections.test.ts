@@ -109,7 +109,18 @@ describe("postgres league connection repository", () => {
     await repository.linkConnectionToSeason("league_connection_1", "season-1");
 
     expect(client.queries[0]?.sql).toContain("SET league_season_id = $2");
+    expect(client.queries[0]?.sql).toContain("sync_revision = sync_revision + 1");
     expect(client.queries[0]?.values.slice(0, 2)).toEqual(["league_connection_1", "season-1"]);
+  });
+
+  it("claims a total revision before fetching one connection", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    client.answerWith([{ sync_revision: "42" }]);
+
+    await expect(repository.beginConnectionSync("league_connection_1")).resolves.toBe("42");
+    expect(client.queries[0]?.sql).toContain("SET sync_revision = sync_revision + 1");
+    expect(client.queries[0]?.values).toEqual(["league_connection_1"]);
   });
 
   it("falls back rather than trusting an unknown provider or status from the database", async () => {
@@ -154,6 +165,44 @@ describe("postgres league connection repository", () => {
       null,
       "2026-08-19T12:00:00.000Z",
     ]);
+    expect(client.queries[0]?.sql).toContain(
+      "updated_at = GREATEST(league_connections.updated_at, EXCLUDED.updated_at)",
+    );
+  });
+
+  it("reports whether a snapshot won the monotonic sync-time write", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client);
+    const snapshot = {
+      settings: {
+        name: "League",
+        season: "2025",
+        teamCount: 1,
+        rosterPositions: ["QB"],
+        scoring: {},
+      },
+      teams: [],
+      matchups: [],
+    };
+    client.answerWith([], 1);
+
+    await expect(repository.saveSnapshot(
+      "league_connection_1",
+      snapshot,
+      "2026-08-19T12:00:00.000Z",
+      "0",
+    )).resolves.toBe(true);
+    expect(client.queries[0]?.sql).toContain(
+      "league_connection_snapshots.sync_revision < EXCLUDED.sync_revision",
+    );
+    expect(client.queries[0]?.values[5]).toBe("0");
+
+    await expect(repository.saveSnapshot(
+      "league_connection_1",
+      snapshot,
+      "2026-08-19T11:59:00.000Z",
+      "0",
+    )).resolves.toBe(false);
   });
 
   it("never binds supplied ESPN session credentials as plaintext", async () => {
@@ -227,6 +276,7 @@ describe("postgres league connection repository", () => {
     });
     expect(client.queries).toHaveLength(2);
     expect(client.queries[1]?.sql).toContain("xmin::text = $4");
+    expect(client.queries[1]?.sql).not.toContain("updated_at");
     expect(client.queries[1]?.sql).not.toContain("espn_s2 = NULL");
     expect(client.queries[1]?.sql).not.toContain("swid = NULL");
     expect(JSON.stringify(client.queries[1]?.values)).not.toContain("new-s2-from-old-server");
@@ -261,6 +311,7 @@ describe("postgres league connection repository", () => {
     });
     expect(client.queries).toHaveLength(2);
     expect(client.queries[1]?.sql).toContain("credentials_ciphertext IS NOT DISTINCT FROM $4");
+    expect(client.queries[1]?.sql).not.toContain("updated_at");
     expect(client.queries[1]?.values[2]).toBe("test-v1");
     expect(JSON.stringify(client.queries[1]?.values)).not.toContain("old-key-s2");
   });
@@ -280,6 +331,7 @@ describe("postgres league connection repository", () => {
       teams_json: [{ providerTeamId: "1", name: "Bad team" }],
       matchups_json: [{ week: 1, matchupKey: "1-1", homeTeamId: "1", homePoints: 100 }],
       synced_at: "2026-08-19T12:00:00.000Z",
+      sync_revision: "7",
     }]);
 
     const snapshot = await repository.findSnapshot("league_connection_1");
@@ -289,6 +341,7 @@ describe("postgres league connection repository", () => {
     // list is dropped and the owner is offered a fresh sync instead.
     expect(snapshot?.teams).toEqual([]);
     expect(snapshot?.matchups).toHaveLength(1);
+    expect(snapshot?.syncRevision).toBe("7");
   });
 
   it("reports whether a delete removed anything", async () => {
@@ -341,14 +394,24 @@ describe("postgres league connection repository", () => {
     const client = new RecordingClient();
     const repository = new PostgresLeagueConnectionRepository(client);
 
-    await repository.updateConnectionStatus({
+    client.answerWith([], 1);
+    await expect(repository.updateConnectionStatus({
       id: "league_connection_1",
       status: "error",
       statusDetail: "Sleeper did not respond.",
+      expectedSyncRevision: "42",
       now: new Date("2026-08-19T12:00:00.000Z"),
-    });
+    })).resolves.toBe(true);
 
     expect(client.queries[0]?.sql).toContain("last_synced_at = COALESCE($4, last_synced_at)");
+    expect(client.queries[0]?.sql).toContain("updated_at = GREATEST(updated_at, $5)");
+    expect(client.queries[0]?.sql).toContain(
+      "$6::bigint IS NOT NULL AND sync_revision = $6::bigint",
+    );
+    expect(client.queries[0]?.sql).toContain("$6::bigint IS NULL AND updated_at <= $5");
+    expect(client.queries[0]?.sql).toContain("display_name = COALESCE($7, display_name)");
     expect(client.queries[0]?.values[3]).toBeNull();
+    expect(client.queries[0]?.values[5]).toBe("42");
+    expect(client.queries[0]?.values[6]).toBeNull();
   });
 });

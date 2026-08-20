@@ -46,10 +46,16 @@ describe("in-memory league connection repository", () => {
       displayName: "Renamed league",
       now: new Date("2026-08-20T12:00:00.000Z"),
     });
+    const older = await repository.saveConnection({
+      ...saveInput,
+      displayName: "Stale rename",
+      now,
+    });
 
     expect(second.id).toBe(first.id);
     expect(second.createdAt).toBe(first.createdAt);
     expect(second.displayName).toBe("Renamed league");
+    expect(older.displayName).toBe("Renamed league");
     expect(await repository.listConnections("account-1")).toHaveLength(1);
   });
 
@@ -88,21 +94,53 @@ describe("in-memory league connection repository", () => {
     expect(await repository.findConnection("account-1", saved.id)).not.toBeNull();
   });
 
-  it("replaces the stored snapshot on every sync and drops it with the connection", async () => {
+  it("keeps the newest stored snapshot and drops it with the connection", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
     const saved = await repository.saveConnection({ ...saveInput, now });
+    const syncRevision = await repository.beginConnectionSync(saved.id);
+    if (syncRevision === null) throw new Error("Missing test sync.");
 
-    await repository.saveSnapshot(saved.id, snapshot, now.toISOString());
+    await repository.saveSnapshot(saved.id, snapshot, now.toISOString(), syncRevision);
     await repository.saveSnapshot(saved.id, {
       ...snapshot,
       matchups: [],
-    }, "2026-08-20T12:00:00.000Z");
+    }, "2026-08-20T12:00:00.000Z", syncRevision);
+    await expect(repository.saveSnapshot(saved.id, {
+      ...snapshot,
+      settings: { ...snapshot.settings, name: "Stale league" },
+    }, now.toISOString(), syncRevision)).resolves.toBe(false);
     const stored = await repository.findSnapshot(saved.id);
     await repository.deleteConnection("account-1", saved.id);
 
     expect(stored?.matchups).toEqual([]);
     expect(stored?.syncedAt).toBe("2026-08-20T12:00:00.000Z");
     expect(await repository.findSnapshot(saved.id)).toBeNull();
+  });
+
+  it("uses a total sync revision when request timestamps are identical", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const saved = await repository.saveConnection({ ...saveInput, now });
+    const firstRevision = await repository.beginConnectionSync(saved.id);
+    const secondRevision = await repository.beginConnectionSync(saved.id);
+    if (firstRevision === null || secondRevision === null) throw new Error("Missing test sync.");
+
+    await expect(repository.saveSnapshot(
+      saved.id,
+      { ...snapshot, settings: { ...snapshot.settings, name: "Fast winner" } },
+      now.toISOString(),
+      secondRevision,
+    )).resolves.toBe(true);
+    await expect(repository.saveSnapshot(
+      saved.id,
+      { ...snapshot, settings: { ...snapshot.settings, name: "Slow loser" } },
+      now.toISOString(),
+      firstRevision,
+    )).resolves.toBe(false);
+
+    expect(await repository.findSnapshot(saved.id)).toMatchObject({
+      settings: { name: "Fast winner" },
+      syncRevision: secondRevision,
+    });
   });
 
   it("records a status and a plain-language detail without touching the sync time", async () => {
@@ -122,11 +160,50 @@ describe("in-memory league connection repository", () => {
       now,
     });
     await repository.updateConnectionStatus({ id: "missing", status: "error", now });
+    const newer = new Date("2026-08-20T12:00:00.000Z");
+    await repository.updateConnectionStatus({
+      id: saved.id,
+      status: "error",
+      statusDetail: "Newer provider failure.",
+      now: newer,
+    });
+    await repository.updateConnectionStatus({
+      id: saved.id,
+      status: "ok",
+      now,
+    });
 
     expect(await repository.findConnection("account-1", saved.id)).toMatchObject({
-      status: "needs_attention",
-      statusDetail: "This ESPN league is private.",
+      status: "error",
+      statusDetail: "Newer provider failure.",
       lastSyncedAt: now.toISOString(),
+    });
+  });
+
+  it("lets the current sync revision finish after storage-only metadata moves updatedAt", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const saved = await repository.saveConnection({ ...saveInput, now });
+    const syncRevision = await repository.beginConnectionSync(saved.id);
+    if (syncRevision === null) throw new Error("Missing test sync revision.");
+    const maintenanceTime = new Date("2026-08-20T13:00:00.000Z");
+    await repository.updateConnectionStatus({
+      id: saved.id,
+      status: "pending",
+      now: maintenanceTime,
+    });
+
+    await expect(repository.updateConnectionStatus({
+      id: saved.id,
+      status: "ok",
+      expectedSyncRevision: syncRevision,
+      lastSyncedAt: now.toISOString(),
+      now,
+    })).resolves.toBe(true);
+
+    await expect(repository.findConnection("account-1", saved.id)).resolves.toMatchObject({
+      status: "ok",
+      lastSyncedAt: now.toISOString(),
+      updatedAt: maintenanceTime.toISOString(),
     });
   });
 
@@ -138,11 +215,27 @@ describe("in-memory league connection repository", () => {
       entries: { "4035": { name: "Alvin Kamara", position: "RB" } },
       fetchedAt: now.toISOString(),
     });
+    const newer = new Date("2026-08-20T12:00:00.000Z").toISOString();
+    await repository.savePlayerDirectory({
+      provider: "sleeper",
+      entries: { "4035": { name: "Newer Alvin Kamara", position: "RB" } },
+      fetchedAt: newer,
+    });
+    await repository.savePlayerDirectory({
+      provider: "sleeper",
+      entries: { "4035": { name: "Stale Alvin Kamara", position: "RB" } },
+      fetchedAt: now.toISOString(),
+    });
+    await repository.savePlayerDirectory({
+      provider: "sleeper",
+      entries: { "4035": { name: "Equal-time overwrite", position: "RB" } },
+      fetchedAt: newer,
+    });
 
     expect(await repository.findPlayerDirectory("sleeper")).toEqual({
       provider: "sleeper",
-      entries: { "4035": { name: "Alvin Kamara", position: "RB" } },
-      fetchedAt: now.toISOString(),
+      entries: { "4035": { name: "Newer Alvin Kamara", position: "RB" } },
+      fetchedAt: newer,
     });
     expect(await repository.findPlayerDirectory("espn")).toBeNull();
   });
@@ -150,7 +243,9 @@ describe("in-memory league connection repository", () => {
   it("returns copies so a caller cannot edit stored state in place", async () => {
     const repository = new InMemoryLeagueConnectionRepository();
     const saved = await repository.saveConnection({ ...saveInput, now });
-    await repository.saveSnapshot(saved.id, snapshot, now.toISOString());
+    const syncRevision = await repository.beginConnectionSync(saved.id);
+    if (syncRevision === null) throw new Error("Missing test sync.");
+    await repository.saveSnapshot(saved.id, snapshot, now.toISOString(), syncRevision);
 
     const stored = await repository.findSnapshot(saved.id);
     const editable = stored?.teams[0];

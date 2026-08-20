@@ -1,8 +1,6 @@
 import { LeagueCreationError } from "../../../leagueCreation.js";
-import { leagueImportConversion, type LeagueImportConversion } from "../../../leagueImportFromSync.js";
-import type { LeagueConnection, StoredLeagueSnapshot } from "../../../leagueConnections.js";
-import type { LeagueSeason } from "../../../leagueSeason.js";
-import { syncLeagueConnection, type LeagueSyncServiceOptions } from "../../../leagueSyncService.js";
+import type { LeagueConnection } from "../../../leagueConnections.js";
+import { convergeImportedSeason } from "../../../leagueSyncService/importedSeasonConvergence.js";
 import { requireRequestAccount } from "../../auth/access.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
@@ -14,15 +12,16 @@ import {
   serviceOptionsFor,
 } from "./context.js";
 import { importedLeagueFor } from "./importedLeague.js";
+import { importedSeasonRefresher } from "./refreshImportedSeason.js";
+import { refreshedLeagueImportConversion } from "./importConversion.js";
 import {
   importModeFrom,
   importNeedsReview,
   invalidImportMode,
-  leagueSetupLocked,
+  leagueImportChanged,
   snapshotRequired,
-  type LeagueImportMode,
 } from "./importModes.js";
-import { createdImportSeason, overwrittenImportSeason } from "./importSeason.js";
+import { writeImportSeason } from "./importSeason.js";
 
 const importedBody = async (
   services: PlatformHttpServices,
@@ -36,60 +35,30 @@ const importedBody = async (
   };
 };
 
-const conversionFor = (
-  connection: LeagueConnection,
-  snapshot: StoredLeagueSnapshot,
-): LeagueImportConversion => leagueImportConversion({
-  provider: connection.provider,
-  providerLeagueId: connection.providerLeagueId,
-  settings: snapshot.settings,
-  teams: snapshot.teams,
-});
+const runWithSeasonWriteAccess = async <T>(
+  services: PlatformHttpServices,
+  operation: () => Promise<T>,
+): Promise<T> => services.runLeagueSyncSeasonRefresh === undefined
+  ? await operation()
+  : await services.runLeagueSyncSeasonRefresh(operation);
 
-/**
- * A snapshot stored before draft settings rode along with a sync cannot say
- * what kind of draft the league runs. One fresh sync answers that on the
- * owner's behalf before the import asks them to intervene; if the provider is
- * unreachable, the stored snapshot's answer stands.
- */
-const refreshedConversion = async (
-  options: LeagueSyncServiceOptions,
-  connection: LeagueConnection,
-  snapshot: StoredLeagueSnapshot,
-  now: Date,
-): Promise<{ connection: LeagueConnection; conversion: LeagueImportConversion }> => {
-  const conversion = conversionFor(connection, snapshot);
-  if (conversion.status !== "blocked") return { connection, conversion };
-  const synced = await syncLeagueConnection(options, connection, now);
-  if (synced.snapshot === undefined) return { connection, conversion };
-  return {
-    connection: synced.connection,
-    conversion: conversionFor(synced.connection, synced.snapshot),
-  };
-};
-
-const writtenSeason = async (
+const convergedImportResponse = async (
   app: PlatformApp,
   request: ParsedPlatformHttpRequest,
+  services: PlatformHttpServices,
+  repository: NonNullable<PlatformHttpServices["leagueConnectionRepository"]>,
   accountId: string,
-  leagueConnectionId: string,
-  mode: LeagueImportMode,
-  conversion: LeagueImportConversion,
-): Promise<LeagueSeason | PlatformHttpResponse> => {
-  if (conversion.status === "blocked") return importNeedsReview(conversion.issues);
-  if (mode.mode === "create") {
-    return await createdImportSeason(app, request, accountId, leagueConnectionId, conversion.input);
-  }
-
-  const existing = await app.getLeagueSeason({
-    actorSessionToken: request.sessionToken,
-    seasonId: mode.seasonId,
-    now: request.now,
-  });
-  // A room already built from this season's draft board must not be rewritten
-  // underneath the people sitting in it.
-  if (await app.hasLiveDraftRoomForSeason(existing.id)) return leagueSetupLocked();
-  return await overwrittenImportSeason(app, request, existing, leagueConnectionId, conversion.input);
+  connection: LeagueConnection,
+): Promise<PlatformHttpResponse> => {
+  const converged = await convergeImportedSeason(
+    repository,
+    connection,
+    importedSeasonRefresher(app, request),
+  );
+  if (converged.connection === null) return connectionNotFound();
+  if (!converged.stable) return leagueImportChanged();
+  if (converged.detail !== null) return importNeedsReview([converged.detail]);
+  return await importedBody(services, accountId, converged.connection);
 };
 
 export const routeLeagueConnectionImport = async (
@@ -107,40 +76,58 @@ export const routeLeagueConnectionImport = async (
 
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
-  // Importing the same connection twice returns the league it already made
-  // rather than a second copy of the owner's league.
-  const alreadyImported = await importedLeagueFor(
-    services.onboardingRepository,
-    account.id,
-    connection,
-  );
-  if (alreadyImported !== undefined && mode.mode === "create") {
-    return await importedBody(services, account.id, connection);
-  }
-  const snapshot = await options.repository.findSnapshot(connectionId);
-  if (snapshot === null) return snapshotRequired();
-  const refreshed = await refreshedConversion(
-    options,
-    connection,
-    snapshot,
-    request.now ?? new Date(),
-  );
-
   try {
-    const season = await writtenSeason(
-      app,
-      request,
+    // Importing the same connection twice returns the league it already made
+    // rather than a second copy of the owner's league.
+    const alreadyImported = await importedLeagueFor(
+      services.onboardingRepository,
       account.id,
-      refreshed.connection.id,
-      mode,
-      refreshed.conversion,
+      connection,
     );
-    if (isPlatformHttpResponse(season)) return season;
-    if (app.leagueSetupRepository.registerLeagueSeasonWithConnection === undefined) {
-      await options.repository.linkConnectionToSeason(refreshed.connection.id, season.id);
+    if (alreadyImported !== undefined && mode.mode === "create") {
+      return await runWithSeasonWriteAccess(services, async () =>
+        await convergedImportResponse(
+          app, request, services, options.repository, account.id, connection,
+        )
+      );
     }
-    const linked = { ...refreshed.connection, leagueSeasonId: season.id };
-    return await importedBody(services, account.id, linked);
+    const snapshot = await options.repository.findSnapshot(connectionId);
+    if (snapshot === null) return snapshotRequired();
+    const conversion = await refreshedLeagueImportConversion(
+      options,
+      connection,
+      snapshot,
+      request.now ?? new Date(),
+    );
+    if (conversion === null) return connectionNotFound();
+
+    return await runWithSeasonWriteAccess(services, async () => {
+      const current = await options.repository.findConnection(account.id, connectionId);
+      if (current === null) return connectionNotFound();
+      if (mode.mode === "create") {
+        const imported = await importedLeagueFor(
+          services.onboardingRepository,
+          account.id,
+          current,
+        );
+        if (imported !== undefined) {
+          return await convergedImportResponse(
+            app, request, services, options.repository, account.id, current,
+          );
+        }
+      }
+      const season = await writeImportSeason(
+        app, request, account.id, current.id, mode, conversion,
+      );
+      if (isPlatformHttpResponse(season)) return season;
+      if (app.leagueSetupRepository.registerLeagueSeasonWithConnection === undefined) {
+        await options.repository.linkConnectionToSeason(current.id, season.id);
+      }
+      const linked = { ...current, leagueSeasonId: season.id };
+      return await convergedImportResponse(
+        app, request, services, options.repository, account.id, linked,
+      );
+    });
   } catch (error) {
     // The creation domain refuses setups this conversion could not foresee;
     // the owner reads them alongside the ones it did.

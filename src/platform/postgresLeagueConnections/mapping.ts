@@ -57,6 +57,7 @@ export const snapshotFromRow = (row: LeagueConnectionSnapshotRow): StoredLeagueS
   teams: teamsFromDb(row.teams_json),
   matchups: matchupsFromDb(row.matchups_json),
   syncedAt: isoStringFrom(row.synced_at),
+  syncRevision: String(row.sync_revision),
 });
 
 export const playerDirectoryFromRow = (

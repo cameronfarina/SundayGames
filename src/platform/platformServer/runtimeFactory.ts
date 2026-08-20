@@ -16,6 +16,7 @@ interface CreateRuntimeFactoryOptions {
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
   seasonSimulationRunner: SeasonSimulationRunner;
   persistForJobs: () => Promise<void>;
+  runInSnapshotCriticalSection: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
 export const createPlatformRuntimeFactory = (
@@ -43,6 +44,11 @@ export const createPlatformRuntimeFactory = (
     simulationRunner: options.simulationRunner,
   });
   const applyAcceptedMembership = createAcceptedMembershipApplier(repositories);
+  const runLeagueSyncSeasonRefresh =
+    repositories.leagueConnectionRepository !== repositories.store.leagueConnections &&
+      repositories.leagueSetupRepository !== repositories.store
+      ? input.runInSnapshotCriticalSection
+      : undefined;
   const platformHandler = createPlatformHttpHandler(app, {
     invitationRepository: repositories.invitationRepository,
     leagueSetupRepository: repositories.leagueSetupRepository,
@@ -80,6 +86,7 @@ export const createPlatformRuntimeFactory = (
     seasonSimulationRunner: input.seasonSimulationRunner,
     leagueConnectionRepository: repositories.leagueConnectionRepository,
     ...(options.leagueSyncFetch === undefined ? {} : { leagueSyncFetch: options.leagueSyncFetch }),
+    ...(runLeagueSyncSeasonRefresh === undefined ? {} : { runLeagueSyncSeasonRefresh }),
     ...(options.leagueMembersScreenshotAnalyzer === undefined
       ? {} : { leagueMembersScreenshotAnalyzer: options.leagueMembersScreenshotAnalyzer }),
     ...(applyAcceptedMembership === undefined ? {} : { applyAcceptedMembership }),

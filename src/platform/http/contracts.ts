@@ -94,4 +94,5 @@ export interface PlatformHttpServices {
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueConnectionRepository?: LeagueConnectionRepository | undefined;
   leagueSyncFetch?: LeagueSyncFetch | undefined;
+  runLeagueSyncSeasonRefresh?: (<T>(operation: () => Promise<T>) => Promise<T>) | undefined;
 }

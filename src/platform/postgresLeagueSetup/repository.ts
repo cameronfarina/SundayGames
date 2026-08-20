@@ -46,6 +46,24 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
     leagueConnectionId: string,
   ): Promise<LeagueSeason> {
     return await this.#client.transaction(async transactionClient => {
+      const connection = await transactionClient.query<{ league_season_id: string | null }>(`
+SELECT league_season_id
+FROM league_connections
+WHERE id = $1
+  AND account_id = $2
+FOR UPDATE;
+`.trim(), [leagueConnectionId, input.createdByUserId]);
+      const linkedSeasonId = connection.rows[0]?.league_season_id;
+      if (linkedSeasonId === undefined) {
+        throw new Error("League connection disappeared before its imported season was linked.");
+      }
+      if (linkedSeasonId !== null && input.expectedSetupRevision === undefined) {
+        const existing = await findLeagueSeason(transactionClient, linkedSeasonId);
+        if (existing === null) {
+          throw new Error("League connection points to an imported season that no longer exists.");
+        }
+        return existing;
+      }
       const season = await registerLeagueSeasonInTransaction(
         transactionClient,
         this.#leagueCreationLimits,
@@ -54,7 +72,8 @@ export class PostgresLeagueSetupRepository implements LeagueSetupRepository {
       const linked = await transactionClient.query<{ id: string }>(`
 UPDATE league_connections
 SET league_season_id = $2,
-    updated_at = $4
+    sync_revision = sync_revision + 1,
+    updated_at = GREATEST(updated_at, $4)
 WHERE id = $1
   AND account_id = $3
 RETURNING id;

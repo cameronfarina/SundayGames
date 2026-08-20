@@ -219,6 +219,7 @@ describe("platform Postgres migrations", () => {
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
+      "platform-league-sync-revisions-v23",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -253,6 +254,7 @@ describe("platform Postgres migrations", () => {
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
+      "platform-league-sync-revisions-v23",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -261,6 +263,23 @@ describe("platform Postgres migrations", () => {
     );
     expect(client.statements).toContain(
       "ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS manager_names_json jsonb NOT NULL DEFAULT '[]'::jsonb;",
+    );
+  });
+
+  it("adds total sync revisions without rewriting existing connection data", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-league-sync-revisions-v23")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBe(4);
+    expect(client.statements).toContain(
+      "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE league_connection_snapshots ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
     );
   });
 
@@ -362,6 +381,7 @@ describe("platform Postgres migrations", () => {
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
+      "platform-league-sync-revisions-v23",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -385,15 +405,17 @@ describe("platform Postgres migrations", () => {
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
+      "platform-league-sync-revisions-v23",
     ]);
   });
 
-  it("applies snake, credential, and auth migrations in reserved order", () => {
-    expect(requiredPlatformPostgresMigrationIds.slice(-4)).toEqual([
+  it("applies snake, credential, auth, and sync migrations in reserved order", () => {
+    expect(requiredPlatformPostgresMigrationIds.slice(-5)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
+      "platform-league-sync-revisions-v23",
     ]);
   });
 
@@ -480,7 +502,7 @@ describe("platform Postgres migrations", () => {
     expect(client.statements).toContainEqual(
       expect.stringContaining("CREATE TABLE IF NOT EXISTS auth_rate_limit_windows"),
     );
-    expect(client.statements.at(-1)).toBe("INSERT INTO platform_schema_migrations (id) VALUES ($1)");
+    expect(client.statements).toContain("INSERT INTO platform_schema_migrations (id) VALUES ($1)");
   });
 
   it("stores historical public values and lets users import the same provider league independently", async () => {

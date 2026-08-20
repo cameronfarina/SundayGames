@@ -152,6 +152,8 @@ If a future release includes a destructive or backward-incompatible migration, m
 
 The encrypted-credential schema expansion lets the old release keep syncing existing plaintext connections during the swap. A read by the new release may add an encrypted envelope to a legacy row, but it deliberately keeps `espn_s2` and `swid` until the operator runs the backfill. The old release cannot read a connection created or repaired by the new release. After backfill, it cannot sync any saved ESPN connection because every credential is envelope-only. Prefer rolling forward. Before backfill, a rollback keeps legacy connections working but owners of newly written connections must paste fresh credentials after the fixed release returns. After backfill, rollback requires either restoring the pre-backfill database recovery point or having every affected owner paste fresh credentials after the fixed release returns.
 
+The v22 authentication rate-limit table and v23 league-sync revision columns are additive, so an application rollback does not require a database restore. Their protections are incomplete until the old web process has stopped. Avoid provider sync and import during the v23 web swap, then rerun any operation attempted during that window after only the new release is serving traffic.
+
 Automatic deploys stay off. During the draft-day freeze, do not start a manual web deploy except as part of the documented incident response.
 
 The domain is ready for real users only when every row in the production runbook's launch checklist is marked pass.

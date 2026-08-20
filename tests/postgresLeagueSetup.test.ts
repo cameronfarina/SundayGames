@@ -242,6 +242,16 @@ class FakePostgresLeagueSetupClient implements PostgresTransactionalQueryClient 
       return { rows: [{ id: leagueId } as TRow], rowCount: 1 };
     }
 
+    if (normalizedSql.startsWith("SELECT league_season_id FROM league_connections")) {
+      const [connectionId] = values as readonly [string];
+      if (!this.connectionSeasonIds.has(connectionId)) return { rows: [] };
+      return {
+        rows: [{
+          league_season_id: this.connectionSeasonIds.get(connectionId) ?? null,
+        } as TRow],
+      };
+    }
+
     if (normalizedSql.startsWith("UPDATE league_connections SET league_season_id")) {
       if (this.failNextConnectionLink) {
         this.failNextConnectionLink = false;
@@ -681,12 +691,40 @@ describe("Postgres league setup repository", () => {
 
     expect(client.connectionSeasonIds.get("league_connection_1")).toBe(season.id);
     expect(client.transactionCount).toBe(1);
+    expect(client.queries.at(-1)?.text).toContain("sync_revision = sync_revision + 1");
+    expect(client.queries.at(-1)?.text).toContain("updated_at = GREATEST(updated_at, $4)");
     expect(client.queries.at(-1)?.values).toEqual([
       "league_connection_1",
       season.id,
       "acct_owner11",
       now,
     ]);
+    expect(client.queries.some(query => query.text.includes("FOR UPDATE"))).toBe(true);
+  });
+
+  it("returns the season another replica already linked instead of creating an orphan", async () => {
+    const client = new FakePostgresLeagueSetupClient();
+    const firstRepository = new PostgresLeagueSetupRepository(client);
+    const secondRepository = new PostgresLeagueSetupRepository(client);
+    const firstSeason = buildSeason();
+    const duplicateSeason = buildSeason({ seasonYear: 2027, leagueName: "Duplicate" });
+    client.connectionSeasonIds.set("league_connection_1", null);
+
+    await firstRepository.registerLeagueSeasonWithConnection({
+      season: firstSeason,
+      memberships: membershipsFor(firstSeason, ["Owner11"]),
+      createdByUserId: "acct_owner11",
+      now,
+    }, "league_connection_1");
+    await expect(secondRepository.registerLeagueSeasonWithConnection({
+      season: duplicateSeason,
+      memberships: membershipsFor(duplicateSeason, ["Owner11"]),
+      createdByUserId: "acct_owner11",
+      now,
+    }, "league_connection_1")).resolves.toEqual(firstSeason);
+
+    expect(client.connectionSeasonIds.get("league_connection_1")).toBe(firstSeason.id);
+    expect(client.seasons.has(duplicateSeason.id)).toBe(false);
   });
 
   it("rolls back a newly imported season when its provider connection cannot be linked", async () => {

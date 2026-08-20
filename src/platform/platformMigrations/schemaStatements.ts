@@ -91,6 +91,11 @@ export const leagueCredentialEncryptionMigrationStatements: readonly string[] = 
   "ALTER TABLE league_connections ADD CONSTRAINT league_connections_encrypted_credentials_pair_check CHECK ((credentials_ciphertext IS NULL) = (credentials_key_id IS NULL));",
 ];
 
+export const leagueSyncRevisionMigrationStatements: readonly string[] = [
+  "ALTER TABLE league_connections ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
+  "ALTER TABLE league_connection_snapshots ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
