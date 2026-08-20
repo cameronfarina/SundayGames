@@ -62,6 +62,13 @@ const completeSnapshot = (): StoredLeagueSnapshot => ({
   matchups: [],
 });
 
+const withSettings = (
+  update: (settings: StoredLeagueSnapshot["settings"]) => StoredLeagueSnapshot["settings"],
+): StoredLeagueSnapshot => {
+  const snapshot = completeSnapshot();
+  return { ...snapshot, settings: update(snapshot.settings) };
+};
+
 describe("synced league setup translation", () => {
   it("converts complete provider settings into confirmed league creation input", () => {
     const result = confirmedSetupFromSyncedLeague(connection, completeSnapshot());
@@ -90,21 +97,32 @@ describe("synced league setup translation", () => {
     });
   });
 
-  it.each([
-    ["draft", (snapshot: StoredLeagueSnapshot) => { delete snapshot.settings.draft; }],
-    ["keeper", (snapshot: StoredLeagueSnapshot) => { delete snapshot.settings.keeperLeague; }],
-    ["scoring", (snapshot: StoredLeagueSnapshot) => { delete snapshot.settings.scoring.pass_td; }],
-  ])("requires complete %s settings before creating a league", (_label, change) => {
-    const snapshot = completeSnapshot();
-    change(snapshot);
+  it("requires draft settings before creating a league", () => {
+    const snapshot = withSettings(settings => ({ ...settings, draft: undefined }));
+    expect(confirmedSetupFromSyncedLeague(connection, snapshot))
+      .toMatchObject({ status: "needs_attention" });
+  });
 
+  it("requires keeper settings before creating a league", () => {
+    const snapshot = withSettings(settings => ({ ...settings, keeperLeague: undefined }));
+    expect(confirmedSetupFromSyncedLeague(connection, snapshot))
+      .toMatchObject({ status: "needs_attention" });
+  });
+
+  it("requires complete scoring settings before creating a league", () => {
+    const snapshot = withSettings(settings => ({
+      ...settings,
+      scoring: { pass_yd: 0.04, rush_yd: 0.1, rush_td: 6, rec_yd: 0.1, rec_td: 6, rec: 1 },
+    }));
     expect(confirmedSetupFromSyncedLeague(connection, snapshot))
       .toMatchObject({ status: "needs_attention" });
   });
 
   it("rejects a snake order that references a team the provider did not return", () => {
-    const snapshot = completeSnapshot();
-    snapshot.settings.draft = { type: "snake", rounds: 6, order: ["1", "missing"] };
+    const snapshot = withSettings(settings => ({
+      ...settings,
+      draft: { type: "snake", rounds: 6, order: ["1", "missing"] },
+    }));
 
     expect(confirmedSetupFromSyncedLeague(connection, snapshot)).toEqual({
       status: "needs_attention",
