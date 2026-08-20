@@ -7,6 +7,7 @@ const appRoutes = createAppRoutes(new QueryClient());
 
 describe("application routes", () => {
   it.each([
+    "/",
     "/login",
     "/signup",
     "/practice",

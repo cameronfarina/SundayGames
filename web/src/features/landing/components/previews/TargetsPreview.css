@@ -1,0 +1,96 @@
+/* A still of the plan a viewer builds before the draft: who they want and the
+   most they will pay for each of them. */
+.targets-preview {
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-4);
+}
+
+.targets-preview__heading {
+  margin-bottom: var(--space-4);
+}
+
+.targets-preview__heading h3 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.targets-preview__eyebrow {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 var(--space-1);
+  text-transform: uppercase;
+}
+
+.targets-preview__list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.targets-preview__row {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+}
+
+.targets-preview__player {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.targets-preview__player span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.targets-preview__controls {
+  align-items: end;
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.targets-preview__field {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.targets-preview__label {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.targets-preview__money {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.targets-preview__money--focused {
+  border-color: var(--color-accent);
+}
+
+.targets-preview__button {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  color: var(--color-text);
+  display: inline-flex;
+  gap: var(--space-2);
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.6rem;
+}

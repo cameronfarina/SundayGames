@@ -1,0 +1,187 @@
+/* A still of the draft lab board. It mirrors the real board's styling so the
+   landing page shows the product rather than an illustration of it. */
+.board-preview {
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-4);
+}
+
+.board-preview__heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.board-preview__heading h3 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.board-preview__eyebrow {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin: 0 0 var(--space-1);
+  text-transform: uppercase;
+}
+
+.board-preview__count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.board-preview__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.board-preview__filter {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-3);
+}
+
+.board-preview__filter--selected {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.board-preview__table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.board-preview table {
+  border-collapse: collapse;
+  min-width: 34rem;
+  width: 100%;
+}
+
+.board-preview th,
+.board-preview td {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) 0.4rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.board-preview th {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.board-preview tbody tr:last-child th,
+.board-preview tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.board-preview__row {
+  background: color-mix(in srgb, var(--position-color) 4%, transparent);
+  border-left: 3px solid var(--position-color, transparent);
+}
+
+.board-preview__row--qb { --position-color: var(--color-qb); }
+.board-preview__row--rb { --position-color: var(--color-rb); }
+.board-preview__row--wr { --position-color: var(--color-wr); }
+.board-preview__row--te { --position-color: var(--color-te); }
+
+.board-preview__label-short {
+  display: none;
+}
+
+.board-preview__name {
+  font-weight: 700;
+}
+
+.board-preview__position {
+  color: var(--position-color, var(--color-text));
+  font-weight: 800;
+}
+
+.board-preview__star {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+.board-preview__star--on {
+  color: var(--color-accent);
+}
+
+.board-preview__money {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.board-preview__value {
+  background: var(--color-surface-raised);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  font-weight: 700;
+  min-width: 2.6rem;
+  padding: 0.3rem 0.35rem;
+}
+
+.board-preview__value--mine {
+  border-color: var(--color-accent);
+}
+
+/* On a phone the block's whole point — the price you set yourself — has to stay
+   on screen, so the columns that only give context step aside and the rest
+   tighten up rather than scrolling out of view. */
+@media (max-width: 48rem) {
+  .board-preview__rank-column,
+  .board-preview__target-column,
+  .board-preview__position-column {
+    display: none;
+  }
+
+  .board-preview table {
+    font-size: var(--font-size-sm);
+    min-width: 0;
+  }
+
+  .board-preview th,
+  .board-preview td {
+    padding: var(--space-2) 0.25rem;
+  }
+
+  .board-preview th {
+    font-size: 0.6875rem;
+  }
+
+  .board-preview__label-full {
+    display: none;
+  }
+
+  .board-preview__label-short {
+    display: inline;
+  }
+
+  .board-preview__value {
+    min-width: 2.2rem;
+    padding: 0.25rem 0.3rem;
+  }
+}

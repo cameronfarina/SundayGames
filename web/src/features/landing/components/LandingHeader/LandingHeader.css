@@ -1,0 +1,53 @@
+.landing-header {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.landing-header__inner {
+  align-items: center;
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--landing-max-width);
+  min-height: 4.5rem;
+  padding: 0 var(--landing-gutter);
+}
+
+.landing-header__brand {
+  align-items: center;
+  color: var(--color-text);
+  display: flex;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* The mark carries the brand colour; the name stays in reading colour. */
+.landing-header__brand svg {
+  color: var(--color-accent);
+  flex: none;
+}
+
+.landing-header__actions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-6);
+}
+
+.landing-header__login {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.landing-header__login:hover {
+  color: var(--color-text);
+}
+
+@media (max-width: 40rem) {
+  .landing-header__login {
+    display: none;
+  }
+}
