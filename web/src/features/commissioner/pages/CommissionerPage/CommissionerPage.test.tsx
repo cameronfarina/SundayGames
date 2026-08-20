@@ -117,7 +117,7 @@ describe("CommissionerPage", () => {
     expect(await screen.findByRole("heading", { name: "Commissioner" })).toBeVisible();
     expect(screen.getByText("Sunday Games · 2026")).toBeVisible();
     expect(screen.getByText("$200 auction")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Draft history" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Historical pricing" })).toBeVisible();
     expect(screen.queryByText(/screenshot/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
