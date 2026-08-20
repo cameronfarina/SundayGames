@@ -31,6 +31,12 @@ export const usesFileAuthSidecarFor = (
   request: PlatformHttpRequest,
 ): boolean => runtime.fileStore !== undefined && isAuthOnlyMutationRequest(request);
 
+export const requiresAtomicPracticeDualWrite = (
+  runtime: PlatformRuntime,
+  request: PlatformHttpRequest,
+): boolean => runtime.mockDraftPersistenceMode === "dual-write" &&
+  isMockDraftSessionOnlyMutationRequest(request);
+
 export const shouldSkipSnapshotPersist = (
   runtime: PlatformRuntime,
   request: PlatformHttpRequest,

@@ -4,11 +4,24 @@ import type { CreatePlatformServerOptions } from "./contracts.js";
 import { DraftMutationResponseRollback, draftMutationSeasonIdFor } from "./draftMutation.js";
 import type { PlatformRuntimeHolder } from "./internalContracts.js";
 import { notifyLiveDraftRoomRevision } from "./liveDraftRevision.js";
-import type { PlatformPersistence } from "./persistence.js";
+import {
+  isSnapshotWriteConflict,
+  snapshotWriteConflictResponse,
+  type PlatformPersistence,
+} from "./persistence.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
 import { isLeagueMembersScreenshotAnalysisRequest } from "./requestKinds.js";
 import { isMutatingRequest, withTrustedNow } from "./requestTiming.js";
-import { shouldBypassSnapshotAccess } from "./snapshotPersistencePolicy.js";
+import {
+  requiresAtomicPracticeDualWrite,
+  shouldBypassSnapshotAccess,
+} from "./snapshotPersistencePolicy.js";
+
+class PracticeMutationResponseRollback extends Error {
+  constructor(readonly response: PlatformHttpResponse) {
+    super(`Practice mutation returned HTTP ${response.status}.`);
+  }
+}
 
 interface CreateRequestHandlerOptions {
   options: CreatePlatformServerOptions;
@@ -27,8 +40,31 @@ export const createPlatformRequestHandler = (
     return input.runRequest(requestWithNow);
   }
   const runtime = input.runtimeHolder.current();
-  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   const postgresClient = input.options.postgresClient;
+  if (requiresAtomicPracticeDualWrite(runtime, requestWithNow) &&
+      postgresClient !== undefined && isTransactionalPostgresClient(postgresClient)) {
+    return await input.persistence.runInSnapshotCriticalSection(async () => {
+      try {
+        return await postgresClient.transaction(async transactionClient => {
+          const postgresStore = input.runtimeHolder.current().postgresStore;
+          if (postgresStore === undefined) {
+            throw new Error("Dual-write practice persistence requires a Postgres snapshot store.");
+          }
+          await postgresStore.lockForAtomicSave(transactionClient);
+          const response = await input.runRequest(requestWithNow);
+          if (response.status >= 400) throw new PracticeMutationResponseRollback(response);
+          return response;
+        });
+      } catch (error) {
+        await input.reloadRuntime();
+        if (isSnapshotWriteConflict(error)) return snapshotWriteConflictResponse;
+        if (error instanceof PracticeMutationResponseRollback) return error.response;
+        throw error;
+      }
+    });
+  }
+  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
+  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   if (seasonId !== null && postgresClient !== undefined &&
       isTransactionalPostgresClient(postgresClient)) {
     return input.persistence.runInSnapshotCriticalSection(async () => {

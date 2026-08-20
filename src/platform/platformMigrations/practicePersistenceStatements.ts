@@ -1,6 +1,5 @@
 const missingConfiguration =
   '{"status":"migration-required","schema":"mockd-season-mock-configuration","reason":"missing-snapshot"}';
-
 const bridgeFunction = `
 CREATE OR REPLACE FUNCTION mirror_platform_snapshot_mock_sessions()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -15,10 +14,11 @@ DECLARE
   shared_count integer; command_index integer;
   next_sequence integer;
 BEGIN
-  SELECT mode INTO practice_mode
-  FROM platform_practice_persistence_control WHERE singleton = true;
+  SELECT mode INTO practice_mode FROM platform_practice_persistence_control WHERE singleton = true;
+  IF practice_mode = 'normalized-only' AND COALESCE(NEW.snapshot_json->'mockDraftSessions', '[]'::jsonb) <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'Compatibility mock sessions are disabled after normalized-only cutover';
+  END IF;
   IF practice_mode <> 'dual-write' THEN RETURN NEW; END IF;
-
   FOR stored_session IN SELECT value FROM jsonb_array_elements(
     COALESCE(NEW.snapshot_json->'mockDraftSessions', '[]'::jsonb)
   ) LOOP

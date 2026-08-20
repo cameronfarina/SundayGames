@@ -17,12 +17,21 @@ export const practicePersistenceModeMatches = async (
   expectedMode: PracticePersistenceMode,
 ): Promise<boolean> => {
   try {
-    const result = await client.query<{ mode: PracticePersistenceMode }>(
-      `SELECT mode
-       FROM platform_practice_persistence_control
-       WHERE singleton = true`,
+    const result = await client.query<{
+      mode: PracticePersistenceMode;
+      compatibility_snapshots_scrubbed: boolean;
+    }>(
+      `SELECT control.mode,
+              NOT EXISTS (
+                SELECT 1 FROM platform_store_snapshots
+                WHERE COALESCE(snapshot_json->'mockDraftSessions', '[]'::jsonb) <> '[]'::jsonb
+              ) AS compatibility_snapshots_scrubbed
+       FROM platform_practice_persistence_control AS control
+       WHERE control.singleton = true`,
     );
-    return result.rows.length === 1 && result.rows[0]?.mode === expectedMode;
+    const state = result.rows[0];
+    return result.rows.length === 1 && state?.mode === expectedMode &&
+      (expectedMode !== "normalized-only" || state.compatibility_snapshots_scrubbed);
   } catch {
     return false;
   }

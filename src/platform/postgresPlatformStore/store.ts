@@ -11,6 +11,7 @@ import { PostgresPlatformStoreError } from "./errors.js";
 import { loadSnapshotRow, saveSnapshotRow } from "./persistence.js";
 import {
   createPlatformStoreSnapshotsTableStatement,
+  platformStoreSnapshotsTableName,
   platformStoreSnapshotsUpdatedAtIndexStatement,
 } from "./schema.js";
 import { defaultSnapshotKey, snapshotHash, snapshotJsonForPostgres } from "./snapshot.js";
@@ -60,6 +61,34 @@ export class PostgresPlatformStore {
     return this.#loadedRevision;
   }
 
+  async lockForAtomicSave(client: PostgresQueryClient): Promise<void> {
+    const expectedRevision = this.#loadedRevision ?? 0;
+    const existing = await client.query<{ revision: number }>(
+      `SELECT revision FROM ${platformStoreSnapshotsTableName}
+       WHERE snapshot_key = $1
+       FOR UPDATE`,
+      [this.#snapshotKey],
+    );
+    const storedRevision = existing.rows[0]?.revision;
+    if (storedRevision !== undefined) {
+      if (storedRevision !== expectedRevision) this.#throwWriteConflict();
+      return;
+    }
+    if (expectedRevision !== 0) this.#throwWriteConflict();
+
+    const snapshot = this.store.snapshot();
+    const inserted = await saveSnapshotRow(client, {
+      snapshotKey: this.#snapshotKey,
+      nextRevision: 1,
+      snapshotHash: snapshotHash(snapshot),
+      snapshotJson: snapshotJsonForPostgres(snapshot),
+      updatedAt: this.#now(),
+      expectedRevision: 0,
+    });
+    if (inserted === undefined) this.#throwWriteConflict();
+    this.#loadedRevision = inserted.revision;
+  }
+
   async save(): Promise<void> {
     const snapshot = this.store.snapshot();
     const expectedRevision = this.#loadedRevision ?? 0;
@@ -71,12 +100,14 @@ export class PostgresPlatformStore {
       updatedAt: this.#now(),
       expectedRevision,
     });
-    if (row === undefined) {
-      throw new PostgresPlatformStoreError(
-        "snapshot_write_conflict",
-        "Platform store snapshot changed since it was loaded. Reload before saving.",
-      );
-    }
+    if (row === undefined) this.#throwWriteConflict();
     this.#loadedRevision = row.revision;
+  }
+
+  #throwWriteConflict(): never {
+    throw new PostgresPlatformStoreError(
+      "snapshot_write_conflict",
+      "Platform store snapshot changed since it was loaded. Reload before saving.",
+    );
   }
 }

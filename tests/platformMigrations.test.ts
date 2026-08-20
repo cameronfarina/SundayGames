@@ -319,6 +319,9 @@ describe("platform Postgres migrations", () => {
       expect.stringContaining("practice_mode <> 'dual-write'"),
     );
     expect(client.statements).toContainEqual(
+      expect.stringContaining("Compatibility mock sessions are disabled after normalized-only cutover"),
+    );
+    expect(client.statements).toContainEqual(
       expect.stringContaining("Mock draft command history diverged during compatibility mirroring"),
     );
     expect(client.statements).toContainEqual(

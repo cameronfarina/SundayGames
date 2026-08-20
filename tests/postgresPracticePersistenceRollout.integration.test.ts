@@ -155,12 +155,16 @@ describeWithPostgres("practice-persistence rolling cutover", () => {
     });
     // This models a pre-cutover process finishing an unrelated snapshot mutation
     // with the stale mock-session copy it loaded before the bridge was retired.
-    await saveCompatibilitySnapshot(10, [command("first", "first")]);
+    await expect(saveCompatibilitySnapshot(10, [command("first", "first")]))
+      .rejects.toThrow("Compatibility mock sessions are disabled after normalized-only cutover");
 
-    const count = await client.query<{ count: number }>(
-      "SELECT COUNT(*)::int AS count FROM mock_sessions WHERE id = $1",
-      [sessionId],
+    const state = await client.query<{ count: number; mock_sessions: unknown }>(
+      `SELECT COUNT(*)::int AS count,
+              (SELECT snapshot_json->'mockDraftSessions'
+               FROM platform_store_snapshots WHERE snapshot_key = $2) AS mock_sessions
+       FROM mock_sessions WHERE id = $1`,
+      [sessionId, snapshotKey],
     );
-    expect(count.rows[0]?.count).toBe(0);
+    expect(state.rows[0]).toEqual({ count: 0, mock_sessions: [] });
   }, 30_000);
 });

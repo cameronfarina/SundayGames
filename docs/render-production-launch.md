@@ -179,18 +179,35 @@ The encrypted-credential schema expansion lets the old release keep syncing exis
 
 The v22 authentication rate-limit table and v23 league-sync revision columns are additive, so an application rollback does not require a database restore. Their protections are incomplete until the old web process has stopped. Avoid provider sync and import during the v23 web swap, then rerun any operation attempted during that window after only the new release is serving traffic.
 
-The v25 practice-persistence migration is additive, but its application rollout has two phases. It adds the immutable mock configuration column, a revision- and prefix-aware snapshot bridge, and a database mode gate, then backfills compatibility snapshots. Deploy v25 first with `MOCKD_PRACTICE_PERSISTENCE_MODE=dual-write`. New code reads normalized rows and mirrors each committed mock mutation into the compatibility snapshot. The old process can keep using snapshots during the zero-downtime swap, and the trigger accepts only a valid extension or next revision; it ignores stale prefixes and aborts a divergent snapshot write without changing normalized rows or events.
+The v25 practice-persistence migration is additive, but its application rollout has two phases. It adds the immutable mock configuration column, a revision- and prefix-aware snapshot bridge, and a database mode gate, then backfills compatibility snapshots. Deploy v25 first with `MOCKD_PRACTICE_PERSISTENCE_MODE=dual-write`. New code reads normalized rows and commits each mock mutation and its compatibility snapshot CAS in one Postgres transaction. A compatibility conflict rolls back the normalized mutation. The old process can keep using snapshots during the zero-downtime swap, and the trigger accepts only a valid extension or next revision; it ignores stale prefixes and aborts a divergent snapshot write without changing normalized rows or events.
 
-Keep dual-write mode until every pre-v25 process is deactivated and all requests that entered those processes have drained. Before the second deployment, require the two consistency queries below to return zero. Then set `MOCKD_PRACTICE_PERSISTENCE_MODE=normalized-only` and deploy the same or a later v25 artifact. Startup takes the cutover advisory lock, disables the bridge, scrubs mock sessions from every compatibility snapshot with a new revision and hash, and only then admits the normalized-only process. `/readyz` rejects any process whose configured mode disagrees with the database gate.
+Keep dual-write mode until every pre-v25 process is deactivated and all requests that entered those processes have drained. Before the second deployment, require the snapshot-key query below to return one and the three consistency queries to return zero. These commands use the Blueprint's `mockd-production` key; substitute the configured `MOCKD_POSTGRES_SNAPSHOT_KEY` if it differs. Then set `MOCKD_PRACTICE_PERSISTENCE_MODE=normalized-only` and deploy the same or a later v25 artifact. Startup takes the cutover advisory lock, disables the bridge, scrubs mock sessions from every compatibility snapshot with a new revision and hash, and only then admits the normalized-only process. `/readyz` rejects a configured/database mode mismatch and rejects normalized-only readiness if any compatibility snapshot still contains mock sessions.
 
 ```sql
+SELECT count(*)
+FROM platform_store_snapshots
+WHERE snapshot_key = 'mockd-production';
+
 SELECT count(*)
 FROM platform_store_snapshots AS snapshot
 CROSS JOIN LATERAL jsonb_array_elements(
   COALESCE(snapshot.snapshot_json->'mockDraftSessions', '[]'::jsonb)
 ) AS stored_session
-WHERE NOT EXISTS (
+WHERE snapshot.snapshot_key = 'mockd-production'
+  AND NOT EXISTS (
   SELECT 1 FROM mock_sessions WHERE id = stored_session->>'id'
+);
+
+SELECT count(*)
+FROM mock_sessions AS session
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM platform_store_snapshots AS snapshot
+  CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(snapshot.snapshot_json->'mockDraftSessions', '[]'::jsonb)
+  ) AS stored_session
+  WHERE snapshot.snapshot_key = 'mockd-production'
+    AND stored_session->>'id' = session.id
 );
 
 SELECT count(*)
@@ -204,7 +221,7 @@ WHERE session.command_count <> (
 );
 ```
 
-After normalized-only cutover, require both queries below to report `normalized-only` and zero. Retention may delete normalized sessions after this point; the retired trigger cannot resurrect them from an unrelated snapshot save.
+After normalized-only cutover, require both queries below to report `normalized-only` and zero. Retention may delete normalized sessions after this point; the retired bridge rejects any old-process snapshot write that still carries mock sessions, so it cannot resurrect a retained session or violate the scrub invariant.
 
 ```sql
 SELECT mode
