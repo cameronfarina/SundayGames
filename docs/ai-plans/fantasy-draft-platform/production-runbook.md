@@ -378,6 +378,10 @@ Polling fallback:
 - `GET /events?afterRevision=N` reads the same Postgres event stream.
 - It is only a fallback or stale-client recovery path.
 - It must never become a second write path.
+- An open SSE stream also reconciles its revision from Postgres on every
+  15-second heartbeat. In-process notifications still deliver normal updates
+  immediately, while the heartbeat bounds staleness during a zero-downtime
+  deploy or across multiple web processes.
 
 Event-stream connection limits:
 

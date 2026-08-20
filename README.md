@@ -96,9 +96,8 @@ Many tests pin exact user-facing strings. When you change wording, search
 
 Production runs on Render from the `Dockerfile`.
 
-Push to `main` and the pipeline takes over: CI runs, Render deploys on green,
-and a rollback job reverts production if CI goes red. A deploy takes a few
-minutes.
+Push to `main` and the pipeline takes over: CI runs, and Render starts the
+deploy only after every linked check passes. A deploy takes a few minutes.
 
 The start command lives in the Dockerfile `CMD`, not in `render.yaml`. Render
 mis-parses compound commands there, so leave `dockerCommand` unset.

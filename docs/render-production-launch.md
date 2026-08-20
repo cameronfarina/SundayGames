@@ -6,7 +6,7 @@ This is the concrete first-production procedure for Mockd. The broader architect
 
 `render.yaml` creates these resources in Render's Virginia region:
 
-- `mockd-web`: one paid Docker web instance with `/readyz` health checks and no persistent disk.
+- `sundaygames`: one paid Docker web instance with `/readyz` health checks and no persistent disk.
 - `mockd-postgres`: private managed Postgres 17 on a paid plan with 15 GB of autoscaling storage.
 
 The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Render deploys automatically once GitHub checks pass; an operator can still deploy sooner by hand for urgent low-risk changes. League-aware simulations use a bounded worker-thread queue inside the web service, with request cancellation and a 30-second timeout, so the launch Blueprint does not create the legacy fixture-backed simulation worker.
@@ -15,7 +15,7 @@ The web service carries no persistent disk, so Render deploys it with zero downt
 
 Two effects survive the swap window. Live draft rooms reconnect their event stream and catch up from their last revision. A season simulation runs inside the instance that started it, so a simulation still in flight when the old instance stops is lost and the user must run it again.
 
-Deploying during a live draft window is now far safer, but it is not free. Render deploys every commit to main and CI runs in parallel, so a bad commit serves real traffic until the rollback job replaces it. Prefer to hold non-urgent pushes until the draft ends.
+Deploying during a live draft window is now far safer, but it is not free. Render waits for the linked GitHub checks before deploying a commit from `main`, then gates traffic on `/readyz`. Prefer to hold non-urgent pushes until the draft ends so a healthy release cannot interrupt an active room unexpectedly.
 
 The web service still stays at one instance. Going higher needs a review of in-process state first, including the draft-tools store cache and the live-room event-stream subscribers.
 
@@ -70,7 +70,7 @@ In Commissioner Setup:
 
 Create each manager's private signup link in the separate **Invitations** section and deliver it through the league's existing secure channel. Claimed teams and accounts that already belong to the league are unavailable for invitation. Invitation links expire after seven days. The plaintext token is shown only when a link is created or reissued, so copy it before leaving the page.
 
-The launch Blueprint disables screenshot analysis, so commissioners enter league membership information manually. To enable the optional analyzer later, set `MOCKD_SCREENSHOT_IMPORT_MODE=openai`, add `OPENAI_API_KEY`, and optionally set `MOCKD_SCREENSHOT_IMPORT_MODEL` on `mockd-web`; never add provider keys to the repository. Screenshot bytes and raw model output are not persisted by Mockd. The web service sends the image to the OpenAI Responses API with request storage disabled, keeps only the commissioner-approved team fields, limits images to 5 MB, and rate-limits analysis per commissioner and season. Use a screenshot that contains no information beyond the league membership table.
+The launch Blueprint disables screenshot analysis, so commissioners enter league membership information manually. To enable the optional analyzer later, set `MOCKD_SCREENSHOT_IMPORT_MODE=openai`, add `OPENAI_API_KEY`, and optionally set `MOCKD_SCREENSHOT_IMPORT_MODEL` on `sundaygames`; never add provider keys to the repository. Screenshot bytes and raw model output are not persisted by Mockd. The web service sends the image to the OpenAI Responses API with request storage disabled, keeps only the commissioner-approved team fields, limits images to 5 MB, and rate-limits analysis per commissioner and season. Use a screenshot that contains no information beyond the league membership table.
 
 Owners normally recover access through **Forgot password** on the sign-in page. The operator command remains an emergency-only fallback when email delivery is unavailable. The target email comes from the environment and the replacement password comes from exactly one non-interactive stdin line, so neither belongs in command arguments:
 
@@ -133,7 +133,7 @@ Before the first real import, create a temporary staging season with the product
 Only after in-product setup, recovery, monitoring, and deployed smoke pass:
 
 1. Lower the planned DNS record's TTL.
-2. Add the custom domain to `mockd-web` in Render.
+2. Add the custom domain to `sundaygames` in Render.
 3. Add the exact DNS records Render provides.
 4. Wait for Render to verify the domain and issue TLS.
 5. Confirm HTTP redirects to HTTPS and `/readyz` is healthy on the custom domain.
