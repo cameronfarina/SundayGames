@@ -13,7 +13,7 @@ databases:
 
 services:
   - type: web
-    name: mockd-web
+    name: sundaygames
     runtime: docker
     plan: starter
     region: virginia
@@ -51,7 +51,7 @@ services:
       - key: MOCKD_PUBLIC_BASE_URL
         fromService:
           type: web
-          name: mockd-web
+          name: sundaygames
           envVarKey: RENDER_EXTERNAL_URL
       - key: MOCKD_INVITATION_TOKEN_SECRET
         generateValue: true
