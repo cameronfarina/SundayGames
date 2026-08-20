@@ -15,6 +15,7 @@ describe("platform runtime config parsing", () => {
       MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
       MOCKD_TRUST_PROXY: "true",
       MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
+      MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS: "720",
       MOCKD_PROVISIONING_TOKEN: "production-provisioning-token",
       MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
@@ -45,6 +46,7 @@ describe("platform runtime config parsing", () => {
       allowPublicSignup: true,
       trustProxy: true,
       liveDraftDataMode: "postgres",
+      liveDraftRoomEventStreamMaxConnections: 720,
       provisioningToken: "production-provisioning-token",
       invitationTokenSecret: "test-invitation-secret-at-least-32-characters",
       leagueConnectionCredentialCipher: undefined,
@@ -53,6 +55,7 @@ describe("platform runtime config parsing", () => {
         resendApiKey: undefined,
         from: undefined,
         publicBaseUrl: undefined,
+        signupNotificationEmail: undefined,
       },
       simulationDataMode: "local-fixtures",
       screenshotImport: {
@@ -91,6 +94,7 @@ describe("platform runtime config parsing", () => {
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
     expect(config.liveDraftDataMode).toBe("local-fixtures");
+    expect(config.liveDraftRoomEventStreamMaxConnections).toBe(650);
     expect(config.allowPublicSignup).toBe(false);
     expect(config.trustProxy).toBe(false);
     expect(config.provisioningToken).toBeUndefined();

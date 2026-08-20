@@ -378,17 +378,25 @@ Polling fallback:
 - `GET /events?afterRevision=N` reads the same Postgres event stream.
 - It is only a fallback or stale-client recovery path.
 - It must never become a second write path.
-- An open SSE stream also reconciles its revision from Postgres on every
-  15-second heartbeat. In-process notifications still deliver normal updates
-  immediately, while the heartbeat bounds staleness during a zero-downtime
-  deploy or across multiple web processes.
+- A committed room mutation publishes its revision through Postgres
+  `LISTEN`/`NOTIFY`, so streams connected to another web process wake
+  immediately. The open stream still checks the scalar `current_revision` on
+  every 15-second heartbeat as recovery. An unchanged heartbeat does not load
+  a room projection or replay draft events.
+- Browser room state reads use the bounded `draft_rooms.current_projection_json`
+  projection. Mutation, correction, undo, and recovery keep the append-only
+  event log as the source of truth.
 
 Event-stream connection limits:
 
-- Long polls are capped at 4 concurrent requests per authenticated account and 200 concurrent requests per web process.
+- Open streams are capped at 4 per authenticated account and 650 globally by default.
+  `MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS` can raise the shared Postgres-backed
+  global cap; production readiness rejects values below 650.
+  across web processes.
 - Overflow receives `429 Too Many Requests` with `Retry-After: 5`.
-- Completed, timed-out, and disconnected requests release capacity immediately.
-- The global ceiling is process-local. Keep the launch web service at one instance, or add a shared connection gate before scaling horizontally.
+- Postgres leases serialize admission under one advisory transaction lock.
+  Completed and disconnected streams release capacity immediately; expired
+  leases recover capacity after a crashed process.
 
 ## Offline Live Draft Flow
 
@@ -562,11 +570,11 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | --- | --- |
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
-| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, readiness reports no missing migrations through `platform-league-sync-revisions-v23`, and `league_season_draft_setups` exists. |
+| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, readiness reports no missing migrations through `platform-live-draft-scale-v24`, and `league_season_draft_setups` exists. |
 | Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, the active ESPN credential key id and retained keyring, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
 | League setup | A commissioner created and published the staging league through the product; settings, team mappings, historical imports, keepers, and active pricing are correct; no `platform:seed:e2e` fixture accounts are present in production. |
-| Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |
+| Realtime | Two web processes receive the same committed sale over SSE without waiting for the 15-second recovery check; `events?afterRevision=N` also recovers it; a 201st global stream and a fifth account stream receive `429`. |
 | Draft commands | Sale, undo, end, idempotency, stale revision, budget, roster, and position maximum validation pass in staging. |
 | Export | Final export artifact is created after room end and content is readable after restore. |
 | Backups | Automated backups and alerts are enabled, the ESPN plaintext query returns zero, the pre-cutover UTC recovery point and logical export are recorded, the matching credential keyring is retained outside Postgres, and restore rehearsal has passed within 7 days. |

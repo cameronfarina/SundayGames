@@ -54,6 +54,7 @@ export interface PlatformRuntimeConfig {
   allowPublicSignup: boolean;
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
+  liveDraftRoomEventStreamMaxConnections: number;
   provisioningToken: string | undefined;
   invitationTokenSecret: string | undefined;
   leagueConnectionCredentialCipher: LeagueConnectionCredentialCipher | undefined;

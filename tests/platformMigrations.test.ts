@@ -220,6 +220,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -255,6 +256,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -382,6 +384,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -406,17 +409,37 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
     ]);
   });
 
-  it("applies snake, credential, auth, and sync migrations in reserved order", () => {
+  it("applies snake, credential, auth, sync, and live-scale migrations in reserved order", () => {
     expect(requiredPlatformPostgresMigrationIds.slice(-5)).toEqual([
-      "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
     ]);
+  });
+
+  it("adds the durable current-room projection and shared stream leases in v24", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-live-draft-scale-v24")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await applyPlatformPostgresMigrations(client);
+
+    expect(client.statements).toContain(
+      "ALTER TABLE draft_rooms ADD COLUMN IF NOT EXISTS current_projection_json jsonb;",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "CREATE TABLE IF NOT EXISTS live_draft_stream_leases",
+    ));
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "CREATE INDEX IF NOT EXISTS live_draft_stream_leases_account_expires_idx",
+    ));
   });
 
   it("adds durable league archive metadata and an active-league index", async () => {

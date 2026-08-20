@@ -12,6 +12,7 @@ import { persistSaleProjection } from "./salePersistence.js";
 import { cloneRoom } from "./snapshotCodec.js";
 import { insertDraftRoomSnapshot } from "./snapshotPersistence.js";
 import { latestRoomSnapshot } from "./snapshotRead.js";
+import { publishLiveDraftRoomRevision } from "../liveDraftRoomRealtime.js";
 
 export type RoomMutation = (
   repository: ReturnType<typeof repositoryForRoom>,
@@ -40,5 +41,6 @@ export const mutateRoom = async (
   await insertDraftRoomEvent(client, newEvent, input.expectedRevision);
   await persistSaleProjection(client, newEvent, currentRoom);
   await insertDraftRoomSnapshot(client, updatedRoom);
+  await publishLiveDraftRoomRevision(client, updatedRoom.roomId, updatedRoom.revision);
   return cloneRoom(updatedRoom);
 };

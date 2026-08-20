@@ -1,7 +1,7 @@
 import type { LiveDraftRoomWaitLimitScope } from "./contracts.js";
 
 export const defaultLiveDraftRoomConcurrentWaitersPerAccount = 4;
-export const defaultLiveDraftRoomConcurrentWaiters = 200;
+export const defaultLiveDraftRoomConcurrentWaiters = 650;
 export const defaultLiveDraftRoomWaitRetryAfterSeconds = 5;
 export const defaultRevisionWaitTimeoutMs = 25_000;
 

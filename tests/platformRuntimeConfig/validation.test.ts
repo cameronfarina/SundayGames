@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readPlatformRuntimeConfig } from "../../src/platform/platformRuntimeConfig.js";
+import {
+  readPlatformRuntimeConfig,
+  readPlatformWebRuntimeConfig,
+} from "../../src/platform/platformRuntimeConfig.js";
 
 describe("platform runtime config validation", () => {
   it("rejects ambiguous storage configuration and invalid numeric values", () => {
@@ -75,6 +78,26 @@ describe("platform runtime config validation", () => {
       MOCKD_PLATFORM_DATA_FILE: "/tmp/mockd-platform.json",
       MOCKD_LIVE_DRAFT_DATA_MODE: "local-fixtures",
     })).toThrow("MOCKD_LIVE_DRAFT_DATA_MODE=local-fixtures is only supported outside production.");
+  });
+
+  it("rejects launch capacity below the production live-draft target", () => {
+    expect(() => readPlatformWebRuntimeConfig({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
+      MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
+      MOCKD_AUTH_EMAIL_MODE: "resend",
+      RESEND_API_KEY: "production-resend-key",
+      MOCKD_EMAIL_FROM: "Sunday Games <accounts@sundaygames.example.com>",
+      MOCKD_PUBLIC_BASE_URL: "https://sundaygames.example.com",
+      MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID: "credentials-v1",
+      MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS: JSON.stringify({
+        "credentials-v1": Buffer.alloc(32, 12).toString("base64"),
+      }),
+      MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS: "600",
+    })).toThrow(
+      "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS must be at least 650 in production.",
+    );
   });
 
   it("validates the credential keyring without echoing its secret values", () => {

@@ -1,6 +1,10 @@
 import { createPlatformApp } from "../platformApp.js";
 import { createPlatformHttpHandler } from "../platformHttp.js";
-import type { LiveDraftRoomRevisionNotifier } from "../liveDraftRoomRealtime.js";
+import {
+  openSharedLiveDraftRoomRevisionSubscription,
+  type LiveDraftRoomRevisionNotifier,
+  type PostgresLiveDraftRoomStreamAdmission,
+} from "../liveDraftRoomRealtime.js";
 import { createPlatformJobHandlers } from "../platformJobHandlers.js";
 import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { createAcceptedMembershipApplier } from "./acceptedMembership.js";
@@ -14,6 +18,7 @@ interface CreateRuntimeFactoryOptions {
   options: CreatePlatformServerOptions;
   admissions: PlatformAdmissions;
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
+  liveDraftRoomStreamAdmission?: PostgresLiveDraftRoomStreamAdmission | undefined;
   seasonSimulationRunner: SeasonSimulationRunner;
   persistForJobs: () => Promise<void>;
   runInSnapshotCriticalSection: <T>(operation: () => Promise<T>) => Promise<T>;
@@ -81,8 +86,12 @@ export const createPlatformRuntimeFactory = (
     leagueImportRateLimiter: admissions.leagueImportRateLimiter,
     simulationRateLimiter: admissions.simulationRateLimiter,
     liveDraftMutationRateLimiter: admissions.liveDraftMutationRateLimiter,
-    openLiveDraftRoomRevisionSubscription: subscription =>
-      input.liveDraftRoomNotifier.subscribe(subscription),
+    openLiveDraftRoomRevisionSubscription: async subscription =>
+      await openSharedLiveDraftRoomRevisionSubscription({
+        notifier: input.liveDraftRoomNotifier,
+        admission: input.liveDraftRoomStreamAdmission,
+        subscription,
+      }),
     seasonSimulationRunner: input.seasonSimulationRunner,
     leagueConnectionRepository: repositories.leagueConnectionRepository,
     ...(options.leagueSyncFetch === undefined ? {} : { leagueSyncFetch: options.leagueSyncFetch }),

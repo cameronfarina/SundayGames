@@ -55,6 +55,7 @@ export const platformWebServerOptions = (
     ? {}
     : { publicBaseUrl: config.authEmail.publicBaseUrl }),
   trustProxy: config.trustProxy,
+  liveDraftRoomEventStreamMaxConnections: config.liveDraftRoomEventStreamMaxConnections,
   provisioningToken: config.provisioningToken,
   invitationTokenSecret: config.invitationTokenSecret,
   leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,

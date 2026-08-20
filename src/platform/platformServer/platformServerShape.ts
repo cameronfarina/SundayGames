@@ -13,6 +13,7 @@ interface PlatformServerShapeOptions {
   draftToolsAdapter: PlatformDraftToolsAdapter;
   jobHandlers: PlatformJobHandlers;
   persist: () => Promise<void>;
+  closeLiveDraftRoomRevisionListener: () => Promise<void>;
 }
 
 export const createPlatformServerShape = (
@@ -49,6 +50,7 @@ export const createPlatformServerShape = (
   persist: input.persist,
   close: async () => {
     await closeServer(input.server);
+    await input.closeLiveDraftRoomRevisionListener();
     await input.draftToolsAdapter.close();
   },
   get fileStore() { return input.runtimeHolder.current().fileStore; },

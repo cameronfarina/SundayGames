@@ -38,5 +38,6 @@ export type {
 } from "./liveDraftRooms/contracts/repository.js";
 export type {
   LiveDraftRoom,
+  LiveDraftRoomRevision,
   LiveDraftRoomSummary,
 } from "./liveDraftRooms/contracts/room.js";

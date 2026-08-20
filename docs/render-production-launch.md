@@ -17,7 +17,11 @@ Two effects survive the swap window. Live draft rooms reconnect their event stre
 
 Deploying during a live draft window is now far safer, but it is not free. Render waits for the linked GitHub checks before deploying a commit from `main`, then gates traffic on `/readyz`. Prefer to hold non-urgent pushes until the draft ends so a healthy release cannot interrupt an active room unexpectedly.
 
-The web service still stays at one instance. Going higher needs a review of in-process state first, including the draft-tools store cache and the live-room event-stream subscribers.
+The web service still stays at one instance for launch. Live-room subscribers
+now coordinate revisions and connection admission through Postgres, so they no
+longer block a later replica increase. Review the remaining in-process state,
+including the draft-tools store cache and simulation execution, before going
+higher.
 
 Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
@@ -41,6 +45,10 @@ npm run platform:render:validate -- /path/to/render-schema.json /path/to/render.
 6. Confirm no provisioning token or password-hash variables are present in the Blueprint.
 7. Apply the Blueprint and wait for the web service and database to become healthy.
 8. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, the public HTTPS origin, or a valid credential keyring. OpenAI is not required.
+
+The Render service inherits the production-safe 650 live-draft stream default. Set
+`MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS` only to raise it; production readiness
+rejects a lower value. The per-account cap remains 4.
 
 For the credential-encryption release, wait until the new web process is stable and the old zero-downtime process has stopped before opening a Render Shell and running `npm run platform:credentials:backfill`. Do not run it while rollback to the old release is still likely. The command encrypts ESPN credentials and discards cookie values historically saved on Sleeper or Yahoo connections. Verify that no legacy values remain:
 

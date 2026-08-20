@@ -1,4 +1,9 @@
-import { LiveDraftRoomRevisionNotifier } from "../liveDraftRoomRealtime.js";
+import {
+  isPostgresNotificationClient,
+  LiveDraftRoomRevisionNotifier,
+  PostgresLiveDraftRoomStreamAdmission,
+  startPostgresLiveDraftRoomRevisionListener,
+} from "../liveDraftRoomRealtime.js";
 import { createNodeSeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { createPlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions, PlatformServer } from "./contracts.js";
@@ -9,7 +14,7 @@ import { createNodeServer } from "./nodeServer.js";
 import { validatePlatformServerOptions } from "./optionValidation.js";
 import { createPlatformPersistence } from "./persistence.js";
 import { createPlatformServerShape } from "./platformServerShape.js";
-import { initializePostgresSchemas } from "./postgres.js";
+import { initializePostgresSchemas, isTransactionalPostgresClient } from "./postgres.js";
 import { createPlatformRequestHandler } from "./requestHandler.js";
 import { createRuntimeRequest } from "./runtimeRequest.js";
 import { createPlatformRuntimeFactory } from "./runtimeFactory.js";
@@ -39,6 +44,15 @@ export const createPlatformServer = async (
     maxConcurrentWaiters: options.liveDraftRoomEventStreamMaxConnections,
     retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
   });
+  const revisionNotificationClient = options.postgresLiveDraftRoomClient ?? options.postgresClient;
+  const liveDraftRoomStreamAdmission = revisionNotificationClient !== undefined
+      && isTransactionalPostgresClient(revisionNotificationClient)
+    ? new PostgresLiveDraftRoomStreamAdmission(revisionNotificationClient, {
+        maxConcurrentWaitersPerAccount: options.liveDraftRoomEventStreamMaxConnectionsPerAccount,
+        maxConcurrentWaiters: options.liveDraftRoomEventStreamMaxConnections,
+        retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
+      })
+    : undefined;
   const simulationCapture = createSeasonSimulationCapture(
     options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner(),
   );
@@ -46,6 +60,7 @@ export const createPlatformServer = async (
     options,
     admissions,
     liveDraftRoomNotifier,
+    liveDraftRoomStreamAdmission,
     seasonSimulationRunner: simulationCapture.runner,
     persistForJobs: persistence.rawPersist,
     runInSnapshotCriticalSection: persistence.runInSnapshotCriticalSection,
@@ -63,6 +78,12 @@ export const createPlatformServer = async (
   });
   const draftToolsAdapter = createDraftToolsAdapter(runtimeHolder, options);
   const server = createNodeServer(handler, draftToolsAdapter, runtimeHolder, options, admissions);
+  const liveDraftRoomRevisionListener = isPostgresNotificationClient(revisionNotificationClient)
+    ? await startPostgresLiveDraftRoomRevisionListener(
+        revisionNotificationClient,
+        liveDraftRoomNotifier,
+      )
+    : undefined;
   return createPlatformServerShape({
     server,
     runtimeHolder,
@@ -70,5 +91,8 @@ export const createPlatformServer = async (
     draftToolsAdapter,
     jobHandlers: createDelegatingJobHandlers(runtimeHolder, persistence),
     persist: persistence.persist,
+    closeLiveDraftRoomRevisionListener: async () => {
+      await liveDraftRoomRevisionListener?.close();
+    },
   });
 };

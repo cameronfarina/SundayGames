@@ -2,6 +2,7 @@ import {
   assertInvitationTokenSecret,
   assertProductionAuthEmailConfig,
 } from "./authEmail.js";
+import { defaultLiveDraftRoomConcurrentWaiters } from "../liveDraftRoomRealtime.js";
 import type { PlatformRuntimeConfig, PlatformRuntimeEnv } from "./contracts.js";
 import { isPostgresDatabaseUrl } from "./database.js";
 import { assertProductionLeagueConnectionCredentialEncryption } from
@@ -35,6 +36,11 @@ export const readPlatformWebRuntimeConfig = (
     assertProductionAuthEmailConfig(config.authEmail);
     assertInvitationTokenSecret(config.invitationTokenSecret);
     assertProductionLeagueConnectionCredentialEncryption(config.leagueConnectionCredentialCipher);
+    if (config.liveDraftRoomEventStreamMaxConnections < defaultLiveDraftRoomConcurrentWaiters) {
+      throw new Error(
+        "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS must be at least 650 in production.",
+      );
+    }
   }
   return config;
 };

@@ -20,6 +20,8 @@ export class FakePostgresClient implements PostgresQueryClient {
       return { rows: [] };
     }
 
+    if (text === "SELECT pg_notify($1, $2)") return { rows: [] };
+
     if (text.startsWith("SELECT revision, snapshot_json")) {
       return { rows: this.row === undefined ? [] : [this.row] };
     }

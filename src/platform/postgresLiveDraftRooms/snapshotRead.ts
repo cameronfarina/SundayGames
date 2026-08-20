@@ -5,13 +5,17 @@ import {
 } from "../liveDraftRooms.js";
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 import type {
-  CompactDraftRoomSnapshotV2,
-  DraftRoomEventPersistenceRow,
-  DraftRoomSnapshotRow,
+  CompactDraftRoomSnapshotV2, CurrentRoomProjectionRow,
+  DraftRoomEventPersistenceRow, DraftRoomSnapshotRow,
 } from "./contracts.js";
 import { persistedEventFromRow } from "./eventCodec.js";
-import { firstRow } from "./json.js";
-import { isCompactSnapshot, roomFromSnapshotJson } from "./snapshotCodec.js";
+import { firstRow, jsonbParameter } from "./json.js";
+import {
+  currentProjectionJsonForRoom,
+  isCompactSnapshot,
+  roomFromCurrentProjectionJson,
+  roomFromSnapshotJson,
+} from "./snapshotCodec.js";
 
 const baseRoomSnapshot = async (
   client: PostgresQueryClient,
@@ -98,8 +102,7 @@ export const roomFromPersistedSnapshot = async (
   roomId: string,
   snapshotJson: unknown,
 ): Promise<LiveDraftRoom> => isCompactSnapshot(snapshotJson)
-  ? await roomFromCompactSnapshot(client, roomId, snapshotJson)
-  : roomFromSnapshotJson(snapshotJson);
+  ? await roomFromCompactSnapshot(client, roomId, snapshotJson) : roomFromSnapshotJson(snapshotJson);
 
 export const latestRoomSnapshot = async (
   client: PostgresQueryClient,
@@ -116,5 +119,32 @@ LIMIT 1
     [roomId],
   );
   const row = firstRow(result);
-  return row === undefined ? undefined : await roomFromPersistedSnapshot(client, roomId, row.snapshot_json);
+  return row === undefined ? undefined : await roomFromPersistedSnapshot(
+    client, roomId, row.snapshot_json,
+  );
+};
+
+export const currentRoomProjection = async (
+  client: PostgresQueryClient,
+  roomId: string,
+): Promise<LiveDraftRoom | undefined> => {
+  const result = await client.query<CurrentRoomProjectionRow>(
+    "SELECT current_revision, current_projection_json FROM draft_rooms WHERE id = $1",
+    [roomId],
+  );
+  const row = firstRow(result);
+  if (row === undefined) return undefined;
+  if (row.current_projection_json !== null) {
+    const projectedRoom = roomFromCurrentProjectionJson(row.current_projection_json);
+    if (projectedRoom.revision === row.current_revision) return projectedRoom;
+  }
+  const room = await latestRoomSnapshot(client, roomId);
+  if (room === undefined) return undefined;
+  const projectionJson = currentProjectionJsonForRoom(room);
+  await client.query(
+    `UPDATE draft_rooms SET current_projection_json = $2::jsonb
+WHERE id = $1 AND current_revision = $3`,
+    [roomId, jsonbParameter(projectionJson), room.revision],
+  );
+  return roomFromCurrentProjectionJson(projectionJson);
 };

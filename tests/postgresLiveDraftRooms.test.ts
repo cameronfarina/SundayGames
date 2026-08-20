@@ -42,6 +42,7 @@ interface DraftRoomRow {
   ended_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  current_projection_json: unknown | null;
 }
 
 interface DraftRoomEventRow {
@@ -102,6 +103,9 @@ const cloneRoomRow = (row: DraftRoomRow): DraftRoomRow => ({
   ended_at: cloneDate(row.ended_at),
   created_at: new Date(row.created_at.getTime()),
   updated_at: new Date(row.updated_at.getTime()),
+  current_projection_json: row.current_projection_json === null
+    ? null
+    : cloneJson(row.current_projection_json),
 });
 
 const cloneEventRow = (row: DraftRoomEventRow): DraftRoomEventRow => ({
@@ -161,6 +165,36 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
 
+    if (normalizedSql === "SELECT pg_notify($1, $2)") return { rows: [], rowCount: 1 };
+
+    if (normalizedSql === "SELECT id, league_id, current_revision FROM draft_rooms WHERE id = $1") {
+      const [roomId] = values as readonly [string];
+      const room = this.rooms.get(roomId);
+      return {
+        rows: room === undefined ? [] : [{
+          id: room.id,
+          league_id: room.league_id,
+          current_revision: room.current_revision,
+        } as TRow],
+      };
+    }
+
+    if (
+      normalizedSql ===
+        "SELECT current_revision, current_projection_json FROM draft_rooms WHERE id = $1"
+    ) {
+      const [roomId] = values as readonly [string];
+      const room = this.rooms.get(roomId);
+      return {
+        rows: room === undefined ? [] : [{
+          current_revision: room.current_revision,
+          current_projection_json: room.current_projection_json === null
+            ? null
+            : cloneJson(room.current_projection_json),
+        } as TRow],
+      };
+    }
+
     if (normalizedSql.startsWith("SELECT snapshot_json FROM draft_room_snapshots")) {
       const [roomId] = values as readonly [string];
       const snapshot = this.snapshots
@@ -177,10 +211,14 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
     }
 
     if (normalizedSql.startsWith("SELECT id, draft_room_id, revision, event_type")) {
-      const [roomId, throughRevision] = values as readonly [string, number];
+      const [roomId, revision, throughRevision] = values as readonly [string, number, number?];
       return {
         rows: this.events
-          .filter(row => row.draft_room_id === roomId && row.revision <= throughRevision)
+          .filter(row => row.draft_room_id === roomId && (
+            normalizedSql.includes("revision > $2")
+              ? row.revision > revision && row.revision <= (throughRevision ?? Number.MAX_SAFE_INTEGER)
+              : row.revision <= revision
+          ))
           .sort((left, right) => left.revision - right.revision)
           .map(row => cloneEventRow(row) as TRow),
       };
@@ -236,6 +274,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         currentRevision,
         createdAt,
         updatedAt,
+        currentProjectionJson,
       ] = values as readonly [
         string,
         string,
@@ -248,6 +287,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         number,
         Date,
         Date,
+        unknown,
       ];
       if (this.rooms.has(id)) return { rows: [], rowCount: 0 };
 
@@ -264,6 +304,7 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         ended_at: cloneDate(endedAt),
         created_at: new Date(createdAt.getTime()),
         updated_at: new Date(updatedAt.getTime()),
+        current_projection_json: jsonValue(currentProjectionJson),
       });
 
       return { rows: [{ id } as TRow], rowCount: 1 };
@@ -278,7 +319,8 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         endedAt,
         updatedAt,
         expectedCurrentRevision,
-      ] = values as readonly [string, string, number, Date | null, Date | null, Date, number];
+        currentProjectionJson,
+      ] = values as readonly [string, string, number, Date | null, Date | null, Date, number, unknown];
       const room = this.rooms.get(roomId);
       if (room === undefined || room.current_revision !== expectedCurrentRevision) {
         return { rows: [], rowCount: 0 };
@@ -291,9 +333,26 @@ class FakePostgresLiveDraftRoomClient implements PostgresTransactionalQueryClien
         started_at: cloneDate(startedAt),
         ended_at: cloneDate(endedAt),
         updated_at: new Date(updatedAt.getTime()),
+        current_projection_json: jsonValue(currentProjectionJson),
       });
 
       return { rows: [{ current_revision: currentRevision } as TRow], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE draft_rooms SET current_projection_json = $2::jsonb")) {
+      const [roomId, currentProjectionJson, revision] = values as readonly [string, unknown, number];
+      const room = this.rooms.get(roomId);
+      if (
+        room === undefined || room.current_revision !== revision
+        || room.current_projection_json !== null && (
+          room.current_projection_json as { revision?: unknown }
+        ).revision === revision
+      ) return { rows: [], rowCount: 0 };
+      this.rooms.set(roomId, {
+        ...room,
+        current_projection_json: jsonValue(currentProjectionJson),
+      });
+      return { rows: [], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("DELETE FROM draft_rooms")) {
@@ -605,6 +664,10 @@ describe("Postgres live draft rooms", () => {
       now: new Date(now.getTime() + 6_000),
     });
     const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(created.roomId);
+    const current = await new PostgresLiveDraftRoomRepository(client).getCurrentRoomForActor({
+      roomId: created.roomId,
+      actor: commissioner,
+    });
 
     expect(corrected.projection.picks?.slice(0, 3)).toMatchObject([
       { overall: 1, playerName: "Puka Nacua", teamId: firstTeam.id },
@@ -612,6 +675,7 @@ describe("Postgres live draft rooms", () => {
       { overall: 3, playerName: "Amon-Ra St. Brown", teamId: thirdOnClock.teamId },
     ]);
     expect(reloaded).toEqual(undone);
+    expect(current.projection).toEqual(undone.projection);
     expect(reloaded.projection.picks?.slice(0, 3)).toMatchObject([
       { overall: 1, playerName: "Puka Nacua", teamId: firstTeam.id },
       { overall: 2, playerName: "Jahmyr Gibbs", teamId: secondOnClock.teamId },
@@ -886,6 +950,203 @@ describe("Postgres live draft rooms", () => {
         status: "active",
       },
     ]);
+    expect(client.queries
+      .filter(query => normalizeSql(query.text) === "SELECT pg_notify($1, $2)")
+      .map(query => query.values[1])).toEqual([
+        '{"roomId":"room_sunday","revision":1}',
+        '{"roomId":"room_sunday","revision":2}',
+        '{"roomId":"room_sunday","revision":3}',
+      ]);
+  });
+
+  it("reads the current revision with one scalar query and no snapshot or event replay", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_revision_read",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    client.queries.length = 0;
+
+    await expect(repository.getRoomRevision(created.roomId)).resolves.toEqual({
+      roomId: created.roomId,
+      leagueId: created.leagueId,
+      revision: created.revision,
+    });
+    expect(client.queries).toHaveLength(1);
+    expect(normalizeSql(client.queries[0]?.text ?? "")).toBe(
+      "SELECT id, league_id, current_revision FROM draft_rooms WHERE id = $1",
+    );
+  });
+
+  it("reads the durable current projection with one query and no event-history replay", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_current_projection",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-current-projection",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-current-projection",
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+    client.queries.length = 0;
+
+    const current = await repository.getCurrentRoomForActor({
+      roomId: sold.roomId,
+      actor: commissioner,
+    });
+
+    expect(current).toMatchObject({
+      roomId: sold.roomId,
+      revision: sold.revision,
+      projection: sold.projection,
+    });
+    expect(current.events).toEqual([sold.events.at(-1)]);
+    expect(client.queries).toHaveLength(1);
+    expect(normalizeSql(client.queries[0]?.text ?? "")).toBe(
+      "SELECT current_revision, current_projection_json FROM draft_rooms WHERE id = $1",
+    );
+  });
+
+  it("rebuilds a stale projection advanced by an old application instance", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_rolling_projection",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const createdProjection = cloneJson(
+      client.rooms.get(created.roomId)?.current_projection_json,
+    );
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-rolling-projection",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const row = client.rooms.get(created.roomId);
+    if (row === undefined) throw new Error("Expected persisted room row.");
+    row.current_projection_json = createdProjection;
+    client.queries.length = 0;
+
+    await expect(repository.getCurrentRoomForActor({
+      roomId: created.roomId,
+      actor: commissioner,
+    })).resolves.toMatchObject({ revision: started.revision, status: "live" });
+    expect(client.queries.some(query => normalizeSql(query.text).startsWith(
+      "SELECT id, draft_room_id, revision, event_type",
+    ))).toBe(true);
+
+    client.queries.length = 0;
+    await expect(repository.getCurrentRoomForActor({
+      roomId: created.roomId,
+      actor: commissioner,
+    })).resolves.toMatchObject({ revision: started.revision, status: "live" });
+    expect(client.queries).toHaveLength(1);
+  });
+
+  it("reduces a changed stream update from twelve replay queries to three bounded reads", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const created = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_stream_query_contract",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    const started = await repository.startRoom({
+      roomId: created.roomId,
+      actor: commissioner,
+      expectedRevision: created.revision,
+      idempotencyKey: "start-stream-query-contract",
+      now: new Date(now.getTime() + 1_000),
+    });
+    const sold = await repository.logSaleCommand({
+      roomId: started.roomId,
+      actor: commissioner,
+      expectedRevision: started.revision,
+      idempotencyKey: "sale-stream-query-contract",
+      sale: { ownerText: "Owner11", playerName: "Puka Nacua", price: 67 },
+      now: new Date(now.getTime() + 2_000),
+    });
+
+    client.queries.length = 0;
+    await Promise.all([
+      repository.getRoom(sold.roomId),
+      repository.getRoom(sold.roomId),
+      repository.getRoom(sold.roomId),
+      repository.getRoom(sold.roomId),
+    ]);
+    expect(client.queries).toHaveLength(12);
+    expect(client.queries.filter(query => normalizeSql(query.text).startsWith(
+      "SELECT id, draft_room_id, revision, event_type",
+    ))).toHaveLength(4);
+
+    client.queries.length = 0;
+    const identity = await repository.getRoomRevision(sold.roomId);
+    const current = await repository.getCurrentRoomForActor({
+      roomId: identity.roomId,
+      actor: commissioner,
+    });
+    const events = await repository.getRoomEventsAfterRevision({
+      room: current,
+      afterRevision: started.revision,
+    });
+    expect(events).toEqual([sold.events.at(-1)]);
+    expect(client.queries).toHaveLength(3);
+    expect(client.queries.some(query => normalizeSql(query.text).includes(
+      "FROM draft_room_snapshots",
+    ))).toBe(false);
+    expect(client.queries.filter(query => normalizeSql(query.text).startsWith(
+      "SELECT id, draft_room_id, revision, event_type",
+    ))).toHaveLength(1);
+  });
+
+  it("does not query events when the caller already has the current revision", async () => {
+    const client = new FakePostgresLiveDraftRoomClient();
+    const repository = new PostgresLiveDraftRoomRepository(client);
+    const room = await repository.createRoom({
+      season: publishedSeason(),
+      roomId: "room_current_stream_revision",
+      commissionerUserId: "user_commish",
+      viewerPasswordHashRef: "viewer-password-hash",
+      playerCatalog,
+      createdAt: now,
+    });
+    client.queries.length = 0;
+
+    await expect(repository.getRoomEventsAfterRevision({
+      room,
+      afterRevision: room.revision,
+    })).resolves.toEqual([]);
+    expect(client.queries).toEqual([]);
   });
 
   it("transitions an existing full-snapshot room to bounded compact recovery", async () => {
@@ -1238,8 +1499,13 @@ describe("Postgres live draft rooms", () => {
       now: new Date(now.getTime() + 5_000),
     });
     const reloaded = await new PostgresLiveDraftRoomRepository(client).getRoom(created.roomId);
+    const current = await new PostgresLiveDraftRoomRepository(client).getCurrentRoomForActor({
+      roomId: created.roomId,
+      actor: commissioner,
+    });
 
     expect(reloaded).toEqual(resumed);
+    expect(current.projection).toEqual(resumed.projection);
     expect(reloaded.projection.sales).toEqual([
       expect.objectContaining({ ownerDisplayName: "Owner04", playerName: "Puka Nacua", price: 41 }),
     ]);

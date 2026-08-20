@@ -1,5 +1,6 @@
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 import type {
+  CurrentRoomRevisionRow,
   DraftRoomSnapshotRow,
   RoomExistsRow,
   StartedRoomRow,
@@ -7,6 +8,19 @@ import type {
 import { firstRow } from "./json.js";
 import { cloneRoom } from "./snapshotCodec.js";
 import { roomFromPersistedSnapshot } from "./snapshotRead.js";
+
+export const roomRevision = async (
+  client: PostgresQueryClient,
+  roomId: string,
+) => {
+  const result = await client.query<CurrentRoomRevisionRow>(
+    "SELECT id, league_id, current_revision FROM draft_rooms WHERE id = $1",
+    [roomId],
+  );
+  const row = firstRow(result);
+  if (row === undefined) return undefined;
+  return { roomId: row.id, leagueId: row.league_id, revision: row.current_revision };
+};
 
 export const hasStartedRoomForSeason = async (
   client: PostgresQueryClient,

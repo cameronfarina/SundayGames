@@ -1,14 +1,10 @@
 import {
   LiveDraftRoomError,
-  type CorrectLiveDraftRoomSaleInput,
-  type CreateLiveDraftRoomInput,
-  type EndLiveDraftRoomInput,
-  type LiveDraftRoom,
-  type LiveDraftRoomActor,
-  type LiveDraftRoomAuthorizer,
-  type LiveDraftRoomRepository,
-  type LogLiveDraftRoomSaleInput,
-  type MutateLiveDraftRoomInput,
+  type CorrectLiveDraftRoomSaleInput, type CreateLiveDraftRoomInput,
+  type EndLiveDraftRoomInput, type LiveDraftRoom,
+  type LiveDraftRoomActor, type LiveDraftRoomAuthorizer,
+  type LiveDraftRoomRepository, type LiveDraftRoomRevision,
+  type LogLiveDraftRoomSaleInput, type MutateLiveDraftRoomInput,
   type SynchronizeLiveDraftRoomInitialRostersInput,
 } from "../liveDraftRooms.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
@@ -16,9 +12,11 @@ import { cancelRoom } from "./cancelRoom.js";
 import { assertCreateRoomFormat, createRoom } from "./createRoom.js";
 import { repositoryForRoom } from "./memoryRepository.js";
 import { mutateRoom } from "./mutateRoom.js";
-import { allRooms, hasRoomForSeason, hasStartedRoomForSeason } from "./queries.js";
+import { allRooms, hasRoomForSeason, hasStartedRoomForSeason, roomRevision } from "./queries.js";
 import { cloneRoom } from "./snapshotCodec.js";
-import { latestRoomSnapshot } from "./snapshotRead.js";
+import { currentRoomProjection, latestRoomSnapshot } from "./snapshotRead.js";
+import { assertReader } from "../liveDraftRooms/guards.js";
+import { eventsAfterRevision } from "./streamRead.js";
 import { synchronizeInitialRostersForSeason } from "./synchronizeRosters.js";
 
 export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository {
@@ -45,6 +43,17 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
     return cloneRoom(room);
   }
 
+  async getRoomRevision(roomId: string): Promise<LiveDraftRoomRevision> {
+    const revision = await roomRevision(this.client, roomId);
+    if (revision === undefined) {
+      throw new LiveDraftRoomError(
+        "room_not_found",
+        `Live draft room "${roomId}" was not found.`,
+      );
+    }
+    return revision;
+  }
+
   async getRoomForActor(input: {
     roomId: string;
     actor: LiveDraftRoomActor;
@@ -52,11 +61,30 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
     const room = await this.getRoom(input.roomId);
     return cloneRoom(repositoryForRoom(room, this.authorizer).getRoomForActor(input));
   }
+  async getCurrentRoomForActor(input: {
+    roomId: string;
+    actor: LiveDraftRoomActor;
+  }): Promise<LiveDraftRoom> {
+    const room = await currentRoomProjection(this.client, input.roomId);
+    if (room === undefined) {
+      throw new LiveDraftRoomError(
+        "room_not_found",
+        `Live draft room "${input.roomId}" was not found.`,
+      );
+    }
+    assertReader(room, input.actor, this.authorizer);
+    return cloneRoom(room);
+  }
+  async getRoomEventsAfterRevision(input: {
+    room: LiveDraftRoom;
+    afterRevision: number;
+  }) {
+    return await eventsAfterRevision(this.client, input);
+  }
 
   async hasStartedRoomForSeason(seasonId: string): Promise<boolean> {
     return await hasStartedRoomForSeason(this.client, seasonId);
   }
-
   async hasRoomForSeason(seasonId: string): Promise<boolean> {
     return await hasRoomForSeason(this.client, seasonId);
   }
@@ -110,7 +138,6 @@ export class PostgresLiveDraftRoomRepository implements LiveDraftRoomRepository 
   async rooms(): Promise<readonly LiveDraftRoom[]> {
     return await allRooms(this.client);
   }
-
   private async runMutation(
     input: MutateLiveDraftRoomInput,
     mutation: Parameters<typeof mutateRoom>[3],

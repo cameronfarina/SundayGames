@@ -90,7 +90,7 @@ export interface PlatformHttpServices {
   openLiveDraftRoomRevisionSubscription?: ((input: {
     accountId: string;
     roomId: string;
-  }) => LiveDraftRoomEventStreamSubscription) | undefined;
+  }) => LiveDraftRoomEventStreamSubscription | Promise<LiveDraftRoomEventStreamSubscription>) | undefined;
   seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueConnectionRepository?: LeagueConnectionRepository | undefined;
   leagueSyncFetch?: LeagueSyncFetch | undefined;

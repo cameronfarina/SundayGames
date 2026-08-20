@@ -6,6 +6,19 @@ import {
 } from "../../src/platform/platformRuntimeConfig.js";
 
 describe("failed platform production readiness", () => {
+  it("blocks readiness when live-draft stream capacity is below the launch target", () => {
+    const report = assessPlatformProductionReadiness({
+      MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
+      MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS: "600",
+    });
+
+    expect(report.checks).toContainEqual({
+      status: "fail",
+      label: "Live draft data",
+      detail: "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS must be at least 650 for production readiness.",
+    });
+  });
+
   it("blocks readiness when ESPN credentials cannot be encrypted", () => {
     const report = assessPlatformProductionReadiness({
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
