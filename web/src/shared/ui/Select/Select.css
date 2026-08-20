@@ -46,7 +46,9 @@
   max-height: var(--radix-select-content-available-height);
   min-width: var(--radix-select-trigger-width);
   overflow: hidden;
-  z-index: 100;
+  /* A popup has to clear every dialog layer, or a select inside a dialog opens
+     behind it. Keep this above the highest z-index in Dialog.css. */
+  z-index: 300;
 }
 
 .select-field__viewport {
