@@ -3,3 +3,9 @@ export type {
   LeagueImportConversion,
   LeagueImportSource,
 } from "./leagueImportFromSync/contracts.js";
+export { seasonFromLeagueImport } from "./leagueImportFromSync/overwriteSeason.js";
+export {
+  refreshedSeasonFromImport,
+  teamCountMismatchDetail,
+} from "./leagueImportFromSync/refreshSeason.js";
+export type { LeagueSeasonRefresh } from "./leagueImportFromSync/refreshSeason.js";

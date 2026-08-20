@@ -108,6 +108,9 @@ export const createLeagueRegistrationOperations = (context: PlatformAppContext) 
       ...(input.membershipWriteMode === undefined
         ? {}
         : { membershipWriteMode: input.membershipWriteMode }),
+      ...(input.enforceCreationRateLimit === undefined
+        ? {}
+        : { enforceCreationRateLimit: input.enforceCreationRateLimit }),
       now: input.now,
     });
     if (context.usesExternalLeagueSetup) {

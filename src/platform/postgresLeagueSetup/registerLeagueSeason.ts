@@ -35,7 +35,13 @@ export const registerLeagueSeason = async (
       [season.leagueId],
     );
     if (firstRow(existingLeague) === undefined && input.enforceCreationLimits !== false) {
-      await assertLeagueCreationAllowed(transactionClient, limits, input.createdByUserId, now);
+      await assertLeagueCreationAllowed(
+        transactionClient,
+        limits,
+        input.createdByUserId,
+        now,
+        input.enforceCreationRateLimit ?? true,
+      );
     }
     if (input.expectedSetupRevision !== undefined) {
       await transactionClient.query(

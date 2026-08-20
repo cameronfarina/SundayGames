@@ -3,6 +3,7 @@ export { LeagueCreationError } from "./leagueCreation/errors.js";
 export { confirmedLeagueCreationInputFromUnknown } from "./leagueCreation/input.js";
 export { analyzeRosterSlots } from "./leagueCreation/roster.js";
 export { normalizedRosterSlotKey } from "./leagueCreation/rosterDefinitions.js";
+export { settingsFor as leagueSeasonSettingsFor } from "./leagueCreation/settings.js";
 export type {
   ConfirmedLeagueCreationInput,
   ConfirmedLeagueDraftInput,

@@ -5,11 +5,15 @@ import {
   type LeagueSyncProvider,
 } from "../../../../data/leagueSyncProviderAdapters.js";
 import type { LeagueConnection } from "../../../leagueConnections.js";
-import type { LeagueSyncServiceOptions } from "../../../leagueSyncService.js";
+import type {
+  ImportedSeasonRefresher,
+  LeagueSyncServiceOptions,
+} from "../../../leagueSyncService.js";
 import type { PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { optionalString } from "../../request/values.js";
 import { knownError } from "../../responses.js";
+import type { ImportedLeague } from "./importedLeague.js";
 
 export const leagueConnectionsUnavailable = (): PlatformHttpResponse => knownError(
   503,
@@ -19,12 +23,14 @@ export const leagueConnectionsUnavailable = (): PlatformHttpResponse => knownErr
 
 export const serviceOptionsFor = (
   services: PlatformHttpServices,
+  refreshImportedSeason?: ImportedSeasonRefresher | undefined,
 ): LeagueSyncServiceOptions | null => {
   const repository = services.leagueConnectionRepository;
   if (repository === undefined) return null;
   return {
     adapters: leagueSyncAdapters,
     ...(services.leagueSyncFetch === undefined ? {} : { fetcher: services.leagueSyncFetch }),
+    ...(refreshImportedSeason === undefined ? {} : { refreshImportedSeason }),
     repository,
   };
 };
@@ -33,6 +39,12 @@ export const providerFor = (value: unknown): LeagueSyncProvider | null => {
   const provider = optionalString(value);
   return provider !== undefined && isLeagueSyncProvider(provider) ? provider : null;
 };
+
+export const connectionNotFound = (): PlatformHttpResponse => knownError(
+  404,
+  "connection_not_found",
+  "That connected league is no longer here.",
+);
 
 export const invalidProvider = (): PlatformHttpResponse => knownError(
   400,
@@ -58,7 +70,10 @@ export const credentialsFor = (body: Record<string, unknown>): LeagueSyncCredent
 };
 
 /** Saved ESPN cookies are write-only: they never travel back to the browser. */
-export const publicConnection = (connection: LeagueConnection) => ({
+export const publicConnection = (
+  connection: LeagueConnection,
+  imported?: ImportedLeague | undefined,
+) => ({
   id: connection.id,
   provider: connection.provider,
   providerLeagueId: connection.providerLeagueId,
@@ -68,4 +83,9 @@ export const publicConnection = (connection: LeagueConnection) => ({
   ...(connection.statusDetail === undefined ? {} : { statusDetail: connection.statusDetail }),
   ...(connection.lastSyncedAt === undefined ? {} : { lastSyncedAt: connection.lastSyncedAt }),
   createdAt: connection.createdAt,
+  ...(imported === undefined ? {} : {
+    importedSeasonId: imported.seasonId,
+    importedLeagueSlug: imported.leagueSlug,
+    importedLeagueName: imported.leagueName,
+  }),
 });

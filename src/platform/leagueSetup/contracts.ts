@@ -16,6 +16,12 @@ export interface RegisterLeagueSeasonRepositoryInput {
   expectedSetupRevision?: string;
   membershipWriteMode?: "replace" | "preserve";
   enforceCreationLimits?: boolean;
+  /**
+   * Importing a provider account creates one league per league the owner
+   * already plays in, all at once, which the per-hour window exists to stop for
+   * hand-made leagues. Turning it off never touches the active-league quota.
+   */
+  enforceCreationRateLimit?: boolean;
   now?: Date | undefined;
 }
 

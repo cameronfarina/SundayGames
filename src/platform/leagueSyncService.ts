@@ -17,6 +17,7 @@ export type {
 } from "./leagueSyncService/providerCatalog.js";
 export { syncLeagueConnection } from "./leagueSyncService/syncConnection.js";
 export type {
+  ImportedSeasonRefresher,
   LeagueSyncServiceOptions,
   SyncConnectionResult,
 } from "./leagueSyncService/syncConnection.js";

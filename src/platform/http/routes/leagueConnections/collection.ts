@@ -14,6 +14,7 @@ import {
   serviceOptionsFor,
 } from "./context.js";
 import { normalizedHandle } from "./handles.js";
+import { importedLeaguesByConnectionId } from "./importedLeague.js";
 
 export const routeLeagueConnectionCollection = async (
   app: PlatformApp,
@@ -25,10 +26,17 @@ export const routeLeagueConnectionCollection = async (
   if (options === null) return leagueConnectionsUnavailable();
 
   if (request.method === "GET") {
+    const connections = await options.repository.listConnections(account.id);
+    const imported = await importedLeaguesByConnectionId(
+      services.onboardingRepository,
+      account.id,
+      connections,
+    );
     return {
       status: 200,
       body: {
-        connections: (await options.repository.listConnections(account.id)).map(publicConnection),
+        connections: connections.map(connection =>
+          publicConnection(connection, imported.get(connection.id))),
         providers: leagueSyncProviderCatalog(),
       },
     };

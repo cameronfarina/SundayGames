@@ -31,6 +31,9 @@ export const registerLeagueSeason = (
       createdByUserId: input.createdByUserId,
       now: input.now ?? new Date(),
       limits: state.creationLimits,
+      ...(input.enforceCreationRateLimit === undefined
+        ? {}
+        : { enforceRateLimit: input.enforceCreationRateLimit }),
     });
   }
   const storedSeason = cloneForRead(input.season);

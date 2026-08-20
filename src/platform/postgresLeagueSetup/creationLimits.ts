@@ -11,6 +11,7 @@ export const assertLeagueCreationAllowed = async (
   limits: LeagueCreationLimits,
   createdByUserId: string,
   now: Date,
+  enforceRateLimit = true,
 ): Promise<void> => {
   const windowStartedAt = new Date(now.getTime() - limits.creationWindowMs);
   const result = await client.query<LeagueCreationCountRow>(`
@@ -33,6 +34,7 @@ WHERE created_by_user_id = $1;
       0,
     );
   }
+  if (!enforceRateLimit) return;
   if (Number(counts.recent_league_count) < limits.maxCreatedLeaguesPerWindow) return;
 
   const oldestCreatedAt = counts.oldest_recent_created_at instanceof Date

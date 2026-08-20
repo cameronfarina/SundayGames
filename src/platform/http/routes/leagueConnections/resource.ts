@@ -2,18 +2,15 @@ import { syncLeagueConnection } from "../../../leagueSyncService.js";
 import { requireRequestAccount } from "../../auth/access.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
-import { knownError, methodNotAllowed } from "../../responses.js";
+import { methodNotAllowed } from "../../responses.js";
 import {
+  connectionNotFound,
   leagueConnectionsUnavailable,
   publicConnection,
   serviceOptionsFor,
 } from "./context.js";
-
-const connectionNotFound = (): PlatformHttpResponse => knownError(
-  404,
-  "connection_not_found",
-  "That connected league is no longer here.",
-);
+import { importedLeagueFor } from "./importedLeague.js";
+import { importedSeasonRefresher } from "./refreshImportedSeason.js";
 
 export const routeLeagueConnectionResource = async (
   app: PlatformApp,
@@ -34,11 +31,16 @@ export const routeLeagueConnectionResource = async (
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
   const snapshot = await options.repository.findSnapshot(connectionId);
+  const imported = await importedLeagueFor(
+    services.onboardingRepository,
+    account.id,
+    connection,
+  );
 
   return {
     status: 200,
     body: {
-      connection: publicConnection(connection),
+      connection: publicConnection(connection, imported),
       league: snapshot === null ? null : {
         settings: snapshot.settings,
         teams: snapshot.teams,
@@ -57,14 +59,19 @@ export const routeLeagueConnectionSync = async (
 ): Promise<PlatformHttpResponse> => {
   if (request.method !== "POST") return methodNotAllowed();
   const account = await requireRequestAccount(app, request);
-  const options = serviceOptionsFor(services);
+  const options = serviceOptionsFor(services, importedSeasonRefresher(app, request));
   if (options === null) return leagueConnectionsUnavailable();
 
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
   const result = await syncLeagueConnection(options, connection, request.now ?? new Date());
+  const imported = await importedLeagueFor(
+    services.onboardingRepository,
+    account.id,
+    result.connection,
+  );
 
   // A failed sync is still a successful request: the connection now carries the
   // status and the plain-language reason the owner needs to read.
-  return { status: 200, body: { connection: publicConnection(result.connection) } };
+  return { status: 200, body: { connection: publicConnection(result.connection, imported) } };
 };

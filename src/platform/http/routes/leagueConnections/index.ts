@@ -3,6 +3,7 @@ import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { notFound } from "../../responses.js";
 import { routeLeagueConnectionCollection } from "./collection.js";
 import { routeLeagueConnectionDiscovery } from "./discover.js";
+import { routeLeagueConnectionImport } from "./import.js";
 import { routeLeagueConnectionResource, routeLeagueConnectionSync } from "./resource.js";
 
 export const routeLeagueConnections = async (
@@ -22,6 +23,9 @@ export const routeLeagueConnections = async (
   }
   if (request.segments.length === 3 && action === "sync") {
     return await routeLeagueConnectionSync(app, request, services, connectionId);
+  }
+  if (request.segments.length === 3 && action === "import") {
+    return await routeLeagueConnectionImport(app, request, services, connectionId);
   }
   return notFound();
 };

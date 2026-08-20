@@ -7,6 +7,8 @@ export interface RegisterLeagueSeasonInput {
   memberships: readonly PlatformLeagueMembership[];
   expectedSetupRevision?: string;
   membershipWriteMode?: "replace" | "preserve";
+  /** False only for provider imports; the active-league quota still applies. */
+  enforceCreationRateLimit?: boolean;
   now?: Date | undefined;
 }
 

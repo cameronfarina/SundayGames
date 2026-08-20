@@ -47,11 +47,13 @@ export const assertLeagueCreationAllowed = ({
   createdByUserId,
   now,
   limits,
+  enforceRateLimit = true,
 }: {
   records: readonly LeagueCreationRecord[];
   createdByUserId: string;
   now: Date;
   limits: LeagueCreationLimits;
+  enforceRateLimit?: boolean;
 }): void => {
   const accountRecords = records.filter(record => record.createdByUserId === createdByUserId);
   const activeRecords = accountRecords.filter(record => record.archivedAt === undefined);
@@ -62,6 +64,8 @@ export const assertLeagueCreationAllowed = ({
       0,
     );
   }
+
+  if (!enforceRateLimit) return;
 
   const windowStartedAt = now.getTime() - limits.creationWindowMs;
   const recentRecords = accountRecords
