@@ -43,6 +43,7 @@ export const createPlatformRuntimeFactory = (
     historicalImportRepository: repositories.historicalImportRepository,
     jobRepository: repositories.jobRepository,
     simulationRepository: repositories.simulationRepository,
+    mockDraftSessionRepository: repositories.mockDraftSessionRepository,
     practiceShortlistRepository: repositories.practiceShortlistRepository,
     liveDraftRoomRepository: repositories.liveDraftRoomRepository,
     exportArtifactRepository: repositories.exportArtifactRepository,

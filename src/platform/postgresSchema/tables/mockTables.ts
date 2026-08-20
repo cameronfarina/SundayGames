@@ -1,6 +1,9 @@
 import { createdAtColumn, jsonbDefault, timestamps } from "../columns.js";
 import type { PostgresTableDefinition } from "../types.js";
 
+const missingConfigurationSnapshotDefault =
+  "'{\"status\":\"migration-required\",\"schema\":\"mockd-season-mock-configuration\",\"reason\":\"missing-snapshot\"}'::jsonb";
+
 export const mockTables: readonly PostgresTableDefinition[] = [
   {
     name: "mock_sessions",
@@ -18,6 +21,11 @@ export const mockTables: readonly PostgresTableDefinition[] = [
       { name: "command_count", type: "integer", default: "0" },
       { name: "seed", type: "text", nullable: true },
       { name: "draft_mode_json", type: "jsonb", default: jsonbDefault },
+      {
+        name: "configuration_snapshot_json",
+        type: "jsonb",
+        default: missingConfigurationSnapshotDefault,
+      },
       { name: "latest_result_ref_json", type: "jsonb", nullable: true },
       { name: "started_at", type: "timestamptz", nullable: true },
       { name: "completed_at", type: "timestamptz", nullable: true },

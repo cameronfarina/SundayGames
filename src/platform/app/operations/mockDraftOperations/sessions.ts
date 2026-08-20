@@ -15,7 +15,7 @@ export const createMockDraftSessionOperations = (context: PlatformAppContext) =>
     const now = input.now ?? new Date();
     const account = await context.requireAccount(input.actorSessionToken, now);
     await context.requirePrivateTeamContext(account, input);
-    context.store.mockDraftSessions.assertCreationAllowed({
+    await context.mockDraftSessions.assertCreationAllowed({
       userId: account.id,
       seasonId: input.seasonId,
       now,
@@ -28,7 +28,7 @@ export const createMockDraftSessionOperations = (context: PlatformAppContext) =>
     const now = input.now ?? new Date();
     const account = await context.requireAccount(input.actorSessionToken, now);
     await context.requirePrivateTeamContext(account, input);
-    return cloneForRead(context.store.mockDraftSessions.createSession({
+    return cloneForRead(await context.mockDraftSessions.createSession({
       userId: account.id,
       leagueId: input.leagueId,
       seasonId: input.seasonId,
@@ -66,13 +66,13 @@ export const createMockDraftSessionOperations = (context: PlatformAppContext) =>
         "Private prep can only use your claimed team.",
       );
     }
-    return context.store.mockDraftSessions.listSessionsForOwner({
+    return (await context.mockDraftSessions.listSessionsForOwner({
       userId: account.id,
       leagueId: input.leagueId,
       seasonId: input.seasonId,
       ownerId: input.ownerId,
       teamId: input.teamId,
       now,
-    }).map(cloneForRead);
+    })).map(cloneForRead);
   },
 });

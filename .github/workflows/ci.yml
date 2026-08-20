@@ -133,6 +133,11 @@ jobs:
           MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
         run: npm test -- tests/postgresSimulationAdmission.integration.test.ts
 
+      - name: Run practice-persistence rolling cutover regression
+        env:
+          MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd
+        run: npm test -- tests/postgresPracticePersistenceRollout.integration.test.ts
+
       - name: Run Postgres authentication token admission regression
         env:
           MOCKD_POSTGRES_INTEGRATION_DATABASE_URL: postgres://mockd:mockd-ci-password@127.0.0.1:5432/mockd

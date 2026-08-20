@@ -25,6 +25,8 @@ higher.
 
 Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
+The practice-persistence release reserves `platform-practice-persistence-v25`. Its development branch starts from v23 because v24 ships in the separate scale/load stack. Before merging or deploying it, rebase that branch after v24 and verify the migration ledger order is v23, v24, then v25. Do not renumber v25 or deploy a migration list that skips v24.
+
 ## Validate The Blueprint
 
 Run `npm run platform:render:validate` before applying Blueprint changes. The command uses the checked-in Render schema at `scripts/render-blueprint.schema.json`, so local and CI validation are deterministic and do not require network access. The adjacent schema README records its provider URL and refresh procedure.
@@ -161,6 +163,47 @@ If a future release includes a destructive or backward-incompatible migration, m
 The encrypted-credential schema expansion lets the old release keep syncing existing plaintext connections during the swap. A read by the new release may add an encrypted envelope to a legacy row, but it deliberately keeps `espn_s2` and `swid` until the operator runs the backfill. The old release cannot read a connection created or repaired by the new release. After backfill, it cannot sync any saved ESPN connection because every credential is envelope-only. Prefer rolling forward. Before backfill, a rollback keeps legacy connections working but owners of newly written connections must paste fresh credentials after the fixed release returns. After backfill, rollback requires either restoring the pre-backfill database recovery point or having every affected owner paste fresh credentials after the fixed release returns.
 
 The v22 authentication rate-limit table and v23 league-sync revision columns are additive, so an application rollback does not require a database restore. Their protections are incomplete until the old web process has stopped. Avoid provider sync and import during the v23 web swap, then rerun any operation attempted during that window after only the new release is serving traffic.
+
+The v25 practice-persistence migration is additive, but its application rollout has two phases. It adds the immutable mock configuration column, a revision- and prefix-aware snapshot bridge, and a database mode gate, then backfills compatibility snapshots. Deploy v25 first with `MOCKD_PRACTICE_PERSISTENCE_MODE=dual-write`. New code reads normalized rows and mirrors each committed mock mutation into the compatibility snapshot. The old process can keep using snapshots during the zero-downtime swap, and the trigger accepts only a valid extension or next revision; it ignores stale prefixes and aborts a divergent snapshot write without changing normalized rows or events.
+
+Keep dual-write mode until every pre-v25 process is deactivated and all requests that entered those processes have drained. Before the second deployment, require the two consistency queries below to return zero. Then set `MOCKD_PRACTICE_PERSISTENCE_MODE=normalized-only` and deploy the same or a later v25 artifact. Startup takes the cutover advisory lock, disables the bridge, scrubs mock sessions from every compatibility snapshot with a new revision and hash, and only then admits the normalized-only process. `/readyz` rejects any process whose configured mode disagrees with the database gate.
+
+```sql
+SELECT count(*)
+FROM platform_store_snapshots AS snapshot
+CROSS JOIN LATERAL jsonb_array_elements(
+  COALESCE(snapshot.snapshot_json->'mockDraftSessions', '[]'::jsonb)
+) AS stored_session
+WHERE NOT EXISTS (
+  SELECT 1 FROM mock_sessions WHERE id = stored_session->>'id'
+);
+
+SELECT count(*)
+FROM mock_sessions AS session
+WHERE session.command_count <> (
+  SELECT count(*)
+  FROM mock_session_events AS event
+  WHERE event.mock_session_id = session.id
+    AND event.revision = session.revision
+    AND event.event_type = 'command'
+);
+```
+
+After normalized-only cutover, require both queries below to report `normalized-only` and zero. Retention may delete normalized sessions after this point; the retired trigger cannot resurrect them from an unrelated snapshot save.
+
+```sql
+SELECT mode
+FROM platform_practice_persistence_control
+WHERE singleton = true;
+
+SELECT count(*)
+FROM platform_store_snapshots AS snapshot
+CROSS JOIN LATERAL jsonb_array_elements(
+  COALESCE(snapshot.snapshot_json->'mockDraftSessions', '[]'::jsonb)
+) AS stored_session;
+```
+
+Before cutover, rollback to v23 is safe because dual writes keep its compatibility view current. After cutover, do not change the environment back to dual-write: readiness will fail because the database gate is irreversible. Roll forward, or restore the pre-cutover database recovery point before rolling the application back.
 
 Automatic deploys stay off. During the draft-day freeze, do not start a manual web deploy except as part of the documented incident response.
 

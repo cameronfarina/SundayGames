@@ -5,6 +5,7 @@ import {
   startPostgresLiveDraftRoomRevisionListener,
 } from "../liveDraftRoomRealtime.js";
 import { createNodeSeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
+import { finalizePracticePersistenceCutover } from "../practicePersistenceCutover.js";
 import { createPlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions, PlatformServer } from "./contracts.js";
 import { createDraftToolsAdapter } from "./draftTools.js";
@@ -26,6 +27,11 @@ export const createPlatformServer = async (
 ): Promise<PlatformServer> => {
   validatePlatformServerOptions(options);
   await initializePostgresSchemas(options);
+  if (options.practicePersistenceMode === "normalized-only" &&
+      options.postgresClient !== undefined &&
+      isTransactionalPostgresClient(options.postgresClient)) {
+    await finalizePracticePersistenceCutover(options.postgresClient);
+  }
   const runtimeHolder = createPlatformRuntimeHolder();
   let runtimeFactory: PlatformRuntimeFactory | undefined;
   const reloadRuntime = async (): Promise<void> => {

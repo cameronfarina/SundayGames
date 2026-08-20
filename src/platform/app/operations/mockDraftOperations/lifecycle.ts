@@ -14,7 +14,7 @@ const privateSessionFor = async (
   now: Date,
 ) => {
   const account = await context.requireAccount(actorSessionToken, now);
-  const session = context.store.mockDraftSessions.getSession({
+  const session = await context.mockDraftSessions.getSession({
     userId: account.id,
     sessionId,
     now,
@@ -34,7 +34,7 @@ export const createMockDraftLifecycleOperations = (context: PlatformAppContext) 
       input.sessionId,
       now,
     );
-    return cloneForRead(context.store.mockDraftSessions.resetSession({
+    return cloneForRead(await context.mockDraftSessions.resetSession({
       userId: account.id,
       sessionId: input.sessionId,
       expectedRevision: input.expectedRevision,
@@ -52,7 +52,7 @@ export const createMockDraftLifecycleOperations = (context: PlatformAppContext) 
       input.sessionId,
       now,
     );
-    return cloneForRead(context.store.mockDraftSessions.abandonSession({
+    return cloneForRead(await context.mockDraftSessions.abandonSession({
       userId: account.id,
       sessionId: input.sessionId,
       expectedRevision: input.expectedRevision,
@@ -74,7 +74,7 @@ export const createMockDraftLifecycleOperations = (context: PlatformAppContext) 
       account,
       input.latestResultRef,
     );
-    return cloneForRead(context.store.mockDraftSessions.markCompleted({
+    return cloneForRead(await context.mockDraftSessions.markCompleted({
       userId: account.id,
       sessionId: input.sessionId,
       expectedRevision: input.expectedRevision,

@@ -35,10 +35,11 @@ import {
   defaultMockDraftSessionResourcePolicy,
   type MockDraftSessionResourcePolicy,
 } from "./resourcePolicy.js";
+import type { MockDraftSessionRepository } from "./repositoryContracts.js";
 import type { MockDraftSession } from "./session.js";
 import type { MockDraftSessionRepositoryState } from "./state.js";
 
-export class InMemoryMockDraftSessionRepository {
+export class InMemoryMockDraftSessionRepository implements MockDraftSessionRepository {
   readonly #state: MockDraftSessionRepositoryState;
 
   constructor(
@@ -104,5 +105,13 @@ export class InMemoryMockDraftSessionRepository {
 
   replaceSessions(sessions: readonly MockDraftSession[]): void {
     replaceStoredMockDraftSessions(this.#state, sessions);
+  }
+
+  replaceSessionsForUser(
+    userId: string,
+    sessions: readonly MockDraftSession[],
+  ): void {
+    const retained = this.sessions().filter(session => session.userId !== userId);
+    this.replaceSessions([...retained, ...sessions]);
   }
 }

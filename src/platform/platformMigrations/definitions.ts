@@ -5,9 +5,11 @@ import {
   leagueCredentialEncryptionMigrationId,
   leagueSyncRevisionMigrationId,
   liveDraftScaleMigrationId,
+  practicePersistenceMigrationId,
   snakeLiveRoomMigrationId,
 } from "./ids.js";
 import { ownershipPlatformSchemaMigrations } from "./ownershipDefinitions.js";
+import { practicePersistenceMigrationStatements } from "./practicePersistenceStatements.js";
 import {
   authRateLimitMigrationStatements,
   leagueCredentialEncryptionMigrationStatements,
@@ -39,6 +41,10 @@ export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: liveDraftScaleMigrationId,
     statements: liveDraftScaleMigrationStatements,
+  },
+  {
+    id: practicePersistenceMigrationId,
+    statements: practicePersistenceMigrationStatements,
   },
 ];
 

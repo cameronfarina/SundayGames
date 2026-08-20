@@ -4,6 +4,7 @@ import type { HistoricalImportRepository } from "../../historicalImports.js";
 import type { JobRepository } from "../../jobs.js";
 import type { LeagueSetupRepository } from "../../leagueSetup.js";
 import type { LiveDraftRoomRepository } from "../../liveDraftRooms.js";
+import type { MockDraftSessionRepository } from "../../mockSessions.js";
 import type { PracticeShortlistRepository } from "../../practiceShortlists.js";
 import type {
   SimulationMockBatchRunner,
@@ -26,6 +27,7 @@ export interface PlatformAppOptions {
   simulationRepository?: SimulationRepository | undefined;
   practiceShortlistRepository?: PracticeShortlistRepository | undefined;
   liveDraftRoomRepository?: LiveDraftRoomRepository | undefined;
+  mockDraftSessionRepository?: MockDraftSessionRepository | undefined;
   exportArtifactRepository?: ExportArtifactRepository | undefined;
   simulationRunner: SimulationMockBatchRunner;
 }

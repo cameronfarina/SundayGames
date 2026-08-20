@@ -29,6 +29,9 @@ export const createPlatformServerShape = (
   },
   get jobRepository() { return input.runtimeHolder.current().jobRepository; },
   get simulationRepository() { return input.runtimeHolder.current().simulationRepository; },
+  get mockDraftSessionRepository() {
+    return input.runtimeHolder.current().mockDraftSessionRepository;
+  },
   get practiceShortlistRepository() {
     return input.runtimeHolder.current().practiceShortlistRepository;
   },

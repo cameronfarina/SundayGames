@@ -19,6 +19,7 @@ export type {
   MockDraftResultReference,
 } from "./mockSessions/metadata.js";
 export { InMemoryMockDraftSessionRepository } from "./mockSessions/repository.js";
+export type { MockDraftSessionRepository } from "./mockSessions/repositoryContracts.js";
 export { defaultMockDraftSessionResourcePolicy } from "./mockSessions/resourcePolicy.js";
 export type { MockDraftSessionResourcePolicy } from "./mockSessions/resourcePolicy.js";
 export type {

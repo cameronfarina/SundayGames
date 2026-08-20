@@ -16,6 +16,14 @@ import {
   requireNonEmpty,
 } from "./validation.js";
 
+const completeAfterCommand = (
+  session: MockDraftSession,
+  completeSession: boolean | undefined,
+  now: Date,
+): MockDraftSession => completeSession === true && session.status !== "completed"
+  ? { ...session, status: "completed", completedAt: now, updatedAt: now }
+  : session;
+
 export const findStoredMockDraftCommandForRetry = (
   state: MockDraftSessionRepositoryState,
   input: FindStoredMockDraftCommandForRetryInput,
@@ -58,7 +66,11 @@ export const appendMockDraftCommand = (
     idempotencyKey,
     now,
   });
-  if (storedRetry !== undefined) return storedRetry.session;
+  if (storedRetry !== undefined) {
+    const retriedSession = completeAfterCommand(storedRetry.session, input.completeSession, now);
+    state.sessionsById.set(retriedSession.id, retriedSession);
+    return retriedSession;
+  }
   const session = findAuthorizedMockDraftSession(state, input.userId, input.sessionId);
   assertWritableForCommand(session);
   assertExpectedRevision(session, input.expectedRevision);
@@ -75,6 +87,7 @@ export const appendMockDraftCommand = (
     startedAt: session.startedAt ?? now,
     updatedAt: now,
   };
-  state.sessionsById.set(updatedSession.id, updatedSession);
-  return updatedSession;
+  const finalSession = completeAfterCommand(updatedSession, input.completeSession, now);
+  state.sessionsById.set(finalSession.id, finalSession);
+  return finalSession;
 };

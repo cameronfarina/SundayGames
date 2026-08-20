@@ -22,6 +22,7 @@ import {
 import {
   fantasyProsConfig,
   playerNewsConfig,
+  practicePersistenceMode,
   legacyMockBatchEnabled,
   liveDraftDataMode,
   runtimeWorkerId,
@@ -74,6 +75,7 @@ export const readPlatformRuntimeConfig = (
       "MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS",
     ),
     postgresSnapshotKey: optionalEnvString(env, "MOCKD_POSTGRES_SNAPSHOT_KEY"),
+    practicePersistenceMode: practicePersistenceMode(env),
     initializePostgresSchema: booleanEnv(env, "MOCKD_INITIALIZE_POSTGRES_SCHEMA"),
     draftToolsSessionDirectory:
       optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ??

@@ -28,6 +28,7 @@ export const resolvePlatformAppDependencies = (
     simulations: options.simulationRepository ?? store.simulations,
     practiceShortlists: options.practiceShortlistRepository ?? store.practiceShortlists,
     liveDraftRooms: options.liveDraftRoomRepository ?? store.liveDraftRooms,
+    mockDraftSessions: options.mockDraftSessionRepository ?? store.mockDraftSessions,
     exportArtifacts: options.exportArtifactRepository ?? store.exportArtifacts,
     usesExternalLeagueSetup: leagueSetup !== store,
   };

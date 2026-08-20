@@ -28,19 +28,20 @@ export const createPlatformRequestHandler = (
   if (isLeagueMembersScreenshotAnalysisRequest(requestWithNow)) {
     return input.runRequest(requestWithNow);
   }
+  const runtime = input.runtimeHolder.current();
   if (isSeasonSimulationRequest(requestWithNow)) {
-    const prepared = await input.persistence.runInSnapshotCriticalSection(() =>
-      input.simulationCapture.prepare(() => input.runRequest(requestWithNow))
-    );
+    const prepare = () => input.simulationCapture.prepare(() => input.runRequest(requestWithNow));
+    const prepared = shouldBypassSnapshotAccess(runtime, requestWithNow)
+      ? await prepare()
+      : await input.persistence.runInSnapshotCriticalSection(prepare);
     const response = await prepared.response;
-    const runtime = input.runtimeHolder.current();
-    if (runtime.simulationRepository === runtime.store.simulations &&
+    const currentRuntime = input.runtimeHolder.current();
+    if (currentRuntime.simulationRepository === currentRuntime.store.simulations &&
         shouldPersistAfter(requestWithNow, response.status)) {
       await input.persistence.persist();
     }
     return response;
   }
-  const runtime = input.runtimeHolder.current();
   const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   const postgresClient = input.options.postgresClient;
   if (seasonId !== null && postgresClient !== undefined &&
@@ -68,12 +69,12 @@ export const createPlatformRequestHandler = (
     });
   }
   let response: PlatformHttpResponse;
-  if (!isMutatingRequest(requestWithNow)) {
+  if (shouldBypassSnapshotAccess(input.runtimeHolder.current(), requestWithNow)) {
+    response = await input.runRequest(requestWithNow);
+  } else if (!isMutatingRequest(requestWithNow)) {
     response = await input.persistence.runWithSnapshotReadAccess(() =>
       input.runRequest(requestWithNow)
     );
-  } else if (shouldBypassSnapshotAccess(input.runtimeHolder.current(), requestWithNow)) {
-    response = await input.runRequest(requestWithNow);
   } else {
     response = await input.persistence.runInSnapshotCriticalSection(() =>
       input.runRequest(requestWithNow)

@@ -209,4 +209,5 @@ describePlatformServer(({ createListeningServer }) => {
     });
     expect(syncResponse.status).toBe(201);
   });
+
 });

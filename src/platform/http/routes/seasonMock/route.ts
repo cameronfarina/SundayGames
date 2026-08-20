@@ -88,10 +88,19 @@ export const routeSeasonMockDrafts = async (
       now: request.now,
     });
     if (storedRetry !== undefined) {
-      return { status: 200, body: seasonMockResponseBody(storedRetry.session, await stateForSeasonMock(context, storedRetry.session)) };
+      const state = await stateForSeasonMock(context, storedRetry.session);
+      const session = state.session.status === "completed" && storedRetry.session.status !== "completed"
+        ? await app.completeMockDraftSession({
+            actorSessionToken: request.sessionToken,
+            sessionId: storedRetry.session.id,
+            expectedRevision: storedRetry.session.revision,
+            now: request.now,
+          })
+        : storedRetry.session;
+      return { status: 200, body: seasonMockResponseBody(session, state) };
     }
     const state = await stateForSeasonMock(context, mockSession, command);
-    let updatedMockSession = await app.appendMockDraftCommand({
+    const updatedMockSession = await app.appendMockDraftCommand({
       actorSessionToken: request.sessionToken,
       sessionId: mockSession.id,
       expectedRevision: mockSession.revision,
@@ -99,16 +108,9 @@ export const routeSeasonMockDrafts = async (
       commandId,
       command,
       idempotencyKey,
+      completeSession: state.session.status === "completed",
       now: request.now,
     });
-    if (state.session.status === "completed") {
-      updatedMockSession = await app.completeMockDraftSession({
-        actorSessionToken: request.sessionToken,
-        sessionId: updatedMockSession.id,
-        expectedRevision: updatedMockSession.revision,
-        now: request.now,
-      });
-    }
     return { status: 200, body: seasonMockResponseBody(updatedMockSession, state) };
   }
   return notFound();

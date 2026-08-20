@@ -10,6 +10,7 @@ describe("platform runtime config parsing", () => {
       MOCKD_POSTGRES_POOL_SIZE: "7",
       MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS: "2500",
       MOCKD_POSTGRES_SNAPSHOT_KEY: "prod",
+      MOCKD_PRACTICE_PERSISTENCE_MODE: "normalized-only",
       MOCKD_INITIALIZE_POSTGRES_SCHEMA: "true",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
       MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
@@ -40,6 +41,7 @@ describe("platform runtime config parsing", () => {
       postgresPoolSize: 7,
       postgresStatementTimeoutMs: 2500,
       postgresSnapshotKey: "prod",
+      practicePersistenceMode: "normalized-only",
       initializePostgresSchema: true,
       draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
       legacyMockBatchEnabled: false,
@@ -90,6 +92,7 @@ describe("platform runtime config parsing", () => {
     expect(config.databaseUrl).toBeUndefined();
     expect(config.dataFilePath).toBe("/tmp/mockd-platform.json");
     expect(config.draftToolsSessionDirectory).toBe("data/platform-draft-tools");
+    expect(config.practicePersistenceMode).toBe("dual-write");
     expect(config.legacyMockBatchEnabled).toBe(false);
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
