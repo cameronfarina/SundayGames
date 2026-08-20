@@ -40,13 +40,6 @@
   text-wrap: pretty;
 }
 
-.landing-hero__trust {
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-sm);
-  margin: var(--space-4) 0 0;
-  max-width: 28rem;
-}
-
 .landing-hero__connected {
   align-items: center;
   background: var(--color-surface-raised);

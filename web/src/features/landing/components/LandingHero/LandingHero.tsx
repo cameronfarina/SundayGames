@@ -14,9 +14,6 @@ export const LandingHero = () => <section className="landing-hero">
         room you’ll actually face.
       </p>
       <Link className="landing-cta" to="/signup">Connect my league</Link>
-      <p className="landing-hero__trust">
-        Read-only access. Sunday Games never changes your lineup, roster or league.
-      </p>
     </div>
     <div className="landing-hero__product">
       <p className="landing-hero__connected">

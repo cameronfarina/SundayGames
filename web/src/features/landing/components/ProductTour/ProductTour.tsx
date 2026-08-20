@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { firstTourStop, tourStops } from "./tourStops";
 import "./ProductTour.css";
 
 export const ProductTour = () => {
   const [active, setActive] = useState(firstTourStop);
+
+  /* Only the opening screen blocks the first paint. The other four are fetched
+     once the page is up, so changing tabs shows the screen straight away
+     instead of downloading it while a visitor waits. */
+  useEffect(() => {
+    for (const stop of tourStops) {
+      const screen = new Image();
+      screen.src = stop.image;
+    }
+  }, []);
 
   return <section className="product-tour" id="product-tour">
     <div className="product-tour__inner">

@@ -13,12 +13,6 @@ describe("LandingHero", () => {
       .toHaveAttribute("href", "/signup");
   });
 
-  it("says up front that the product only reads a league", () => {
-    render(<MemoryRouter><LandingHero /></MemoryRouter>);
-
-    expect(screen.getByText(/never changes your lineup, roster or league/u)).toBeVisible();
-  });
-
   it("shows a real board with the callout pointing at one row", () => {
     render(<MemoryRouter><LandingHero /></MemoryRouter>);
 

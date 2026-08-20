@@ -6,6 +6,7 @@ import {
   okSchema,
   resetSchema,
   sessionSchema,
+  sessionStateSchema,
   verifiedSchema,
 } from "./authSchemas";
 import type { AuthSession, LoginResponse } from "./authSchemas";
@@ -39,6 +40,19 @@ export const getSession = async (input: FetchInput & { readonly signal?: AbortSi
     path: "/session",
     responseSchema: sessionSchema,
   });
+
+/** Answers whether the caller is signed in, without failing when they are not. */
+export const getSessionState = async (
+  input: FetchInput & { readonly signal?: AbortSignal },
+): Promise<boolean> => {
+  const response = await requestPlatformJson({
+    ...fetchOption(input.fetcher),
+    init: jsonRequest("GET", undefined, input.signal),
+    path: "/session-state",
+    responseSchema: sessionStateSchema,
+  });
+  return response.signedIn;
+};
 
 export const login = async (input: PasswordInput): Promise<LoginResponse> => requestPlatformJson({
   ...fetchOption(input.fetcher),

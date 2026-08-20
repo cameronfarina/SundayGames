@@ -19,6 +19,8 @@ const publicSessionSchema = z.object({
 
 export const sessionSchema = z.object({ account: accountSchema });
 
+export const sessionStateSchema = z.object({ signedIn: z.boolean() });
+
 export const loginSchema = z.object({
   account: accountSchema,
   session: publicSessionSchema,
