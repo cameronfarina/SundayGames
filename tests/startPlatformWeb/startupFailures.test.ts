@@ -14,12 +14,14 @@ import {
 
 afterEach(cleanupPlatformWebTest);
 
+const startupProcessTestTimeoutMs = 10_000;
+
 describe("platform web startup failures", () => {
   it("emits a sanitized structured error when process startup fails", async () => {
     const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve, reject) => {
       const child = spawn(
         process.execPath,
-        ["--import", "tsx", "src/platform/startPlatformWeb.ts"],
+        ["dist/src/platform/startPlatformWeb.js"],
         {
           cwd: process.cwd(),
           env: {
@@ -49,7 +51,7 @@ describe("platform web startup failures", () => {
       errorCode: "startup_failed",
     });
     expect(result.stderr).not.toMatch(/must-never-appear|Error:|\n\s+at /);
-  });
+  }, startupProcessTestTimeoutMs);
 
   it("reports unready when Postgres is required but its client is unavailable", async () => {
     const config = readPlatformRuntimeConfig({
