@@ -12,6 +12,9 @@ export interface SelectProps {
   readonly disabled?: boolean;
   readonly id: string;
   readonly label: string;
+  /** Drops the label from the layout but not from the accessible name, for a
+      control whose surroundings already say what it chooses. */
+  readonly labelHidden?: boolean;
   readonly onValueChange: (value: string) => void;
   readonly options: readonly SelectOption[];
   readonly placeholder?: string;
@@ -22,13 +25,17 @@ export const Select = ({
   disabled = false,
   id,
   label,
+  labelHidden = false,
   onValueChange,
   options,
   placeholder = "Select an option",
   value,
 }: SelectProps) => (
   <div className="select-field">
-    <label className="select-field__label" htmlFor={id}>{label}</label>
+    <label
+      className={labelHidden ? "select-field__label sr-only" : "select-field__label"}
+      htmlFor={id}
+    >{label}</label>
     <SelectPrimitive.Root
       disabled={disabled}
       onValueChange={onValueChange}

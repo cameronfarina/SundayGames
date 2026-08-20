@@ -59,6 +59,16 @@ describe("Select", () => {
     unmount();
   });
 
+  it("keeps a hidden label out of the layout but in the accessible name", () => {
+    const { unmount } = render(
+      <Select id="league" label="Active league" labelHidden onValueChange={vi.fn()} options={options} />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Active league" })).toBeVisible();
+    expect(screen.getByText("Active league")).toHaveClass("sr-only");
+    unmount();
+  });
+
   it("supports placeholders, disabled controls, and disabled options", async () => {
     const onValueChange = vi.fn();
     const { rerender, unmount } = render(

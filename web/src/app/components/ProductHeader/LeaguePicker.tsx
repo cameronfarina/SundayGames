@@ -27,6 +27,7 @@ export const LeaguePicker = ({
     <Select
       id="active-league"
       label="Active league"
+      labelHidden
       onValueChange={onLeagueChange}
       options={leagues.map(league => ({
         label: leagueLabel(league),
