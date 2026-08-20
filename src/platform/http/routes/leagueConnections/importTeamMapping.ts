@@ -69,8 +69,10 @@ export const existingTeamsForImport = ({
   const matchUnique = (index: number, candidates: readonly FantasyTeam[]): void => {
     const available = candidates.filter(team => !used.has(team.id));
     if (available.length !== 1) return;
-    mapped[index] = available[0];
-    used.add(available[0]!.id);
+    const matched = available[0];
+    if (matched === undefined) return;
+    mapped[index] = matched;
+    used.add(matched.id);
   };
 
   snapshot.teams.forEach((team, index) => {
