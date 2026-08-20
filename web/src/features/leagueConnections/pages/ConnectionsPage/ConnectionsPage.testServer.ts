@@ -7,12 +7,27 @@ import {
 } from "../../api/leagueConnections.fixture";
 import { connectionDetailFixture } from "../../api/leagueDetail.fixture";
 
-/**
- * Connected leagues belong to the account rather than to one Sunday Games
- * league, so this page never reads /onboarding. Every test runs with
- * onUnhandledRequest: "error", which fails loudly the moment that changes.
- */
+export const onboardingFixture = {
+  account: { id: "account-1", email: "owner@example.com" },
+  leagues: [{
+    canManageLeague: true,
+    leagueId: "league-manual",
+    leagueName: "Manual Home League",
+    leagueSlug: "manual-home-league",
+    liveDraft: null,
+    membership: { role: "owner" },
+    readiness: {
+      leagueSetup: "ready",
+      liveDraft: "needs_attention",
+      teamClaim: "needs_attention",
+    },
+    seasonId: "season-manual-2026",
+    seasonYear: 2026,
+  }],
+};
+
 export const connectionsServer = setupServer(
+  http.get("/onboarding", () => HttpResponse.json(onboardingFixture)),
   http.get("/league-connections", () => HttpResponse.json(connectionListFixture)),
   http.post("/league-connections/discover", () => HttpResponse.json(discoveredLeaguesFixture)),
   http.post("/league-connections", () =>
