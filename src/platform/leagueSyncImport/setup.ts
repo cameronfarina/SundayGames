@@ -8,34 +8,36 @@ export type SyncedLeagueSetupResult =
   | { status: "ready"; setup: ConfirmedLeagueCreationInput }
   | { status: "needs_attention"; message: string };
 
-const scoringKeys: Readonly<Record<keyof ScoringSettings, string>> = {
-  passingYards: "pass_yd",
-  passingTouchdown: "pass_td",
-  rushingYards: "rush_yd",
-  rushingTouchdown: "rush_td",
-  receivingYards: "rec_yd",
-  receivingTouchdown: "rec_td",
-  reception: "rec",
+const finiteScore = (
+  settings: SyncedLeagueSettings,
+  key: string,
+): number | null => {
+  const value = settings.scoring[key];
+  return value === undefined || !Number.isFinite(value) ? null : value;
 };
 
 const scoringFor = (settings: SyncedLeagueSettings): ScoringSettings | null => {
-  const values = Object.entries(scoringKeys).map(([target, source]) => ({
-    target: target as keyof ScoringSettings,
-    value: settings.scoring[source],
-  }));
-  if (values.some(({ value }) => value === undefined || !Number.isFinite(value))) return null;
-  return values.reduce<ScoringSettings>((scoring, { target, value }) => ({
-    ...scoring,
-    [target]: value,
-  }), {
-    passingYards: 0,
-    passingTouchdown: 0,
-    rushingYards: 0,
-    rushingTouchdown: 0,
-    receivingYards: 0,
-    receivingTouchdown: 0,
-    reception: 0,
-  });
+  const passingYards = finiteScore(settings, "pass_yd");
+  const passingTouchdown = finiteScore(settings, "pass_td");
+  const rushingYards = finiteScore(settings, "rush_yd");
+  const rushingTouchdown = finiteScore(settings, "rush_td");
+  const receivingYards = finiteScore(settings, "rec_yd");
+  const receivingTouchdown = finiteScore(settings, "rec_td");
+  const reception = finiteScore(settings, "rec");
+  if (
+    passingYards === null || passingTouchdown === null ||
+    rushingYards === null || rushingTouchdown === null ||
+    receivingYards === null || receivingTouchdown === null || reception === null
+  ) return null;
+  return {
+    passingYards,
+    passingTouchdown,
+    rushingYards,
+    rushingTouchdown,
+    receivingYards,
+    receivingTouchdown,
+    reception,
+  };
 };
 
 const canonicalSourceSlot = (slot: string): string => {
