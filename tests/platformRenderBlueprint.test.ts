@@ -72,8 +72,8 @@ describe("Render production blueprint", () => {
 
   it("deploys one health-checked web process with durable draft-session storage", async () => {
     const blueprint = await loadBlueprint();
-    const web = blueprint.services.find(service => service.name === "mockd-web");
-    if (web === undefined) throw new Error("Expected the Mockd web service.");
+    const web = blueprint.services.find(service => service.name === "sundaygames");
+    if (web === undefined) throw new Error("Expected the Sunday Games web service.");
 
     expect(web).toEqual(expect.objectContaining({
       type: "web",
@@ -107,7 +107,7 @@ describe("Render production blueprint", () => {
       key: "MOCKD_PUBLIC_BASE_URL",
       fromService: {
         type: "web",
-        name: "mockd-web",
+        name: "sundaygames",
         envVarKey: "RENDER_EXTERNAL_URL",
       },
     });
