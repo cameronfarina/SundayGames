@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { useOnboardingQuery } from "../../../../shared/api/onboarding/onboardingQuery";
 import { InlineNotice } from "../../../../shared/ui";
 import { AddConnection } from "../../components/AddConnection/AddConnection";
 import { ConnectionList } from "../../components/ConnectionList/ConnectionList";
@@ -13,6 +14,7 @@ const selectedConnectionParam = "connection";
 export const ConnectionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const connections = useLeagueConnectionsQuery();
+  const onboarding = useOnboardingQuery();
   const mutations = useLeagueConnectionMutations();
   const selectedConnectionId = searchParams.get(selectedConnectionParam) ?? undefined;
 
@@ -32,6 +34,18 @@ export const ConnectionsPage = () => {
       },
     });
   };
+
+  const linkedSeasonIds = new Set(
+    connections.data?.connections.flatMap(connection =>
+      connection.linkedSeasonId === undefined ? [] : [connection.linkedSeasonId]) ?? [],
+  );
+  const importTargets = (onboarding.data?.leagues ?? [])
+    .filter(league => league.canManageLeague && !linkedSeasonIds.has(league.seasonId))
+    .map(league => ({
+      leagueName: league.leagueName,
+      seasonId: league.seasonId,
+      seasonYear: league.seasonYear,
+    }));
 
   return <section aria-labelledby="connections-title" className="connections-page">
     <header className="connections-page__header">
@@ -63,6 +77,7 @@ export const ConnectionsPage = () => {
         connections={connections.data.connections}
         mutations={mutations}
         providers={connections.data.providers}
+        targets={importTargets}
       />}
   </section>;
 };
