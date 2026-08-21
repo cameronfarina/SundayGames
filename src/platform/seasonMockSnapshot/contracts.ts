@@ -3,6 +3,7 @@ import type {
   LeagueSeason,
 } from "../leagueSeason.js";
 import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import type { ManagerDraftProfileSnapshot } from "../managerDraftProfiles.js";
 import {
   seasonMockSnapshotSchema,
   seasonMockSnapshotVersion,
@@ -33,6 +34,7 @@ export interface SeasonMockConfigurationSnapshotPayloadV2 {
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
   playerHumanValues: Readonly<Record<string, number>>;
+  managerProfiles: readonly ManagerDraftProfileSnapshot[];
 }
 
 export interface SeasonMockConfigurationSnapshotV2 {
@@ -60,6 +62,7 @@ export interface CreateSeasonMockConfigurationSnapshotInput {
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
   playerHumanValues?: Readonly<Record<string, number>> | undefined;
+  managerProfiles?: readonly ManagerDraftProfileSnapshot[] | undefined;
   capturedAt?: Date | undefined;
 }
 
@@ -69,4 +72,5 @@ export interface SeasonMockReplayConfiguration {
   humanTeamId: string;
   playerExpectedPrices: Readonly<Record<string, number>>;
   playerHumanValues: Readonly<Record<string, number>>;
+  managerProfiles: readonly ManagerDraftProfileSnapshot[];
 }

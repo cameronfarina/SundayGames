@@ -28,5 +28,6 @@ export const seasonMockReplayConfiguration = (
     humanTeamId: payload.humanTeamId,
     playerExpectedPrices: payload.playerExpectedPrices,
     playerHumanValues: payload.playerHumanValues,
+    managerProfiles: payload.managerProfiles,
   };
 };

@@ -34,13 +34,13 @@ const plan: TourStop = {
   label: "Plan",
 };
 
-const draftBoard: TourStop = {
-  alt: "A live auction with the money spent, the roster filling up and the players still on the board",
+const auctionMock: TourStop = {
+  alt: "An interactive auction mock for private practice, with money spent, rosters filling and available players on the board",
   image: tourBoard,
-  label: "Draft room",
+  label: "Auction mock",
 };
 
 /** Named separately so the component always has a stop to open on. */
 export const firstTourStop = league;
 
-export const tourStops: readonly TourStop[] = [league, values, simulations, plan, draftBoard];
+export const tourStops: readonly TourStop[] = [league, values, simulations, plan, auctionMock];

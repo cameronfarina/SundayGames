@@ -56,6 +56,21 @@ describe("season mock configuration snapshots", () => {
       playerHumanValues: {
         "puka-nacua": 74,
       },
+      managerProfiles: [{
+        teamId: season.teams[1]?.id ?? "missing-team",
+        status: "ready",
+        sample: { seasonCount: 2, auctionPurchaseCount: 8, comparablePurchaseCount: 6 },
+        confidence: "limited",
+        targetPosition: "WR",
+        targetLabel: "WR focus",
+        premiumVsLeagueBaselinePercent: 14,
+        starBidding: "high",
+        aiTendency: {
+          premiumBidMultiplier: 1.14,
+          positionBidMultipliers: { WR: 1.2 },
+          nominationPositionWeights: { WR: 1.2 },
+        },
+      }],
       capturedAt,
     });
 
@@ -77,6 +92,15 @@ describe("season mock configuration snapshots", () => {
         playerHumanValues: {
           "puka-nacua": 74,
         },
+        managerProfiles: [expect.objectContaining({
+          teamId: season.teams[1]?.id,
+          status: "ready",
+          aiTendency: {
+            premiumBidMultiplier: 1.14,
+            positionBidMultipliers: { WR: 1.2 },
+            nominationPositionWeights: { WR: 1.2 },
+          },
+        })],
       },
     });
     expect(snapshot.payload.season).not.toBe(season);
@@ -97,7 +121,104 @@ describe("season mock configuration snapshots", () => {
       humanTeamId,
       playerExpectedPrices: { "puka-nacua": 69 },
       playerHumanValues: { "puka-nacua": 74 },
+      managerProfiles: [expect.objectContaining({ teamId: season.teams[1]?.id })],
     });
+  });
+
+  it("defaults additive manager profiles for snapshots created by an older server", () => {
+    const snapshot = createSeasonMockConfigurationSnapshot({
+      season, setup, humanTeamId, playerExpectedPrices: {}, capturedAt,
+    });
+    const { managerProfiles: _managerProfiles, ...legacyPayload } = snapshot.payload;
+    const legacyShape = { ...snapshot, payload: legacyPayload };
+
+    const decoded = normalizeSeasonMockConfigurationSnapshot(legacyShape);
+
+    expect(decoded.status).toBe("ready");
+    if (decoded.status === "ready") expect(decoded.payload.managerProfiles).toEqual([]);
+  });
+
+  it("rejects manager profiles whose displayed tendency contradicts the replay tendency", () => {
+    const snapshot = jsonRoundTrip(createSeasonMockConfigurationSnapshot({
+      season,
+      setup,
+      humanTeamId,
+      playerExpectedPrices: {},
+      managerProfiles: [{
+        teamId: season.teams[1]?.id ?? "missing-team",
+        status: "ready",
+        sample: { seasonCount: 2, auctionPurchaseCount: 8, comparablePurchaseCount: 6 },
+        confidence: "limited",
+        targetPosition: "RB",
+        targetLabel: "RB focus",
+        premiumVsLeagueBaselinePercent: 14,
+        starBidding: "low",
+        aiTendency: {
+          premiumBidMultiplier: 0.4,
+          positionBidMultipliers: { RB: 1.2 },
+          nominationPositionWeights: { RB: 1.2 },
+        },
+      }],
+      capturedAt,
+    })) as { payload: { managerProfiles: Array<Record<string, unknown>> } };
+    const profile = snapshot.payload.managerProfiles[0];
+    if (profile === undefined) throw new Error("Expected a manager profile.");
+    profile.targetPosition = "WR";
+    profile.targetLabel = "WR focus";
+    profile.starBidding = "high";
+
+    expect(() => normalizeSeasonMockConfigurationSnapshot(snapshot)).toThrow(
+      new SeasonMockConfigurationSnapshotError(
+        "snapshot_malformed",
+        "Mock draft configuration snapshot is malformed.",
+      ),
+    );
+  });
+
+  it("rejects profile metrics that do not meet the canonical evidence thresholds", () => {
+    const snapshot = createSeasonMockConfigurationSnapshot({
+      season,
+      setup,
+      humanTeamId,
+      playerExpectedPrices: {},
+      managerProfiles: [{
+        teamId: season.teams[1]?.id ?? "missing-team",
+        status: "ready",
+        sample: { seasonCount: 2, auctionPurchaseCount: 8, comparablePurchaseCount: 0 },
+        confidence: "limited",
+        targetPosition: "WR",
+        targetLabel: "WR focus",
+        premiumVsLeagueBaselinePercent: null,
+        starBidding: "typical",
+        aiTendency: {
+          premiumBidMultiplier: 1,
+          positionBidMultipliers: { WR: 1.15 },
+          nominationPositionWeights: { WR: 1.15 },
+        },
+      }],
+      capturedAt,
+    });
+    const weakFocus = jsonRoundTrip(snapshot) as {
+      payload: { managerProfiles: Array<{ aiTendency: {
+        positionBidMultipliers: Record<string, number>;
+        nominationPositionWeights: Record<string, number>;
+      }; premiumVsLeagueBaselinePercent: number | null }> };
+    };
+    const profile = weakFocus.payload.managerProfiles[0];
+    if (profile === undefined) throw new Error("Expected a manager profile.");
+    profile.aiTendency.positionBidMultipliers.WR = 1;
+    profile.aiTendency.nominationPositionWeights.WR = 1;
+    expect(() => normalizeSeasonMockConfigurationSnapshot(weakFocus)).toThrow(
+      SeasonMockConfigurationSnapshotError,
+    );
+
+    const unsupportedPremium = jsonRoundTrip(snapshot) as typeof weakFocus;
+    const premiumProfile = unsupportedPremium.payload.managerProfiles[0];
+    if (premiumProfile === undefined) throw new Error("Expected a manager profile.");
+    premiumProfile.premiumVsLeagueBaselinePercent = 12;
+    expect(() => normalizeSeasonMockConfigurationSnapshot(unsupportedPremium)).toThrow(
+      SeasonMockConfigurationSnapshotError,
+    );
   });
 
   it("returns explicit migration outcomes for legacy and unsupported snapshot versions", () => {

@@ -93,4 +93,28 @@ describe("owner drafting styles from league history", () => {
 
     expect(config.teams.every(team => team.aiTendency === undefined)).toBe(true);
   });
+
+  it("prefers a frozen profile tendency when replaying an existing mock", () => {
+    const config = buildSeasonAuctionMockConfig({
+      season,
+      setup: styleSetup,
+      humanTeamId: "team-1",
+      sessionId: "frozen",
+      seed: "frozen",
+      historicalSaleRecords: [sale({ ownerId: "owner-2", priceDollars: 5 })],
+      managerProfiles: [{
+        teamId: "team-2",
+        status: "ready",
+        sample: { seasonCount: 2, auctionPurchaseCount: 8, comparablePurchaseCount: 0 },
+        confidence: "limited",
+        targetPosition: null,
+        targetLabel: "Balanced",
+        premiumVsLeagueBaselinePercent: null,
+        starBidding: "high",
+        aiTendency: { premiumBidMultiplier: 1.2 },
+      }],
+    });
+
+    expect(tendencyFor(config, "team-2")?.premiumBidMultiplier).toBe(1.2);
+  });
 });

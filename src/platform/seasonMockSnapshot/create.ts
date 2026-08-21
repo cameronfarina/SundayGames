@@ -20,6 +20,7 @@ export const createSeasonMockConfigurationSnapshot = ({
   humanTeamId,
   playerExpectedPrices,
   playerHumanValues = playerExpectedPrices,
+  managerProfiles = [],
   capturedAt = new Date(),
 }: CreateSeasonMockConfigurationSnapshotInput): SeasonMockConfigurationSnapshotV2 => {
   const normalizedSeason: LeagueSeason<ExplicitLeagueSeasonSettings> = {
@@ -40,6 +41,7 @@ export const createSeasonMockConfigurationSnapshot = ({
       humanTeamId,
       playerExpectedPrices: { ...playerExpectedPrices },
       playerHumanValues: { ...playerHumanValues },
+      managerProfiles: structuredClone(managerProfiles),
     },
   });
   return snapshot.status === "ready" ? snapshot : malformedSnapshot();

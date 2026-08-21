@@ -1,0 +1,65 @@
+.manager-draft-profile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  padding: 1.25rem;
+}
+
+.manager-draft-profile h2,
+.manager-draft-profile p {
+  margin: 0;
+}
+
+.manager-draft-profile h2 {
+  font-size: 1.15rem;
+  margin-top: 0.2rem;
+}
+
+.manager-draft-profile__team {
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.manager-draft-profile__rows {
+  margin: 1rem 0 0;
+}
+
+.manager-draft-profile__rows > div {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 0.75rem 0;
+}
+
+.manager-draft-profile__rows dt,
+.manager-draft-profile__empty p,
+.manager-draft-profile__empty span,
+.manager-draft-profile__source {
+  color: var(--color-text-muted);
+}
+
+.manager-draft-profile__rows dd {
+  font-weight: 700;
+  margin: 0;
+  text-align: right;
+}
+
+.manager-draft-profile__source {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.manager-draft-profile__empty {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.manager-draft-profile__empty span {
+  font-size: 0.75rem;
+}
