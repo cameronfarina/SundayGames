@@ -18,6 +18,8 @@ import {
   accountOnboardingMigrationStatements,
   accountOnboardingIntentBothMigrationStatements,
   accountOnboardingRolloutMigrationStatements,
+} from "./accountOnboardingStatements.js";
+import {
   authRateLimitMigrationStatements,
   browserSimulationLifecycleMigrationStatements,
   leagueCredentialEncryptionMigrationStatements,
