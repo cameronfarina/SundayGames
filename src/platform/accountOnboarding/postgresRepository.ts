@@ -20,7 +20,8 @@ interface AccountOnboardingRow {
 
 const selectedColumns =
   `account_id, intent, intent_both, providers_json, completed_at, created_at, updated_at`;
-const isIntent = (value: unknown): value is AccountOnboardingIntent =>
+type StoredAccountOnboardingIntent = Exclude<AccountOnboardingIntent, "both">;
+const isStoredIntent = (value: unknown): value is StoredAccountOnboardingIntent =>
   value === "practice" || value === "live_draft";
 const isProvider = (value: unknown): value is AccountOnboardingProvider =>
   value === "espn" || value === "sleeper" || value === "yahoo"
@@ -33,7 +34,7 @@ const date = (value: Date | string): Date => {
 };
 
 const rowRecord = (row: AccountOnboardingRow): AccountOnboardingRecord => {
-  if (row.intent !== null && !isIntent(row.intent)) {
+  if (row.intent !== null && !isStoredIntent(row.intent)) {
     throw new Error("Invalid account onboarding intent.");
   }
   if (typeof row.intent_both !== "boolean"
@@ -52,7 +53,7 @@ const rowRecord = (row: AccountOnboardingRow): AccountOnboardingRecord => {
     });
   return {
     accountId: row.account_id,
-    intent: row.intent,
+    intent: row.intent_both && row.intent === "live_draft" ? "both" : row.intent,
     intentBoth: row.intent_both,
     providers: parsedProviders,
     completedAt: row.completed_at === null ? null : date(row.completed_at),
@@ -77,6 +78,9 @@ export class PostgresAccountOnboardingRepository implements AccountOnboardingRep
   }
 
   async setIntent(input: SetAccountOnboardingIntentInput): Promise<AccountOnboardingRecord> {
+    const storedIntent: StoredAccountOnboardingIntent = input.intent === "both"
+      ? "live_draft"
+      : input.intent;
     const saved = firstRecord(await this.client.query<AccountOnboardingRow>(
       `INSERT INTO account_onboarding_profiles
          (account_id, intent, intent_both, created_at, updated_at)
@@ -87,7 +91,7 @@ export class PostgresAccountOnboardingRepository implements AccountOnboardingRep
            updated_at = EXCLUDED.updated_at
        WHERE account_onboarding_profiles.completed_at IS NULL
        RETURNING ${selectedColumns}`,
-      [input.accountId, input.intent, false, input.now],
+      [input.accountId, storedIntent, input.intent === "both", input.now],
     ));
     if (saved !== null) return saved;
     const completed = await this.findByAccountId(input.accountId);

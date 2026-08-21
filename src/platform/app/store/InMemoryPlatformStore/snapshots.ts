@@ -1,4 +1,5 @@
 import type { InMemoryPlatformStoreSnapshot } from "../../contracts/store.js";
+import type { AccountOnboardingRecord } from "../../../accountOnboarding.js";
 import { cloneForRead } from "../../shared.js";
 import {
   leagueMemorySnapshot,
@@ -25,12 +26,19 @@ export const createOnboardingSnapshot = (
   liveDraftRooms: repositories.liveDraftRooms.roomSummaries(),
 });
 
+const compatibleOnboardingRecord = (
+  record: AccountOnboardingRecord,
+): AccountOnboardingRecord => record.intent === "both"
+  ? { ...record, intent: "live_draft", intentBoth: true }
+  : record;
+
 export const createStoreSnapshot = (
   state: LeagueMemoryState,
   repositories: SnapshotRepositories,
 ): InMemoryPlatformStoreSnapshot => ({
   auth: createAuthSnapshot(repositories),
-  accountOnboardingProfiles: repositories.accountOnboarding.records(),
+  accountOnboardingProfiles: repositories.accountOnboarding.records()
+    .map(compatibleOnboardingRecord),
   ...leagueMemorySnapshot(state),
   mockDraftSessions: repositories.mockDraftSessions.sessions(),
   simulationRuns: repositories.simulations.runs(),

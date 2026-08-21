@@ -1,5 +1,6 @@
 import {
   accountOnboardingSnapshot,
+  compatibleAccountOnboardingSnapshot,
   type AccountOnboardingIntent,
   type AccountOnboardingProvider,
 } from "../../accountOnboarding.js";
@@ -9,9 +10,12 @@ import { stringArrayValue, stringValue } from "../request/values.js";
 import { knownError, methodNotAllowed } from "../responses.js";
 import { requireRequestAccount } from "../auth/access.js";
 
-const intentValue = (value: unknown): AccountOnboardingIntent | null => {
+const intentValue = (value: unknown, combinedValue: unknown): AccountOnboardingIntent | null => {
   const intent = stringValue(value);
-  return intent === "practice" || intent === "live_draft" ? intent : null;
+  if (combinedValue !== undefined && typeof combinedValue !== "boolean") return null;
+  if (intent === "practice") return combinedValue === true ? null : intent;
+  if (intent === "live_draft") return combinedValue === true ? "both" : intent;
+  return null;
 };
 
 const isProvider = (value: string): value is AccountOnboardingProvider =>
@@ -43,14 +47,7 @@ export const routeAccountOnboarding = async (
   const now = request.now ?? new Date();
   const action = stringValue(request.body.action);
   if (action === "set_intent") {
-    if (request.body.intentBoth === true) {
-      return knownError(
-        409,
-        "onboarding_update_required",
-        "Sunday Games is finishing an update. Try again.",
-      );
-    }
-    const intent = intentValue(request.body.intent);
+    const intent = intentValue(request.body.intent, request.body.intentBoth);
     if (intent === null) return knownError(400, "invalid_onboarding_intent", "Choose a setup goal.");
     await repository.setIntent({ accountId: account.id, intent, now });
   } else if (action === "set_providers") {
@@ -72,6 +69,10 @@ export const routeAccountOnboarding = async (
   }
   return {
     status: 200,
-    body: { onboarding: await accountOnboardingSnapshot(repository, account.id) },
+    body: {
+      onboarding: compatibleAccountOnboardingSnapshot(
+        await accountOnboardingSnapshot(repository, account.id),
+      ),
+    },
   };
 };

@@ -95,6 +95,24 @@ describe("account onboarding", () => {
     });
   });
 
+  it("persists the combined intent in the platform store snapshot", async () => {
+    const store = new InMemoryPlatformStore();
+    await store.accountOnboarding.setIntent({ accountId: "account-1", intent: "both", now });
+    const snapshot = store.snapshot();
+
+    expect(snapshot.accountOnboardingProfiles?.[0]).toMatchObject({
+      intent: "live_draft",
+      intentBoth: true,
+    });
+
+    const restored = new InMemoryPlatformStore(
+      deserializePlatformStoreSnapshot(snapshot),
+    );
+
+    await expect(accountOnboardingSnapshot(restored.accountOnboarding, "account-1"))
+      .resolves.toMatchObject({ intent: "both", stage: "providers" });
+  });
+
   it("exempts accounts restored from a legacy embedded-auth snapshot", async () => {
     const restored = new InMemoryPlatformStore(deserializePlatformStoreSnapshot({
       auth: {

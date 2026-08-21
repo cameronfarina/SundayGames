@@ -45,32 +45,8 @@ describe("account onboarding HTTP", () => {
     expect(repository.findByAccountId("another-account")).toBeNull();
   });
 
-  it("rejects the future combined-intent marker without saving a fallback answer", async () => {
-    const { handle, repository } = createHarness();
-    const account = await createLoggedInAccount(handle, "setup@example.com");
-
-    const response = await handle({
-      method: "PUT",
-      path: "/account-onboarding",
-      sessionToken: account.sessionToken,
-      body: {
-        accountId: account.account.id,
-        action: "set_intent",
-        intent: "live_draft",
-        intentBoth: true,
-      },
-      now,
-    });
-
-    expect(response).toMatchObject({
-      status: 409,
-      body: { error: { code: "onboarding_update_required" } },
-    });
-    expect(repository.findByAccountId(account.account.id)).toBeNull();
-  });
-
   it("saves both questions, validates the exclusive no-league answer, and completes", async () => {
-    const { handle } = createHarness();
+    const { handle, repository } = createHarness();
     const account = await createLoggedInAccount(handle, "setup@example.com");
     const request = (body: object) => handle({
       method: "PUT",
@@ -80,16 +56,44 @@ describe("account onboarding HTTP", () => {
       now,
     });
 
-    await expect(request({ action: "set_intent", intent: "practice" })).resolves.toMatchObject({
+    await expect(request({
+      action: "set_intent",
+      intent: "live_draft",
+      intentBoth: true,
+    })).resolves.toMatchObject({
       status: 200,
-      body: { onboarding: { intent: "practice", stage: "providers" } },
+      body: {
+        onboarding: {
+          intent: "live_draft",
+          intentBoth: true,
+          stage: "providers",
+        },
+      },
     });
+    expect(repository.findByAccountId(account.account.id))
+      .toMatchObject({ intent: "both" });
     await expect(request({
       action: "set_providers",
       providers: ["espn", "none"],
     })).resolves.toMatchObject({
       status: 400,
       body: { error: { code: "invalid_onboarding_providers" } },
+    });
+    await expect(request({
+      action: "set_intent",
+      intent: "practice",
+      intentBoth: true,
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_onboarding_intent" } },
+    });
+    await expect(request({
+      action: "set_intent",
+      intent: "live_draft",
+      intentBoth: "yes",
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_onboarding_intent" } },
     });
     await expect(request({
       action: "set_providers",
@@ -112,7 +116,7 @@ describe("account onboarding HTTP", () => {
   it("returns the current setup snapshot with login and session bootstrap", async () => {
     const { handle, repository } = createHarness();
     const account = await createLoggedInAccount(handle, "resume@example.com");
-    await repository.setIntent({ accountId: account.account.id, intent: "live_draft", now });
+    await repository.setIntent({ accountId: account.account.id, intent: "both", now });
 
     const current = await handle({
       method: "GET",
@@ -125,7 +129,12 @@ describe("account onboarding HTTP", () => {
       status: 200,
       body: {
         account: { id: account.account.id },
-        onboarding: { intent: "live_draft", providers: null, stage: "providers" },
+        onboarding: {
+          intent: "live_draft",
+          intentBoth: true,
+          providers: null,
+          stage: "providers",
+        },
       },
     });
   });

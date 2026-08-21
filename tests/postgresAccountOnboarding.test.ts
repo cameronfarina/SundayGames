@@ -67,7 +67,23 @@ describe("Postgres account onboarding", () => {
     const repository = new PostgresAccountOnboardingRepository(client);
 
     await expect(repository.findByAccountId("account-1"))
-      .resolves.toMatchObject({ intent: "live_draft", intentBoth: true });
+      .resolves.toMatchObject({ intent: "both", intentBoth: true });
+  });
+
+  it("stores both as a legacy live-draft value with the combined flag", async () => {
+    const client = new QueuedClient();
+    client.results.push([{ ...row, intent: "live_draft", intent_both: true }]);
+    const repository = new PostgresAccountOnboardingRepository(client);
+
+    await expect(repository.setIntent({
+      accountId: "account-1",
+      intent: "both",
+      now,
+    })).resolves.toMatchObject({ intent: "both" });
+
+    expect(client.queries[0]).toMatchObject({
+      values: ["account-1", "live_draft", true, now],
+    });
   });
 
   it.each([null, "practice"])(

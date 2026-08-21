@@ -31,7 +31,7 @@ export class InMemoryAccountOnboardingRepository implements AccountOnboardingRep
     const record: AccountOnboardingRecord = {
       accountId: input.accountId,
       intent: input.intent,
-      intentBoth: false,
+      intentBoth: input.intent === "both",
       providers: current?.providers ?? null,
       completedAt: null,
       createdAt: current?.createdAt ?? input.now,

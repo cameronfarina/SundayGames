@@ -1,8 +1,17 @@
 import type {
+  AccountOnboardingIntent,
   AccountOnboardingRepository,
   AccountOnboardingSnapshot,
   AccountOnboardingStage,
 } from "./contracts.js";
+
+type StoredAccountOnboardingIntent = Exclude<AccountOnboardingIntent, "both">;
+
+export interface CompatibleAccountOnboardingSnapshot
+  extends Omit<AccountOnboardingSnapshot, "intent"> {
+  readonly intent: StoredAccountOnboardingIntent | null;
+  readonly intentBoth?: true;
+}
 
 const stageFor = (
   record: Awaited<ReturnType<AccountOnboardingRepository["findByAccountId"]>>,
@@ -24,3 +33,13 @@ export const accountOnboardingSnapshot = async (
     stage: stageFor(record),
   };
 };
+
+export const compatibleAccountOnboardingSnapshot = (
+  snapshot: AccountOnboardingSnapshot,
+): CompatibleAccountOnboardingSnapshot => snapshot.intent === "both"
+  ? { ...snapshot, intent: "live_draft", intentBoth: true }
+  : {
+    intent: snapshot.intent,
+    providers: snapshot.providers,
+    stage: snapshot.stage,
+  };

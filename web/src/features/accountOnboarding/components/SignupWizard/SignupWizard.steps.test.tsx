@@ -20,6 +20,27 @@ describe("SignupWizard steps", () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
+  it("offers both setup goals and submits that intent", async () => {
+    const onContinue = vi.fn();
+    const user = userEvent.setup();
+    render(<IntentStep
+      error={undefined}
+      initialIntent={null}
+      onContinue={onContinue}
+      pending={false}
+    />);
+
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    const both = screen.getByRole("radio", { name: "Both" });
+    expect(both).toHaveAccessibleDescription(
+      "Practice beforehand, then run your league's live draft.",
+    );
+    await user.click(both);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onContinue).toHaveBeenCalledWith("both");
+  });
+
   it("restores an intent and communicates its pending error state", () => {
     render(<IntentStep
       error="The answer could not be saved."
