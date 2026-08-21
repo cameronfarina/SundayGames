@@ -43,16 +43,18 @@ export class FakePostgresAuthClient implements PostgresQueryClient {
       if (!this.accounts.has(accountId)) throw new Error("Account onboarding foreign key failed.");
       const existing = this.accountOnboarding.get(accountId);
       if (existing?.completed_at !== null && existing !== undefined) return { rows: [], rowCount: 0 };
-      const now = dateValueAt(values, 2);
+      const now = dateValueAt(values, 3);
       const row: StoredAccountOnboardingRow = existing ?? {
         account_id: accountId,
         intent: null,
+        intent_both: false,
         providers_json: null,
         completed_at: null,
         created_at: now,
         updated_at: now,
       };
       row.intent = stringValueAt(values, 1);
+      row.intent_both = valueAt(values, 2) === true;
       row.updated_at = now;
       this.accountOnboarding.set(accountId, row);
       return { rows: [cloneAccountOnboardingRow(row)], rowCount: 1 };

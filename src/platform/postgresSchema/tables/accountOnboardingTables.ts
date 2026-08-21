@@ -6,6 +6,7 @@ export const accountOnboardingTables: readonly PostgresTableDefinition[] = [{
   columns: [
     { name: "account_id", type: "text" },
     { name: "intent", type: "text", nullable: true },
+    { name: "intent_both", type: "boolean", default: "false" },
     { name: "providers_json", type: "jsonb", nullable: true },
     { name: "completed_at", type: "timestamptz", nullable: true },
     ...timestamps,
@@ -15,6 +16,10 @@ export const accountOnboardingTables: readonly PostgresTableDefinition[] = [{
     {
       name: "account_onboarding_profiles_intent_check",
       expression: "intent IS NULL OR intent IN ('practice', 'live_draft')",
+    },
+    {
+      name: "account_onboarding_profiles_intent_both_check",
+      expression: "NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')",
     },
     {
       name: "account_onboarding_profiles_providers_check",

@@ -45,6 +45,30 @@ describe("account onboarding HTTP", () => {
     expect(repository.findByAccountId("another-account")).toBeNull();
   });
 
+  it("rejects the future combined-intent marker without saving a fallback answer", async () => {
+    const { handle, repository } = createHarness();
+    const account = await createLoggedInAccount(handle, "setup@example.com");
+
+    const response = await handle({
+      method: "PUT",
+      path: "/account-onboarding",
+      sessionToken: account.sessionToken,
+      body: {
+        accountId: account.account.id,
+        action: "set_intent",
+        intent: "live_draft",
+        intentBoth: true,
+      },
+      now,
+    });
+
+    expect(response).toMatchObject({
+      status: 409,
+      body: { error: { code: "onboarding_update_required" } },
+    });
+    expect(repository.findByAccountId(account.account.id)).toBeNull();
+  });
+
   it("saves both questions, validates the exclusive no-league answer, and completes", async () => {
     const { handle } = createHarness();
     const account = await createLoggedInAccount(handle, "setup@example.com");

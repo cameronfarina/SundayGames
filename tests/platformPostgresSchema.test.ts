@@ -167,6 +167,18 @@ const expectForeignKeyContract = (
 describe("platform Postgres schema contract", () => {
   it("stores durable signup answers without widening authentication records", () => {
     expectColumn("account_onboarding_profiles", "intent", { type: "text", nullable: true });
+    expectColumn("account_onboarding_profiles", "intent_both", {
+      type: "boolean",
+      default: "false",
+    });
+    expect(tableByName("account_onboarding_profiles").checkConstraints).toContainEqual({
+      name: "account_onboarding_profiles_intent_check",
+      expression: "intent IS NULL OR intent IN ('practice', 'live_draft')",
+    });
+    expect(tableByName("account_onboarding_profiles").checkConstraints).toContainEqual({
+      name: "account_onboarding_profiles_intent_both_check",
+      expression: "NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')",
+    });
     expectColumn("account_onboarding_profiles", "providers_json", { type: "jsonb", nullable: true });
     expectColumn("account_onboarding_profiles", "completed_at", {
       type: "timestamptz",

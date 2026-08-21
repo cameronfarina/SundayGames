@@ -67,6 +67,34 @@ describe("account onboarding", () => {
     });
   });
 
+  it("preserves a future combined marker across an unrelated file-store write", async () => {
+    const emptySnapshot = new InMemoryPlatformStore().snapshot();
+    const store = new InMemoryPlatformStore(deserializePlatformStoreSnapshot({
+      ...emptySnapshot,
+      accountOnboardingProfiles: [{
+        accountId: "account-1",
+        intent: "live_draft",
+        intentBoth: true,
+        providers: null,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }],
+    }));
+
+    await store.accountOnboarding.setProviders({
+      accountId: "account-1",
+      providers: ["sleeper"],
+      now,
+    });
+
+    expect(store.snapshot().accountOnboardingProfiles?.[0]).toMatchObject({
+      intent: "live_draft",
+      intentBoth: true,
+      providers: ["sleeper"],
+    });
+  });
+
   it("exempts accounts restored from a legacy embedded-auth snapshot", async () => {
     const restored = new InMemoryPlatformStore(deserializePlatformStoreSnapshot({
       auth: {
