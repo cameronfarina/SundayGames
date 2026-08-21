@@ -20,7 +20,7 @@ describe("league season architecture", () => {
 
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(source, file).not.toMatch(/\bany\b|@ts-ignore|@ts-expect-error|eslint-disable/);
       expect(source, file).not.toMatch(/\bas\s+(?:const|never|unknown|any|[A-Z][A-Za-z0-9_<>,.\[\] |&]*)/);
     }

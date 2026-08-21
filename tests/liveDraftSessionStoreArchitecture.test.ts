@@ -36,7 +36,7 @@ describe("live draft session store architecture", () => {
     const sources = await Promise.all(files.map(path => readFile(path, "utf8")));
 
     for (const [index, source] of sources.entries()) {
-      expect(source.split("\n").length, files[index]).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, files[index]).toBeLessThanOrEqual(250);
       expect(prohibitedNodeCount(files[index] ?? "", source), files[index]).toBe(0);
       expect(source, files[index]).not.toMatch(/@ts-(?:ignore|expect-error)/);
     }

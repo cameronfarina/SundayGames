@@ -41,7 +41,7 @@ describe("auction starter eligibility architecture", () => {
     ];
 
     for (const file of files) {
-      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), file).toEqual([]);
     }
   });

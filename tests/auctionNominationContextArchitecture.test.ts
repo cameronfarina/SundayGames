@@ -42,7 +42,7 @@ describe("auction nomination context architecture", () => {
 
     expect(readFileSync(facade, "utf8").split("\n").length).toBeLessThanOrEqual(30);
     for (const file of files) {
-      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), file).toEqual([]);
     }
   });

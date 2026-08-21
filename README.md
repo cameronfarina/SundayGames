@@ -142,6 +142,11 @@ envelopes that still use a retained rotation key. It is safe to rerun.
 The repository also carries a command-line toolkit used to build and check the
 pricing model. These are for development and analysis, not for league members.
 
+Production modules should stay near 150 lines so they remain easy to review and
+change. `npm run guideline:modules` reports larger modules as warnings; it does
+not fail CI. The separate 250-line absolute ceiling and non-size architecture
+checks still block merges when they fail.
+
 ```bash
 npm run prices        # build player prices
 npm run scenarios     # keeper inflation scenarios

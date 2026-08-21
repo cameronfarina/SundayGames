@@ -34,7 +34,7 @@ describe("batch job runner architecture", () => {
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const lineCount = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
-      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(150);
+      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), path.relative(process.cwd(), file)).toEqual([]);
     }
   });

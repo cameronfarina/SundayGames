@@ -15,6 +15,7 @@
     "dev": "tsx scripts/start-local-preview.ts",
     "web:dev": "vite --config web/vite.config.ts",
     "guard:web": "tsx scripts/frontend-architecture-guard.ts",
+    "guideline:modules": "tsx scripts/check-module-size-guideline.ts",
     "guard:data": "tsx scripts/check-public-data-policy.ts",
     "lint:web": "eslint web",
     "test:web": "vitest run --config web/vitest.config.ts",

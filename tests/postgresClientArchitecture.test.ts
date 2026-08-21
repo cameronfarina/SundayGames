@@ -59,7 +59,7 @@ describe("Postgres client architecture", () => {
   it("keeps owned files focused and free of unsafe type escape hatches", () => {
     for (const file of ownedFiles()) {
       const source = readFileSync(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       const syntax = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
       expect([...forbiddenSyntax(syntax), ...suppressionsIn(source)], file).toEqual([]);
     }

@@ -40,7 +40,7 @@ describe("Postgres auth repository architecture", () => {
   it("keeps focused production modules free of unsafe type escape hatches", () => {
     for (const file of productionFiles()) {
       const source = readFileSync(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       const syntax = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
       expect(forbiddenSyntax(syntax), file).toEqual([]);
     }

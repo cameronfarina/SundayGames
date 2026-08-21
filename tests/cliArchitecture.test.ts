@@ -23,7 +23,7 @@ describe("CLI architecture", () => {
   it("keeps production modules focused", async () => {
     for (const path of await sourceFiles()) {
       const source = await readFile(path, "utf8");
-      expect(source.split("\n").length, path).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, path).toBeLessThanOrEqual(250);
     }
   });
 

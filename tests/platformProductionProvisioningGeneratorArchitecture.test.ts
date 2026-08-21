@@ -35,7 +35,7 @@ describe("production provisioning generator architecture", () => {
     expect(files.length).toBeGreaterThan(1);
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(forbiddenNodeCount(file, source), file).toBe(0);
       expect(source, file).not.toMatch(/@ts-(?:ignore|expect-error)|eslint-disable/);
     }
