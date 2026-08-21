@@ -52,6 +52,7 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
   const setupSection = page.locator("#league-setup");
   await expect(setupSection.locator(".team-keepers__chip")).toHaveCount(2);
+  await page.getByRole("button", { name: "History" }).click();
   await page.getByLabel("Choose historical draft files").setInputFiles([
     {
       name: "league-auction-2023.csv",
@@ -82,6 +83,7 @@ test("commissioner history and keepers persist into an unopened live room", asyn
   await importButton.click();
   await expect(historyRows.nth(0)).toContainText("8 players imported");
   await expect(historyRows.nth(1)).toContainText("8 players imported");
+  await page.getByRole("button", { name: "Overview" }).click();
 
   // Keepers are typed on the row of the team that keeps them.
   const keepFor = async (owner: string, entry: string): Promise<void> => {
@@ -101,8 +103,8 @@ test("commissioner history and keepers persist into an unopened live room", asyn
 
   await page.reload();
   await expect(setupSection).toContainText("CeeDee Lamb $50");
-  await page.getByRole("button", { name: "Publish reviewed league" }).click();
-  await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
+  await page.getByRole("button", { name: "Create and publish league" }).click();
+  await expect(page.getByRole("button", { name: "Copy league invitation" })).toBeVisible();
 
   const room = await createLiveRoomFromSetup(page, season);
   const alexRoster = page.getByRole("complementary", { name: "Alex roster" });

@@ -4,8 +4,14 @@ import type { LeagueSeason } from "../../../src/platform/leagueSeason.js";
 import type { LiveDraftRoomReadModel } from "../../../src/platform/liveDraftRoomStream.js";
 import { expectAuthenticatedAccount } from "../auth.js";
 import { api, expectOk } from "./api.js";
-import { setupRowsFor } from "./seasons.js";
 import type { LiveDraftRoomBody, OnboardingBody } from "./types.js";
+
+const fillDraftTimeWhenMissing = async (page: Page): Promise<void> => {
+  const draftTime = page.getByLabel("Draft date and time");
+  if (await draftTime.inputValue() === "") {
+    await draftTime.fill("2030-09-01T20:30");
+  }
+};
 
 export const applyCommissionerSetup = async (
   page: Page,
@@ -17,46 +23,52 @@ export const applyCommissionerSetup = async (
   await expect(page).toHaveURL(/\/leagues\/[^/]+\/commissioner$/u);
   const leaguePath = new URL(page.url()).pathname.replace(/\/commissioner$/u, "");
   const setupSection = page.locator("#league-setup");
-  await setupSection.getByText("Paste a full team list").click();
-  const teamRows = setupSection.getByRole("textbox", { name: "Teams and managers" });
-  await teamRows.fill(setupRowsFor(camEmail));
-  await page.getByRole("button", { name: "Replace team list" }).click();
+  const lastTeamName = setupSection.getByRole("textbox", {
+    name: `Team name ${String(ownerOrder.length)}`,
+  });
+  await lastTeamName.fill(`${ownerOrder.at(-1) ?? "Final team"} E2E`);
+  await setupSection.getByRole("button", { name: "Apply changes" }).click();
   await expect(setupSection.getByRole("status")).toHaveText("League teams saved.");
-  const invitationSection = page.locator("#league-invite");
-  await page.getByRole("button", { name: "Create league link" }).click();
-  const invitationLink = page.getByLabel("Shareable league link");
-  await expect(invitationLink).toBeVisible();
-  const invitationUrl = await invitationLink.inputValue();
+
+  await page.getByRole("button", { name: "Create and publish league" }).click();
+  const copyInvitation = page.getByRole("button", { name: "Copy league invitation" });
+  await expect(copyInvitation).toBeVisible();
+  await copyInvitation.click();
+  await expect(page.getByText("League link copied.", { exact: true })).toBeVisible();
+  const invitationUrl = await page.evaluate(() => navigator.clipboard.readText());
   expect(invitationUrl).toContain("/invite?token=");
-  await page.getByRole("button", { name: "Copy link" }).click();
-  await expect(invitationSection.getByRole("status")).toHaveText("League link copied.");
   await page.reload();
-  await expect(page.getByLabel("Shareable league link")).toHaveValue(invitationUrl);
-  await expect(page.getByRole("button", { name: "Create league link" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Copy league invitation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create league invitation" })).toBeHidden();
 
   await expect(page.getByText("$200 auction", { exact: true })).toBeVisible();
-  const publishButton = page.getByRole("button", { name: "Publish reviewed league" });
-  const createRoomButton = page.getByRole("button", { name: "Create room" });
-  await expect(publishButton).toBeEnabled();
-  await expect(createRoomButton).toBeDisabled();
-  await publishButton.click();
-  await expect(createRoomButton).toBeEnabled();
 
   await page.goto(`/league?seasonId=${encodeURIComponent(season.id)}`);
   await page.getByRole("link", { name: "Create draft room" }).click();
   await expect(page).toHaveURL(
-    new RegExp(`${leaguePath}/commissioner#live-room$`, "u"),
+    new RegExp(`${leaguePath}/commissioner\\?section=live-draft$`, "u"),
   );
-  await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Plan live draft" })).toBeEnabled();
 
   return invitationUrl;
+};
+
+export const createLiveRoomThroughWizard = async (page: Page): Promise<void> => {
+  if (!await page.getByRole("heading", { name: "Live draft room" }).isVisible()) {
+    await page.getByRole("button", { name: "Live Draft" }).click();
+  }
+  await page.getByRole("button", { name: "Plan live draft" }).click();
+  await page.getByRole("button", { name: "Continue to schedule" }).click();
+  await fillDraftTimeWhenMissing(page);
+  await page.getByRole("button", { name: "Review draft room" }).click();
+  await page.getByRole("button", { name: "Create live draft room" }).click();
 };
 
 export const createLiveRoomFromSetup = async (
   page: Page,
   season: LeagueSeason,
 ): Promise<LiveDraftRoomReadModel> => {
-  await page.getByRole("button", { name: "Create room" }).click();
+  await createLiveRoomThroughWizard(page);
   const enterRoom = page.getByRole("link", { name: "Enter draft room" });
   await expect(enterRoom).toBeVisible();
   const onboarding = expectOk(await api<OnboardingBody>(page, "/onboarding"));
@@ -68,7 +80,7 @@ export const createLiveRoomFromSetup = async (
   expect(room).toMatchObject({
     roomId,
     seasonId: season.id,
-    status: "setup",
+    status: "countdown",
   });
   expect(room.board.length).toBeGreaterThan(0);
 

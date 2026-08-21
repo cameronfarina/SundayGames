@@ -76,23 +76,17 @@ const renderWorkspace = () => {
 describe("CommissionerPage season state", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
-  it("discards every staged commissioner edit when the active season changes", async () => {
+  it("discards staged overview edits when the active season changes", async () => {
     const { applyRequests, router } = renderWorkspace();
     const user = userEvent.setup();
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
     await user.clear(screen.getByLabelText("Manager 1"));
     await user.type(screen.getByLabelText("Manager 1"), "A staged manager");
-    await user.upload(screen.getByLabelText("Choose historical draft files"), new File(["a"], "alpha.csv"));
-    await user.click(screen.getByLabelText("Replace an import for the same year"));
-    await user.type(screen.getByLabelText("Draft date and time"), "2026-09-10T20:00");
 
     await router.navigate("/commissioner?seasonId=season-b");
     expect(await screen.findByText("Beta · 2027")).toBeVisible();
     expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
     expect(screen.getByLabelText("Team name 1")).toHaveValue("Beta");
-    expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Replace an import for the same year")).not.toBeChecked();
-    expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
     expect(applyRequests).toEqual([]);
 
@@ -100,7 +94,5 @@ describe("CommissionerPage season state", () => {
     expect(await screen.findByText("Alpha · 2026")).toBeVisible();
     expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
     expect(screen.getByLabelText("Team name 1")).toHaveValue("Alpha");
-    expect(screen.queryByText("alpha.csv")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Draft date and time")).toHaveValue("");
   });
 });

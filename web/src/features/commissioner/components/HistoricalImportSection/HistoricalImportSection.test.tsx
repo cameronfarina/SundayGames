@@ -50,6 +50,37 @@ const renderSection = (
 describe("HistoricalImportSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
+  it("keeps full auction files primary and positional prices advanced", async () => {
+    renderSection(vi.fn(() => Promise.resolve(jsonResponse(preview("previewed")))));
+    const user = userEvent.setup();
+
+    expect(screen.getByLabelText("Choose historical draft files")).toBeVisible();
+    expect(screen.getByText(/Upload complete auction draft results/u)).toBeVisible();
+    expect(screen.getByText(/one CSV, TSV, or XLSX file per draft year/u)).toBeVisible();
+    expect(screen.getByText(/Add Public Value to compare a sale with published market prices/u))
+      .toBeVisible();
+    expect(screen.getByText(/Team header and Price, Position, and Player columns for each team/u))
+      .toBeVisible();
+    expect(screen.getByLabelText("Slot prices")).not.toBeVisible();
+    expect(screen.getByText("Set an inflation percentage by hand")).toBeVisible();
+
+    await user.click(screen.getByText("Advanced price import"));
+
+    expect(screen.getByLabelText("Slot prices")).toBeVisible();
+  });
+
+  it("explains the unavailable snake history without auction controls", () => {
+    renderSection(vi.fn(() => Promise.resolve(jsonResponse(preview("previewed")))), true);
+
+    expect(screen.getByText("Unavailable")).toBeVisible();
+    expect(screen.queryByText("0 imported")).not.toBeInTheDocument();
+    expect(screen.getByText(/Historical snake draft imports and manager personality modeling are not available/u))
+      .toBeVisible();
+    expect(screen.queryByLabelText("Choose historical draft files")).not.toBeInTheDocument();
+    expect(screen.queryByText("Advanced price import")).not.toBeInTheDocument();
+    expect(screen.queryByText("Set an inflation percentage by hand")).not.toBeInTheDocument();
+  });
+
   it("imports valid files independently when another file fails", async () => {
     const respond: PlatformFetch = (input, init) => {
       const path = requestPath(input);
@@ -155,7 +186,7 @@ describe("HistoricalImportSection", () => {
     view.rerender(<QueryClientProvider client={new QueryClient()}>
       <HistoricalImportSection season={snakeSeason} />
     </QueryClientProvider>);
-    expect(screen.getByText("Historical snake draft imports are not available yet.")).toBeVisible();
+    expect(screen.getByText(/Historical snake draft imports and manager personality modeling/u)).toBeVisible();
   });
 
   it("reports completed files as a truthful percentage of the current batch", async () => {

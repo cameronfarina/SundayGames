@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useState, type ReactNode } from "react";
 import { invalidateLeagueSetupConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
@@ -11,11 +11,12 @@ import { teamAssignmentSummary } from "../../model/teamAssignmentSummary";
 import { teamRosterContent, teamRosterRows, withDraftOrderCommitted, withRowEdited } from "../../model/teamRoster";
 import { SnakeRounds } from "./SnakeRounds";
 import { TeamKeepers } from "./TeamKeepers";
-import { TeamListPaste } from "./TeamListPaste";
+import "./LeagueSetupSection.css";
 
 interface LeagueSetupSectionProps {
   readonly keepers: readonly CommissionerKeeper[];
   readonly season: CommissionerSeason;
+  readonly summaryAction?: ReactNode;
 }
 
 const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
@@ -24,7 +25,7 @@ const teamPreviewOptions = (seasonId: string, content: string) => queryOptions({
   staleTime: Infinity,
 });
 
-export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps) {
+export function LeagueSetupSection({ keepers, season, summaryAction }: LeagueSetupSectionProps) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState(() => teamRosterRows(season));
   const content = teamRosterContent(rows);
@@ -61,11 +62,12 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
 
   return (
     <section className="commissioner-section" id="league-setup">
-      <header><h2>League info</h2><strong>{season.setupStatus}</strong></header>
+      <header><h2>League info</h2></header>
       <div className="commissioner-facts">
         <div><span>Draft</span><strong>{draftLabel}</strong></div>
-        <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD</strong></div>
-        <div><span>Roster</span><strong>{settings.roster.rosterSize} players · {settings.expectedTeamCount} teams</strong></div>
+        <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD · {settings.scoring.passingYards} pt/pass yd</strong></div>
+        <div><span>Number of teams</span><strong aria-label="Number of teams value">{settings.expectedTeamCount}</strong></div>
+        {summaryAction}
       </div>
       {settings.draftFormat === "snake" && <SnakeRounds
         rosterSize={settings.roster.rosterSize}
@@ -132,7 +134,6 @@ export function LeagueSetupSection({ keepers, season }: LeagueSetupSectionProps)
       {blockers.map(blocker => <p role="alert" key={`${blocker.code}-${String(blocker.rowNumber ?? 0)}`}>{blocker.message}</p>)}
       {apply.isSuccess ? <p role="status">League teams saved.</p> : null}
       {apply.isError && blockers.length === 0 ? <p role="alert">{errorMessage(apply.error)}</p> : null}
-      <TeamListPaste seasonId={season.id} />
     </section>
   );
 }
