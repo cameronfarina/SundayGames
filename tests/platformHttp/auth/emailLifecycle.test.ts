@@ -1,7 +1,7 @@
 import { CapturingAuthMailSender, InMemoryPlatformStore, createPlatformApp, createPlatformHttpHandler, describe, expect, it, mockRunner, now } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
-it("verifies production signups and resets passwords without enumerating accounts", async () => {
+it("verifies production signups and keeps password resets non-enumerating", async () => {
     const mailSender = new CapturingAuthMailSender();
     const app = createPlatformApp({
       store: new InMemoryPlatformStore(),
@@ -26,7 +26,7 @@ it("verifies production signups and resets passwords without enumerating account
       status: 202,
       body: {
         accepted: true,
-        message: "If this email can be registered, a verification link is on its way.",
+        message: "Check your email for a verification link to finish your account.",
       },
     });
     await expect(handle({
@@ -68,7 +68,15 @@ it("verifies production signups and resets passwords without enumerating account
       path: "/accounts",
       now: new Date(now.getTime() + 1_500),
       body: { email: "OWNER@example.com" },
-    })).resolves.toMatchObject({ status: 202, body: { accepted: true } });
+    })).resolves.toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "duplicate_email",
+          message: "An account with this email already exists.",
+        },
+      },
+    });
     expect(mailSender.messages).toHaveLength(mailCountAfterVerification);
     await expect(handle({
       method: "POST",

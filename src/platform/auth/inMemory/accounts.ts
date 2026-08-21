@@ -3,7 +3,7 @@ import type {
   AccountCredentialRecord,
   AccountRecord,
   CreateAccountRecordInput,
-  CreateOrReplacePendingAccountInput,
+  CreatePendingAccountInput,
   PendingAccountRegistrationResult,
   ReplaceDisplayNameInput,
 } from "../records.js";
@@ -26,9 +26,9 @@ export const createAccount = (state: InMemoryAuthState, input: CreateAccountReco
   return account;
 };
 
-export const createOrReplacePendingAccount = (
+export const createPendingAccount = (
   state: InMemoryAuthState,
-  input: CreateOrReplacePendingAccountInput,
+  input: CreatePendingAccountInput,
 ): PendingAccountRegistrationResult => {
   const existingId = state.accountIdsByEmail.get(input.email);
   if (existingId === undefined) {
@@ -45,13 +45,7 @@ export const createOrReplacePendingAccount = (
   }
   const existing = state.accountsById.get(existingId);
   if (existing === undefined) throw new Error("Auth email index is inconsistent.");
-  if (existing.account.emailVerifiedAt !== undefined) return { account: existing.account, status: "verified" };
-
-  const credentialVersion = (state.authVersionsByAccountId.get(existingId) ?? 1) + 1;
-  const account = { ...existing.account, updatedAt: input.now };
-  state.accountsById.set(existingId, { account, passwordHash: input.passwordHash });
-  state.authVersionsByAccountId.set(existingId, credentialVersion);
-  return { account, status: "reissued", credentialVersion };
+  return { account: existing.account, status: "existing" };
 };
 
 export const findAccountCredentialByEmail = (

@@ -15,7 +15,7 @@ import { PostgresAuthRepository } from "../src/platform/postgresAuth.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 const credentialVersionOf = (registration: PendingAccountRegistrationResult): number => {
-  if (registration.status === "verified") throw new Error("Expected a pending account registration.");
+  if (registration.status !== "created") throw new Error("Expected a new pending account registration.");
   return registration.credentialVersion;
 };
 
@@ -105,16 +105,10 @@ class FakePostgresAuthClient implements PostgresQueryClient {
     const normalizedSql = normalizeSql(text);
 
     if (normalizedSql.startsWith("INSERT INTO accounts")) {
-      if (normalizedSql.includes("ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO UPDATE")) {
+      if (values.length === 4) {
         const [id, email, passwordHash, createdAt] = values as readonly [string, string, string, Date];
         const existing = [...this.accounts.values()].find(row => row.email_normalized === email);
-        if (existing !== undefined && existing.email_verified_at !== null) return { rows: [], rowCount: 0 };
-        if (existing !== undefined) {
-          existing.password_hash = passwordHash;
-          existing.auth_version += 1;
-          existing.updated_at = createdAt;
-          return { rows: [{ ...cloneAccountRow(existing), was_inserted: false } as TRow], rowCount: 1 };
-        }
+        if (existing !== undefined) return { rows: [], rowCount: 0 };
         const pending: StoredAccountRow = {
           id,
           email,
@@ -128,7 +122,7 @@ class FakePostgresAuthClient implements PostgresQueryClient {
           updated_at: createdAt,
         };
         this.accounts.set(id, pending);
-        return { rows: [{ ...cloneAccountRow(pending), was_inserted: true } as TRow], rowCount: 1 };
+        return { rows: [cloneAccountRow(pending) as TRow], rowCount: 1 };
       }
       const [id, email, passwordHash, emailVerifiedAt, createdAt] = values as readonly [
         string,
@@ -464,21 +458,13 @@ describe("Postgres auth repository", () => {
     expect(firstToken).not.toBe("");
     expect(JSON.stringify([...client.authTokens.values()])).not.toContain(firstToken);
 
-    await auth.createUser({
+    await expect(auth.createUser({
       email: "OWNER@example.com",
       now: new Date(now.getTime() + 1_000),
-    });
-    const secondMessage = mailSender.messages[1];
-    const secondToken = new URL(secondMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
+    })).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
+    expect(mailSender.messages).toHaveLength(1);
     await expect(auth.verifyEmail({
       token: firstToken,
-      newPassword: "mailbox proven password1!",
-      newPasswordConfirmation: "mailbox proven password1!",
-      now: new Date(now.getTime() + 2_000),
-    }))
-      .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
-    await expect(auth.verifyEmail({
-      token: secondToken,
       newPassword: "mailbox proven password1!",
       newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
@@ -501,7 +487,7 @@ describe("Postgres auth repository", () => {
     })).resolves.not.toBeNull();
 
     await auth.requestPasswordReset({ email: "owner@example.com", now: new Date(now.getTime() + 3_000) });
-    const resetMessage = mailSender.messages[2];
+    const resetMessage = mailSender.messages[1];
     const resetToken = new URL(resetMessage?.actionUrl ?? "https://invalid.local").searchParams.get("token") ?? "";
     await expect(auth.resetPasswordWithToken({
       token: resetToken,
@@ -517,10 +503,10 @@ describe("Postgres auth repository", () => {
     })).rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
   });
 
-  it("rejects verification tokens from a stale concurrent pending signup", async () => {
+  it("keeps the first pending account unchanged after a duplicate create", async () => {
     const client = new FakePostgresAuthClient();
     const repository = new PostgresAuthRepository(client);
-    const initial = await repository.createOrReplacePendingAccount({
+    const initial = await repository.createPendingAccount({
       id: "acct_owner",
       email: "owner@example.com",
       passwordHash: "attacker hash",
@@ -536,46 +522,18 @@ describe("Postgres auth repository", () => {
       expectedCredentialVersion: credentialVersionOf(initial),
     });
 
-    const stale = await repository.createOrReplacePendingAccount({
+    const duplicate = await repository.createPendingAccount({
       id: "acct_stale",
       email: "owner@example.com",
       passwordHash: "stale attacker hash",
       now: new Date(now.getTime() + 1_000),
     });
-    const current = await repository.createOrReplacePendingAccount({
-      id: "acct_current",
-      email: "owner@example.com",
-      passwordHash: "victim hash",
-      now: new Date(now.getTime() + 2_000),
-    });
 
-    await expect(repository.replaceAuthToken({
-      id: "token_stale",
-      accountId: stale.account.id,
-      purpose: "email_verification",
-      tokenHash: "stale token hash",
-      createdAt: new Date(now.getTime() + 1_000),
-      expiresAt: new Date(now.getTime() + 61_000),
-      expectedCredentialVersion: credentialVersionOf(stale),
-    })).resolves.toBeNull();
-    await expect(repository.replaceAuthToken({
-      id: "token_current",
-      accountId: current.account.id,
-      purpose: "email_verification",
-      tokenHash: "current token hash",
-      createdAt: new Date(now.getTime() + 2_000),
-      expiresAt: new Date(now.getTime() + 62_000),
-      expectedCredentialVersion: credentialVersionOf(current),
-    })).resolves.not.toBeNull();
+    expect(duplicate).toEqual({ account: initial.account, status: "existing" });
     await expect(repository.verifyEmailAndSetPasswordByToken({
       tokenHash: "initial token hash",
       passwordHash: "mailbox proven hash",
-      now: new Date(now.getTime() + 3_000),
-    })).resolves.toBeNull();
-    await expect(repository.verifyEmailAndSetPasswordByToken({
-      tokenHash: "current token hash",
-      passwordHash: "mailbox proven hash",
-      now: new Date(now.getTime() + 3_000),
+      now: new Date(now.getTime() + 2_000),
     })).resolves.not.toBeNull();
     await expect(repository.findAccountCredentialByEmail("owner@example.com"))
       .resolves.toMatchObject({ passwordHash: "mailbox proven hash" });

@@ -4,7 +4,7 @@ import type {
   AuthTokenRecord,
   CreateAccountRecordInput,
   CreateCredentialSessionRecordInput,
-  CreateOrReplacePendingAccountInput,
+  CreatePendingAccountInput,
   CreateSessionRecordInput,
   FindUsableAuthTokenInput,
   PasswordReplacementResult,
@@ -27,7 +27,7 @@ export interface AuthTokenFinalizer {
 
 export interface AuthRepository extends AuthTokenFinalizer {
   createAccount(input: CreateAccountRecordInput): MaybePromise<AccountRecord>;
-  createOrReplacePendingAccount(input: CreateOrReplacePendingAccountInput): MaybePromise<PendingAccountRegistrationResult>;
+  createPendingAccount(input: CreatePendingAccountInput): MaybePromise<PendingAccountRegistrationResult>;
   findAccountCredentialByEmail(normalizedEmail: string): MaybePromise<AccountCredentialRecord | null>;
   findAccountById(accountId: string): MaybePromise<AccountRecord | null>;
   createSession(input: CreateSessionRecordInput): MaybePromise<SessionRecord>;

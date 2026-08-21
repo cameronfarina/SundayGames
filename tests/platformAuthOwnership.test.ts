@@ -10,7 +10,7 @@ import {
 const now = new Date("2026-08-11T13:00:00.000Z");
 const verificationTokenFrom = (url: string): string => new URL(url).searchParams.get("token") ?? "";
 const credentialVersionOf = (registration: PendingAccountRegistrationResult): number => {
-  if (registration.status === "verified") throw new Error("Expected a pending account registration.");
+  if (registration.status !== "created") throw new Error("Expected a new pending account registration.");
   return registration.credentialVersion;
 };
 
@@ -97,7 +97,7 @@ describe("email ownership and password recovery", () => {
     expect(new URL(mailSender.messages[0]!.actionUrl).searchParams.has("returnTo")).toBe(false);
   });
 
-  it("prevents an attacker-last signup password from surviving mailbox verification", async () => {
+  it("rejects duplicate pending signup without replacing mailbox verification", async () => {
     const repository = new InMemoryAuthRepository();
     const mailSender = new CapturingAuthMailSender();
     const auth = createAuthService({
@@ -109,22 +109,14 @@ describe("email ownership and password recovery", () => {
 
     await auth.createUser({ email: "owner@example.com", now });
     const firstToken = verificationTokenFrom(mailSender.messages[0]!.actionUrl);
-    await auth.createUser({
+    await expect(auth.createUser({
       email: " OWNER@example.com ",
       now: new Date(now.getTime() + 1_000),
-    });
-    const secondToken = verificationTokenFrom(mailSender.messages[1]!.actionUrl);
+    })).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
 
-    expect(secondToken).not.toBe(firstToken);
-    await expect(auth.verifyEmail({
-      token: firstToken,
-      newPassword: "mailbox proven password1!",
-      newPasswordConfirmation: "mailbox proven password1!",
-      now: new Date(now.getTime() + 2_000),
-    }))
-      .rejects.toThrow(new AuthError("invalid_or_expired_token", "This link is invalid or has expired."));
+    expect(mailSender.messages).toHaveLength(1);
     await auth.verifyEmail({
-      token: secondToken,
+      token: firstToken,
       newPassword: "mailbox proven password1!",
       newPasswordConfirmation: "mailbox proven password1!",
       now: new Date(now.getTime() + 2_000),
@@ -145,11 +137,11 @@ describe("email ownership and password recovery", () => {
       now: new Date(now.getTime() + 3_000),
     })).resolves.not.toBeNull();
 
-    await auth.createUser({
+    await expect(auth.createUser({
       email: "owner@example.com",
       now: new Date(now.getTime() + 4_000),
-    });
-    expect(mailSender.messages).toHaveLength(2);
+    })).rejects.toThrow(new AuthError("duplicate_email", "An account with this email already exists."));
+    expect(mailSender.messages).toHaveLength(1);
     await expect(auth.login({
       email: "owner@example.com",
       password: "mailbox proven password1!",
@@ -162,9 +154,9 @@ describe("email ownership and password recovery", () => {
     })).resolves.toBeNull();
   });
 
-  it("rejects verification tokens from a stale concurrent pending signup", () => {
+  it("keeps the first pending account unchanged after a duplicate create", () => {
     const repository = new InMemoryAuthRepository();
-    const initial = repository.createOrReplacePendingAccount({
+    const initial = repository.createPendingAccount({
       id: "acct_owner",
       email: "owner@example.com",
       passwordHash: "attacker hash",
@@ -180,46 +172,18 @@ describe("email ownership and password recovery", () => {
       expectedCredentialVersion: credentialVersionOf(initial),
     });
 
-    const stale = repository.createOrReplacePendingAccount({
+    const duplicate = repository.createPendingAccount({
       id: "acct_stale",
       email: "owner@example.com",
       passwordHash: "stale attacker hash",
       now: new Date(now.getTime() + 1_000),
     });
-    const current = repository.createOrReplacePendingAccount({
-      id: "acct_current",
-      email: "owner@example.com",
-      passwordHash: "victim hash",
-      now: new Date(now.getTime() + 2_000),
-    });
 
-    expect(repository.replaceAuthToken({
-      id: "token_stale",
-      accountId: stale.account.id,
-      purpose: "email_verification",
-      tokenHash: "stale token hash",
-      createdAt: new Date(now.getTime() + 1_000),
-      expiresAt: new Date(now.getTime() + 61_000),
-      expectedCredentialVersion: credentialVersionOf(stale),
-    })).toBeNull();
-    expect(repository.replaceAuthToken({
-      id: "token_current",
-      accountId: current.account.id,
-      purpose: "email_verification",
-      tokenHash: "current token hash",
-      createdAt: new Date(now.getTime() + 2_000),
-      expiresAt: new Date(now.getTime() + 62_000),
-      expectedCredentialVersion: credentialVersionOf(current),
-    })).not.toBeNull();
+    expect(duplicate).toEqual({ account: initial.account, status: "existing" });
     expect(repository.verifyEmailAndSetPasswordByToken({
       tokenHash: "initial token hash",
       passwordHash: "mailbox proven hash",
-      now: new Date(now.getTime() + 3_000),
-    })).toBeNull();
-    expect(repository.verifyEmailAndSetPasswordByToken({
-      tokenHash: "current token hash",
-      passwordHash: "mailbox proven hash",
-      now: new Date(now.getTime() + 3_000),
+      now: new Date(now.getTime() + 2_000),
     })).not.toBeNull();
     expect(repository.findAccountCredentialByEmail("owner@example.com")?.passwordHash)
       .toBe("mailbox proven hash");

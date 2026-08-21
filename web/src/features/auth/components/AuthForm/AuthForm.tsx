@@ -82,7 +82,10 @@ export const AuthForm = (props: AuthFormProps) => {
     authentication.mutate();
   };
   const error = authentication.error;
-  const verificationLink = error instanceof PlatformApiError && error.code === "email_unverified"
+  const needsVerificationLink = error instanceof PlatformApiError && (
+    error.code === "email_unverified" || (mode === "signup" && error.code === "duplicate_email")
+  );
+  const verificationLink = needsVerificationLink
     ? `/verify-email?email=${encodeURIComponent(email)}&returnTo=${encodeURIComponent(returnTo)}`
     : undefined;
   const passwordGuidanceId = mode === "signup" ? "auth-password-guidance" : undefined;

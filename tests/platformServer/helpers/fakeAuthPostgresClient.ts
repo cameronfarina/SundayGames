@@ -83,6 +83,10 @@ export class FakePostgresAuthClient implements PostgresQueryClient {
       return { rows: [cloneAccountOnboardingRow(row)], rowCount: 1 };
     }
 
+    if (normalizedSql.startsWith("DELETE FROM account_onboarding_profiles AS profile")) {
+      return { rows: [], rowCount: 0 };
+    }
+
     if (normalizedSql.startsWith("INSERT INTO accounts")) {
       const id = stringValueAt(values, 0);
       const email = stringValueAt(values, 1);

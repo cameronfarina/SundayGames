@@ -20,7 +20,7 @@ describe("signup API", () => {
       }, 201))
       .mockResolvedValueOnce(jsonResponse({
         accepted: true,
-        message: "If this email can be registered, a verification link is on its way.",
+        message: "Check your email for a verification link to finish your account.",
       }, 202));
 
     await expect(createAccount({

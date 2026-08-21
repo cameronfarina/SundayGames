@@ -30,24 +30,25 @@ export const createUser = async (
   }
 
   const passwordHash = await createPendingPasswordHash(context.passwordHasher);
-  const registration = await context.repository.createOrReplacePendingAccount({
+  const registration = await context.repository.createPendingAccount({
     id: createId("acct"),
     email: normalizedEmail,
     passwordHash,
     now,
   });
-  if (registration.status !== "verified") {
-    await sendAuthAction({
-      repository: context.repository,
-      mailSender: context.mailSender,
-      publicBaseUrl: context.publicBaseUrl,
-      account: registration.account,
-      purpose: "email_verification",
-      returnTo: input.verificationReturnTo,
-      now,
-      ttlMs: context.verificationTokenTtlMs,
-      expectedCredentialVersion: registration.credentialVersion,
-    });
+  if (registration.status === "existing") {
+    throw new AuthError("duplicate_email", "An account with this email already exists.");
   }
+  await sendAuthAction({
+    repository: context.repository,
+    mailSender: context.mailSender,
+    publicBaseUrl: context.publicBaseUrl,
+    account: registration.account,
+    purpose: "email_verification",
+    returnTo: input.verificationReturnTo,
+    now,
+    ttlMs: context.verificationTokenTtlMs,
+    expectedCredentialVersion: registration.credentialVersion,
+  });
   return registration.account;
 };

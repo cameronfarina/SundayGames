@@ -135,7 +135,7 @@ describe("AuthForm", () => {
       .mockResolvedValueOnce(jsonResponse({ passwordRequired: false }))
       .mockResolvedValueOnce(jsonResponse({
         accepted: true,
-        message: "If this email can be registered, a verification link is on its way.",
+        message: "Check your email for a verification link to finish your account.",
       }, 202));
     vi.stubGlobal("fetch", fetcher);
     const { queryClient } = mountRoute("/signup?returnTo=%2Finvite%3Ftoken%3Dleague-token");
@@ -152,5 +152,24 @@ describe("AuthForm", () => {
     expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();
     expect(screen.getByRole("link", { name: "Sign in" }))
       .toHaveAttribute("href", "/login?returnTo=%2Finvite%3Ftoken%3Dleague-token");
+  });
+
+  it("identifies an existing signup and offers verification recovery", async () => {
+    vi.stubGlobal("fetch", vi.fn<PlatformFetch>()
+      .mockResolvedValueOnce(jsonResponse({ passwordRequired: false }))
+      .mockResolvedValueOnce(jsonResponse({
+        error: {
+          code: "duplicate_email",
+          message: "An account with this email already exists.",
+        },
+      }, 409)));
+    mountRoute("/signup?returnTo=%2Fpractice");
+
+    await userEvent.type(await screen.findByRole("textbox", { name: "Email" }), "cam@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("An account with this email already exists.");
+    expect(screen.getByRole("link", { name: "Resend verification" }))
+      .toHaveAttribute("href", "/verify-email?email=cam%40example.com&returnTo=%2Fpractice");
   });
 });

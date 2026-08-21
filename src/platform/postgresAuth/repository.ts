@@ -6,7 +6,7 @@ import type {
   AuthTokenRecord,
   CreateAccountRecordInput,
   CreateCredentialSessionRecordInput,
-  CreateOrReplacePendingAccountInput,
+  CreatePendingAccountInput,
   CreateSessionRecordInput,
   FindUsableAuthTokenInput,
   PasswordReplacementResult,
@@ -20,7 +20,7 @@ import type {
   VerifyEmailByTokenInput,
 } from "../auth.js";
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
-import { createAccount, createOrReplacePendingAccount } from "./accountCreation.js";
+import { createAccount, createPendingAccount } from "./accountCreation.js";
 import { findAccountById, findAccountCredentialByEmail } from "./accountQueries.js";
 import { replaceDisplayName } from "./displayName.js";
 import { replacePasswordAndRevokeSessions } from "./passwordReplacement.js";
@@ -43,10 +43,10 @@ export class PostgresAuthRepository implements AuthRepository {
     return await createAccount(this.#client, input);
   }
 
-  async createOrReplacePendingAccount(
-    input: CreateOrReplacePendingAccountInput,
+  async createPendingAccount(
+    input: CreatePendingAccountInput,
   ): Promise<PendingAccountRegistrationResult> {
-    return await createOrReplacePendingAccount(this.#client, input);
+    return await createPendingAccount(this.#client, input);
   }
 
   async findAccountCredentialByEmail(email: string): Promise<AccountCredentialRecord | null> {
