@@ -65,7 +65,7 @@ To change where local data is written, set `MOCKD_PLATFORM_DATA_FILE` or
 
 ## Tests and checks
 
-Run this before every push. It runs what CI runs, in the same order:
+Run this before a risky push when you want the complete local gate:
 
 ```bash
 npm run verify
@@ -96,8 +96,13 @@ Many tests pin exact user-facing strings. When you change wording, search
 
 Production runs on Render from the `Dockerfile`.
 
-Push to `main` and the pipeline takes over: CI runs, and Render starts the
-deploy only after every linked check passes. A deploy takes a few minutes.
+Open a pull request and enable auto-merge. Four required checks run in
+parallel: web quality, server quality, local browser smoke, and the production
+image/Postgres boot. GitHub merges immediately after all four pass.
+
+`main` does not repeat those expensive checks. Its release gate only confirms
+that the commit came from a tested pull request merge, then Render starts the
+deploy. Dependency auditing runs daily instead of delaying every feature PR.
 
 The start command lives in the Dockerfile `CMD`, not in `render.yaml`. Render
 mis-parses compound commands there, so leave `dockerCommand` unset.

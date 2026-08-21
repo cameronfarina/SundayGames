@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: true
+
+jobs:
+  release-gate:
+    name: Release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require a tested pull request merge
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          case "$COMMIT_MESSAGE" in
+            "Merge pull request #"*) ;;
+            *)
+              echo "main releases must come from a tested pull request merge"
+              exit 1
+              ;;
+          esac

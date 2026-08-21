@@ -576,7 +576,7 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | Area | Go condition |
 | --- | --- |
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
-| Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
+| Deploy | The protected pull request passes Web quality, Server quality, Local end-to-end smoke, and Production image and Postgres boot; auto-merge lands it; the `main` Release gate passes; and staging `npm run test:e2e:deployed -- --base-url=...` passes when a staging release is required. |
 | Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, readiness reports no missing migrations through `platform-account-onboarding-rollout-v28` in v24→v25→v26→v27→v28 order, authentication and normalized leagues share that database, and `league_season_draft_setups` plus `account_onboarding_profiles` exist. |
 | Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, the active ESPN credential key id and retained keyring, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
