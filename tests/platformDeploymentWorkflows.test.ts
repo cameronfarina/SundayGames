@@ -71,6 +71,44 @@ describe("production deployment workflows", () => {
     expect(content).not.toContain("render.com/schema/render.yaml.json");
   });
 
+  it("runs correctness checks once on pull requests and in parallel", async () => {
+    const content = await workflow("ci.yml");
+
+    expect(content).toContain("pull_request:");
+    expect(content).not.toContain("push:");
+    expect(content).toContain("name: Web quality");
+    expect(content).toContain("name: Server quality");
+    expect(content).toContain("name: Local end-to-end smoke");
+    expect(content).toContain("name: Production image and Postgres boot");
+    expect(content).toContain("run: npm run verify:web");
+    expect(content).toContain("run: npm run build:server");
+    expect(content).toContain("run: npm run build:web");
+    expect(content).toContain("run: npm test");
+    expect(content.match(/run: npm run build\n/g)).toHaveLength(1);
+    expect(content).not.toContain("npm audit");
+  });
+
+  it("uses a fast main-branch release gate instead of repeating PR checks", async () => {
+    const content = await workflow("release-gate.yml");
+
+    expect(content).toContain("push:");
+    expect(content).toContain("- main");
+    expect(content).toContain("name: Release gate");
+    expect(content).toContain("Merge pull request #");
+    expect(content).not.toContain("actions/checkout");
+    expect(content).not.toContain("npm ci");
+    expect(content).not.toContain("npm test");
+  });
+
+  it("audits dependencies on a schedule without delaying ordinary PRs", async () => {
+    const content = await workflow("dependency-audit.yml");
+
+    expect(content).toContain("schedule:");
+    expect(content).toContain("workflow_dispatch:");
+    expect(content).not.toContain("pull_request:");
+    expect(content).toContain("npm audit --audit-level=high");
+  });
+
   it("does not roll back production when a commit fails before deployment", async () => {
     const content = await workflow("ci.yml");
 
