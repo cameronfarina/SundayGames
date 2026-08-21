@@ -10,7 +10,14 @@ import type {
 } from "./contracts.js";
 import { platformSchemaMigrations } from "./definitions.js";
 import { createPlatformSchemaMigrationsTableSql } from "./findMissingMigrations.js";
-import { platformMigrationAdvisoryLockKeys } from "./ids.js";
+import {
+  accountOnboardingRolloutMigrationId,
+  platformMigrationAdvisoryLockKeys,
+} from "./ids.js";
+
+interface ApplyPlatformPostgresMigrationsOptions {
+  includeAccountOnboardingRollout?: boolean | undefined;
+}
 
 const applyMigration = async (
   client: PostgresQueryClient,
@@ -33,6 +40,7 @@ const applyMigration = async (
 
 export const applyPlatformPostgresMigrations = async (
   client: PostgresTransactionalQueryClient,
+  options: ApplyPlatformPostgresMigrationsOptions = {},
 ): Promise<ApplyPlatformPostgresMigrationsResult> => {
   return await client.transaction(async transactionClient => {
     await transactionClient.query(
@@ -44,6 +52,12 @@ export const applyPlatformPostgresMigrations = async (
     let statementCount = 0;
 
     for (const migration of platformSchemaMigrations) {
+      if (
+        options.includeAccountOnboardingRollout === false &&
+        migration.id === accountOnboardingRolloutMigrationId
+      ) {
+        continue;
+      }
       statementCount += await applyMigration(transactionClient, migration);
     }
     return { statementCount };

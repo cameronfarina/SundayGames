@@ -6,7 +6,7 @@ export { CapturingSignupNotifier } from "./auth/signupNotifierContracts.js";
 export type { SignupNotification, SignupNotifier } from "./auth/signupNotifierContracts.js";
 export { createSessionToken, hashAuthToken, hashPassword, hashSessionToken, normalizeEmail, verifyPassword } from "./auth/primitives.js";
 export type { AuthRepository, AuthTokenFinalizer } from "./auth/repositoryContracts.js";
-export type { AccountCredentialRecord, AccountRecord, AuthTokenPurpose, AuthTokenRecord, ConsumeAuthTokenInput, CreateAccountRecordInput, CreateCredentialSessionRecordInput, CreateOrReplacePendingAccountInput, CreateSessionRecordInput, FindUsableAuthTokenInput, PasswordReplacementResult, PendingAccountRegistrationResult, ReplaceAuthTokenInput, ReplaceDisplayNameInput, ReplacePasswordInput, ResetPasswordByTokenInput, SessionRecord, UpgradePasswordHashInput, VerifyEmailByTokenInput } from "./auth/records.js";
+export type { AccountCredentialRecord, AccountRecord, AuthTokenPurpose, AuthTokenRecord, ConsumeAuthTokenInput, CreateAccountRecordInput, CreateCredentialSessionRecordInput, CreatePendingAccountInput, CreateSessionRecordInput, FindUsableAuthTokenInput, PasswordReplacementResult, PendingAccountRegistrationResult, ReplaceAuthTokenInput, ReplaceDisplayNameInput, ReplacePasswordInput, ResetPasswordByTokenInput, SessionRecord, UpgradePasswordHashInput, VerifyEmailByTokenInput } from "./auth/records.js";
 export { InMemoryAuthRepository } from "./auth/inMemory/repository.js";
 export { createAuthService } from "./auth/service/createAuthService.js";
 export { maximumDisplayNameCharacters, validatedDisplayName } from "./auth/service/displayName.js";

@@ -65,6 +65,7 @@ interface DeliveryPrivacyCase {
   label: string;
   purpose: "email_verification" | "password_reset";
   expectedBody: object;
+  requestForRetry?: (attempt: number) => PlatformHttpRequest;
   prepareRequest: (
     handle: PlatformHttpHandler,
     mailSender: ControllableAuthMailSender,
@@ -89,13 +90,19 @@ const cases: readonly DeliveryPrivacyCase[] = [
     purpose: "email_verification",
     expectedBody: {
       accepted: true,
-      message: "If this email can be registered, a verification link is on its way.",
+      message: "Check your email for a verification link to finish your account.",
     },
     prepareRequest: async () => ({
       method: "POST",
       path: "/accounts",
       now,
-      body: { email: "signup@example.com" },
+      body: { email: "signup-0@example.com" },
+    }),
+    requestForRetry: attempt => ({
+      method: "POST",
+      path: "/accounts",
+      now: new Date(now.getTime() + attempt),
+      body: { email: `signup-${String(attempt)}@example.com` },
     }),
   },
   {
@@ -196,13 +203,16 @@ describe("generic authentication email responses", () => {
       expect(observedResponse).toEqual({ status: 202, body: testCase.expectedBody });
       expect(unhandledRejections).toEqual([]);
       const deliveryCount = mailSender.messages.length;
-      await expect(handle(request)).resolves.toEqual({ status: 202, body: testCase.expectedBody });
+      const retryRequest = testCase.requestForRetry?.(1) ?? request;
+      await expect(handle(retryRequest)).resolves.toEqual({ status: 202, body: testCase.expectedBody });
       expect(mailSender.messages).toHaveLength(deliveryCount + 1);
 
       mailSender.failNextSynchronously(new Error(
         "owner@example.com https://mockd.example.com/reset-password?token=secret-token",
       ));
-      await expect(handle(request)).resolves.toEqual({ status: 202, body: testCase.expectedBody });
+      const synchronousFailureRequest = testCase.requestForRetry?.(2) ?? request;
+      await expect(handle(synchronousFailureRequest))
+        .resolves.toEqual({ status: 202, body: testCase.expectedBody });
       await nextTurn();
 
       expect(loggedErrors).toHaveBeenCalledTimes(2);

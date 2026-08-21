@@ -41,11 +41,11 @@ export interface CreateAccountRecordInput {
   now: Date;
 }
 
-export interface CreateOrReplacePendingAccountInput extends CreateAccountRecordInput {}
+export interface CreatePendingAccountInput extends CreateAccountRecordInput {}
 
 export type PendingAccountRegistrationResult =
-  | { account: AccountRecord; status: "created" | "reissued"; credentialVersion: number }
-  | { account: AccountRecord; status: "verified" };
+  | { account: AccountRecord; status: "created"; credentialVersion: number }
+  | { account: AccountRecord; status: "existing" };
 
 export interface ReplaceAuthTokenInput {
   id: string;

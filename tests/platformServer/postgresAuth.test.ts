@@ -17,6 +17,9 @@ describePlatformServer(({ createListeningServer, servers }) => {
     expect(postgresAuthClient.statements.some(statement =>
       normalizeSql(statement).startsWith("CREATE TABLE accounts")
     )).toBe(true);
+    expect(postgresAuthClient.statements.some(statement =>
+      normalizeSql(statement).startsWith("DELETE FROM account_onboarding_profiles")
+    )).toBe(false);
 
     const created = await jsonFetch(baseUrl, "/accounts", {
       method: "POST",
@@ -36,6 +39,36 @@ describePlatformServer(({ createListeningServer, servers }) => {
       },
     });
     expect(postgresAuthClient.accounts.size).toBe(1);
+  });
+
+  it("runs the onboarding rollout only when auth and league ownership share one database", async () => {
+    const postgresClient = new FakeTransactionalPostgresAuthClient();
+    await createListeningServer({
+      postgresAuthClient: postgresClient,
+      postgresLeagueSetupClient: postgresClient,
+      initializePostgresSchema: true,
+    });
+
+    expect(postgresClient.statements.some(statement =>
+      normalizeSql(statement).startsWith("DELETE FROM account_onboarding_profiles")
+    )).toBe(true);
+  });
+
+  it("skips the onboarding rollout when auth and league ownership use different databases", async () => {
+    const postgresAuthClient = new FakeTransactionalPostgresAuthClient();
+    const postgresLeagueSetupClient = new FakeTransactionalPostgresAuthClient();
+    await createListeningServer({
+      postgresAuthClient,
+      postgresLeagueSetupClient,
+      initializePostgresSchema: true,
+    });
+
+    expect(postgresAuthClient.statements.some(statement =>
+      normalizeSql(statement).startsWith("DELETE FROM account_onboarding_profiles")
+    )).toBe(false);
+    expect(postgresLeagueSetupClient.statements.some(statement =>
+      normalizeSql(statement).startsWith("DELETE FROM account_onboarding_profiles")
+    )).toBe(false);
   });
 
   it("scrubs stale snapshot auth when Postgres auth owns runtime accounts and sessions", async () => {

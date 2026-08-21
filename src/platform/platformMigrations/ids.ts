@@ -26,6 +26,8 @@ export const practicePersistenceMigrationId = "platform-practice-persistence-v25
 export const browserSimulationLifecycleMigrationId =
   "platform-browser-simulation-lifecycle-v26";
 export const accountOnboardingMigrationId = "platform-account-onboarding-v27";
+export const accountOnboardingRolloutMigrationId =
+  "platform-account-onboarding-rollout-v28";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

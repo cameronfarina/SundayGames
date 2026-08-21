@@ -69,9 +69,59 @@ describe("platform signup mode", () => {
       status: 202,
       body: {
         accepted: true,
-        message: "If this email can be registered, a verification link is on its way.",
+        message: "Check your email for a verification link to finish your account.",
       },
     });
     expect(mailSender.messages[0]?.actionUrl).toContain("returnTo=%2Finvite%3Ftoken%3Dleague-invite");
+  });
+
+  it("reports an existing verification account without replacing its active link", async () => {
+    const mailSender = new CapturingAuthMailSender();
+    const app = createPlatformApp({
+      authEmail: {
+        mailSender,
+        publicBaseUrl: "https://mockd.example.com",
+        verificationRequired: true,
+      },
+      store: new InMemoryPlatformStore(),
+      simulationRunner: mockRunner,
+    });
+    const handle = createPlatformHttpHandler(app, { emailVerificationRequired: true });
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      body: { email: "owner@example.com", returnTo: "/practice" },
+      now,
+    })).resolves.toMatchObject({ status: 202 });
+    const firstActionUrl = mailSender.messages[0]?.actionUrl ?? "";
+
+    await expect(handle({
+      method: "POST",
+      path: "/accounts",
+      body: { email: "owner@example.com", returnTo: "/practice" },
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toEqual({
+      status: 409,
+      body: {
+        error: {
+          code: "duplicate_email",
+          message: "An account with this email already exists.",
+        },
+      },
+    });
+    expect(mailSender.messages).toHaveLength(1);
+
+    const token = new URL(firstActionUrl).searchParams.get("token");
+    await expect(handle({
+      method: "POST",
+      path: "/email-verifications/consume",
+      body: {
+        token,
+        newPassword: "secure password1!",
+        newPasswordConfirmation: "secure password1!",
+      },
+      now: new Date(now.getTime() + 2_000),
+    })).resolves.toEqual({ status: 200, body: { verified: true } });
   });
 });

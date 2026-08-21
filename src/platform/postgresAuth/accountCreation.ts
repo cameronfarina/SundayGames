@@ -2,7 +2,7 @@ import {
   AuthError,
   type AccountRecord,
   type CreateAccountRecordInput,
-  type CreateOrReplacePendingAccountInput,
+  type CreatePendingAccountInput,
   type PendingAccountRegistrationResult,
 } from "../auth.js";
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
@@ -37,22 +37,17 @@ RETURNING id, email, display_name, password_hash, email_verified_at, status, cre
   return accountFromRow(row);
 };
 
-export const createOrReplacePendingAccount = async (
+export const createPendingAccount = async (
   client: PostgresQueryClient,
-  input: CreateOrReplacePendingAccountInput,
+  input: CreatePendingAccountInput,
 ): Promise<PendingAccountRegistrationResult> => {
   const result = await client.query<PendingAccountRow>(
     `
 INSERT INTO accounts (
   id, email, email_normalized, password_hash, email_verified_at, created_at, updated_at
 ) VALUES ($1, $2, $2, $3, NULL, $4, $4)
-ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO UPDATE
-SET password_hash = EXCLUDED.password_hash,
-    auth_version = accounts.auth_version + 1,
-    updated_at = EXCLUDED.updated_at
-WHERE accounts.email_verified_at IS NULL
-RETURNING id, email, display_name, password_hash, email_verified_at, auth_version, status, created_at, updated_at,
-  (xmax = 0) AS was_inserted;
+ON CONFLICT ON CONSTRAINT accounts_email_normalized_key DO NOTHING
+RETURNING id, email, display_name, password_hash, email_verified_at, auth_version, status, created_at, updated_at;
 `.trim(),
     [input.id, input.email, input.passwordHash, input.now],
   );
@@ -60,11 +55,11 @@ RETURNING id, email, display_name, password_hash, email_verified_at, auth_versio
   if (row !== undefined) {
     return {
       account: accountFromRow(row),
-      status: row.was_inserted ? "created" : "reissued",
+      status: "created",
       credentialVersion: credentialVersionFromDb(row.auth_version),
     };
   }
   const existing = await findAccountCredentialByEmail(client, input.email);
-  if (existing === null) throw new Error("Postgres pending account upsert did not return an account.");
-  return { account: existing.account, status: "verified" };
+  if (existing === null) throw new Error("Postgres pending account insert did not find the conflicting account.");
+  return { account: existing.account, status: "existing" };
 };

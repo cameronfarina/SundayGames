@@ -24,6 +24,10 @@ export const initializePostgresSchemas = async (
 ): Promise<void> => {
   if (options.initializePostgresSchema !== true) return;
   const migratedClients = new Set<PostgresTransactionalQueryClient>();
+  const accountOnboardingRolloutClient = options.postgresAuthClient ===
+      options.postgresLeagueSetupClient
+    ? options.postgresAuthClient
+    : undefined;
   const candidates = [
     options.postgresClient,
     options.postgresAuthClient,
@@ -38,7 +42,9 @@ export const initializePostgresSchemas = async (
     if (client === undefined || !isTransactionalPostgresClient(client) || migratedClients.has(client)) {
       continue;
     }
-    await applyPlatformPostgresMigrations(client);
+    await applyPlatformPostgresMigrations(client, {
+      includeAccountOnboardingRollout: client === accountOnboardingRolloutClient,
+    });
     migratedClients.add(client);
   }
 };

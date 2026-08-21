@@ -41,7 +41,7 @@ export const routeAuth = async (
       now: request.now,
     });
     return services.emailVerificationRequired === true
-      ? { status: 202, body: { accepted: true, message: "If this email can be registered, a verification link is on its way." } }
+      ? { status: 202, body: { accepted: true, message: "Check your email for a verification link to finish your account." } }
       : { status: 201, body: { account } };
   }
   if (root === "email-verifications" && request.segments.length === 1) {

@@ -5,7 +5,7 @@ import type {
   AuthTokenRecord,
   CreateAccountRecordInput,
   CreateCredentialSessionRecordInput,
-  CreateOrReplacePendingAccountInput,
+  CreatePendingAccountInput,
   CreateSessionRecordInput,
   FindUsableAuthTokenInput,
   PasswordReplacementResult,
@@ -18,7 +18,7 @@ import type {
   UpgradePasswordHashInput,
   VerifyEmailByTokenInput,
 } from "../records.js";
-import { createAccount, createOrReplacePendingAccount, findAccountById, findAccountCredentialByEmail, replaceDisplayName } from "./accounts.js";
+import { createAccount, createPendingAccount, findAccountById, findAccountCredentialByEmail, replaceDisplayName } from "./accounts.js";
 import { replacePasswordAndRevokeSessions, upgradePasswordHash } from "./passwords.js";
 import { createSession, createSessionForCredential, findSessionById, findSessionByTokenHash, revokeSession } from "./sessions.js";
 import { InMemoryAuthState } from "./state.js";
@@ -28,8 +28,8 @@ export class InMemoryAuthRepository implements AuthRepository {
   readonly #state = new InMemoryAuthState();
 
   createAccount(input: CreateAccountRecordInput): AccountRecord { return createAccount(this.#state, input); }
-  createOrReplacePendingAccount(input: CreateOrReplacePendingAccountInput): PendingAccountRegistrationResult {
-    return createOrReplacePendingAccount(this.#state, input);
+  createPendingAccount(input: CreatePendingAccountInput): PendingAccountRegistrationResult {
+    return createPendingAccount(this.#state, input);
   }
   findAccountCredentialByEmail(email: string): AccountCredentialRecord | null {
     return findAccountCredentialByEmail(this.#state, email);

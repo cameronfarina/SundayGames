@@ -10,7 +10,6 @@ export interface AccountRow {
 }
 
 export interface PendingAccountRow extends AccountRow {
-  was_inserted: boolean;
   auth_version: string | number;
 }
 

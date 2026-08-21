@@ -29,7 +29,7 @@ higher.
 
 Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
-The practice-persistence release reserves `platform-practice-persistence-v25`, browser-simulation lifecycle cleanup uses `platform-browser-simulation-lifecycle-v26`, and account onboarding uses `platform-account-onboarding-v27`. Verify the migration ledger order is v23, v24, v25, v26, then v27. Do not renumber these migrations or deploy a migration list that skips one.
+The practice-persistence release reserves `platform-practice-persistence-v25`, browser-simulation lifecycle cleanup uses `platform-browser-simulation-lifecycle-v26`, account onboarding uses `platform-account-onboarding-v27`, and the targeted onboarding rollout uses `platform-account-onboarding-rollout-v28`. Verify the migration ledger order is v23, v24, v25, v26, v27, then v28. Do not renumber these migrations or deploy a migration list that skips one.
 
 ## Validate The Blueprint
 
@@ -72,7 +72,7 @@ Do not add the public domain yet. Use the generated `onrender.com` hostname for 
 
 Create a commissioner account through the public signup flow, open the verification email, and sign in only after verification succeeds. Exercise **Forgot password** once and confirm the reset link is single-use. Then create a temporary staging league from the product. Do not run `platform:seed:e2e` against production.
 
-The new account must see the required welcome wizard on its first authenticated product page. Confirm that Escape, the backdrop, and a refresh cannot bypass the two questions. Submit the first answer, refresh, and confirm the wizard resumes at the league-host question. Finish setup and confirm it stays complete after another refresh. Sign in with an account created before migration v27 and confirm that the backfill exempts it from the wizard.
+The new account must see the required welcome wizard on its first authenticated product page. Confirm that Escape, the backdrop, and a refresh cannot bypass the two questions. Submit the first answer, refresh, and confirm the wizard resumes at the league-host question. Finish setup and confirm it stays complete after another refresh. Confirm the v28 rollout reopens only auto-exempt accounts created during the five days before migration execution that have never created a league. Accounts outside that window, accounts with saved onboarding answers, and accounts that created a league must remain unchanged.
 
 After league creation, confirm the browser uses the public league slug, such as `/leagues/sunday-games/practice`. Internal season and room IDs must not appear in normal page URLs. Open one legacy ID-based link during staging and confirm the app replaces it with the matching slug URL without losing the selected page.
 
@@ -229,7 +229,7 @@ Before cutover, rollback to v23 is safe because dual writes keep its compatibili
 
 The v26 browser-simulation lifecycle migration follows v25 and is additive. It creates a partial status/creation-time index for the five-minute stale-launch reconciler. Each sweep uses a transaction advisory try-lock, so overlapping old and new web processes do not scan concurrently. Application rollback does not require a database restore.
 
-The v27 account-onboarding migration follows v26 and is additive. It creates `account_onboarding_profiles` in the authentication database and marks every account that already exists when the migration runs as complete. Accounts created afterward begin the required setup questions. The previous application ignores this table, so application rollback does not require a database restore; keep the table and roll forward when returning to the new release.
+The v27 account-onboarding migration follows v26 and is additive. It creates `account_onboarding_profiles` in the authentication database and initially marks every account that already exists when the migration runs as complete. The v28 rollout migration then removes that automatic exemption only for accounts created during the preceding five days that still have no onboarding answers and have never created a league. Run v28 only in the database that owns both authentication and normalized league records; automatic startup skips v28 when those owners are not the same Postgres client. The previous application ignores this table, so application rollback does not require a database restore. Rollback does not recreate exemptions removed by v28. Before any affected account answers the wizard, an operator can reverse the rollout by restoring completed profiles for the targeted account ids; after answers exist, keep those answers and roll forward.
 
 Automatic deploys remain enabled with `checksPass`, so an update to `main` deploys after its linked GitHub checks pass. Enforce the draft-day freeze by holding merges and direct pushes to `main`. For a documented incident response, merge the approved fix and let the checks-gated deploy run; start a manual deploy only when that incident procedure explicitly requires it.
 
