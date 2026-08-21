@@ -33,6 +33,8 @@ export const applyCommissionerSetup = async (
   await page.getByRole("button", { name: "Create and publish league" }).click();
   const copyInvitation = page.getByRole("button", { name: "Copy league invitation" });
   await expect(copyInvitation).toBeVisible();
+  await expect(page.locator(".commissioner-invitation__name")).toHaveCSS("display", "flex");
+  await expect(page.locator(".commissioner-invitation__name")).toHaveCSS("text-transform", "none");
   await copyInvitation.click();
   await expect(page.getByText("League link copied.", { exact: true })).toBeVisible();
   const invitationUrl = await page.evaluate(() => navigator.clipboard.readText());
@@ -69,7 +71,7 @@ export const createLiveRoomFromSetup = async (
   season: LeagueSeason,
 ): Promise<LiveDraftRoomReadModel> => {
   await createLiveRoomThroughWizard(page);
-  const enterRoom = page.getByRole("link", { name: "Enter draft room" });
+  const enterRoom = page.getByRole("link", { name: "Enter draft" });
   await expect(enterRoom).toBeVisible();
   const onboarding = expectOk(await api<OnboardingBody>(page, "/onboarding"));
   const roomId = onboarding.leagues.find(league => league.seasonId === season.id)?.liveDraft?.roomId;

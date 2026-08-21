@@ -22,12 +22,14 @@ interface SlotHeaderScan {
   position?: number;
   positionRank?: number;
   price?: number;
+  publicPrice?: number;
   seasonYear?: number;
-  namesAnOwnerOrPlayer: boolean;
+  namesAnOwner: boolean;
+  namesAPlayer: boolean;
 }
 
 const scanSlotHeaderRow = (headerRow: ParsedDelimitedRow): SlotHeaderScan => {
-  const scan: SlotHeaderScan = { namesAnOwnerOrPlayer: false };
+  const scan: SlotHeaderScan = { namesAnOwner: false, namesAPlayer: false };
   headerRow.cells.forEach((cell, cellIndex) => {
     const slotColumn = slotColumnForHeader(cell);
     if (slotColumn !== null) {
@@ -35,27 +37,37 @@ const scanSlotHeaderRow = (headerRow: ParsedDelimitedRow): SlotHeaderScan => {
       return;
     }
     const column = columnForHeader(cell);
-    if (column === "position" || column === "price" || column === "seasonYear") {
+    if (
+      column === "position"
+      || column === "price"
+      || column === "publicPrice"
+      || column === "seasonYear"
+    ) {
       scan[column] ??= cellIndex;
       return;
     }
-    if (column === "player" || column === "owner") scan.namesAnOwnerOrPlayer = true;
+    if (column === "owner") scan.namesAnOwner = true;
+    if (column === "player") scan.namesAPlayer = true;
   });
   return scan;
 };
 
 /**
- * A slot sheet says what a draft slot cost. It carries no owner column and no
- * player column, which is what separates it from the header-mapped layout.
+ * A slot sheet says what a draft slot cost. It carries no owner column. A
+ * player column is allowed beside position and rank because exported ranking
+ * sheets commonly name the player while still expressing a positional slot.
  */
 export const slotPriceHeaderIndex = (
   headerRow: ParsedDelimitedRow,
 ): SlotPriceHeaderIndex | null => {
   const scan = scanSlotHeaderRow(headerRow);
-  const { price, slot, position, positionRank, seasonYear } = scan;
-  if (scan.namesAnOwnerOrPlayer || price === undefined) return null;
-  const season = seasonYear === undefined ? {} : { seasonYear };
-  if (slot !== undefined) return { price, slot, ...season };
+  const { price, publicPrice, slot, position, positionRank, seasonYear } = scan;
+  if (scan.namesAnOwner || price === undefined) return null;
+  const optionalColumns = {
+    ...(publicPrice === undefined ? {} : { publicPrice }),
+    ...(seasonYear === undefined ? {} : { seasonYear }),
+  };
+  if (slot !== undefined && !scan.namesAPlayer) return { price, slot, ...optionalColumns };
   if (position === undefined || positionRank === undefined) return null;
-  return { price, position, positionRank, ...season };
+  return { price, position, positionRank, ...optionalColumns };
 };

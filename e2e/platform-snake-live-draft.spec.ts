@@ -102,7 +102,7 @@ test("commissioner opens a snake room and the manager on the clock makes a pick"
 
   await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
   await createLiveRoomThroughWizard(page);
-  const enterRoom = page.getByRole("link", { name: "Enter draft room" });
+  const enterRoom = page.getByRole("link", { name: "Enter draft" });
   await expect(enterRoom).toBeVisible();
   const onboarding = expectOk(await api<OnboardingBody>(page, "/onboarding"));
   const roomId = onboarding.leagues.find(league => league.seasonId === season.id)?.liveDraft?.roomId;

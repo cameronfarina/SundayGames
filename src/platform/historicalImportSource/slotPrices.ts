@@ -76,6 +76,9 @@ const normalizedSlotPriceRow = (
 ): NormalizedHistoricalImportRow => {
   const { position, positionRank, sourceLabel } = slotIdentityFor(row, index);
   const priceDollars = parsePriceDollars(cleanCell(row.cells[index.price]));
+  const suppliedPublicPrice = index.publicPrice === undefined
+    ? undefined
+    : parsePriceDollars(cleanCell(row.cells[index.publicPrice]));
   const seasonYear = index.seasonYear === undefined
     ? undefined
     : parseIntegerCell(cleanCell(row.cells[index.seasonYear]));
@@ -91,9 +94,8 @@ const normalizedSlotPriceRow = (
   // Kickers, defenses and the deep end of every position are worth nothing on
   // the published board, so those slots keep their price and stay out of the
   // calibration rather than claiming a published value of zero.
-  const publicPriceDollars = rank === undefined
-    ? undefined
-    : publicPriceForSlot(position, rank);
+  const publicPriceDollars = suppliedPublicPrice
+    ?? (rank === undefined ? undefined : publicPriceForSlot(position, rank));
 
   return {
     sourceRowNumber: row.rowNumber,

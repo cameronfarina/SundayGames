@@ -26,6 +26,8 @@ const behaviorNames = [
   "skips a blank row without warning about it",
   "reads tab separated slot prices",
   "leaves a sheet that names players to the header-mapped layout",
+  "uses an ownerless ranked player sheet as positional pricing",
+  "honors a ranked player sheet's explicit public value",
   "leaves a wide auction sheet to the wide layout",
 ];
 
@@ -97,7 +99,7 @@ describe("platform historical import source test architecture", () => {
     );
 
     expect(actualNames).toEqual([...behaviorNames].sort());
-    expect(assertionCount).toBe(40);
+    expect(assertionCount).toBe(44);
   });
 
   it("keeps historical import tests focused and free of unsafe type escapes", () => {

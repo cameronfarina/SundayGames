@@ -74,7 +74,9 @@ export function InvitationSection({ invitations, season }: InvitationSectionProp
 
   return (
     <div className="commissioner-invitation">
-      <span>{url ? "League invitation" : "League access"}</span>
+      <span className={url ? "commissioner-invitation__name" : "commissioner-fact-label"}>
+        {url ? <>{season.league.name}<span aria-hidden="true">·</span></> : "League access"}
+      </span>
       {url ? (
         <Button
           aria-label="Copy league invitation"

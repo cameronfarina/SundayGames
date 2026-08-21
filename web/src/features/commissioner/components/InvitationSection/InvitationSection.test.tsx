@@ -35,6 +35,8 @@ describe("InvitationSection", () => {
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))));
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    expect(screen.getByText("Sunday Games")).toBeVisible();
+    expect(screen.getByText("·")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Copy league invitation" }));
     expect(writeText).toHaveBeenCalledWith("http://localhost:3000/invitations/invite-1");
     expect(screen.getByText("League link copied.")).toBeVisible();
