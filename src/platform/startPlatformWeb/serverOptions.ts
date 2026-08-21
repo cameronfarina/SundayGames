@@ -7,7 +7,6 @@ import type { PlatformRuntimeConfig } from "../platformRuntimeConfig.js";
 import type { StartPlatformServerOptions } from "../platformServer.js";
 import type { PlatformStaticWebAssets } from "../platformStaticWebAssets.js";
 import type { SimulationMockBatchRunner } from "../simulations.js";
-import { createDisabledSeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { importEspnLeagueSettingsForRuntime } from "./espnImporter.js";
 import { localFixtureDraftSetupFor } from "./localFixtures.js";
 import { createPlatformWebReadinessProbe } from "./readiness.js";
@@ -45,7 +44,6 @@ export const platformWebServerOptions = (
   initializePostgresSchema: config.initializePostgresSchema,
   draftToolsSessionDirectory: config.draftToolsSessionDirectory,
   legacyMockBatchEnabled: config.legacyMockBatchEnabled,
-  seasonSimulationProducerEnabled: config.seasonSimulationProducerEnabled,
   allowPublicSignup: config.allowPublicSignup,
   emailVerificationRequired: config.authEmail.mode === "resend",
   ...(dependencies.authMailSender === undefined
@@ -76,5 +74,4 @@ export const platformWebServerOptions = (
   fantasyProsConfigured: config.fantasyPros.apiKey !== undefined,
   readinessProbe: createPlatformWebReadinessProbe(config, dependencies.postgresClient),
   simulationRunner: dependencies.simulationRunner,
-  seasonSimulationRunner: createDisabledSeasonSimulationRunner(),
 });

@@ -1,5 +1,4 @@
 import type { JsonObject } from "../jobs.js";
-import type { SeasonSimulationExecutionJobInput } from "./payloads.js";
 import type {
   PlatformJobAsyncSubmitRepository,
   PlatformJobSubmitRepository,
@@ -30,15 +29,6 @@ export interface EnqueueSimulationRunExecutionJobInput<
   keeperScenarioId?: string | undefined;
   seedPrefix?: string | undefined;
   strategyKey?: string | undefined;
-}
-
-export interface EnqueueSeasonSimulationExecutionJobInput<
-  TRepository extends PlatformJobAsyncSubmitRepository = PlatformJobSubmitRepository,
-> extends EnqueuePlatformJobInput<TRepository> {
-  simulationRunId: string;
-  runCount: number;
-  seedPrefix?: string | undefined;
-  seasonSimulation: SeasonSimulationExecutionJobInput;
 }
 
 export interface EnqueueHistoricalImportParseJobInput<

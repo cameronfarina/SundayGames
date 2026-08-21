@@ -496,7 +496,6 @@ describe("Postgres job queue", () => {
     await queue.cancelJobAtRunBoundary({
       jobId: originalJob.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       now: new Date(now.getTime() + 3_000),
     });
 
@@ -589,7 +588,6 @@ describe("Postgres job queue", () => {
     const completedJob = await queue.completeJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       resultSummary: "true",
       now: new Date(now.getTime() + 2_000),
     });
@@ -756,7 +754,6 @@ describe("Postgres job queue", () => {
     await expect(queue.updateProgress({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 500),
       progress: { completed: 1, total: 4, message: "Parsing inputs" },
       now: new Date(now.getTime() + 500),
     })).rejects.toThrow(new JobError("job_not_running", "Job is not running."));
@@ -765,7 +762,6 @@ describe("Postgres job queue", () => {
     await expect(queue.heartbeatJob({
       jobId: job.id,
       workerId: "worker_b",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       now: new Date(now.getTime() + 2_000),
     })).rejects.toThrow(new JobError("job_lock_mismatch", "Job is locked by another worker."));
 
@@ -773,7 +769,6 @@ describe("Postgres job queue", () => {
     const progressedJob = await queue.updateProgress({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       progress: { completed: 1, total: 4, message: "Parsing inputs" },
       now: progressAt,
     });
@@ -781,7 +776,6 @@ describe("Postgres job queue", () => {
     const heartbeatedJob = await queue.heartbeatJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       now: heartbeatAt,
       lockTtlMs: 20_000,
     });
@@ -789,7 +783,6 @@ describe("Postgres job queue", () => {
     const completedJob = await queue.completeJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       resultSummary: {
         completedAt: "2026-08-09T12:00:00.000Z",
         scenarios: 1000,
@@ -848,7 +841,6 @@ describe("Postgres job queue", () => {
     await expect(queue.completeJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       resultSummary: { completed: true },
       now: new Date(now.getTime() + 4_000),
     })).rejects.toThrow(new JobError("job_lock_mismatch", "Job is locked by another worker."));
@@ -885,7 +877,6 @@ describe("Postgres job queue", () => {
     await expect(queue.completeJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       resultSummary: { completed: true },
       now: new Date(now.getTime() + 3_000),
     })).rejects.toThrow(new JobError("job_not_claimable", "Job has requested cancellation."));
@@ -914,7 +905,6 @@ describe("Postgres job queue", () => {
     const retriedJob = await queue.failJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       error: new Error("provider token sk_live_secret leaked\nat stack frame"),
       now: new Date(now.getTime() + 2_000),
     });
@@ -922,7 +912,6 @@ describe("Postgres job queue", () => {
     const failedJob = await queue.failJob({
       jobId: job.id,
       workerId: "worker_b",
-      claimLockedAt: new Date(now.getTime() + 3_000),
       error: new TypeError("another sensitive detail"),
       now: new Date(now.getTime() + 4_000),
     });
@@ -976,7 +965,6 @@ describe("Postgres job queue", () => {
     const canceledJob = await queue.failJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       error: new Error("handler failed after cancellation"),
       now: new Date(now.getTime() + 3_000),
     });
@@ -1015,7 +1003,6 @@ describe("Postgres job queue", () => {
     const canceledJob = await queue.failJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       error: new Error("handler failed while canceling"),
       now: new Date(now.getTime() + 3_000),
     });
@@ -1077,7 +1064,6 @@ describe("Postgres job queue", () => {
     const boundaryCanceledJob = await queue.cancelJobAtRunBoundary({
       jobId: runningJob.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 4_000),
       now: boundaryAt,
     });
 

@@ -20,8 +20,7 @@ const isJobInputRecord = (value: unknown): value is JobInputRecord =>
 export const simulationRunIdForJob = (job: JobRecord): string | null => {
   if (!isJobInputRecord(job.inputJson)) return null;
 
-  return (job.inputJson.type === platformJobTypes.simulationRunExecution ||
-      job.inputJson.type === platformJobTypes.seasonSimulationExecution)
+  return job.inputJson.type === platformJobTypes.simulationRunExecution
       && typeof job.inputJson.simulationRunId === "string"
     ? job.inputJson.simulationRunId
     : null;

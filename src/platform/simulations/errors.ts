@@ -10,7 +10,6 @@ export type SimulationErrorCode =
   | "missing_hard_lock_player"
   | "invalid_simulation_identifier"
   | "simulation_capacity_reached"
-  | "simulation_execution_superseded"
   | "simulation_strategy_too_large"
   | "simulation_not_found";
 

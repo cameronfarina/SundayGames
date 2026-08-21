@@ -12,7 +12,7 @@ import type { JobRow } from "./types.js";
 
 export type { JobRow } from "./types.js";
 
-const jobKinds: readonly JobKind[] = ["import", "model_run", "simulation", "season_simulation", "export"];
+const jobKinds: readonly JobKind[] = ["import", "model_run", "simulation", "export"];
 const jobStatuses: readonly JobStatus[] = [
   "queued",
   "running",

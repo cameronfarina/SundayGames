@@ -103,6 +103,7 @@ export const requestBeforeSendingBody = async (
   baseUrl: string,
   path: string,
   sessionToken?: string,
+  contentLength = 1_000,
 ): Promise<{
   request: ClientRequest;
   response: JsonFetchResult;
@@ -112,7 +113,7 @@ export const requestBeforeSendingBody = async (
     const request = httpRequest(`${baseUrl}${path}`, {
       method: "POST",
       headers: {
-        "content-length": "1000",
+        "content-length": String(contentLength),
         "content-type": "application/json",
         ...(sessionToken === undefined ? {} : { "x-session-token": sessionToken }),
       },

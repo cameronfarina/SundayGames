@@ -3,7 +3,6 @@ import type { PlatformLoadManifest } from "./manifest.js";
 import { openDraftStreamBatch } from "./draftStreams.js";
 import { evaluateLoadMetric } from "./gate.js";
 import { runAuthenticatedHttpBurst, type AuthenticatedLoadResult } from "./httpBurst.js";
-import { waitForQueuedLoadJobs } from "./jobCompletion.js";
 import { platformLoadRequestsFromManifest } from "./manifest.js";
 import { summarizeLoadMeasurements, type LoadMeasurement, type LoadMetricSummary } from "./metrics.js";
 import { platformLoadScenarioForLeagueCount, type PlatformLoadScenario } from "./scenario.js";
@@ -24,7 +23,7 @@ export interface PlatformLoadTestReport {
   readonly metadata: {
     readonly finishedAt: string;
     readonly holdMs: number;
-    readonly queuedSimulationJobs: number;
+    readonly canceledSimulationLaunches: number;
     readonly scenario: PlatformLoadScenario;
     readonly startedAt: string;
     readonly targetOrigin: string;
@@ -36,7 +35,7 @@ export interface PlatformLoadTestReport {
     readonly draftReconnects: LoadMetricSummary;
     readonly draftStreams: LoadMetricSummary;
     readonly news: LoadMetricSummary;
-    readonly simulationCompletions: LoadMetricSummary | null;
+    readonly simulationCleanup: LoadMetricSummary | null;
     readonly simulationSubmissions: LoadMetricSummary;
   };
 }
@@ -83,14 +82,25 @@ export const runPlatformLoadTest = async (
         streams: draftBatch,
       }),
     ]);
-    const queuedJobs = simulationMeasurements.flatMap(result =>
-      result.queuedJob === undefined ? [] : [result.queuedJob]);
-    if (queuedJobs.length > 0) {
-      completionMeasurements = await waitForQueuedLoadJobs(input.baseUrl, queuedJobs, {
-        pollIntervalMs: input.jobPollIntervalMs,
-        timeoutMs: input.jobTimeoutMs,
-      });
-    }
+    const issuedLaunches = simulationMeasurements.flatMap(result =>
+      result.issuedSimulationLaunch === undefined ? [] : [result.issuedSimulationLaunch]);
+    completionMeasurements = await Promise.all(issuedLaunches.map(async launch => {
+      const startedAt = performance.now();
+      const response = await fetch(
+        new URL(`/season-simulations/${encodeURIComponent(launch.historyId)}`, input.baseUrl),
+        {
+          method: "DELETE",
+          headers: { "x-session-token": launch.sessionToken },
+        },
+      );
+      await response.arrayBuffer();
+      return {
+        diagnostic: response.status === 204 ? "ok" : `http_${String(response.status)}`,
+        durationMs: performance.now() - startedAt,
+        ok: response.status === 204,
+        status: response.status,
+      };
+    }));
     await waitForHold(holdStartedAt, input.holdMs);
   } finally {
     await draftBatch.close();
@@ -101,7 +111,7 @@ export const runPlatformLoadTest = async (
     draftReconnects: summarizeLoadMeasurements(draftLoad.reconnectMeasurements),
     draftStreams: summarizeLoadMeasurements(draftBatch.measurements),
     news: summarizeLoadMeasurements(newsMeasurements),
-    simulationCompletions: completionMeasurements.length === 0
+    simulationCleanup: completionMeasurements.length === 0
       ? null : summarizeLoadMeasurements(completionMeasurements),
     simulationSubmissions: summarizeLoadMeasurements(simulationMeasurements),
   };
@@ -115,8 +125,8 @@ export const runPlatformLoadTest = async (
       maximumP95Ms: 2_000,
     }).failures,
     ...gateFor("Simulation submissions", summaries.simulationSubmissions, 3_000),
-    ...(summaries.simulationCompletions === null
-      ? [] : gateFor("Simulation completions", summaries.simulationCompletions, input.jobTimeoutMs ?? 180_000)),
+    ...(summaries.simulationCleanup === null
+      ? [] : gateFor("Simulation cleanup", summaries.simulationCleanup, 3_000)),
   ];
   for (const [diagnostic, count] of Object.entries(draftBatch.runtimeDiagnostics())) {
     failures.push(`${String(count)} draft streams reported ${diagnostic}.`);
@@ -126,7 +136,7 @@ export const runPlatformLoadTest = async (
     metadata: {
       finishedAt: new Date().toISOString(),
       holdMs: input.holdMs,
-      queuedSimulationJobs: completionMeasurements.length,
+      canceledSimulationLaunches: completionMeasurements.length,
       scenario,
       startedAt: startedAt.toISOString(),
       targetOrigin: input.baseUrl.origin,

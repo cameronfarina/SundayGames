@@ -8,7 +8,7 @@ export const completeJob = async (
   context: JobQueueContext,
   input: CompleteJobInput,
 ): Promise<JobRecord> => {
-  await requireRunningLockedJob(context, input.jobId, input.workerId, input.claimLockedAt);
+  await requireRunningLockedJob(context, input.jobId, input.workerId);
   const now = input.now ?? new Date();
   const result = await context.client.query<JobRow>(
     `
@@ -25,7 +25,6 @@ SET status = 'completed',
 WHERE id = $1
   AND status = 'running'
   AND locked_by = $5
-  AND locked_at = $6
   AND cancellation_requested_at IS NULL
 RETURNING *;
 `.trim(),
@@ -35,10 +34,7 @@ RETURNING *;
       jsonbParameter(input.resultSummary),
       now,
       input.workerId,
-      input.claimLockedAt,
     ],
   );
-  return await requiredCompletionUpdate(
-    context, result, input.jobId, input.workerId, input.claimLockedAt,
-  );
+  return await requiredCompletionUpdate(context, result, input.jobId, input.workerId);
 };

@@ -9,9 +9,10 @@ import { markFailed, markRunning } from "./basicTransitions.js";
 import { complete } from "./complete.js";
 import { createRequest } from "./createRequest.js";
 import { fetchForUser, listForUser, listHistoryForUserSeason } from "./history.js";
-import { findRequired } from "./lookups.js";
+import { findByRequestKeyForUser, findRequired } from "./lookups.js";
 import { markCanceled, resetForRerun } from "./resetCancel.js";
 import { setOutcomeFavorite } from "./outcomeFavorites.js";
+import { reconcileAbandoned } from "./reconcile.js";
 import type { SimulationRepositoryContext } from "./types.js";
 
 export class PostgresSimulationRepository implements SimulationRepository {
@@ -39,6 +40,23 @@ export class PostgresSimulationRepository implements SimulationRepository {
     return await fetchForUser(this.#context.client, runId, userId);
   }
 
+  async findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): Promise<SimulationRun | null> {
+    return await findByRequestKeyForUser(
+      userId,
+      seasonId,
+      idempotencyKey,
+      this.#context.client,
+    );
+  }
+
+  async reconcileAbandoned(now: Date): Promise<void> {
+    await reconcileAbandoned(this.#context, now);
+  }
+
   async find(runId: string): Promise<SimulationRun> {
     return await findRequired(runId, this.#context.client);
   }
@@ -47,8 +65,8 @@ export class PostgresSimulationRepository implements SimulationRepository {
     return await markRunning(this.#context, runId, now);
   }
 
-  async markFailed(runId: string, executionStartedAt?: Date): Promise<SimulationRun> {
-    return await markFailed(this.#context, runId, executionStartedAt);
+  async markFailed(runId: string): Promise<SimulationRun> {
+    return await markFailed(this.#context, runId);
   }
 
   async markCanceled(runId: string): Promise<SimulationRun> {
@@ -59,12 +77,8 @@ export class PostgresSimulationRepository implements SimulationRepository {
     return await resetForRerun(this.#context, runId);
   }
 
-  async complete(
-    runId: string,
-    result: SimulationResult,
-    executionStartedAt?: Date,
-  ): Promise<SimulationRun> {
-    return await complete(this.#context, runId, result, executionStartedAt);
+  async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
+    return await complete(this.#context, runId, result);
   }
 
   async setOutcomeFavorite(

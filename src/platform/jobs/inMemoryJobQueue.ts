@@ -10,12 +10,8 @@ import type {
   CompleteJobInput,
   FailJobInput,
   HeartbeatJobInput,
-  JobKind,
-  JobQueueHealth,
-  JobQueueHealthInput,
   JobRecord,
   RerunJobInput,
-  RecordWorkerHeartbeatInput,
   SubmitJobInput,
   UpdateJobProgressInput,
 } from "./contracts.js";
@@ -28,7 +24,6 @@ import { submitJob } from "./submit.js";
 
 export class InMemoryJobQueue implements JobRepository {
   readonly #store = new InMemoryJobStore();
-  readonly #workerHeartbeats = new Map<string, { jobKinds: readonly JobKind[]; lastSeenAt: Date }>();
 
   submit(input: SubmitJobInput): JobRecord {
     return submitJob(this.#store, input);
@@ -64,30 +59,6 @@ export class InMemoryJobQueue implements JobRepository {
 
   rerunJob(input: RerunJobInput): JobRecord {
     return rerunJob(this.#store, input);
-  }
-
-  recordWorkerHeartbeat(input: RecordWorkerHeartbeatInput): void {
-    this.#workerHeartbeats.set(input.workerId, {
-      jobKinds: [...input.jobKinds],
-      lastSeenAt: input.now ?? new Date(),
-    });
-  }
-
-  getQueueHealth(input: JobQueueHealthInput): JobQueueHealth {
-    const now = input.now ?? new Date();
-    const cutoff = now.getTime() - (input.staleAfterMs ?? 45_000);
-    const compatible = [...this.#workerHeartbeats.values()]
-      .filter(worker => worker.jobKinds.includes(input.kind))
-      .sort((left, right) => right.lastSeenAt.getTime() - left.lastSeenAt.getTime())[0];
-    const queued = this.#store.values()
-      .filter(job => job.kind === input.kind && job.status === "queued")
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
-    return {
-      workerAvailable: compatible !== undefined && compatible.lastSeenAt.getTime() >= cutoff,
-      workerLastSeenAt: compatible?.lastSeenAt,
-      queuedCount: queued.length,
-      oldestQueuedAt: queued[0]?.createdAt,
-    };
   }
 
   listForUser(userId: string): JobRecord[] {

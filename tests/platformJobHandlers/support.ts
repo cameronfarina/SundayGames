@@ -9,7 +9,6 @@ import {
 } from "../../src/platform/platformApp.js";
 import { enqueueSimulationRunExecutionJob } from "../../src/platform/platformJobOrchestrator.js";
 import type { SimulationMockBatchRunner } from "../../src/platform/simulations.js";
-import type { SeasonSimulationRunner } from "../../src/platform/seasonSimulationRunner.js";
 
 export const now = new Date("2026-08-09T12:00:00.000Z");
 
@@ -34,9 +33,7 @@ const mockBatch = ({
   },
 });
 
-export const createSimulationJobFixture = async (options: {
-  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
-} = {}) => {
+export const createSimulationJobFixture = async () => {
   const repository = new InMemoryJobQueue();
   const progressEvents: string[] = [];
   const originalUpdateProgress = repository.updateProgress.bind(repository);
@@ -52,7 +49,6 @@ export const createSimulationJobFixture = async (options: {
       progressEvents.push("runner");
       return mockBatch(options);
     },
-    seasonSimulationRunner: options.seasonSimulationRunner,
   });
   const persist = vi.fn(() => {
     progressEvents.push("persist");

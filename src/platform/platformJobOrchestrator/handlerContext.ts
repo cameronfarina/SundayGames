@@ -7,19 +7,13 @@ export const handlerContextFor = (
   job: JobRecord,
   workerId: string,
   observeJob: (job: JobRecord) => JobRecord,
-): PlatformJobHandlerContext => {
-  const claimLockedAt = job.lockedAt;
-  if (claimLockedAt === undefined) {
-    throw new Error(`Claimed job ${job.id} did not include its execution token.`);
-  }
-  return ({
+): PlatformJobHandlerContext => ({
   job,
   workerId,
   updateProgress: async (progress, now) =>
     observeJob(await repository.updateProgress({
       jobId: job.id,
       workerId,
-      claimLockedAt,
       progress,
       now,
     })),
@@ -27,9 +21,7 @@ export const handlerContextFor = (
     observeJob(await repository.heartbeatJob({
       jobId: job.id,
       workerId,
-      claimLockedAt,
       now: input?.now,
       lockTtlMs: input?.lockTtlMs,
     })),
-  });
-};
+});

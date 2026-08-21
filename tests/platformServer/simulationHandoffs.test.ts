@@ -1,37 +1,29 @@
-import {
-  FakePostgresClient,
-  InMemoryLiveDraftRoomSetupRepository,
-  buildCurrentMockdLeagueSeason,
-  currentLeagueInitialRostersFor,
-  dispatchNextPlatformJob,
-  expect,
-  it,
-  leagueConfig,
-  loadCurrentPlayerCatalog,
-  now,
-  ownerOrder,
-  runSeasonSimulations,
-} from "./helpers/index.js";
+import { FakePostgresClient, InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, deferred, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder } from "./helpers/index.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer }) => {
-  it("caps an account at one active durable season simulation", async () => {
+  it("keeps concurrent simulation input handoffs request-scoped", async () => {
+    const firstSetupReadEntered = deferred();
+    const releaseFirstSetupRead = deferred();
     const playerCatalog = await loadCurrentPlayerCatalog();
-    const executedStrategies: string[] = [];
+    let setupReadCount = 0;
     const { platformServer } = await createListeningServer({
       postgresClient: new FakePostgresClient(),
       liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
-      liveDraftRoomSetupProvider: async season => ({
-        seasonId: season.id,
-        sourceVersion: "durable-concurrent-simulation",
-        playerCatalog,
-        initialRosters: currentLeagueInitialRostersFor(season),
-        contentHash: "durable-concurrent-simulation-hash",
-        updatedAt: now,
-      }),
-      seasonSimulationRunner: async input => {
-        executedStrategies.push(input.strategyInput ?? "");
-        return runSeasonSimulations(input);
+      liveDraftRoomSetupProvider: async season => {
+        setupReadCount += 1;
+        if (setupReadCount === 1) {
+          firstSetupReadEntered.resolve();
+          await releaseFirstSetupRead.promise;
+        }
+        return {
+          seasonId: season.id,
+          sourceVersion: `concurrent-simulation-${setupReadCount}`,
+          playerCatalog,
+          initialRosters: currentLeagueInitialRostersFor(season),
+          contentHash: `concurrent-simulation-hash-${setupReadCount}`,
+          updatedAt: now,
+        };
       },
     });
     const account = await platformServer.app.createAccount({
@@ -63,31 +55,21 @@ describePlatformServer(({ createListeningServer }) => {
       }],
       now,
     });
-    const request = (strategy: string) => platformServer.handler({
+    const request = () => platformServer.handler({
       method: "POST",
       path: "/season-simulations",
       sessionToken: login.sessionToken,
-      body: { seasonId: season.id, count: 1, strategy },
+      body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
       now,
     });
 
-    const responses = await Promise.all([
-      request("Target Puka Nacua"),
-      request("Target Jahmyr Gibbs"),
+    const first = request();
+    await firstSetupReadEntered.promise;
+    const second = request();
+    releaseFirstSetupRead.resolve();
+    await expect(Promise.all([first, second])).resolves.toMatchObject([
+      { status: 202 },
+      { status: 202 },
     ]);
-    expect(responses.map(response => response.status).sort()).toEqual([202, 429]);
-    expect(responses).toContainEqual(expect.objectContaining({
-      status: 429,
-      body: { error: expect.objectContaining({ code: "simulation_account_queue_full" }) },
-    }));
-
-    await dispatchNextPlatformJob({
-      repository: platformServer.jobRepository,
-      workerId: "durable-concurrent-simulation-worker",
-      handlers: platformServer.jobHandlers,
-    });
-
-    expect(executedStrategies).toHaveLength(1);
-    expect(["Target Jahmyr Gibbs", "Target Puka Nacua"]).toContain(executedStrategies[0]);
   });
 });

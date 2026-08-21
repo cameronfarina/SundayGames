@@ -222,7 +222,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-revisions-v23",
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
-      "platform-simulation-worker-reliability-v26",
+      "platform-browser-simulation-lifecycle-v26",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -260,7 +260,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-revisions-v23",
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
-      "platform-simulation-worker-reliability-v26",
+      "platform-browser-simulation-lifecycle-v26",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -299,6 +299,8 @@ describe("platform Postgres migrations", () => {
 
     expect(requiredPlatformPostgresMigrationIds.at(-3)).toBe("platform-live-draft-scale-v24");
     expect(requiredPlatformPostgresMigrationIds.at(-2)).toBe("platform-practice-persistence-v25");
+    expect(requiredPlatformPostgresMigrationIds.at(-1))
+      .toBe("platform-browser-simulation-lifecycle-v26");
     expect(result.statementCount).toBeGreaterThan(0);
     expect(client.statements).toContain(
       "ALTER TABLE mock_sessions ADD COLUMN IF NOT EXISTS configuration_snapshot_json jsonb NOT NULL DEFAULT '{\"status\":\"migration-required\",\"schema\":\"mockd-season-mock-configuration\",\"reason\":\"missing-snapshot\"}'::jsonb;",
@@ -336,29 +338,6 @@ describe("platform Postgres migrations", () => {
     expect(client.statements).toContain(
       "UPDATE platform_store_snapshots SET snapshot_json = snapshot_json;",
     );
-  });
-
-  it("adds the versioned season worker queue and durable worker heartbeats", async () => {
-    const client = new RecordingPostgresClient();
-    requiredPlatformPostgresMigrationIds
-      .filter(migrationId => migrationId !== "platform-simulation-worker-reliability-v26")
-      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
-
-    const result = await applyPlatformPostgresMigrations(client);
-
-    expect(result.statementCount).toBe(7);
-    expect(client.statements).toContain(
-      "ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_kind_check;",
-    );
-    expect(client.statements).toContainEqual(expect.stringContaining(
-      "kind IN ('import', 'model_run', 'simulation', 'season_simulation', 'export', 'maintenance')",
-    ));
-    expect(client.statements).toContainEqual(expect.stringContaining(
-      "CREATE TABLE IF NOT EXISTS platform_worker_heartbeats",
-    ));
-    expect(client.statements).toContainEqual(expect.stringContaining(
-      "CREATE INDEX IF NOT EXISTS jobs_kind_user_started_at_idx",
-    ));
   });
 
   it("adds format-aware roster settings to existing auction seasons", async () => {
@@ -462,7 +441,7 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-revisions-v23",
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
-      "platform-simulation-worker-reliability-v26",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -489,11 +468,11 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-revisions-v23",
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
-      "platform-simulation-worker-reliability-v26",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
   });
 
-  it("applies the import-through-worker migrations in reserved order", () => {
+  it("applies the import-through-browser-simulation migrations in reserved order", () => {
     expect(requiredPlatformPostgresMigrationIds.slice(-8)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
@@ -502,8 +481,24 @@ describe("platform Postgres migrations", () => {
       "platform-league-sync-revisions-v23",
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
-      "platform-simulation-worker-reliability-v26",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
+  });
+
+  it("indexes terminal and stale requested simulation cleanup in v26", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-browser-simulation-lifecycle-v26")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBe(3);
+    expect(client.statements).toContain(
+      "CREATE INDEX IF NOT EXISTS simulation_runs_cleanup_status_created_at_idx " +
+      "ON simulation_runs (status, created_at) " +
+      "WHERE status IN ('requested', 'failed', 'canceled');",
+    );
   });
 
   it("adds the durable current-room projection and shared stream leases in v24", async () => {

@@ -12,7 +12,7 @@ import type {
 import type { PlatformAppContext } from "../context.js";
 import { PlatformAppError } from "../errors.js";
 import { cloneForRead } from "../shared.js";
-import { requireSimulationRunForWorker } from "./simulationWorkerAccess.js";
+import { createSimulationCancellationOperations } from "./simulationCancellationOperation.js";
 
 export const createSimulationRunOperations = (context: PlatformAppContext) => ({
   createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
@@ -28,6 +28,11 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
       seedPrefix: input.seedPrefix,
       idempotencyKey: input.idempotencyKey,
       strategy: input.strategy,
+      ...(input.browserInput === undefined ? {} : { browserInput: input.browserInput }),
+      ...(input.browserInputDigest === undefined ? {} : {
+        browserInputDigest: input.browserInputDigest,
+      }),
+      ...(input.browserNote === undefined ? {} : { browserNote: input.browserNote }),
       createdAt: input.now,
     }));
   },
@@ -61,7 +66,7 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
       return cloneForRead(await context.simulations.complete(run.id, input.result));
     } catch (error) {
       try {
-        await context.simulations.markFailed(run.id, input.result.completedAt);
+        await context.simulations.markFailed(run.id);
       } catch {
         // Preserve the completion failure while recording failure when possible.
       }
@@ -69,10 +74,24 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
     }
   },
 
+  ...createSimulationCancellationOperations(context),
+
   executeSimulationRunForWorker: async (
     input: ExecutePlatformSimulationRunForWorkerInput,
   ): Promise<SimulationRun> => {
-    await requireSimulationRunForWorker(context, input);
+    const run = await context.simulations.find(input.runId);
+    if (
+      run.privacyOwnerUserId !== input.userId
+      || run.request.leagueId !== input.leagueId
+      || run.request.seasonId !== input.seasonId
+    ) {
+      throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
+    }
+    const account = await context.authRepository.findAccountById(input.userId);
+    if (account === null) {
+      throw new PlatformAppError("private_resource", "This prep artifact belongs to a missing account.");
+    }
+    await context.requirePrivateTeamContext(account, run.request);
     return cloneForRead(await executeSimulationRun({
       repository: context.simulations,
       runId: input.runId,

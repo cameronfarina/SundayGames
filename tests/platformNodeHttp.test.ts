@@ -879,6 +879,58 @@ describe("platform Node HTTP adapter", () => {
     ]);
   });
 
+  it("allows a valid max-size simulation completion without raising the global body limit", async () => {
+    const baseUrl = await listen(async () => ({ status: 200, body: { ok: true } }));
+    const body = JSON.stringify({ simulation: { payload: "x".repeat(1_100_000) } });
+    const completion = await jsonFetch(baseUrl, "/season-simulations/history-1/complete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    const ordinary = await jsonFetch(baseUrl, "/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+
+    expect(completion.status).toBe(200);
+    expect(ordinary.status).toBe(413);
+  });
+
+  it("authenticates and admits large simulation completions before consuming their body", async () => {
+    let handlerCallCount = 0;
+    let preflightRequest: PlatformHttpRequest | undefined;
+    const baseUrl = await listen(async () => {
+      handlerCallCount += 1;
+      return { status: 200, body: { ok: true } };
+    }, {
+      simulationCompletionPreflight: async request => {
+        preflightRequest = request;
+        return {
+          status: 401,
+          body: { error: { code: "auth_required", message: "Sign in first." } },
+        };
+      },
+    });
+
+    const pending = await requestBeforeSendingBody(
+      baseUrl,
+      "/season-simulations/history-1/complete",
+    );
+    pending.request.destroy();
+
+    expect(pending.response).toEqual({
+      status: 401,
+      body: { error: { code: "auth_required", message: "Sign in first." } },
+    });
+    expect(handlerCallCount).toBe(0);
+    expect(preflightRequest).toMatchObject({
+      method: "POST",
+      path: "/season-simulations/history-1/complete",
+    });
+    expect(preflightRequest).not.toHaveProperty("body");
+  });
+
   it("rejects screenshot uploads before consuming the body or calling the handler", async () => {
     let handlerCallCount = 0;
     let preflightRequest: PlatformHttpRequest | undefined;

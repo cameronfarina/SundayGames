@@ -7,6 +7,7 @@ import type {
   SimulationRunStatus,
   SimulationSoftTarget,
 } from "../../simulations.js";
+import { seasonSimulationInputValue } from "./seasonSimulationInput.js";
 import { optionalString } from "./leaguePrimitives.js";
 import { mockSummaryValue } from "./mockSummary.js";
 import {
@@ -46,6 +47,9 @@ const softTargetValue = (value: unknown, path: string): SimulationSoftTarget => 
 const requestValue = (value: unknown, path: string): SimulationRequest => {
   const record = recordValue(value, path);
   const strategy = recordValue(record.strategy, `${path}.strategy`);
+  const browserInput = record.browserInput;
+  const browserInputDigest = record.browserInputDigest;
+  const browserNote = record.browserNote;
   return {
     id: stringValue(record.id, `${path}.id`),
     userId: stringValue(record.userId, `${path}.userId`),
@@ -62,6 +66,11 @@ const requestValue = (value: unknown, path: string): SimulationRequest => {
     },
     privacyOwnerUserId: stringValue(record.privacyOwnerUserId, `${path}.privacyOwnerUserId`),
     inputHash: stringValue(record.inputHash, `${path}.inputHash`),
+    ...(browserInput === undefined ? {} : {
+      browserInput: seasonSimulationInputValue(browserInput, `${path}.browserInput`),
+    }),
+    ...(typeof browserInputDigest === "string" ? { browserInputDigest } : {}),
+    ...(typeof browserNote === "string" ? { browserNote } : {}),
     createdAt: dateValue(record.createdAt, `${path}.createdAt`),
   };
 };

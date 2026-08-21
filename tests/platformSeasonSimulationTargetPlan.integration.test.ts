@@ -13,13 +13,13 @@ describe("season simulation target-plan feasibility", () => {
         { playerName: "Premium Runner" },
         { playerName: "Value Runner" },
       ],
-      runCount: 100,
+      runCount: 25,
       seedPrefix,
     });
 
     expect(result.targetOutcomes).toEqual([
-      expect.objectContaining({ status: "hit", feasible: true, hitCount: 100, hitRate: 1 }),
-      expect.objectContaining({ status: "hit", feasible: true, hitCount: 100, hitRate: 1 }),
+      expect.objectContaining({ status: "hit", feasible: true, hitCount: 25, hitRate: 1 }),
+      expect.objectContaining({ status: "hit", feasible: true, hitCount: 25, hitRate: 1 }),
     ]);
     expect(result.runs.every(run => run.seed.startsWith(seedPrefix))).toBe(true);
     expect(result.runs.flatMap(run => run.teams)

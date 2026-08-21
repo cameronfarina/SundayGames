@@ -48,3 +48,19 @@ WHERE r.user_id = $1
   const row = firstRow(result);
   return row === undefined ? null : runFromRow(row);
 };
+
+export const findByRequestKeyForUser = async (
+  userId: string,
+  seasonId: string,
+  idempotencyKey: string,
+  client: PostgresQueryClient,
+): Promise<SimulationRun | null> => {
+  const result = await client.query<SimulationRunRow>(`
+${selectSimulationWithResultSql}
+WHERE r.user_id = $1
+  AND r.league_season_id = $2
+  AND r.idempotency_key = $3
+`.trim(), [userId, seasonId, idempotencyKey]);
+  const row = firstRow(result);
+  return row === undefined ? null : runFromRow(row);
+};

@@ -10,6 +10,7 @@ import { createGlobalPlayerNewsHandler } from "./globalPlayerNews.js";
 import { createHistoricalImportPreflight } from "./historicalImportPreflight.js";
 import type { PlatformRuntimeHolder } from "./internalContracts.js";
 import { createScreenshotImportPreflight } from "./screenshotPreflight.js";
+import { createSimulationCompletionPreflight } from "./simulationCompletionPreflight.js";
 
 export interface PlatformNodeServer {
   server: Server;
@@ -31,6 +32,11 @@ export const createNodeServer = (
     screenshotImportMaxBodyBytes: options.screenshotImportBodyLimitBytes,
     screenshotImportPreflight: createScreenshotImportPreflight(runtimeHolder, options, admissions),
     historicalImportPreflight: createHistoricalImportPreflight(runtimeHolder, options, admissions),
+    simulationCompletionPreflight: createSimulationCompletionPreflight(
+      runtimeHolder,
+      options,
+      admissions,
+    ),
     trustProxy: options.trustProxy,
     activeStreamRegistry,
   });

@@ -136,7 +136,6 @@ describe("platform async jobs", () => {
     queue.cancelJobAtRunBoundary({
       jobId: originalJob.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       now: new Date(now.getTime() + 3_000),
     });
 
@@ -254,66 +253,6 @@ describe("platform async jobs", () => {
     });
   });
 
-  it("gives an unserved account a turn before one account claims consecutive jobs", () => {
-    const queue = new InMemoryJobQueue();
-    const submit = (userId: string, idempotencyKey: string, offset: number) => queue.submit({
-      userId,
-      leagueId: "league_home",
-      seasonId: "season_2026",
-      kind: "season_simulation" as const,
-      inputJson: { idempotencyKey },
-      idempotencyKey,
-      now: new Date(now.getTime() + offset),
-    });
-    const first = submit("user_cam", "cam-1", 0);
-    submit("user_cam", "cam-2", 1);
-    const otherAccount = submit("user_seth", "seth-1", 2);
-    const firstClaim = queue.claimNextJob({ workerId: "worker", now: new Date(now.getTime() + 3) });
-    if (firstClaim?.lockedAt === undefined) throw new Error("Expected first claimed execution token.");
-    queue.completeJob({
-      jobId: first.id,
-      workerId: "worker",
-      claimLockedAt: firstClaim.lockedAt,
-      resultSummary: {},
-      now: new Date(now.getTime() + 4),
-    });
-
-    expect(queue.claimNextJob({ workerId: "worker", now: new Date(now.getTime() + 5) }))
-      .toBe(otherAccount);
-  });
-
-  it("reports compatible worker liveness and the oldest queued work", () => {
-    const queue = new InMemoryJobQueue();
-    const queued = queue.submit({
-      userId: "user_cam",
-      leagueId: "league_home",
-      seasonId: "season_2026",
-      kind: "season_simulation",
-      inputJson: {},
-      idempotencyKey: "queued-health",
-      now,
-    });
-    queue.recordWorkerHeartbeat({
-      workerId: "season-worker",
-      jobKinds: ["season_simulation"],
-      now: new Date(now.getTime() + 1_000),
-    });
-
-    expect(queue.getQueueHealth({
-      kind: "season_simulation",
-      now: new Date(now.getTime() + 2_000),
-    })).toEqual({
-      workerAvailable: true,
-      workerLastSeenAt: new Date(now.getTime() + 1_000),
-      queuedCount: 1,
-      oldestQueuedAt: queued.createdAt,
-    });
-    expect(queue.getQueueHealth({
-      kind: "season_simulation",
-      now: new Date(now.getTime() + 60_000),
-    }).workerAvailable).toBe(false);
-  });
-
   it("reclaims expired running job locks after a worker crash", () => {
     const queue = new InMemoryJobQueue();
     const job = queue.submit({
@@ -353,33 +292,6 @@ describe("platform async jobs", () => {
     });
   });
 
-  it("rejects updates from an expired claim even when a worker id is reused", () => {
-    const queue = new InMemoryJobQueue();
-    const job = queue.submit({
-      userId: "user_cam",
-      leagueId: "league_1",
-      seasonId: "season_1",
-      kind: "season_simulation",
-      idempotencyKey: "claim-fence",
-      inputJson: { type: "season-simulation-execution-v1" },
-      now,
-    });
-    const firstClaim = queue.claimNextJob({ workerId: "worker_reused", now, lockTtlMs: 1_000 });
-    const firstLockedAt = firstClaim?.lockedAt;
-    if (firstLockedAt === undefined) throw new Error("Expected first claimed execution token.");
-    const reclaimedAt = new Date(now.getTime() + 2_000);
-    const secondClaim = queue.claimNextJob({ workerId: "worker_reused", now: reclaimedAt });
-
-    expect(firstClaim?.id).toBe(job.id);
-    expect(secondClaim?.id).toBe(job.id);
-    expect(() => queue.updateProgress({
-      jobId: job.id,
-      workerId: "worker_reused",
-      claimLockedAt: firstLockedAt,
-      progress: { completed: 1, total: 2, message: "stale" },
-    })).toThrow("no longer owns its claimed execution");
-  });
-
   it("updates progress only for the worker holding a running job lock", () => {
     const queue = new InMemoryJobQueue();
     const queuedJob = queue.submit({
@@ -396,7 +308,6 @@ describe("platform async jobs", () => {
       queue.updateProgress({
         jobId: queuedJob.id,
         workerId: "worker_a",
-        claimLockedAt: new Date(now.getTime() + 500),
         progress: { completed: 1, total: 4, message: "Parsing inputs" },
         now: new Date(now.getTime() + 500),
       }),
@@ -413,7 +324,6 @@ describe("platform async jobs", () => {
       queue.updateProgress({
         jobId: queuedJob.id,
         workerId: "worker_b",
-        claimLockedAt: new Date(now.getTime() + 1_000),
         progress: { completed: 1, total: 4, message: "Parsing inputs" },
         now: progressAt,
       }),
@@ -422,7 +332,6 @@ describe("platform async jobs", () => {
     const updatedJob = queue.updateProgress({
       jobId: queuedJob.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       progress: { completed: 1, total: 4, message: "Parsing inputs" },
       now: progressAt,
     });
@@ -455,7 +364,6 @@ describe("platform async jobs", () => {
       queue.heartbeatJob({
         jobId: job.id,
         workerId: "worker_b",
-        claimLockedAt: new Date(now.getTime() + 1_000),
         now: heartbeatAt,
       }),
     ).toThrow(new JobError("job_lock_mismatch", "Job is locked by another worker."));
@@ -463,7 +371,6 @@ describe("platform async jobs", () => {
     const heartbeatedJob = queue.heartbeatJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       now: heartbeatAt,
       lockTtlMs: 20_000,
     });
@@ -496,7 +403,6 @@ describe("platform async jobs", () => {
     const completedJob = queue.completeJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       resultSummary: { scenarios: 1000, bestStrategy: "balanced" },
       now: finishedAt,
     });
@@ -540,7 +446,6 @@ describe("platform async jobs", () => {
       queue.completeJob({
         jobId: job.id,
         workerId: "worker_a",
-        claimLockedAt: new Date(now.getTime() + 1_000),
         resultSummary: { completed: true },
         now: new Date(now.getTime() + 3_000),
       }),
@@ -570,7 +475,6 @@ describe("platform async jobs", () => {
     const retriedJob = queue.failJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       error: new Error("provider token sk_live_secret leaked\nat stack frame"),
       now: retryAt,
     });
@@ -595,7 +499,6 @@ describe("platform async jobs", () => {
     const failedJob = queue.failJob({
       jobId: job.id,
       workerId: "worker_b",
-      claimLockedAt: new Date(now.getTime() + 3_000),
       error: new TypeError("another sensitive detail"),
       now: exhaustedAt,
     });
@@ -639,7 +542,6 @@ describe("platform async jobs", () => {
     const canceledJob = queue.failJob({
       jobId: job.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 1_000),
       error: new Error("handler failed after cancellation"),
       now: new Date(now.getTime() + 3_000),
     });
@@ -709,7 +611,6 @@ describe("platform async jobs", () => {
     const boundaryCanceledJob = queue.cancelJobAtRunBoundary({
       jobId: nextJob.id,
       workerId: "worker_a",
-      claimLockedAt: new Date(now.getTime() + 3_000),
       now: boundaryAt,
     });
 

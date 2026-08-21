@@ -71,7 +71,6 @@ describe("platform job queue snapshots", () => {
     queue.completeJob({
       jobId: completedJob.id,
       workerId: "worker_b",
-      claimLockedAt: new Date(now.getTime() + 5_000),
       resultSummary: { scenarios: 1000, bestStrategy: "balanced" },
       now: new Date(now.getTime() + 6_000),
     });
@@ -83,7 +82,6 @@ describe("platform job queue snapshots", () => {
     queue.failJob({
       jobId: failedJob.id,
       workerId: "worker_c",
-      claimLockedAt: new Date(now.getTime() + 7_000),
       error: new TypeError("provider secret"),
       now: new Date(now.getTime() + 8_000),
     });

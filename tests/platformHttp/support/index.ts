@@ -50,6 +50,6 @@ export type {
   SeasonSimulationTargetConstraint,
 } from "../../../src/platform/seasonSimulationEngine.js";
 export * from "./assertions.js";
+export * from "./browserSimulation.js";
 export * from "./auth.js";
 export * from "./fixtures.js";
-export * from "./seasonSimulationJobs.js";

@@ -26,8 +26,6 @@ export const resolvePlatformAppDependencies = (
     historicalImports: options.historicalImportRepository ?? store.historicalImports,
     jobs: options.jobRepository ?? store.jobs,
     simulations: options.simulationRepository ?? store.simulations,
-    seasonSimulationAdmissions: options.seasonSimulationAdmissionRepository,
-    seasonSimulationProducerEnabled: options.seasonSimulationProducerEnabled ?? true,
     practiceShortlists: options.practiceShortlistRepository ?? store.practiceShortlists,
     liveDraftRooms: options.liveDraftRoomRepository ?? store.liveDraftRooms,
     mockDraftSessions: options.mockDraftSessionRepository ?? store.mockDraftSessions,

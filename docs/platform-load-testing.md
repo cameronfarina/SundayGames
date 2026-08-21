@@ -1,6 +1,6 @@
 # Platform load testing
 
-Use this harness to exercise the mixed workload expected during draft night. A scenario keeps 12 authenticated event streams open per league, applies one paced mutation per room, verifies that all 12 clients receive the exact resulting event and revision, then reconnects one client per room and requires its current snapshot to match the committed revision. The same run performs 1,000 player-news reads and submits 25 season simulations.
+Use this harness to exercise the mixed workload expected during draft night. A scenario keeps 12 authenticated event streams open per league, applies one paced mutation per room, verifies that all 12 clients receive the exact resulting event and revision, then reconnects one client per room and requires its current snapshot to match the committed revision. The same run performs 1,000 player-news reads and prepares 25 browser simulation launches.
 
 The harness changes draft rooms. Use disposable test accounts and rooms whose current state matches the manifest mutations. Never point it at ordinary production leagues. A remote run requires an approved maintenance window and the explicit `--allow-remote` flag.
 
@@ -72,7 +72,7 @@ The mutation must be valid for the room's state and must carry a unique idempote
 }
 ```
 
-The harness requires at least three distinct simulation session tokens so 25 submissions are not forced through one user's admission limit. Inputs repeat round-robin to reach the scenario totals. Supported mutation actions are `start`, `pause`, `resume`, `reopen`, `sales`, `undo`, `corrections`, and `end`; their bodies must match the public live-room API contract.
+The harness requires at least three distinct simulation session tokens so the 25 preparations remain below the per-account operational rate limit. This is an anti-abuse limit, not a product or seasonal launch quota. Inputs repeat round-robin to reach the scenario totals. Supported mutation actions are `start`, `pause`, `resume`, `reopen`, `sales`, `undo`, `corrections`, and `end`; their bodies must match the public live-room API contract.
 
 ## Run the gates
 
@@ -99,12 +99,12 @@ A pass requires:
 - no unexpected stream close or malformed SSE event;
 - no simulation submission error and no more than 1% player-news errors;
 - p95 latency below five seconds for stream connections and fanout, two seconds for news, and three seconds for mutations and simulation submission; and
-- for queued simulation responses, every returned job ID to reach `completed` before the terminal timeout. `failed`, `canceled`, invalid responses, and timeouts fail the run.
+- every simulation-preparation response to match the browser-launch JSON contract, followed by a successful cleanup cancellation so the harness leaves no abandoned launch rows.
 
-The worker-backed simulation route returns a queued `202` response. The harness polls every returned `/jobs/:id` handle until the queue has drained to terminal completion.
+The simulation route returns an authorized browser-compute launch with HTTP `202`. This server harness measures preparation only; it does not claim browser CPU capacity. It cancels every issued launch after the mixed-load window.
 
 ## CI and capacity follow-up
 
 The existing `production-container` CI job has real Postgres but seeds only one local E2E room and two accounts. Add a dedicated disposable-data seed for 30/50 rooms and enough accounts, then run this harness against the production container. Keep that job labeled **functional concurrency**: shared GitHub runners cannot establish Render Starter capacity.
 
-Run the actual capacity gate separately against an approved, controlled Render Starter deployment. Preserve all stream, reconnect, mutation, fanout, and queued-job terminal gates when moving the scenario between CI and Render.
+Run the actual capacity gate separately against an approved, controlled Render Starter deployment. Preserve all stream, reconnect, mutation, fanout, simulation-preparation, and cleanup gates when moving the scenario between CI and Render.

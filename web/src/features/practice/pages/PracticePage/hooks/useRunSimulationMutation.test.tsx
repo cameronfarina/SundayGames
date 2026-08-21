@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 import type { PlatformFetch } from "../../../../../shared/api/http/requestPlatformJson";
 import { practiceQueryKeys } from "./practiceQueryKeys";
 import { useRunSimulationMutation } from "./useRunSimulationMutation";
@@ -22,12 +21,31 @@ const summary = {
 
 describe("useRunSimulationMutation", () => {
   it("tracks streamed progress and caches the compact result", async () => {
-    const encoder = new TextEncoder();
-    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) { streamController = controller; },
-    });
-    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(new Response(stream));
+    class FakeWorker {
+      onerror: ((event: ErrorEvent) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      postMessage = vi.fn();
+      terminate = vi.fn();
+    }
+    const workers: FakeWorker[] = [];
+    class StubWorker extends FakeWorker {
+      constructor() {
+        super();
+        workers.push(this);
+      }
+    }
+    vi.stubGlobal("Worker", StubWorker);
+    const fetcher = vi.fn<PlatformFetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        historyId: "history-1",
+        requestId: "request-1",
+        input: { runCount: 2, seedPrefix: "hook-test" },
+        inputDigest: "digest-1",
+      }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        historyId: "history-1",
+        summary,
+      })));
     vi.stubGlobal("fetch", fetcher);
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const wrapper = ({ children }: PropsWithChildren) => (
@@ -43,18 +61,17 @@ describe("useRunSimulationMutation", () => {
       completion = result.current.mutation.mutateAsync({ count: 2, note: "", strategy: "" });
     });
     await waitFor(() => { expect(result.current.progress).toEqual({ completed: 0, total: 2 }); });
-    if (streamController === undefined) throw new Error("Expected an active simulation stream.");
+    await waitFor(() => { expect(workers[0]).toBeDefined(); });
     act(() => {
-      streamController?.enqueue(encoder.encode(
-        'event: progress\ndata: {"completed":1,"total":2}\n\n',
-      ));
+      workers[0]?.onmessage?.(new MessageEvent("message", {
+        data: { type: "progress", progress: { completed: 1, total: 2 } },
+      }));
     });
     await waitFor(() => { expect(result.current.progress).toEqual({ completed: 1, total: 2 }); });
     act(() => {
-      streamController?.enqueue(encoder.encode(
-        `event: result\ndata: ${JSON.stringify({ historyId: "history-1", summary })}\n\n`,
-      ));
-      streamController?.close();
+      workers[0]?.onmessage?.(new MessageEvent("message", {
+        data: { type: "result", result: { runCount: 2, seedPrefix: "hook-test" } },
+      }));
     });
     if (completion === undefined) throw new Error("Expected a simulation mutation promise.");
     await act(async () => { await completion; });
@@ -84,10 +101,49 @@ describe("useRunSimulationMutation", () => {
     expect(result.current.progress).toBeUndefined();
   });
 
-  it("reuses the user-operation request ID after an ambiguous retry", async () => {
-    const fetcher = vi.fn<PlatformFetch>().mockResolvedValue(new Response(JSON.stringify({
-      error: { code: "simulation_busy", message: "Busy." },
-    }), { status: 409 }));
+  it("cancels an unresolved launch when the practice view unmounts", async () => {
+    const fetcher = vi.fn<PlatformFetch>((_path, init) => {
+      if (init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Simulation canceled.", "AbortError"));
+        }, { once: true });
+      });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result, unmount } = renderHook(
+      () => useRunSimulationMutation("season-1", "balanced"),
+      { wrapper },
+    );
+    act(() => { result.current.mutation.mutate({ count: 2, note: "", strategy: "" }); });
+    await waitFor(() => { expect(fetcher).toHaveBeenCalledOnce(); });
+
+    unmount();
+
+    await waitFor(() => { expect(fetcher).toHaveBeenCalledTimes(2); });
+    expect(fetcher.mock.calls[1]?.[0]).toMatch(/^\/season-simulations\/requests\//u);
+  });
+
+  it("keeps the replacement launch active while the superseded launch exits", async () => {
+    let launchCount = 0;
+    const fetcher = vi.fn<PlatformFetch>((_path, init) => {
+      if (init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      launchCount += 1;
+      if (launchCount === 2) {
+        return Promise.resolve(new Response(JSON.stringify({
+          error: { code: "rate_limited", message: "Try later." },
+        }), { status: 429 }));
+      }
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Simulation canceled.", "AbortError"));
+        }, { once: true });
+      });
+    });
     vi.stubGlobal("fetch", fetcher);
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const wrapper = ({ children }: PropsWithChildren) => (
@@ -97,22 +153,19 @@ describe("useRunSimulationMutation", () => {
       () => useRunSimulationMutation("season-1", "balanced"),
       { wrapper },
     );
-    const retry = async (count: number) => await result.current.mutation.mutateAsync({
-      count,
-      note: "same operation",
-      strategy: "balanced",
-    });
 
-    await act(async () => { await expect(retry(2)).rejects.toThrow("Busy."); });
-    await act(async () => { await expect(retry(2)).rejects.toThrow("Busy."); });
-    await act(async () => { await expect(retry(3)).rejects.toThrow("Busy."); });
-    const requestIds = fetcher.mock.calls.map(call => {
-      const body = call[1]?.body;
-      if (typeof body !== "string") throw new Error("Expected a JSON request body.");
-      const parsed: unknown = JSON.parse(body);
-      return z.object({ requestId: z.string() }).parse(parsed).requestId;
+    let first: Promise<unknown> | undefined;
+    let second: Promise<unknown> | undefined;
+    act(() => {
+      first = result.current.mutation.mutateAsync({ count: 2, note: "", strategy: "" });
     });
-    expect(requestIds[1]).toBe(requestIds[0]);
-    expect(requestIds[2]).not.toBe(requestIds[0]);
+    await waitFor(() => { expect(fetcher).toHaveBeenCalledOnce(); });
+    act(() => {
+      second = result.current.mutation.mutateAsync({ count: 2, note: "", strategy: "" });
+    });
+    if (first === undefined || second === undefined) throw new Error("Expected both launches.");
+
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    await expect(second).rejects.toEqual(expect.objectContaining({ code: "rate_limited" }));
   });
 });

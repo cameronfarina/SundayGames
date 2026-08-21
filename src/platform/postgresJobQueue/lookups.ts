@@ -53,7 +53,6 @@ export const requireRunningLockedJob = async (
   context: JobQueueContext,
   jobId: string,
   workerId: string,
-  claimLockedAt: Date,
 ): Promise<JobRecord> => {
   const job = await findById(context, jobId);
   if (job === null) throw new JobError("job_not_found", "Job was not found.");
@@ -63,9 +62,6 @@ export const requireRunningLockedJob = async (
   if (job.workerId !== workerId) {
     throw new JobError("job_lock_mismatch", "Job is locked by another worker.");
   }
-  if (job.lockedAt?.getTime() !== claimLockedAt.getTime()) {
-    throw new JobError("job_lock_mismatch", "Worker no longer owns its claimed execution.");
-  }
   return job;
 };
 
@@ -74,11 +70,10 @@ export const requiredLockedUpdate = async (
   result: PostgresQueryResult<JobRow>,
   jobId: string,
   workerId: string,
-  claimLockedAt: Date,
 ): Promise<JobRecord> => {
   const row = firstRow(result);
   if (row !== undefined) return jobFromRow(row);
-  await requireRunningLockedJob(context, jobId, workerId, claimLockedAt);
+  await requireRunningLockedJob(context, jobId, workerId);
   throw new Error("Postgres job lifecycle update did not return an updated row.");
 };
 
@@ -87,11 +82,10 @@ export const requiredCompletionUpdate = async (
   result: PostgresQueryResult<JobRow>,
   jobId: string,
   workerId: string,
-  claimLockedAt: Date,
 ): Promise<JobRecord> => {
   const row = firstRow(result);
   if (row !== undefined) return jobFromRow(row);
-  const job = await requireRunningLockedJob(context, jobId, workerId, claimLockedAt);
+  const job = await requireRunningLockedJob(context, jobId, workerId);
   if (job.cancellationRequestedAt !== undefined) {
     throw new JobError("job_not_claimable", "Job has requested cancellation.");
   }

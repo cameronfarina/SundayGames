@@ -9,6 +9,8 @@ import { PostgresMockDraftSessionRepository } from
   "../src/platform/postgresMockDraftSessions.js";
 import { finalizePracticePersistenceCutover } from
   "../src/platform/practicePersistenceCutover.js";
+import { normalizedSessionConfigurationSnapshot } from
+  "../src/platform/mockSessions/snapshot.js";
 import { persistedMockDraftSessions } from "./platformStoreSnapshotFixtures/mockSessions.js";
 
 const databaseUrl = process.env.MOCKD_POSTGRES_INTEGRATION_DATABASE_URL?.trim();
@@ -24,8 +26,23 @@ const command = (id: string, text: string) => ({
   revision: 1,
   createdAt: "2026-08-20T12:01:00.000Z",
 });
-const replayConfiguration = persistedMockDraftSessions()[0]?.configurationSnapshot;
-if (replayConfiguration === undefined) throw new Error("Expected mock replay configuration.");
+const replayTemplate = persistedMockDraftSessions()[0]?.configurationSnapshot;
+if (replayTemplate?.status !== "ready") throw new Error("Expected mock replay configuration.");
+const replayConfiguration = replayTemplate;
+const replayLeagueId = replayConfiguration.payload.season.leagueId;
+const replaySeasonId = replayConfiguration.payload.season.id;
+const replayTeamId = replayConfiguration.payload.humanTeamId;
+
+describe("practice-persistence rollout fixture", () => {
+  it("matches the normalized session identity validated during bridge replay", () => {
+    expect(() => normalizedSessionConfigurationSnapshot({
+      leagueId: replayLeagueId,
+      seasonId: replaySeasonId,
+      teamId: replayTeamId,
+      draftMode: { format: "auction", mockCount: 1 },
+    }, replayConfiguration)).not.toThrow();
+  });
+});
 
 describeWithPostgres("practice-persistence rolling cutover", () => {
   let adminClient: NodePostgresClient;
@@ -46,12 +63,12 @@ describeWithPostgres("practice-persistence rolling cutover", () => {
     await client.query(`INSERT INTO accounts (id, email, email_normalized, password_hash)
       VALUES ('user_cam', 'owner@example.com', 'owner@example.com', 'hash')`);
     await client.query(`INSERT INTO leagues (id, name, slug, created_by_user_id)
-      VALUES ('league_1', 'Sunday Games', 'sunday-games', 'user_cam')`);
+      VALUES ($1, 'Sunday Games', 'sunday-games', 'user_cam')`, [replayLeagueId]);
     await client.query(`INSERT INTO league_seasons (id, league_id, season_year, name)
-      VALUES ('season_1', 'league_1', 2026, '2026')`);
+      VALUES ($1, $2, 2026, '2026')`, [replaySeasonId, replayLeagueId]);
     await client.query(`INSERT INTO fantasy_teams (
       id, league_season_id, team_key, team_name, owner_name, display_order
-    ) VALUES ('team_1', 'season_1', 'owner', 'Team', 'Owner', 1)`);
+    ) VALUES ($1, $2, 'owner', 'Team', 'Owner', 1)`, [replayTeamId, replaySeasonId]);
   }, 30_000);
 
   afterAll(async () => {
@@ -65,10 +82,10 @@ describeWithPostgres("practice-persistence rolling cutover", () => {
   const session = (commands: readonly ReturnType<typeof command>[]) => ({
     id: sessionId,
     userId: "user_cam",
-    leagueId: "league_1",
-    seasonId: "season_1",
+    leagueId: replayLeagueId,
+    seasonId: replaySeasonId,
     ownerId: "owner",
-    teamId: "team_1",
+    teamId: replayTeamId,
     status: "active",
     revision: 1,
     commandLog: commands,
@@ -148,8 +165,8 @@ describeWithPostgres("practice-persistence rolling cutover", () => {
     expect(cutover.rows[0]?.snapshot_hash).not.toBe("hash");
     await repository.listSessionsForOwner({
       userId: "user_cam",
-      leagueId: "league_1",
-      seasonId: "season_1",
+      leagueId: replayLeagueId,
+      seasonId: replaySeasonId,
       ownerId: "owner",
       now: new Date("2026-08-20T14:00:00.000Z"),
     });

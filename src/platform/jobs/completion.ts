@@ -11,7 +11,7 @@ export const completeJob = (
   input: CompleteJobInput,
 ): JobRecord => {
   const now = input.now ?? new Date();
-  const job = findRunningLockedJob(store, input.jobId, input.workerId, input.claimLockedAt);
+  const job = findRunningLockedJob(store, input.jobId, input.workerId);
 
   if (job.cancellationRequestedAt !== undefined) {
     throw new JobError("job_not_claimable", "Job has requested cancellation.");
@@ -30,7 +30,7 @@ export const completeJob = (
 
 export const failJob = (store: InMemoryJobStore, input: FailJobInput): JobRecord => {
   const now = input.now ?? new Date();
-  const job = findRunningLockedJob(store, input.jobId, input.workerId, input.claimLockedAt);
+  const job = findRunningLockedJob(store, input.jobId, input.workerId);
 
   if (job.cancellationRequestedAt !== undefined) {
     job.status = "canceled";

@@ -4,7 +4,6 @@ import {
   PostgresLiveDraftRoomStreamAdmission,
   startPostgresLiveDraftRoomRevisionListener,
 } from "../liveDraftRoomRealtime.js";
-import { createNodeSeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { finalizePracticePersistenceCutover } from "../practicePersistenceCutover.js";
 import { createPlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions, PlatformServer } from "./contracts.js";
@@ -58,14 +57,12 @@ export const createPlatformServer = async (
         retryAfterSeconds: options.liveDraftRoomEventStreamRetryAfterSeconds,
       })
     : undefined;
-  const seasonSimulationRunner = options.seasonSimulationRunner ?? createNodeSeasonSimulationRunner();
   runtimeFactory = createPlatformRuntimeFactory({
     options,
     admissions,
     liveDraftRoomNotifier,
     liveDraftRoomStreamAdmission,
-    seasonSimulationRunner,
-    persistForJobs: persistence.persist,
+    persistForJobs: persistence.rawPersist,
     runInSnapshotCriticalSection: persistence.runInSnapshotCriticalSection,
   });
   runtimeHolder.replace(runtimeFactory(await loadPlatformStore(options)));

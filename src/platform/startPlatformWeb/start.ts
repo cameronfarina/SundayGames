@@ -20,6 +20,7 @@ import {
 import { startFantasyProsRefreshIfConfigured } from "./fantasyProsRefresh.js";
 import { platformWebServerOptions } from "./serverOptions.js";
 import { staticWebAssetsFor } from "./staticAssets.js";
+import { startSimulationReconciliation } from "./simulationReconciliation.js";
 
 export const startPlatformWebFromEnv = async (
   env: NodeJS.ProcessEnv = process.env,
@@ -57,6 +58,7 @@ export const startPlatformWebFromEnv = async (
     throw error;
   }
   const stopObserving = observePlatformNodeHttpServer(server.server);
+  const stopSimulationReconciliation = startSimulationReconciliation(server.simulationRepository);
   const fantasyProsRefresh = startFantasyProsRefreshIfConfigured({
     client: fantasyProsClientFor(config),
     repository: server.fantasyProsRepository,
@@ -68,6 +70,7 @@ export const startPlatformWebFromEnv = async (
     postgresClient,
     close: () => closePlatformWebRuntime({
       stopObserving,
+      stopSimulationReconciliation,
       stopFantasyProsRefresh: () => fantasyProsRefresh?.stop(),
       closeServer: async () => await server.close(),
       closePostgres,

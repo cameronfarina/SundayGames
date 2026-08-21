@@ -32,7 +32,6 @@ import type { PostgresPracticeShortlistRepository } from "../postgresPracticeSho
 import type { PostgresSimulationRepository } from "../postgresSimulations.js";
 import type { PlatformJobHandlers } from "../platformJobOrchestrator.js";
 import type { SimulationRepository } from "../simulations.js";
-import type { SeasonSimulationAdmissionRepository } from "../seasonSimulationAdmissions.js";
 
 export interface LoadedPlatformStore {
   store: InMemoryPlatformStore;
@@ -48,7 +47,6 @@ export interface RuntimeRepositories extends LoadedPlatformStore {
   simulationRepository: SimulationRepository;
   mockDraftSessionRepository: MockDraftSessionRepository;
   mockDraftPersistenceMode: PracticePersistenceMode | "snapshot";
-  seasonSimulationAdmissionRepository?: SeasonSimulationAdmissionRepository | undefined;
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
   fantasyProsRepository: FantasyProsRepository;

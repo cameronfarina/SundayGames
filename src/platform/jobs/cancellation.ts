@@ -35,7 +35,7 @@ export const cancelJobAtRunBoundary = (
   input: CancelJobAtRunBoundaryInput,
 ): JobRecord => {
   const now = input.now ?? new Date();
-  const job = findRunningLockedJob(store, input.jobId, input.workerId, input.claimLockedAt);
+  const job = findRunningLockedJob(store, input.jobId, input.workerId);
 
   if (job.cancellationRequestedAt === undefined) {
     throw new JobError("job_not_claimable", "Job has not requested cancellation.");

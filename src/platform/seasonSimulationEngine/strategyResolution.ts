@@ -1,5 +1,5 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 import {
   targetKeeperInfeasibilityFor,
   targetResolutionInfeasibilityFor,

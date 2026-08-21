@@ -15,9 +15,15 @@ export interface QueuedLoadJob {
   readonly sessionToken: string;
 }
 
+export interface IssuedSimulationLaunch {
+  readonly historyId: string;
+  readonly sessionToken: string;
+}
+
 export interface AuthenticatedLoadResult extends LoadMeasurement {
   readonly jobStatus?: "canceled" | "completed" | "failed" | "queued" | "running" | undefined;
   readonly queuedJob?: QueuedLoadJob | undefined;
+  readonly issuedSimulationLaunch?: IssuedSimulationLaunch | undefined;
   readonly roomRevision?: number | undefined;
 }
 
@@ -25,6 +31,7 @@ interface ValidatedResponse {
   readonly diagnostic: string;
   readonly jobStatus?: AuthenticatedLoadResult["jobStatus"];
   readonly queuedJob?: QueuedLoadJob | undefined;
+  readonly issuedSimulationLaunch?: IssuedSimulationLaunch | undefined;
   readonly roomRevision?: number | undefined;
 }
 
@@ -46,7 +53,7 @@ const expectedStatuses: Readonly<Record<AuthenticatedLoadRequest["responseKind"]
   job: [200],
   "live-room-mutation": [200],
   "player-news": [200],
-  "season-simulation": [200, 202],
+  "season-simulation": [202],
 };
 
 export const responseContractFor = async (
@@ -72,16 +79,17 @@ export const responseContractFor = async (
     return { diagnostic: isPlayerNews(body) ? "ok" : "invalid_player_news" };
   }
   if (request.responseKind === "season-simulation" && isRecord(body)) {
-    if (response.status === 200 && typeof body.historyId === "string" && isRecord(body.summary)) {
-      return { diagnostic: "ok_synchronous" };
-    }
     if (
-      response.status === 202 && body.status === "queued" &&
-      typeof body.historyId === "string" && typeof body.jobId === "string"
+      response.status === 202 && typeof body.historyId === "string" &&
+      typeof body.requestId === "string" && isRecord(body.input) &&
+      typeof body.inputDigest === "string"
     ) {
       return {
-        diagnostic: "ok_queued",
-        queuedJob: { jobId: body.jobId, sessionToken: request.sessionToken },
+        diagnostic: "ok",
+        issuedSimulationLaunch: {
+          historyId: body.historyId,
+          sessionToken: request.sessionToken,
+        },
       };
     }
     return { diagnostic: "invalid_simulation_response" };

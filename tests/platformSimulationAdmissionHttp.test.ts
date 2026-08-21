@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  maximumRetainedSimulationRunsPerUser,
   maximumSimulationNoteLength,
   maximumSimulationStrategyTextLength,
 } from "../src/platform/simulationLimits.js";
@@ -10,7 +9,7 @@ import {
 } from "./support/simulationAdmissionFixture.js";
 
 describe("simulation HTTP admission", () => {
-  it("returns typed 400 and 429 errors for malformed input and a saturated backlog", async () => {
+  it("returns typed 400 errors and does not impose a product launch backlog", async () => {
     const { app, handle, sessionToken, season, team } = await simulationAdmissionFixture();
     await expect(handle({
       method: "POST",
@@ -57,7 +56,7 @@ describe("simulation HTTP admission", () => {
       body: { error: { code: "simulation_strategy_too_large" } },
     });
 
-    for (let index = 0; index < maximumRetainedSimulationRunsPerUser; index += 1) {
+    for (let index = 0; index < 26; index += 1) {
       await app.createSimulationRun({
         actorSessionToken: sessionToken,
         leagueId: season.leagueId,
@@ -85,9 +84,8 @@ describe("simulation HTTP admission", () => {
         strategy: {},
       },
     })).resolves.toMatchObject({
-      status: 429,
-      headers: { "Retry-After": "5" },
-      body: { error: { code: "simulation_capacity_reached" } },
+      status: 201,
+      body: { simulation: { status: "requested" } },
     });
   });
 

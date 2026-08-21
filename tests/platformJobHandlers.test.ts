@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 const expectedBehaviors = [
   "dispatches an idempotent simulation job through the app and reports execution progress",
   "fails unsupported platform jobs instead of completing placeholders",
-  "runs a durable season simulation payload and persists incremental progress",
 ];
 
 const directory = path.resolve("tests/platformJobHandlers");
@@ -45,7 +44,7 @@ describe("platform job handler test architecture", () => {
   it("preserves platform job handler behaviors and assertions", () => {
     const metadata = behaviorFiles.map(metadataFor);
     expect(metadata.flatMap(item => item.names).sort()).toEqual([...expectedBehaviors].sort());
-    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(24);
+    expect(metadata.reduce((total, item) => total + item.assertions, 0)).toBe(16);
   });
 
   it("keeps platform job handler tests focused and free of unsafe type escapes", () => {

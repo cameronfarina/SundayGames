@@ -7,6 +7,7 @@ import {
 import { InMemorySimulationState } from "./inMemoryState.js";
 import { canReadSimulationRun } from "./privacy.js";
 import { resultWithOutcomeFavorite } from "./outcomeFavorites.js";
+import { makeSimulationRetentionRoom } from "./inMemoryRetention.js";
 import type { SimulationRepository } from "./repositoryContracts.js";
 import type {
   CreateSimulationRequestInput,
@@ -38,6 +39,21 @@ export class InMemorySimulationRepository implements SimulationRepository {
     return run === undefined || !canReadSimulationRun(userId, run) ? null : run;
   }
 
+  findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): SimulationRun | null {
+    return this.#state.values().find(run =>
+      run.request.userId === userId && run.request.seasonId === seasonId &&
+      run.request.idempotencyKey === idempotencyKey) ?? null;
+  }
+
+  reconcileAbandoned(now: Date): void {
+    const userIds = new Set(this.#state.values().map(run => run.request.userId));
+    for (const userId of userIds) makeSimulationRetentionRoom(this.#state, userId, now);
+  }
+
   find(runId: string): SimulationRun {
     const run = this.#state.get(runId);
     if (run === undefined) {
@@ -48,24 +64,21 @@ export class InMemorySimulationRepository implements SimulationRepository {
 
   markRunning(runId: string, now: Date): SimulationRun {
     const run = this.find(runId);
+    if (run.status !== "requested" && run.status !== "failed") return run;
     run.status = "running";
     run.startedAt = now;
     return run;
   }
 
-  markFailed(runId: string, executionStartedAt?: Date): SimulationRun {
+  markFailed(runId: string): SimulationRun {
     const run = this.find(runId);
-    if (
-      executionStartedAt !== undefined
-      && run.startedAt?.getTime() !== executionStartedAt.getTime()
-    ) return run;
-    if (run.status !== "canceled") run.status = "failed";
+    if (run.status === "requested" || run.status === "running") run.status = "failed";
     return run;
   }
 
   markCanceled(runId: string): SimulationRun {
     const run = this.find(runId);
-    if (run.status === "completed") return run;
+    if (run.status !== "requested" && run.status !== "running") return run;
     run.status = "canceled";
     run.result = undefined;
     run.completedAt = undefined;
@@ -82,19 +95,15 @@ export class InMemorySimulationRepository implements SimulationRepository {
     return run;
   }
 
-  complete(runId: string, result: SimulationResult, executionStartedAt?: Date): SimulationRun {
+  complete(runId: string, result: SimulationResult): SimulationRun {
     const run = this.find(runId);
-    if (run.status === "canceled") return run;
-    if (executionStartedAt !== undefined &&
-        run.startedAt?.getTime() !== executionStartedAt.getTime()) {
-      throw new SimulationError(
-        "simulation_execution_superseded",
-        "Simulation completion was superseded by a newer execution.",
-      );
+    if (run.status === "canceled" || run.status === "completed" || run.status === "failed") {
+      return run;
     }
     run.status = "completed";
     run.completedAt = result.completedAt;
     run.result = result;
+    makeSimulationRetentionRoom(this.#state, run.request.userId, result.completedAt);
     return run;
   }
 

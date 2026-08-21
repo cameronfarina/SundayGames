@@ -10,16 +10,18 @@ export const markCanceled = async (
   if (existingRun === null) {
     throw new SimulationError("simulation_not_found", "Simulation run was not found.");
   }
-  if (existingRun.status === "completed") return existingRun;
+  if (existingRun.status !== "requested" && existingRun.status !== "running") return existingRun;
   const now = new Date();
-  await client.query(`
+  const transition = await client.query<{ id: string }>(`
 UPDATE simulation_runs
 SET status = 'canceled',
     completed_at = NULL,
     updated_at = $2
 WHERE id = $1
+  AND status IN ('requested', 'running')
+RETURNING id
 `.trim(), [runId, now]);
-  await client.query("DELETE FROM simulation_results WHERE simulation_run_id = $1", [runId]);
+  if (transition.rows.length === 0) return await findRequired(runId, client);
   return await findRequired(runId, client);
 });
 

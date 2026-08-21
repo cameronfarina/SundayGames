@@ -13,14 +13,11 @@ export const failJob = async (
   context: JobQueueContext,
   input: FailJobInput,
 ): Promise<JobRecord> => {
-  const job = await requireRunningLockedJob(
-    context, input.jobId, input.workerId, input.claimLockedAt,
-  );
+  const job = await requireRunningLockedJob(context, input.jobId, input.workerId);
   if (job.cancellationRequestedAt !== undefined) {
     return await cancelJobAtRunBoundary(context, {
       jobId: input.jobId,
       workerId: input.workerId,
-      claimLockedAt: input.claimLockedAt,
       now: input.now,
     });
   }
@@ -46,7 +43,6 @@ SET status = $2,
 WHERE id = $1
   AND status = 'running'
   AND locked_by = $8
-  AND locked_at = $9
   AND cancellation_requested_at IS NULL
 RETURNING *;
 `.trim(),
@@ -59,20 +55,16 @@ RETURNING *;
       finishedAt,
       now,
       input.workerId,
-      input.claimLockedAt,
     ],
   );
   const row = firstRow(result);
   if (row !== undefined) return jobFromRow(row);
 
-  const currentJob = await requireRunningLockedJob(
-    context, input.jobId, input.workerId, input.claimLockedAt,
-  );
+  const currentJob = await requireRunningLockedJob(context, input.jobId, input.workerId);
   if (currentJob.cancellationRequestedAt !== undefined) {
     return await cancelJobAtRunBoundary(context, {
       jobId: input.jobId,
       workerId: input.workerId,
-      claimLockedAt: input.claimLockedAt,
       now,
     });
   }

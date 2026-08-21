@@ -51,7 +51,7 @@ export const shouldSkipSnapshotPersist = (
   const externalLiveRooms = runtime.liveDraftRoomRepository !== runtime.store.liveDraftRooms;
   const externalExports = runtime.exportArtifactRepository !== runtime.store.exportArtifacts;
   return isLeagueMembersScreenshotAnalysisRequest(request) ||
-    (externalJobs && externalSimulations && isSeasonSimulationRequest(request)) ||
+    isSeasonSimulationRequest(request) ||
     usesFileAuthSidecarFor(runtime, request) ||
     (externalAuth && isAuthOnlyMutationRequest(request)) ||
     (externalLeagueSetup && isLeagueSetupOnlyMutationRequest(request)) ||
@@ -75,9 +75,9 @@ export const shouldBypassSnapshotAccess = (
   const externalSimulations = runtime.simulationRepository !== runtime.store.simulations;
   const externalShortlist = runtime.practiceShortlistRepository !== runtime.store.practiceShortlists;
   const normalizedOnlyMockSessions = runtime.mockDraftPersistenceMode === "normalized-only";
+  if (isSeasonSimulationResourceRequest(request)) return true;
   if (externalShortlist && isPracticeShortlistRequest(request)) return true;
   if (normalizedOnlyMockSessions && isMockDraftSessionRequest(request)) return true;
-  if (externalSimulations && isSeasonSimulationResourceRequest(request)) return true;
   if (isSimulationRequest(request)) {
     return isJobOnlyMutationRequest(request) ? externalJobs : externalSimulations;
   }

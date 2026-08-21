@@ -10,7 +10,7 @@ export const defaultScreenshotImportTimeoutMs = 30_000;
 export const defaultScreenshotImportMaxImageBytes = 5 * 1024 * 1024;
 export const defaultScreenshotImportMaxConcurrency = 2;
 export const defaultFantasyProsSeason = 2026;
-export const launchWorkerJobKinds: readonly JobKind[] = ["simulation", "season_simulation"];
+export const launchWorkerJobKinds: readonly JobKind[] = ["simulation"];
 
 export const productionReadinessNextSteps: readonly string[] = [
   "Run `npm run platform:migrate` against the production DATABASE_URL before starting the web process.",

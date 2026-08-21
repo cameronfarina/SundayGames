@@ -6,7 +6,6 @@ import {
   type PostgresLiveDraftRoomStreamAdmission,
 } from "../liveDraftRoomRealtime.js";
 import { createPlatformJobHandlers } from "../platformJobHandlers.js";
-import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { createAcceptedMembershipApplier } from "./acceptedMembership.js";
 import type { PlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -19,7 +18,6 @@ interface CreateRuntimeFactoryOptions {
   admissions: PlatformAdmissions;
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
   liveDraftRoomStreamAdmission?: PostgresLiveDraftRoomStreamAdmission | undefined;
-  seasonSimulationRunner: SeasonSimulationRunner;
   persistForJobs: () => Promise<void>;
   runInSnapshotCriticalSection: <T>(operation: () => Promise<T>) => Promise<T>;
 }
@@ -44,13 +42,10 @@ export const createPlatformRuntimeFactory = (
     jobRepository: repositories.jobRepository,
     simulationRepository: repositories.simulationRepository,
     mockDraftSessionRepository: repositories.mockDraftSessionRepository,
-    seasonSimulationAdmissionRepository: repositories.seasonSimulationAdmissionRepository,
-    seasonSimulationProducerEnabled: options.seasonSimulationProducerEnabled,
     practiceShortlistRepository: repositories.practiceShortlistRepository,
     liveDraftRoomRepository: repositories.liveDraftRoomRepository,
     exportArtifactRepository: repositories.exportArtifactRepository,
     simulationRunner: options.simulationRunner,
-    seasonSimulationRunner: input.seasonSimulationRunner,
   });
   const applyAcceptedMembership = createAcceptedMembershipApplier(repositories);
   const runLeagueSyncSeasonRefresh =

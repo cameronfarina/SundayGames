@@ -70,9 +70,7 @@ export const cancelJobAtRunBoundary = async (
   context: JobQueueContext,
   input: CancelJobAtRunBoundaryInput,
 ): Promise<JobRecord> => {
-  const job = await requireRunningLockedJob(
-    context, input.jobId, input.workerId, input.claimLockedAt,
-  );
+  const job = await requireRunningLockedJob(context, input.jobId, input.workerId);
   if (job.cancellationRequestedAt === undefined) {
     throw new JobError("job_not_claimable", "Job has not requested cancellation.");
   }
@@ -90,12 +88,9 @@ SET status = 'canceled',
 WHERE id = $1
   AND status = 'running'
   AND locked_by = $3
-  AND locked_at = $4
 RETURNING *;
 `.trim(),
-    [input.jobId, now, input.workerId, input.claimLockedAt],
+    [input.jobId, now, input.workerId],
   );
-  return await requiredLockedUpdate(
-    context, result, input.jobId, input.workerId, input.claimLockedAt,
-  );
+  return await requiredLockedUpdate(context, result, input.jobId, input.workerId);
 };

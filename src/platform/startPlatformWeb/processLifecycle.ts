@@ -1,5 +1,6 @@
 export interface ClosePlatformWebRuntimeDependencies {
   stopObserving: () => void;
+  stopSimulationReconciliation: () => void;
   stopFantasyProsRefresh: () => void;
   closeServer: () => Promise<void>;
   closePostgres: (() => Promise<void>) | undefined;
@@ -9,6 +10,7 @@ export const closePlatformWebRuntime = async (
   dependencies: ClosePlatformWebRuntimeDependencies,
 ): Promise<void> => {
   dependencies.stopObserving();
+  dependencies.stopSimulationReconciliation();
   dependencies.stopFantasyProsRefresh();
   try {
     await dependencies.closeServer();

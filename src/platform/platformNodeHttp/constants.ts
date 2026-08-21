@@ -1,4 +1,5 @@
 export const defaultPlatformJsonBodyLimitBytes = 1_048_576;
+export const seasonSimulationCompletionBodyLimitBytes = 2_097_152;
 export const defaultPlatformScreenshotImportBodyLimitBytes = 7_100_000;
 export const jsonContentType = "application/json; charset=utf-8";
 export const htmlContentType = "text/html; charset=utf-8";

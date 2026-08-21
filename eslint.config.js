@@ -10,6 +10,13 @@ import typescript from "typescript-eslint";
 
 const sourceFiles = ["web/src/**/*.{ts,tsx}"];
 const testFiles = ["web/src/**/*.test.{ts,tsx}"];
+const browserSimulationBundleFiles = [
+  "web/src/features/practice/api/browserSimulationExecution.test.ts",
+  "web/src/features/practice/api/browserSimulationExecution.ts",
+  "web/src/features/practice/api/browserSimulationRunner.test.ts",
+  "web/src/features/practice/workers/seasonSimulation.worker.test.ts",
+  "web/src/features/practice/workers/seasonSimulation.worker.ts",
+];
 const configFiles = ["web/*.config.ts"];
 const architectureToolFiles = [
   "scripts/frontend-architecture-guard*.ts",
@@ -90,6 +97,10 @@ export default typescript.config(
       ],
       "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
     },
+  },
+  {
+    files: browserSimulationBundleFiles,
+    extends: [typescript.configs.disableTypeChecked],
   },
   {
     files: ["web/src/features/**/*.{ts,tsx}"],

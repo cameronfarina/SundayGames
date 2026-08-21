@@ -25,6 +25,18 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.fetchForUser(runId, userId);
   }
 
+  async findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): Promise<SimulationRun | null> {
+    return this.inner.findByRequestKeyForUser(userId, seasonId, idempotencyKey);
+  }
+
+  async reconcileAbandoned(now: Date): Promise<void> {
+    this.inner.reconcileAbandoned(now);
+  }
+
   async find(runId: string): Promise<SimulationRun> {
     return this.inner.find(runId);
   }
@@ -33,8 +45,8 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.markRunning(runId, runAt);
   }
 
-  async markFailed(runId: string, executionStartedAt?: Date): Promise<SimulationRun> {
-    return this.inner.markFailed(runId, executionStartedAt);
+  async markFailed(runId: string): Promise<SimulationRun> {
+    return this.inner.markFailed(runId);
   }
 
   async markCanceled(runId: string): Promise<SimulationRun> {
@@ -45,12 +57,8 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.resetForRerun(runId);
   }
 
-  async complete(
-    runId: string,
-    result: SimulationResult,
-    executionStartedAt?: Date,
-  ): Promise<SimulationRun> {
-    return this.inner.complete(runId, result, executionStartedAt);
+  async complete(runId: string, result: SimulationResult): Promise<SimulationRun> {
+    return this.inner.complete(runId, result);
   }
 
   async setOutcomeFavorite(

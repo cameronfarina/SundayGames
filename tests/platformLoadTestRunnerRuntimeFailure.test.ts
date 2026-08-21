@@ -37,7 +37,16 @@ describe("platform mixed load runtime stream gate", () => {
         return;
       }
       if (request.url === "/season-simulations") {
-        response.writeHead(200).end(JSON.stringify({ historyId: "history", summary: {} }));
+        response.writeHead(202).end(JSON.stringify({
+          historyId: "history",
+          requestId: "request",
+          input: { runCount: 1 },
+          inputDigest: "digest",
+        }));
+        return;
+      }
+      if (request.method === "DELETE" && request.url?.startsWith("/season-simulations/") === true) {
+        response.writeHead(204).end();
         return;
       }
       roomRevision = 2;

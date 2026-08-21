@@ -1,8 +1,8 @@
-import { InMemoryLiveDraftRoomSetupRepository, InMemoryPlatformStore, createClientAddressRateLimiter, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, dispatchNextQueuedSeasonSimulation, dispatchQueuedSeasonSimulation, expect, expectAsyncTextStream, expectBodyRecord, expectString, it, mockRunner, now, playerCatalog, seasonSimulationRunner, snakePlayerCatalog, snakeSeason } from "../support/index.js";
+import { InMemoryLiveDraftRoomSetupRepository, InMemoryPlatformStore, browserSimulationResult, completeBrowserSimulation, createClientAddressRateLimiter, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectBodyRecord, expectBrowserSimulationCancellation, expectString, it, mockRunner, now, snakePlayerCatalog, snakeSeason } from "../support/index.js";
 
 describe("platform HTTP contract", () => {
 it("runs private league-aware simulations for a claimed team", async () => {
-    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner, seasonSimulationRunner });
+    const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const liveDraftRoomSetupRepository = new InMemoryLiveDraftRoomSetupRepository();
     const handle = createPlatformHttpHandler(app, {
       liveDraftRoomSetupProvider: async () => ({ playerCatalog: snakePlayerCatalog, initialRosters: [] }),
@@ -58,10 +58,10 @@ it("runs private league-aware simulations for a claimed team", async () => {
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
-      body: { seasonId: season.id, count: 101, strategy: "Draft Player 1 by round 1" },
+      body: { seasonId: season.id, count: 26, strategy: "Draft Player 1 by round 1" },
     })).resolves.toMatchObject({ status: 400, body: { error: { code: "invalid_run_count" } } });
 
-    const queuedSimulationResponse = await handle({
+    const simulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
@@ -71,40 +71,71 @@ it("runs private league-aware simulations for a claimed team", async () => {
         count: 2,
         strategy: "Draft Player 1 by round 1",
         note: "Compare a first-round target.",
+        requestId: "private-request-1",
       },
     });
-    expect(queuedSimulationResponse).toMatchObject({ status: 202 });
-    const historyId = await dispatchQueuedSeasonSimulation(app, queuedSimulationResponse);
-    const simulationResponse = await handle({ method: "GET", path: `/season-simulations/${historyId}`, sessionToken: owner11.sessionToken });
-    expect(simulationResponse).toMatchObject({
-      status: 200,
+    expect(simulationResponse).toMatchObject({ status: 202 });
+    const launch = expectBodyRecord(simulationResponse.body);
+    const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
+    await expect(handle({
+      method: "POST",
+      path: "/season-simulations",
+      sessionToken: owner11.sessionToken,
+      now,
       body: {
-        summary: {
-          draftFormat: "snake",
-          runCount: 2,
-          completedCount: 2,
-          strategy: {
-            target: { playerName: "Player 1", maxSnakeRound: 1 },
-            warnings: [],
-          },
-          targetOutcome: { playerName: "Player 1", hitCount: 2, hitRate: 1 },
-        },
+        seasonId: season.id,
+        count: 1,
+        strategy: "Changed after the interrupted response",
+        note: "Changed note",
+        requestId: "private-request-1",
+      },
+    })).resolves.toMatchObject({
+      status: 202,
+      body: {
+        historyId,
+        inputDigest: launch.inputDigest,
+        note: "Compare a first-round target.",
+        input: { runCount: 2 },
       },
     });
-    const summary = expectBodyRecord(expectBodyRecord(simulationResponse.body).summary);
+    await expect(handle({
+      method: "POST",
+      path: `/season-simulations/${historyId}/complete`,
+      sessionToken: owner11.sessionToken,
+      now,
+      body: {
+        simulation: browserSimulationResult(simulationResponse),
+        inputDigest: "wrong-digest",
+      },
+    })).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "invalid_configuration" } },
+    });
+    const completedResponse = await completeBrowserSimulation({
+      handle, launchResponse: simulationResponse, sessionToken: owner11.sessionToken, now,
+    });
+    expect(completedResponse).toMatchObject({
+      status: 200,
+      body: { summary: { draftFormat: "snake", runCount: 2, completedCount: 2 } },
+    });
+    const summary = expectBodyRecord(expectBodyRecord(completedResponse.body).summary);
     expect(summary).not.toHaveProperty("runs");
     expect(summary.outcomes).toEqual([
       expect.objectContaining({ favorite: false, rank: 1, runNumber: 1 }),
       expect.objectContaining({ favorite: false, rank: 2, runNumber: 2 }),
     ]);
-    const queuedNewerSimulationResponse = await handle({
+    const newerSimulationResponse = await handle({
       method: "POST",
       path: "/season-simulations",
       sessionToken: owner11.sessionToken,
       now: new Date(now.getTime() + 1_000),
       body: { seasonId: season.id, count: 1, strategy: "Draft Player 2 by round 2" },
     });
-    const newerHistoryId = await dispatchQueuedSeasonSimulation(app, queuedNewerSimulationResponse);
+    const newerHistoryId = expectString(expectBodyRecord(newerSimulationResponse.body).historyId);
+    await completeBrowserSimulation({
+      handle, launchResponse: newerSimulationResponse, sessionToken: owner11.sessionToken,
+      now: new Date(now.getTime() + 1_000),
+    });
     await expect(handle({
       method: "GET",
       path: "/season-simulations",
@@ -209,42 +240,8 @@ it("runs private league-aware simulations for a claimed team", async () => {
       path: `/season-simulations/${historyId}/runs/not-a-run`,
       sessionToken: owner11.sessionToken,
     })).resolves.toMatchObject({ status: 404 });
-    const streamedSimulationResponse = await handle({
-      method: "POST",
-      path: "/season-simulations",
-      sessionToken: owner11.sessionToken,
-      now: new Date(now.getTime() + 2_000),
-      headers: { accept: "text/event-stream" },
-      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
-    });
-    await dispatchNextQueuedSeasonSimulation(app);
-    expect(streamedSimulationResponse).toMatchObject({
-      status: 200,
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "private, no-store, no-transform",
-        "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",
-      },
-    });
-    const stream = expectAsyncTextStream(streamedSimulationResponse.body);
-    let streamedEvents = "";
-    for await (const chunk of stream) streamedEvents += chunk;
-    expect(streamedEvents).toContain('event: progress\ndata: {"completed":0,"total":2}');
-    expect(streamedEvents).toContain('event: progress\ndata: {"completed":2,"total":2}');
-    expect(streamedEvents).toContain('event: result\ndata: {"historyId":');
-    expect(streamedEvents).toContain('"summary":{"completedCount":2,"draftFormat":"snake"');
-    expect(streamedEvents).not.toContain('"runs":');
-    await expect(handle({
-      method: "POST",
-      path: "/season-simulations",
-      sessionToken: owner11.sessionToken,
-      now: new Date(now.getTime() + 3_000),
-      body: { seasonId: season.id, count: 2, strategy: "Draft Player 1 by round 1" },
-    })).resolves.toMatchObject({
-      status: 429,
-      body: { error: { code: "rate_limited" } },
-      headers: { "Retry-After": "57" },
+    await expectBrowserSimulationCancellation({
+      handle, sessionToken: owner11.sessionToken, seasonId: season.id, now,
     });
   });
 });

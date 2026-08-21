@@ -10,6 +10,7 @@ export interface PlatformRuntimeEnv {
 export interface ReadPlatformRuntimeConfigOptions {
   requireDatabase?: boolean | undefined;
   requireDurableStore?: boolean | undefined;
+  requireRunnableWorker?: boolean | undefined;
 }
 
 export interface AuthEmailConfig {
@@ -52,7 +53,6 @@ export interface PlatformRuntimeConfig {
   initializePostgresSchema: boolean;
   draftToolsSessionDirectory: string;
   legacyMockBatchEnabled: boolean;
-  seasonSimulationProducerEnabled: boolean;
   allowPublicSignup: boolean;
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";

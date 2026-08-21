@@ -8,7 +8,7 @@ import type {
 export type PlatformJobRepository = Pick<
   JobRepository,
   "claimNextJob" | "updateProgress" | "heartbeatJob" | "completeJob" | "failJob" | "cancelJobAtRunBoundary"
-> & Partial<Pick<JobRepository, "recordWorkerHeartbeat">>;
+>;
 
 export interface PlatformJobSubmitRepository {
   submit(input: SubmitJobInput): JobRecord;

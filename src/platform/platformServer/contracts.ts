@@ -30,7 +30,6 @@ import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
 import type { PostgresQueryClient } from "../postgresPlatformStore.js";
 import type { EspnLeagueSettingsImportInput, EspnLeagueSettingsImportOutcome } from "../espnLeagueSettingsImport.js";
 import type { LiveDraftRoomPlayerCatalogEntry, LiveDraftRoomRepository } from "../liveDraftRooms.js";
-import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import type { SimulationMockBatchRunner, SimulationRepository } from "../simulations.js";
 
 export type { PlatformServer, StartPlatformServerOptions, StartedPlatformServer } from "./serverHandleContracts.js";
@@ -93,10 +92,11 @@ export interface CreatePlatformServerOptions {
   historicalImportClientRateLimiter?: ClientAddressRateLimiter | undefined;
   historicalImportMaxConcurrentPerAccount?: number | undefined;
   historicalImportMaxConcurrentPerClient?: number | undefined;
+  simulationCompletionMaxConcurrentPerAccount?: number | undefined;
+  simulationCompletionMaxConcurrentPerClient?: number | undefined;
   leagueImportRateLimiter?: ClientAddressRateLimiter | undefined;
   simulationRateLimiter?: ClientAddressRateLimiter | undefined;
   liveDraftMutationRateLimiter?: ClientAddressRateLimiter | undefined;
-  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
   leagueMembersScreenshotAnalyzer?: LeagueMembersScreenshotAnalyzer | undefined;
   simulationRunner: SimulationMockBatchRunner;
   liveDraftRoomEventStreamMaxConnectionsPerAccount?: number | undefined;
@@ -105,7 +105,6 @@ export interface CreatePlatformServerOptions {
   bodyLimitBytes?: number | undefined;
   screenshotImportBodyLimitBytes?: number | undefined;
   legacyMockBatchEnabled?: boolean | undefined;
-  seasonSimulationProducerEnabled?: boolean | undefined;
   draftToolsSessionDirectory?: string | undefined;
   readinessProbe?: (() => boolean | Promise<boolean>) | undefined;
   now?: PlatformClock | undefined;

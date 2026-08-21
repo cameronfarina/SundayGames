@@ -7,28 +7,29 @@ This is the concrete first-production procedure for Mockd. The broader architect
 `render.yaml` creates these resources in Render's Virginia region:
 
 - `sundaygames`: one paid Docker web instance with `/readyz` health checks and no persistent disk.
-- `sundaygames-simulation-worker`: one Starter background worker for durable season simulations.
 - `mockd-postgres`: private managed Postgres 17 on a paid plan with 15 GB of autoscaling storage.
 
-The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Render deploys automatically once GitHub checks pass; an operator can still deploy sooner by hand for urgent low-risk changes. League-aware season simulations are admitted atomically to the normalized Postgres run and job tables and execute only in the background worker. The browser receives a durable run/job handle and can reconnect after each bounded SSE observation window.
+The web service runs migrations before a release. The migration runner holds a Postgres advisory lock before any DDL. Render deploys automatically once GitHub checks pass; an operator can still deploy sooner by hand for urgent low-risk changes. The server prepares and authorizes league-aware simulation inputs, while a browser Web Worker runs the shared seeded engine and returns a result for validation and persistence. The Blueprint creates no background worker.
+
+Every account may launch simulations without a lifetime or season product quota. Each launch defaults to and permits at most 25 simulations. The existing 10-launches-per-15-minutes limiter remains an operational abuse/load safeguard; HTTP 429 means wait and retry, not an account entitlement limit. History retains the latest 25 completed batches. The web process reconciles requested launches older than one hour at startup and every five minutes, as well as during later launches.
+
+The server stores the exact prepared input and its immutable digest with the issued run. Completion must match the issued account, team, season, league size, roster size, run count, seed sequence, and digest. This binds a completion to its issued launch; it is not cryptographic proof that a hostile browser executed the algorithm. The completion endpoint authenticates before reading its route-scoped 2 MiB body and admits at most two active bodies per account and eight per client address in one web process. If a completion response is lost or returns an ambiguous server error, the browser retries the same history ID and payload once; the first terminal result wins, so a committed retry returns the saved batch rather than creating another launch. Closing, refreshing, or navigating away terminates the Web Worker and sends a best-effort cancellation by the client request ID even when the launch response has not arrived. If cancellation arrives before the launch transaction commits, the unfinished row remains invisible to completed history and has no product-quota effect. The startup-and-five-minute reconciler removes it after it is one hour old, so cleanup occurs within about 65 minutes of creation rather than immediately.
 
 The web service carries no persistent disk, so Render deploys it with zero downtime: it starts the new instance, waits for `/readyz` to pass, moves traffic over, and then shuts the old instance down about a minute later. Do not re-attach a disk. A disk pins the service to one instance and makes Render stop the old instance before starting the new one, which drops traffic on every deploy.
 
-Live draft rooms reconnect their event stream and catch up from their last revision. Season simulations also survive web swaps because the queue, progress, result, and reconnect handle are durable. A worker claim is attempt-fenced; if a worker dies, a later worker can reclaim the expired job without a stale attempt overwriting the replacement.
-
-The Starter worker is the only new paid unit in this release. Render's current pricing starts a Starter service at $7 per month and prorates active service time; verify the displayed price before applying the Blueprint at [Render pricing](https://render.com/pricing).
+Two effects survive the swap window. Live draft rooms reconnect their event stream and catch up from their last revision. An in-progress browser simulation stays in its tab and can complete against the new web process. A tab that still runs the retired server-stream client receives a terminal `simulation_client_upgrade_required` stream error before the server prepares or stores a launch; refreshing loads the browser-worker client, and retrying then starts normally. A refresh or tab close stops local work, sends best-effort cancellation, and never adds an unfinished launch to completed history.
 
 Deploying during a live draft window is now far safer, but it is not free. Render waits for the linked GitHub checks before deploying a commit from `main`, then gates traffic on `/readyz`. Prefer to hold non-urgent pushes until the draft ends so a healthy release cannot interrupt an active room unexpectedly.
 
 The web service still stays at one instance for launch. Live-room subscribers
 now coordinate revisions and connection admission through Postgres, so they no
 longer block a later replica increase. Review the remaining in-process state,
-including the draft-tools store cache and simulation execution, before going
+including the draft-tools store cache, before going
 higher.
 
 Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
-The practice-persistence release reserves `platform-practice-persistence-v25`. Its development branch starts from v23 because v24 ships in the separate scale/load stack. Before merging or deploying it, rebase that branch after v24 and verify the migration ledger order is v23, v24, then v25. Do not renumber v25 or deploy a migration list that skips v24.
+The practice-persistence release reserves `platform-practice-persistence-v25`, and browser-simulation lifecycle cleanup uses `platform-browser-simulation-lifecycle-v26`. Verify the migration ledger order is v23, v24, v25, then v26. Do not renumber these migrations or deploy a migration list that skips one.
 
 ## Validate The Blueprint
 
@@ -48,7 +49,7 @@ npm run platform:render:validate -- /path/to/render-schema.json /path/to/render.
 4. Verify a sending domain in Resend. Add `RESEND_API_KEY`, set `MOCKD_EMAIL_FROM` to that verified sender, and set `MOCKD_PUBLIC_BASE_URL` to the generated Render HTTPS origin for staging.
 5. Generate a 32-byte key with `openssl rand -base64 32` in a trusted operator environment. Set `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_ACTIVE_KEY_ID` to a stable id such as `credentials-2026-08`, then set `MOCKD_LEAGUE_CONNECTION_CREDENTIAL_KEYS` to a JSON object that maps that id to the generated value. Keep both settings in Render's secret environment only.
 6. Confirm no provisioning token or password-hash variables are present in the Blueprint.
-7. Apply the Blueprint with `MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED=false` and wait for the web service, simulation worker, and database to become healthy. This compatibility deploy teaches every web replica to decode v1 jobs without producing one during the overlap.
+7. Apply the Blueprint and wait for the web service and database to become healthy.
 8. Open `https://<render-subdomain>/healthz` and `https://<render-subdomain>/readyz`. Both must return HTTP 200. Readiness fails without Resend delivery, a sender, the public HTTPS origin, or a valid credential keyring. OpenAI is not required.
 
 The Render service inherits the production-safe 650 live-draft stream default. Set
@@ -100,14 +101,13 @@ The command emits only a generic success or failure message and revokes every ex
 
 ## 3. Exercise Recovery
 
-Render's paid Postgres service provides managed backups and point-in-time recovery. The disk-free web and worker services contain no durable state to snapshot. Before domain cutover:
+Render's paid Postgres service provides managed backups and point-in-time recovery. The web service intentionally has no attached disk. Before domain cutover:
 
 1. Confirm both backup controls and retention windows in the Render dashboard.
 2. Record the current UTC time and confirm it falls inside the database's displayed point-in-time recovery window.
 3. From the database's **Recovery** page, create and download a logical export for the launch record.
-4. Confirm neither the web nor worker service has a persistent disk attached.
-5. Create a separate, empty Postgres restore-rehearsal database.
-6. From a trusted operator machine with compatible `pg_dump` and `pg_restore` binaries, run:
+4. Create a separate, empty Postgres restore-rehearsal database.
+5. From a trusted operator machine with compatible `pg_dump` and `pg_restore` binaries, run:
 
 ```bash
 DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:backup:postgres -- --output=/secure/backups/mockd.dump
@@ -129,25 +129,15 @@ If the database is private-only, temporarily allow only the operator's current I
 3. Manually run the **Production health** workflow once. It must pass, and a forced test failure must reach the named deploy owner.
 4. Confirm the scheduled 15-minute readiness check runs. Missing monitor configuration fails the workflow instead of skipping it.
 5. Enable Render deploy and service-health notifications. Configure external metric alerts for Postgres availability and capacity, disk usage, backup failures, and draft-window mutation errors; Render's service notifications alone do not cover all of these signals.
-6. Confirm Render's daily Postgres and disk backup controls are healthy.
+6. Confirm Render's daily Postgres backup controls are healthy.
 
 The GitHub monitor checks `/readyz`, which covers the web process, Postgres, required migrations, and writable private-draft storage. `/healthz` is only process liveness.
-
-Also monitor the authenticated `GET /season-simulations/worker-status` response and alert when `workerAvailable` is false. Keep global queue depth and oldest-queued age in operator-only Postgres/Render monitoring; the user endpoint deliberately does not expose other accounts' traffic. Render worker logs should show neither repeated claim errors nor exhausted retries.
 
 ## 5. Run Staging Smoke
 
 Create a protected GitHub `production` Environment with required reviewers. Add credentials for one commissioner and one member plus the staging season ID as environment-scoped secrets. Keep the repository variable `MOCKD_PRODUCTION_BASE_URL` fixed to the Render HTTPS origin, then manually run **Deployed smoke**; the workflow does not accept a user-supplied destination.
 
 The deployed smoke is deliberately read-only: it verifies both roles, league home, board, mock draft, simulations, and commissioner setup without creating, starting, selling into, or ending the real draft room. It is safe to rerun before and after DNS cutover. The full mutation and realtime flow remains covered by local E2E and the production-container gate; also complete the multi-browser draft-night rehearsal in the production runbook.
-
-After the compatibility web deploy's predecessor is fully deactivated, set `MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED=true` and deploy web again. Before enabling season simulations for users, sign in with the staging member, confirm `/season-simulations/worker-status` reports a recent worker heartbeat, submit a two-run simulation, disconnect and reopen the page once, and confirm the same durable history entry completes. Do not pass the gate if a retry creates a second run or job.
-
-## Suspend The Worker Offseason
-
-The worker may be suspended to avoid paying for it year-round. First set `MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED=false` and deploy web, then wait until the operator queue metrics show no queued or running `season_simulation` job. Suspend only `sundaygames-simulation-worker`; keep web and Postgres unchanged. While it is suspended, simulation admission returns a temporary-unavailable response instead of accepting work that cannot run.
-
-To resume, deploy or resume the worker at the same application commit as the web service, wait for a fresh heartbeat in `/season-simulations/worker-status`, set `MOCKD_SEASON_SIMULATION_PRODUCER_ENABLED=true`, redeploy web, and run the two-run reconnect smoke above. Render prorates the worker while it runs.
 
 Before the first real import, create a temporary staging season with the production team count and run manual team entry, profile mapping, apply, and invitation-link creation. Confirm duplicate or missing profile mappings cannot apply and team IDs remain stable when rows are reordered or a name is corrected. If optional screenshot analysis is deliberately enabled, also run one sanitized screenshot through analyze and review and confirm uncertain rows cannot apply without commissioner confirmation and stale reviews return a conflict instead of overwriting newer setup. Delete or archive the temporary records before DNS cutover.
 
@@ -169,11 +159,9 @@ Only after in-product setup, recovery, monitoring, and deployed smoke pass:
 
 Before each manual release, record the current web deploy ID plus the UTC time, confirm that time is inside the displayed PITR window, and create/download a logical database export. If the new release fails before serving traffic, roll back the web service from its Render **Events** page to the recorded deploy. Current launch migrations are additive, so the older app should tolerate them; verify `/readyz` and login immediately.
 
-For the simulation-worker release, stack `platform-simulation-worker-reliability-v26` after the separately reserved v24 live-draft and v25 normalized-practice migrations. Apply the additive migration first, deploy the worker that understands `season-simulation-execution-v1`, wait for its heartbeat, and deploy web with the producer flag false. Wait for the old web predecessor to deactivate before setting the flag true in a second web deploy. During rollback, set the flag false first, drain or cancel only known v1 season jobs, then roll back web and worker. Record each exact deploy ID.
-
 For the hosted-snake release, apply `platform-snake-live-room-v20` and complete the web swap before creating a snake room. The old release remains safe for existing auction rooms because their recorded sales still have prices, but its snapshot decoder rejects every snake room. Keep snake room creation disabled operationally while application rollback is still likely. Once the first hosted snake room is created, roll forward; use the recorded pre-room Postgres recovery point only if roll-forward is impossible.
 
-If a future release includes a destructive or backward-incompatible migration, mark it no-go until it has an explicit expand/migrate/contract sequence. If data must be reverted, enable maintenance mode, restore Postgres to the pre-release recovery point, roll back the web and worker services, then rerun readiness and deployed smoke before disabling maintenance mode.
+If a future release includes a destructive or backward-incompatible migration, mark it no-go until it has an explicit expand/migrate/contract sequence. If data must be reverted, enable maintenance mode, restore Postgres to the pre-release recovery point, roll back the web service, then rerun readiness and deployed smoke before disabling maintenance mode.
 
 The encrypted-credential schema expansion lets the old release keep syncing existing plaintext connections during the swap. A read by the new release may add an encrypted envelope to a legacy row, but it deliberately keeps `espn_s2` and `swid` until the operator runs the backfill. The old release cannot read a connection created or repaired by the new release. After backfill, it cannot sync any saved ESPN connection because every credential is envelope-only. Prefer rolling forward. Before backfill, a rollback keeps legacy connections working but owners of newly written connections must paste fresh credentials after the fixed release returns. After backfill, rollback requires either restoring the pre-backfill database recovery point or having every affected owner paste fresh credentials after the fixed release returns.
 
@@ -237,6 +225,8 @@ CROSS JOIN LATERAL jsonb_array_elements(
 
 Before cutover, rollback to v23 is safe because dual writes keep its compatibility view current. After cutover, do not change the environment back to dual-write: readiness will fail because the database gate is irreversible. Roll forward, or restore the pre-cutover database recovery point before rolling the application back.
 
-Automatic deploys stay off. During the draft-day freeze, do not start a manual web deploy except as part of the documented incident response.
+The v26 browser-simulation lifecycle migration follows v25 and is additive. It creates a partial status/creation-time index for the five-minute stale-launch reconciler. Each sweep uses a transaction advisory try-lock, so overlapping old and new web processes do not scan concurrently. Application rollback does not require a database restore.
+
+Automatic deploys remain enabled with `checksPass`, so an update to `main` deploys after its linked GitHub checks pass. Enforce the draft-day freeze by holding merges and direct pushes to `main`. For a documented incident response, merge the approved fix and let the checks-gated deploy run; start a manual deploy only when that incident procedure explicitly requires it.
 
 The domain is ready for real users only when every row in the production runbook's launch checklist is marked pass.

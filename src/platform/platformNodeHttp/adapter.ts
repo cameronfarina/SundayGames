@@ -29,6 +29,7 @@ export const createPlatformNodeHttpAdapter = (
     ?? defaultPlatformScreenshotImportBodyLimitBytes;
   const screenshotImportPreflight = options.screenshotImportPreflight;
   const historicalImportPreflight = options.historicalImportPreflight;
+  const simulationCompletionPreflight = options.simulationCompletionPreflight;
   const trustProxy = options.trustProxy ?? false;
   const activeStreamRegistry = options.activeStreamRegistry;
 
@@ -45,6 +46,7 @@ export const createPlatformNodeHttpAdapter = (
         response,
         screenshotImportPreflight,
         historicalImportPreflight,
+        simulationCompletionPreflight,
         trustProxy,
       );
       if (admission.handled) return;

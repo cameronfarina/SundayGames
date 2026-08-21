@@ -13,7 +13,6 @@ import { PostgresMockDraftSessionRepository } from "../postgresMockDraftSessions
 import { PostgresPlatformInvitationRepository } from "../postgresPlatformInvitations.js";
 import { PostgresPlayerNewsRepository } from "../postgresPlayerNews.js";
 import { PostgresPracticeShortlistRepository } from "../postgresPracticeShortlists.js";
-import { PostgresSeasonSimulationAdmissionRepository } from "../postgresSeasonSimulationAdmissions.js";
 import { PostgresSimulationRepository } from "../postgresSimulations.js";
 import { defaultPracticePersistenceMode } from "../practicePersistenceMode.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -39,9 +38,6 @@ export const composeRuntimeRepositories = (
     ? options.postgresClient
     : undefined;
   const configuredPracticeMode = options.practicePersistenceMode ?? defaultPracticePersistenceMode;
-  const seasonSimulationAdmissionRepository = sharedTransactionalClient === undefined ||
-      options.jobRepository !== undefined || options.simulationRepository !== undefined
-    ? undefined : new PostgresSeasonSimulationAdmissionRepository(sharedTransactionalClient);
   const postgresPracticeShortlistRepository = options.practiceShortlistRepository === undefined &&
       sharedTransactionalClient !== undefined
     ? new PostgresPracticeShortlistRepository(sharedTransactionalClient)
@@ -110,8 +106,6 @@ export const composeRuntimeRepositories = (
     simulationRepository: options.simulationRepository ?? postgresSimulationRepository ?? store.simulations,
     mockDraftSessionRepository,
     mockDraftPersistenceMode,
-    ...(seasonSimulationAdmissionRepository === undefined
-      ? {} : { seasonSimulationAdmissionRepository }),
     practiceShortlistRepository: options.practiceShortlistRepository ??
       postgresPracticeShortlistRepository ?? store.practiceShortlists,
     playerNewsRepository: options.playerNewsRepository ??

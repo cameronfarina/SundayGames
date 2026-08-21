@@ -7,7 +7,6 @@ export { enqueueDraftRoomExportJob } from "./platformJobOrchestrator/enqueueDraf
 export { enqueueHistoricalImportParseJob } from "./platformJobOrchestrator/enqueueHistoricalImportParseJob.js";
 export { enqueuePricingRebuildJob } from "./platformJobOrchestrator/enqueuePricingRebuildJob.js";
 export { enqueueSimulationRunExecutionJob } from "./platformJobOrchestrator/enqueueSimulationRunExecutionJob.js";
-export { enqueueSeasonSimulationExecutionJob } from "./platformJobOrchestrator/enqueueSeasonSimulationExecutionJob.js";
 export type {
   DispatchNextPlatformJobInput,
   PlatformJobHandler,
@@ -21,7 +20,6 @@ export type {
   EnqueuePlatformJobInput,
   EnqueuePricingRebuildJobInput,
   EnqueueSimulationRunExecutionJobInput,
-  EnqueueSeasonSimulationExecutionJobInput,
 } from "./platformJobOrchestrator/enqueueContracts.js";
 export type {
   PlatformJobAsyncSubmitRepository,
@@ -33,9 +31,7 @@ export type {
   HistoricalImportParseJobPayload,
   PlatformJobPayload,
   PricingRebuildJobPayload,
-  SeasonSimulationExecutionJobInput,
   SimulationRunExecutionJobPayload,
-  SeasonSimulationExecutionJobPayload,
 } from "./platformJobOrchestrator/payloads.js";
 export type {
   DraftRoomExportJobResult,
@@ -43,7 +39,6 @@ export type {
   PlatformJobResult,
   PricingRebuildJobResult,
   SimulationRunExecutionJobResult,
-  SeasonSimulationExecutionJobResult,
 } from "./platformJobOrchestrator/results.js";
 export {
   platformJobTypes,

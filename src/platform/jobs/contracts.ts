@@ -1,4 +1,4 @@
-export type JobKind = "import" | "model_run" | "simulation" | "season_simulation" | "export";
+export type JobKind = "import" | "model_run" | "simulation" | "export";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "canceled";
 
 export interface JobProgress {
@@ -66,7 +66,6 @@ export interface ClaimNextJobInput {
 export interface UpdateJobProgressInput {
   jobId: string;
   workerId: string;
-  claimLockedAt: Date;
   progress: JobProgress;
   now?: Date | undefined;
 }
@@ -74,7 +73,6 @@ export interface UpdateJobProgressInput {
 export interface HeartbeatJobInput {
   jobId: string;
   workerId: string;
-  claimLockedAt: Date;
   now?: Date | undefined;
   lockTtlMs?: number | undefined;
 }
@@ -82,7 +80,6 @@ export interface HeartbeatJobInput {
 export interface CompleteJobInput {
   jobId: string;
   workerId: string;
-  claimLockedAt: Date;
   resultSummary: JsonValue;
   now?: Date | undefined;
 }
@@ -90,7 +87,6 @@ export interface CompleteJobInput {
 export interface FailJobInput {
   jobId: string;
   workerId: string;
-  claimLockedAt: Date;
   error: unknown;
   now?: Date | undefined;
 }
@@ -104,7 +100,6 @@ export interface CancelJobInput {
 export interface CancelJobAtRunBoundaryInput {
   jobId: string;
   workerId: string;
-  claimLockedAt: Date;
   now?: Date | undefined;
 }
 
@@ -113,23 +108,4 @@ export interface RerunJobInput {
   userId: string;
   idempotencyKey: string;
   now?: Date | undefined;
-}
-
-export interface RecordWorkerHeartbeatInput {
-  workerId: string;
-  jobKinds: readonly JobKind[];
-  now?: Date | undefined;
-}
-
-export interface JobQueueHealthInput {
-  kind: JobKind;
-  now?: Date | undefined;
-  staleAfterMs?: number | undefined;
-}
-
-export interface JobQueueHealth {
-  workerAvailable: boolean;
-  workerLastSeenAt: Date | undefined;
-  queuedCount: number;
-  oldestQueuedAt: Date | undefined;
 }

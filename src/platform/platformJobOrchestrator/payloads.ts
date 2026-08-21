@@ -5,12 +5,6 @@ import {
   type PricingRebuildReason,
 } from "./platformJobTypes.js";
 
-export interface SeasonSimulationExecutionJobInput extends JsonObject {
-  input: JsonObject;
-  strategyText: string;
-  note?: string | undefined;
-}
-
 export interface SimulationRunExecutionJobPayload extends JsonObject {
   type: typeof platformJobTypes.simulationRunExecution;
   simulationRunId: string;
@@ -19,14 +13,6 @@ export interface SimulationRunExecutionJobPayload extends JsonObject {
   keeperScenarioId?: string | undefined;
   seedPrefix?: string | undefined;
   strategyKey?: string | undefined;
-}
-
-export interface SeasonSimulationExecutionJobPayload extends JsonObject {
-  type: typeof platformJobTypes.seasonSimulationExecution;
-  simulationRunId: string;
-  runCount: number;
-  seedPrefix?: string | undefined;
-  seasonSimulation: SeasonSimulationExecutionJobInput;
 }
 
 export interface HistoricalImportParseJobPayload extends JsonObject {
@@ -59,7 +45,6 @@ export interface DraftRoomExportJobPayload extends JsonObject {
 
 export type PlatformJobPayload =
   | SimulationRunExecutionJobPayload
-  | SeasonSimulationExecutionJobPayload
   | HistoricalImportParseJobPayload
   | PricingRebuildJobPayload
   | DraftRoomExportJobPayload;

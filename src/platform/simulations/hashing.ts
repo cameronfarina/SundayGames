@@ -28,4 +28,6 @@ export const simulationInputHashPayload = (
   count: input.count,
   seedPrefix: input.seedPrefix,
   strategy,
+  browserInputDigest: input.browserInputDigest,
+  browserNote: input.browserNote,
 });

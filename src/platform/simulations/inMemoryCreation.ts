@@ -35,7 +35,7 @@ export const createInMemorySimulationRequest = (
     return existing;
   }
 
-  makeSimulationRetentionRoom(state, input.userId);
+  makeSimulationRetentionRoom(state, input.userId, createdAt);
   const request: SimulationRequest = {
     id: createSimulationRequestId(),
     userId: input.userId,
@@ -49,6 +49,11 @@ export const createInMemorySimulationRequest = (
     strategy,
     privacyOwnerUserId: input.userId,
     inputHash,
+    ...(input.browserInput === undefined ? {} : { browserInput: structuredClone(input.browserInput) }),
+    ...(input.browserInputDigest === undefined ? {} : {
+      browserInputDigest: input.browserInputDigest,
+    }),
+    ...(input.browserNote === undefined ? {} : { browserNote: input.browserNote }),
     createdAt,
   };
   const run: SimulationRun = {

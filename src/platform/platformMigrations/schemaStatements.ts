@@ -106,14 +106,8 @@ export const liveDraftScaleMigrationStatements: readonly string[] = [
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
 
-export const simulationWorkerReliabilityMigrationStatements: readonly string[] = [
-  "ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_kind_check;",
-  "ALTER TABLE jobs ADD CONSTRAINT jobs_kind_check CHECK (kind IN ('import', 'model_run', 'simulation', 'season_simulation', 'export', 'maintenance'));",
-  migrationStatementStartingWith("CREATE TABLE platform_worker_heartbeats")
-    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
-  migrationStatementStartingWith("CREATE INDEX platform_worker_heartbeats_last_seen_at_idx")
-    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
-  migrationStatementStartingWith("CREATE INDEX jobs_kind_user_started_at_idx")
+export const browserSimulationLifecycleMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE INDEX simulation_runs_cleanup_status_created_at_idx")
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
 

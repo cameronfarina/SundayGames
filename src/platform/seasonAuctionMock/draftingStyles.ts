@@ -1,4 +1,4 @@
-import type { HistoricalSaleRecord } from "../historicalImports.js";
+import type { HistoricalSaleRecord } from "../historicalImports/saleContracts.js";
 import type {
   GenericAuctionMockAiTendency,
   GenericAuctionMockPlayer,

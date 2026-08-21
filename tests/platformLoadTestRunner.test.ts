@@ -61,7 +61,16 @@ describe("platform mixed load runner", () => {
       }
       if (request.url === "/season-simulations") {
         counts.simulations += 1;
-        response.writeHead(200).end(JSON.stringify({ historyId: "history", summary: {} }));
+        response.writeHead(202).end(JSON.stringify({
+          historyId: `history-${String(counts.simulations)}`,
+          requestId: `request-${String(counts.simulations)}`,
+          input: { runCount: 1 },
+          inputDigest: `digest-${String(counts.simulations)}`,
+        }));
+        return;
+      }
+      if (request.method === "DELETE" && request.url?.startsWith("/season-simulations/") === true) {
+        response.writeHead(204).end();
         return;
       }
       counts.mutations += 1;
@@ -101,7 +110,7 @@ describe("platform mixed load runner", () => {
     expect(report.summaries.draftStreams.errorRate).toBe(0);
     expect(report.summaries.news.errorRate).toBe(0);
     expect(report.summaries.simulationSubmissions.errorRate).toBe(0);
-    expect(report.summaries.simulationCompletions).toBeNull();
+    expect(report.summaries.simulationCleanup).toMatchObject({ attempts: 25, errorRate: 0 });
     expect(counts).toEqual({ mutations: 1, news: 1_000, simulations: 25, streams: 13 });
   });
 });

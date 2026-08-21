@@ -1,14 +1,9 @@
 import type { JobHistoryPage } from "../../jobHistory.js";
 import type { JobRecord } from "../../jobs.js";
-import {
-  enqueueSeasonSimulationExecutionJob,
-  enqueueSimulationRunExecutionJob,
-} from "../../platformJobOrchestrator.js";
-import { encodeSeasonSimulationExecutionJobInput } from "../../seasonSimulationJobPayload.js";
+import { enqueueSimulationRunExecutionJob } from "../../platformJobOrchestrator.js";
 import type {
   CancelPlatformJobInput,
   EnqueuePlatformSimulationRunJobInput,
-  EnqueuePlatformSeasonSimulationRunJobInput,
   GetPlatformJobInput,
   ListPlatformJobsInput,
   RerunPlatformJobInput,
@@ -38,47 +33,6 @@ export const createSimulationJobOperations = (context: PlatformAppContext) => ({
       idempotencyKey: input.idempotencyKey,
       now: input.now,
     }));
-  },
-
-  enqueueSeasonSimulationRunExecutionJob: async (
-    input: EnqueuePlatformSeasonSimulationRunJobInput,
-  ): Promise<JobRecord> => {
-    const account = await context.requireAccount(input.actorSessionToken, input.now);
-    const run = await context.simulations.fetchForUser(input.runId, account.id);
-    if (run === null) {
-      throw new PlatformAppError("private_resource", "This prep artifact belongs to another user.");
-    }
-    await context.requirePrivateTeamContext(account, run.request);
-    const existingJob = (await context.jobs.listForUser(account.id)).find(job =>
-      job.kind === "season_simulation" &&
-      simulationRunIdForJob(job) === run.id
-    );
-    if (existingJob !== undefined) return cloneForRead(existingJob);
-    try {
-      return cloneForRead(await enqueueSeasonSimulationExecutionJob({
-        repository: context.jobs,
-        userId: account.id,
-        leagueId: run.request.leagueId,
-        seasonId: run.request.seasonId,
-        simulationRunId: run.id,
-        runCount: run.request.count,
-        seedPrefix: run.request.seedPrefix,
-        idempotencyKey: input.idempotencyKey,
-        seasonSimulation: encodeSeasonSimulationExecutionJobInput({
-          simulationInput: input.simulationInput,
-          strategyText: input.strategyText,
-          ...(input.note === undefined ? {} : { note: input.note }),
-        }),
-        now: input.now,
-      }));
-    } catch (error) {
-      try {
-        await context.simulations.markFailed(run.id);
-      } catch {
-        // Preserve the enqueue failure while recording failure when possible.
-      }
-      throw error;
-    }
   },
 
   listJobs: async (input: ListPlatformJobsInput): Promise<JobHistoryPage> => {

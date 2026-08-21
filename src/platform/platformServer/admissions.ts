@@ -7,6 +7,7 @@ import {
 } from "../authRateLimit.js";
 import { normalizeEmail } from "../auth.js";
 import { createHistoricalImportRequestAdmission } from "../historicalImportRequestAdmission.js";
+import { createSimulationCompletionRequestAdmission } from "../simulationCompletionRequestAdmission.js";
 import { PostgresAuthRateLimiter } from "../postgresAuthRateLimit.js";
 import type { PostgresTransactionalQueryClient } from "../postgresJobQueue.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -22,6 +23,7 @@ export interface PlatformAdmissions {
   screenshotImportRateLimiter: ClientAddressRateLimiter;
   screenshotImportIngressRateLimiter: ClientAddressRateLimiter;
   historicalImportRequestAdmission: ReturnType<typeof createHistoricalImportRequestAdmission>;
+  simulationCompletionRequestAdmission: ReturnType<typeof createSimulationCompletionRequestAdmission>;
   leagueImportRateLimiter: ClientAddressRateLimiter;
   simulationRateLimiter: ClientAddressRateLimiter;
   liveDraftMutationRateLimiter: ClientAddressRateLimiter;
@@ -94,6 +96,10 @@ export const createPlatformAdmissions = (
         clientLimiter(60, 60 * 60 * 1_000),
       maxConcurrentPerAccount: options.historicalImportMaxConcurrentPerAccount ?? 2,
       maxConcurrentPerClient: options.historicalImportMaxConcurrentPerClient ?? 4,
+    }),
+    simulationCompletionRequestAdmission: createSimulationCompletionRequestAdmission({
+      maxConcurrentPerAccount: options.simulationCompletionMaxConcurrentPerAccount ?? 2,
+      maxConcurrentPerClient: options.simulationCompletionMaxConcurrentPerClient ?? 8,
     }),
     leagueImportRateLimiter: options.leagueImportRateLimiter ?? clientLimiter(10, 15 * 60 * 1_000),
     simulationRateLimiter: options.simulationRateLimiter ?? clientLimiter(10, 15 * 60 * 1_000),

@@ -6,11 +6,8 @@ import {
 } from "../src/platform/postgresClient.js";
 import { applyPlatformPostgresMigrations } from "../src/platform/platformMigrations.js";
 import { PostgresSimulationRepository } from "../src/platform/postgresSimulations.js";
-import { PostgresSeasonSimulationAdmissionRepository } from
-  "../src/platform/postgresSeasonSimulationAdmissions.js";
-import type { RunSeasonSimulationsInput } from "../src/platform/seasonSimulationEngine.js";
 import { maximumRetainedSimulationRunsPerUser } from "../src/platform/simulationLimits.js";
-import { SimulationError } from "../src/platform/simulations.js";
+import type { SimulationResult, SimulationRun } from "../src/platform/simulations.js";
 
 const databaseUrl = process.env.MOCKD_POSTGRES_INTEGRATION_DATABASE_URL?.trim();
 const describeWithPostgres = databaseUrl === undefined || databaseUrl.length === 0
@@ -19,7 +16,32 @@ const describeWithPostgres = databaseUrl === undefined || databaseUrl.length ===
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
-describeWithPostgres("Postgres simulation admission", () => {
+const completionFor = (run: SimulationRun, completedAt = new Date()): SimulationResult => ({
+  runId: run.id,
+  requestId: run.request.id,
+  completedAt,
+  runCount: run.request.count,
+  seedPrefix: run.request.seedPrefix,
+  hardLockCount: 0,
+  softTargetCount: 0,
+  forcedSales: [],
+  summary: { runCount: run.request.count, scenarios: [], players: [], owners: [], ownerPlayerExposure: [] },
+});
+
+const requestFor = (idempotencyKey: string, seedPrefix = idempotencyKey, createdAt?: Date) => ({
+  userId: "user_cam",
+  leagueId: "league_100001",
+  seasonId: "season_2026",
+  ownerId: "owner_cam",
+  teamId: "team_cam",
+  count: 25,
+  seedPrefix,
+  idempotencyKey,
+  strategy: {},
+  ...(createdAt === undefined ? {} : { createdAt }),
+});
+
+describeWithPostgres("Postgres browser simulation lifecycle", () => {
   let adminClient: NodePostgresClient;
   let client: NodePostgresClient;
   let schemaName: string;
@@ -62,71 +84,55 @@ describeWithPostgres("Postgres simulation admission", () => {
     await adminClient?.close();
   });
 
-  it("persists at most the quota under limit-plus-one concurrent creates", async () => {
+  it("admits concurrent launches, keeps the first terminal transition, and retains 25 completions", async () => {
     const repository = new PostgresSimulationRepository(client);
     const attempts = Array.from(
       { length: maximumRetainedSimulationRunsPerUser + 1 },
-      (_, index) => repository.createRequest({
-        userId: "user_cam",
-        leagueId: "league_100001",
-        seasonId: "season_2026",
-        ownerId: "owner_cam",
-        teamId: "team_cam",
-        count: 25,
-        seedPrefix: `concurrent-${index}`,
-        idempotencyKey: `concurrent-${index}`,
-        strategy: {},
-      }),
+      (_, index) => repository.createRequest(requestFor(`concurrent-${index}`)),
     );
 
     const outcomes = await Promise.allSettled(attempts);
-    expect(outcomes.filter(outcome => outcome.status === "fulfilled"))
-      .toHaveLength(maximumRetainedSimulationRunsPerUser);
-    expect(outcomes.filter(outcome => outcome.status === "rejected"))
-      .toEqual([expect.objectContaining({
-        reason: new SimulationError(
-          "simulation_capacity_reached",
-          "Finish or cancel an active simulation before starting another one.",
-        ),
-      })]);
-    const count = await client.query<{ count: number }>(
-      "SELECT COUNT(*)::int AS count FROM simulation_runs WHERE user_id = $1",
+    expect(outcomes.every(outcome => outcome.status === "fulfilled")).toBe(true);
+    const runs = outcomes.flatMap(outcome => outcome.status === "fulfilled" ? [outcome.value] : []);
+    await Promise.all(runs.map(async run => await repository.markCanceled(run.id)));
+
+    const racingRun = await repository.createRequest(requestFor("terminal-race"));
+    await Promise.all([
+      repository.complete(racingRun.id, completionFor(racingRun)),
+      repository.markCanceled(racingRun.id),
+    ]);
+    const terminal = await repository.find(racingRun.id);
+    expect(["completed", "canceled"]).toContain(terminal.status);
+    expect(terminal.status === "completed" ? terminal.result !== undefined : terminal.result === undefined)
+      .toBe(true);
+
+    for (let index = 0; index < maximumRetainedSimulationRunsPerUser + 1; index += 1) {
+      const completedAt = new Date(Date.UTC(2026, 7, 21, 12, 0, index));
+      const run = await repository.createRequest(requestFor(
+        `retained-${index}`,
+        `retained-${index}`,
+        completedAt,
+      ));
+      await repository.complete(run.id, completionFor(run, completedAt));
+    }
+
+    const completedCount = await client.query<{ count: number }>(
+      "SELECT COUNT(*)::int AS count FROM simulation_runs WHERE user_id = $1 AND status = 'completed'",
       ["user_cam"],
     );
-    expect(count.rows[0]?.count).toBe(maximumRetainedSimulationRunsPerUser);
-  }, 30_000);
+    expect(completedCount.rows[0]?.count).toBe(maximumRetainedSimulationRunsPerUser);
 
-  it("atomically admits one season run/job and resolves an exact retry to the same handles", async () => {
-    await client.query("DELETE FROM simulation_runs WHERE user_id = $1", ["user_cam"]);
-    const repository = new PostgresSeasonSimulationAdmissionRepository(client);
-    const input = {
-      userId: "user_cam",
-      leagueId: "league_100001",
-      seasonId: "season_2026",
-      ownerId: "owner_cam",
-      teamId: "team_cam",
-      count: 2,
-      seedPrefix: "season-stable-request",
-      idempotencyKey: "season-stable-request",
-      simulationInput: {} as RunSeasonSimulationsInput,
-      strategyText: "balanced",
-    };
-
-    const first = await repository.admit(input);
-    const retry = await repository.admit(input);
-    expect(retry.run.id).toBe(first.run.id);
-    expect(retry.job.id).toBe(first.job.id);
-
-    await expect(repository.admit({
-      ...input,
-      seedPrefix: "season-second-request",
-      idempotencyKey: "season-second-request",
-    })).rejects.toMatchObject({ code: "simulation_account_queue_full" });
-    const rolledBack = await client.query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM simulation_runs
-       WHERE user_id = $1 AND idempotency_key = $2`,
-      ["user_cam", "season-second-request"],
-    );
-    expect(rolledBack.rows[0]?.count).toBe(0);
+    const abandoned = await repository.createRequest(requestFor(
+      "abandoned",
+      "abandoned",
+      new Date("2026-08-21T08:00:00.000Z"),
+    ));
+    await expect(repository.findByRequestKeyForUser(
+      "user_cam",
+      "season_2026",
+      "abandoned",
+    )).resolves.toMatchObject({ id: abandoned.id });
+    await repository.reconcileAbandoned(new Date("2026-08-21T10:00:00.000Z"));
+    await expect(repository.find(abandoned.id)).rejects.toMatchObject({ code: "simulation_not_found" });
   }, 30_000);
 });

@@ -14,33 +14,28 @@ SET status = 'running',
     started_at = $2,
     updated_at = $2
 WHERE id = $1
+  AND status IN ('requested', 'failed')
 RETURNING *, NULL::text AS result_id, NULL::jsonb AS summary_json,
   NULL::jsonb AS result_set_json, NULL::timestamptz AS result_created_at;
 `.trim(), [runId, now]);
   const row = firstRow(result);
-  if (row === undefined) {
-    throw new SimulationError("simulation_not_found", "Simulation run was not found.");
-  }
-  return runFromRow(row);
+  return row === undefined ? await findRequired(runId, context.client) : runFromRow(row);
 };
 
 export const markFailed = async (
   context: SimulationRepositoryContext,
   runId: string,
-  executionStartedAt?: Date,
 ): Promise<SimulationRun> => {
   const existingRun = await findById(runId, context.client);
   if (existingRun === null) {
     throw new SimulationError("simulation_not_found", "Simulation run was not found.");
   }
-  if (existingRun.status === "canceled") return existingRun;
+  if (existingRun.status !== "requested" && existingRun.status !== "running") return existingRun;
   const now = new Date();
   await context.client.query(
-    `UPDATE simulation_runs
-SET status = 'failed', updated_at = $2
-WHERE id = $1
-  AND ($3::timestamptz IS NULL OR started_at = $3)`,
-    [runId, now, executionStartedAt ?? null],
+    `UPDATE simulation_runs SET status = 'failed', updated_at = $2
+WHERE id = $1 AND status IN ('requested', 'running')`,
+    [runId, now],
   );
   return await findRequired(runId, context.client);
 };

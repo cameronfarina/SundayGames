@@ -13,6 +13,7 @@ export interface PlatformNodeHttpAdapterOptions {
   screenshotImportMaxBodyBytes?: number | undefined;
   screenshotImportPreflight?: PlatformNodeHttpPreflight | undefined;
   historicalImportPreflight?: PlatformNodeHttpAdmission | undefined;
+  simulationCompletionPreflight?: PlatformNodeHttpAdmission | undefined;
   trustProxy?: boolean | undefined;
   activeStreamRegistry?: ActivePlatformHttpStreamRegistry | undefined;
 }

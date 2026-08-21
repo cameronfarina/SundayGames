@@ -9,11 +9,11 @@ afterEach(async () => {
     await new Promise<void>(resolve => server.close(() => resolve()))));
 });
 
-describe("platform mixed load queued simulation gate", () => {
-  it("does not pass queued submissions until every worker job is terminal and successful", async () => {
+describe("platform mixed load browser simulation cleanup gate", () => {
+  it("cancels every issued launch after input preparation", async () => {
     const streams = new Set<ServerResponse>();
     let simulationCount = 0;
-    let jobReads = 0;
+    let cancellations = 0;
     let roomRevision = 1;
     const server = createServer((request, response) => {
       response.setHeader("Content-Type", "application/json");
@@ -43,15 +43,15 @@ describe("platform mixed load queued simulation gate", () => {
         simulationCount += 1;
         response.writeHead(202).end(JSON.stringify({
           historyId: `history-${String(simulationCount)}`,
-          jobId: `job-${String(simulationCount)}`,
-          status: "queued",
+          requestId: `request-${String(simulationCount)}`,
+          input: { runCount: 1 },
+          inputDigest: `digest-${String(simulationCount)}`,
         }));
         return;
       }
-      if (request.url?.startsWith("/jobs/") === true) {
-        jobReads += 1;
-        const jobId = request.url.split("/").at(-1);
-        response.writeHead(200).end(JSON.stringify({ job: { id: jobId, status: "completed" } }));
+      if (request.method === "DELETE" && request.url?.startsWith("/season-simulations/") === true) {
+        cancellations += 1;
+        response.writeHead(204).end();
         return;
       }
       roomRevision = 2;
@@ -88,9 +88,9 @@ describe("platform mixed load queued simulation gate", () => {
 
     expect(report.passed).toBe(report.failures.length === 0);
     expect(report.failures.filter(failure => !failure.includes(" p95 "))).toEqual([]);
-    expect(report.metadata.queuedSimulationJobs).toBe(25);
-    expect(report.summaries.simulationCompletions).toMatchObject({ attempts: 25, errorRate: 0 });
+    expect(report.metadata.canceledSimulationLaunches).toBe(25);
+    expect(report.summaries.simulationCleanup).toMatchObject({ attempts: 25, errorRate: 0 });
     expect(report.summaries.simulationSubmissions.errorRate).toBe(0);
-    expect(jobReads).toBe(25);
+    expect(cancellations).toBe(25);
   });
 });

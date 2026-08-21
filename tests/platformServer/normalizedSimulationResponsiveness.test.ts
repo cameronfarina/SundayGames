@@ -11,7 +11,6 @@ import {
   loadCurrentPlayerCatalog,
   now,
   ownerOrder,
-  runSeasonSimulations,
 } from "./helpers/index.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
@@ -36,7 +35,6 @@ describePlatformServer(({ createListeningServer }) => {
           updatedAt: now,
         };
       },
-      seasonSimulationRunner: async input => runSeasonSimulations(input),
     });
     const account = await platformServer.app.createAccount({
       email: "normalized-simulation@example.com",

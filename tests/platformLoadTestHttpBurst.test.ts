@@ -100,23 +100,20 @@ describe("platform authenticated HTTP load", () => {
     ]);
   });
 
-  it("accepts synchronous and queued simulation responses with exact contracts", async () => {
+  it("accepts only issued browser simulation inputs with the exact contract", async () => {
     const server = createServer((request, response) => {
       request.resume();
       response.setHeader("Content-Type", "application/json");
-      if (request.url === "/sync") {
-        response.writeHead(200).end(JSON.stringify({ historyId: "history-sync", summary: {} }));
-        return;
-      }
-      if (request.url === "/queued") {
+      if (request.url === "/issued") {
         response.writeHead(202).end(JSON.stringify({
-          historyId: "history-queued",
-          jobId: "job-1",
-          status: "queued",
+          historyId: "history-issued",
+          requestId: "request-1",
+          input: { runCount: 1 },
+          inputDigest: "digest-1",
         }));
         return;
       }
-      response.writeHead(202).end(JSON.stringify({ status: "queued" }));
+      response.writeHead(202).end(JSON.stringify({ historyId: "history" }));
     });
     servers.push(server);
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -125,7 +122,7 @@ describe("platform authenticated HTTP load", () => {
 
     const measurements = await runAuthenticatedHttpBurst(
       new URL(`http://127.0.0.1:${String(address.port)}`),
-      ["sync", "queued", "bad"].map(path => ({
+      ["issued", "bad"].map(path => ({
         body: { count: 1 },
         method: "POST" as const,
         path: `/${path}`,
@@ -135,14 +132,13 @@ describe("platform authenticated HTTP load", () => {
     );
 
     expect(measurements.map(measurement => measurement.diagnostic)).toEqual([
-      "ok_synchronous",
-      "ok_queued",
+      "ok",
       "invalid_simulation_response",
     ]);
-    expect(measurements.map(measurement => measurement.ok)).toEqual([true, true, false]);
-    expect(measurements[1]?.queuedJob).toEqual({
-      jobId: "job-1",
-      sessionToken: "session-queued",
+    expect(measurements.map(measurement => measurement.ok)).toEqual([true, false]);
+    expect(measurements[0]?.issuedSimulationLaunch).toEqual({
+      historyId: "history-issued",
+      sessionToken: "session-issued",
     });
   });
 
