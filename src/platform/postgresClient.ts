@@ -6,18 +6,28 @@ import type {
 } from "./postgresPlatformStore.js";
 import type { PostgresTransactionalQueryClient } from "./postgresJobQueue.js";
 import { NodePostgresPoolAdapter } from "./postgresClient/nodePostgresPoolAdapter.js";
+import {
+  openPostgresNotificationSubscription,
+  type PostgresNotificationConnection,
+  type PostgresNotificationSubscription,
+} from "./postgresClient/notificationSubscription.js";
+
+export type {
+  PostgresNotification,
+  PostgresNotificationClient,
+  PostgresNotificationSubscription,
+} from "./postgresClient/notificationSubscription.js";
 
 export interface PostgresPoolQueryResult<TRow = Record<string, unknown>> {
   rows: TRow[];
   rowCount: number | null;
 }
 
-export interface PostgresPoolClientLike {
+export interface PostgresPoolClientLike extends PostgresNotificationConnection {
   query<TRow = Record<string, unknown>>(
     text: string,
     values?: readonly unknown[],
   ): Promise<PostgresPoolQueryResult<TRow>>;
-  release(): void;
 }
 
 export interface PostgresPoolLike {
@@ -100,6 +110,14 @@ export class NodePostgresClient implements PostgresTransactionalQueryClient {
     } finally {
       client.release();
     }
+  }
+
+  async listen(
+    channel: string,
+    onPayload: (payload: string) => void,
+  ): Promise<PostgresNotificationSubscription> {
+    const connection = await this.pool.connect();
+    return await openPostgresNotificationSubscription(connection, channel, onPayload);
   }
 
   async close(): Promise<void> {

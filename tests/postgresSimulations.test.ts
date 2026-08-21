@@ -9,6 +9,10 @@ import type {
 } from "../src/platform/postgresJobQueue.js";
 import { PostgresSimulationRepository } from "../src/platform/postgresSimulations.js";
 import { isRecord } from "../src/platform/postgresSimulations/json.js";
+import {
+  pruneTerminalRunsSql,
+  reconcileAbandonedSimulationRunsSql,
+} from "../src/platform/postgresSimulations/sql.js";
 import { maximumRetainedSimulationRunsPerUser } from "../src/platform/simulationLimits.js";
 import {
   SimulationError,
@@ -166,22 +170,32 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
     this.queries.push({ text, values, inTransaction: this.#inTransaction });
     const normalizedSql = normalizeSql(text);
 
+    if (normalizedSql.startsWith("SELECT pg_try_advisory_xact_lock")) {
+      return { rows: [{ acquired: true } as TRow] };
+    }
+
     if (normalizedSql.startsWith("SELECT id FROM accounts") && normalizedSql.includes("FOR UPDATE")) {
       return { rows: [] };
     }
 
-    if (normalizedSql.startsWith("WITH removable AS")) {
+    if (normalizedSql.startsWith("WITH ranked_completed AS")) {
       const userId = values[0];
       const limit = values[1];
-      if (typeof userId !== "string" || typeof limit !== "number") {
-        throw new Error("Retention queries require a user id and numeric limit.");
+      const cutoffFrom = values[2];
+      if (typeof userId !== "string" || typeof limit !== "number" ||
+          !(cutoffFrom instanceof Date)) {
+        throw new Error("Retention queries require a user id, limit, and timestamp.");
       }
       const userRows = [...this.runs.values()].filter(row => row.user_id === userId);
-      const removalCount = Math.max(userRows.length - limit + 1, 0);
-      const removableRows = userRows
-        .filter(row => row.status === "completed" || row.status === "failed" || row.status === "canceled")
-        .sort((left, right) => left.created_at.getTime() - right.created_at.getTime())
-        .slice(0, removalCount);
+      const completedRows = userRows
+        .filter(row => row.status === "completed")
+        .sort((left, right) => right.created_at.getTime() - left.created_at.getTime());
+      const removableRows = [
+        ...completedRows.slice(limit),
+        ...userRows.filter(row => row.status === "failed" || row.status === "canceled" ||
+          (row.status === "requested" &&
+            row.created_at.getTime() < cutoffFrom.getTime() - 60 * 60 * 1_000)),
+      ];
       for (const row of removableRows) {
         this.results.delete(row.id);
         this.runs.delete(row.id);
@@ -199,12 +213,6 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
       );
 
       if (existing !== undefined) return { rows: [], rowCount: 0 };
-      const retentionLimit = values[10];
-      const userRunCount = [...this.runs.values()].filter(candidate => candidate.user_id === row.user_id).length;
-      if (typeof retentionLimit === "number" && userRunCount >= retentionLimit) {
-        return { rows: [], rowCount: 0 };
-      }
-
       this.runs.set(row.id, row);
       return { rows: [this.#joinedRow(row) as TRow], rowCount: 1 };
     }
@@ -228,6 +236,19 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
         .slice(0, limit)
         .map(row => this.#joinedRowWithoutResult(row) as TRow);
       return { rows };
+    }
+
+    if (
+      normalizedSql.includes("FROM simulation_runs r LEFT JOIN simulation_results sr") &&
+      normalizedSql.includes("WHERE r.user_id = $1") &&
+      normalizedSql.includes("r.league_season_id = $2") &&
+      normalizedSql.includes("r.idempotency_key = $3")
+    ) {
+      const [userId, seasonId, idempotencyKey] = values as readonly [string, string, string];
+      const row = [...this.runs.values()].find(candidate =>
+        candidate.user_id === userId && candidate.league_season_id === seasonId &&
+        candidate.idempotency_key === idempotencyKey);
+      return { rows: row === undefined ? [] : [this.#joinedRow(row) as TRow] };
     }
 
     if (
@@ -266,7 +287,8 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
     ) {
       const [userId, seasonId, limit] = values as readonly [string, string, number];
       const rows = [...this.runs.values()]
-        .filter(row => row.user_id === userId && row.league_season_id === seasonId)
+        .filter(row =>
+          row.user_id === userId && row.league_season_id === seasonId && row.status === "completed")
         .sort((left, right) => right.created_at.getTime() - left.created_at.getTime())
         .slice(0, limit)
         .map(row => {
@@ -339,11 +361,12 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
       const [runId, nowValue] = values as readonly [string, Date];
       const row = this.#requireRow(runId);
 
+      if (row.status !== "requested" && row.status !== "running") return { rows: [], rowCount: 0 };
       row.status = "canceled";
       row.completed_at = null;
       row.updated_at = nowValue;
 
-      return { rows: [], rowCount: 1 };
+      return { rows: [{ id: runId } as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("UPDATE simulation_runs SET status = 'requested'")) {
@@ -362,11 +385,12 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
       const [runId, completedAt] = values as readonly [string, Date];
       const row = this.#requireRow(runId);
 
+      if (row.status !== "requested" && row.status !== "running") return { rows: [], rowCount: 0 };
       row.status = "completed";
       row.completed_at = completedAt;
       row.updated_at = completedAt;
 
-      return { rows: [], rowCount: 1 };
+      return { rows: [{ id: runId } as TRow], rowCount: 1 };
     }
 
     if (normalizedSql.startsWith("DELETE FROM simulation_results")) {
@@ -374,6 +398,19 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
 
       this.results.delete(runId);
       return { rows: [], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("DELETE FROM simulation_runs WHERE status IN")) {
+      const [reconciledAt] = values as readonly [Date];
+      const cutoff = reconciledAt.getTime() - 60 * 60 * 1_000;
+      for (const row of this.runs.values()) {
+        if (row.status === "failed" || row.status === "canceled" ||
+            (row.status === "requested" && row.created_at.getTime() < cutoff)) {
+          this.results.delete(row.id);
+          this.runs.delete(row.id);
+        }
+      }
+      return { rows: [] };
     }
 
     if (normalizedSql.startsWith("INSERT INTO simulation_results")) {
@@ -480,7 +517,16 @@ class FakePostgresSimulationClient implements PostgresTransactionalQueryClient {
 }
 
 describe("Postgres simulation repository", () => {
-  it("serializes concurrent account creates and never exceeds the retained-run quota", async () => {
+  it("types the stale-request retention cutoff as a Postgres timestamp", () => {
+    expect(pruneTerminalRunsSql).toContain(
+      "created_at < $3::timestamptz - INTERVAL '1 hour'",
+    );
+    expect(reconcileAbandonedSimulationRunsSql).toContain(
+      "created_at < $1::timestamptz - INTERVAL '1 hour'",
+    );
+  });
+
+  it("serializes concurrent account creates without a product launch quota", async () => {
     const client = new FakePostgresSimulationClient();
     const repository = new PostgresSimulationRepository(client);
     const attempts = Array.from(
@@ -494,21 +540,16 @@ describe("Postgres simulation repository", () => {
 
     const outcomes = await Promise.allSettled(attempts);
     expect(outcomes.filter(outcome => outcome.status === "fulfilled"))
-      .toHaveLength(maximumRetainedSimulationRunsPerUser);
+      .toHaveLength(maximumRetainedSimulationRunsPerUser + 1);
     expect(outcomes.filter(outcome => outcome.status === "rejected"))
-      .toEqual([expect.objectContaining({
-        reason: new SimulationError(
-          "simulation_capacity_reached",
-          "Finish or cancel an active simulation before starting another one.",
-        ),
-      })]);
-    expect(client.runs.size).toBe(maximumRetainedSimulationRunsPerUser);
+      .toEqual([]);
+    expect(client.runs.size).toBe(maximumRetainedSimulationRunsPerUser + 1);
     const lockQueries = client.queries.filter(query => query.text.includes("FOR UPDATE"));
     expect(lockQueries).toHaveLength(maximumRetainedSimulationRunsPerUser + 1);
     expect(lockQueries.every(query => query.inTransaction)).toBe(true);
   });
 
-  it("prunes the oldest terminal run before admitting a newer request", async () => {
+  it("reconciles failed launches before admitting a newer request", async () => {
     const client = new FakePostgresSimulationClient();
     const repository = new PostgresSimulationRepository(client);
     let oldestRunId = "";
@@ -528,9 +569,31 @@ describe("Postgres simulation repository", () => {
       createdAt: new Date(now.getTime() + maximumRetainedSimulationRunsPerUser),
     });
 
-    expect(client.runs.size).toBe(maximumRetainedSimulationRunsPerUser);
+    expect(client.runs.size).toBe(1);
     expect(client.runs.has(oldestRunId)).toBe(false);
     expect(client.runs.has(newest.id)).toBe(true);
+  });
+
+  it("serializes global stale-launch reconciliation with an advisory transaction lock", async () => {
+    const client = new FakePostgresSimulationClient();
+    const repository = new PostgresSimulationRepository(client);
+    await repository.createRequest({
+      ...baseRequestInput,
+      idempotencyKey: "abandoned-request",
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1_000),
+    });
+
+    await repository.reconcileAbandoned(now);
+
+    const lockIndex = client.queries.findIndex(query =>
+      query.text.includes("pg_try_advisory_xact_lock"));
+    const cleanupIndex = client.queries.findIndex(query =>
+      query.text.includes("DELETE FROM simulation_runs\nWHERE status IN"));
+    expect(lockIndex).toBeGreaterThanOrEqual(0);
+    expect(cleanupIndex).toBeGreaterThan(lockIndex);
+    expect(client.queries[lockIndex]?.inTransaction).toBe(true);
+    expect(client.queries[cleanupIndex]?.inTransaction).toBe(true);
+    expect(client.runs.size).toBe(0);
   });
 
   it("creates simulation requests idempotently for the same user league season and key", async () => {
@@ -564,7 +627,7 @@ describe("Postgres simulation repository", () => {
     });
     expect(await repository.listForUser("user_cam")).toEqual([firstRun]);
     await expect(repository.listHistoryForUserSeason("user_cam", "season_2026", 25))
-      .resolves.toEqual([firstRun]);
+      .resolves.toEqual([]);
     expect(client.queries.at(-1)).toMatchObject({ values: ["user_cam", "season_2026", 25] });
     expect(client.queries.at(-1)?.text).toContain("jsonb_array_elements");
   });

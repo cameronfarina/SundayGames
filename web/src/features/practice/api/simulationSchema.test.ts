@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { simulationSummarySchema } from "./simulationSchema";
+import { simulationProgressSchema, simulationSummarySchema } from "./simulationSchema";
 
 const summary = {
   completedCount: 2,
@@ -21,6 +21,11 @@ const summary = {
 };
 
 describe("simulationSummarySchema", () => {
+  it("rejects progress that exceeds its total", () => {
+    expect(simulationProgressSchema.safeParse({ completed: 1, total: 2 }).success).toBe(true);
+    expect(simulationProgressSchema.safeParse({ completed: 3, total: 2 }).success).toBe(false);
+  });
+
   it("preserves ranked and saved outcomes", () => {
     expect(simulationSummarySchema.parse(summary).outcomes).toEqual(summary.outcomes);
   });

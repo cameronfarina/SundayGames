@@ -6,7 +6,11 @@ import {
   type PlatformPersistence,
 } from "./persistence.js";
 import { shouldPersistAfter } from "./requestTiming.js";
-import { shouldSkipSnapshotPersist, usesFileAuthSidecarFor } from "./snapshotPersistencePolicy.js";
+import {
+  requiresAtomicPracticeDualWrite,
+  shouldSkipSnapshotPersist,
+  usesFileAuthSidecarFor,
+} from "./snapshotPersistencePolicy.js";
 
 export const createRuntimeRequest = (
   runtimeHolder: PlatformRuntimeHolder,
@@ -21,7 +25,10 @@ export const createRuntimeRequest = (
     try {
       await persistence.rawPersist();
     } catch (error) {
-      if (isSnapshotWriteConflict(error)) return snapshotWriteConflictResponse;
+      if (isSnapshotWriteConflict(error)) {
+        if (requiresAtomicPracticeDualWrite(runtime, request)) throw error;
+        return snapshotWriteConflictResponse;
+      }
       throw error;
     }
   }

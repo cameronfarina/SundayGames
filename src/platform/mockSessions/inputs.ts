@@ -49,6 +49,7 @@ export interface AppendMockDraftCommandInput {
   commandId: string;
   command: string;
   idempotencyKey?: string | undefined;
+  completeSession?: boolean | undefined;
   latestResultRef?: MockDraftResultReference | undefined;
   now?: Date | undefined;
 }

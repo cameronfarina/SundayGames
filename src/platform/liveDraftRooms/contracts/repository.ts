@@ -10,7 +10,8 @@ import type {
   MutateLiveDraftRoomInput,
   SynchronizeLiveDraftRoomInitialRostersInput,
 } from "./inputs.js";
-import type { LiveDraftRoom } from "./room.js";
+import type { LiveDraftRoomEvent } from "./events.js";
+import type { LiveDraftRoom, LiveDraftRoomRevision } from "./room.js";
 
 export type LiveDraftRoomAuthorizer = (input: {
   actor: LiveDraftRoomActor;
@@ -23,6 +24,15 @@ export type LiveDraftRoomRepositoryResult<T> = T | Promise<T>;
 export interface LiveDraftRoomRepository {
   createRoom(input: CreateLiveDraftRoomInput): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   getRoom(roomId: string): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  getRoomRevision(roomId: string): LiveDraftRoomRepositoryResult<LiveDraftRoomRevision>;
+  getCurrentRoomForActor(input: {
+    roomId: string;
+    actor: LiveDraftRoomActor;
+  }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
+  getRoomEventsAfterRevision(input: {
+    room: LiveDraftRoom;
+    afterRevision: number;
+  }): LiveDraftRoomRepositoryResult<readonly LiveDraftRoomEvent[]>;
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoomRepositoryResult<LiveDraftRoom>;
   hasRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;
   hasStartedRoomForSeason(seasonId: string): LiveDraftRoomRepositoryResult<boolean>;

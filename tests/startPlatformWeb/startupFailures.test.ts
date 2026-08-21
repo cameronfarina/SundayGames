@@ -77,10 +77,12 @@ describe("platform web startup failures", () => {
       DATABASE_URL: "postgres://mockd:test@localhost:5432/mockd",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
       MOCKD_ENABLE_LEGACY_MOCK_BATCH: "true",
+      MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS: "720",
       MOCKD_TRUST_PROXY: "true",
     }, { postgresClientFactory: () => postgresClient })).rejects.toThrow("server startup failed");
     expect(startPlatformServer).toHaveBeenCalledWith(expect.objectContaining({
       legacyMockBatchEnabled: true,
+      liveDraftRoomEventStreamMaxConnections: 720,
       trustProxy: true,
     }));
     expect(closePool).toHaveBeenCalledOnce();

@@ -40,6 +40,7 @@ export interface DraftRoomRow {
   ended_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  current_projection_json: unknown | null;
 }
 
 export interface DraftRoomEventRow {

@@ -13,6 +13,7 @@ export const draftRoomsTable: PostgresTableDefinition = {
     { name: "active_model_run_id", type: "text", nullable: true },
     { name: "active_pricing_snapshot_id", type: "text", nullable: true },
     { name: "current_revision", type: "integer", default: "1" },
+    { name: "current_projection_json", type: "jsonb", nullable: true },
     { name: "starts_at", type: "timestamptz", nullable: true },
     { name: "started_at", type: "timestamptz", nullable: true },
     { name: "ended_at", type: "timestamptz", nullable: true },

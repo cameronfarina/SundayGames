@@ -26,8 +26,10 @@ export const listInMemorySimulationHistoryForSeason = (
   limit: number,
 ): SimulationRun[] => state.values()
   .filter(run => canReadSimulationRun(userId, run))
-  .filter(run => run.request.seasonId === seasonId)
-  .sort(newestFirst)
+  .filter(run => run.request.seasonId === seasonId && run.status === "completed")
+  .sort((left, right) =>
+    (right.completedAt ?? right.createdAt).getTime() -
+    (left.completedAt ?? left.createdAt).getTime())
   .slice(0, boundedSimulationHistoryPageSize(limit))
   .map(run => ({
     ...run,

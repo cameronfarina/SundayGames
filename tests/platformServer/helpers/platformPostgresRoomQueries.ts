@@ -29,6 +29,7 @@ export const platformPostgresRoomQuery = (
     const currentRevision = numberValueAt(values, 8);
     const createdAt = dateValueAt(values, 9);
     const updatedAt = dateValueAt(values, 10);
+    const currentProjectionJson = valueAt(values, 11);
     if (state.rooms.has(id)) return { rows: [], rowCount: 0 };
 
     state.rooms.set(id, {
@@ -44,6 +45,7 @@ export const platformPostgresRoomQuery = (
       ended_at: cloneDate(endedAt),
       created_at: new Date(createdAt.getTime()),
       updated_at: new Date(updatedAt.getTime()),
+      current_projection_json: jsonValue(currentProjectionJson),
     });
 
     return { rows: [{ id }], rowCount: 1 };
@@ -61,6 +63,7 @@ export const platformPostgresRoomQuery = (
     const endedAt = nullableDateValueAt(values, 4);
     const updatedAt = dateValueAt(values, 5);
     const expectedCurrentRevision = numberValueAt(values, 6);
+    const currentProjectionJson = valueAt(values, 7);
     const room = state.rooms.get(roomId);
     if (room === undefined || room.current_revision !== expectedCurrentRevision) {
       return { rows: [], rowCount: 0 };
@@ -73,9 +76,25 @@ export const platformPostgresRoomQuery = (
       started_at: cloneDate(startedAt),
       ended_at: cloneDate(endedAt),
       updated_at: new Date(updatedAt.getTime()),
+      current_projection_json: jsonValue(currentProjectionJson),
     });
 
     return { rows: [{ current_revision: currentRevision }], rowCount: 1 };
+  }
+
+  if (normalizedSql.startsWith("UPDATE draft_rooms SET current_projection_json = $2::jsonb")) {
+    const roomId = stringValueAt(values, 0);
+    const currentProjectionJson = valueAt(values, 1);
+    const expectedRevision = numberValueAt(values, 2);
+    const room = state.rooms.get(roomId);
+    if (room === undefined || room.current_revision !== expectedRevision) {
+      return { rows: [], rowCount: 0 };
+    }
+    state.rooms.set(roomId, {
+      ...room,
+      current_projection_json: jsonValue(currentProjectionJson),
+    });
+    return { rows: [], rowCount: 1 };
   }
 
   if (normalizedSql.startsWith("INSERT INTO draft_room_events")) {

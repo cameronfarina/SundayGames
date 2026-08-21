@@ -43,6 +43,7 @@ describe("production deployment workflows", () => {
 
     expect(content).toContain("image: postgres:17-bookworm");
     expect(content).toContain("tests/postgresProductionComposition.integration.test.ts");
+    expect(content).toContain("tests/postgresMockDraftSessionAdmission.integration.test.ts");
     expect(content).toContain("docker build --tag mockd-ci .");
     expect(content).toContain("Serialize concurrent first-deploy migrations");
     expect(content).toContain("http://127.0.0.1:4319/readyz");

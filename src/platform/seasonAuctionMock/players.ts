@@ -1,6 +1,6 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
 import type { GenericAuctionMockPlayer } from "../genericAuctionMockEngine.js";
-import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 import {
   isProtectedStarterPosition,
   starterEligiblePlayerIdsFor,

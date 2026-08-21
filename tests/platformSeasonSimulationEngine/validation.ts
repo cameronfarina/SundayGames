@@ -15,14 +15,14 @@ export const registerValidationTests = (): void => {
       strategyInput: "",
     };
 
-    for (const runCount of [0, 1.5, 101]) {
+    for (const runCount of [0, 1.5, 26]) {
       expect(() => runSeasonSimulations({ ...baseInput, runCount }))
         .toThrow(new SeasonSimulationError(
           "invalid_run_count",
-          "Simulation run count must be a whole number from 1 through 100.",
+          "Simulation run count must be a whole number from 1 through 25.",
         ));
     }
-    expect(runSeasonSimulations({ ...baseInput, runCount: 100 }).runs).toHaveLength(100);
+    expect(runSeasonSimulations({ ...baseInput, runCount: 25 }).runs).toHaveLength(25);
     expect(() => runSeasonSimulations({ ...baseInput, humanTeamId: "missing", runCount: 1 }))
       .toThrowError(expect.objectContaining({ code: "human_team_missing" }));
     expect(() => runSeasonSimulations({

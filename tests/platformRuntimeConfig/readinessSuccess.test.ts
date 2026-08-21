@@ -70,7 +70,7 @@ describe("successful platform production readiness", () => {
       {
         status: "pass",
         label: "Live draft data",
-        detail: "Live draft data is configured for Postgres.",
+        detail: "Live draft data is configured for Postgres with capacity for 650 streams.",
       },
       {
         status: "pass",

@@ -96,6 +96,21 @@ export const leagueSyncRevisionMigrationStatements: readonly string[] = [
   "ALTER TABLE league_connection_snapshots ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
 ];
 
+export const liveDraftScaleMigrationStatements: readonly string[] = [
+  "ALTER TABLE draft_rooms ADD COLUMN IF NOT EXISTS current_projection_json jsonb;",
+  migrationStatementStartingWith("CREATE TABLE live_draft_stream_leases")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX live_draft_stream_leases_account_expires_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+  migrationStatementStartingWith("CREATE INDEX live_draft_stream_leases_expires_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];
+
+export const browserSimulationLifecycleMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE INDEX simulation_runs_cleanup_status_created_at_idx")
+    .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),

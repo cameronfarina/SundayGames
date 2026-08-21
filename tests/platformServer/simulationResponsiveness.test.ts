@@ -1,12 +1,23 @@
-import { FakePostgresClient, InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, deferred, expect, httpRequest, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder, runSeasonSimulations } from "./helpers/index.js";
+import {
+  FakePostgresClient,
+  InMemoryLiveDraftRoomSetupRepository,
+  buildCurrentMockdLeagueSeason,
+  currentLeagueInitialRostersFor,
+  deferred,
+  expect,
+  it,
+  leagueConfig,
+  loadCurrentPlayerCatalog,
+  now,
+  ownerOrder,
+  stringProperty,
+} from "./helpers/index.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer }) => {
-  it("keeps health checks responsive while a season simulation runs outside the snapshot queue", async () => {
+  it("keeps health checks responsive while the server prepares browser simulation input", async () => {
     const setupReadEntered = deferred();
     const releaseSetupRead = deferred();
-    const simulationEntered = deferred();
-    const releaseSimulation = deferred();
     const playerCatalog = await loadCurrentPlayerCatalog();
     const { platformServer } = await createListeningServer({
       postgresClient: new FakePostgresClient(),
@@ -16,17 +27,12 @@ describePlatformServer(({ createListeningServer }) => {
         await releaseSetupRead.promise;
         return {
           seasonId: season.id,
-          sourceVersion: "simulation-health-test",
+          sourceVersion: "browser-simulation-preparation",
           playerCatalog,
           initialRosters: currentLeagueInitialRostersFor(season),
-          contentHash: "simulation-health-test-hash",
+          contentHash: "browser-simulation-preparation-hash",
           updatedAt: now,
         };
-      },
-      seasonSimulationRunner: async input => {
-        simulationEntered.resolve();
-        await releaseSimulation.promise;
-        return runSeasonSimulations(input);
       },
     });
     const account = await platformServer.app.createAccount({
@@ -41,11 +47,11 @@ describePlatformServer(({ createListeningServer }) => {
     });
     if (login === null) throw new Error("Expected simulation health fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 100001",
+      leagueName: "Browser simulation league",
       setupStatus: "published",
     });
     const claimedTeam = season.teams[0];
-    if (claimedTeam === undefined) throw new Error("Expected a simulation health fixture team.");
+    if (claimedTeam === undefined) throw new Error("Expected a claimed team.");
     await platformServer.app.registerLeagueSeason({
       actorSessionToken: login.sessionToken,
       season,
@@ -59,7 +65,7 @@ describePlatformServer(({ createListeningServer }) => {
       now,
     });
 
-    const simulation = platformServer.handler({
+    const launch = platformServer.handler({
       method: "POST",
       path: "/season-simulations",
       sessionToken: login.sessionToken,
@@ -67,64 +73,29 @@ describePlatformServer(({ createListeningServer }) => {
       now,
     });
     await setupReadEntered.promise;
-    const queuedMutation = platformServer.handler({
-      method: "POST",
-      path: "/accounts",
-      body: { email: "after-simulation-capture@example.com", password: "secure password1!" },
-      now,
-    });
-    await expect(Promise.race([
-      queuedMutation.then(() => "completed"),
-      new Promise(resolve => setTimeout(() => resolve("still-queued"), 50)),
-    ])).resolves.toBe("still-queued");
-    releaseSetupRead.resolve();
-    await expect(Promise.race([
-      simulationEntered.promise.then(() => ({ entered: true })),
-      simulation.then(response => ({ response })),
-    ])).resolves.toEqual({ entered: true });
-
-    await expect(Promise.race([
-      queuedMutation,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Mutation remained blocked.")), 1_000)),
-    ])).resolves.toMatchObject({ status: 201 });
-
     await expect(Promise.race([
       platformServer.handler({ method: "GET", path: "/healthz", now }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Health check was blocked.")), 100)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Health check blocked.")), 100)),
     ])).resolves.toMatchObject({ status: 200 });
-    releaseSimulation.resolve();
-    await expect(simulation).resolves.toMatchObject({ status: 200 });
+    releaseSetupRead.resolve();
+    await expect(launch).resolves.toMatchObject({ status: 202 });
   });
 
-  it("cancels a streamed season simulation on disconnect without saving a run", async () => {
-    const simulationEntered = deferred();
-    const simulationCanceled = deferred();
+  it("cancels an unfinished browser launch without saving a result", async () => {
     const playerCatalog = await loadCurrentPlayerCatalog();
-    const { platformServer, baseUrl } = await createListeningServer({
+    const { platformServer } = await createListeningServer({
       liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
       liveDraftRoomSetupProvider: async season => ({
         seasonId: season.id,
-        sourceVersion: "stream-cancel-test",
+        sourceVersion: "browser-cancel-test",
         playerCatalog,
         initialRosters: currentLeagueInitialRostersFor(season),
-        contentHash: "stream-cancel-test-hash",
+        contentHash: "browser-cancel-test-hash",
         updatedAt: now,
       }),
-      seasonSimulationRunner: async (input, options) => {
-        options?.onProgress?.({ completed: 1, total: input.runCount });
-        simulationEntered.resolve();
-        return await new Promise((_, reject) => {
-          const cancel = (): void => {
-            simulationCanceled.resolve();
-            reject(new Error("Canceled by client disconnect."));
-          };
-          if (options?.signal?.aborted === true) cancel();
-          else options?.signal?.addEventListener("abort", cancel, { once: true });
-        });
-      },
     });
     const account = await platformServer.app.createAccount({
-      email: "stream-cancel@example.com",
+      email: "browser-cancel@example.com",
       password: "secure password1!",
       now,
     });
@@ -133,13 +104,13 @@ describePlatformServer(({ createListeningServer }) => {
       password: "secure password1!",
       now,
     });
-    if (login === null) throw new Error("Expected stream cancellation fixture login.");
+    if (login === null) throw new Error("Expected browser cancellation fixture login.");
     const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "Stream cancellation league",
+      leagueName: "Browser cancellation league",
       setupStatus: "published",
     });
     const claimedTeam = season.teams[0];
-    if (claimedTeam === undefined) throw new Error("Expected a stream cancellation fixture team.");
+    if (claimedTeam === undefined) throw new Error("Expected a claimed team.");
     await platformServer.app.registerLeagueSeason({
       actorSessionToken: login.sessionToken,
       season,
@@ -152,34 +123,25 @@ describePlatformServer(({ createListeningServer }) => {
       }],
       now,
     });
-
-    const clientRequest = httpRequest(`${baseUrl}/season-simulations`, {
+    const launch = await platformServer.handler({
       method: "POST",
-      headers: {
-        accept: "text/event-stream",
-        "content-type": "application/json",
-        "x-session-token": login.sessionToken,
-      },
-    });
-    clientRequest.on("error", () => undefined);
-    clientRequest.on("response", response => {
-      response.once("data", () => response.destroy());
-    });
-    clientRequest.end(JSON.stringify({
-      seasonId: season.id,
-      count: 25,
-      strategy: "Target Puka Nacua",
-    }));
-
-    await simulationEntered.promise;
-    await expect(Promise.race([
-      simulationCanceled.promise.then(() => undefined),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Simulation was not canceled.")), 250)),
-    ])).resolves.toBeUndefined();
-    await expect(platformServer.app.listSimulationRuns({
-      actorSessionToken: login.sessionToken,
-      seasonId: season.id,
+      path: "/season-simulations",
+      sessionToken: login.sessionToken,
+      body: { seasonId: season.id, count: 1 },
       now,
-    })).resolves.toEqual([]);
+    });
+    const historyId = stringProperty(launch.body, "historyId");
+
+    await expect(platformServer.handler({
+      method: "DELETE",
+      path: `/season-simulations/${historyId}`,
+      sessionToken: login.sessionToken,
+      now,
+    })).resolves.toMatchObject({ status: 204 });
+    await expect(platformServer.app.getSimulationRun({
+      actorSessionToken: login.sessionToken,
+      runId: historyId,
+      now,
+    })).resolves.toMatchObject({ status: "canceled", result: undefined });
   });
 });

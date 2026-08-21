@@ -2,15 +2,21 @@ import type { PlatformSchemaMigration } from "./contracts.js";
 import { corePlatformSchemaMigrations } from "./coreDefinitions.js";
 import {
   authRateLimitsMigrationId,
+  browserSimulationLifecycleMigrationId,
   leagueCredentialEncryptionMigrationId,
   leagueSyncRevisionMigrationId,
+  liveDraftScaleMigrationId,
+  practicePersistenceMigrationId,
   snakeLiveRoomMigrationId,
 } from "./ids.js";
 import { ownershipPlatformSchemaMigrations } from "./ownershipDefinitions.js";
+import { practicePersistenceMigrationStatements } from "./practicePersistenceStatements.js";
 import {
   authRateLimitMigrationStatements,
+  browserSimulationLifecycleMigrationStatements,
   leagueCredentialEncryptionMigrationStatements,
   leagueSyncRevisionMigrationStatements,
+  liveDraftScaleMigrationStatements,
 } from "./schemaStatements.js";
 
 export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
@@ -33,6 +39,18 @@ export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: leagueSyncRevisionMigrationId,
     statements: leagueSyncRevisionMigrationStatements,
+  },
+  {
+    id: liveDraftScaleMigrationId,
+    statements: liveDraftScaleMigrationStatements,
+  },
+  {
+    id: practicePersistenceMigrationId,
+    statements: practicePersistenceMigrationStatements,
+  },
+  {
+    id: browserSimulationLifecycleMigrationId,
+    statements: browserSimulationLifecycleMigrationStatements,
   },
 ];
 

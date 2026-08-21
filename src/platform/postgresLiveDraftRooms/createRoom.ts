@@ -12,6 +12,7 @@ import { insertDraftRoom } from "./roomPersistence.js";
 import { cloneRoom } from "./snapshotCodec.js";
 import { insertDraftRoomSnapshot } from "./snapshotPersistence.js";
 import { latestRoomSnapshot } from "./snapshotRead.js";
+import { publishLiveDraftRoomRevision } from "../liveDraftRoomRealtime.js";
 
 export const createRoom = async (
   client: PostgresQueryClient,
@@ -34,6 +35,7 @@ export const createRoom = async (
   await insertDraftRoom(client, room);
   await insertDraftRoomEvent(client, createdEvent, undefined);
   await insertDraftRoomSnapshot(client, room);
+  await publishLiveDraftRoomRevision(client, room.roomId, room.revision);
   return cloneRoom(room);
 };
 

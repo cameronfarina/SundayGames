@@ -1,6 +1,6 @@
-import type { HistoricalSaleRecord } from "../historicalImports.js";
-import type { ExplicitLeagueSeason } from "../leagueSeason.js";
-import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import type { HistoricalSaleRecord } from "../historicalImports/saleContracts.js";
+import type { ExplicitLeagueSeason } from "../leagueSeason/contracts.js";
+import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 
 export interface BuildSeasonAuctionMockConfigInput {
   season: ExplicitLeagueSeason;

@@ -26,5 +26,12 @@
     "verbatimModuleSyntax": true,
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "vite.config.ts", "vitest.config.ts"],
+  "exclude": [
+    "src/features/practice/api/browserSimulationExecution.test.ts",
+    "src/features/practice/api/browserSimulationExecution.ts",
+    "src/features/practice/api/browserSimulationRunner.test.ts",
+    "src/features/practice/workers/seasonSimulation.worker.test.ts",
+    "src/features/practice/workers/seasonSimulation.worker.ts"
+  ]
 }

@@ -1,5 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { JobKind } from "../jobs.js";
+import {
+  defaultPracticePersistenceMode,
+  type PracticePersistenceMode,
+} from "../practicePersistenceMode.js";
 import type {
   FantasyProsConfig,
   PlayerNewsConfig,
@@ -24,6 +28,17 @@ export const legacyMockBatchEnabled = (env: PlatformRuntimeEnv): boolean => {
     throw new Error("MOCKD_ENABLE_LEGACY_MOCK_BATCH cannot be enabled in production.");
   }
   return enabled;
+};
+
+export const practicePersistenceMode = (
+  env: PlatformRuntimeEnv,
+): PracticePersistenceMode => {
+  const value = optionalEnvString(env, "MOCKD_PRACTICE_PERSISTENCE_MODE") ??
+    defaultPracticePersistenceMode;
+  if (value === "dual-write" || value === "normalized-only") return value;
+  throw new Error(
+    "MOCKD_PRACTICE_PERSISTENCE_MODE must be dual-write or normalized-only.",
+  );
 };
 
 export const runtimeWorkerId = (env: PlatformRuntimeEnv): string =>

@@ -35,8 +35,8 @@ export const listHistoryForUserSeason = async (
 ): Promise<SimulationRun[]> => {
   const result = await client.query<SimulationRunRow>(
     `${selectSimulationHistorySql}
-WHERE r.user_id = $1 AND r.league_season_id = $2
-ORDER BY r.created_at DESC, r.id DESC
+WHERE r.user_id = $1 AND r.league_season_id = $2 AND r.status = 'completed'
+ORDER BY r.completed_at DESC, r.id DESC
 LIMIT $3`,
     [userId, seasonId, boundedSimulationHistoryPageSize(limit)],
   );

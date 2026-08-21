@@ -2,6 +2,7 @@ import type {
   PlatformProductionReadinessCheck,
   PlatformRuntimeEnv,
 } from "./contracts.js";
+import { defaultLiveDraftRoomConcurrentWaiters } from "../liveDraftRoomRealtime.js";
 import { errorMessage, optionalEnvString, positiveIntegerEnv } from "./env.js";
 
 export const liveDraftCheck = (
@@ -9,10 +10,27 @@ export const liveDraftCheck = (
 ): PlatformProductionReadinessCheck => {
   const mode = optionalEnvString(env, "MOCKD_LIVE_DRAFT_DATA_MODE") ?? "postgres";
   if (mode === "postgres") {
+    let capacity: number;
+    try {
+      capacity = positiveIntegerEnv(
+        env,
+        "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS",
+        defaultLiveDraftRoomConcurrentWaiters,
+      );
+    } catch (error) {
+      return { status: "fail", label: "Live draft data", detail: errorMessage(error) };
+    }
+    if (capacity < defaultLiveDraftRoomConcurrentWaiters) {
+      return {
+        status: "fail",
+        label: "Live draft data",
+        detail: "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS must be at least 650 for production readiness.",
+      };
+    }
     return {
       status: "pass",
       label: "Live draft data",
-      detail: "Live draft data is configured for Postgres.",
+      detail: `Live draft data is configured for Postgres with capacity for ${capacity} streams.`,
     };
   }
   return {

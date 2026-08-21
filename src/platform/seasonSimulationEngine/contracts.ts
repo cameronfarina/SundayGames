@@ -1,6 +1,6 @@
-import type { HistoricalSaleRecord } from "../historicalImports.js";
-import type { ExplicitLeagueSeason } from "../leagueSeason.js";
-import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import type { HistoricalSaleRecord } from "../historicalImports/saleContracts.js";
+import type { ExplicitLeagueSeason } from "../leagueSeason/contracts.js";
+import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 import type {
   SeasonSimulationPreferenceOutcome,
   SeasonSimulationPreferredPosition,
@@ -32,13 +32,10 @@ export type SeasonSimulationErrorCode =
   | "invalid_configuration"
   | "invalid_run_count"
   | "invalid_seed_prefix"
-  | "simulation_account_queue_full"
-  | "simulation_busy"
   | "simulation_canceled"
-  | "simulation_failed"
-  | "simulation_timeout";
+  | "simulation_failed";
 
-export const maximumSeasonSimulationRunCount = 100;
+export const maximumSeasonSimulationRunCount = 25;
 
 export class SeasonSimulationError extends Error {
   constructor(

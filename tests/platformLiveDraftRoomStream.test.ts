@@ -106,6 +106,7 @@ describe("live draft room stream contract", () => {
     const close = vi.fn();
     const stream = createLiveDraftRoomEventStream({
       initialRoom: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      loadRevision: async () => room.revision,
       loadUpdate: async afterRevision => ({
         events: liveDraftRoomEventsAfterRevision({ room, actor: commissioner, afterRevision }),
         room: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
@@ -150,6 +151,7 @@ describe("live draft room stream contract", () => {
     const close = vi.fn();
     const stream = createLiveDraftRoomEventStream({
       initialRoom: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      loadRevision: async () => room.revision,
       loadUpdate: async afterRevision => ({
         events: liveDraftRoomEventsAfterRevision({ room, actor: commissioner, afterRevision }),
         room: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
@@ -179,6 +181,31 @@ describe("live draft room stream contract", () => {
     controller.abort();
     await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined });
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("checks only the durable revision when a recovery heartbeat finds no change", async () => {
+    const room = createRoom();
+    const controller = new AbortController();
+    const loadRevision = vi.fn().mockResolvedValue(room.revision);
+    const loadUpdate = vi.fn();
+    const stream = createLiveDraftRoomEventStream({
+      initialRoom: buildLiveDraftRoomReadModel({ room, actor: commissioner }),
+      loadRevision,
+      loadUpdate,
+      subscription: { close: vi.fn(), waitForRevision: vi.fn().mockResolvedValue(false) },
+      signal: controller.signal,
+      heartbeatMilliseconds: 10,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+
+    await iterator.next();
+    await expect(iterator.next()).resolves.toEqual({ done: false, value: ": keep-alive\n\n" });
+    expect(loadRevision).toHaveBeenCalledOnce();
+    expect(loadRevision).toHaveBeenCalledWith(room.revision);
+    expect(loadUpdate).not.toHaveBeenCalled();
+
+    controller.abort();
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined });
   });
 
   it("builds role-aware snapshots with selected/viewed teams, shared room state, and export readiness", () => {

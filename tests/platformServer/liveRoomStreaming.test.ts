@@ -167,6 +167,11 @@ describePlatformServer(({ createListeningServer }) => {
       data: expect.objectContaining({ revision: 5, status: "paused" }),
     });
 
-    await Promise.all([camStream.close(), replacementStream.close()]);
+    await expect(Promise.race([
+      platformServer.close().then(() => true),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 250)),
+    ])).resolves.toBe(true);
+    await expect(camStream.nextEvent()).rejects.toThrow("Event stream closed");
+    await expect(replacementStream.nextEvent()).rejects.toThrow("Event stream closed");
   });
 });

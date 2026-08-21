@@ -39,6 +39,7 @@ const expectedTableOrder = [
   "draft_rooms",
   "draft_room_participants",
   "draft_room_events",
+  "live_draft_stream_leases",
   "draft_room_sales",
   "draft_room_team_states",
   "draft_room_player_states",
@@ -124,6 +125,12 @@ it("stores total revisions for connected-league sync claims and snapshots", () =
     type: "bigint",
     default: "0",
   });
+});
+
+it("stores bounded live-room projections and expiring shared stream leases", () => {
+  expectColumn("draft_rooms", "current_projection_json", { type: "jsonb", nullable: true });
+  expectColumn("live_draft_stream_leases", "account_id", { type: "text" });
+  expectColumn("live_draft_stream_leases", "expires_at", { type: "timestamptz" });
 });
 
 const expectCheckContract = (

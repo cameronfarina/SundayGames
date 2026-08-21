@@ -13,8 +13,8 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
   - Uses secure HttpOnly cookies for sessions.
   - Performs all membership, role, and privacy checks server-side.
 - Interactive simulation execution:
-  - Captures one consistent league snapshot, then runs bounded 1-100 draft batches in a two-worker thread pool for the claimed team.
-  - Admits at most eight pending batches, cancels disconnected requests, and stops active work after 30 seconds.
+  - Prepares one authorized league snapshot for the browser. A tab-local Web Worker runs 1-25 seeded drafts with the shared engine, and the server validates the issued run/team/seed/input-digest bindings before persistence.
+  - Stops tab-local work when the page closes, refreshes, or navigates away. Cancellation is best effort; the scheduled database reconciler removes a request/cancellation race after it is one hour old, within about 65 minutes of creation.
   - Supports auction and snake league shapes without the current-league fixture runner.
 - Postgres:
   - Source of truth for accounts, leagues, shared league state, private prep, live draft events/projections, jobs, and exports.
@@ -32,7 +32,7 @@ The concrete first-host procedure is [Render Production Launch](../../render-pro
 
 ## Deploy Units
 
-- `web`: HTTP app plus SSE endpoints, with a container-local scratch directory for account-isolated classic draft-tools artifacts. Durable unified mock sessions and shared league state are persisted through the platform store. Run one web replica, and attach no disk, so Render can deploy without downtime.
+- `web`: HTTP app plus SSE endpoints, with a container-local scratch directory for account-isolated classic draft-tools artifacts. Durable unified mock sessions use normalized Postgres session and event tables; the compatibility platform store carries shared areas that have not moved yet. Run one web replica, and attach no disk, so Render can deploy without downtime.
 - `migrate`: one-off migration task before the web deploy.
 - `postgres`: managed database with automated backups and PITR where possible.
 - Future scale units, not part of the first release: background workers, a scheduler, and object storage.
@@ -43,14 +43,14 @@ Current npm entrypoints:
 - `npm run platform:migrate`: runs the compiled migration task and applies the snapshot bridge schema plus the normalized platform schema contract with a migration ledger.
 - `npm run platform:provision -- <production.json>`: optional operator recovery/import path for an externally reviewed environment snapshot. Normal league creation and setup happen in the product.
 - `npm run platform:web` or `npm start`: starts the compiled platform HTTP server.
-- `npm run platform:worker`: legacy background job entrypoint retained for non-launch tooling; the first production topology does not run it.
+- `npm run platform:worker`: legacy non-season job tooling only; the production Blueprint does not deploy it.
 - `npm run platform:seed:e2e`: seeds local E2E fixture users, a published season, and a live room. Use only for local or throwaway staging smoke.
 - `npm run test:e2e`: starts a temporary file-backed web process and runs the Playwright platform smoke.
 - `npm run test:e2e:deployed`: runs the same browser/API smoke against an already deployed base URL without starting a local server.
 
 Build `dist` in the build stage, then prune or install production dependencies only in the runtime stage. The hosted scripts use `node`, not the development-only `tsx` package. Run `platform:ready` after migrations and before deploy. It requires Postgres-backed shared storage and an explicit persistent private-draft directory, rejects the local platform file store, verifies the migration ledger and directory write access, prints the web bind target, and lists the setup, web, and smoke-test steps that still need human confirmation. The web process runs the same dependency checks for `/readyz`; `/healthz` remains a process-liveness check.
 
-The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before the web rollout; do not rely on web startup as the production migration path. In Postgres mode, the web process constructs normalized repositories for accounts, sessions, league setup, historical imports, jobs, and private simulation runs/results while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only, league-setup-only, and historical-import-only HTTP mutations skip snapshot persistence when their external repositories are configured, so those direct writes remain owned by their normalized repositories. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
+The normalized schema statements are the initial schema contract. Run `platform:migrate` as a deploy step before the web rollout; do not rely on web startup as the production migration path. In Postgres mode, the web process constructs normalized repositories for accounts, sessions, league setup, historical imports, jobs, private simulation runs/results, practice shortlists, and unified mock sessions while the snapshot bridge continues to carry platform areas that have not moved to first-class repositories yet. Auth-only, league-setup-only, and historical-import-only HTTP mutations skip snapshot persistence when their external repositories are configured, so those direct writes remain owned by their normalized repositories. When external auth is active, loaded snapshot auth state is scrubbed before runtime use so stale password/session hashes are not reserialized by later shared mutations.
 
 League setup Postgres mode persists leagues, league seasons, fantasy teams, roster rule sets, and league memberships in normalized tables. Provider imports register the season and link its league connection in one transaction, so a failed link cannot leave an orphaned league. The current app layer mirrors registered seasons and memberships into the in-memory store only as a compatibility bridge for existing live-room authorization and read-model code; setup route writes themselves remain owned by the league setup repository. Until the remaining legacy modules move to normalized repositories, non-setup mutations that save bridge-owned state may still serialize that mirrored league setup as compatibility data.
 
@@ -116,6 +116,7 @@ Implemented bootstrap variables:
 - `MOCKD_POSTGRES_POOL_SIZE`: Postgres pool size.
 - `MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS`: per-statement timeout passed to node-postgres.
 - `MOCKD_POSTGRES_SNAPSHOT_KEY`: snapshot bridge key for shared app state during the transition to normalized repositories.
+- `MOCKD_PRACTICE_PERSISTENCE_MODE`: defaults to `dual-write`. Keep that mode for the first v25 deployment so normalized mock writes remain visible to the old snapshot process. Each v25 dual write commits its normalized change and compatibility snapshot CAS in one transaction. Change it to `normalized-only` only after every pre-v25 process and in-flight request has drained. The normalized-only startup disables the database bridge and scrubs compatibility mock sessions; later stale snapshot writes that carry mock sessions are rejected, and `/readyz` also requires the scrub invariant. Returning to dual-write after that boundary requires restoring the pre-cutover database recovery point.
 - `MOCKD_INITIALIZE_POSTGRES_SCHEMA`: dev/test convenience that initializes the platform schema during web startup when a transactional Postgres client is available. Production should use `npm run platform:migrate`.
 - `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`: writable scratch directory for the classic draft-tools board, shortlist, strategy, and interactive mock sessions, which the current app reaches only through the `/api/*` routes. Required by `platform:ready` for a domain deployment. It does not need to survive a restart, and it must not be a Render disk.
 - `MOCKD_ALLOW_PUBLIC_SIGNUP`: defaults to `false`. Set it to `true` for the public Mockd product so a signed-in user can create or join a league. Account-creation rate limits remain mandatory; invitations still bind invited managers to league teams.
@@ -183,6 +184,10 @@ Run these against the exact commit that will serve the domain.
    Migration `platform-auth-rate-limits-v22` is additive. The previous release ignores the new table, so schema rollback is safe, but authentication limits are not shared across every replica until all old web processes have stopped.
 
    Migration `platform-league-sync-revisions-v23` is additive and initializes both revision columns to zero. The previous release can still read and write the tables, but its league-sync SQL does not enforce revision claims. Avoid provider sync and import during the zero-downtime swap. After every old web process has stopped, rerun any sync or import attempted during that window. Application rollback does not require a database restore.
+
+   Migration `platform-practice-persistence-v25` must follow the separately shipped v24 scale migration. Its bridge backfills normalized mock rows and accepts only revision-valid command-prefix extensions from old snapshots. First deploy with `MOCKD_PRACTICE_PERSISTENCE_MODE=dual-write`; v25 reads normalized rows and atomically mirrors committed mutations back to snapshots while pre-v25 processes drain. Verify session coverage in both directions and normalized event counts, then deploy with `MOCKD_PRACTICE_PERSISTENCE_MODE=normalized-only`. That startup atomically disables the bridge and scrubs compatibility sessions. Readiness requires the scrub to remain complete, and the retired bridge rejects stale writes that contain mock sessions. Treat the second deployment as a roll-forward boundary.
+
+   Migration `platform-browser-simulation-lifecycle-v26` follows v25. It adds the partial status/creation-time index used by stale browser-launch reconciliation. The web process takes a transaction advisory try-lock before each cleanup, so replicas do not run overlapping sweeps concurrently. The migration is additive and safe while the previous web process drains.
 
 3. Check production/domain runtime readiness:
 
@@ -378,17 +383,25 @@ Polling fallback:
 - `GET /events?afterRevision=N` reads the same Postgres event stream.
 - It is only a fallback or stale-client recovery path.
 - It must never become a second write path.
-- An open SSE stream also reconciles its revision from Postgres on every
-  15-second heartbeat. In-process notifications still deliver normal updates
-  immediately, while the heartbeat bounds staleness during a zero-downtime
-  deploy or across multiple web processes.
+- A committed room mutation publishes its revision through Postgres
+  `LISTEN`/`NOTIFY`, so streams connected to another web process wake
+  immediately. The open stream still checks the scalar `current_revision` on
+  every 15-second heartbeat as recovery. An unchanged heartbeat does not load
+  a room projection or replay draft events.
+- Browser room state reads use the bounded `draft_rooms.current_projection_json`
+  projection. Mutation, correction, undo, and recovery keep the append-only
+  event log as the source of truth.
 
 Event-stream connection limits:
 
-- Long polls are capped at 4 concurrent requests per authenticated account and 200 concurrent requests per web process.
+- Open streams are capped at 4 per authenticated account and 650 globally by default.
+  `MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS` can raise the shared Postgres-backed
+  global cap; production readiness rejects values below 650.
+  across web processes.
 - Overflow receives `429 Too Many Requests` with `Retry-After: 5`.
-- Completed, timed-out, and disconnected requests release capacity immediately.
-- The global ceiling is process-local. Keep the launch web service at one instance, or add a shared connection gate before scaling horizontally.
+- Postgres leases serialize admission under one advisory transaction lock.
+  Completed and disconnected streams release capacity immediately; expired
+  leases recover capacity after a crashed process.
 
 ## Offline Live Draft Flow
 
@@ -524,7 +537,7 @@ Run the mutation-heavy checks against an isolated rehearsal deployment and datab
 - Log sales with command forms such as `cam puka 62` and natural forms such as `Cam took Puka for 62`.
 - Verify roster max errors, budget errors, undo, correction, SSE reconnect, and polling fallback.
 - Generate the one-sheet export and compare against the room rosters.
-- Record a pre-draft PITR timestamp, create/download a logical database export, and confirm the latest web-disk snapshot.
+- Record a pre-draft PITR timestamp and create or download a logical database export.
 - Confirm incident contacts and the degraded-mode procedure.
 
 ## Incident And Degraded Mode
@@ -562,11 +575,11 @@ Mark every item pass before pointing the domain. Any fail is no-go.
 | --- | --- |
 | Domain | DNS owner, deploy owner, TLS, canonical host, redirects, and rollback TTL are verified in staging. |
 | Deploy | `npm run build`, `npm test`, `npm run test:e2e`, and staging `npm run test:e2e:deployed -- --base-url=...` pass on the release commit. |
-| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, readiness reports no missing migrations through `platform-league-sync-revisions-v23`, and `league_season_draft_setups` exists. |
+| Migrations | `DATABASE_URL="$PRODUCTION_DATABASE_URL" npm run platform:migrate` completed before web rollout, repeat-run output is safe, readiness reports no missing migrations through `platform-browser-simulation-lifecycle-v26` in v24→v25→v26 order, and `league_season_draft_setups` exists. |
 | Runtime env | `npm run platform:ready` passes with production env; production has `DATABASE_URL`, correct `HOST`/`PORT`, Postgres pool/timeout settings, `MOCKD_LIVE_DRAFT_DATA_MODE=postgres`, public signup, Resend delivery, a verified sender, the public HTTPS origin, the active ESPN credential key id and retained keyring, a writable `MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY`, no attached disk, and no `MOCKD_PLATFORM_DATA_FILE` or startup schema init. |
 | Account recovery | A new account requires email verification, verification and reset links expire and cannot be replayed, and forgot-password works without revealing whether an email exists. |
 | League setup | A commissioner created and published the staging league through the product; settings, team mappings, historical imports, keepers, and active pricing are correct; no `platform:seed:e2e` fixture accounts are present in production. |
-| Realtime | SSE stream and `events?afterRevision=N` polling fallback both recover a sale in staging. |
+| Realtime | Two web processes receive the same committed sale over SSE without waiting for the 15-second recovery check; `events?afterRevision=N` also recovers it; a 201st global stream and a fifth account stream receive `429`. |
 | Draft commands | Sale, undo, end, idempotency, stale revision, budget, roster, and position maximum validation pass in staging. |
 | Export | Final export artifact is created after room end and content is readable after restore. |
 | Backups | Automated backups and alerts are enabled, the ESPN plaintext query returns zero, the pre-cutover UTC recovery point and logical export are recorded, the matching credential keyring is retained outside Postgres, and restore rehearsal has passed within 7 days. |

@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { z } from "zod";
+import { defaultLiveDraftRoomConcurrentWaiters } from
+  "../src/platform/liveDraftRoomRealtime.js";
 
 const envVarSchema = z.object({
   key: z.string(),
@@ -99,6 +101,8 @@ describe("Render production blueprint", () => {
     expect(envFor(web, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY")?.value)
       .toBe("/var/lib/mockd/draft-tools");
     expect(envFor(web, "MOCKD_LIVE_DRAFT_DATA_MODE")?.value).toBe("postgres");
+    expect(envFor(web, "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS")).toBeUndefined();
+    expect(defaultLiveDraftRoomConcurrentWaiters).toBe(650);
     expect(envFor(web, "MOCKD_ALLOW_PUBLIC_SIGNUP")?.value).toBe("true");
     expect(envFor(web, "MOCKD_AUTH_EMAIL_MODE")?.value).toBe("resend");
     expect(envFor(web, "RESEND_API_KEY")).toEqual({ key: "RESEND_API_KEY", sync: false });

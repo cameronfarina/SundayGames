@@ -7,6 +7,7 @@ const expectedTableNames = [
   "draft_rooms",
   "draft_room_participants",
   "draft_room_events",
+  "live_draft_stream_leases",
 ];
 
 const fingerprint = (value: unknown): string => createHash("sha256")
@@ -22,16 +23,16 @@ describe("Postgres draft-core table schema", () => {
   it("preserves the public table order and complete schema contract", () => {
     expect(draftCoreTables.map(table => table.name)).toEqual(expectedTableNames);
     expect(fingerprint(draftCoreTables)).toBe(
-      "580d2a894d8c7b09f5c3440e66844bb7f30a92a0320b52a90f87e8dca14cd14d",
+      "59ac3f369c702567dd8378e9aa25c0c169090400f63fa90010a7cab56bfb6cb5",
     );
   });
 
   it("preserves generated migration SQL text and statement ordering", () => {
     const statements = platformPostgresMigrationStatements.filter(isDraftCoreStatement);
 
-    expect(statements).toHaveLength(8);
+    expect(statements).toHaveLength(11);
     expect(fingerprint(statements)).toBe(
-      "5d69cf5464c961c8ce30039cd21b710f3765dd00f4c4e368e1ca71e4da370593",
+      "481737f7285345327391c252a39d214f71619b84f1df063edef1a861441df157",
     );
   });
 });

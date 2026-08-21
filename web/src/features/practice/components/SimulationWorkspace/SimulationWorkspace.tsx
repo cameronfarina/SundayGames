@@ -48,7 +48,7 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
         /></label>
         <p className="simulation-workspace__helper">Your saved draft targets stay in the plan. Add only roster-wide rules here; these rules never replace your targets.</p>
         <div className="simulation-workspace__fields">
-          <label><span>Number of simulations</span><input defaultValue="25" max="100" min="1" name="count" required type="number" /></label>
+          <label><span>Number of simulations</span><input defaultValue="25" max="25" min="1" name="count" required type="number" /></label>
           <label><span>Run label</span><input name="note" placeholder="What are you comparing?" type="text" /></label>
         </div>
         <button disabled={!props.teamClaimed || props.pending} type="submit">

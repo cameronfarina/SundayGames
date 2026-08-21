@@ -1,4 +1,5 @@
 import { InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder, propertyValue, readFile } from "./helpers/index.js";
+import { completeBrowserSimulation } from "../platformHttp/support/browserSimulation.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer, storePath }) => {
@@ -48,13 +49,21 @@ describePlatformServer(({ createListeningServer, storePath }) => {
     });
     await platformServer.persist();
 
-    await expect(platformServer.handler({
+    const launch = await platformServer.handler({
       method: "POST",
       path: "/season-simulations",
       sessionToken: login.sessionToken,
       body: { seasonId: season.id, count: 1, strategy: "Target Puka Nacua" },
       now,
-    })).resolves.toMatchObject({ status: 200 });
+    });
+    expect(launch).toMatchObject({ status: 202 });
+    await completeBrowserSimulation({
+      handle: platformServer.handler,
+      launchResponse: launch,
+      sessionToken: login.sessionToken,
+      now,
+    });
+    await platformServer.persist();
 
     const saved: unknown = JSON.parse(await readFile(dataFilePath, "utf8"));
     expect(propertyValue(saved, "simulationRuns")).toEqual([

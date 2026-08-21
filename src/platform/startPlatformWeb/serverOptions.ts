@@ -40,6 +40,7 @@ export const platformWebServerOptions = (
   postgresLiveDraftRoomClient: dependencies.postgresClient,
   postgresExportArtifactClient: dependencies.postgresClient,
   postgresSnapshotKey: config.postgresSnapshotKey,
+  practicePersistenceMode: config.practicePersistenceMode,
   initializePostgresSchema: config.initializePostgresSchema,
   draftToolsSessionDirectory: config.draftToolsSessionDirectory,
   legacyMockBatchEnabled: config.legacyMockBatchEnabled,
@@ -55,6 +56,7 @@ export const platformWebServerOptions = (
     ? {}
     : { publicBaseUrl: config.authEmail.publicBaseUrl }),
   trustProxy: config.trustProxy,
+  liveDraftRoomEventStreamMaxConnections: config.liveDraftRoomEventStreamMaxConnections,
   provisioningToken: config.provisioningToken,
   invitationTokenSecret: config.invitationTokenSecret,
   leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,

@@ -2,6 +2,10 @@ import type { Buffer } from "node:buffer";
 import type { PlatformHttpRequest, PlatformHttpResponse } from "../platformHttp.js";
 import type { PlatformBrowserAsset } from "../platformStaticWebAssets.js";
 
+export interface ActivePlatformHttpStreamRegistry {
+  run(input: { abort: () => void; write: () => Promise<void> }): Promise<void>;
+}
+
 export interface PlatformNodeHttpAdapterOptions {
   appHtml?: string | undefined;
   browserAssets?: ReadonlyMap<string, PlatformBrowserAsset> | undefined;
@@ -9,7 +13,9 @@ export interface PlatformNodeHttpAdapterOptions {
   screenshotImportMaxBodyBytes?: number | undefined;
   screenshotImportPreflight?: PlatformNodeHttpPreflight | undefined;
   historicalImportPreflight?: PlatformNodeHttpAdmission | undefined;
+  simulationCompletionPreflight?: PlatformNodeHttpAdmission | undefined;
   trustProxy?: boolean | undefined;
+  activeStreamRegistry?: ActivePlatformHttpStreamRegistry | undefined;
 }
 
 export type PlatformNodeHttpPreflight = (

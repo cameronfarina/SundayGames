@@ -1,8 +1,11 @@
 import { createPlatformApp } from "../platformApp.js";
 import { createPlatformHttpHandler } from "../platformHttp.js";
-import type { LiveDraftRoomRevisionNotifier } from "../liveDraftRoomRealtime.js";
+import {
+  openSharedLiveDraftRoomRevisionSubscription,
+  type LiveDraftRoomRevisionNotifier,
+  type PostgresLiveDraftRoomStreamAdmission,
+} from "../liveDraftRoomRealtime.js";
 import { createPlatformJobHandlers } from "../platformJobHandlers.js";
-import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 import { createAcceptedMembershipApplier } from "./acceptedMembership.js";
 import type { PlatformAdmissions } from "./admissions.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
@@ -14,7 +17,7 @@ interface CreateRuntimeFactoryOptions {
   options: CreatePlatformServerOptions;
   admissions: PlatformAdmissions;
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
-  seasonSimulationRunner: SeasonSimulationRunner;
+  liveDraftRoomStreamAdmission?: PostgresLiveDraftRoomStreamAdmission | undefined;
   persistForJobs: () => Promise<void>;
   runInSnapshotCriticalSection: <T>(operation: () => Promise<T>) => Promise<T>;
 }
@@ -38,6 +41,7 @@ export const createPlatformRuntimeFactory = (
     historicalImportRepository: repositories.historicalImportRepository,
     jobRepository: repositories.jobRepository,
     simulationRepository: repositories.simulationRepository,
+    mockDraftSessionRepository: repositories.mockDraftSessionRepository,
     practiceShortlistRepository: repositories.practiceShortlistRepository,
     liveDraftRoomRepository: repositories.liveDraftRoomRepository,
     exportArtifactRepository: repositories.exportArtifactRepository,
@@ -81,9 +85,12 @@ export const createPlatformRuntimeFactory = (
     leagueImportRateLimiter: admissions.leagueImportRateLimiter,
     simulationRateLimiter: admissions.simulationRateLimiter,
     liveDraftMutationRateLimiter: admissions.liveDraftMutationRateLimiter,
-    openLiveDraftRoomRevisionSubscription: subscription =>
-      input.liveDraftRoomNotifier.subscribe(subscription),
-    seasonSimulationRunner: input.seasonSimulationRunner,
+    openLiveDraftRoomRevisionSubscription: async subscription =>
+      await openSharedLiveDraftRoomRevisionSubscription({
+        notifier: input.liveDraftRoomNotifier,
+        admission: input.liveDraftRoomStreamAdmission,
+        subscription,
+      }),
     leagueConnectionRepository: repositories.leagueConnectionRepository,
     ...(options.leagueSyncFetch === undefined ? {} : { leagueSyncFetch: options.leagueSyncFetch }),
     ...(runLeagueSyncSeasonRefresh === undefined ? {} : { runLeagueSyncSeasonRefresh }),

@@ -1,5 +1,6 @@
 import type { ForcedAuctionSale, MockBatch } from "../../modeling/mockBatch.js";
 import type { SeasonSimulationResult } from "../seasonSimulationEngine.js";
+import type { RunSeasonSimulationsInput } from "../seasonSimulationEngine.js";
 import type {
   SimulationHardLock,
   SimulationSoftTarget,
@@ -19,6 +20,9 @@ export interface CreateSimulationRequestInput {
   seedPrefix: string;
   idempotencyKey: string;
   strategy: SimulationStrategyInput;
+  browserInput?: RunSeasonSimulationsInput | undefined;
+  browserInputDigest?: string | undefined;
+  browserNote?: string | undefined;
   createdAt?: Date | undefined;
 }
 
@@ -35,6 +39,9 @@ export interface SimulationRequest {
   strategy: SimulationStrategy;
   privacyOwnerUserId: string;
   inputHash: string;
+  browserInput?: RunSeasonSimulationsInput | undefined;
+  browserInputDigest?: string | undefined;
+  browserNote?: string | undefined;
   createdAt: Date;
 }
 

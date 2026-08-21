@@ -20,6 +20,15 @@ export interface ExecutePlatformSimulationRunInput {
   now?: Date | undefined;
 }
 
+export interface CancelPlatformSimulationRunInput extends ExecutePlatformSimulationRunInput {}
+
+export interface FindPlatformSimulationLaunchInput {
+  actorSessionToken: string;
+  seasonId: string;
+  requestId: string;
+  now?: Date | undefined;
+}
+
 export interface CompletePlatformSeasonSimulationRunInput {
   actorSessionToken: string;
   runId: string;
@@ -83,6 +92,8 @@ export interface SimulationOperations {
   createSimulationRun(input: CreatePlatformSimulationRunInput): Promise<SimulationRun>;
   executeSimulationRun(input: ExecutePlatformSimulationRunInput): Promise<SimulationRun>;
   completeSeasonSimulationRun(input: CompletePlatformSeasonSimulationRunInput): Promise<SimulationRun>;
+  cancelSimulationRun(input: CancelPlatformSimulationRunInput): Promise<SimulationRun>;
+  findSimulationLaunch(input: FindPlatformSimulationLaunchInput): Promise<SimulationRun | null>;
   executeSimulationRunForWorker(input: ExecutePlatformSimulationRunForWorkerInput): Promise<SimulationRun>;
   listSimulationRuns(input: ListPlatformSimulationRunsInput): Promise<readonly SimulationRun[]>;
   getSimulationRun(input: GetPlatformSimulationRunInput): Promise<SimulationRun>;

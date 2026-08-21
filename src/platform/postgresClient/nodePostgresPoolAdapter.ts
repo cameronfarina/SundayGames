@@ -1,5 +1,6 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import type {
+  PostgresNotification,
   PostgresPoolClientLike,
   PostgresPoolLike,
   PostgresPoolQueryResult,
@@ -19,6 +20,22 @@ class NodePostgresPoolClientAdapter implements PostgresPoolClientLike {
       text,
       mutableValues(values),
     );
+  }
+
+  onNotification(listener: (notification: PostgresNotification) => void): void {
+    this.client.on("notification", listener);
+  }
+
+  removeNotificationListener(listener: (notification: PostgresNotification) => void): void {
+    this.client.removeListener("notification", listener);
+  }
+
+  onError(listener: (error: Error) => void): void {
+    this.client.on("error", listener);
+  }
+
+  removeErrorListener(listener: (error: Error) => void): void {
+    this.client.removeListener("error", listener);
   }
 
   release(): void {

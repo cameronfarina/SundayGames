@@ -6,7 +6,10 @@ import { CapturingAuthMailSender, CapturingSignupNotifier } from "../src/platfor
 import { NodePostgresClient } from "../src/platform/postgresClient.js";
 import { readPlatformRuntimeConfig } from "../src/platform/platformRuntimeConfig.js";
 import { importEspnLeagueSettingsForRuntime } from "../src/platform/startPlatformWeb/espnImporter.js";
-import { createPlatformWebReadinessProbe } from "../src/platform/startPlatformWeb/readiness.js";
+import {
+  createPlatformWebReadinessProbe,
+  practicePersistenceModeMatches,
+} from "../src/platform/startPlatformWeb/readiness.js";
 import {
   authMailSenderFor,
   screenshotAnalyzerFor,
@@ -103,10 +106,12 @@ describe("platform web runtime services", () => {
     await expect(createPlatformWebReadinessProbe({
       liveDraftDataMode: "local-fixtures",
       draftToolsSessionDirectory: temporaryDirectory,
+      practicePersistenceMode: "dual-write",
     }, undefined)()).resolves.toBe(true);
     await expect(createPlatformWebReadinessProbe({
       liveDraftDataMode: "local-fixtures",
       draftToolsSessionDirectory: "/dev/null/not-writable",
+      practicePersistenceMode: "dual-write",
     }, undefined)()).resolves.toBe(false);
 
     const postgres = new NodePostgresClient({
@@ -117,6 +122,36 @@ describe("platform web runtime services", () => {
     await expect(createPlatformWebReadinessProbe({
       liveDraftDataMode: "postgres",
       draftToolsSessionDirectory: temporaryDirectory,
+      practicePersistenceMode: "dual-write",
     }, postgres)()).resolves.toBe(false);
+  });
+
+  it("requires the configured practice-persistence mode to match the database gate", async () => {
+    const client = {
+      query: async <TRow>() => ({
+        rows: [{
+          mode: "normalized-only",
+          compatibility_snapshots_scrubbed: true,
+        }] as TRow[],
+        rowCount: 1,
+      }),
+    };
+
+    await expect(practicePersistenceModeMatches(client, "normalized-only")).resolves.toBe(true);
+    await expect(practicePersistenceModeMatches(client, "dual-write")).resolves.toBe(false);
+  });
+
+  it("fails normalized-only readiness while compatibility mock sessions remain", async () => {
+    const client = {
+      query: async <TRow>() => ({
+        rows: [{
+          mode: "normalized-only",
+          compatibility_snapshots_scrubbed: false,
+        }] as TRow[],
+        rowCount: 1,
+      }),
+    };
+
+    await expect(practicePersistenceModeMatches(client, "normalized-only")).resolves.toBe(false);
   });
 });

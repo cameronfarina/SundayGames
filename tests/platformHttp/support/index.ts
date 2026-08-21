@@ -27,7 +27,10 @@ export {
   hashPricingSnapshotInputs,
 } from "../../../src/platform/pricingSnapshots.js";
 export { createPlatformHttpHandler } from "../../../src/platform/platformHttp.js";
-export { SeasonSimulationError } from "../../../src/platform/seasonSimulationEngine.js";
+export {
+  runSeasonSimulations,
+  SeasonSimulationError,
+} from "../../../src/platform/seasonSimulationEngine.js";
 export type { AccountRecord } from "../../../src/platform/auth.js";
 export type { EspnLeagueSettingsImportOutcome } from "../../../src/platform/espnLeagueSettingsImport.js";
 export type { LeagueMembersScreenshotAnalyzer } from "../../../src/platform/openAiLeagueMembersScreenshotAnalyzer.js";
@@ -47,5 +50,6 @@ export type {
   SeasonSimulationTargetConstraint,
 } from "../../../src/platform/seasonSimulationEngine.js";
 export * from "./assertions.js";
+export * from "./browserSimulation.js";
 export * from "./auth.js";
 export * from "./fixtures.js";

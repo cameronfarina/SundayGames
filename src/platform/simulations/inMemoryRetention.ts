@@ -1,28 +1,26 @@
 import { maximumRetainedSimulationRunsPerUser } from "../simulationLimits.js";
-import { SimulationError } from "./errors.js";
 import type { InMemorySimulationState } from "./inMemoryState.js";
-import type { SimulationRunStatus } from "./runContracts.js";
 
-const isTerminal = (status: SimulationRunStatus): boolean =>
-  status === "completed" || status === "failed" || status === "canceled";
+const abandonedRequestLifetimeMs = 60 * 60 * 1_000;
 
 export const makeSimulationRetentionRoom = (
   state: InMemorySimulationState,
   userId: string,
+  now: Date,
 ): void => {
   const userRuns = state.values().filter(run => run.request.userId === userId);
-  const removalCount = userRuns.length - maximumRetainedSimulationRunsPerUser + 1;
-  if (removalCount <= 0) return;
-
-  const removableRuns = userRuns
-    .filter(run => isTerminal(run.status))
-    .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-    .slice(0, removalCount);
-  if (removableRuns.length < removalCount) {
-    throw new SimulationError(
-      "simulation_capacity_reached",
-      "Finish or cancel an active simulation before starting another one.",
-    );
-  }
-  for (const run of removableRuns) state.delete(run);
+  const allCompletedRuns = userRuns
+    .filter(run => run.status === "completed")
+    .sort((left, right) =>
+      (left.completedAt ?? left.createdAt).getTime() -
+      (right.completedAt ?? right.createdAt).getTime());
+  const completedRuns = allCompletedRuns.slice(
+    0,
+    Math.max(allCompletedRuns.length - maximumRetainedSimulationRunsPerUser, 0),
+  );
+  const cutoff = now.getTime() - abandonedRequestLifetimeMs;
+  const removableRuns = userRuns.filter(run =>
+    run.status === "failed" || run.status === "canceled" ||
+    (run.status === "requested" && run.createdAt.getTime() < cutoff));
+  for (const run of [...completedRuns, ...removableRuns]) state.delete(run);
 };

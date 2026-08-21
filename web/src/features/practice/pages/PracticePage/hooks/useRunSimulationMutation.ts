@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runSimulations } from "../../../api/practiceApi";
 import type { SimulationProgress } from "../../../api/simulationSchema";
 import { practiceQueryKeys } from "./practiceQueryKeys";
@@ -16,13 +16,25 @@ export const useRunSimulationMutation = (
 ) => {
   const client = useQueryClient();
   const [progress, setProgress] = useState<SimulationProgress>();
+  const activeController = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => { activeController.current?.abort(); }, []);
   const mutation = useMutation({
-    mutationFn: (input: SimulationInput) => runSimulations({
-      ...input,
-      onProgress: setProgress,
-      seasonId,
-      strategyPreset,
-    }),
+    mutationFn: async (input: SimulationInput) => {
+      activeController.current?.abort();
+      const controller = new AbortController();
+      activeController.current = controller;
+      try {
+        return await runSimulations({
+          ...input,
+          onProgress: setProgress,
+          seasonId,
+          signal: controller.signal,
+          strategyPreset,
+        });
+      } finally {
+        if (activeController.current === controller) activeController.current = undefined;
+      }
+    },
     onMutate: input => { setProgress({ completed: 0, total: input.count }); },
     onSuccess: async response => {
       setProgress({

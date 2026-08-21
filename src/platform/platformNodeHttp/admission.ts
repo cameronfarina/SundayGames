@@ -10,6 +10,7 @@ import { platformRequestMetadataFor } from "./requestFactory.js";
 import {
   isHistoricalImportPreviewRequest,
   isScreenshotImportAnalysisRequest,
+  isSeasonSimulationCompletionRequest,
 } from "./requestKinds.js";
 import { writePlatformResponse } from "./writePlatformResponse.js";
 
@@ -37,6 +38,7 @@ export const admitPlatformRequest = async (
   response: ServerResponse,
   screenshotImportPreflight: PlatformNodeHttpPreflight | undefined,
   historicalImportPreflight: PlatformNodeHttpAdmission | undefined,
+  simulationCompletionPreflight: PlatformNodeHttpAdmission | undefined,
   trustProxy: boolean,
 ): Promise<PlatformNodeHttpAdmissionResult> => {
   if (isScreenshotImportAnalysisRequest(request)) {
@@ -51,6 +53,16 @@ export const admitPlatformRequest = async (
 
   if (isHistoricalImportPreviewRequest(request) && historicalImportPreflight !== undefined) {
     const admission = await historicalImportPreflight(
+      platformRequestMetadataFor(request, trustProxy),
+    );
+    if (isPlatformHttpResponse(admission)) {
+      await rejectRequest(request, response, admission);
+      return { handled: true };
+    }
+    return { handled: false, permit: admission };
+  }
+  if (isSeasonSimulationCompletionRequest(request) && simulationCompletionPreflight !== undefined) {
+    const admission = await simulationCompletionPreflight(
       platformRequestMetadataFor(request, trustProxy),
     );
     if (isPlatformHttpResponse(admission)) {

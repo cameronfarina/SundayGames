@@ -108,11 +108,16 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
       } }] });
     }
     if (url.pathname === "/season-simulations" && method === "POST") {
-      const result = { historyId: "history-new", note: "New run", summary: simulationSummary };
-      return new Response([
-        'event: progress\ndata: {"completed":1,"total":1}\n\n',
-        `event: result\ndata: ${JSON.stringify(result)}\n\n`,
-      ].join(""), { headers: { "content-type": "text/event-stream" }, status: 200 });
+      return response({
+        historyId: "history-new",
+        input: { runCount: simulationSummary.runCount, seedPrefix: "practice-page" },
+        inputDigest: "practice-page-digest",
+        note: "New run",
+        requestId: "practice-page-request",
+      }, 202);
+    }
+    if (url.pathname === "/season-simulations/history-new/complete" && method === "POST") {
+      return response({ historyId: "history-new", note: "New run", summary: simulationSummary });
     }
     if (/^\/season-simulations\/history-(?:1|new)\/runs\/[12]$/u.test(url.pathname) && method === "PATCH") {
       return response({

@@ -16,6 +16,7 @@ import type { PlatformOnboardingRepository } from "../platformOnboarding.js";
 import type { PlatformInvitationRepository } from "../platformInvitations.js";
 import type { PlayerNewsRepository } from "../playerNews.js";
 import type { PracticeShortlistRepository } from "../practiceShortlists.js";
+import type { MockDraftSessionRepository } from "../mockSessions.js";
 import type { PostgresAuthRepository } from "../postgresAuth.js";
 import type { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js";
 import type { PostgresHistoricalImportRepository } from "../postgresHistoricalImports.js";
@@ -38,6 +39,7 @@ export interface PlatformServer {
   historicalImportRepository: HistoricalImportRepository;
   jobRepository: JobRepository;
   simulationRepository: SimulationRepository;
+  mockDraftSessionRepository: MockDraftSessionRepository;
   practiceShortlistRepository: PracticeShortlistRepository;
   playerNewsRepository: PlayerNewsRepository;
   fantasyProsRepository: FantasyProsRepository;

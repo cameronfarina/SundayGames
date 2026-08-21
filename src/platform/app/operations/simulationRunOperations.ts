@@ -12,6 +12,7 @@ import type {
 import type { PlatformAppContext } from "../context.js";
 import { PlatformAppError } from "../errors.js";
 import { cloneForRead } from "../shared.js";
+import { createSimulationCancellationOperations } from "./simulationCancellationOperation.js";
 
 export const createSimulationRunOperations = (context: PlatformAppContext) => ({
   createSimulationRun: async (input: CreatePlatformSimulationRunInput): Promise<SimulationRun> => {
@@ -27,6 +28,11 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
       seedPrefix: input.seedPrefix,
       idempotencyKey: input.idempotencyKey,
       strategy: input.strategy,
+      ...(input.browserInput === undefined ? {} : { browserInput: input.browserInput }),
+      ...(input.browserInputDigest === undefined ? {} : {
+        browserInputDigest: input.browserInputDigest,
+      }),
+      ...(input.browserNote === undefined ? {} : { browserNote: input.browserNote }),
       createdAt: input.now,
     }));
   },
@@ -67,6 +73,8 @@ export const createSimulationRunOperations = (context: PlatformAppContext) => ({
       throw error;
     }
   },
+
+  ...createSimulationCancellationOperations(context),
 
   executeSimulationRunForWorker: async (
     input: ExecutePlatformSimulationRunForWorkerInput,

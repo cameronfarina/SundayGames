@@ -1,8 +1,8 @@
 import type { Position } from "../../../config/league.js";
 import type { GenericAuctionMockRosterSlotConfig } from "../genericAuctionMockEngine.js";
-import { analyzeRosterSlots } from "../leagueCreation.js";
-import type { ExplicitLeagueSeason } from "../leagueSeason.js";
-import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups.js";
+import { analyzeRosterSlots } from "../leagueCreation/roster.js";
+import type { ExplicitLeagueSeason } from "../leagueSeason/contracts.js";
+import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 import { SeasonAuctionMockError } from "./errors.js";
 
 const allPositions: readonly Position[] = ["QB", "RB", "WR", "TE", "K", "DST"];

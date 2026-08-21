@@ -29,9 +29,14 @@ export class FakeTransactionalPostgresAuthClient
       normalizedSql.startsWith("CREATE TABLE") ||
       normalizedSql.startsWith("CREATE INDEX") ||
       normalizedSql.startsWith("CREATE UNIQUE INDEX") ||
+      normalizedSql.startsWith("CREATE OR REPLACE FUNCTION") ||
+      normalizedSql.startsWith("CREATE TRIGGER") ||
       normalizedSql.startsWith("ALTER TABLE") ||
       normalizedSql.startsWith("DROP INDEX") ||
+      normalizedSql.startsWith("DROP TRIGGER") ||
       normalizedSql.startsWith("DO $$") ||
+      normalizedSql.startsWith("INSERT INTO platform_practice_persistence_control") ||
+      normalizedSql.startsWith("UPDATE platform_store_snapshots") ||
       normalizedSql.startsWith("UPDATE accounts SET email_verified_at")
     ) {
       return { rows: [] };
@@ -53,6 +58,18 @@ export class FakeTransactionalPostgresAuthClient
     }
 
     if (normalizedSql.startsWith("SELECT pg_advisory_xact_lock")) {
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith("UPDATE platform_practice_persistence_control")) {
+      return { rows: [{ mode: "normalized-only" }] };
+    }
+
+    if (normalizedSql.startsWith("SELECT snapshot_key, revision, snapshot_json")) {
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith("SELECT revision, snapshot_json FROM platform_store_snapshots")) {
       return { rows: [] };
     }
 

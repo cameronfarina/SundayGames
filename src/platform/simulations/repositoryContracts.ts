@@ -16,6 +16,12 @@ export interface SimulationRepository {
     limit: number,
   ): MaybePromise<SimulationRun[]>;
   fetchForUser(runId: string, userId: string): MaybePromise<SimulationRun | null>;
+  findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): MaybePromise<SimulationRun | null>;
+  reconcileAbandoned(now: Date): MaybePromise<void>;
   find(runId: string): MaybePromise<SimulationRun>;
   markRunning(runId: string, now: Date): MaybePromise<SimulationRun>;
   markFailed(runId: string): MaybePromise<SimulationRun>;

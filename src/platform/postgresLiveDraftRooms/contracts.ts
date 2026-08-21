@@ -31,6 +31,17 @@ export interface RevisionUpdateRow {
   current_revision: number;
 }
 
+export interface CurrentRoomRevisionRow {
+  id: string;
+  league_id: string;
+  current_revision: number;
+}
+
+export interface CurrentRoomProjectionRow {
+  current_revision: number;
+  current_projection_json: unknown | null;
+}
+
 export interface StartedRoomRow {
   has_started_room: boolean;
 }

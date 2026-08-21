@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface RequestAbortLifecycle {
   readonly signal: AbortSignal;
+  abort(): void;
   removeListeners(): void;
 }
 
@@ -19,6 +20,7 @@ export const startRequestAbortLifecycle = (
 
   return {
     signal: controller.signal,
+    abort: () => controller.abort(),
     removeListeners: () => {
       request.removeListener("aborted", abortForIncompleteRequest);
       response.removeListener("close", abortForClosedResponse);

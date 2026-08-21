@@ -23,7 +23,6 @@ import type { PlatformOnboardingRepository } from "../platformOnboarding.js";
 import type { PlayerNewsRepository } from "../playerNews.js";
 import type { PostDraftProjectionSnapshot } from "../postDraftTeamAnalysis.js";
 import { createPlatformApp } from "../platformApp.js";
-import type { SeasonSimulationRunner } from "../seasonSimulationWorkerRunner.js";
 
 export interface PlatformHttpRequest {
   method: string;
@@ -90,8 +89,7 @@ export interface PlatformHttpServices {
   openLiveDraftRoomRevisionSubscription?: ((input: {
     accountId: string;
     roomId: string;
-  }) => LiveDraftRoomEventStreamSubscription) | undefined;
-  seasonSimulationRunner?: SeasonSimulationRunner | undefined;
+  }) => LiveDraftRoomEventStreamSubscription | Promise<LiveDraftRoomEventStreamSubscription>) | undefined;
   leagueConnectionRepository?: LeagueConnectionRepository | undefined;
   leagueSyncFetch?: LeagueSyncFetch | undefined;
   runLeagueSyncSeasonRefresh?: (<T>(operation: () => Promise<T>) => Promise<T>) | undefined;

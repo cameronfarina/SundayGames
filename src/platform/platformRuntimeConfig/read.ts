@@ -1,4 +1,5 @@
 import { authEmailConfig } from "./authEmail.js";
+import { defaultLiveDraftRoomConcurrentWaiters } from "../liveDraftRoomRealtime.js";
 import type {
   PlatformRuntimeConfig,
   PlatformRuntimeEnv,
@@ -21,6 +22,7 @@ import {
 import {
   fantasyProsConfig,
   playerNewsConfig,
+  practicePersistenceMode,
   legacyMockBatchEnabled,
   liveDraftDataMode,
   runtimeWorkerId,
@@ -73,6 +75,7 @@ export const readPlatformRuntimeConfig = (
       "MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS",
     ),
     postgresSnapshotKey: optionalEnvString(env, "MOCKD_POSTGRES_SNAPSHOT_KEY"),
+    practicePersistenceMode: practicePersistenceMode(env),
     initializePostgresSchema: booleanEnv(env, "MOCKD_INITIALIZE_POSTGRES_SCHEMA"),
     draftToolsSessionDirectory:
       optionalEnvString(env, "MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY") ??
@@ -81,6 +84,11 @@ export const readPlatformRuntimeConfig = (
     allowPublicSignup: booleanEnv(env, "MOCKD_ALLOW_PUBLIC_SIGNUP"),
     trustProxy: booleanEnv(env, "MOCKD_TRUST_PROXY"),
     liveDraftDataMode: parsedLiveDraftDataMode,
+    liveDraftRoomEventStreamMaxConnections: positiveIntegerEnv(
+      env,
+      "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS",
+      defaultLiveDraftRoomConcurrentWaiters,
+    ),
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
     invitationTokenSecret: optionalEnvString(env, "MOCKD_INVITATION_TOKEN_SECRET"),
     leagueConnectionCredentialCipher: leagueConnectionCredentialCipherFromEnv(env),

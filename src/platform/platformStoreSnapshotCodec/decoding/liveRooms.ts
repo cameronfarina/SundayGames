@@ -19,7 +19,7 @@ import {
   stringValue,
 } from "./primitives.js";
 
-const explicitSeasonValue = (value: unknown, path: string): ExplicitLeagueSeason => {
+export const explicitSeasonValue = (value: unknown, path: string): ExplicitLeagueSeason => {
   const season = leagueSeasonValue(value, path);
   const settings = season.settings;
   if (settings.draftFormat !== "auction" && settings.draftFormat !== "snake") {

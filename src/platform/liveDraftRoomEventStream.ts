@@ -12,7 +12,7 @@ export interface LiveDraftRoomEventStreamSubscription {
     signal?: AbortSignal | undefined;
     timeoutMs?: number | undefined;
   }): Promise<boolean>;
-  close(): void;
+  close(): void | Promise<void>;
 }
 
 export interface LiveDraftRoomEventStreamUpdate {
@@ -22,6 +22,7 @@ export interface LiveDraftRoomEventStreamUpdate {
 
 export interface CreateLiveDraftRoomEventStreamInput {
   initialRoom: LiveDraftRoomReadModel;
+  loadRevision: (afterRevision: number) => Promise<number>;
   loadUpdate: (afterRevision: number) => Promise<LiveDraftRoomEventStreamUpdate>;
   subscription: LiveDraftRoomEventStreamSubscription;
   signal?: AbortSignal | undefined;
@@ -74,12 +75,16 @@ export const createLiveDraftRoomEventStream = (
       yield formattedRoomEvent(input.initialRoom, "room.snapshot");
 
       while (!signalIsAborted(input.signal)) {
-        await input.subscription.waitForRevision({
+        const notified = await input.subscription.waitForRevision({
           afterRevision: revision,
           signal: input.signal,
           timeoutMs: input.heartbeatMilliseconds ?? defaultLiveDraftRoomHeartbeatMilliseconds,
         });
         if (signalIsAborted(input.signal)) return;
+        if (!notified && await input.loadRevision(revision) <= revision) {
+          yield heartbeatComment;
+          continue;
+        }
         const update = await input.loadUpdate(revision);
         if (update.room.revision <= revision) {
           yield heartbeatComment;
@@ -90,7 +95,7 @@ export const createLiveDraftRoomEventStream = (
         yield formattedRoomEvent(update.room, eventName);
       }
     } finally {
-      input.subscription.close();
+      await input.subscription.close();
     }
   },
 });

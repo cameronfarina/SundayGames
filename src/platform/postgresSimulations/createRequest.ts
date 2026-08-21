@@ -40,6 +40,11 @@ export const createRequest = async (
     strategy,
     privacyOwnerUserId: input.userId,
     inputHash,
+    ...(input.browserInput === undefined ? {} : { browserInput: structuredClone(input.browserInput) }),
+    ...(input.browserInputDigest === undefined ? {} : {
+      browserInputDigest: input.browserInputDigest,
+    }),
+    ...(input.browserNote === undefined ? {} : { browserNote: input.browserNote }),
     createdAt,
   };
   return await context.client.transaction(async client => {
@@ -57,11 +62,12 @@ export const createRequest = async (
     await client.query(pruneTerminalRunsSql, [
       input.userId,
       maximumRetainedSimulationRunsPerUser,
+      createdAt,
     ]);
     const result = await client.query<SimulationRunRow>(insertSimulationRunSql, [
       createSimulationId(), input.leagueId, input.seasonId, input.userId,
       input.ownerId, input.teamId, input.idempotencyKey, inputHash,
-      jsonbParameter(request), createdAt, maximumRetainedSimulationRunsPerUser,
+      jsonbParameter(request), createdAt,
     ]);
     const insertedRow = firstRow(result);
     if (insertedRow !== undefined) return runFromRow(insertedRow);

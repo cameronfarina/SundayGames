@@ -19,6 +19,22 @@ export class AsyncLiveDraftRoomRepository implements LiveDraftRoomRepository {
     return this.inner.getRoom(roomId);
   }
 
+  async getRoomRevision(roomId: string) {
+    return this.inner.getRoomRevision(roomId);
+  }
+
+  async getCurrentRoomForActor(
+    input: Parameters<LiveDraftRoomRepository["getCurrentRoomForActor"]>[0],
+  ) {
+    return this.inner.getCurrentRoomForActor(input);
+  }
+
+  async getRoomEventsAfterRevision(
+    input: Parameters<LiveDraftRoomRepository["getRoomEventsAfterRevision"]>[0],
+  ) {
+    return this.inner.getRoomEventsAfterRevision(input);
+  }
+
   async getRoomForActor(
     input: Parameters<LiveDraftRoomRepository["getRoomForActor"]>[0],
   ) {

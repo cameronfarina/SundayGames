@@ -29,3 +29,5 @@ export type LiveDraftRoomSummary = Pick<
   LiveDraftRoom,
   "roomId" | "leagueId" | "seasonId" | "status" | "startsAt" | "createdAt"
 >;
+
+export type LiveDraftRoomRevision = Pick<LiveDraftRoom, "roomId" | "leagueId" | "revision">;

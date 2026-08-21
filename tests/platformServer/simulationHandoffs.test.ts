@@ -1,17 +1,12 @@
-import { FakePostgresClient, InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, deferred, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder, runSeasonSimulations } from "./helpers/index.js";
+import { FakePostgresClient, InMemoryLiveDraftRoomSetupRepository, buildCurrentMockdLeagueSeason, currentLeagueInitialRostersFor, deferred, expect, it, leagueConfig, loadCurrentPlayerCatalog, now, ownerOrder } from "./helpers/index.js";
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer }) => {
   it("keeps concurrent simulation input handoffs request-scoped", async () => {
     const firstSetupReadEntered = deferred();
     const releaseFirstSetupRead = deferred();
-    const firstSimulationEntered = deferred();
-    const secondSimulationEntered = deferred();
-    const releaseFirstSimulation = deferred();
-    const releaseSecondSimulation = deferred();
     const playerCatalog = await loadCurrentPlayerCatalog();
     let setupReadCount = 0;
-    let simulationCount = 0;
     const { platformServer } = await createListeningServer({
       postgresClient: new FakePostgresClient(),
       liveDraftRoomSetupRepository: new InMemoryLiveDraftRoomSetupRepository(),
@@ -29,17 +24,6 @@ describePlatformServer(({ createListeningServer }) => {
           contentHash: `concurrent-simulation-hash-${setupReadCount}`,
           updatedAt: now,
         };
-      },
-      seasonSimulationRunner: async input => {
-        simulationCount += 1;
-        if (simulationCount === 1) {
-          firstSimulationEntered.resolve();
-          await releaseFirstSimulation.promise;
-        } else {
-          secondSimulationEntered.resolve();
-          await releaseSecondSimulation.promise;
-        }
-        return runSeasonSimulations(input);
       },
     });
     const account = await platformServer.app.createAccount({
@@ -83,18 +67,9 @@ describePlatformServer(({ createListeningServer }) => {
     await firstSetupReadEntered.promise;
     const second = request();
     releaseFirstSetupRead.resolve();
-    await firstSimulationEntered.promise;
-
-    await expect(Promise.race([
-      secondSimulationEntered.promise.then(() => "started"),
-      new Promise(resolve => setTimeout(() => resolve("blocked"), 1_000)),
-    ])).resolves.toBe("started");
-
-    releaseFirstSimulation.resolve();
-    releaseSecondSimulation.resolve();
     await expect(Promise.all([first, second])).resolves.toMatchObject([
-      { status: 200 },
-      { status: 200 },
+      { status: 202 },
+      { status: 202 },
     ]);
   });
 });

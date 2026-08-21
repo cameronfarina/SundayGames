@@ -1,4 +1,5 @@
 import type { JobKind } from "../jobs.js";
+import type { PracticePersistenceMode } from "../practicePersistenceMode.js";
 import type { LeagueConnectionCredentialCipher } from
   "../leagueConnectionCredentialEncryption.js";
 
@@ -48,12 +49,14 @@ export interface PlatformRuntimeConfig {
   postgresPoolSize: number;
   postgresStatementTimeoutMs: number | undefined;
   postgresSnapshotKey: string | undefined;
+  practicePersistenceMode: PracticePersistenceMode;
   initializePostgresSchema: boolean;
   draftToolsSessionDirectory: string;
   legacyMockBatchEnabled: boolean;
   allowPublicSignup: boolean;
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
+  liveDraftRoomEventStreamMaxConnections: number;
   provisioningToken: string | undefined;
   invitationTokenSecret: string | undefined;
   leagueConnectionCredentialCipher: LeagueConnectionCredentialCipher | undefined;

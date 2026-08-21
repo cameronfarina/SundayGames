@@ -3,15 +3,8 @@ import {
   LiveDraftRoomError,
   type LiveDraftRoom,
 } from "../../liveDraftRooms.js";
-import {
-  buildLiveDraftRoomReadModel,
-  liveDraftRoomEventsAfterRevision,
-  type LiveDraftRoomEventsAfterRevisionResult,
-  type LiveDraftRoomReadModel,
-} from "../../liveDraftRoomStream.js";
 import type {
   CreatePlatformLiveDraftRoomInput,
-  GetPlatformLiveDraftRoomEventsInput,
   GetPlatformLiveDraftRoomInput,
   MutatePlatformLiveDraftRoomInput,
   SynchronizePlatformLiveDraftRoomInitialRostersInput,
@@ -19,6 +12,7 @@ import type {
 import type { PlatformAppContext } from "../context.js";
 import { liveActorFor } from "../liveDraftHelpers.js";
 import { cloneForRead } from "../shared.js";
+import { createLiveDraftRoomStreamOperations } from "./liveDraftRoomStreamOperations.js";
 
 export const createLiveDraftRoomOperations = (context: PlatformAppContext) => ({
   createLiveDraftRoom: async (input: CreatePlatformLiveDraftRoomInput): Promise<LiveDraftRoom> => {
@@ -43,6 +37,8 @@ export const createLiveDraftRoomOperations = (context: PlatformAppContext) => ({
 
   hasStartedLiveDraftRoomForSeason: async (seasonId: string): Promise<boolean> =>
     await context.liveDraftRooms.hasStartedRoomForSeason(seasonId),
+
+  ...createLiveDraftRoomStreamOperations(context),
 
   synchronizeLiveDraftRoomInitialRosters: async (
     input: SynchronizePlatformLiveDraftRoomInitialRostersInput,
@@ -100,34 +96,4 @@ export const createLiveDraftRoomOperations = (context: PlatformAppContext) => ({
     }));
   },
 
-  getLiveDraftRoomState: async (
-    input: GetPlatformLiveDraftRoomInput,
-  ): Promise<LiveDraftRoomReadModel> => {
-    const account = await context.requireAccount(input.actorSessionToken, input.now);
-    const room = await context.liveDraftRooms.getRoom(input.roomId);
-    const membership = await context.requireSharedRead(account, room.leagueId);
-    const actor = liveActorFor(account, room.leagueId, membership);
-    const authorizedRoom = await context.liveDraftRooms.getRoomForActor({ roomId: input.roomId, actor });
-    return cloneForRead(buildLiveDraftRoomReadModel({
-      room: authorizedRoom,
-      actor,
-      selectedTeamId: input.selectedTeamId,
-      viewedTeamId: input.viewedTeamId,
-    }));
-  },
-
-  getLiveDraftRoomEvents: async (
-    input: GetPlatformLiveDraftRoomEventsInput,
-  ): Promise<LiveDraftRoomEventsAfterRevisionResult> => {
-    const account = await context.requireAccount(input.actorSessionToken, input.now);
-    const room = await context.liveDraftRooms.getRoom(input.roomId);
-    const membership = await context.requireSharedRead(account, room.leagueId);
-    const actor = liveActorFor(account, room.leagueId, membership);
-    await context.liveDraftRooms.getRoomForActor({ roomId: input.roomId, actor });
-    return cloneForRead(liveDraftRoomEventsAfterRevision({
-      room,
-      actor,
-      afterRevision: input.afterRevision,
-    }));
-  },
 });

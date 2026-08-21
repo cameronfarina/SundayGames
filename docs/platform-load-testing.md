@@ -1,0 +1,110 @@
+# Platform load testing
+
+Use this harness to exercise the mixed workload expected during draft night. A scenario keeps 12 authenticated event streams open per league, applies one paced mutation per room, verifies that all 12 clients receive the exact resulting event and revision, then reconnects one client per room and requires its current snapshot to match the committed revision. The same run performs 1,000 player-news reads and prepares 25 browser simulation launches.
+
+The harness changes draft rooms. Use disposable test accounts and rooms whose current state matches the manifest mutations. Never point it at ordinary production leagues. A remote run requires an approved maintenance window and the explicit `--allow-remote` flag.
+
+## Admission is not a capacity claim
+
+The 30- and 50-league scenarios require 360 and 600 simultaneous draft streams. The v24 server defaults to a shared 650-stream ceiling, so neither scenario is rejected solely by the old process-local 200-stream limit. Do not report either scenario as green by reducing the client count or ignoring 429 responses.
+
+A local or CI run with Postgres proves functional concurrency only. It does not prove Render Starter capacity. Capacity claims require the unchanged 30- and 50-league scenarios against a controlled Render Starter target with representative networking and service configuration.
+
+## Protect the manifest
+
+The manifest contains live session tokens. Create it outside the repository, restrict it to the current user, and remove it immediately after the run:
+
+```sh
+LOAD_MANIFEST_PATH="$(mktemp -t sunday-games-platform-load-manifest)"
+chmod 600 "$LOAD_MANIFEST_PATH"
+```
+
+Write the JSON to the printed path without changing its mode. The CLI resolves symlinks and refuses manifests inside the repository or with permissions other than `0600`. The repository ignore rule is defense in depth, not permission to store tokens in the worktree.
+
+After the run, delete the manifest and revoke or rotate every test session it contained:
+
+```sh
+rm "$LOAD_MANIFEST_PATH"
+unset LOAD_MANIFEST_PATH
+```
+
+## Manifest contract
+
+Provide exactly 30 or 50 distinct rooms. Each room needs exactly 12 distinct, authorized session tokens and one mutation. The mutation token must be one of that room's connected tokens. Distribute connections across accounts so the server's per-account stream limit is not exceeded.
+
+The mutation must be valid for the room's state and must carry a unique idempotency key and the room's current revision. This example pauses an active disposable room:
+
+```json
+{
+  "drafts": [
+    {
+      "roomId": "load-room-01",
+      "sessionTokens": [
+        "twelve distinct authorized session tokens"
+      ],
+      "mutation": {
+        "action": "pause",
+        "sessionToken": "one token from sessionTokens",
+        "body": {
+          "expectedRevision": 4,
+          "idempotencyKey": "load-room-01-pause-run-20260821T120000Z"
+        }
+      }
+    }
+  ],
+  "newsSessionTokens": [
+    "one or more authorized test-account sessions"
+  ],
+  "simulationRequests": [
+    {
+      "sessionToken": "simulation-account-a-session",
+      "body": { "seasonId": "season-a", "count": 1, "strategy": "balanced" }
+    },
+    {
+      "sessionToken": "simulation-account-b-session",
+      "body": { "seasonId": "season-b", "count": 1, "strategy": "balanced" }
+    },
+    {
+      "sessionToken": "simulation-account-c-session",
+      "body": { "seasonId": "season-c", "count": 1, "strategy": "balanced" }
+    }
+  ]
+}
+```
+
+The harness requires at least three distinct simulation session tokens so the 25 preparations remain below the per-account operational rate limit. This is an anti-abuse limit, not a product or seasonal launch quota. Inputs repeat round-robin to reach the scenario totals. Supported mutation actions are `start`, `pause`, `resume`, `reopen`, `sales`, `undo`, `corrections`, and `end`; their bodies must match the public live-room API contract.
+
+## Run the gates
+
+Run the 30-league scenario first, then repeat unchanged with 50 leagues:
+
+```sh
+npm run platform:load -- \
+  --target=http://127.0.0.1:10000 \
+  --manifest="$LOAD_MANIFEST_PATH" \
+  --leagues=30 \
+  --hold-seconds=30
+```
+
+Use `--allow-remote` only for the controlled Render target. The command refuses other non-loopback targets.
+
+The JSON report contains sanitized target origin, scenario settings, start and finish timestamps, hold duration, diagnostic and HTTP-status buckets, and metric summaries. It never contains session tokens or request bodies.
+
+A pass requires:
+
+- every initial draft stream to satisfy the exact SSE contract;
+- every room mutation to return the expected JSON contract;
+- all 12 current clients in every room to observe the exact event name, room identity, and new revision within five seconds;
+- every post-mutation reconnect to return a current-room snapshot at the exact committed revision;
+- no unexpected stream close or malformed SSE event;
+- no simulation submission error and no more than 1% player-news errors;
+- p95 latency below five seconds for stream connections and fanout, two seconds for news, and three seconds for mutations and simulation submission; and
+- every simulation-preparation response to match the browser-launch JSON contract, followed by a successful cleanup cancellation so the harness leaves no abandoned launch rows.
+
+The simulation route returns an authorized browser-compute launch with HTTP `202`. This server harness measures preparation only; it does not claim browser CPU capacity. It cancels every issued launch after the mixed-load window.
+
+## CI and capacity follow-up
+
+The existing `production-container` CI job has real Postgres but seeds only one local E2E room and two accounts. Add a dedicated disposable-data seed for 30/50 rooms and enough accounts, then run this harness against the production container. Keep that job labeled **functional concurrency**: shared GitHub runners cannot establish Render Starter capacity.
+
+Run the actual capacity gate separately against an approved, controlled Render Starter deployment. Preserve all stream, reconnect, mutation, fanout, simulation-preparation, and cleanup gates when moving the scenario between CI and Render.

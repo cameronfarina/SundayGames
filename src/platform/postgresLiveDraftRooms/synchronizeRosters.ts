@@ -10,6 +10,7 @@ import { updateDraftRoomRevision } from "./roomPersistence.js";
 import { latestRoomSnapshotForSeason } from "./seasonSnapshotRead.js";
 import { cloneRoom } from "./snapshotCodec.js";
 import { insertDraftRoomSnapshot } from "./snapshotPersistence.js";
+import { publishLiveDraftRoomRevision } from "../liveDraftRoomRealtime.js";
 
 export const synchronizeInitialRostersForSeason = async (
   client: PostgresQueryClient,
@@ -29,5 +30,6 @@ export const synchronizeInitialRostersForSeason = async (
   await updateDraftRoomRevision(client, updatedRoom, currentRoom.revision);
   await insertDraftRoomEvent(client, newEvent, currentRoom.revision);
   await insertDraftRoomSnapshot(client, updatedRoom);
+  await publishLiveDraftRoomRevision(client, updatedRoom.roomId, updatedRoom.revision);
   return cloneRoom(updatedRoom);
 };

@@ -98,6 +98,14 @@ export const simulationResponseSchema = z.object({
   summary: simulationSummarySchema,
 });
 
+export const simulationLaunchSchema = z.object({
+  historyId: z.string(),
+  requestId: z.string(),
+  input: z.record(z.string(), z.unknown()),
+  inputDigest: z.string(),
+  note: z.string().optional(),
+});
+
 export const simulationRunResponseSchema = z.object({
   historyId: z.string(),
   run: simulationRunSchema,

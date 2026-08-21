@@ -25,6 +25,18 @@ export class AsyncSimulationRepository implements SimulationRepository {
     return this.inner.fetchForUser(runId, userId);
   }
 
+  async findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): Promise<SimulationRun | null> {
+    return this.inner.findByRequestKeyForUser(userId, seasonId, idempotencyKey);
+  }
+
+  async reconcileAbandoned(now: Date): Promise<void> {
+    this.inner.reconcileAbandoned(now);
+  }
+
   async find(runId: string): Promise<SimulationRun> {
     return this.inner.find(runId);
   }

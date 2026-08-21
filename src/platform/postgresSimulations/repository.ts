@@ -9,9 +9,10 @@ import { markFailed, markRunning } from "./basicTransitions.js";
 import { complete } from "./complete.js";
 import { createRequest } from "./createRequest.js";
 import { fetchForUser, listForUser, listHistoryForUserSeason } from "./history.js";
-import { findRequired } from "./lookups.js";
+import { findByRequestKeyForUser, findRequired } from "./lookups.js";
 import { markCanceled, resetForRerun } from "./resetCancel.js";
 import { setOutcomeFavorite } from "./outcomeFavorites.js";
+import { reconcileAbandoned } from "./reconcile.js";
 import type { SimulationRepositoryContext } from "./types.js";
 
 export class PostgresSimulationRepository implements SimulationRepository {
@@ -37,6 +38,23 @@ export class PostgresSimulationRepository implements SimulationRepository {
 
   async fetchForUser(runId: string, userId: string): Promise<SimulationRun | null> {
     return await fetchForUser(this.#context.client, runId, userId);
+  }
+
+  async findByRequestKeyForUser(
+    userId: string,
+    seasonId: string,
+    idempotencyKey: string,
+  ): Promise<SimulationRun | null> {
+    return await findByRequestKeyForUser(
+      userId,
+      seasonId,
+      idempotencyKey,
+      this.#context.client,
+    );
+  }
+
+  async reconcileAbandoned(now: Date): Promise<void> {
+    await reconcileAbandoned(this.#context, now);
   }
 
   async find(runId: string): Promise<SimulationRun> {

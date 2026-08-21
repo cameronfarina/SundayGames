@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { parseLiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import type { LiveDraftStrategyKey } from "../../../../modeling/liveDraftStrategies.js";
 import { loadLeagueScoredWeekOneProjections } from "../../../currentPostDraftProjectionSnapshot.js";
@@ -37,6 +36,7 @@ export const prepareSeasonSimulation = async (
   request: ParsedPlatformHttpRequest,
   services: PlatformHttpServices,
   runCount: number,
+  requestId: string,
 ): Promise<PreparedSeasonSimulation | PlatformHttpResponse> => {
   const textInput = seasonSimulationTextInputFromUnknown(request.body);
   const context = await seasonMockDraftContextFor(app, request, services, stringValue(request.body.seasonId));
@@ -77,7 +77,7 @@ export const prepareSeasonSimulation = async (
     ...(context.season.settings.draftFormat === "auction" && target.maxBid !== undefined
       ? { maxAuctionPrice: target.maxBid } : {}),
   }));
-  const seedPrefix = `season-simulation:${context.season.id}:${randomUUID()}`;
+  const seedPrefix = `season-simulation:${context.season.id}:${requestId}`;
   const input: RunSeasonSimulationsInput = {
     season: context.season,
     setup: context.setup,

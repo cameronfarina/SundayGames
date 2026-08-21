@@ -1,4 +1,5 @@
 import type { CreatePlatformServerOptions } from "./contracts.js";
+import { isTransactionalPostgresClient } from "./postgres.js";
 
 const exclusiveRepositoryPairs: readonly [keyof CreatePlatformServerOptions, keyof CreatePlatformServerOptions, string][] = [
   ["authRepository", "postgresAuthClient", "authRepository or postgresAuthClient"],
@@ -14,6 +15,13 @@ export const validatePlatformServerOptions = (options: CreatePlatformServerOptio
   if (options.emailVerificationRequired === true &&
       (options.authMailSender === undefined || options.publicBaseUrl === undefined)) {
     throw new Error("Email verification requires an auth mail sender and public base URL.");
+  }
+  if (options.practicePersistenceMode === "normalized-only" &&
+      (options.postgresClient === undefined ||
+        !isTransactionalPostgresClient(options.postgresClient))) {
+    throw new Error(
+      "Normalized-only practice persistence requires the shared transactional Postgres client.",
+    );
   }
   for (const [repositoryKey, clientKey, label] of exclusiveRepositoryPairs) {
     if (options[repositoryKey] !== undefined && options[clientKey] !== undefined) {

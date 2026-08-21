@@ -1,4 +1,4 @@
-import { InMemoryPlatformStore, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectBodyRecord, expectString, it, mockRunner, snakeSeason } from "../support/index.js";
+import { InMemoryPlatformStore, completeBrowserSimulation, createLoggedInAccount, createPlatformApp, createPlatformHttpHandler, describe, expect, expectBodyRecord, expectString, it, mockRunner, snakeSeason } from "../support/index.js";
 import type { LeagueSeason } from "../support/index.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../../../src/platform/liveDraftRooms.js";
 
@@ -89,8 +89,11 @@ describe("platform HTTP contract", () => {
       sessionToken: owner11.sessionToken,
       body: { seasonId: season.id, count: 1 },
     });
-    expect(simulationResponse).toMatchObject({ status: 200 });
+    expect(simulationResponse).toMatchObject({ status: 202 });
     const historyId = expectString(expectBodyRecord(simulationResponse.body).historyId);
+    await completeBrowserSimulation({
+      handle, launchResponse: simulationResponse, sessionToken: owner11.sessionToken,
+    });
 
     const detailResponse = await handle({
       method: "GET",

@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { seasonSimulationCompletionBodyLimitBytes } from "./constants.js";
 
 const pathnameFor = (request: IncomingMessage): string | undefined => {
   try {
@@ -30,6 +31,10 @@ export const isHistoricalImportPreviewRequest = (request: IncomingMessage): bool
     && /^\/seasons\/[^/]+\/historical-imports\/(?:preview|upload-preview)$/u.test(pathname);
 };
 
+export const isSeasonSimulationCompletionRequest = (request: IncomingMessage): boolean =>
+  request.method?.toUpperCase() === "POST" &&
+  /^\/season-simulations\/[^/]+\/complete$/u.test(pathnameFor(request) ?? "");
+
 export const bodyLimitForRequest = (
   request: IncomingMessage,
   defaultLimit: number,
@@ -37,4 +42,6 @@ export const bodyLimitForRequest = (
 ): number => isScreenshotImportAnalysisRequest(request)
   || isHistoricalSpreadsheetUploadRequest(request)
     ? screenshotImportLimit
-    : defaultLimit;
+    : isSeasonSimulationCompletionRequest(request)
+      ? seasonSimulationCompletionBodyLimitBytes
+      : defaultLimit;

@@ -7,16 +7,17 @@ import { PostgresHistoricalImportRepository } from "../postgresHistoricalImports
 import { PostgresJobQueue } from "../postgresJobQueue.js";
 import { PostgresLeagueConnectionRepository } from "../postgresLeagueConnections.js";
 import { PostgresLeagueSetupRepository } from "../postgresLeagueSetup.js";
+import { PostgresLiveDraftRoomSetupRepository } from "../liveDraftRoomSetups.js";
 import { PostgresLiveDraftRoomRepository } from "../postgresLiveDraftRooms.js";
+import { PostgresMockDraftSessionRepository } from "../postgresMockDraftSessions.js";
 import { PostgresPlatformInvitationRepository } from "../postgresPlatformInvitations.js";
 import { PostgresPlayerNewsRepository } from "../postgresPlayerNews.js";
 import { PostgresPracticeShortlistRepository } from "../postgresPracticeShortlists.js";
 import { PostgresSimulationRepository } from "../postgresSimulations.js";
-import { PostgresLiveDraftRoomSetupRepository } from "../liveDraftRoomSetups.js";
+import { defaultPracticePersistenceMode } from "../practicePersistenceMode.js";
 import type { CreatePlatformServerOptions } from "./contracts.js";
 import type { LoadedPlatformStore, RuntimeRepositories } from "./internalContracts.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
-
 export const composeRuntimeRepositories = (
   options: CreatePlatformServerOptions,
   loaded: LoadedPlatformStore,
@@ -36,9 +37,20 @@ export const composeRuntimeRepositories = (
       isTransactionalPostgresClient(options.postgresClient)
     ? options.postgresClient
     : undefined;
+  const configuredPracticeMode = options.practicePersistenceMode ?? defaultPracticePersistenceMode;
   const postgresPracticeShortlistRepository = options.practiceShortlistRepository === undefined &&
       sharedTransactionalClient !== undefined
     ? new PostgresPracticeShortlistRepository(sharedTransactionalClient)
+    : undefined;
+  const postgresMockDraftSessionRepository = options.mockDraftSessionRepository === undefined &&
+      sharedTransactionalClient !== undefined
+    ? new PostgresMockDraftSessionRepository(
+        sharedTransactionalClient,
+        {},
+        configuredPracticeMode === "dual-write"
+          ? (userId, sessions) => store.mockDraftSessions.replaceSessionsForUser(userId, sessions)
+          : undefined,
+      )
     : undefined;
   const postgresPlayerNewsRepository = options.playerNewsRepository === undefined &&
       sharedTransactionalClient !== undefined
@@ -72,7 +84,19 @@ export const composeRuntimeRepositories = (
     postgresHistoricalImportRepository ?? store.historicalImports;
   if (authRepository !== store.authRepository) store.clearAuthSnapshotState();
   if (historicalImportRepository !== store.historicalImports) store.clearHistoricalImportSnapshotState();
-
+  const mockDraftSessionRepository = options.mockDraftSessionRepository ??
+    postgresMockDraftSessionRepository ?? store.mockDraftSessions;
+  let mockDraftPersistenceMode: RuntimeRepositories["mockDraftPersistenceMode"];
+  if (mockDraftSessionRepository === store.mockDraftSessions) {
+    mockDraftPersistenceMode = "snapshot";
+  } else if (postgresMockDraftSessionRepository === undefined) {
+    mockDraftPersistenceMode = "normalized-only";
+  } else {
+    mockDraftPersistenceMode = configuredPracticeMode;
+  }
+  if (mockDraftPersistenceMode === "normalized-only") {
+    store.mockDraftSessions.replaceSessions([]);
+  }
   return {
     ...loaded,
     authRepository,
@@ -80,6 +104,8 @@ export const composeRuntimeRepositories = (
     historicalImportRepository,
     jobRepository: options.jobRepository ?? postgresJobQueue ?? store.jobs,
     simulationRepository: options.simulationRepository ?? postgresSimulationRepository ?? store.simulations,
+    mockDraftSessionRepository,
+    mockDraftPersistenceMode,
     practiceShortlistRepository: options.practiceShortlistRepository ??
       postgresPracticeShortlistRepository ?? store.practiceShortlists,
     playerNewsRepository: options.playerNewsRepository ??

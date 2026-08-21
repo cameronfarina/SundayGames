@@ -82,13 +82,9 @@ export const errorResponseFor = (
   if (error instanceof SeasonSimulationError) {
     const status = error.code === "human_team_missing" ? 403
       : error.code === "invalid_configuration" ? 409
-        : error.code === "simulation_account_queue_full" ? 429
-          : error.code === "simulation_busy" || error.code === "simulation_timeout" ? 503
-            : error.code === "simulation_canceled" ? 408
-              : error.code === "simulation_failed" ? 500 : 400;
-    const response = knownError(status, error.code, error.message);
-    return error.code === "simulation_busy" || error.code === "simulation_account_queue_full"
-      ? { ...response, headers: { "Retry-After": "5" } } : response;
+        : error.code === "simulation_canceled" ? 408
+          : error.code === "simulation_failed" ? 500 : 400;
+    return knownError(status, error.code, error.message);
   }
   if (error instanceof SimulationError) {
     const response = knownError(simulationErrorStatus(error.code), error.code, error.message);

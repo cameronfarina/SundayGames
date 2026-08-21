@@ -11,7 +11,7 @@ import type {
   LiveDraftRoomAuthorizer,
   LiveDraftRoomRepository,
 } from "../contracts/repository.js";
-import type { LiveDraftRoom, LiveDraftRoomSummary } from "../contracts/room.js";
+import type { LiveDraftRoom, LiveDraftRoomRevision, LiveDraftRoomSummary } from "../contracts/room.js";
 import { cancelRoom } from "./cancelRoom.js";
 import { correctSale } from "./correctSale.js";
 import { createRoom } from "./createRoom.js";
@@ -43,6 +43,19 @@ export class InMemoryLiveDraftRoomRepository implements LiveDraftRoomRepository 
 
   getRoom(roomId: string): LiveDraftRoom {
     return getRoom(this.#context, roomId);
+  }
+
+  getRoomRevision(roomId: string): LiveDraftRoomRevision {
+    const room = getRoom(this.#context, roomId);
+    return { roomId: room.roomId, leagueId: room.leagueId, revision: room.revision };
+  }
+
+  getCurrentRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoom {
+    return getRoomForActor(this.#context, input);
+  }
+
+  getRoomEventsAfterRevision(input: { room: LiveDraftRoom; afterRevision: number }) {
+    return input.room.events.filter(event => event.revision > input.afterRevision);
   }
 
   getRoomForActor(input: { roomId: string; actor: LiveDraftRoomActor }): LiveDraftRoom {

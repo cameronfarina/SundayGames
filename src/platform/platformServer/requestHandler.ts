@@ -4,19 +4,30 @@ import type { CreatePlatformServerOptions } from "./contracts.js";
 import { DraftMutationResponseRollback, draftMutationSeasonIdFor } from "./draftMutation.js";
 import type { PlatformRuntimeHolder } from "./internalContracts.js";
 import { notifyLiveDraftRoomRevision } from "./liveDraftRevision.js";
-import type { PlatformPersistence } from "./persistence.js";
+import {
+  isSnapshotWriteConflict,
+  snapshotWriteConflictResponse,
+  type PlatformPersistence,
+} from "./persistence.js";
 import { isTransactionalPostgresClient } from "./postgres.js";
-import { isLeagueMembersScreenshotAnalysisRequest, isSeasonSimulationRequest } from "./requestKinds.js";
-import { isMutatingRequest, withTrustedNow, shouldPersistAfter } from "./requestTiming.js";
-import type { SeasonSimulationCapture } from "./simulationCapture.js";
-import { shouldBypassSnapshotAccess } from "./snapshotPersistencePolicy.js";
+import { isLeagueMembersScreenshotAnalysisRequest } from "./requestKinds.js";
+import { isMutatingRequest, withTrustedNow } from "./requestTiming.js";
+import {
+  requiresAtomicPracticeDualWrite,
+  shouldBypassSnapshotAccess,
+} from "./snapshotPersistencePolicy.js";
+
+class PracticeMutationResponseRollback extends Error {
+  constructor(readonly response: PlatformHttpResponse) {
+    super(`Practice mutation returned HTTP ${response.status}.`);
+  }
+}
 
 interface CreateRequestHandlerOptions {
   options: CreatePlatformServerOptions;
   runtimeHolder: PlatformRuntimeHolder;
   persistence: PlatformPersistence;
   runRequest: PlatformHttpHandler;
-  simulationCapture: SeasonSimulationCapture;
   liveDraftRoomNotifier: LiveDraftRoomRevisionNotifier;
   reloadRuntime: () => Promise<void>;
 }
@@ -28,21 +39,31 @@ export const createPlatformRequestHandler = (
   if (isLeagueMembersScreenshotAnalysisRequest(requestWithNow)) {
     return input.runRequest(requestWithNow);
   }
-  if (isSeasonSimulationRequest(requestWithNow)) {
-    const prepared = await input.persistence.runInSnapshotCriticalSection(() =>
-      input.simulationCapture.prepare(() => input.runRequest(requestWithNow))
-    );
-    const response = await prepared.response;
-    const runtime = input.runtimeHolder.current();
-    if (runtime.simulationRepository === runtime.store.simulations &&
-        shouldPersistAfter(requestWithNow, response.status)) {
-      await input.persistence.persist();
-    }
-    return response;
-  }
   const runtime = input.runtimeHolder.current();
-  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   const postgresClient = input.options.postgresClient;
+  if (requiresAtomicPracticeDualWrite(runtime, requestWithNow) &&
+      postgresClient !== undefined && isTransactionalPostgresClient(postgresClient)) {
+    return await input.persistence.runInSnapshotCriticalSection(async () => {
+      try {
+        return await postgresClient.transaction(async transactionClient => {
+          const postgresStore = input.runtimeHolder.current().postgresStore;
+          if (postgresStore === undefined) {
+            throw new Error("Dual-write practice persistence requires a Postgres snapshot store.");
+          }
+          await postgresStore.lockForAtomicSave(transactionClient);
+          const response = await input.runRequest(requestWithNow);
+          if (response.status >= 400) throw new PracticeMutationResponseRollback(response);
+          return response;
+        });
+      } catch (error) {
+        await input.reloadRuntime();
+        if (isSnapshotWriteConflict(error)) return snapshotWriteConflictResponse;
+        if (error instanceof PracticeMutationResponseRollback) return error.response;
+        throw error;
+      }
+    });
+  }
+  const seasonId = await draftMutationSeasonIdFor(requestWithNow, runtime.liveDraftRoomRepository);
   if (seasonId !== null && postgresClient !== undefined &&
       isTransactionalPostgresClient(postgresClient)) {
     return input.persistence.runInSnapshotCriticalSection(async () => {
@@ -68,12 +89,12 @@ export const createPlatformRequestHandler = (
     });
   }
   let response: PlatformHttpResponse;
-  if (!isMutatingRequest(requestWithNow)) {
+  if (shouldBypassSnapshotAccess(input.runtimeHolder.current(), requestWithNow)) {
+    response = await input.runRequest(requestWithNow);
+  } else if (!isMutatingRequest(requestWithNow)) {
     response = await input.persistence.runWithSnapshotReadAccess(() =>
       input.runRequest(requestWithNow)
     );
-  } else if (shouldBypassSnapshotAccess(input.runtimeHolder.current(), requestWithNow)) {
-    response = await input.runRequest(requestWithNow);
   } else {
     response = await input.persistence.runInSnapshotCriticalSection(() =>
       input.runRequest(requestWithNow)

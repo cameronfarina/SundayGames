@@ -15,7 +15,7 @@ export const createMockDraftCommandOperations = (context: PlatformAppContext) =>
   ): Promise<MockDraftSession> => {
     const now = input.now ?? new Date();
     const account = await context.requireAccount(input.actorSessionToken, now);
-    const session = context.store.mockDraftSessions.getSession({
+    const session = await context.mockDraftSessions.getSession({
       userId: account.id,
       sessionId: input.sessionId,
       now,
@@ -25,7 +25,7 @@ export const createMockDraftCommandOperations = (context: PlatformAppContext) =>
       account,
       input.latestResultRef,
     );
-    return cloneForRead(context.store.mockDraftSessions.appendCommand({
+    return cloneForRead(await context.mockDraftSessions.appendCommand({
       userId: account.id,
       sessionId: input.sessionId,
       expectedRevision: input.expectedRevision,
@@ -33,6 +33,7 @@ export const createMockDraftCommandOperations = (context: PlatformAppContext) =>
       commandId: input.commandId,
       command: input.command,
       idempotencyKey: input.idempotencyKey,
+      completeSession: input.completeSession,
       latestResultRef,
       now,
     }));
@@ -43,13 +44,13 @@ export const createMockDraftCommandOperations = (context: PlatformAppContext) =>
   ): Promise<StoredMockDraftCommandRetry | undefined> => {
     const now = input.now ?? new Date();
     const account = await context.requireAccount(input.actorSessionToken, now);
-    const session = context.store.mockDraftSessions.getSession({
+    const session = await context.mockDraftSessions.getSession({
       userId: account.id,
       sessionId: input.sessionId,
       now,
     });
     await context.requirePrivateTeamContext(account, session);
-    const retry = context.store.mockDraftSessions.findStoredCommandForRetry({
+    const retry = await context.mockDraftSessions.findStoredCommandForRetry({
       userId: account.id,
       sessionId: input.sessionId,
       commandId: input.commandId,

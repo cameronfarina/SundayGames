@@ -1,56 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  NodePostgresClient,
-  type PostgresPoolClientLike,
-  type PostgresPoolLike,
-} from "../src/platform/postgresClient.js";
-
-class FakeConnectedClient implements PostgresPoolClientLike {
-  readonly queries: { text: string; values: readonly unknown[] }[] = [];
-  released = false;
-  failNextQuery: Error | undefined;
-
-  async query<TRow = Record<string, unknown>>(
-    text: string,
-    values: readonly unknown[] = [],
-  ): Promise<{ rows: TRow[]; rowCount: number }> {
-    this.queries.push({ text, values });
-    if (this.failNextQuery !== undefined) {
-      const error = this.failNextQuery;
-      this.failNextQuery = undefined;
-      throw error;
-    }
-
-    return { rows: [], rowCount: 1 };
-  }
-
-  release(): void {
-    this.released = true;
-  }
-}
-
-class FakePool implements PostgresPoolLike {
-  readonly connectedClient = new FakeConnectedClient();
-  readonly queries: { text: string; values: readonly unknown[] }[] = [];
-  ended = false;
-
-  async query<TRow = Record<string, unknown>>(
-    text: string,
-    values: readonly unknown[] = [],
-  ): Promise<{ rows: TRow[]; rowCount: number }> {
-    this.queries.push({ text, values });
-
-    return { rows: [], rowCount: 1 };
-  }
-
-  async connect(): Promise<PostgresPoolClientLike> {
-    return this.connectedClient;
-  }
-
-  async end(): Promise<void> {
-    this.ended = true;
-  }
-}
+import { NodePostgresClient } from "../src/platform/postgresClient.js";
+import { FakePool } from "./support/fakePostgresPool.js";
 
 describe("node Postgres client adapter", () => {
   it("wraps pool queries in the platform query-client contract", async () => {
@@ -124,5 +74,66 @@ describe("node Postgres client adapter", () => {
       "UPDATE platform_store_snapshots",
       "COMMIT",
     ]);
+  });
+
+  it("holds one dedicated connection for Postgres notifications and releases it on close", async () => {
+    const pool = new FakePool();
+    const client = new NodePostgresClient(pool);
+    const payloads: string[] = [];
+
+    const subscription = await client.listen(
+      "sunday_games_live_draft_room_revision",
+      payload => payloads.push(payload),
+    );
+    pool.connectedClient.emitNotification(
+      "sunday_games_live_draft_room_revision",
+      '{"roomId":"room_sunday","revision":2}',
+    );
+
+    expect(payloads).toEqual(['{"roomId":"room_sunday","revision":2}']);
+    expect(pool.connectedClient.queries.map(query => query.text)).toEqual([
+      'LISTEN "sunday_games_live_draft_room_revision"',
+    ]);
+
+    await subscription.close();
+    expect(pool.connectedClient.queries.map(query => query.text)).toEqual([
+      'LISTEN "sunday_games_live_draft_room_revision"',
+      'UNLISTEN "sunday_games_live_draft_room_revision"',
+    ]);
+    expect(pool.connectedClient.notificationListeners).toHaveLength(0);
+    expect(pool.connectedClient.released).toBe(true);
+  });
+
+  it("contains dedicated notification connection errors and relies on heartbeat recovery", async () => {
+    const pool = new FakePool();
+    const client = new NodePostgresClient(pool);
+    const subscription = await client.listen(
+      "sunday_games_live_draft_room_revision",
+      () => undefined,
+    );
+
+    expect(pool.connectedClient.errorListeners).toHaveLength(1);
+    expect(() => pool.connectedClient.emitError(new Error("listener connection lost")))
+      .not.toThrow();
+
+    await subscription.close();
+
+    expect(pool.connectedClient.queries.map(query => query.text)).toEqual([
+      'LISTEN "sunday_games_live_draft_room_revision"',
+    ]);
+    expect(pool.connectedClient.notificationListeners).toHaveLength(0);
+    expect(pool.connectedClient.errorListeners).toHaveLength(0);
+    expect(pool.connectedClient.released).toBe(true);
+  });
+
+  it("releases the dedicated connection when a notification channel is invalid", async () => {
+    const pool = new FakePool();
+    const client = new NodePostgresClient(pool);
+
+    await expect(client.listen("invalid-channel", () => undefined)).rejects.toThrow(
+      "Postgres notification channel must be a lowercase SQL identifier.",
+    );
+    expect(pool.connectedClient.queries).toEqual([]);
+    expect(pool.connectedClient.released).toBe(true);
   });
 });

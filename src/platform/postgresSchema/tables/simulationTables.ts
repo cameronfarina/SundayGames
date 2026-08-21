@@ -83,6 +83,11 @@ export const simulationTables: readonly PostgresTableDefinition[] = [
     indexes: [
       { name: "simulation_runs_private_owner_idx", columns: ["user_id", "league_season_id", "status"] },
       {
+        name: "simulation_runs_cleanup_status_created_at_idx",
+        columns: ["status", "created_at"],
+        where: "status IN ('requested', 'failed', 'canceled')",
+      },
+      {
         name: "simulation_runs_job_id_key",
         columns: ["job_id"],
         unique: true,

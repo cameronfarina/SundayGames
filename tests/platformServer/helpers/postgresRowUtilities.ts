@@ -98,6 +98,9 @@ export const cloneAuthSessionRow = (row: StoredAuthSessionRow): StoredAuthSessio
 
 export const cloneRoomRow = (row: DraftRoomRow): DraftRoomRow => ({
   ...row,
+  current_projection_json: row.current_projection_json === null
+    ? null
+    : cloneJson(row.current_projection_json),
   starts_at: cloneDate(row.starts_at),
   started_at: cloneDate(row.started_at),
   ended_at: cloneDate(row.ended_at),

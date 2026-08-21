@@ -13,6 +13,8 @@ interface PlatformServerShapeOptions {
   draftToolsAdapter: PlatformDraftToolsAdapter;
   jobHandlers: PlatformJobHandlers;
   persist: () => Promise<void>;
+  abortAndDrainActiveStreams: () => Promise<void>;
+  closeLiveDraftRoomRevisionListener: () => Promise<void>;
 }
 
 export const createPlatformServerShape = (
@@ -28,6 +30,9 @@ export const createPlatformServerShape = (
   },
   get jobRepository() { return input.runtimeHolder.current().jobRepository; },
   get simulationRepository() { return input.runtimeHolder.current().simulationRepository; },
+  get mockDraftSessionRepository() {
+    return input.runtimeHolder.current().mockDraftSessionRepository;
+  },
   get practiceShortlistRepository() {
     return input.runtimeHolder.current().practiceShortlistRepository;
   },
@@ -48,7 +53,11 @@ export const createPlatformServerShape = (
   jobHandlers: input.jobHandlers,
   persist: input.persist,
   close: async () => {
-    await closeServer(input.server);
+    const serverClosed = closeServer(input.server);
+    await input.abortAndDrainActiveStreams();
+    input.server.closeIdleConnections();
+    await serverClosed;
+    await input.closeLiveDraftRoomRevisionListener();
     await input.draftToolsAdapter.close();
   },
   get fileStore() { return input.runtimeHolder.current().fileStore; },

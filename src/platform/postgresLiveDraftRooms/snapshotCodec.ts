@@ -24,6 +24,24 @@ export const fullSnapshotJsonForRoom = (room: LiveDraftRoom): unknown => {
   return value;
 };
 
+export const currentProjectionJsonForRoom = (room: LiveDraftRoom): unknown => {
+  const activeSaleEventIds = new Set(room.projection.sales.map(sale => sale.saleEventId));
+  const projectedRoom = {
+    ...room,
+    events: room.events.filter(event => activeSaleEventIds.has(event.id)),
+  };
+  const value: unknown = JSON.parse(JSON.stringify(projectedRoom));
+  return value;
+};
+
+export const roomFromCurrentProjectionJson = (value: unknown): LiveDraftRoom => {
+  const [room] = deserializePlatformStoreSnapshot({ liveDraftRooms: [value] }).liveDraftRooms;
+  if (room === undefined) {
+    throw new Error("Postgres current draft room projection did not contain a room.");
+  }
+  return room;
+};
+
 export const compactSnapshotJsonForRoom = (
   room: LiveDraftRoom,
 ): CompactDraftRoomSnapshotV2 => ({

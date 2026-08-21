@@ -10,11 +10,13 @@ describe("platform runtime config parsing", () => {
       MOCKD_POSTGRES_POOL_SIZE: "7",
       MOCKD_POSTGRES_STATEMENT_TIMEOUT_MS: "2500",
       MOCKD_POSTGRES_SNAPSHOT_KEY: "prod",
+      MOCKD_PRACTICE_PERSISTENCE_MODE: "normalized-only",
       MOCKD_INITIALIZE_POSTGRES_SCHEMA: "true",
       MOCKD_DRAFT_TOOLS_SESSION_DIRECTORY: "/var/lib/mockd/draft-tools",
       MOCKD_ALLOW_PUBLIC_SIGNUP: "true",
       MOCKD_TRUST_PROXY: "true",
       MOCKD_LIVE_DRAFT_DATA_MODE: "postgres",
+      MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS: "720",
       MOCKD_PROVISIONING_TOKEN: "production-provisioning-token",
       MOCKD_INVITATION_TOKEN_SECRET: "test-invitation-secret-at-least-32-characters",
       MOCKD_SIMULATION_DATA_MODE: "local-fixtures",
@@ -39,12 +41,14 @@ describe("platform runtime config parsing", () => {
       postgresPoolSize: 7,
       postgresStatementTimeoutMs: 2500,
       postgresSnapshotKey: "prod",
+      practicePersistenceMode: "normalized-only",
       initializePostgresSchema: true,
       draftToolsSessionDirectory: "/var/lib/mockd/draft-tools",
       legacyMockBatchEnabled: false,
       allowPublicSignup: true,
       trustProxy: true,
       liveDraftDataMode: "postgres",
+      liveDraftRoomEventStreamMaxConnections: 720,
       provisioningToken: "production-provisioning-token",
       invitationTokenSecret: "test-invitation-secret-at-least-32-characters",
       leagueConnectionCredentialCipher: undefined,
@@ -53,6 +57,7 @@ describe("platform runtime config parsing", () => {
         resendApiKey: undefined,
         from: undefined,
         publicBaseUrl: undefined,
+        signupNotificationEmail: undefined,
       },
       simulationDataMode: "local-fixtures",
       screenshotImport: {
@@ -87,10 +92,12 @@ describe("platform runtime config parsing", () => {
     expect(config.databaseUrl).toBeUndefined();
     expect(config.dataFilePath).toBe("/tmp/mockd-platform.json");
     expect(config.draftToolsSessionDirectory).toBe("data/platform-draft-tools");
+    expect(config.practicePersistenceMode).toBe("dual-write");
     expect(config.legacyMockBatchEnabled).toBe(false);
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(0);
     expect(config.liveDraftDataMode).toBe("local-fixtures");
+    expect(config.liveDraftRoomEventStreamMaxConnections).toBe(650);
     expect(config.allowPublicSignup).toBe(false);
     expect(config.trustProxy).toBe(false);
     expect(config.provisioningToken).toBeUndefined();

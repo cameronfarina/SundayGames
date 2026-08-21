@@ -1,5 +1,6 @@
 import type {
   LiveDraftRoomProjection,
+  LiveDraftRoomPick,
   LiveDraftRoomRosterSlot,
   LiveDraftRoomSale,
   LiveDraftRoomStatus,
@@ -87,8 +88,30 @@ const teamStateValue = (value: unknown, path: string): LiveDraftRoomTeamState =>
   };
 };
 
+const pickValue = (value: unknown, path: string): LiveDraftRoomPick => {
+  const record = recordValue(value, path);
+  const source = optionalString(record.source, `${path}.source`);
+  if (source !== undefined && source !== "keeper" && source !== "imported" && source !== "sale") {
+    return invalidSnapshot(`${path}.source`);
+  }
+  return {
+    overall: integerValue(record.overall, `${path}.overall`),
+    round: integerValue(record.round, `${path}.round`),
+    pickInRound: integerValue(record.pickInRound, `${path}.pickInRound`),
+    teamId: stringValue(record.teamId, `${path}.teamId`),
+    ownerDisplayName: stringValue(record.ownerDisplayName, `${path}.ownerDisplayName`),
+    teamDisplayName: stringValue(record.teamDisplayName, `${path}.teamDisplayName`),
+    playerName: optionalString(record.playerName, `${path}.playerName`),
+    ...(source === undefined ? {} : { source }),
+    saleEventId: optionalString(record.saleEventId, `${path}.saleEventId`),
+  };
+};
+
 export const projectionValue = (value: unknown, path: string): LiveDraftRoomProjection => {
   const record = recordValue(value, path);
+  const picks = optionalValue(record.picks, `${path}.picks`, (candidate, candidatePath) =>
+    arrayValue(candidate, candidatePath, pickValue));
+  const onTheClock = optionalValue(record.onTheClock, `${path}.onTheClock`, pickValue);
   return {
     roomId: stringValue(record.roomId, `${path}.roomId`),
     leagueId: stringValue(record.leagueId, `${path}.leagueId`),
@@ -99,5 +122,7 @@ export const projectionValue = (value: unknown, path: string): LiveDraftRoomProj
     teams: arrayValue(record.teams, `${path}.teams`, teamStateValue),
     board: arrayValue(record.board, `${path}.board`, boardPlayerValue),
     sales: arrayValue(record.sales, `${path}.sales`, saleValue),
+    ...(picks === undefined ? {} : { picks }),
+    ...(onTheClock === undefined ? {} : { onTheClock }),
   };
 };

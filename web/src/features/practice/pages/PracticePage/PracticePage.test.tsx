@@ -8,6 +8,7 @@ import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJ
 import { PracticePage } from "./PracticePage";
 import { createPracticeFetch } from "./test/createPracticeFetch";
 import { league } from "./test/practiceFixtures";
+import { stubPracticeSimulationWorker } from "./test/stubPracticeSimulationWorker";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 beforeAll(() => {
@@ -90,6 +91,7 @@ describe("PracticePage", () => {
 
   it("runs simulations and opens saved results", async () => {
     const user = userEvent.setup();
+    stubPracticeSimulationWorker();
     const fetcher = vi.fn<PlatformFetch>();
     fetcher.mockImplementation(createPracticeFetch({ runCount: 2 }));
     vi.stubGlobal("fetch", fetcher);
@@ -127,6 +129,7 @@ describe("PracticePage", () => {
 
   it("opens the first run when an older simulation response has no outcome summaries", async () => {
     const user = userEvent.setup();
+    stubPracticeSimulationWorker();
     vi.stubGlobal("fetch", createPracticeFetch({ emptyOutcomes: true }));
     const view = render(<PracticePage />, { wrapper: providers() });
 

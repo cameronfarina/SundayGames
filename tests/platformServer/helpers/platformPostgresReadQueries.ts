@@ -17,6 +17,23 @@ export const platformPostgresReadQuery = (
     return { rows: [] };
   }
 
+  if (normalizedSql === "SELECT id, league_id, current_revision FROM draft_rooms WHERE id = $1") {
+    const room = state.rooms.get(stringValueAt(values, 0));
+    return { rows: room === undefined ? [] : [{
+      id: room.id,
+      league_id: room.league_id,
+      current_revision: room.current_revision,
+    }] };
+  }
+
+  if (normalizedSql === "SELECT current_revision, current_projection_json FROM draft_rooms WHERE id = $1") {
+    const room = state.rooms.get(stringValueAt(values, 0));
+    return { rows: room === undefined ? [] : [{
+      current_revision: room.current_revision,
+      current_projection_json: room.current_projection_json,
+    }] };
+  }
+
   if (normalizedSql.startsWith("SELECT snapshot_json FROM draft_room_snapshots")) {
     const roomId = stringValueAt(values, 0);
     const snapshot = state.roomSnapshots
@@ -53,10 +70,14 @@ export const platformPostgresReadQuery = (
 
   if (normalizedSql.startsWith("SELECT id, draft_room_id, revision, event_type")) {
     const roomId = stringValueAt(values, 0);
-    const throughRevision = numberValueAt(values, 1);
+    const incremental = values.length === 3;
+    const afterRevision = incremental ? numberValueAt(values, 1) : 0;
+    const throughRevision = numberValueAt(values, incremental ? 2 : 1);
     return {
       rows: state.events
-        .filter(row => row.draft_room_id === roomId && row.revision <= throughRevision)
+        .filter(row => row.draft_room_id === roomId
+          && row.revision > afterRevision
+          && row.revision <= throughRevision)
         .sort((left, right) => left.revision - right.revision)
         .map(row => cloneEventRow(row)),
     };

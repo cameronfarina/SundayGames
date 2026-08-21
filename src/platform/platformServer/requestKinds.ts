@@ -35,6 +35,42 @@ export const isPracticeShortlistOnlyMutationRequest = (request: PlatformHttpRequ
   return segments !== null && segments.length === 1 && segments[0] === "practice-shortlist";
 };
 
+export const isPracticeShortlistRequest = (request: PlatformHttpRequest): boolean => {
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments.length === 1 && segments[0] === "practice-shortlist";
+};
+
+export const isMockDraftSessionOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
+  if (request.method.toUpperCase() !== "POST") return false;
+  const segments = pathSegmentsFor(request);
+  if (segments === null) return false;
+  if (segments.length === 1) {
+    return segments[0] === "mock-sessions" || segments[0] === "season-mock-drafts";
+  }
+  return segments.length === 3 && (
+    (segments[0] === "mock-sessions" &&
+      (segments[2] === "commands" || segments[2] === "append" || segments[2] === "reset")) ||
+    (segments[0] === "season-mock-drafts" &&
+      (segments[2] === "commands" || segments[2] === "abandon"))
+  );
+};
+
+export const isMockDraftSessionRequest = (request: PlatformHttpRequest): boolean => {
+  const segments = pathSegmentsFor(request);
+  return segments !== null &&
+    (segments[0] === "mock-sessions" || segments[0] === "season-mock-drafts");
+};
+
+export const isSimulationRequest = (request: PlatformHttpRequest): boolean => {
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments[0] === "simulations";
+};
+
+export const isJobRequest = (request: PlatformHttpRequest): boolean => {
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments[0] === "jobs";
+};
+
 export const isLiveDraftRoomOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   if (request.method.toUpperCase() !== "POST") return false;
   const segments = pathSegmentsFor(request);
@@ -71,6 +107,20 @@ export const isSeasonSimulationRequest = (request: PlatformHttpRequest): boolean
   if (request.method.toUpperCase() !== "POST") return false;
   const segments = pathSegmentsFor(request);
   return segments !== null && segments.length === 1 && segments[0] === "season-simulations";
+};
+
+export const isSeasonSimulationOutcomeMutationRequest = (
+  request: PlatformHttpRequest,
+): boolean => {
+  if (request.method.toUpperCase() !== "PATCH") return false;
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments.length === 4 &&
+    segments[0] === "season-simulations" && segments[2] === "runs";
+};
+
+export const isSeasonSimulationResourceRequest = (request: PlatformHttpRequest): boolean => {
+  const segments = pathSegmentsFor(request);
+  return segments !== null && segments[0] === "season-simulations";
 };
 
 export const isLeagueConnectionOnlyMutationRequest = (

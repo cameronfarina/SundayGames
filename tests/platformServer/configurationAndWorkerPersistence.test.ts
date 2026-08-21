@@ -45,6 +45,14 @@ describePlatformServer(({ createListeningServer, servers, storePath }) => {
       postgresExportArtifactClient: new FakeTransactionalPostgresClient(),
       simulationRunner: mockRunner,
     })).rejects.toThrow("Configure either exportArtifactRepository or postgresExportArtifactClient, not both.");
+
+    await expect(createPlatformServer({
+      postgresClient: new FakePostgresClient(),
+      practicePersistenceMode: "normalized-only",
+      simulationRunner: mockRunner,
+    })).rejects.toThrow(
+      "Normalized-only practice persistence requires the shared transactional Postgres client.",
+    );
   });
 
   it("persists worker-completed private simulations in the file-backed store", async () => {

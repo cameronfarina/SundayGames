@@ -1,4 +1,5 @@
 export const expectedBehaviorNames: readonly string[] = [
+  "authorizes a live-room stream once and polls its revision through one repository read",
   "persists active-league quotas and still permits updates to an existing league",
   "persists league archives and releases only the active-league quota",
   "enforces the durable per-account league creation window",
@@ -29,6 +30,6 @@ export const expectedBehaviorNames: readonly string[] = [
   "reports a locked round count once the live draft has started",
 ];
 
-export const expectedAssertionCount = 115;
+export const expectedAssertionCount = 119;
 export const expectedAssertionFingerprint =
-  "8d46ec4a57117e5001d0b7b1ac9aee5a1629fe1cd597e99daddab7f38b7dac35";
+  "96e488d8852f08a4c27d349bbeaa9fe5931078f5348fec18a0162f1c1cd99ec2";

@@ -55,6 +55,7 @@ export type {
   EnqueuePlatformSimulationRunJobInput,
   ExecutePlatformSimulationRunForWorkerInput,
   ExecutePlatformSimulationRunInput,
+  FindPlatformSimulationLaunchInput,
   GetPlatformJobInput,
   GetPlatformSimulationRunInput,
   ListPlatformJobsInput,

@@ -1,12 +1,16 @@
-import type { PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
-import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
+import { requestPlatformJson, type PlatformFetch } from "../../../shared/api/http/requestPlatformJson";
+import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import {
   simulationRunResponseSchema,
   simulationOutcomeResponseSchema,
+  simulationLaunchSchema,
   simulationResponseSchema,
   type SimulationProgress,
 } from "./simulationSchema";
-import { consumeSimulationStream } from "./simulationEventStream";
+import {
+  runSimulationInBrowser,
+  type BrowserSimulationWorkerFactory,
+} from "./browserSimulationRunner";
 
 interface RequestContext {
   readonly fetcher?: PlatformFetch;
@@ -16,7 +20,6 @@ interface RequestContext {
 interface LoadSimulationRequest extends RequestContext {
   readonly historyId: string;
 }
-
 const fetcherExtra = (context: RequestContext) => (
   context.fetcher === undefined ? {} : { fetcher: context.fetcher }
 );
@@ -70,29 +73,77 @@ interface RunSimulationRequest extends RequestContext {
   readonly seasonId: string;
   readonly strategy: string;
   readonly strategyPreset: string;
+  readonly workerFactory?: BrowserSimulationWorkerFactory | undefined;
 }
 
 export const runSimulations = async (request: RunSimulationRequest) => {
+  if (request.signal?.aborted === true) throw new DOMException("Simulation canceled.", "AbortError");
   const fetcher = request.fetcher ?? fetch;
-  const response = await fetcher("/season-simulations", {
-    body: JSON.stringify({
-      count: request.count,
-      note: request.note,
-      seasonId: request.seasonId,
-      strategy: request.strategy,
-      strategyPreset: request.strategyPreset,
-    }),
-    credentials: "same-origin",
-    headers: { Accept: "text/event-stream", "content-type": "application/json" },
-    method: "POST",
-    ...(request.signal === undefined ? {} : { signal: request.signal }),
-  });
-  if (!response.ok) {
-    await requestPlatformJson({
-      fetcher: () => Promise.resolve(response),
+  const controller = new AbortController();
+  const abort = (): void => { controller.abort(); };
+  request.signal?.addEventListener("abort", abort, { once: true });
+  globalThis.addEventListener("pagehide", abort, { once: true });
+  let historyId: string | undefined;
+  const requestId = globalThis.crypto.randomUUID();
+  try {
+    const launch = await requestPlatformJson({
+      fetcher,
+      init: {
+        body: JSON.stringify({
+          count: request.count,
+          note: request.note,
+          requestId,
+          seasonId: request.seasonId,
+          strategy: request.strategy,
+          strategyPreset: request.strategyPreset,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: controller.signal,
+      },
       path: "/season-simulations",
+      responseSchema: simulationLaunchSchema,
+    });
+    historyId = launch.historyId;
+    const simulation = await runSimulationInBrowser(launch.input, {
+      onProgress: request.onProgress,
+      signal: controller.signal,
+      ...(request.workerFactory === undefined ? {} : { workerFactory: request.workerFactory }),
+    });
+    const completionRequest = async () => await requestPlatformJson({
+      fetcher,
+      init: {
+        body: JSON.stringify({
+          simulation,
+          note: launch.note,
+          inputDigest: launch.inputDigest,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: controller.signal,
+      },
+      path: `/season-simulations/${encodeURIComponent(launch.historyId)}/complete`,
       responseSchema: simulationResponseSchema,
     });
+    try {
+      return await completionRequest();
+    } catch (error) {
+      const deterministicFailure = error instanceof PlatformApiError && error.status >= 400 && error.status < 500;
+      if (controller.signal.aborted || deterministicFailure) throw error;
+      return await completionRequest();
+    }
+  } catch (error) {
+    const cancellationPath = historyId === undefined
+      ? `/season-simulations/requests/${encodeURIComponent(requestId)}?seasonId=${encodeURIComponent(request.seasonId)}`
+      : `/season-simulations/${encodeURIComponent(historyId)}`;
+    void fetcher(cancellationPath, {
+      credentials: "same-origin",
+      keepalive: true,
+      method: "DELETE",
+    }).catch(() => undefined);
+    throw error;
+  } finally {
+    request.signal?.removeEventListener("abort", abort);
+    globalThis.removeEventListener("pagehide", abort);
   }
-  return await consumeSimulationStream(response, { onProgress: request.onProgress });
 };

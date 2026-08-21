@@ -220,6 +220,9 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
+      "platform-practice-persistence-v25",
+      "platform-browser-simulation-lifecycle-v26",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -255,6 +258,9 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
+      "platform-practice-persistence-v25",
+      "platform-browser-simulation-lifecycle-v26",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -280,6 +286,57 @@ describe("platform Postgres migrations", () => {
     );
     expect(client.statements).toContain(
       "ALTER TABLE league_connection_snapshots ADD COLUMN IF NOT EXISTS sync_revision bigint NOT NULL DEFAULT 0;",
+    );
+  });
+
+  it("adds durable mock replay state after the reserved v24 stack position", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-practice-persistence-v25")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(requiredPlatformPostgresMigrationIds.at(-3)).toBe("platform-live-draft-scale-v24");
+    expect(requiredPlatformPostgresMigrationIds.at(-2)).toBe("platform-practice-persistence-v25");
+    expect(requiredPlatformPostgresMigrationIds.at(-1))
+      .toBe("platform-browser-simulation-lifecycle-v26");
+    expect(result.statementCount).toBeGreaterThan(0);
+    expect(client.statements).toContain(
+      "ALTER TABLE mock_sessions ADD COLUMN IF NOT EXISTS configuration_snapshot_json jsonb NOT NULL DEFAULT '{\"status\":\"migration-required\",\"schema\":\"mockd-season-mock-configuration\",\"reason\":\"missing-snapshot\"}'::jsonb;",
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE OR REPLACE FUNCTION mirror_platform_snapshot_mock_sessions"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS platform_practice_persistence_control"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("VALUES (true, 'dual-write')"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE TRIGGER platform_snapshot_mock_sessions_bridge"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("practice_mode <> 'dual-write'"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("Compatibility mock sessions are disabled after normalized-only cutover"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("Mock draft command history diverged during compatibility mirroring"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("WHERE ordinal > shared_count"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("Compatibility mock draft command persistence is inconsistent"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("WHERE id = stored_session->>'userId'\n    FOR UPDATE"),
+    );
+    expect(client.statements).toContain(
+      "UPDATE platform_store_snapshots SET snapshot_json = snapshot_json;",
     );
   });
 
@@ -382,6 +439,9 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
+      "platform-practice-persistence-v25",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -406,17 +466,58 @@ describe("platform Postgres migrations", () => {
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
+      "platform-practice-persistence-v25",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
   });
 
-  it("applies snake, credential, auth, and sync migrations in reserved order", () => {
-    expect(requiredPlatformPostgresMigrationIds.slice(-5)).toEqual([
+  it("applies the import-through-browser-simulation migrations in reserved order", () => {
+    expect(requiredPlatformPostgresMigrationIds.slice(-8)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
       "platform-auth-rate-limits-v22",
       "platform-league-sync-revisions-v23",
+      "platform-live-draft-scale-v24",
+      "platform-practice-persistence-v25",
+      "platform-browser-simulation-lifecycle-v26",
     ]);
+  });
+
+  it("indexes terminal and stale requested simulation cleanup in v26", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-browser-simulation-lifecycle-v26")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBe(3);
+    expect(client.statements).toContain(
+      "CREATE INDEX IF NOT EXISTS simulation_runs_cleanup_status_created_at_idx " +
+      "ON simulation_runs (status, created_at) " +
+      "WHERE status IN ('requested', 'failed', 'canceled');",
+    );
+  });
+
+  it("adds the durable current-room projection and shared stream leases in v24", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-live-draft-scale-v24")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    await applyPlatformPostgresMigrations(client);
+
+    expect(client.statements).toContain(
+      "ALTER TABLE draft_rooms ADD COLUMN IF NOT EXISTS current_projection_json jsonb;",
+    );
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "CREATE TABLE IF NOT EXISTS live_draft_stream_leases",
+    ));
+    expect(client.statements).toContainEqual(expect.stringContaining(
+      "CREATE INDEX IF NOT EXISTS live_draft_stream_leases_account_expires_idx",
+    ));
   });
 
   it("adds durable league archive metadata and an active-league index", async () => {
