@@ -1,28 +1,31 @@
 // Browser wording differs: Chrome/Firefox mention "dynamically imported
-// module", Safari says "Importing a module script failed."
+// module", Safari says "Importing a module script failed", and Vite reports
+// a stylesheet from an older deploy as "Unable to preload CSS".
 const STALE_CHUNK_PATTERNS = [
   /dynamically imported module/iu,
   /importing a module script failed/iu,
+  /unable to preload css/iu,
 ];
 
-const RELOADED_AT_KEY = "staleChunkReloadedAt";
-const RELOAD_LOOP_WINDOW_MS = 10_000;
+const RELOADED_FOR_KEY = "staleChunkReloadedFor";
 
-export const isStaleChunkError = (error: unknown): boolean => (
+export const isStaleChunkError = (error: unknown): error is Error => (
   error instanceof Error
   && STALE_CHUNK_PATTERNS.some(pattern => pattern.test(error.message))
 );
 
+export const staleChunkReloadSignature = (
+  error: Error,
+  applicationAssetIdentity: string,
+): string => `${applicationAssetIdentity}\n${error.message}`;
+
 export const reloadOnceForStaleChunk = (
+  failureSignature: string,
   storage: Pick<Storage, "getItem" | "setItem">,
-  now: () => number,
   reload: () => void,
 ): boolean => {
-  const reloadedAt = Number(storage.getItem(RELOADED_AT_KEY));
-  const withinLoopWindow = Number.isFinite(reloadedAt)
-    && now() - reloadedAt < RELOAD_LOOP_WINDOW_MS;
-  if (withinLoopWindow) return false;
-  storage.setItem(RELOADED_AT_KEY, String(now()));
+  if (storage.getItem(RELOADED_FOR_KEY) === failureSignature) return false;
+  storage.setItem(RELOADED_FOR_KEY, failureSignature);
   reload();
   return true;
 };
