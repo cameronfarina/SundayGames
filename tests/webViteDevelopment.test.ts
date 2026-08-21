@@ -106,6 +106,8 @@ describe("web Vite development", () => {
     await expect(fetch(`${origin}/session`, { headers: { cookie: "mockd_session=test" } })
       .then(response => response.json())).resolves.toEqual({ path: "/session" });
     expect(receivedCookie).toBe("mockd_session=test");
+    await expect(fetch(`${origin}/session-state`).then(response => response.json()))
+      .resolves.toEqual({ path: "/session-state" });
     const eventResponse = await fetch(`${origin}/live-rooms/room-1/events`);
     expect(eventResponse.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     await expect(eventResponse.text()).resolves.toContain("event: room");

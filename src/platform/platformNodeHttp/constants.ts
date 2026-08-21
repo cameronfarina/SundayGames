@@ -37,7 +37,7 @@ export const observableRouteRoots = new Set([
   "leagues", "live-rooms",
   "mock-sessions", "onboarding", "player-catalog", "password-resets",
   "pricing-snapshots", "readyz", "season-mock-drafts", "season-simulations",
-  "practice-shortlist", "seasons", "session", "sessions",
+  "practice-shortlist", "seasons", "session", "session-state", "sessions",
 ]);
 
 export const observableHttpMethods = new Set([
