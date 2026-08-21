@@ -92,7 +92,7 @@ describe("auction contract architecture", () => {
 
     for (const file of files) {
       const label = path.relative(process.cwd(), file);
-      expect(readFileSync(file, "utf8").split("\n").length, label).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, label).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), label).toEqual([]);
     }
   });

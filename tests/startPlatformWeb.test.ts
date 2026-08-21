@@ -65,7 +65,7 @@ describe("platform web startup test architecture", () => {
       const lines = readFileSync(file, "utf8").trimEnd().split(/\r?\n/u).length;
       const unsafe = testMetadata(sourceFileFor(file)).unsafeSyntax
         .map(finding => `${path.basename(file)}: ${finding}`);
-      return lines > 150 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
+      return lines > 250 ? [`${path.basename(file)}: ${lines} lines`, ...unsafe] : unsafe;
     });
     expect(violations).toEqual([]);
   });

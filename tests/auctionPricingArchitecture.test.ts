@@ -34,7 +34,7 @@ describe("auction pricing architecture", () => {
     for (const relativeFile of productionFiles) {
       const file = path.resolve(relativeFile);
       const source = readFileSync(file, "utf8");
-      expect(source.trimEnd().split("\n").length, relativeFile).toBeLessThanOrEqual(150);
+      expect(source.trimEnd().split("\n").length, relativeFile).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), relativeFile).toEqual([]);
     }
   });

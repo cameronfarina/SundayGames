@@ -81,6 +81,7 @@ describe("production deployment workflows", () => {
     expect(content).toContain("name: Local end-to-end smoke");
     expect(content).toContain("name: Production image and Postgres boot");
     expect(content).toContain("run: npm run verify:web");
+    expect(content).toContain("run: npm run guideline:modules");
     expect(content).toContain("run: npm run build:server");
     expect(content).toContain("run: npm run build:web");
     expect(content).toContain("run: npm test");

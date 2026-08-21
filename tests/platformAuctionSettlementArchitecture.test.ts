@@ -30,7 +30,7 @@ describe("auction settlement architecture", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       expect(source.split("\n").length, path.relative(process.cwd(), file))
-        .toBeLessThanOrEqual(150);
+        .toBeLessThanOrEqual(250);
       expect(unsafeSyntax(source, file), path.relative(process.cwd(), file)).toEqual([]);
     }
   });

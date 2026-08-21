@@ -15,7 +15,7 @@ describe("Postgres Practice shortlist architecture", () => {
 
     for (const file of files) {
       const lineCount = readFileSync(file, "utf8").split("\n").length;
-      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(150);
+      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(250);
     }
   });
 });

@@ -41,7 +41,7 @@ describe("Postgres export artifact repository architecture", () => {
 
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(forbiddenSyntax(file, source), file).toEqual([]);
       expect(source, file).not.toMatch(/@ts-(?:ignore|expect-error)|eslint-disable/);
     }

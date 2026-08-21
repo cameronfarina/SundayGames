@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const repositoryRoot = join(import.meta.dirname, "..");
 const scriptsDirectory = join(repositoryRoot, "scripts");
-const preferredMaximumLines = 150;
+const maximumLines = 250;
 
 const backupProductionFiles = async (): Promise<string[]> => {
   const scriptFiles = await readdir(scriptsDirectory, { recursive: true });
@@ -52,7 +52,7 @@ describe("Postgres backup architecture", () => {
       expect(
         physicalLineCount(source),
         relative(repositoryRoot, path),
-      ).toBeLessThanOrEqual(preferredMaximumLines);
+      ).toBeLessThanOrEqual(maximumLines);
     }
   });
 

@@ -51,6 +51,9 @@ jobs:
       - name: Verify public data policy
         run: npm run guard:data
 
+      - name: Report preferred module-size warnings
+        run: npm run guideline:modules
+
       - name: Build server
         run: npm run build:server
 

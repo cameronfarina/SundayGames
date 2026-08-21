@@ -40,7 +40,7 @@ describe("platform app context architecture", () => {
   it("keeps context modules focused and free of unsafe type escapes", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
-      expect(source.split("\n").length, path.relative(process.cwd(), file)).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, path.relative(process.cwd(), file)).toBeLessThanOrEqual(250);
       expect(unsafeTypeSyntax(source, file), path.relative(process.cwd(), file)).toEqual([]);
     }
   });

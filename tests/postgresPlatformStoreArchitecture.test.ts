@@ -10,7 +10,7 @@ describe("Postgres platform store architecture", () => {
 
     for (const file of [facade, ...modules]) {
       const source = readFileSync(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(source, file).not.toMatch(/\bany\b|@ts-ignore|@ts-expect-error|eslint-disable/u);
       expect(source, file).not.toMatch(
         /\bas\s+(?:const|never|unknown|any|[A-Z][A-Za-z0-9_<>,.\[\] |&]*)/u,

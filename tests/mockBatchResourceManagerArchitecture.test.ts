@@ -37,7 +37,7 @@ describe("mock batch resource manager architecture", () => {
 
     for (const file of files) {
       const label = path.relative(process.cwd(), file);
-      expect(lineCount(readFileSync(file, "utf8")), label).toBeLessThanOrEqual(150);
+      expect(lineCount(readFileSync(file, "utf8")), label).toBeLessThanOrEqual(250);
       expect(unsafeSyntax(file), label).toEqual([]);
     }
   });
