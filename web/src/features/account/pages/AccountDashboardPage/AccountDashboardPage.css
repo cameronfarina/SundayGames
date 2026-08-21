@@ -1,0 +1,79 @@
+.account-dashboard { width: 100%; }
+
+.account-dashboard__header {
+  align-items: end;
+  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr auto;
+  padding-bottom: var(--space-6);
+}
+
+.account-dashboard__header p,
+.account-dashboard__upcoming > div p,
+.account-dashboard__league-heading p {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+}
+
+.account-dashboard__header h1 { font-size: clamp(2rem, 4vw, 3rem); margin: 0; }
+.account-dashboard__header > a { color: var(--color-accent); font-weight: 800; }
+.account-dashboard__header > span { color: var(--color-text-muted); grid-column: 1 / -1; }
+
+.account-dashboard__upcoming {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(12rem, 0.45fr) 1fr;
+  margin-top: var(--space-6);
+  padding: var(--space-6);
+}
+
+.account-dashboard__upcoming h2,
+.account-dashboard__league-heading h2 { margin: 0; }
+.account-dashboard__upcoming ol { display: grid; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.account-dashboard__upcoming li { display: flex; gap: var(--space-4); justify-content: space-between; }
+.account-dashboard__upcoming a { color: var(--color-text); font-weight: 800; }
+.account-dashboard__upcoming time,
+.account-dashboard__quiet { color: var(--color-text-muted); }
+
+.account-dashboard__league-heading { margin: var(--space-8) 0 var(--space-4); }
+.account-dashboard__league-heading span { color: var(--color-text-muted); display: block; margin-top: var(--space-2); }
+.account-dashboard__leagues { display: grid; gap: var(--space-6); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.league-dashboard-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.league-dashboard-card > header { display: flex; gap: var(--space-4); justify-content: space-between; padding: var(--space-6); }
+.league-dashboard-card header span,
+.league-dashboard-card header p { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0; }
+.league-dashboard-card header h2 { margin: var(--space-2) 0; }
+.league-dashboard-card header > strong { color: var(--color-accent); font-size: var(--font-size-sm); white-space: nowrap; }
+
+.league-dashboard-card dl { margin: 0; }
+.league-dashboard-card__status { border-block: 1px solid var(--color-border); display: grid; grid-template-columns: repeat(3, 1fr); }
+.league-dashboard-card__status div,
+.league-dashboard-card__metrics div { padding: var(--space-4); }
+.league-dashboard-card__status div + div { border-left: 1px solid var(--color-border); }
+.league-dashboard-card dt { color: var(--color-text-subtle); font-size: var(--font-size-sm); font-weight: 700; text-transform: uppercase; }
+.league-dashboard-card dd { font-weight: 800; margin: var(--space-2) 0 0; }
+.league-dashboard-card__metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.league-dashboard-card__metrics div:last-child { grid-column: 1 / -1; }
+.league-dashboard-card > footer { border-top: 1px solid var(--color-border); display: flex; gap: var(--space-5); padding: var(--space-4) var(--space-6); }
+.league-dashboard-card > footer a { color: var(--color-accent); font-weight: 800; }
+
+.account-dashboard__empty { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-top: var(--space-6); padding: var(--space-8); text-align: center; }
+.account-dashboard__empty p { color: var(--color-text-muted); }
+.account-dashboard__empty a { color: var(--color-accent); font-weight: 800; }
+
+@media (max-width: 64rem) { .account-dashboard__leagues { grid-template-columns: 1fr; } }
+@media (max-width: 40rem) {
+  .account-dashboard__header, .account-dashboard__upcoming { display: flex; align-items: flex-start; flex-direction: column; }
+  .account-dashboard__upcoming li, .league-dashboard-card > header { align-items: flex-start; flex-direction: column; }
+  .league-dashboard-card__status { grid-template-columns: 1fr; }
+  .league-dashboard-card__status div + div { border-left: 0; border-top: 1px solid var(--color-border); }
+}

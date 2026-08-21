@@ -133,6 +133,10 @@ If the database is private-only, temporarily allow only the operator's current I
 5. Enable Render deploy and service-health notifications. Configure external metric alerts for Postgres availability and capacity, disk usage, backup failures, and draft-window mutation errors; Render's service notifications alone do not cover all of these signals.
 6. Confirm Render's daily Postgres backup controls are healthy.
 
+For creator draft-capacity visibility, also complete the setup in
+[`platform-draft-operations.md`](platform-draft-operations.md). Its Discord webhook and
+trigger token are separate from the production-health alert webhook.
+
 The GitHub monitor checks `/readyz`, which covers the web process, Postgres, required migrations, and writable private-draft storage. `/healthz` is only process liveness.
 
 ## 5. Run Staging Smoke

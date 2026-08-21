@@ -1,0 +1,55 @@
+name: Daily draft operations digest
+
+on:
+  schedule:
+    - cron: "5 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-draft-operations-digest
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    name: Deliver daily draft schedule
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate digest trigger configuration
+        id: configuration
+        env:
+          BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+          DIGEST_TRIGGER_TOKEN: ${{ secrets.MOCKD_PLATFORM_DRAFT_DIGEST_TRIGGER_TOKEN }}
+        run: |
+          if [ -z "$DIGEST_TRIGGER_TOKEN" ]; then
+            echo "::notice::Daily draft digest is not configured; add MOCKD_PLATFORM_DRAFT_DIGEST_TRIGGER_TOKEN to enable it."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          node --input-type=module <<'NODE'
+          const baseUrl = process.env.BASE_URL?.trim();
+          if (!baseUrl) throw new Error("MOCKD_PRODUCTION_BASE_URL is required.");
+          const url = new URL(baseUrl);
+          if (url.protocol !== "https:" || url.username || url.password) {
+            throw new Error("MOCKD_PRODUCTION_BASE_URL must be a credential-free HTTPS URL.");
+          }
+          if (process.env.DIGEST_TRIGGER_TOKEN.trim().length < 32) {
+            throw new Error("MOCKD_PLATFORM_DRAFT_DIGEST_TRIGGER_TOKEN must be at least 32 characters.");
+          }
+          NODE
+
+      - name: Trigger Discord draft digest
+        if: steps.configuration.outputs.enabled == 'true'
+        env:
+          BASE_URL: ${{ vars.MOCKD_PRODUCTION_BASE_URL }}
+          DIGEST_TRIGGER_TOKEN: ${{ secrets.MOCKD_PLATFORM_DRAFT_DIGEST_TRIGGER_TOKEN }}
+        run: |
+          curl --proto '=https' --tlsv1.2 --fail --show-error --silent \
+            --max-time 30 \
+            -X POST \
+            -H "x-sundaygames-draft-digest-token: $DIGEST_TRIGGER_TOKEN" \
+            "${BASE_URL%/}/platform-admin/draft-digest"

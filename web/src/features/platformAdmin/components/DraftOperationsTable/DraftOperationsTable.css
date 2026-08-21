@@ -1,0 +1,28 @@
+.draft-operations-table-wrap { overflow-x: auto; }
+
+.draft-operations-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.draft-operations-table th,
+.draft-operations-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border, #303640);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.draft-operations-table th {
+  color: var(--color-text-muted, #aeb5c0);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.draft-operations-table td:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.draft-operations-table td span { color: var(--color-text-muted, #aeb5c0); }

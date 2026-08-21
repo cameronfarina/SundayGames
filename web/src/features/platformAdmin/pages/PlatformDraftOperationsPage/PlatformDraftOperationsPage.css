@@ -1,0 +1,21 @@
+.platform-draft-operations-page {
+  display: grid;
+  gap: 2rem;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+
+.platform-draft-operations-page > header {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.platform-draft-operations-page > header p,
+.platform-draft-operations-page > header h1 { margin: 0; }
+
+.platform-draft-operations-page > header p,
+.platform-draft-operations-page > header span {
+  color: var(--color-text-muted, #aeb5c0);
+}
+
+.platform-draft-operations-page > section { display: grid; gap: 0.75rem; }
+.platform-draft-operations-page h2 { margin: 0; }

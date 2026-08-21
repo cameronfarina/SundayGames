@@ -4,14 +4,3 @@
   margin: 20px 0 0;
 }
 .live-room-schedule strong { color: var(--color-text); }
-.live-room-other-drafts { margin-top: 28px; }
-.live-room-other-drafts h3 { margin-bottom: 10px; }
-.live-room-other-drafts ul {
-  display: grid;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.live-room-other-drafts li { color: var(--color-text-muted); }
-.live-room-other-drafts a { color: var(--color-text); }

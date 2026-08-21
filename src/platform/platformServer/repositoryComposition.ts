@@ -1,5 +1,6 @@
 import { InMemoryPlatformInvitationRepository } from "../platformInvitations.js";
 import { PostgresAccountOnboardingRepository } from "../accountOnboarding.js";
+import { PostgresAccountDashboardRepository } from "../accountDashboard.js";
 import { InMemoryPlatformOnboardingRepository, PostgresPlatformOnboardingRepository } from "../platformOnboarding.js";
 import { PostgresAuthRepository } from "../postgresAuth.js";
 import { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js";
@@ -28,6 +29,10 @@ export const composeRuntimeRepositories = (
   const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
   const onboardingClient = authRepository === postgresAuthRepository ? options.postgresAuthClient : undefined;
   const postgresAccountOnboardingRepository = onboardingClient === undefined ? undefined : new PostgresAccountOnboardingRepository(onboardingClient);
+  const accountDashboardRepository = options.accountDashboardRepository ??
+    (options.postgresClient === undefined
+      ? undefined
+      : new PostgresAccountDashboardRepository(options.postgresClient));
   const postgresLeagueSetupRepository = options.postgresLeagueSetupClient === undefined
     ? undefined : new PostgresLeagueSetupRepository(options.postgresLeagueSetupClient);
   const postgresHistoricalImportRepository = options.postgresHistoricalImportClient === undefined
@@ -104,6 +109,7 @@ export const composeRuntimeRepositories = (
     authRepository,
     accountOnboardingRepository: options.accountOnboardingRepository ??
       postgresAccountOnboardingRepository ?? store.accountOnboarding,
+    ...(accountDashboardRepository === undefined ? {} : { accountDashboardRepository }),
     leagueSetupRepository: options.leagueSetupRepository ?? postgresLeagueSetupRepository ?? store,
     historicalImportRepository,
     jobRepository: options.jobRepository ?? postgresJobQueue ?? store.jobs,

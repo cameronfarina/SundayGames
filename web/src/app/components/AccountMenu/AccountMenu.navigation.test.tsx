@@ -43,6 +43,7 @@ const openMenu = async (canManageLeague: boolean) => {
   const router = createMemoryRouter([
     { path: "/practice", element: menu },
     { path: "/leagues/:slug/my-team", element: <h1>Team page</h1> },
+    { path: "/account", element: <h1>Account dashboard page</h1> },
     { path: "/account-settings", element: <h1>Account settings page</h1> },
     { path: "/connections", element: <h1>Connections page</h1> },
   ], { initialEntries: ["/practice"] });
@@ -91,6 +92,14 @@ describe("AccountMenu navigation", () => {
     await user.click(screen.getByRole("menuitem", { name: "Account settings" }));
 
     expect(await screen.findByRole("heading", { name: "Account settings page" })).toBeVisible();
+  });
+
+  it("opens the account-wide league dashboard", async () => {
+    const user = await openMenu(false);
+
+    await user.click(screen.getByRole("menuitem", { name: "Account dashboard" }));
+
+    expect(await screen.findByRole("heading", { name: "Account dashboard page" })).toBeVisible();
   });
 
   it("reaches connected leagues from the account menu on every screen size", async () => {

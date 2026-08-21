@@ -7,6 +7,8 @@ export const titleForPath = (path: string): string => {
   if (/\/leagues\/[^/]+\/commissioner$/u.test(path)) return "Commissioner | Sunday Games";
   if (/\/leagues\/[^/]+$/u.test(path)) return "League | Sunday Games";
   switch (path) {
+    case "/account": return "Account dashboard | Sunday Games";
+    case "/platform-admin/drafts": return "Draft operations | Sunday Games";
     case "/account-settings": return "Account settings | Sunday Games";
     case "/draft-room": return "Live draft | Sunday Games";
     case "/practice": return "Draft lab | Sunday Games";

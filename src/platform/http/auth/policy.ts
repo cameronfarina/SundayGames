@@ -6,7 +6,10 @@ import type { ParsedPlatformHttpRequest } from "../request/parsedRequest.js";
 import { headerValue, optionalString, stringValue } from "../request/values.js";
 import { knownError } from "../responses.js";
 
-const secretMatches = (expected: string | undefined, actual: string | undefined): boolean => {
+export const secretMatches = (
+  expected: string | undefined,
+  actual: string | undefined,
+): boolean => {
   if (expected === undefined || actual === undefined || expected.length === 0 || actual.length === 0) return false;
   const expectedBytes = Buffer.from(expected);
   const actualBytes = Buffer.from(actual);

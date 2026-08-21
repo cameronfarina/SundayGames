@@ -9,6 +9,8 @@ import { parsedRequestFor, secureSessionCookieFor } from "./request/parsedReques
 import { notFound } from "./responses.js";
 import { routeFantasyProsStatus } from "./routes/fantasyProsStatus.js";
 import { routeAccountOnboarding } from "./routes/accountOnboarding.js";
+import { routeAccountDashboard } from "./routes/accountDashboard.js";
+import { routePlatformDraftOperations } from "../platformDraftOperations.js";
 import { routeHistoricalImports } from "./routes/historicalImports.js";
 import { routeInvitations } from "./routes/invitations/index.js";
 import { routeJobs } from "./routes/jobs.js";
@@ -48,6 +50,12 @@ export const createPlatformHttpHandler = (
     }
     if (root === "account-onboarding" && parsedRequest.segments.length === 1) {
       return await routeAccountOnboarding(app, parsedRequest, services);
+    }
+    if (root === "account-dashboard") {
+      return await routeAccountDashboard(app, parsedRequest, services.accountDashboardRepository);
+    }
+    if (root === "platform-admin" && services.platformDraftOperations !== undefined) {
+      return await routePlatformDraftOperations(app, parsedRequest, services.platformDraftOperations);
     }
     if (root === "player-catalog" && parsedRequest.segments.length === 1) {
       return await routePlayerCatalog(app, parsedRequest, services);

@@ -114,7 +114,6 @@ export function CommissionerPage() {
         {activeSection === "live-draft" ? (
           <LiveRoomSection
             league={workspace.selectedLeague}
-            manageableLeagues={workspace.manageableLeagues}
             season={season}
           />
         ) : null}

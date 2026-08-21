@@ -1,5 +1,6 @@
 import type { AuthRepository } from "../auth.js";
 import type { AccountOnboardingRepository, PostgresAccountOnboardingRepository } from "../accountOnboarding.js";
+import type { AccountDashboardRepository } from "../accountDashboard.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
@@ -43,6 +44,7 @@ export interface LoadedPlatformStore {
 export interface RuntimeRepositories extends LoadedPlatformStore {
   authRepository: AuthRepository;
   accountOnboardingRepository: AccountOnboardingRepository;
+  accountDashboardRepository?: AccountDashboardRepository | undefined;
   leagueSetupRepository: LeagueSetupRepository;
   historicalImportRepository: HistoricalImportRepository;
   jobRepository: JobRepository;

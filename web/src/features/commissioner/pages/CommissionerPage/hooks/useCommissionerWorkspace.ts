@@ -41,5 +41,5 @@ export const useCommissionerWorkspace = (
   const keepers = useQuery(keeperOptions(seasonId, canLoad && loadOverview));
   const invitations = useQuery(invitationOptions(seasonId, canLoad && loadOverview));
 
-  return { onboarding, manageableLeagues, selectedLeague, season, keepers, invitations };
+  return { onboarding, selectedLeague, season, keepers, invitations };
 };

@@ -6,6 +6,7 @@ import type { NodePostgresClient } from "../postgresClient.js";
 import type { PlatformRuntimeConfig } from "../platformRuntimeConfig.js";
 import type { StartPlatformServerOptions } from "../platformServer.js";
 import type { PlatformStaticWebAssets } from "../platformStaticWebAssets.js";
+import { createPlatformDraftOperationsServices } from "../platformDraftOperations.js";
 import type { SimulationMockBatchRunner } from "../simulations.js";
 import { importEspnLeagueSettingsForRuntime } from "./espnImporter.js";
 import { localFixtureDraftSetupFor } from "./localFixtures.js";
@@ -23,55 +24,62 @@ export interface PlatformWebServerDependencies {
 export const platformWebServerOptions = (
   config: PlatformRuntimeConfig,
   dependencies: PlatformWebServerDependencies,
-): StartPlatformServerOptions => ({
-  ...(dependencies.staticWebAssets === undefined ? {} : {
-    appHtml: dependencies.staticWebAssets.indexHtml,
-    browserAssets: dependencies.staticWebAssets.files,
-  }),
-  host: config.host,
-  port: config.port,
-  dataFilePath: config.dataFilePath,
-  postgresClient: dependencies.postgresClient,
-  postgresAuthClient: dependencies.postgresClient,
-  postgresLeagueSetupClient: dependencies.postgresClient,
-  postgresHistoricalImportClient: dependencies.postgresClient,
-  postgresJobClient: dependencies.postgresClient,
-  postgresSimulationClient: dependencies.postgresClient,
-  postgresLiveDraftRoomClient: dependencies.postgresClient,
-  postgresExportArtifactClient: dependencies.postgresClient,
-  postgresSnapshotKey: config.postgresSnapshotKey,
-  practicePersistenceMode: config.practicePersistenceMode,
-  initializePostgresSchema: config.initializePostgresSchema,
-  draftToolsSessionDirectory: config.draftToolsSessionDirectory,
-  legacyMockBatchEnabled: config.legacyMockBatchEnabled,
-  allowPublicSignup: config.allowPublicSignup,
-  emailVerificationRequired: config.authEmail.mode === "resend",
-  ...(dependencies.authMailSender === undefined
-    ? {}
-    : { authMailSender: dependencies.authMailSender }),
-  ...(dependencies.signupNotifier === undefined
-    ? {}
-    : { signupNotifier: dependencies.signupNotifier }),
-  ...(config.authEmail.publicBaseUrl === undefined
-    ? {}
-    : { publicBaseUrl: config.authEmail.publicBaseUrl }),
-  trustProxy: config.trustProxy,
-  liveDraftRoomEventStreamMaxConnections: config.liveDraftRoomEventStreamMaxConnections,
-  provisioningToken: config.provisioningToken,
-  invitationTokenSecret: config.invitationTokenSecret,
-  leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,
-  screenshotImportBodyLimitBytes:
-    Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
-  currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
-  postDraftProjectionProvider: loadCurrentPostDraftProjectionSnapshot,
-  espnLeagueSettingsImporter: importEspnLeagueSettingsForRuntime,
-  ...(dependencies.screenshotAnalyzer === undefined
-    ? {}
-    : { leagueMembersScreenshotAnalyzer: dependencies.screenshotAnalyzer }),
-  ...(config.liveDraftDataMode === "local-fixtures"
-    ? { liveDraftRoomSetupProvider: localFixtureDraftSetupFor }
-    : {}),
-  fantasyProsConfigured: config.fantasyPros.apiKey !== undefined,
-  readinessProbe: createPlatformWebReadinessProbe(config, dependencies.postgresClient),
-  simulationRunner: dependencies.simulationRunner,
-});
+): StartPlatformServerOptions => {
+  const platformDraftOperations = createPlatformDraftOperationsServices(
+    config.platformDraftOperations,
+    dependencies.postgresClient,
+  );
+  return {
+    ...(dependencies.staticWebAssets === undefined ? {} : {
+      appHtml: dependencies.staticWebAssets.indexHtml,
+      browserAssets: dependencies.staticWebAssets.files,
+    }),
+    host: config.host,
+    port: config.port,
+    dataFilePath: config.dataFilePath,
+    postgresClient: dependencies.postgresClient,
+    postgresAuthClient: dependencies.postgresClient,
+    postgresLeagueSetupClient: dependencies.postgresClient,
+    postgresHistoricalImportClient: dependencies.postgresClient,
+    postgresJobClient: dependencies.postgresClient,
+    postgresSimulationClient: dependencies.postgresClient,
+    postgresLiveDraftRoomClient: dependencies.postgresClient,
+    postgresExportArtifactClient: dependencies.postgresClient,
+    ...(platformDraftOperations === undefined ? {} : { platformDraftOperations }),
+    postgresSnapshotKey: config.postgresSnapshotKey,
+    practicePersistenceMode: config.practicePersistenceMode,
+    initializePostgresSchema: config.initializePostgresSchema,
+    draftToolsSessionDirectory: config.draftToolsSessionDirectory,
+    legacyMockBatchEnabled: config.legacyMockBatchEnabled,
+    allowPublicSignup: config.allowPublicSignup,
+    emailVerificationRequired: config.authEmail.mode === "resend",
+    ...(dependencies.authMailSender === undefined
+      ? {}
+      : { authMailSender: dependencies.authMailSender }),
+    ...(dependencies.signupNotifier === undefined
+      ? {}
+      : { signupNotifier: dependencies.signupNotifier }),
+    ...(config.authEmail.publicBaseUrl === undefined
+      ? {}
+      : { publicBaseUrl: config.authEmail.publicBaseUrl }),
+    trustProxy: config.trustProxy,
+    liveDraftRoomEventStreamMaxConnections: config.liveDraftRoomEventStreamMaxConnections,
+    provisioningToken: config.provisioningToken,
+    invitationTokenSecret: config.invitationTokenSecret,
+    leagueConnectionCredentialCipher: config.leagueConnectionCredentialCipher,
+    screenshotImportBodyLimitBytes:
+      Math.ceil(config.screenshotImport.maxImageBytes * 4 / 3) + 65_536,
+    currentPlayerCatalogProvider: loadCurrentPlayerCatalog,
+    postDraftProjectionProvider: loadCurrentPostDraftProjectionSnapshot,
+    espnLeagueSettingsImporter: importEspnLeagueSettingsForRuntime,
+    ...(dependencies.screenshotAnalyzer === undefined
+      ? {}
+      : { leagueMembersScreenshotAnalyzer: dependencies.screenshotAnalyzer }),
+    ...(config.liveDraftDataMode === "local-fixtures"
+      ? { liveDraftRoomSetupProvider: localFixtureDraftSetupFor }
+      : {}),
+    fantasyProsConfigured: config.fantasyPros.apiKey !== undefined,
+    readinessProbe: createPlatformWebReadinessProbe(config, dependencies.postgresClient),
+    simulationRunner: dependencies.simulationRunner,
+  };
+};
