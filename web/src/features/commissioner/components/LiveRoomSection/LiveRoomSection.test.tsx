@@ -31,7 +31,7 @@ const renderSection = (fetcher: PlatformFetch, season = auctionSeason, league = 
 };
 
 describe("LiveRoomSection", () => {
-  afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
+  afterEach(() => { document.body.replaceChildren(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
   it("publishes setup, creates an auction room, enters it, and archives it", async () => {
     const requests: string[] = [];
     const respond: PlatformFetch = (input, init) => {
@@ -74,6 +74,7 @@ describe("LiveRoomSection", () => {
     expect(screen.getByRole("button", { name: "Archive room" })).toBeVisible();
   });
   it("sends an edited scheduled time when creating a room", async () => {
+    vi.stubEnv("TZ", "Europe/Rome");
     const scheduled = seasonSchema.parse({
       ...publishedSeason, draft: { scheduledAt: "2026-08-30T19:00:00.000Z" },
     });
@@ -85,12 +86,13 @@ describe("LiveRoomSection", () => {
     renderSection(vi.fn(respond), scheduled);
     const user = userEvent.setup();
     const input = screen.getByLabelText("Draft date and time");
-    expect(input).toHaveValue("2026-08-30T19:00");
+    expect(input).toHaveValue("2026-08-30T21:00");
+    expect(input).toHaveAccessibleDescription("Times use Europe/Rome. If clocks repeat an hour, new times use the first occurrence.");
     await user.clear(input);
     await user.type(input, "2026-09-01T20:30");
     await user.click(screen.getByRole("button", { name: "Create room" }));
     expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
-    expect(bodies[0]).toContain("startsAt");
+    expect(JSON.parse(bodies[0] ?? "{}")).toEqual({ startsAt: "2026-09-01T18:30:00.000Z" });
   });
   it("offers snake room setup and reports mutation errors", async () => {
     const errorFetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({
@@ -106,7 +108,6 @@ describe("LiveRoomSection", () => {
     expect(screen.getByRole("button", { name: "Publish reviewed league" })).toBeVisible();
     expect(screen.queryByText(/support auction drafts only/i)).not.toBeInTheDocument();
   });
-
   it("reports create and archive failures", async () => {
     const errorFetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({
       error: { code: "room_failed", message: "Room unavailable." },
@@ -125,7 +126,6 @@ describe("LiveRoomSection", () => {
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Room unavailable.");
   });
-
   it("shows progress for publish, create, and archive requests", async () => {
     const pending = new Promise<Response>(() => undefined);
     const fetcher: PlatformFetch = vi.fn(() => pending);

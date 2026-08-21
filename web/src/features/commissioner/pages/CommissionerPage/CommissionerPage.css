@@ -55,6 +55,7 @@
 .commissioner-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .commissioner-inline-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; margin-top: 16px; }
 .commissioner-inline-form > label { grid-column: 1 / -1; }
+.commissioner-time-zone { grid-column: 1 / -1; margin: 0; }
 .commissioner-inline-form > .button { align-self: end; }
 .commissioner-list { display: grid; gap: 1px; margin: 16px 0; }
 .commissioner-list > div { align-items: center; background: var(--color-surface); display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) auto auto; padding: 14px; }
