@@ -17,6 +17,7 @@ const account = {
 };
 const loginBody = {
   account,
+  onboarding: { intent: null, providers: null, stage: "intent" },
   session: {
     accountId: account.id,
     createdAt: account.createdAt,
@@ -61,7 +62,10 @@ describe("AuthForm", () => {
     });
     expect(navigation.state.location.search).toBe("?seasonId=season-1");
     expect(screen.getByText("cam@example.com")).toBeVisible();
-    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ account });
+    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({
+      account,
+      onboarding: loginBody.onboarding,
+    });
     expect(fetcher).toHaveBeenCalledExactlyOnceWith("/sessions", expect.objectContaining({
       method: "POST",
     }));
@@ -112,7 +116,10 @@ describe("AuthForm", () => {
       expect(navigation.state.location.pathname).toBe("/league");
     });
     expect(screen.getByText("cam@example.com")).toBeVisible();
-    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({ account });
+    expect(queryClient.getQueryData(sessionQueryKey())).toEqual({
+      account,
+      onboarding: loginBody.onboarding,
+    });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({
       email: "cam@example.com",

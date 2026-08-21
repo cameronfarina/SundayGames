@@ -1,4 +1,5 @@
 import { InMemoryAuthRepository } from "../../../auth.js";
+import { InMemoryAccountOnboardingRepository } from "../../../accountOnboarding.js";
 import { InMemoryExportArtifactRepository } from "../../../exportArtifacts.js";
 import { InMemoryFantasyProsRepository } from "../../../fantasyPros.js";
 import { InMemoryHistoricalImportRepository } from "../../../historicalImports.js";
@@ -19,6 +20,7 @@ import type { LeagueMemoryState } from "../leagueMemoryState.js";
 import { createLiveDraftRoomAuthorizer } from "./leagueQueries.js";
 
 export class InMemoryPlatformRepositories {
+  readonly accountOnboarding = new InMemoryAccountOnboardingRepository();
   readonly authRepository = new InMemoryAuthRepository();
   readonly exportArtifacts = new InMemoryExportArtifactRepository();
   readonly historicalImports = new InMemoryHistoricalImportRepository();

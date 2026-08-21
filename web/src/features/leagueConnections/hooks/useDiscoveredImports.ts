@@ -67,6 +67,9 @@ export const useDiscoveredImports = ({
         providerLeagueId: league.providerLeagueId,
         displayName: league.name,
         season: league.season,
+        ...(provider === "espn"
+          ? { credentialMode: credentials.espnS2 === undefined ? "public" : "private" }
+          : {}),
         ...credentials,
       });
       report(league, { status: "importing" });

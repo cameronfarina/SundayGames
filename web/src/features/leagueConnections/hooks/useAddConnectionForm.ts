@@ -20,8 +20,8 @@ const trimmedCredentials = (espnS2: string, swid: string): ConnectionCredentials
 export interface UseAddConnectionFormResult {
   readonly chosen: LeagueConnectionProviderInfo | undefined;
   readonly espnS2: string;
-  readonly findAccountLeagues: () => void;
   readonly findLeagues: () => void;
+  readonly findLeaguesWithCredentials: () => void;
   readonly handle: string;
   readonly importAll: () => void;
   readonly importLeague: (league: DiscoveredLeague) => void;
@@ -40,15 +40,16 @@ export const useAddConnectionForm = (
   providers: readonly LeagueConnectionProviderInfo[],
   mutations: ReturnType<typeof useLeagueConnectionMutations>,
   existingConnections: readonly LeagueConnection[] = [],
+  initialProvider?: LeagueConnectionProvider,
 ): UseAddConnectionFormResult => {
-  const [provider, setProvider] = useState<LeagueConnectionProvider | undefined>(undefined);
+  const [provider, setProvider] = useState<LeagueConnectionProvider | undefined>(initialProvider);
   const [handle, setHandle] = useState("");
   const [espnS2, setEspnS2] = useState("");
   const [swid, setSwid] = useState("");
   const [leagues, setLeagues] = useState<readonly DiscoveredLeague[]>([]);
+  const [importCredentials, setImportCredentials] = useState<ConnectionCredentials>({});
 
   const chosen = providers.find(candidate => candidate.provider === provider);
-  const credentials = trimmedCredentials(espnS2, swid);
   const clearInputs = (): void => {
     setHandle("");
     setEspnS2("");
@@ -57,7 +58,7 @@ export const useAddConnectionForm = (
 
   const imports = useDiscoveredImports({
     connections: existingConnections,
-    credentials,
+    credentials: importCredentials,
     leagues,
     mutations,
     onImported: clearInputs,
@@ -72,9 +73,10 @@ export const useAddConnectionForm = (
     mutations.importLeague.reset();
   };
 
-  const search = (searchHandle: string): void => {
+  const search = (searchHandle: string, credentials: ConnectionCredentials): void => {
     if (provider === undefined) return;
     clearResults();
+    setImportCredentials(credentials);
     mutations.discover.mutate({
       provider,
       handle: searchHandle,
@@ -86,15 +88,13 @@ export const useAddConnectionForm = (
   return {
     chosen,
     espnS2,
-    // An account-wide search names no league at all: the cookies are the whole
-    // question, so ESPN answers with every league the account plays in.
-    findAccountLeagues: () => {
-      if (credentials.espnS2 === undefined || credentials.swid === undefined) return;
-      search("");
-    },
     findLeagues: () => {
       if (handle.trim() === "") return;
-      search(handle.trim());
+      search(handle.trim(), {});
+    },
+    findLeaguesWithCredentials: () => {
+      if (handle.trim() === "") return;
+      search(handle.trim(), trimmedCredentials(espnS2, swid));
     },
     handle,
     importAll: imports.importAll,
@@ -106,6 +106,7 @@ export const useAddConnectionForm = (
     selectProvider: (next: LeagueConnectionProvider) => {
       setProvider(next);
       clearInputs();
+      setImportCredentials({});
       clearResults();
     },
     setEspnS2,

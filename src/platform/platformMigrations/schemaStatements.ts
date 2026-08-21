@@ -111,6 +111,15 @@ export const browserSimulationLifecycleMigrationStatements: readonly string[] = 
     .replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS"),
 ];
 
+export const accountOnboardingMigrationStatements: readonly string[] = [
+  migrationStatementStartingWith("CREATE TABLE account_onboarding_profiles")
+    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+  `INSERT INTO account_onboarding_profiles
+   (account_id, intent, providers_json, completed_at, created_at, updated_at)
+   SELECT id, NULL, NULL, now(), now(), now() FROM accounts
+   ON CONFLICT (account_id) DO NOTHING;`,
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),

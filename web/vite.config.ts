@@ -10,7 +10,7 @@ const defaultWebPort = 4319;
  * platform redirects it to /practice, which only happens once it is proxied.
  */
 export const apiRoots: readonly string[] = [
-  "accounts", "api", "email-verifications", "fantasypros-status", "healthz",
+  "account-onboarding", "accounts", "api", "email-verifications", "fantasypros-status", "healthz",
   "historical-imports", "invitations", "jobs", "league-connections",
   "league-imports", "leagues", "live-rooms", "mock-sessions", "onboarding",
   "password-resets", "player-catalog", "practice-shortlist", "pricing-snapshots",

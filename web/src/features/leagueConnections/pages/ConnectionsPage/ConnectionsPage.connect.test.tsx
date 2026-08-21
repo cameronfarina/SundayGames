@@ -40,7 +40,7 @@ describe("finding leagues to import", () => {
       .toHaveAttribute("href", "/leagues/sleeper-friends-league");
   });
 
-  it("asks ESPN for every league on the account from two cookies", async () => {
+  it("uses cookies only for the private ESPN league named by its link", async () => {
     const requests: unknown[] = [];
     connectionsServer.use(http.post("/league-connections/discover", async ({ request }) => {
       requests.push(await request.json());
@@ -50,17 +50,19 @@ describe("finding leagues to import", () => {
     renderConnectionsPage();
 
     await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    expect(screen.getByRole("heading", { name: "Find every league on your ESPN account" }))
-      .toBeVisible();
+    await user.type(
+      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
+      "https://fantasy.espn.com/football/league?leagueId=899513",
+    );
+    await user.click(screen.getByText("Experimental: connect a private ESPN league"));
     await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
     await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
-    await user.click(screen.getByRole("button", { name: "Find all my leagues" }));
+    await user.click(screen.getByRole("button", { name: "Find this private league" }));
 
     await waitFor(() => { expect(requests).toHaveLength(1); });
-    // No league is named: the cookies say who you are, and ESPN answers with all of them.
     expect(requests[0]).toEqual({
       provider: "espn",
-      handle: "",
+      handle: "https://fantasy.espn.com/football/league?leagueId=899513",
       season: "2026",
       espnS2: "s2-value",
       swid: "{GUID}",

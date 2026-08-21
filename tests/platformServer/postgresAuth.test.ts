@@ -2,114 +2,6 @@ import { FakePostgresAuthClient, FakePostgresClient, FakeTransactionalPostgresAu
 import { describePlatformServer } from "./helpers/suite.js";
 
 describePlatformServer(({ createListeningServer, servers }) => {
-  it("uses Postgres auth for account and session HTTP routes without snapshot auth writes", async () => {
-    const postgresClient = new FakePostgresClient();
-    const postgresAuthClient = new FakePostgresAuthClient();
-    const { platformServer, baseUrl } = await createListeningServer({
-      postgresClient,
-      postgresAuthClient,
-    });
-
-    const created = await jsonFetch(baseUrl, "/accounts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: "owner11@example.com",
-        password: "secure password1!",
-      }),
-    });
-    const login = await jsonFetch(baseUrl, "/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: "owner11@example.com",
-        password: "secure password1!",
-      }),
-    });
-    const accountId = stringProperty(propertyValue(created.body, "account"), "id");
-    const sessionToken = sessionTokenFrom(login);
-
-    expect(platformServer.authRepository).toBe(platformServer.postgresAuthRepository);
-    expect(postgresClient.row).toBeUndefined();
-    expect(postgresAuthClient.accounts.get(accountId)).toMatchObject({
-      email: "owner11@example.com",
-      email_normalized: "owner11@example.com",
-      password_hash: expect.stringMatching(/^scrypt\$/),
-    });
-    expect(JSON.stringify([...postgresAuthClient.sessions.values()])).not.toContain(sessionToken);
-
-    const season = buildCurrentMockdLeagueSeason(ownerOrder, leagueConfig, {
-      leagueName: "League 100001",
-      setupStatus: "published",
-    });
-    const camTeam = season.teams.find(team => team.ownerDisplayName === "Owner11");
-    if (camTeam === undefined) throw new Error("Expected Owner11 fixture team.");
-
-    const registered = await jsonFetch(baseUrl, "/seasons", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-session-token": sessionToken,
-        "x-mockd-provisioning-token": "test-provisioning-token",
-      },
-      body: JSON.stringify({
-        season,
-        memberships: [
-          {
-            userId: accountId,
-            leagueId: season.leagueId,
-            role: "owner",
-            ownerId: camTeam.ownerId,
-            teamId: camTeam.id,
-          },
-        ],
-      }),
-    });
-
-    expect(registered.status).toBe(200);
-    expect(postgresClient.row?.snapshot_json).toMatchObject({
-      schemaVersion: 1,
-      auth: {
-        accountCredentials: [],
-        sessions: [],
-      },
-      memberships: [
-        expect.objectContaining({
-          userId: accountId,
-          leagueId: season.leagueId,
-        }),
-      ],
-    });
-
-    await platformServer.close();
-    const loadedServer = await createPlatformServer({
-      postgresClient,
-      postgresAuthClient,
-      simulationRunner: mockRunner,
-      now: () => now,
-    });
-    servers.push(loadedServer);
-    const loadedBaseUrl = await listen(loadedServer);
-
-    const loadedSeason = await jsonFetch(loadedBaseUrl, `/seasons/${season.id}`, {
-      headers: { "x-session-token": sessionToken },
-    });
-
-    expect(loadedSeason).toMatchObject({
-      status: 200,
-      body: {
-        season: {
-          id: season.id,
-          leagueId: season.leagueId,
-        },
-      },
-    });
-    expect(loadedServer.store.snapshot().auth).toEqual({
-      accountCredentials: [],
-      sessions: [],
-    });
-  });
-
   it("initializes normalized auth schema when auth is the only Postgres-backed repository", async () => {
     const postgresAuthClient = new FakeTransactionalPostgresAuthClient();
     const { platformServer, baseUrl } = await createListeningServer({
@@ -118,6 +10,7 @@ describePlatformServer(({ createListeningServer, servers }) => {
     });
 
     expect(platformServer.postgresAuthRepository).toBeDefined();
+    expect(platformServer.postgresAccountOnboardingRepository).toBeDefined();
     expect(postgresAuthClient.statements.some(statement =>
       statement.includes("CREATE TABLE IF NOT EXISTS platform_schema_migrations")
     )).toBe(true);

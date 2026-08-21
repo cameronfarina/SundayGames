@@ -29,7 +29,7 @@ higher.
 
 Migrations run before the new instance starts, while the old instance still serves traffic. Keep migrations additive. A column drop or rename would break the old instance for the length of the swap window.
 
-The practice-persistence release reserves `platform-practice-persistence-v25`, and browser-simulation lifecycle cleanup uses `platform-browser-simulation-lifecycle-v26`. Verify the migration ledger order is v23, v24, v25, then v26. Do not renumber these migrations or deploy a migration list that skips one.
+The practice-persistence release reserves `platform-practice-persistence-v25`, browser-simulation lifecycle cleanup uses `platform-browser-simulation-lifecycle-v26`, and account onboarding uses `platform-account-onboarding-v27`. Verify the migration ledger order is v23, v24, v25, v26, then v27. Do not renumber these migrations or deploy a migration list that skips one.
 
 ## Validate The Blueprint
 
@@ -71,6 +71,8 @@ Do not add the public domain yet. Use the generated `onrender.com` hostname for 
 ## 2. Create A Staging League
 
 Create a commissioner account through the public signup flow, open the verification email, and sign in only after verification succeeds. Exercise **Forgot password** once and confirm the reset link is single-use. Then create a temporary staging league from the product. Do not run `platform:seed:e2e` against production.
+
+The new account must see the required welcome wizard on its first authenticated product page. Confirm that Escape, the backdrop, and a refresh cannot bypass the two questions. Submit the first answer, refresh, and confirm the wizard resumes at the league-host question. Finish setup and confirm it stays complete after another refresh. Sign in with an account created before migration v27 and confirm that the backfill exempts it from the wizard.
 
 After league creation, confirm the browser uses the public league slug, such as `/leagues/sunday-games/practice`. Internal season and room IDs must not appear in normal page URLs. Open one legacy ID-based link during staging and confirm the app replaces it with the matching slug URL without losing the selected page.
 
@@ -226,6 +228,8 @@ CROSS JOIN LATERAL jsonb_array_elements(
 Before cutover, rollback to v23 is safe because dual writes keep its compatibility view current. After cutover, do not change the environment back to dual-write: readiness will fail because the database gate is irreversible. Roll forward, or restore the pre-cutover database recovery point before rolling the application back.
 
 The v26 browser-simulation lifecycle migration follows v25 and is additive. It creates a partial status/creation-time index for the five-minute stale-launch reconciler. Each sweep uses a transaction advisory try-lock, so overlapping old and new web processes do not scan concurrently. Application rollback does not require a database restore.
+
+The v27 account-onboarding migration follows v26 and is additive. It creates `account_onboarding_profiles` in the authentication database and marks every account that already exists when the migration runs as complete. Accounts created afterward begin the required setup questions. The previous application ignores this table, so application rollback does not require a database restore; keep the table and roll forward when returning to the new release.
 
 Automatic deploys remain enabled with `checksPass`, so an update to `main` deploys after its linked GitHub checks pass. Enforce the draft-day freeze by holding merges and direct pushes to `main`. For a documented incident response, merge the approved fix and let the checks-gated deploy run; start a manual deploy only when that incident procedure explicitly requires it.
 

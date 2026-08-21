@@ -1,6 +1,7 @@
 export type {
   LeagueConnection,
   LeagueConnectionCredentials,
+  LeagueConnectionCredentialUpdate,
   LeagueConnectionRepository,
   LeagueConnectionStatus,
   LeagueSnapshot,

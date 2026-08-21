@@ -18,8 +18,24 @@ const jsonResponse = (body: unknown, status = 200): Response => new Response(
   { headers: { "content-type": "application/json" }, status },
 );
 
+const deferredResponse = () => {
+  let resolveResponse: ((response: Response) => void) | undefined;
+  const promise = new Promise<Response>(resolve => { resolveResponse = resolve; });
+  return {
+    promise,
+    resolve(response: Response) {
+      if (resolveResponse === undefined) throw new Error("Response resolver was not initialized.");
+      resolveResponse(response);
+    },
+  };
+};
+
 const renderCard = (overrides: Partial<AuthAccount> = {}) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(sessionQueryKey(), {
+    account,
+    onboarding: { intent: "practice", providers: null, stage: "providers" },
+  });
   render(
     <QueryClientProvider client={queryClient}>
       <ProfileCard account={{ ...account, ...overrides }} />
@@ -83,7 +99,10 @@ describe("ProfileCard", () => {
     expect(await screen.findByText("Display name saved.")).toBeVisible();
     await waitFor(() => {
       expect(queryClient.getQueryData(sessionQueryKey()))
-        .toMatchObject({ account: { displayName: "Cam Farina" } });
+        .toMatchObject({
+          account: { displayName: "Cam Farina" },
+          onboarding: { intent: "practice", stage: "providers" },
+        });
     });
   });
 
@@ -98,6 +117,20 @@ describe("ProfileCard", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Display name is too long.");
     expect(screen.getByLabelText("Display name")).toHaveValue("Cam Farina");
+  });
+
+  it("does not restore a session cache cleared while the save is pending", async () => {
+    const pending = deferredResponse();
+    vi.stubGlobal("fetch", vi.fn(() => pending.promise));
+    const { queryClient, user } = renderCard();
+
+    await user.type(screen.getByLabelText("Display name"), "Cam Farina");
+    await user.click(screen.getByRole("button", { name: "Save display name" }));
+    queryClient.removeQueries({ queryKey: sessionQueryKey() });
+    pending.resolve(jsonResponse({ account: { ...account, displayName: "Cam Farina" } }));
+
+    expect(await screen.findByText("Display name saved.")).toBeVisible();
+    expect(queryClient.getQueryData(sessionQueryKey())).toBeUndefined();
   });
 
   it("blocks a second save while one is in flight", async () => {

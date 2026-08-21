@@ -132,14 +132,3 @@
   min-height: 2.75rem;
   padding: 0.65rem 1rem;
 }
-
-.add-connection__single summary {
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-weight: 700;
-  padding: var(--space-2) 0;
-}
-
-.add-connection__single .add-connection__form {
-  padding-top: var(--space-3);
-}

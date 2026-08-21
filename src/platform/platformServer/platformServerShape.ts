@@ -24,6 +24,9 @@ export const createPlatformServerShape = (
   get app() { return input.runtimeHolder.current().app; },
   get store() { return input.runtimeHolder.current().store; },
   get authRepository() { return input.runtimeHolder.current().authRepository; },
+  get accountOnboardingRepository() {
+    return input.runtimeHolder.current().accountOnboardingRepository;
+  },
   get leagueSetupRepository() { return input.runtimeHolder.current().leagueSetupRepository; },
   get historicalImportRepository() {
     return input.runtimeHolder.current().historicalImportRepository;
@@ -64,6 +67,9 @@ export const createPlatformServerShape = (
   get postgresStore() { return input.runtimeHolder.current().postgresStore; },
   get postgresAuthRepository() {
     return input.runtimeHolder.current().postgresAuthRepository;
+  },
+  get postgresAccountOnboardingRepository() {
+    return input.runtimeHolder.current().postgresAccountOnboardingRepository;
   },
   get postgresLeagueSetupRepository() {
     return input.runtimeHolder.current().postgresLeagueSetupRepository;

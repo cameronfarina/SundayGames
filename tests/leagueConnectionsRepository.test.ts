@@ -75,13 +75,38 @@ describe("in-memory league connection repository", () => {
     const saved = await repository.saveConnection({
       ...saveInput,
       provider: "espn",
-      credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      credentialUpdate: {
+        mode: "replace",
+        credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      },
       now,
     });
     await repository.saveConnection({ ...saveInput, provider: "espn", now });
 
     expect(await repository.findCredentials(saved.id))
       .toEqual({ espnS2: "s2-value", swid: "{GUID}" });
+  });
+
+  it("clears saved credentials when a public reconnect requests it", async () => {
+    const repository = new InMemoryLeagueConnectionRepository();
+    const saved = await repository.saveConnection({
+      ...saveInput,
+      provider: "espn",
+      credentialUpdate: {
+        mode: "replace",
+        credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      },
+      now,
+    });
+
+    await repository.saveConnection({
+      ...saveInput,
+      provider: "espn",
+      credentialUpdate: { mode: "clear" },
+      now: new Date("2026-08-20T12:00:00.000Z"),
+    });
+
+    expect(await repository.findCredentials(saved.id)).toBeNull();
   });
 
   it("hides one account's connections from another", async () => {

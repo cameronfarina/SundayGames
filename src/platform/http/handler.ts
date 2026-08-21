@@ -8,6 +8,7 @@ import { errorResponseFor } from "./errors/errorResponse.js";
 import { parsedRequestFor, secureSessionCookieFor } from "./request/parsedRequest.js";
 import { notFound } from "./responses.js";
 import { routeFantasyProsStatus } from "./routes/fantasyProsStatus.js";
+import { routeAccountOnboarding } from "./routes/accountOnboarding.js";
 import { routeHistoricalImports } from "./routes/historicalImports.js";
 import { routeInvitations } from "./routes/invitations/index.js";
 import { routeJobs } from "./routes/jobs.js";
@@ -44,6 +45,9 @@ export const createPlatformHttpHandler = (
     }
     if (root === "onboarding") {
       return await routeOnboarding(app, parsedRequest, services.onboardingRepository);
+    }
+    if (root === "account-onboarding" && parsedRequest.segments.length === 1) {
+      return await routeAccountOnboarding(app, parsedRequest, services);
     }
     if (root === "player-catalog" && parsedRequest.segments.length === 1) {
       return await routePlayerCatalog(app, parsedRequest, services);

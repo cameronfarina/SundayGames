@@ -18,6 +18,7 @@ export const startPlatformServer = async (
     get app() { return platformServer.app; },
     get store() { return platformServer.store; },
     get authRepository() { return platformServer.authRepository; },
+    get accountOnboardingRepository() { return platformServer.accountOnboardingRepository; },
     get leagueSetupRepository() { return platformServer.leagueSetupRepository; },
     get historicalImportRepository() { return platformServer.historicalImportRepository; },
     get jobRepository() { return platformServer.jobRepository; },
@@ -38,6 +39,9 @@ export const startPlatformServer = async (
     get fileStore() { return platformServer.fileStore; },
     get postgresStore() { return platformServer.postgresStore; },
     get postgresAuthRepository() { return platformServer.postgresAuthRepository; },
+    get postgresAccountOnboardingRepository() {
+      return platformServer.postgresAccountOnboardingRepository;
+    },
     get postgresLeagueSetupRepository() { return platformServer.postgresLeagueSetupRepository; },
     get postgresHistoricalImportRepository() {
       return platformServer.postgresHistoricalImportRepository;

@@ -26,7 +26,7 @@ describe("HandleForm", () => {
     renderForm();
 
     expect(screen.getByRole("textbox", { name: "Sleeper username" })).toBeVisible();
-    expect(screen.getByText("Your Sleeper username, or a league ID if you know it.")).toBeVisible();
+    expect(screen.getByText("Enter your Sleeper username.")).toBeVisible();
     expect(screen.queryByRole("textbox", { name: "espn_s2 cookie" })).not.toBeInTheDocument();
   });
 

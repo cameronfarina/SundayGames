@@ -27,6 +27,15 @@ export const frontendTestExemptions: FrontendTestExemption[] = [
     "web/src/features/auth/routes/VerifyEmailRoute.tsx",
   ], "Covered by authentication API, form, and router integration tests."),
   ...coveredBy([
+    "web/src/features/accountOnboarding/api/accountOnboardingApi.ts",
+    "web/src/features/accountOnboarding/components/SignupWizard/ConnectionsStep.tsx",
+    "web/src/features/accountOnboarding/components/SignupWizard/IntentStep.tsx",
+    "web/src/features/accountOnboarding/components/SignupWizard/ProviderSetupCards.tsx",
+    "web/src/features/accountOnboarding/components/SignupWizard/ProvidersStep.tsx",
+    "web/src/features/accountOnboarding/hooks/useAccountOnboardingMutation.ts",
+    "web/src/shared/api/accountOnboarding/accountOnboardingSchema.ts",
+  ], "Covered by the mandatory signup wizard workflow and failure-path integration tests."),
+  ...coveredBy([
     "web/src/features/commissioner/api/commissionerApi.ts",
     "web/src/features/commissioner/api/importSchemas.ts",
     "web/src/features/commissioner/api/seasonSchemas.ts",
@@ -70,6 +79,9 @@ export const frontendTestExemptions: FrontendTestExemption[] = [
     "web/src/features/league/pages/LeaguePage/LeaguePage.tsx",
     "web/src/features/league/routes/leagueRoute.ts",
   ], "Covered by member, commissioner, and league-state integration tests."),
+  ...coveredBy([
+    "web/src/features/leagueConnections/components/ProviderConnectionSetup/ProviderConnectionSetup.tsx",
+  ], "Covered by the connections page and signup wizard integration tests."),
   ...coveredBy([
     "web/src/features/liveDraft/api/pickSchema.ts",
     "web/src/features/liveDraft/hooks/useLiveDraftRoom.ts",

@@ -1,7 +1,7 @@
 import { expect, type Browser } from "@playwright/test";
 import { ownerOrder } from "../../../config/league.js";
 import type { PlatformLeagueMembership } from "../../../src/platform/platformApp.js";
-import { expectAuthenticatedSession } from "../auth.js";
+import { completeRequiredAccountSetup, expectAuthenticatedSession } from "../auth.js";
 import {
   expectInvitationPage,
   expectTeamCanBeClaimed,
@@ -67,6 +67,7 @@ export const localFixtureWorkspace = async (browser: Browser): Promise<ReadySmok
     hoodyPage.getByRole("button", { name: "Create account" }).click(),
   ]);
   await expectAuthenticatedSession(hoodyPage, hoodyEmail);
+  await completeRequiredAccountSetup(hoodyPage);
   await expectInvitationPage(hoodyPage, leagueName, ownerOrder.length);
   const beforeHoodyClaim = expectOk(await api<OnboardingBody>(hoodyPage, "/onboarding"));
   expect(beforeHoodyClaim.leagues.some(league => league.seasonId === seedSeason.id)).toBe(false);

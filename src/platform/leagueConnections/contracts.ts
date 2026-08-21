@@ -32,13 +32,20 @@ export interface LeagueConnectionCredentials {
   swid?: string | undefined;
 }
 
+export type LeagueConnectionCredentialUpdate =
+  | { readonly mode: "clear" }
+  | {
+    readonly credentials: LeagueConnectionCredentials;
+    readonly mode: "replace";
+  };
+
 export interface SaveLeagueConnectionInput {
   accountId: string;
   provider: LeagueSyncProvider;
   providerLeagueId: string;
   season: string;
   displayName: string;
-  credentials?: LeagueConnectionCredentials | undefined;
+  credentialUpdate?: LeagueConnectionCredentialUpdate | undefined;
   now?: Date | undefined;
 }
 

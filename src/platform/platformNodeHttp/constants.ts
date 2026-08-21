@@ -32,7 +32,7 @@ export const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
 
 export const observableRouteRoots = new Set([
   ...[...appShellPaths].map(path => path.slice(1)),
-  "accounts", "email-verifications", "fantasypros-status", "healthz",
+  "account-onboarding", "accounts", "email-verifications", "fantasypros-status", "healthz",
   "historical-imports", "invitations", "jobs", "league-connections", "league-imports",
   "leagues", "live-rooms",
   "mock-sessions", "onboarding", "player-catalog", "password-resets",

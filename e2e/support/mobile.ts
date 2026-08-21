@@ -5,9 +5,12 @@ import type { AccountRecord } from "../../src/platform/auth.js";
 import { buildCurrentMockdLeagueSeason, type LeagueSeason } from "../../src/platform/leagueSeason.js";
 import type { LiveDraftRoomPlayerCatalogEntry } from "../../src/platform/liveDraftRooms.js";
 import {
+  completeRequiredAccountSetup,
   expectAuthenticatedAccount,
+  expectAuthenticatedSession,
   expectSignedOut,
   signOutThroughAccountMenu,
+  waitForSignupOutcome,
 } from "./auth.js";
 
 export const mobileViewport = { width: 390, height: 844 };
@@ -87,15 +90,20 @@ export const signUpAndLogIn = async (page: Page, email: string): Promise<Account
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expectAuthenticatedAccount(page, email).catch(async error => {
+  const signupOutcome = await waitForSignupOutcome(page);
+  if (signupOutcome === "authenticated") {
+    await expectAuthenticatedSession(page, email);
+    await completeRequiredAccountSetup(page);
+    await expectAuthenticatedAccount(page, email);
+  } else {
     const authError = (await page.getByRole("alert").textContent())?.trim() ?? "";
-    if (!authError.includes("already exists")) throw error;
+    expect(authError).toContain("already exists");
     await page.goto("/login");
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expectAuthenticatedAccount(page, email);
-  });
+  }
   await signOutThroughAccountMenu(page);
   await expectSignedOut(page);
   await page.getByLabel("Email", { exact: true }).fill(email);

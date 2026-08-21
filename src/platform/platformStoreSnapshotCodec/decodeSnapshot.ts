@@ -1,5 +1,6 @@
 import type { InMemoryPlatformStoreSnapshot } from "../platformApp.js";
 import { authValue } from "./decoding/auth.js";
+import { accountOnboardingValue } from "./decoding/accountOnboarding.js";
 import { historicalBatchValue, historicalSaleValue } from "./decoding/historical.js";
 import { jobValue } from "./decoding/jobs.js";
 import {
@@ -35,6 +36,13 @@ export const deserializePlatformStoreSnapshot = (
     auth: file.auth === undefined || file.auth === null
       ? empty.auth
       : authValue(file.auth, "auth"),
+    ...(file.accountOnboardingProfiles === undefined || file.accountOnboardingProfiles === null
+      ? {}
+      : { accountOnboardingProfiles: optionalArrayValue(
+          file.accountOnboardingProfiles,
+          "accountOnboardingProfiles",
+          accountOnboardingValue,
+        ) }),
     leagueSeasons: optionalArrayValue(file.leagueSeasons, "leagueSeasons", leagueSeasonValue),
     leagueCreationRecords: optionalArrayValue(file.leagueCreationRecords, "leagueCreationRecords", leagueCreationRecordValue),
     memberships: optionalArrayValue(file.memberships, "memberships", membershipValue),

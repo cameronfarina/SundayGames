@@ -54,6 +54,7 @@ export const createPlatformRuntimeFactory = (
       ? input.runInSnapshotCriticalSection
       : undefined;
   const platformHandler = createPlatformHttpHandler(app, {
+    accountOnboardingRepository: repositories.accountOnboardingRepository,
     invitationRepository: repositories.invitationRepository,
     leagueSetupRepository: repositories.leagueSetupRepository,
     onboardingRepository: repositories.onboardingRepository,

@@ -16,22 +16,26 @@ ON CONFLICT (account_id, provider, provider_league_id, season) DO UPDATE SET
   END,
   espn_s2 = CASE
     WHEN league_connections.updated_at > EXCLUDED.updated_at THEN league_connections.espn_s2
+    WHEN $10::text = 'clear' THEN NULL
     WHEN EXCLUDED.credentials_ciphertext IS NULL THEN league_connections.espn_s2
     ELSE NULL
   END,
   swid = CASE
     WHEN league_connections.updated_at > EXCLUDED.updated_at THEN league_connections.swid
+    WHEN $10::text = 'clear' THEN NULL
     WHEN EXCLUDED.credentials_ciphertext IS NULL THEN league_connections.swid
     ELSE NULL
   END,
   credentials_ciphertext = CASE
-    WHEN league_connections.updated_at <= EXCLUDED.updated_at
-      THEN COALESCE(EXCLUDED.credentials_ciphertext, league_connections.credentials_ciphertext)
-    ELSE league_connections.credentials_ciphertext
+    WHEN league_connections.updated_at > EXCLUDED.updated_at
+      THEN league_connections.credentials_ciphertext
+    WHEN $10::text = 'clear' THEN NULL
+    ELSE COALESCE(EXCLUDED.credentials_ciphertext, league_connections.credentials_ciphertext)
   END,
   credentials_key_id = CASE
     WHEN league_connections.updated_at > EXCLUDED.updated_at
       THEN league_connections.credentials_key_id
+    WHEN $10::text = 'clear' THEN NULL
     WHEN EXCLUDED.credentials_ciphertext IS NULL
       THEN league_connections.credentials_key_id
     ELSE EXCLUDED.credentials_key_id

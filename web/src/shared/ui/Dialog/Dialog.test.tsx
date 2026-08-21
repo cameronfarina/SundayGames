@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Dialog } from "./Dialog.js";
@@ -61,5 +62,44 @@ describe("Dialog", () => {
     expect(dialog).toHaveAccessibleDescription("Review league dialog");
     expect(screen.getByRole("button", { name: "Finish" })).toBeInTheDocument();
     unmount();
+  });
+
+  it("can block every dismissal path for required setup", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Dialog dismissible={false} onOpenChange={onOpenChange} open title="Required setup">
+        Answer both questions.
+        <DialogPrimitive.Close asChild>
+          <button type="button">Attempt close</button>
+        </DialogPrimitive.Close>
+      </Dialog>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Close dialog" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    fireEvent.pointerDown(screen.getByTestId("dialog-overlay"));
+    await userEvent.click(screen.getByRole("button", { name: "Attempt close" }));
+
+    expect(screen.getByRole("dialog", { name: "Required setup" })).toBeVisible();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("still reports a request to open required controlled content", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Dialog
+        dismissible={false}
+        onOpenChange={onOpenChange}
+        open={false}
+        title="Required setup"
+        trigger={<button type="button">Begin</button>}
+      >
+        Answer both questions.
+      </Dialog>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Begin" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 });

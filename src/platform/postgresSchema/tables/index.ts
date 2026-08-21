@@ -1,4 +1,5 @@
 import { auditTables } from "./auditTables.js";
+import { accountOnboardingTables } from "./accountOnboardingTables.js";
 import { authTables } from "./authTables.js";
 import { coachTables } from "./coachTables.js";
 import { draftCoreTables } from "./draftCoreTables.js";
@@ -19,6 +20,7 @@ import type { PostgresTableDefinition } from "../types.js";
 
 export const platformPostgresTables: readonly PostgresTableDefinition[] = [
   ...authTables,
+  ...accountOnboardingTables,
   ...leagueTables,
   ...playerTables,
   ...historyTables,

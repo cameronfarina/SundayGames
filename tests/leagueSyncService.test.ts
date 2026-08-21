@@ -368,7 +368,10 @@ describe("league connection sync", () => {
       providerLeagueId: "league-1",
       season: "2018",
       displayName: "Pending league",
-      credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      credentialUpdate: {
+        mode: "replace",
+        credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      },
       now,
     });
 

@@ -67,8 +67,9 @@ export class InMemoryLeagueConnectionRepository implements LeagueConnectionRepos
     };
     this.#connectionsById.set(connection.id, connection);
     this.#syncRevisions.recordSavedConnection(connection.id);
-    if (input.credentials !== undefined) {
-      this.#credentialsById.set(connection.id, clone(input.credentials));
+    if (input.credentialUpdate?.mode === "clear") this.#credentialsById.delete(connection.id);
+    if (input.credentialUpdate?.mode === "replace") {
+      this.#credentialsById.set(connection.id, clone(input.credentialUpdate.credentials));
     }
     return clone(connection);
   }

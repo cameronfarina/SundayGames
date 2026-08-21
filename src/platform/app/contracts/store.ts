@@ -1,4 +1,5 @@
 import type { AccountCredentialRecord, SessionRecord } from "../../auth.js";
+import type { AccountOnboardingRecord } from "../../accountOnboarding.js";
 import type { ExportArtifact, ExportArtifactContent } from "../../exportArtifacts.js";
 import type {
   HistoricalImportBatch,
@@ -26,6 +27,7 @@ export interface InMemoryPlatformStoreSnapshot {
     accountCredentials: readonly AccountCredentialRecord[];
     sessions: readonly SessionRecord[];
   };
+  accountOnboardingProfiles?: readonly AccountOnboardingRecord[];
   leagueSeasons: readonly LeagueSeason[];
   leagueCreationRecords?: readonly LeagueCreationRecord[];
   memberships: readonly PlatformLeagueMembership[];

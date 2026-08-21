@@ -10,6 +10,7 @@ const expectedTableOrder = [
   "account_auth_tokens",
   "sessions",
   "auth_rate_limit_windows",
+  "account_onboarding_profiles",
   "leagues",
   "league_memberships",
   "league_seasons",
@@ -164,6 +165,22 @@ const expectForeignKeyContract = (
 };
 
 describe("platform Postgres schema contract", () => {
+  it("stores durable signup answers without widening authentication records", () => {
+    expectColumn("account_onboarding_profiles", "intent", { type: "text", nullable: true });
+    expectColumn("account_onboarding_profiles", "providers_json", { type: "jsonb", nullable: true });
+    expectColumn("account_onboarding_profiles", "completed_at", {
+      type: "timestamptz",
+      nullable: true,
+    });
+    expectForeignKeyContract(
+      "account_onboarding_profiles",
+      "account_onboarding_profiles_account_id_fkey",
+      ["account_id"],
+      "accounts",
+      ["id"],
+    );
+  });
+
   it("covers the hosted platform production tables in migration order", () => {
     expect(platformPostgresSchema.tables.map(table => table.name)).toEqual(expectedTableOrder);
   });

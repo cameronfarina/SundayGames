@@ -5,7 +5,7 @@ import { Avatar } from "../../../../shared/ui/Avatar/Avatar";
 import { accountDisplayName } from "../../../../shared/ui/Avatar/accountIdentity";
 import { Button } from "../../../../shared/ui/Button/Button";
 import { TextField } from "../../../../shared/ui/TextField/TextField";
-import type { AuthAccount } from "../../../auth/api/authSchemas";
+import type { AuthAccount, AuthSession } from "../../../auth/api/authSchemas";
 import { sessionQueryKey } from "../../../auth/api/sessionQuery";
 import { authErrorMessage } from "../../../auth/model/authErrorMessage";
 import { updateDisplayName } from "../../api/accountApi";
@@ -22,7 +22,9 @@ export const ProfileCard = ({ account }: ProfileCardProps) => {
   const save = useMutation({
     mutationFn: async () => await updateDisplayName({ displayName }),
     onSuccess: updated => {
-      queryClient.setQueryData(sessionQueryKey(), { account: updated });
+      queryClient.setQueryData<AuthSession>(sessionQueryKey(), current => current === undefined
+        ? current
+        : { ...current, account: updated });
     },
   });
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {

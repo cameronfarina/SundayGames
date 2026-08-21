@@ -24,6 +24,14 @@ type AuthOutcome = { readonly kind: "authenticated" } | {
   readonly message: string;
 };
 
+const submitButtonLabel = (
+  mode: AuthFormProps["mode"],
+  pending: boolean,
+): string => {
+  if (mode === "login") return pending ? "Signing in..." : "Sign in";
+  return pending ? "Creating account..." : "Create account";
+};
+
 export const AuthForm = (props: AuthFormProps) => {
   const { mode } = props;
   const passwordRequired = mode === "login" || props.passwordRequired;
@@ -36,7 +44,11 @@ export const AuthForm = (props: AuthFormProps) => {
   const returnTo = safeReturnPath(searchParams.get("returnTo"));
   const loginAndCacheSession = async (): Promise<void> => {
     const authenticated = await login({ email, password });
-    await resetAccountQueryState(queryClient, { account: authenticated.account });
+    await resetAccountQueryState(queryClient, {
+      account: authenticated.account,
+      ...(authenticated.onboarding === undefined
+        ? {} : { onboarding: authenticated.onboarding }),
+    });
   };
 
   const authentication = useMutation({
@@ -117,9 +129,7 @@ export const AuthForm = (props: AuthFormProps) => {
         </p>
       )}
       <button className="auth-form__submit" disabled={authentication.isPending} type="submit">
-        {authentication.isPending
-          ? mode === "signup" ? "Creating account..." : "Signing in..."
-          : mode === "signup" ? "Create account" : "Sign in"}
+        {submitButtonLabel(mode, authentication.isPending)}
       </button>
     </form>
   );

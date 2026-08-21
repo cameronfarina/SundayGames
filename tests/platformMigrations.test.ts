@@ -223,6 +223,7 @@ describe("platform Postgres migrations", () => {
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
       "platform-browser-simulation-lifecycle-v26",
+      "platform-account-onboarding-v27",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -261,6 +262,7 @@ describe("platform Postgres migrations", () => {
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
       "platform-browser-simulation-lifecycle-v26",
+      "platform-account-onboarding-v27",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -297,10 +299,11 @@ describe("platform Postgres migrations", () => {
 
     const result = await applyPlatformPostgresMigrations(client);
 
-    expect(requiredPlatformPostgresMigrationIds.at(-3)).toBe("platform-live-draft-scale-v24");
-    expect(requiredPlatformPostgresMigrationIds.at(-2)).toBe("platform-practice-persistence-v25");
-    expect(requiredPlatformPostgresMigrationIds.at(-1))
+    expect(requiredPlatformPostgresMigrationIds.at(-4)).toBe("platform-live-draft-scale-v24");
+    expect(requiredPlatformPostgresMigrationIds.at(-3)).toBe("platform-practice-persistence-v25");
+    expect(requiredPlatformPostgresMigrationIds.at(-2))
       .toBe("platform-browser-simulation-lifecycle-v26");
+    expect(requiredPlatformPostgresMigrationIds.at(-1)).toBe("platform-account-onboarding-v27");
     expect(result.statementCount).toBeGreaterThan(0);
     expect(client.statements).toContain(
       "ALTER TABLE mock_sessions ADD COLUMN IF NOT EXISTS configuration_snapshot_json jsonb NOT NULL DEFAULT '{\"status\":\"migration-required\",\"schema\":\"mockd-season-mock-configuration\",\"reason\":\"missing-snapshot\"}'::jsonb;",
@@ -442,6 +445,7 @@ describe("platform Postgres migrations", () => {
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
       "platform-browser-simulation-lifecycle-v26",
+      "platform-account-onboarding-v27",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -469,11 +473,12 @@ describe("platform Postgres migrations", () => {
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
       "platform-browser-simulation-lifecycle-v26",
+      "platform-account-onboarding-v27",
     ]);
   });
 
   it("applies the import-through-browser-simulation migrations in reserved order", () => {
-    expect(requiredPlatformPostgresMigrationIds.slice(-8)).toEqual([
+    expect(requiredPlatformPostgresMigrationIds.slice(-9)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
@@ -482,7 +487,25 @@ describe("platform Postgres migrations", () => {
       "platform-live-draft-scale-v24",
       "platform-practice-persistence-v25",
       "platform-browser-simulation-lifecycle-v26",
+      "platform-account-onboarding-v27",
     ]);
+  });
+
+  it("backfills existing accounts as complete before gating new signups", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-account-onboarding-v27")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(result.statementCount).toBe(4);
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS account_onboarding_profiles"),
+    );
+    expect(client.statements).toContainEqual(
+      expect.stringContaining("SELECT id, NULL, NULL, now(), now(), now() FROM accounts"),
+    );
   });
 
   it("indexes terminal and stale requested simulation cleanup in v26", async () => {

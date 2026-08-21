@@ -135,6 +135,31 @@ describe("file-backed platform store", () => {
     expect(loaded.store.snapshot().auth).toEqual({ accountCredentials: [], sessions: [] });
   });
 
+  it("exempts accounts restored from a legacy auth sidecar", async () => {
+    const path = await storePath();
+    await writeFile(path, JSON.stringify({ schemaVersion: 1 }), "utf8");
+    await writeFile(`${path}.auth.json`, JSON.stringify({
+      schemaVersion: 1,
+      auth: {
+        accountCredentials: [{
+          account: {
+            id: "account-legacy",
+            email: "legacy@example.com",
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          },
+          passwordHash: "legacy-password-hash",
+        }],
+        sessions: [],
+      },
+    }), "utf8");
+
+    const loaded = await FilePlatformStore.load(path);
+
+    expect(loaded.store.accountOnboarding.findByAccountId("account-legacy"))
+      .toMatchObject({ completedAt: now });
+  });
+
   it("propagates filesystem errors other than missing files", async () => {
     const path = await storePath();
     await mkdir(path);

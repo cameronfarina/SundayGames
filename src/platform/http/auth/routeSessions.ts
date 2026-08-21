@@ -6,6 +6,14 @@ import { authRequiredBody, invalidCredentialsBody, methodNotAllowed } from "../r
 import { requireRequestAccount } from "./access.js";
 import { publicSessionFor } from "./publicSession.js";
 import { loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
+import { accountOnboardingSnapshot } from "../../accountOnboarding.js";
+
+const onboardingFor = async (
+  services: PlatformHttpServices,
+  accountId: string,
+) => services.accountOnboardingRepository === undefined
+  ? undefined
+  : await accountOnboardingSnapshot(services.accountOnboardingRepository, accountId);
 
 /** Null means the path belongs to another auth route, not that the request failed. */
 export const routeSessions = async (
@@ -25,10 +33,15 @@ export const routeSessions = async (
     const login = await app.login({ email, password: stringValue(request.body.password), now: request.now });
     if (login === null) return { status: 401, body: invalidCredentialsBody };
     await services.loginRateLimiter?.reset(loginRateLimitKey(request, email));
+    const onboarding = await onboardingFor(services, login.account.id);
     return {
       status: 200,
       headers: { "Set-Cookie": mockdSessionCookie(login.sessionToken, { expires: login.session.expiresAt, secure: secureSessionCookie }) },
-      body: { account: login.account, session: publicSessionFor(login.session) },
+      body: {
+        account: login.account,
+        session: publicSessionFor(login.session),
+        ...(onboarding === undefined ? {} : { onboarding }),
+      },
     };
   }
   if (root === "session" && action === "password" && request.segments.length === 2) {
@@ -68,7 +81,12 @@ export const routeSessions = async (
   if (root === "session" && request.segments.length === 1) {
     if (request.method === "GET") {
       const account = await app.findAccountBySessionToken(request.sessionToken, request.now);
-      return account === null ? { status: 401, body: authRequiredBody } : { status: 200, body: { account } };
+      if (account === null) return { status: 401, body: authRequiredBody };
+      const onboarding = await onboardingFor(services, account.id);
+      return {
+        status: 200,
+        body: { account, ...(onboarding === undefined ? {} : { onboarding }) },
+      };
     }
     if (request.method === "DELETE") {
       await app.logout({ actorSessionToken: request.sessionToken, now: request.now });

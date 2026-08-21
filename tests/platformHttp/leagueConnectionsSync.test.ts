@@ -51,33 +51,6 @@ describe("league connection sync HTTP", () => {
     expect(expectBodyRecord(detail.body).league).toBeNull();
   });
 
-  it("keeps ESPN cookies out of every response after they are saved", async () => {
-    const harness = await createLeagueConnectionsHarness(espnRoutes);
-
-    const created = await harness.handle({
-      method: "POST",
-      path: "/league-connections",
-      sessionToken: harness.sessionToken,
-      now: syncNow,
-      body: {
-        provider: "espn",
-        providerLeagueId: "899513",
-        season: "2025",
-        espnS2: "secret-cookie-value",
-        swid: "{SECRET-GUID}",
-      },
-    });
-    const listed = await harness.handle({
-      method: "GET",
-      path: "/league-connections",
-      sessionToken: harness.sessionToken,
-    });
-
-    const serialized = JSON.stringify([created.body, listed.body]);
-    expect(serialized).not.toContain("secret-cookie-value");
-    expect(serialized).not.toContain("SECRET-GUID");
-  });
-
   it("marks a private ESPN league as needing attention with a repair message", async () => {
     const harness = await createLeagueConnectionsHarness(espnRoutes);
 

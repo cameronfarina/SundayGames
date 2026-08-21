@@ -26,6 +26,10 @@ export class FakePostgresClient implements PostgresQueryClient {
       return { rows: this.row === undefined ? [] : [this.row] };
     }
 
+    if (text.includes("FROM account_onboarding_profiles")) {
+      return { rows: [] };
+    }
+
     if (text.startsWith("INSERT INTO platform_store_snapshots")) {
       if (this.nextInsertGate !== undefined) {
         const gate = this.nextInsertGate;

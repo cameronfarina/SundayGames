@@ -12,7 +12,7 @@ export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
     availability: "connectable",
     handleKind: "sleeper-username",
     handleLabel: "Sleeper username",
-    handleHint: "Your Sleeper username, or a league ID if you know it.",
+    handleHint: "Enter your Sleeper username.",
     detail: "Sleeper leagues connect with just a username. No password, no cookies.",
     supportsCookieCredentials: false,
     handleNamesOneLeague: false,
