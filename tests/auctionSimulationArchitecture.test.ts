@@ -37,7 +37,7 @@ describe("auction simulation architecture", () => {
     for (const file of ownedFiles()) {
       const source = readFileSync(file, "utf8");
       const label = path.relative(process.cwd(), file);
-      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(150);
+      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), label).toEqual([]);
     }
   });

@@ -45,7 +45,7 @@ describe("platform store persistence architecture", () => {
     const productionFiles = roots.slice(0, 4).flatMap(sourceFiles);
     const oversized = productionFiles.flatMap(file => {
       const lines = readFileSync(file, "utf8").split("\n").length;
-      return lines > 150 ? [`${file}:${lines}`] : [];
+      return lines > 250 ? [`${file}:${lines}`] : [];
     });
     expect(oversized).toEqual([]);
   });

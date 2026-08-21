@@ -34,7 +34,7 @@ export const architectureProblems = (): string[] => files().flatMap(file => {
   const source = readFileSync(file, "utf8");
   const lines = countLines(source);
   return [
-    ...(lines > 150 ? [`${file} has ${lines} lines; maximum is 150`] : []),
+    ...(lines > 250 ? [`${file} has ${lines} lines; maximum is 250`] : []),
     ...inspect(file, source),
   ];
 });

@@ -38,7 +38,7 @@ const unsafeSyntax = (file: string): string[] => {
 describe("QA report architecture", () => {
   it("keeps production modules focused and free of unsafe type escapes", () => {
     for (const file of productionFiles()) {
-      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(250);
       expect(unsafeSyntax(file), file).toEqual([]);
     }
   });

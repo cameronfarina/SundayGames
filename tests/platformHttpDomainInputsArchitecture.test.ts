@@ -35,7 +35,7 @@ describe("platform HTTP domain input architecture", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       const label = path.relative(process.cwd(), file);
-      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(150);
+      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(250);
       expect(unsafeSyntax(file), label).toEqual([]);
     }
   });

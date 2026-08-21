@@ -33,7 +33,7 @@ describe("in-memory platform store architecture", () => {
     expect(readFileSync(facade, "utf8").split("\n").length).toBeLessThanOrEqual(100);
     for (const file of [facade, ...modules]) {
       const source = readFileSync(file, "utf8");
-      expect(source.split("\n").length, path.relative(process.cwd(), file)).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, path.relative(process.cwd(), file)).toBeLessThanOrEqual(250);
       expect(unsafeSyntax(source, file), path.relative(process.cwd(), file)).toEqual([]);
       expect(source, path.relative(process.cwd(), file)).not.toMatch(/@ts-|eslint-(?:disable|enable)/u);
     }

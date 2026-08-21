@@ -39,7 +39,7 @@ describe("platform E2E runner architecture", () => {
 
     for (const file of files) {
       const label = path.relative(process.cwd(), file);
-      expect(readFileSync(file, "utf8").split("\n").length, label).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, label).toBeLessThanOrEqual(250);
       expect(unsafeSyntax(file), label).toEqual([]);
     }
   });

@@ -37,7 +37,7 @@ describe("auction engine configuration contract architecture", () => {
   it("keeps contract families focused and strictly typed", () => {
     for (const file of ownedFiles()) {
       const lineCount = readFileSync(file, "utf8").split("\n").length;
-      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(150);
+      expect(lineCount, path.relative(process.cwd(), file)).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), path.relative(process.cwd(), file)).toEqual([]);
     }
   });

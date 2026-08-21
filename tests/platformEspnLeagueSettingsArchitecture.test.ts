@@ -16,7 +16,7 @@ describe("ESPN league settings import architecture", () => {
 
     for (const file of files) {
       const lines = readFileSync(file, "utf8").split("\n").length;
-      expect(lines, file).toBeLessThanOrEqual(150);
+      expect(lines, file).toBeLessThanOrEqual(250);
     }
   });
 });

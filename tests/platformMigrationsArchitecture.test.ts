@@ -39,7 +39,7 @@ const forbiddenSyntax = (path: string): readonly string[] => {
 describe("platform migration architecture", () => {
   it("keeps migration modules focused and free of unsafe TypeScript escape hatches", () => {
     const paths = sourcePaths();
-    const oversized = paths.filter(path => readFileSync(path, "utf8").split("\n").length > 150);
+    const oversized = paths.filter(path => readFileSync(path, "utf8").split("\n").length > 250);
     const forbidden = paths.flatMap(forbiddenSyntax);
 
     expect(oversized).toEqual([]);

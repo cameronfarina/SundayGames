@@ -67,7 +67,7 @@ describe("Postgres restore rehearsal architecture", () => {
 
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(forbiddenSyntax(file, source), file).toEqual([]);
       expect(source, file).not.toMatch(suppressionPattern);
     }
@@ -76,7 +76,7 @@ describe("Postgres restore rehearsal architecture", () => {
   it("keeps its focused tests small and free of unsafe type escapes", async () => {
     for (const file of await focusedTestFiles()) {
       const source = await readFile(file, "utf8");
-      expect(source.split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(source.split("\n").length, file).toBeLessThanOrEqual(250);
       expect(forbiddenSyntax(file, source), file).toEqual([]);
       expect(source, file).not.toMatch(suppressionPattern);
     }

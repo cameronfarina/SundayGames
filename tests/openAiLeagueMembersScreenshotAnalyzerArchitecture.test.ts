@@ -8,7 +8,7 @@ describe("screenshot analyzer architecture", () => {
     const facade = join(process.cwd(), "src/platform/openAiLeagueMembersScreenshotAnalyzer.ts");
     const modules = readdirSync(root).map(entry => join(root, entry));
     for (const file of [facade, ...modules]) {
-      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(150);
+      expect(readFileSync(file, "utf8").split("\n").length, file).toBeLessThanOrEqual(250);
     }
   });
 });

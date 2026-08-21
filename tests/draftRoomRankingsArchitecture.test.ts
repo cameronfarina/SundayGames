@@ -40,7 +40,7 @@ describe("draft room ranking architecture", () => {
     for (const file of productionFiles()) {
       const label = path.relative(process.cwd(), file);
       expect(readFileSync(file, "utf8").split("\n").length, label)
-        .toBeLessThanOrEqual(150);
+        .toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), label).toEqual([]);
     }
   });

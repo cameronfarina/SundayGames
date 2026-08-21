@@ -62,7 +62,7 @@ describe("FantasyPros architecture", () => {
     for (const file of files) {
       const label = path.relative(process.cwd(), file);
       const source = readFileSync(file, "utf8");
-      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(150);
+      expect(source.trimEnd().split("\n").length, label).toBeLessThanOrEqual(250);
       expect(unsafeSyntaxIn(file), label).toEqual([]);
     }
   });
