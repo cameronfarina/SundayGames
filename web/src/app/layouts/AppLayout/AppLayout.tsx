@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { ExpiredSessionRecovery } from "../../../features/auth/components/ExpiredSessionRecovery/ExpiredSessionRecovery";
 import { ProductHeader } from "../../components/ProductHeader/ProductHeader";
 import { RouteEffects } from "../../router/RouteEffects/RouteEffects";
 import "./AppLayout.css";
@@ -6,6 +7,7 @@ import "./AppLayout.css";
 export function AppLayout() {
   return (
     <div className="app-layout">
+      <ExpiredSessionRecovery />
       <RouteEffects />
       <a className="app-layout__skip-link" href="#main-content">Skip to content</a>
       <ProductHeader />

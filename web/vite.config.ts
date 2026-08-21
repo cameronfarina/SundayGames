@@ -15,7 +15,7 @@ export const apiRoots: readonly string[] = [
   "league-imports", "leagues", "live-rooms", "mock-sessions", "onboarding",
   "password-resets", "player-catalog", "practice-shortlist", "pricing-snapshots",
   "readyz", "season-mock-drafts", "season-simulations", "seasons", "session",
-  "sessions", "simulations",
+  "session-state", "sessions", "simulations",
 ];
 
 export interface WebViteConfigOptions {

@@ -3,6 +3,8 @@ import { contractIssues } from "./contractIssues";
 import { PlatformApiError } from "./PlatformApiError";
 import { platformErrorSchema } from "./platformErrorSchema";
 
+export const authenticationRequiredEvent = "sunday-games:authentication-required";
+
 export type PlatformFetch = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -53,7 +55,13 @@ export const requestPlatformJson = async <Schema extends ZodType>(
     headers,
   });
   const body = await responseBody(response);
-  if (!response.ok) throw apiErrorFor(response.status, body);
+  if (!response.ok) {
+    const error = apiErrorFor(response.status, body);
+    if (error.status === 401 && error.code === "auth_required") {
+      window.dispatchEvent(new Event(authenticationRequiredEvent));
+    }
+    throw error;
+  }
 
   const parsed = options.responseSchema.safeParse(body);
   if (!parsed.success) {
