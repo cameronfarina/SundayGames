@@ -43,6 +43,13 @@ export const routeAccountOnboarding = async (
   const now = request.now ?? new Date();
   const action = stringValue(request.body.action);
   if (action === "set_intent") {
+    if (request.body.intentBoth === true) {
+      return knownError(
+        409,
+        "onboarding_update_required",
+        "Sunday Games is finishing an update. Try again.",
+      );
+    }
     const intent = intentValue(request.body.intent);
     if (intent === null) return knownError(400, "invalid_onboarding_intent", "Choose a setup goal.");
     await repository.setIntent({ accountId: account.id, intent, now });
