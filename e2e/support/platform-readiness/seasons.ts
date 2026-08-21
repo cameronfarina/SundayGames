@@ -18,17 +18,6 @@ export const teamByOwner = (
   return team;
 };
 
-export const setupRowsFor = (camEmail: string): string =>
-  [
-    "owner,team,email,role",
-    ...ownerOrder.map(owner => {
-      const email = owner === "Owner11" ? camEmail : "";
-      const role = owner === "Owner11" ? "admin" : "member";
-
-      return `${owner},${owner},${email},${role}`;
-    }),
-  ].join("\n");
-
 export const seedSeasonFromBrowser = async (
   page: Page,
   camAccount: AccountRecord,

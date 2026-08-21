@@ -28,10 +28,11 @@ export const useActiveLeague = () => {
     if (activeLeague === undefined || currentPage === undefined || leagueSlug !== undefined) return;
     const clean = cleanLeagueSearch(searchParams);
     void navigate({
+      hash: location.hash,
       pathname: leaguePath(activeLeague, currentPage),
       search: clean.toString(),
     }, { replace: true });
-  }, [activeLeague, currentPage, leagueSlug, navigate, searchParams]);
+  }, [activeLeague, currentPage, leagueSlug, location.hash, navigate, searchParams]);
 
   const setActiveLeague = (seasonId: string) => {
     const league = leagues.find(candidate => candidate.seasonId === seasonId);

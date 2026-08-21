@@ -16,14 +16,19 @@ const LocationOutput = () => {
   return <span data-testid="location">{location.pathname}{location.search}</span>;
 };
 
-const renderSection = (fetcher: PlatformFetch, season = auctionSeason, league = ownerLeague) => {
+const renderSection = (
+  fetcher: PlatformFetch,
+  season = auctionSeason,
+  league = ownerLeague,
+  manageableLeagues = [league],
+) => {
   vi.stubGlobal("fetch", fetcher);
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
   client.setQueryData(seasonQueryKeys.leagueSeason(season.id), { season });
   const view = render(<MemoryRouter initialEntries={["/league"]}>
     <QueryClientProvider client={client}>
-      <LiveRoomSection league={league} season={season} />
+      <LiveRoomSection league={league} manageableLeagues={manageableLeagues} season={season} />
     </QueryClientProvider>
     <LocationOutput />
   </MemoryRouter>);
@@ -32,30 +37,29 @@ const renderSection = (fetcher: PlatformFetch, season = auctionSeason, league = 
 
 describe("LiveRoomSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
-  it("publishes setup, creates an auction room, enters it, and archives it", async () => {
+  it("enters and archives an existing room without offering unsupported schedule editing", async () => {
     const requests: string[] = [];
     const respond: PlatformFetch = (input, init) => {
       requests.push(`${init?.method ?? "GET"} ${requestPath(input)}`);
       if (init?.method === "DELETE") return Promise.resolve(jsonResponse({ ok: true }));
-      if (requestPath(input).endsWith("/publish")) {
-        return Promise.resolve(jsonResponse({ season: publishedSeason }));
-      }
-      return Promise.resolve(jsonResponse({ room: { roomId: "room-1", status: "setup" } }));
+      return Promise.resolve(jsonResponse({ ok: true }));
     };
-    const { client } = renderSection(vi.fn(respond));
+    const liveLeague = onboardingLeagueSchema.parse({
+      ...ownerLeague,
+      liveDraft: { roomId: "room-1", status: "setup" },
+    });
+    const { client } = renderSection(vi.fn(respond), publishedSeason, liveLeague);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Publish reviewed league" }));
-    await user.click(await screen.findByRole("button", { name: "Create room" }));
-    expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
-    client.setQueryData(seasonQueryKeys.onboarding(), { leagues: [] });
-    expect(await screen.findByRole("link", { name: "Enter draft room" }))
+    expect(screen.queryByLabelText("Draft date and time")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit schedule/iu })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Enter draft room" }))
       .toHaveAttribute("href", "/leagues/sunday-games/draft");
     await user.click(screen.getByRole("link", { name: "Enter draft room" }));
     expect(screen.getByTestId("location"))
       .toHaveTextContent("/leagues/sunday-games/draft");
     await user.click(screen.getByRole("button", { name: "Archive room" }));
     await user.click(screen.getByRole("button", { name: "Confirm archive" }));
-    expect(await screen.findByRole("button", { name: "Create room" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Plan live draft" })).toBeVisible();
     expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
     expect(requests).toContain("DELETE /seasons/season-1/live-room");
   });
@@ -85,12 +89,15 @@ describe("LiveRoomSection", () => {
     };
     renderSection(vi.fn(respond), scheduled);
     const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Plan live draft" }));
+    await user.click(screen.getByRole("button", { name: "Continue to schedule" }));
     const input = screen.getByLabelText("Draft date and time");
     expect(input).toHaveValue("2026-08-30T21:00");
     expect(input).toHaveAccessibleDescription("Times use Europe/Rome. If clocks repeat an hour, new times use the first occurrence.");
     await user.clear(input);
     await user.type(input, "2026-09-01T20:30");
-    await user.click(screen.getByRole("button", { name: "Create room" }));
+    await user.click(screen.getByRole("button", { name: "Review draft room" }));
+    await user.click(screen.getByRole("button", { name: "Create live draft room" }));
     expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
     expect(JSON.parse(bodies[0] ?? "{}")).toEqual({ startsAt: "2026-09-01T18:30:00.000Z" });
   });
@@ -100,12 +107,14 @@ describe("LiveRoomSection", () => {
     }, 422)));
     const view = renderSection(errorFetcher);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Publish reviewed league" }));
+    await user.click(screen.getByRole("button", { name: "Plan live draft" }));
+    await user.click(screen.getByRole("button", { name: "Publish and continue" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Review setup first.");
-    view.rerender(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
-      <LiveRoomSection league={ownerLeague} season={snakeSeason} />
+    view.unmount();
+    render(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
+      <LiveRoomSection league={ownerLeague} manageableLeagues={[ownerLeague]} season={snakeSeason} />
     </QueryClientProvider></MemoryRouter>);
-    expect(screen.getByRole("button", { name: "Publish reviewed league" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Plan live draft" })).toBeVisible();
     expect(screen.queryByText(/support auction drafts only/i)).not.toBeInTheDocument();
   });
   it("reports create and archive failures", async () => {
@@ -114,7 +123,11 @@ describe("LiveRoomSection", () => {
     }, 422)));
     const view = renderSection(errorFetcher, publishedSeason);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Create room" }));
+    await user.click(screen.getByRole("button", { name: "Plan live draft" }));
+    await user.click(screen.getByRole("button", { name: "Continue to schedule" }));
+    await user.type(screen.getByLabelText("Draft date and time"), "2026-09-01T20:30");
+    await user.click(screen.getByRole("button", { name: "Review draft room" }));
+    await user.click(screen.getByRole("button", { name: "Create live draft room" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Room unavailable.");
     const liveLeague = onboardingLeagueSchema.parse({
       ...ownerLeague,
@@ -131,11 +144,19 @@ describe("LiveRoomSection", () => {
     const fetcher: PlatformFetch = vi.fn(() => pending);
     const user = userEvent.setup();
     const { unmount: unmountPublish } = renderSection(fetcher);
-    await user.click(screen.getByRole("button", { name: "Publish reviewed league" }));
+    await user.click(screen.getByRole("button", { name: "Plan live draft" }));
+    await user.click(screen.getByRole("button", { name: "Publish and continue" }));
     expect(screen.getByRole("status")).toHaveTextContent("Publishing league");
     unmountPublish();
-    const { unmount: unmountCreate } = renderSection(fetcher, publishedSeason);
-    await user.click(screen.getByRole("button", { name: "Create room" }));
+    const scheduled = seasonSchema.parse({
+      ...publishedSeason,
+      draft: { scheduledAt: "2026-08-30T19:00:00.000Z" },
+    });
+    const { unmount: unmountCreate } = renderSection(fetcher, scheduled);
+    await user.click(screen.getByRole("button", { name: "Plan live draft" }));
+    await user.click(screen.getByRole("button", { name: "Continue to schedule" }));
+    await user.click(screen.getByRole("button", { name: "Review draft room" }));
+    await user.click(screen.getByRole("button", { name: "Create live draft room" }));
     expect(screen.getByRole("status")).toHaveTextContent("Creating live room");
     unmountCreate();
     const liveLeague = onboardingLeagueSchema.parse({

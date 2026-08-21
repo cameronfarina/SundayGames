@@ -23,7 +23,7 @@ export function LeagueHeader({ league }: { readonly league: OnboardingLeague }) 
           <Link className="league-button league-button--primary" to={setupPath}>Finish setup</Link>
         ) : null}
         {league.canManageLeague && !needsSetup && draftPath === undefined ? (
-          <Link className="league-button" to={`${setupPath}#live-room`}>Create draft room</Link>
+          <Link className="league-button" to={`${setupPath}?section=live-draft`}>Create draft room</Link>
         ) : null}
         {draftPath === undefined ? null : (
           <Link className="league-button league-button--primary" to={draftPath}>Enter draft</Link>

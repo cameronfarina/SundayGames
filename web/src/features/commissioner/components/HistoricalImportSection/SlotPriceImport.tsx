@@ -25,17 +25,15 @@ export function SlotPriceImport({ season }: SlotPriceImportProps) {
 
   return (
     <details className="commissioner-paste">
-      <summary>Paste positional price history</summary>
+      <summary>Advanced price import</summary>
       <p className="commissioner-help">
-        Use this when you know what each positional rank typically costs but do not have complete
-        draft results. No owner or player names are required. Paste Position, Rank, Price rows such
-        as RB, 1, 75 and RB, 2, 72. Add a Season column or one price column per year to bring
-        several drafts at once.
+        If you do not have complete draft results, paste Position, Rank, Price rows. Add a Season
+        column or one price column per year to import several drafts. No owner or player names are
+        required.
       </p>
       <p className="commissioner-help">
-        SundayGames matches those prices to the published ESPN board by position rank. Kickers,
-        defenses, and any slot that sold for $1 or $2 are saved but do not change your league&apos;s
-        pricing.
+        SundayGames matches each row to the published ESPN board. Kickers, defenses, and slots
+        sold for $1 or $2 are saved but do not change pricing.
       </p>
       <p className="commissioner-help">Example: <code>Position,Rank,Price</code> then <code>RB,1,75</code></p>
       <label htmlFor="commissioner-slot-prices">Slot prices</label>

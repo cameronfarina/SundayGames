@@ -15,6 +15,7 @@ import {
   signUpAndLogIn,
 } from "./support/mobile.js";
 import { api, expectOk } from "./support/platform-readiness/api.js";
+import { createLiveRoomThroughWizard } from "./support/platform-readiness/setup.js";
 import type {
   LiveDraftRoomBody,
   OnboardingBody,
@@ -99,10 +100,8 @@ test("commissioner opens a snake room and the manager on the clock makes a pick"
     },
   }));
 
-  await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}#live-room`);
-  const createRoom = page.getByRole("button", { name: "Create room" });
-  await expect(createRoom).toBeEnabled();
-  await createRoom.click();
+  await page.goto(`/commissioner?seasonId=${encodeURIComponent(season.id)}`);
+  await createLiveRoomThroughWizard(page);
   const enterRoom = page.getByRole("link", { name: "Enter draft room" });
   await expect(enterRoom).toBeVisible();
   const onboarding = expectOk(await api<OnboardingBody>(page, "/onboarding"));

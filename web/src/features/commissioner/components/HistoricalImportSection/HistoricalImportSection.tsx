@@ -14,6 +14,7 @@ import { HistoricalFileRow } from "./HistoricalFileRow.js";
 import { InflationSetting } from "./InflationSetting.js";
 import { SlotPriceImport } from "./SlotPriceImport.js";
 import { useHistoricalImportRun } from "./useHistoricalImportRun.js";
+import "./HistoricalImportSection.css";
 
 interface HistoricalImportSectionProps { readonly season: CommissionerSeason }
 const storedImportOptions = (seasonId: string, enabled: boolean) => queryOptions({
@@ -56,20 +57,21 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
 
   return (
     <section className="commissioner-section" id="draft-history">
-      <header><h2>Historical pricing</h2><strong>{importedCount} imported</strong></header>
-      {unavailable ? <p>Historical snake draft imports are not available yet.</p> : <>
-        <p className="commissioner-help">Teach SundayGames how your league spends using past auction data.</p>
+      <header>
+        <h2>Historical pricing</h2>
+        <strong>{unavailable ? "Unavailable" : `${String(importedCount)} imported`}</strong>
+      </header>
+      {unavailable ? (
+        <p>Historical snake draft imports and manager personality modeling are not available yet.</p>
+      ) : <>
         <p className="commissioner-help">
-          Have complete draft results? Upload CSV, TSV, or XLSX files with Owner, Player, Position,
-          and Price. Add Public Value to say what the market asked for that player, or leave it out
-          and we read it from the published ESPN board. An ESPN-style sheet with a Team header row
-          and a price, position, and player column per team works as it is. Each file must use a
-          different draft year.
+          Upload complete auction draft results to model your league&apos;s prices and manager bidding
+          patterns. Use one CSV, TSV, or XLSX file per draft year with Owner, Player, Position, and
+          Price.
         </p>
         <p className="commissioner-help">
-          Only track what each positional rank costs? Use <strong>Paste positional price history</strong>
-          below. No owner or player names are required. Use Position, Rank, Price, for example
-          RB, 1, 75.
+          Add Public Value to compare a sale with published market prices. For ESPN-style team
+          sheets, use a Team header and Price, Position, and Player columns for each team.
         </p>
         <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
           variant="secondary" onClick={() => { fileInput.current?.click(); }}

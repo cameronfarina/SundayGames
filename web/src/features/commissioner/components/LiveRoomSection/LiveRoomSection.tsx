@@ -1,76 +1,85 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  invalidateLiveRoomConsumers,
-  invalidatePublishedSeasonConsumers,
-} from "../../../../shared/api/queries/seasonQueryInvalidation";
 import type { OnboardingLeague } from "../../../../shared/api/onboarding/onboardingSchema";
+import { invalidateLiveRoomConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { Button } from "../../../../shared/ui/index.js";
+import { leaguePath } from "../../../league/lib/leaguePaths";
 import { commissionerApi } from "../../api/commissionerApi";
 import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
-import { leaguePath } from "../../../league/lib/leaguePaths";
+import { browserTimeZone } from "./draftDateTime";
 import {
-  browserTimeZone,
-  dateTimeLocalToIsoInstant,
-  isoInstantToDateTimeLocal,
-} from "./draftDateTime";
+  formatDraftTime,
+  roomStatusLabel,
+  scheduledLeagues,
+} from "./liveRoomDisplay";
+import { type CreatedLiveRoom, LiveRoomWizard } from "./LiveRoomWizard";
 
 interface LiveRoomSectionProps {
   readonly league: OnboardingLeague;
+  readonly manageableLeagues: readonly OnboardingLeague[];
   readonly season: CommissionerSeason;
 }
 
-export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
+export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomSectionProps) {
   const queryClient = useQueryClient();
-  const [localStartsAt, setLocalStartsAt] = useState(
-    season.draft?.scheduledAt === undefined
-      ? ""
-      : isoInstantToDateTimeLocal(season.draft.scheduledAt),
-  );
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const publish = useMutation({
-    mutationFn: () => commissionerApi.publish(season.id),
-    onSuccess: async () => { await invalidatePublishedSeasonConsumers(queryClient, season.id); },
-  });
-  const create = useMutation({
-    mutationFn: () => commissionerApi.createRoom(
-      season.id,
-      localStartsAt === ""
-        ? undefined
-        : dateTimeLocalToIsoInstant(localStartsAt, season.draft?.scheduledAt),
-    ),
-    onSuccess: async () => { await invalidateLiveRoomConsumers(queryClient, season.id); },
-  });
+  const [createdRoom, setCreatedRoom] = useState<CreatedLiveRoom | null>(null);
+  const [published, setPublished] = useState(season.setupStatus !== "draft");
   const archive = useMutation({
     mutationFn: () => commissionerApi.archiveRoom(season.id),
     onSuccess: async () => {
       setConfirmArchive(false);
+      setCreatedRoom(null);
       await invalidateLiveRoomConsumers(queryClient, season.id);
     },
   });
-  const published = publish.data?.season.setupStatus === "published" || season.setupStatus !== "draft";
-  const activeRoom = archive.isSuccess ? null : create.data?.room ?? league.liveDraft;
+  const activeRoom = createdRoom ?? (archive.isSuccess ? null : league.liveDraft);
   const timeZone = browserTimeZone();
+  const selectedDraftAt = createdRoom?.startsAt ?? league.nextDraftAt ?? season.draft?.scheduledAt;
+  const upcomingDrafts = scheduledLeagues(manageableLeagues);
 
   return (
     <section className="commissioner-section" id="live-room">
       <header><h2>Live draft room</h2></header>
       <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
-      {!published ? <Button aria-busy={publish.isPending} onClick={() => { publish.mutate(); }} disabled={publish.isPending}>
-        {publish.isPending ? "Publishing league..." : "Publish reviewed league"}
-      </Button> : null}
-      {activeRoom === null ? <div className="commissioner-inline-form">
-        <label htmlFor="draft-starts-at">Draft date and time</label>
-        <p className="commissioner-help commissioner-time-zone" id="draft-starts-at-time-zone">
-          Times use {timeZone}. If clocks repeat an hour, new times use the first occurrence.
-        </p>
-        <input aria-describedby="draft-starts-at-time-zone" className="commissioner-date-input" id="draft-starts-at" type="datetime-local" value={localStartsAt} onChange={event => { setLocalStartsAt(event.target.value); }} />
-        <Button aria-busy={create.isPending} onClick={() => { create.mutate(); }} disabled={!published || create.isPending}>
-          {create.isPending ? "Creating room..." : "Create room"}
-        </Button>
-      </div> : <div className="commissioner-actions">
+      <div aria-label="Selected league draft details" className="commissioner-facts">
+        <div><span>Status</span><strong>{roomStatusLabel(activeRoom, published)}</strong></div>
+        <div>
+          <span>Draft time</span>
+          <strong>{selectedDraftAt === undefined
+            ? "Not scheduled"
+            : <time dateTime={selectedDraftAt}>
+              {formatDraftTime(selectedDraftAt, timeZone)}
+            </time>}</strong>
+        </div>
+        <div><span>Time zone</span><strong>{timeZone}</strong></div>
+      </div>
+      {upcomingDrafts.length > 0 ? <div>
+        <h3>Upcoming drafts</h3>
+        <p className="commissioner-help">Times use {timeZone}.</p>
+        <ol aria-label="Upcoming scheduled drafts">
+          {upcomingDrafts.map(candidate => <li key={candidate.seasonId}>
+            <Link to={`${leaguePath(candidate, "commissioner")}?section=live-draft`}>
+              {candidate.leagueName}
+            </Link>
+            {" · "}
+            <time dateTime={candidate.nextDraftAt}>
+              {formatDraftTime(candidate.nextDraftAt, timeZone)}
+            </time>
+          </li>)}
+        </ol>
+      </div> : null}
+      {activeRoom === null ? <LiveRoomWizard
+        initialStartsAt={season.draft?.scheduledAt}
+        leagueName={league.leagueName}
+        onPublished={() => { setPublished(true); }}
+        onRoomCreated={setCreatedRoom}
+        published={published}
+        season={season}
+        timeZone={timeZone}
+      /> : <div className="commissioner-actions">
         <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft room</Link>
         {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
           <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
@@ -79,11 +88,7 @@ export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
           <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep room</Button>
         </>}
       </div>}
-      {publish.isPending ? <p role="status">Publishing league...</p> : null}
-      {create.isPending ? <p role="status">Creating live room...</p> : null}
       {archive.isPending ? <p role="status">Archiving live room...</p> : null}
-      {publish.isError ? <p role="alert">{errorMessage(publish.error)}</p> : null}
-      {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
       {archive.isError ? <p role="alert">{errorMessage(archive.error)}</p> : null}
     </section>
   );

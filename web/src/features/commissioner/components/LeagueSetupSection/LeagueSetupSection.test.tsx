@@ -27,6 +27,20 @@ const renderSection = (fetcher: PlatformFetch, snake = false) => {
 describe("LeagueSetupSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
+  it("shows the auction league facts without setup status, roster size, or team-list paste", () => {
+    renderSection(vi.fn());
+
+    expect(screen.getByText("$200 auction")).toBeVisible();
+    expect(screen.getByText("0.5 PPR · 4 pt pass TD · 0.04 pt/pass yd")).toBeVisible();
+    expect(screen.getByLabelText("Number of teams value")).toHaveTextContent("1");
+    expect(screen.queryByText("draft")).not.toBeInTheDocument();
+    expect(screen.queryByText(/16 players/u)).not.toBeInTheDocument();
+    expect(screen.queryByText("Paste a full team list")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Manager 1")).toHaveValue("Owner11");
+    expect(screen.getByLabelText("Team name 1")).toHaveValue("Short King");
+    expect(screen.getByRole("button", { name: "+ Keeper" })).toBeVisible();
+  });
+
   it("disables apply until a manager or team name changes", async () => {
     renderSection(vi.fn());
     const apply = screen.getByRole("button", { name: "Apply changes" });

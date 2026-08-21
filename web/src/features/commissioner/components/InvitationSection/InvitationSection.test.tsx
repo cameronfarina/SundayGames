@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformFetch } from "../../../../shared/api/http/requestPlatformJson";
 import { invitationSchema } from "../../api/workspaceSchemas";
-import { jsonResponse } from "../../test/commissionerFixtures";
+import { auctionSeason, jsonResponse, requestPath } from "../../test/commissionerFixtures";
 import { InvitationSection } from "./InvitationSection";
 
 const pendingInvite = invitationSchema.parse({
@@ -12,10 +12,14 @@ const pendingInvite = invitationSchema.parse({
   expiresAt: "2026-09-01T00:00:00.000Z", acceptPath: "/invitations/invite-1",
 });
 
-const renderSection = (fetcher: PlatformFetch, invitations = [pendingInvite]) => {
+const renderSection = (
+  fetcher: PlatformFetch,
+  invitations = [pendingInvite],
+  setupStatus: "draft" | "published" = "published",
+) => {
   vi.stubGlobal("fetch", fetcher);
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-    <InvitationSection invitations={invitations} seasonId="season-1" />
+    <InvitationSection invitations={invitations} season={{ ...auctionSeason, setupStatus }} />
   </QueryClientProvider>);
 };
 
@@ -31,23 +35,26 @@ describe("InvitationSection", () => {
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))));
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    await user.click(screen.getByRole("button", { name: "Copy league invitation" }));
     expect(writeText).toHaveBeenCalledWith("http://localhost:3000/invitations/invite-1");
     expect(screen.getByText("League link copied.")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Create league link" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create league invitation" })).not.toBeInTheDocument();
   });
 
-  it("selects the link when clipboard access fails", async () => {
+  it("selects a manual-copy fallback when clipboard access fails", async () => {
     const writeText = vi.fn(() => Promise.reject(new Error("denied")));
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))));
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    await user.click(screen.getByRole("button", { name: "Copy link" }));
-    expect(await screen.findByText("Copy the selected link.")).toBeVisible();
-    expect(screen.getByLabelText("Shareable league link")).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Copy league invitation" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not copy the league invitation.");
+    expect(screen.getByRole("textbox", { name: "League invitation link" }))
+      .toHaveValue("http://localhost:3000/invitations/invite-1");
+    expect(screen.getByRole("textbox", { name: "League invitation link" })).toHaveFocus();
   });
 
-  it("creates a link and reports API errors when no pending league link exists", async () => {
+  it("reports API errors when a published league has no pending invitation", async () => {
     const acceptedTeam = invitationSchema.parse({
       ...pendingInvite, id: "team-invite", kind: "team", status: "accepted", acceptPath: undefined,
     });
@@ -57,21 +64,110 @@ describe("InvitationSection", () => {
     renderSection(errorFetcher, [acceptedTeam]);
     const user = userEvent.setup();
     expect(screen.queryByLabelText("Shareable league link")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Create league link" }));
+    await user.click(screen.getByRole("button", { name: "Create league invitation" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Only commissioners can invite.");
   });
 
-  it("shows the new link after creating one", async () => {
+  it("shows a copy action after creating an invitation", async () => {
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ invitation: pendingInvite }))), []);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Create league link" }));
-    expect(await screen.findByDisplayValue("http://localhost:3000/invitations/invite-1")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Create league invitation" }));
+    expect(await screen.findByRole("button", { name: "Copy league invitation" })).toBeVisible();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("shows progress while creating a group link", async () => {
-    const pending = new Promise<Response>(() => undefined);
-    renderSection(vi.fn(() => pending), []);
+  it("publishes a draft league before creating its invitation", async () => {
+    const paths: string[] = [];
+    const fetcher: PlatformFetch = vi.fn((input: Parameters<PlatformFetch>[0]) => {
+      const path = requestPath(input);
+      paths.push(path);
+      return Promise.resolve(path.endsWith("/publish")
+        ? jsonResponse({ season: { ...auctionSeason, setupStatus: "published" } })
+        : jsonResponse({ invitation: pendingInvite }));
+    });
+    renderSection(fetcher, [], "draft");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Create and publish league" }));
+
+    expect(await screen.findByRole("button", { name: "Copy league invitation" })).toBeVisible();
+    expect(paths).toEqual(["/seasons/season-1/publish", "/invitations"]);
+  });
+
+  it("publishes a draft league before exposing its existing invitation", async () => {
+    const paths: string[] = [];
+    const fetcher: PlatformFetch = vi.fn((input: Parameters<PlatformFetch>[0]) => {
+      const path = requestPath(input);
+      paths.push(path);
+      return Promise.resolve(jsonResponse({
+        season: { ...auctionSeason, setupStatus: "published" },
+      }));
+    });
+    renderSection(fetcher, [pendingInvite], "draft");
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Create league link" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Creating league link");
+
+    expect(screen.getByRole("button", { name: "Create and publish league" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Copy league invitation" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create and publish league" }));
+
+    expect(await screen.findByRole("button", { name: "Copy league invitation" })).toBeVisible();
+    expect(paths).toEqual(["/seasons/season-1/publish"]);
+  });
+
+  it("does not republish when invitation creation fails after publishing", async () => {
+    const paths: string[] = [];
+    const fetcher: PlatformFetch = vi.fn((input: Parameters<PlatformFetch>[0]) => {
+      const path = requestPath(input);
+      paths.push(path);
+      return Promise.resolve(path.endsWith("/publish")
+        ? jsonResponse({ season: { ...auctionSeason, setupStatus: "published" } })
+        : jsonResponse({
+          error: { code: "invitation_failed", message: "Try the invitation again." },
+        }, 500));
+    });
+    renderSection(fetcher, [], "draft");
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Create and publish league" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try the invitation again.");
+    await user.click(screen.getByRole("button", { name: "Create league invitation" }));
+
+    expect(paths).toEqual([
+      "/seasons/season-1/publish",
+      "/invitations",
+      "/invitations",
+    ]);
+  });
+
+  it("keeps the publish action available when publishing fails", async () => {
+    const fetcher: PlatformFetch = vi.fn(() => Promise.resolve(jsonResponse({
+      error: { code: "publish_failed", message: "Finish league setup before publishing." },
+    }, 409)));
+    renderSection(fetcher, [pendingInvite], "draft");
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Create and publish league" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Finish league setup before publishing.");
+    expect(screen.getByRole("button", { name: "Create and publish league" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Copy league invitation" })).not.toBeInTheDocument();
+  });
+
+  it("shows invitation progress when the league is already published", async () => {
+    const pending = new Promise<Response>(() => undefined);
+    renderSection(vi.fn(() => pending), [], "published");
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Create league invitation" }));
+
+    expect(screen.getByRole("button", { name: "Creating invitation..." })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Creating league invitation...");
+  });
+
+  it("shows progress while creating and publishing", async () => {
+    const pending = new Promise<Response>(() => undefined);
+    renderSection(vi.fn(() => pending), [], "draft");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Create and publish league" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Publishing league");
   });
 });

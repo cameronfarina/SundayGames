@@ -1,63 +1,119 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import { Button } from "../../../../shared/ui/index.js";
+import { Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { invalidatePublishedSeasonConsumers } from "../../../../shared/api/queries/seasonQueryInvalidation";
 import { seasonQueryKeys } from "../../../../shared/api/queries/seasonQueryKeys";
+import { Button } from "../../../../shared/ui/index.js";
 import { commissionerApi } from "../../api/commissionerApi";
+import type { CommissionerSeason } from "../../api/seasonSchemas";
 import type { CommissionerInvitation } from "../../api/workspaceSchemas";
 import { errorMessage } from "../../model/errorMessage";
 
 interface InvitationSectionProps {
   readonly invitations: readonly CommissionerInvitation[];
-  readonly seasonId: string;
+  readonly season: CommissionerSeason;
 }
+
+type CopyStatus = "idle" | "copied" | "failed";
+
+const copyStatusMessage = (status: CopyStatus): string => {
+  switch (status) {
+    case "copied": return "League link copied.";
+    case "failed": return "Could not copy the league invitation.";
+    case "idle": return "";
+  }
+};
 
 const inviteUrl = (invitation: CommissionerInvitation | undefined): string => {
   if (invitation?.acceptPath === undefined) return "";
   return new URL(invitation.acceptPath, window.location.origin).toString();
 };
 
-export function InvitationSection({ invitations, seasonId }: InvitationSectionProps) {
+export function InvitationSection({ invitations, season }: InvitationSectionProps) {
   const queryClient = useQueryClient();
-  const input = useRef<HTMLInputElement>(null);
-  const [copyMessage, setCopyMessage] = useState("");
-  const active = invitations.find(invitation => invitation.kind === "league" && invitation.status === "pending");
-  const create = useMutation({
-    mutationFn: () => commissionerApi.createInvitation(seasonId),
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  const fallbackInput = useRef<HTMLInputElement>(null);
+  const [publishedHere, setPublishedHere] = useState(false);
+  const active = invitations.find(invitation => (
+    invitation.kind === "league" && invitation.status === "pending"
+  ));
+  const published = publishedHere || season.setupStatus !== "draft";
+  const createAccess = useMutation({
+    mutationFn: async () => {
+      if (!published) {
+        await commissionerApi.publish(season.id);
+        setPublishedHere(true);
+        await invalidatePublishedSeasonConsumers(queryClient, season.id);
+      }
+      return active ?? (await commissionerApi.createInvitation(season.id)).invitation;
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: seasonQueryKeys.commissionerInvitations(seasonId) });
+      await queryClient.invalidateQueries({
+        queryKey: seasonQueryKeys.commissionerInvitations(season.id),
+      });
     },
   });
-  const current = create.data?.invitation ?? active;
+  const current = published ? (createAccess.data ?? active) : undefined;
   const url = inviteUrl(current);
+  const copyFailed = copyStatus === "failed";
+  const copyMessage = copyStatusMessage(copyStatus);
+  useEffect(() => {
+    if (!copyFailed) return;
+    fallbackInput.current?.focus();
+    fallbackInput.current?.select();
+  }, [copyFailed]);
   const copy = async () => {
-    await navigator.clipboard.writeText(url);
-    setCopyMessage("League link copied.");
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
   };
-  const selectLink = () => {
-    input.current?.focus();
-    input.current?.select();
-    setCopyMessage("Copy the selected link.");
-  };
+  const actionLabel = published ? "Create league invitation" : "Create and publish league";
 
   return (
-    <section className="commissioner-section" id="league-invite">
-      <header><h2>League invitation</h2><strong>{url ? "Active" : "Not created"}</strong></header>
-      <p className="commissioner-help">Share one link with the group. Each manager signs in and claims an available team.</p>
-      {url ? <div className="commissioner-copy-row">
-        <label htmlFor="league-invite-url">Shareable league link</label>
-        <input className="commissioner-copy-input" id="league-invite-url" ref={input} readOnly value={url} />
-        <Button variant="secondary" onClick={() => { copy().catch(selectLink); }}>Copy link</Button>
-      </div> : null}
-      {url ? null : <Button
-        aria-busy={create.isPending}
-        disabled={create.isPending}
-        onClick={() => { create.mutate(); }}
-      >
-        {create.isPending ? "Creating link..." : "Create league link"}
-      </Button>}
-      {create.isPending ? <p role="status">Creating league link...</p> : null}
-      {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
-      {copyMessage ? <p role="status">{copyMessage}</p> : null}
-    </section>
+    <div className="commissioner-invitation">
+      <span>{url ? "League invitation" : "League access"}</span>
+      {url ? (
+        <Button
+          aria-label="Copy league invitation"
+          className="commissioner-invitation__copy"
+          onClick={() => { void copy(); }}
+          variant="secondary"
+        >
+          <Copy aria-hidden="true" size={18} />
+        </Button>
+      ) : (
+        <Button
+          aria-busy={createAccess.isPending}
+          disabled={createAccess.isPending}
+          onClick={() => { createAccess.mutate(); }}
+        >
+          {createAccess.isPending
+            ? (published ? "Creating invitation..." : "Publishing league...")
+            : actionLabel}
+        </Button>
+      )}
+      {createAccess.isPending ? (
+        <p role="status">{published ? "Creating league invitation..." : "Publishing league..."}</p>
+      ) : null}
+      {createAccess.isError ? <p role="alert">{errorMessage(createAccess.error)}</p> : null}
+      {copyFailed ? (
+        <label>
+          League invitation link
+          <input
+            aria-label="League invitation link"
+            className="commissioner-copy-input"
+            readOnly
+            ref={fallbackInput}
+            value={url}
+          />
+        </label>
+      ) : null}
+      {copyMessage ? (
+        <p role={copyFailed ? "alert" : "status"}>{copyMessage}</p>
+      ) : null}
+    </div>
   );
 }

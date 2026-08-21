@@ -24,7 +24,8 @@ const invitationOptions = (seasonId: string, enabled: boolean) => queryOptions({
 
 export const useCommissionerWorkspace = (
   requestedSeasonId: string | null,
-  requestedLeagueSlug?: string,
+  requestedLeagueSlug: string | undefined,
+  loadOverview: boolean,
 ) => {
   const onboarding = useOnboardingQuery();
   const manageableLeagues = onboarding.data?.leagues.filter(league => league.canManageLeague) ?? [];
@@ -37,8 +38,8 @@ export const useCommissionerWorkspace = (
   const seasonId = selectedLeague?.seasonId ?? "";
   const canLoad = selectedLeague?.canManageLeague === true;
   const season = useQuery(seasonOptions(seasonId, canLoad));
-  const keepers = useQuery(keeperOptions(seasonId, canLoad));
-  const invitations = useQuery(invitationOptions(seasonId, canLoad));
+  const keepers = useQuery(keeperOptions(seasonId, canLoad && loadOverview));
+  const invitations = useQuery(invitationOptions(seasonId, canLoad && loadOverview));
 
-  return { onboarding, selectedLeague, season, keepers, invitations };
+  return { onboarding, manageableLeagues, selectedLeague, season, keepers, invitations };
 };

@@ -49,7 +49,7 @@ const memberLeague: Onboarding["leagues"][number] = {
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.search}</output>;
+  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>;
 };
 
 const ActiveLeagueProbe = () => {
@@ -210,6 +210,17 @@ describe("ProductHeader", () => {
 
     expect(await screen.findByTestId("location")).toHaveTextContent(
       "/leagues/sunday-games/player-news?source=rotowire",
+    );
+  });
+
+  it("preserves a legacy commissioner section while replacing its private identifier", async () => {
+    renderHeader(
+      [commissionerLeague],
+      "/commissioner?seasonId=season-2026#live-room",
+    );
+
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/leagues/sunday-games/commissioner#live-room",
     );
   });
 

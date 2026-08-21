@@ -56,7 +56,7 @@ describe("LeaguePage commissioner actions", () => {
 
     expect(await screen.findByRole("link", { name: "Create draft room" })).toHaveAttribute(
       "href",
-      "/leagues/sunday-games/commissioner#live-room",
+      "/leagues/sunday-games/commissioner?section=live-draft",
     );
     expect(screen.getByRole("link", { name: "Manage keepers" })).toHaveAttribute(
       "href",

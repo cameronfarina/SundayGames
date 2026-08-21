@@ -1,0 +1,120 @@
+.commissioner-teams { border: 0; margin: 24px 0 0; padding: 0; }
+.commissioner-teams legend {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin-bottom: 10px;
+  padding: 0;
+  text-transform: uppercase;
+}
+.commissioner-teams__list, .commissioner-assignments {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.commissioner-teams__row {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) minmax(240px, 1.1fr);
+}
+.commissioner-teams__pick {
+  color: var(--color-text-muted);
+  padding-top: 12px;
+  text-align: right;
+}
+.commissioner-teams__row input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.commissioner-teams__row input.commissioner-teams__pick-input {
+  min-height: 36px;
+  padding: 6px 4px;
+  text-align: center;
+}
+.team-keepers {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 44px;
+}
+.team-keepers__chip {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: var(--font-size-sm);
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+}
+.team-keepers__chip button {
+  background: none;
+  border: 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1;
+  min-height: 28px;
+  min-width: 28px;
+}
+.team-keepers__chip button:hover:not(:disabled) { color: var(--color-danger); }
+.team-keepers__add {
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  min-height: 36px;
+  padding: 0 12px;
+}
+.team-keepers__entry { align-items: center; display: flex; gap: 6px; }
+.team-keepers__entry input { min-height: 36px; width: 9rem; }
+.team-keepers__entry button {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 750;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.team-keepers__error {
+  color: var(--color-danger);
+  flex-basis: 100%;
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+.commissioner-assignments { margin-top: 12px; }
+.commissioner-assignments__item {
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  padding: 4px 0 4px 10px;
+}
+.commissioner-assignments__item--renamed {
+  border-left-color: var(--color-accent);
+  color: var(--color-text);
+}
+.commissioner-assignments__item--new {
+  border-left-color: var(--color-danger);
+  color: var(--color-text);
+}
+@media (max-width: 900px) {
+  .commissioner-teams__row {
+    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .team-keepers { grid-column: 2 / -1; }
+}
+@media (max-width: 640px) {
+  .commissioner-teams__row { grid-template-columns: 28px minmax(0, 1fr); }
+  .commissioner-teams__row > input:not(.commissioner-teams__pick-input),
+  .team-keepers { grid-column: 2 / -1; }
+}
