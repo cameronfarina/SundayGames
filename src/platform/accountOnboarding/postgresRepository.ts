@@ -11,13 +11,15 @@ import type {
 interface AccountOnboardingRow {
   account_id: string;
   intent: unknown;
+  intent_both: unknown;
   providers_json: unknown;
   completed_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
 
-const selectedColumns = `account_id, intent, providers_json, completed_at, created_at, updated_at`;
+const selectedColumns =
+  `account_id, intent, intent_both, providers_json, completed_at, created_at, updated_at`;
 const isIntent = (value: unknown): value is AccountOnboardingIntent =>
   value === "practice" || value === "live_draft";
 const isProvider = (value: unknown): value is AccountOnboardingProvider =>
@@ -33,6 +35,9 @@ const date = (value: Date | string): Date => {
 const rowRecord = (row: AccountOnboardingRow): AccountOnboardingRecord => {
   if (row.intent !== null && !isIntent(row.intent)) {
     throw new Error("Invalid account onboarding intent.");
+  }
+  if (typeof row.intent_both !== "boolean" || (row.intent === null && row.intent_both)) {
+    throw new Error("Invalid account onboarding combined intent.");
   }
   const providerValues = row.providers_json;
   if (providerValues !== null && !Array.isArray(providerValues)) {
@@ -71,13 +76,16 @@ export class PostgresAccountOnboardingRepository implements AccountOnboardingRep
 
   async setIntent(input: SetAccountOnboardingIntentInput): Promise<AccountOnboardingRecord> {
     const saved = firstRecord(await this.client.query<AccountOnboardingRow>(
-      `INSERT INTO account_onboarding_profiles (account_id, intent, created_at, updated_at)
-       VALUES ($1, $2, $3, $3)
+      `INSERT INTO account_onboarding_profiles
+         (account_id, intent, intent_both, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $4)
        ON CONFLICT (account_id) DO UPDATE
-       SET intent = EXCLUDED.intent, updated_at = EXCLUDED.updated_at
+       SET intent = EXCLUDED.intent,
+           intent_both = EXCLUDED.intent_both,
+           updated_at = EXCLUDED.updated_at
        WHERE account_onboarding_profiles.completed_at IS NULL
        RETURNING ${selectedColumns}`,
-      [input.accountId, input.intent, input.now],
+      [input.accountId, input.intent, false, input.now],
     ));
     if (saved !== null) return saved;
     const completed = await this.findByAccountId(input.accountId);

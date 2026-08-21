@@ -2,6 +2,7 @@ import type { PlatformSchemaMigration } from "./contracts.js";
 import { corePlatformSchemaMigrations } from "./coreDefinitions.js";
 import {
   accountOnboardingMigrationId,
+  accountOnboardingIntentBothMigrationId,
   accountOnboardingRolloutMigrationId,
   authRateLimitsMigrationId,
   browserSimulationLifecycleMigrationId,
@@ -15,6 +16,7 @@ import { ownershipPlatformSchemaMigrations } from "./ownershipDefinitions.js";
 import { practicePersistenceMigrationStatements } from "./practicePersistenceStatements.js";
 import {
   accountOnboardingMigrationStatements,
+  accountOnboardingIntentBothMigrationStatements,
   accountOnboardingRolloutMigrationStatements,
   authRateLimitMigrationStatements,
   browserSimulationLifecycleMigrationStatements,
@@ -63,6 +65,10 @@ export const platformSchemaMigrations: readonly PlatformSchemaMigration[] = [
   {
     id: accountOnboardingRolloutMigrationId,
     statements: accountOnboardingRolloutMigrationStatements,
+  },
+  {
+    id: accountOnboardingIntentBothMigrationId,
+    statements: accountOnboardingIntentBothMigrationStatements,
   },
 ];
 

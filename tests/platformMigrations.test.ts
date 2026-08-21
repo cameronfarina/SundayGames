@@ -225,6 +225,7 @@ describe("platform Postgres migrations", () => {
       "platform-browser-simulation-lifecycle-v26",
       "platform-account-onboarding-v27",
       "platform-account-onboarding-rollout-v28",
+      "platform-account-onboarding-intent-both-v29",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -265,6 +266,7 @@ describe("platform Postgres migrations", () => {
       "platform-browser-simulation-lifecycle-v26",
       "platform-account-onboarding-v27",
       "platform-account-onboarding-rollout-v28",
+      "platform-account-onboarding-intent-both-v29",
     ].forEach(migrationId => client.appliedMigrationIds.add(migrationId));
 
     await expect(applyPlatformPostgresMigrations(client)).resolves.toEqual({ statementCount: 4 });
@@ -301,13 +303,15 @@ describe("platform Postgres migrations", () => {
 
     const result = await applyPlatformPostgresMigrations(client);
 
-    expect(requiredPlatformPostgresMigrationIds.at(-5)).toBe("platform-live-draft-scale-v24");
-    expect(requiredPlatformPostgresMigrationIds.at(-4)).toBe("platform-practice-persistence-v25");
-    expect(requiredPlatformPostgresMigrationIds.at(-3))
+    expect(requiredPlatformPostgresMigrationIds.at(-6)).toBe("platform-live-draft-scale-v24");
+    expect(requiredPlatformPostgresMigrationIds.at(-5)).toBe("platform-practice-persistence-v25");
+    expect(requiredPlatformPostgresMigrationIds.at(-4))
       .toBe("platform-browser-simulation-lifecycle-v26");
-    expect(requiredPlatformPostgresMigrationIds.at(-2)).toBe("platform-account-onboarding-v27");
-    expect(requiredPlatformPostgresMigrationIds.at(-1))
+    expect(requiredPlatformPostgresMigrationIds.at(-3)).toBe("platform-account-onboarding-v27");
+    expect(requiredPlatformPostgresMigrationIds.at(-2))
       .toBe("platform-account-onboarding-rollout-v28");
+    expect(requiredPlatformPostgresMigrationIds.at(-1))
+      .toBe("platform-account-onboarding-intent-both-v29");
     expect(result.statementCount).toBeGreaterThan(0);
     expect(client.statements).toContain(
       "ALTER TABLE mock_sessions ADD COLUMN IF NOT EXISTS configuration_snapshot_json jsonb NOT NULL DEFAULT '{\"status\":\"migration-required\",\"schema\":\"mockd-season-mock-configuration\",\"reason\":\"missing-snapshot\"}'::jsonb;",
@@ -451,6 +455,7 @@ describe("platform Postgres migrations", () => {
       "platform-browser-simulation-lifecycle-v26",
       "platform-account-onboarding-v27",
       "platform-account-onboarding-rollout-v28",
+      "platform-account-onboarding-intent-both-v29",
     ]);
     expect(requiredPlatformPostgresMigrationIds).toEqual([
       "platform-schema-v1",
@@ -480,11 +485,12 @@ describe("platform Postgres migrations", () => {
       "platform-browser-simulation-lifecycle-v26",
       "platform-account-onboarding-v27",
       "platform-account-onboarding-rollout-v28",
+      "platform-account-onboarding-intent-both-v29",
     ]);
   });
 
   it("applies the import-through-browser-simulation migrations in reserved order", () => {
-    expect(requiredPlatformPostgresMigrationIds.slice(-10)).toEqual([
+    expect(requiredPlatformPostgresMigrationIds.slice(-11)).toEqual([
       "platform-league-import-v19",
       "platform-snake-live-room-v20",
       "platform-league-credential-encryption-v21",
@@ -495,6 +501,7 @@ describe("platform Postgres migrations", () => {
       "platform-browser-simulation-lifecycle-v26",
       "platform-account-onboarding-v27",
       "platform-account-onboarding-rollout-v28",
+      "platform-account-onboarding-intent-both-v29",
     ]);
   });
 
@@ -531,6 +538,23 @@ describe("platform Postgres migrations", () => {
     expect(client.statements).toContainEqual(expect.stringContaining("profile.providers_json IS NULL"));
     expect(client.statements).toContainEqual(
       expect.stringContaining("league.created_by_user_id = account.id"),
+    );
+  });
+
+  it("allows the combined practice and live-draft onboarding intent", async () => {
+    const client = new RecordingPostgresClient();
+    requiredPlatformPostgresMigrationIds
+      .filter(migrationId => migrationId !== "platform-account-onboarding-intent-both-v29")
+      .forEach(migrationId => client.appliedMigrationIds.add(migrationId));
+
+    const result = await applyPlatformPostgresMigrations(client);
+
+    expect(requiredPlatformPostgresMigrationIds.at(-1))
+      .toBe("platform-account-onboarding-intent-both-v29");
+    expect(result.statementCount).toBe(3);
+    expect(client.statements).toContain(
+      "ALTER TABLE account_onboarding_profiles ADD COLUMN IF NOT EXISTS " +
+      "intent_both boolean NOT NULL DEFAULT false;",
     );
   });
 

@@ -134,6 +134,11 @@ export const accountOnboardingRolloutMigrationStatements: readonly string[] = [
      );`,
 ];
 
+export const accountOnboardingIntentBothMigrationStatements: readonly string[] = [
+  "ALTER TABLE account_onboarding_profiles ADD COLUMN IF NOT EXISTS " +
+    "intent_both boolean NOT NULL DEFAULT false;",
+];
+
 export const leagueSyncMigrationStatements: readonly string[] = [
   migrationStatementStartingWith("CREATE TABLE league_connections")
     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),

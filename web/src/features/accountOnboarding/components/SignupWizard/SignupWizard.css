@@ -85,7 +85,8 @@
 
 .signup-wizard__option input {
   accent-color: var(--color-accent);
-  margin-top: 0.2rem;
+  align-self: center;
+  margin: 0;
 }
 
 .signup-wizard__option span {

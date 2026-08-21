@@ -30,6 +30,7 @@ export interface StoredAuthSessionRow {
 export interface StoredAccountOnboardingRow {
   account_id: string;
   intent: string | null;
+  intent_both: boolean;
   providers_json: unknown;
   completed_at: Date | null;
   created_at: Date;
