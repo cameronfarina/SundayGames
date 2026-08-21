@@ -46,7 +46,7 @@ describe("InflationSetting", () => {
   it("says the percentage only applies when no import can be priced", () => {
     openInflation();
 
-    expect(screen.getByText(/importing real draft results always takes over/u)).toBeInTheDocument();
+    expect(screen.getByText(/used only when imported results cannot be compared/u)).toBeInTheDocument();
     expect(screen.queryByText(/draft years imported/u)).not.toBeInTheDocument();
   });
 

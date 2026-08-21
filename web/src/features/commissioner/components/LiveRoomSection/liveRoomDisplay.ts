@@ -38,3 +38,17 @@ export const roomStatusLabel = (
     case "ended": return "Draft ended";
   }
 };
+
+export const draftDetailsLabel = (
+  room: OnboardingLeague["liveDraft"],
+  scheduledAt: string | undefined,
+  now = Date.now(),
+): "Draft status:" | "Upcoming draft:" | "Draft scheduled for:" => {
+  if (
+    scheduledAt === undefined
+    || room?.status === "live"
+    || room?.status === "paused"
+    || room?.status === "ended"
+  ) return "Draft status:";
+  return Date.parse(scheduledAt) > now ? "Upcoming draft:" : "Draft scheduled for:";
+};

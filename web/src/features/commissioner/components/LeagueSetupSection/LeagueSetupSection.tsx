@@ -64,9 +64,9 @@ export function LeagueSetupSection({ keepers, season, summaryAction }: LeagueSet
     <section className="commissioner-section" id="league-setup">
       <header><h2>League info</h2></header>
       <div className="commissioner-facts">
-        <div><span>Draft</span><strong>{draftLabel}</strong></div>
-        <div><span>Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD · {settings.scoring.passingYards} pt/pass yd</strong></div>
-        <div><span>Number of teams</span><strong aria-label="Number of teams value">{settings.expectedTeamCount}</strong></div>
+        <div><span className="commissioner-fact-label">Draft</span><strong>{draftLabel}</strong></div>
+        <div><span className="commissioner-fact-label">Scoring</span><strong>{settings.scoring.reception} PPR · {settings.scoring.passingTouchdown} pt pass TD · {settings.scoring.passingYards} pt/pass yd</strong></div>
+        <div><span className="commissioner-fact-label">Number of teams</span><strong aria-label="Number of teams value">{settings.expectedTeamCount}</strong></div>
         {summaryAction}
       </div>
       {settings.draftFormat === "snake" && <SnakeRounds

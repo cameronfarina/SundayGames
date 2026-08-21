@@ -94,19 +94,54 @@ describe("LiveRoomSection workspace", () => {
     );
 
     const selectedDetails = screen.getByLabelText("Selected league draft details");
-    expect(within(selectedDetails).getByText("Ready to create room")).toBeVisible();
+    expect(within(selectedDetails).getByText("Upcoming draft:")).toBeVisible();
     expect(within(selectedDetails).getByText("Europe/Rome")).toBeVisible();
     expect(within(selectedDetails).getByText((_content, element) =>
       element?.getAttribute("datetime") === "2026-08-30T19:00:00.000Z"
     ))
       .toHaveAttribute("datetime", "2026-08-30T19:00:00.000Z");
+    expect(screen.getByLabelText("Other upcoming drafts")).not.toHaveTextContent("Sunday Games");
     expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual([
       expect.stringContaining("Earlier League"),
-      expect.stringContaining("Sunday Games"),
       expect.stringContaining("Later League"),
     ]);
+    expect(screen.queryByRole("list", { name: "Upcoming scheduled drafts" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Earlier League" }))
       .toHaveAttribute("href", "/leagues/earlier-league/commissioner?section=live-draft");
+  });
+
+  it("shows a live room's status instead of its old schedule", () => {
+    renderWorkspace(
+      vi.fn(),
+      publishedSeason,
+      onboardingLeagueSchema.parse({
+        ...ownerLeague,
+        liveDraft: { roomId: "room-1", status: "live" },
+        nextDraftAt: "2026-08-30T17:00:00.000Z",
+      }),
+    );
+
+    const selectedDetails = screen.getByLabelText("Selected league draft details");
+    expect(within(selectedDetails).getByText("Draft status:")).toBeVisible();
+    expect(within(selectedDetails).getByText("Live")).toBeVisible();
+    expect(within(selectedDetails).queryByText("Upcoming draft:")).not.toBeInTheDocument();
+  });
+
+  it("does not describe a past scheduled time as upcoming", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime("2026-08-21T12:00:00.000Z");
+    renderWorkspace(
+      vi.fn(),
+      publishedSeason,
+      onboardingLeagueSchema.parse({
+        ...ownerLeague,
+        nextDraftAt: "2025-08-30T17:00:00.000Z",
+      }),
+    );
+
+    const selectedDetails = screen.getByLabelText("Selected league draft details");
+    expect(within(selectedDetails).getByText("Draft scheduled for:")).toBeVisible();
+    expect(within(selectedDetails).queryByText("Upcoming draft:")).not.toBeInTheDocument();
   });
 
   it("guides a commissioner through readiness, scheduling, and confirmation", async () => {
@@ -147,7 +182,7 @@ describe("LiveRoomSection workspace", () => {
       .toHaveAttribute("datetime", "2026-09-01T18:30:00.000Z");
     await user.click(screen.getByRole("button", { name: "Create live draft room" }));
 
-    expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "Enter draft" })).toBeVisible();
     expect(requests.map(request => request.path)).toEqual([
       "/seasons/season-1/publish",
       "/seasons/season-1/live-room",

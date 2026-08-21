@@ -93,6 +93,23 @@ describe("slot price import", () => {
     });
   });
 
+  it("calibrates from an ownerless ranked player sheet", async () => {
+    const { committed } = await importSlotPrices([
+      "Rank,Player,Position,Price",
+      "1,Alpha Runner,RB,80",
+      "1,Alpha Receiver,WR,70",
+    ].join("\n"));
+    const result = inflationFor(committed.committedRecords);
+
+    expect(result).toMatchObject({
+      source: "history",
+      countedSaleCount: 2,
+      leagueDollars: 150,
+      publicDollars: 113,
+      multiplier: 1.33,
+    });
+  });
+
   it("stores a slot sale that no one can mistake for a named player's sale", async () => {
     const { committed } = await importSlotPrices(twoSlots);
     const record = committed.committedRecords[0];

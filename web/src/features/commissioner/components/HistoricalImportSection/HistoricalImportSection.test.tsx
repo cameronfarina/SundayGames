@@ -50,23 +50,28 @@ const renderSection = (
 describe("HistoricalImportSection", () => {
   afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
-  it("keeps full auction files primary and positional prices advanced", async () => {
+  it("explains both upload formats and keeps manual inflation beside the uploader", async () => {
     renderSection(vi.fn(() => Promise.resolve(jsonResponse(preview("previewed")))));
     const user = userEvent.setup();
 
     expect(screen.getByLabelText("Choose historical draft files")).toBeVisible();
-    expect(screen.getByText(/Upload complete auction draft results/u)).toBeVisible();
-    expect(screen.getByText(/one CSV, TSV, or XLSX file per draft year/u)).toBeVisible();
-    expect(screen.getByText(/Add Public Value to compare a sale with published market prices/u))
-      .toBeVisible();
-    expect(screen.getByText(/Team header and Price, Position, and Player columns for each team/u))
-      .toBeVisible();
-    expect(screen.getByLabelText("Slot prices")).not.toBeVisible();
-    expect(screen.getByText("Set an inflation percentage by hand")).toBeVisible();
+    expect(screen.getByText(/Import previous auction results to teach Sunday Games/u)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "What can I upload?" })).toBeVisible();
+    expect(screen.getByText("Owner | Player | Position | Price")).toBeVisible();
+    expect(screen.getByText("Rank | Player | Position | Price")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "How pricing works" })).toBeVisible();
+    expect(screen.queryByText("Advanced price import")).not.toBeInTheDocument();
+    expect(screen.queryByText("Set an inflation percentage by hand")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No data? No problem." })).toBeVisible();
+    expect(screen.getByText("Set inflation by hand")).toBeVisible();
+    expect(screen.getByLabelText("Inflation percentage")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Download a template" }))
+      .toHaveAttribute("download", "sunday-games-auction-history-template.csv");
 
-    await user.click(screen.getByText("Advanced price import"));
-
-    expect(screen.getByLabelText("Slot prices")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "View formatting examples" }));
+    expect(screen.getByRole("dialog", { name: "Historical pricing formats" }))
+      .toHaveTextContent("Owner,Player,Position,Price,Public Value");
+    await user.click(screen.getByRole("button", { name: "Close dialog" }));
   });
 
   it("explains the unavailable snake history without auction controls", () => {

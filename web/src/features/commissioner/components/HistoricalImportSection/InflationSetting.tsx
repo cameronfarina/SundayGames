@@ -29,19 +29,19 @@ export function InflationSetting({ importedYearCount, season }: InflationSetting
   const unchanged = percent.trim() === saved.trim();
 
   return (
-    <details className="commissioner-paste">
-      <summary>Set an inflation percentage by hand</summary>
+    <aside className="history-inflation">
+      <h3>No data? No problem.</h3>
+      <strong className="history-inflation__label">Set inflation by hand</strong>
       <p className="commissioner-help">
-        Say what your league pays compared with published market prices. 120% means the room
-        pays about a fifth more than the published board. This is only used when no imported
-        sale can be matched to a published value, so importing real draft results always takes
-        over from it.
+        Estimate what your league pays compared with market prices. For example, 120% means your
+        league pays about a fifth more than the published board. This estimate is used only when
+        imported results cannot be compared with a market value.
       </p>
       {importedYearCount > 0 ? (
         <p className="commissioner-help">
           You have {importedYearCount} draft {importedYearCount === 1 ? "year" : "years"} imported.
-          Those results lead, and this percentage applies only if none of them can be priced
-          against the published board.
+          Those results take priority. This percentage is used only when no imported sale can be
+          compared with a market value.
         </p>
       ) : null}
       <NumberField
@@ -72,6 +72,6 @@ export function InflationSetting({ importedYearCount, season }: InflationSetting
       </div>
       {save.isSuccess ? <p role="status">Inflation percentage saved.</p> : null}
       {save.isError ? <p role="alert">{errorMessage(save.error)}</p> : null}
-    </details>
+    </aside>
   );
 }

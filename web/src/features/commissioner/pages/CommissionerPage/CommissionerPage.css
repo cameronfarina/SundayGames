@@ -71,14 +71,34 @@
   margin-bottom: 10px;
   text-transform: uppercase;
 }
+.commissioner-facts .commissioner-fact-label { color: var(--color-accent); }
 .commissioner-invitation {
-  align-items: start;
+  align-items: center;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 }
-.commissioner-invitation .button { margin-top: auto; }
+.commissioner-facts .commissioner-invitation__name {
+  align-items: center;
+  color: var(--color-text);
+  display: flex;
+  font-size: inherit;
+  font-weight: 750;
+  gap: 8px;
+  margin-bottom: 0;
+  text-transform: none;
+}
+.commissioner-facts .commissioner-invitation__name > span {
+  color: inherit;
+  display: inline;
+  font-size: inherit;
+  margin-bottom: 0;
+  text-transform: none;
+}
+.commissioner-invitation .button { margin-top: 0; }
 .commissioner-invitation__copy { min-width: 44px; padding: 10px; }
+.commissioner-invitation label,
+.commissioner-invitation p { flex-basis: 100%; }
 .commissioner-invitation p { font-size: var(--font-size-sm); margin: 0; }
 .commissioner-actions {
   display: flex;

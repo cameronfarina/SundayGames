@@ -70,8 +70,22 @@ export type SlotPriceSlotColumn = "slot" | "positionRank";
  * beside a rank column. Both carry a price, and either may carry a season.
  */
 export type SlotPriceHeaderIndex =
-  | { price: number; slot: number; position?: undefined; positionRank?: undefined; seasonYear?: number }
-  | { price: number; slot?: undefined; position: number; positionRank: number; seasonYear?: number };
+  | {
+      price: number;
+      publicPrice?: number;
+      slot: number;
+      position?: undefined;
+      positionRank?: undefined;
+      seasonYear?: number;
+    }
+  | {
+      price: number;
+      publicPrice?: number;
+      slot?: undefined;
+      position: number;
+      positionRank: number;
+      seasonYear?: number;
+    };
 
 export interface WideAuctionOwnerBlock {
   ownerDisplayName: string;

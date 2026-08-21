@@ -33,6 +33,9 @@ describe("LeagueSetupSection", () => {
     expect(screen.getByText("$200 auction")).toBeVisible();
     expect(screen.getByText("0.5 PPR · 4 pt pass TD · 0.04 pt/pass yd")).toBeVisible();
     expect(screen.getByLabelText("Number of teams value")).toHaveTextContent("1");
+    expect(screen.getByText("Draft")).toHaveClass("commissioner-fact-label");
+    expect(screen.getByText("Scoring")).toHaveClass("commissioner-fact-label");
+    expect(screen.getByText("Number of teams")).toHaveClass("commissioner-fact-label");
     expect(screen.queryByText("draft")).not.toBeInTheDocument();
     expect(screen.queryByText(/16 players/u)).not.toBeInTheDocument();
     expect(screen.queryByText("Paste a full team list")).not.toBeInTheDocument();

@@ -10,11 +10,13 @@ import type { CommissionerSeason } from "../../api/seasonSchemas";
 import { errorMessage } from "../../model/errorMessage";
 import { browserTimeZone } from "./draftDateTime";
 import {
+  draftDetailsLabel,
   formatDraftTime,
   roomStatusLabel,
   scheduledLeagues,
 } from "./liveRoomDisplay";
 import { type CreatedLiveRoom, LiveRoomWizard } from "./LiveRoomWizard";
+import "./LiveRoomSection.css";
 
 interface LiveRoomSectionProps {
   readonly league: OnboardingLeague;
@@ -38,29 +40,25 @@ export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomS
   const activeRoom = createdRoom ?? (archive.isSuccess ? null : league.liveDraft);
   const timeZone = browserTimeZone();
   const selectedDraftAt = createdRoom?.startsAt ?? league.nextDraftAt ?? season.draft?.scheduledAt;
-  const upcomingDrafts = scheduledLeagues(manageableLeagues);
+  const detailsLabel = draftDetailsLabel(activeRoom, selectedDraftAt);
+  const otherUpcomingDrafts = scheduledLeagues(manageableLeagues)
+    .filter(candidate => candidate.seasonId !== league.seasonId);
 
   return (
     <section className="commissioner-section" id="live-room">
       <header><h2>Live draft room</h2></header>
       <p className="commissioner-help">Publish the league first. Keepers and history remain editable until the room starts.</p>
-      <div aria-label="Selected league draft details" className="commissioner-facts">
-        <div><span>Status</span><strong>{roomStatusLabel(activeRoom, published)}</strong></div>
-        <div>
-          <span>Draft time</span>
-          <strong>{selectedDraftAt === undefined
-            ? "Not scheduled"
-            : <time dateTime={selectedDraftAt}>
-              {formatDraftTime(selectedDraftAt, timeZone)}
-            </time>}</strong>
-        </div>
-        <div><span>Time zone</span><strong>{timeZone}</strong></div>
-      </div>
-      {upcomingDrafts.length > 0 ? <div>
-        <h3>Upcoming drafts</h3>
-        <p className="commissioner-help">Times use {timeZone}.</p>
-        <ol aria-label="Upcoming scheduled drafts">
-          {upcomingDrafts.map(candidate => <li key={candidate.seasonId}>
+      <p aria-label="Selected league draft details" className="live-room-schedule">
+        <strong>{detailsLabel}</strong>{" "}
+        {detailsLabel !== "Draft status:" && selectedDraftAt !== undefined
+          ? <><time dateTime={selectedDraftAt}>{formatDraftTime(selectedDraftAt, timeZone)}</time>{" "}
+            <span>{timeZone}</span></>
+          : roomStatusLabel(activeRoom, published)}
+      </p>
+      {otherUpcomingDrafts.length > 0 ? <div className="live-room-other-drafts">
+        <h3>Other upcoming drafts</h3>
+        <ul aria-label="Other upcoming drafts">
+          {otherUpcomingDrafts.map(candidate => <li key={candidate.seasonId}>
             <Link to={`${leaguePath(candidate, "commissioner")}?section=live-draft`}>
               {candidate.leagueName}
             </Link>
@@ -68,8 +66,9 @@ export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomS
             <time dateTime={candidate.nextDraftAt}>
               {formatDraftTime(candidate.nextDraftAt, timeZone)}
             </time>
+            {" "}{timeZone}
           </li>)}
-        </ol>
+        </ul>
       </div> : null}
       {activeRoom === null ? <LiveRoomWizard
         initialStartsAt={season.draft?.scheduledAt}
@@ -80,15 +79,15 @@ export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomS
         season={season}
         timeZone={timeZone}
       /> : <div className="commissioner-actions">
-        <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft room</Link>
-        {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Archive room</Button> : <>
+        <Link className="commissioner-button commissioner-primary" to={leaguePath(league, "draft")}>Enter draft</Link>
+        {!confirmArchive ? <Button variant="danger" onClick={() => { setConfirmArchive(true); }} disabled={!['setup', 'countdown'].includes(activeRoom.status)}>Delete draft</Button> : <>
           <Button aria-busy={archive.isPending} variant="danger" onClick={() => { archive.mutate(); }} disabled={archive.isPending}>
-            {archive.isPending ? "Archiving room..." : "Confirm archive"}
+            {archive.isPending ? "Deleting draft..." : "Confirm delete"}
           </Button>
-          <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep room</Button>
+          <Button variant="secondary" onClick={() => { setConfirmArchive(false); }}>Keep draft</Button>
         </>}
       </div>}
-      {archive.isPending ? <p role="status">Archiving live room...</p> : null}
+      {archive.isPending ? <p role="status">Deleting live draft...</p> : null}
       {archive.isError ? <p role="alert">{errorMessage(archive.error)}</p> : null}
     </section>
   );

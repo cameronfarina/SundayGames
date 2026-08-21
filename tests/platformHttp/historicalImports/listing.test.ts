@@ -9,6 +9,15 @@ const uploadFor = (seasonYear: number) => ({
   seasonYear,
 });
 
+const rankedPriceUploadFor = (seasonYear: number) => ({
+  fileName: `ranked-prices-${String(seasonYear)}.csv`,
+  mimeType: "text/csv",
+  base64: Buffer.from(
+    `rank,player,position,price,public value,year\n1,Puka Nacua,WR,70,65,${String(seasonYear)}`,
+  ).toString("base64"),
+  seasonYear,
+});
+
 describe("platform HTTP contract", () => {
   it("keeps a commissioner's committed draft years readable after the upload session ends", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
@@ -39,9 +48,10 @@ describe("platform HTTP contract", () => {
         method: "POST",
         path: `/seasons/${season.id}/historical-imports/upload-preview`,
         sessionToken: owner.sessionToken,
-        body: uploadFor(seasonYear),
+        body: seasonYear === 2024 ? rankedPriceUploadFor(seasonYear) : uploadFor(seasonYear),
       });
       const previewBatch = expectBodyRecord(expectBodyRecord(preview.body).batch);
+      expect(previewBatch.status).toBe("previewed");
       await handle({
         method: "POST",
         path: `/historical-imports/${expectString(previewBatch.id)}/commit`,

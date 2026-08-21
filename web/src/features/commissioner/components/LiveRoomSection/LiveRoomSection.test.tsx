@@ -52,13 +52,13 @@ describe("LiveRoomSection", () => {
     const user = userEvent.setup();
     expect(screen.queryByLabelText("Draft date and time")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit schedule/iu })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Enter draft room" }))
+    expect(screen.getByRole("link", { name: "Enter draft" }))
       .toHaveAttribute("href", "/leagues/sunday-games/draft");
-    await user.click(screen.getByRole("link", { name: "Enter draft room" }));
+    await user.click(screen.getByRole("link", { name: "Enter draft" }));
     expect(screen.getByTestId("location"))
       .toHaveTextContent("/leagues/sunday-games/draft");
-    await user.click(screen.getByRole("button", { name: "Archive room" }));
-    await user.click(screen.getByRole("button", { name: "Confirm archive" }));
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
     expect(await screen.findByRole("button", { name: "Plan live draft" })).toBeVisible();
     expect(client.getQueryState(seasonQueryKeys.onboarding())?.isInvalidated).toBe(true);
     expect(requests).toContain("DELETE /seasons/season-1/live-room");
@@ -73,9 +73,9 @@ describe("LiveRoomSection", () => {
     });
     renderSection(vi.fn(() => Promise.resolve(jsonResponse({ ok: true }))), scheduled, liveLeague);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Archive room" }));
-    await user.click(screen.getByRole("button", { name: "Keep room" }));
-    expect(screen.getByRole("button", { name: "Archive room" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    await user.click(screen.getByRole("button", { name: "Keep draft" }));
+    expect(screen.getByRole("button", { name: "Delete draft" })).toBeVisible();
   });
   it("sends an edited scheduled time when creating a room", async () => {
     vi.stubEnv("TZ", "Europe/Rome");
@@ -98,7 +98,7 @@ describe("LiveRoomSection", () => {
     await user.type(input, "2026-09-01T20:30");
     await user.click(screen.getByRole("button", { name: "Review draft room" }));
     await user.click(screen.getByRole("button", { name: "Create live draft room" }));
-    expect(await screen.findByRole("link", { name: "Enter draft room" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "Enter draft" })).toBeVisible();
     expect(JSON.parse(bodies[0] ?? "{}")).toEqual({ startsAt: "2026-09-01T18:30:00.000Z" });
   });
   it("offers snake room setup and reports mutation errors", async () => {
@@ -135,8 +135,8 @@ describe("LiveRoomSection", () => {
     });
     view.unmount();
     renderSection(errorFetcher, publishedSeason, liveLeague);
-    await user.click(screen.getByRole("button", { name: "Archive room" }));
-    await user.click(screen.getByRole("button", { name: "Confirm archive" }));
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Room unavailable.");
   });
   it("shows progress for publish, create, and archive requests", async () => {
@@ -164,8 +164,8 @@ describe("LiveRoomSection", () => {
       liveDraft: { roomId: "room-live", status: "setup" },
     });
     renderSection(fetcher, publishedSeason, liveLeague);
-    await user.click(screen.getByRole("button", { name: "Archive room" }));
-    await user.click(screen.getByRole("button", { name: "Confirm archive" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Archiving live room");
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Deleting live draft");
   });
 });

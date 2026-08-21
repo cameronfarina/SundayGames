@@ -12,7 +12,7 @@ import {
 } from "../../model/historicalFileQueue";
 import { HistoricalFileRow } from "./HistoricalFileRow.js";
 import { InflationSetting } from "./InflationSetting.js";
-import { SlotPriceImport } from "./SlotPriceImport.js";
+import { HistoricalPricingGuide } from "./HistoricalPricingGuide.js";
 import { useHistoricalImportRun } from "./useHistoricalImportRun.js";
 import "./HistoricalImportSection.css";
 
@@ -64,43 +64,38 @@ export function HistoricalImportSection({ season }: HistoricalImportSectionProps
       {unavailable ? (
         <p>Historical snake draft imports and manager personality modeling are not available yet.</p>
       ) : <>
-        <p className="commissioner-help">
-          Upload complete auction draft results to model your league&apos;s prices and manager bidding
-          patterns. Use one CSV, TSV, or XLSX file per draft year with Owner, Player, Position, and
-          Price.
-        </p>
-        <p className="commissioner-help">
-          Add Public Value to compare a sale with published market prices. For ESPN-style team
-          sheets, use a Team header and Price, Position, and Player columns for each team.
-        </p>
-        <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
-          variant="secondary" onClick={() => { fileInput.current?.click(); }}
-          onDragOver={event => { event.preventDefault(); setDragging(true); }}
-          onDragLeave={() => { setDragging(false); }} onDrop={drop}>
-          <strong>Drop draft files here</strong><span>CSV, TSV, or XLSX · 5 MB maximum each</span>
-          <span>Choose files</span>
-        </Button>
-        <input aria-label="Choose historical draft files" className="commissioner-file-input" ref={fileInput}
-          multiple type="file" onChange={changeFiles} accept=".csv,.tsv,.xlsx" />
-        <div className="commissioner-list">
-          {items.map(item => (
-            <HistoricalFileRow dispatch={dispatch} item={item} key={item.id} teams={season.teams} />
-          ))}
+        <HistoricalPricingGuide />
+        <div className="history-import-grid">
+          <div>
+            <Button className={dragging ? "commissioner-dropzone is-dragging" : "commissioner-dropzone"}
+              variant="secondary" onClick={() => { fileInput.current?.click(); }}
+              onDragOver={event => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => { setDragging(false); }} onDrop={drop}>
+              <strong>Drop draft files here</strong><span>CSV, TSV, or XLSX · 5 MB maximum each</span>
+              <span>Choose files</span>
+            </Button>
+            <input aria-label="Choose historical draft files" className="commissioner-file-input" ref={fileInput}
+              multiple type="file" onChange={changeFiles} accept=".csv,.tsv,.xlsx" />
+            <div className="commissioner-list">
+              {items.map(item => (
+                <HistoricalFileRow dispatch={dispatch} item={item} key={item.id} teams={season.teams} />
+              ))}
+            </div>
+            <label className="commissioner-check"><input type="checkbox" checked={replace} onChange={event => { setReplace(event.target.checked); }} />Replace an import for the same year</label>
+            <label className="commissioner-check"><input type="checkbox" checked={keepersInFirstRow} onChange={event => { setKeepersInFirstRow(event.target.checked); }} />Roster row 1 contains each team&apos;s keeper</label>
+            {duplicateYears ? <p role="alert">Choose a different draft year for each pending file.</p> : null}
+            <ProgressButton
+              busy={run.isPending}
+              disabled={pending.length === 0 || duplicateYears || invalidYears || mappingIncomplete}
+              onClick={() => { run.start(importable, pending.length); }}
+              percent={run.percent}
+            >
+              {importLabel}
+            </ProgressButton>
+            {run.isPending ? <p role="status">Reading and importing draft files.</p> : null}
+          </div>
+          <InflationSetting importedYearCount={importedCount} season={season} />
         </div>
-        <label className="commissioner-check"><input type="checkbox" checked={replace} onChange={event => { setReplace(event.target.checked); }} />Replace an import for the same year</label>
-        <label className="commissioner-check"><input type="checkbox" checked={keepersInFirstRow} onChange={event => { setKeepersInFirstRow(event.target.checked); }} />Roster row 1 contains each team&apos;s keeper</label>
-        {duplicateYears ? <p role="alert">Choose a different draft year for each pending file.</p> : null}
-        <ProgressButton
-          busy={run.isPending}
-          disabled={pending.length === 0 || duplicateYears || invalidYears || mappingIncomplete}
-          onClick={() => { run.start(importable, pending.length); }}
-          percent={run.percent}
-        >
-          {importLabel}
-        </ProgressButton>
-        {run.isPending ? <p role="status">Reading and importing draft files.</p> : null}
-        <SlotPriceImport season={season} />
-        <InflationSetting importedYearCount={importedCount} season={season} />
       </>}
     </section>
   );
