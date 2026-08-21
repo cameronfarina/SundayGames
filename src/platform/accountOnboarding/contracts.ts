@@ -12,6 +12,7 @@ export type AccountOnboardingStage = "intent" | "providers" | "connections" | "c
 export interface AccountOnboardingRecord {
   readonly accountId: string;
   readonly intent: AccountOnboardingIntent | null;
+  readonly intentBoth?: boolean;
   readonly providers: readonly AccountOnboardingProvider[] | null;
   readonly completedAt: Date | null;
   readonly createdAt: Date;

@@ -11,6 +11,7 @@ const row = {
   completed_at: null,
   created_at: now,
   intent: "practice",
+  intent_both: false,
   providers_json: ["espn", "other"],
   updated_at: now,
 };
@@ -58,6 +59,43 @@ describe("Postgres account onboarding", () => {
 
     await expect(repository.findByAccountId("account-1"))
       .rejects.toThrow("Invalid account onboarding intent.");
+  });
+
+  it("reads a future combined-intent row as the legacy live-draft intent", async () => {
+    const client = new QueuedClient();
+    client.results.push([{ ...row, intent: "live_draft", intent_both: true }]);
+    const repository = new PostgresAccountOnboardingRepository(client);
+
+    await expect(repository.findByAccountId("account-1"))
+      .resolves.toMatchObject({ intent: "live_draft", intentBoth: true });
+  });
+
+  it.each([null, "practice"])(
+    "rejects a combined marker paired with the invalid intent %s",
+    async intent => {
+      const client = new QueuedClient();
+      client.results.push([{ ...row, intent, intent_both: true }]);
+      const repository = new PostgresAccountOnboardingRepository(client);
+
+      await expect(repository.findByAccountId("account-1"))
+        .rejects.toThrow("Invalid account onboarding combined intent.");
+    },
+  );
+
+  it("clears the reserved combined-intent flag when a legacy intent is saved", async () => {
+    const client = new QueuedClient();
+    client.results.push([{ ...row, intent: "live_draft" }]);
+    const repository = new PostgresAccountOnboardingRepository(client);
+
+    await expect(repository.setIntent({
+      accountId: "account-1",
+      intent: "live_draft",
+      now,
+    })).resolves.toMatchObject({ intent: "live_draft" });
+
+    expect(client.queries[0]).toMatchObject({
+      values: ["account-1", "live_draft", false, now],
+    });
   });
 
   it("does not overwrite a completed profile from a stale setup step", async () => {

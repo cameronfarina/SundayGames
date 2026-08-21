@@ -36,22 +36,30 @@ export const IntentStep = ({ error, initialIntent, onContinue, pending }: Intent
         how people use the product.
       </p>
       <div className="signup-wizard__options">
-        {options.map(option => <label
-          aria-label={option.label}
-          className="signup-wizard__option"
-          htmlFor={`signup-intent-${option.value}`}
-          key={option.value}
-        >
-          <input
-            checked={intent === option.value}
-            id={`signup-intent-${option.value}`}
-            name="signup-intent"
-            onChange={() => { setIntent(option.value); }}
-            type="radio"
-            value={option.value}
-          />
-          <span><strong>{option.label}</strong><small>{option.description}</small></span>
-        </label>)}
+        {options.map(option => {
+          const inputId = `signup-intent-${option.value}`;
+          const descriptionId = `${inputId}-description`;
+          return <label
+            aria-label={option.label}
+            className="signup-wizard__option"
+            htmlFor={inputId}
+            key={option.value}
+          >
+            <input
+              aria-describedby={descriptionId}
+              checked={intent === option.value}
+              id={inputId}
+              name="signup-intent"
+              onChange={() => { setIntent(option.value); }}
+              type="radio"
+              value={option.value}
+            />
+            <span>
+              <strong>{option.label}</strong>
+              <small id={descriptionId}>{option.description}</small>
+            </span>
+          </label>;
+        })}
       </div>
     </fieldset>
     {error === undefined ? null : <InlineNotice variant="error">{error}</InlineNotice>}

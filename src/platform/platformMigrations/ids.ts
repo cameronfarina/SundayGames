@@ -28,6 +28,8 @@ export const browserSimulationLifecycleMigrationId =
 export const accountOnboardingMigrationId = "platform-account-onboarding-v27";
 export const accountOnboardingRolloutMigrationId =
   "platform-account-onboarding-rollout-v28";
+export const accountOnboardingIntentBothMigrationId =
+  "platform-account-onboarding-intent-both-v29";
 
 export const platformMigrationAdvisoryLockKeys: readonly number[] = [
   1_297_040_203,

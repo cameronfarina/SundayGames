@@ -29,6 +29,8 @@ describe("SignupWizard steps", () => {
     />);
 
     expect(screen.getByRole("radio", { name: /Host a live draft/u })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Host a live draft/u }))
+      .toHaveAccessibleDescription("Run your league's real draft in Sunday Games.");
     expect(screen.getByRole("alert")).toHaveTextContent("The answer could not be saved.");
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
   });
