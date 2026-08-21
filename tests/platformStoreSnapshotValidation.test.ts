@@ -182,4 +182,17 @@ describe("platform store snapshot domain validation", () => {
     }, "memberships[0].ownerId");
     expectInvalid({ exportArtifacts: [{ format: "csv", id: "id" }] }, "leagueId");
   });
+
+  it("rejects a non-canonical direct Both onboarding intent", () => {
+    expectInvalid({
+      accountOnboardingProfiles: [{
+        accountId: "account-1",
+        intent: "both",
+        providers: null,
+        completedAt: null,
+        createdAt: "2026-08-22T00:00:00.000Z",
+        updatedAt: "2026-08-22T00:00:00.000Z",
+      }],
+    }, "accountOnboardingProfiles[0].intent");
+  });
 });

@@ -1,4 +1,4 @@
-export type AccountOnboardingIntent = "practice" | "live_draft";
+export type AccountOnboardingIntent = "practice" | "live_draft" | "both";
 
 export type AccountOnboardingProvider =
   | "espn"

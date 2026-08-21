@@ -5,7 +5,9 @@ import type {
 } from "../../accountOnboarding.js";
 import { invalidSnapshot, recordValue } from "./primitives.js";
 
-const intentValue = (value: unknown, path: string): AccountOnboardingIntent | null => {
+type StoredAccountOnboardingIntent = Exclude<AccountOnboardingIntent, "both">;
+
+const intentValue = (value: unknown, path: string): StoredAccountOnboardingIntent | null => {
   if (value === null) return null;
   if (value === "practice" || value === "live_draft") return value;
   return invalidSnapshot(path);
@@ -23,6 +25,16 @@ const dateValue = (value: unknown, path: string): Date => {
   return Number.isNaN(parsed.getTime()) ? invalidSnapshot(path) : parsed;
 };
 
+const logicalIntentValue = (
+  storedIntent: StoredAccountOnboardingIntent | null,
+  intentBoth: boolean | undefined,
+  path: string,
+): AccountOnboardingIntent | null => {
+  if (intentBoth !== true) return storedIntent;
+  if (storedIntent !== "live_draft") return invalidSnapshot(path);
+  return "both";
+};
+
 export const accountOnboardingValue = (value: unknown, path: string): AccountOnboardingRecord => {
   const record = recordValue(value, path);
   if (typeof record.accountId !== "string") return invalidSnapshot(`${path}.accountId`);
@@ -32,10 +44,8 @@ export const accountOnboardingValue = (value: unknown, path: string): AccountOnb
   if (record.providers !== null && !Array.isArray(record.providers)) {
     return invalidSnapshot(`${path}.providers`);
   }
-  const intent = intentValue(record.intent, `${path}.intent`);
-  if (record.intentBoth === true && intent !== "live_draft") {
-    return invalidSnapshot(`${path}.intentBoth`);
-  }
+  const storedIntent = intentValue(record.intent, `${path}.intent`);
+  const intent = logicalIntentValue(storedIntent, record.intentBoth, `${path}.intentBoth`);
   return {
     accountId: record.accountId,
     intent,

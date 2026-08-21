@@ -6,14 +6,19 @@ import { authRequiredBody, invalidCredentialsBody, methodNotAllowed } from "../r
 import { requireRequestAccount } from "./access.js";
 import { publicSessionFor } from "./publicSession.js";
 import { loginRateLimitKey, loginRateLimitResponse } from "./rateLimits.js";
-import { accountOnboardingSnapshot } from "../../accountOnboarding.js";
+import {
+  accountOnboardingSnapshot,
+  compatibleAccountOnboardingSnapshot,
+} from "../../accountOnboarding.js";
 
 const onboardingFor = async (
   services: PlatformHttpServices,
   accountId: string,
 ) => services.accountOnboardingRepository === undefined
   ? undefined
-  : await accountOnboardingSnapshot(services.accountOnboardingRepository, accountId);
+  : compatibleAccountOnboardingSnapshot(
+    await accountOnboardingSnapshot(services.accountOnboardingRepository, accountId),
+  );
 
 /** Null means the path belongs to another auth route, not that the request failed. */
 export const routeSessions = async (

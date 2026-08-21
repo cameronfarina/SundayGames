@@ -4,7 +4,10 @@ import {
   type AccountOnboardingIntent,
   type AccountOnboardingProvider,
 } from "../../../shared/api/accountOnboarding/accountOnboardingSchema";
-import { requestPlatformJson } from "../../../shared/api/http/requestPlatformJson";
+import {
+  type PlatformFetch,
+  requestPlatformJson,
+} from "../../../shared/api/http/requestPlatformJson";
 
 const accountOnboardingResponseSchema = z.object({ onboarding: accountOnboardingSchema });
 
@@ -16,12 +19,25 @@ export type AccountOnboardingAction =
 export const saveAccountOnboarding = async (
   accountId: string,
   action: AccountOnboardingAction,
-) => await requestPlatformJson({
-  path: "/account-onboarding",
-  init: {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ accountId, ...action }),
-  },
-  responseSchema: accountOnboardingResponseSchema,
-});
+  fetcher?: PlatformFetch,
+) => {
+  const requestAction = action.action === "set_intent" && action.intent === "both"
+    ? { action: "set_intent", intent: "live_draft", intentBoth: true }
+    : action;
+  const response = await requestPlatformJson({
+    path: "/account-onboarding",
+    init: {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accountId, ...requestAction }),
+    },
+    responseSchema: accountOnboardingResponseSchema,
+    ...(fetcher === undefined ? {} : { fetcher }),
+  });
+  if (action.action === "set_intent" && action.intent === "both"
+    && response.onboarding.intent !== "both"
+    && response.onboarding.stage !== "complete") {
+    throw new Error("Sunday Games is finishing an update. Try again.");
+  }
+  return response;
+};

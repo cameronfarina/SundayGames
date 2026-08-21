@@ -21,6 +21,10 @@ const options: readonly {
   description: "Run your league's real draft in Sunday Games.",
   label: "Host a live draft",
   value: "live_draft",
+}, {
+  description: "Practice beforehand, then run your league's live draft.",
+  label: "Both",
+  value: "both",
 }];
 
 export const IntentStep = ({ error, initialIntent, onContinue, pending }: IntentStepProps) => {
