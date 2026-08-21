@@ -9,9 +9,10 @@ export const LandingHero = () => <section className="landing-hero">
       <p className="landing-hero__eyebrow">Draft prep built for your league</p>
       <h1>Your league isn’t average.<br />So why is your <br />draft prep?</h1>
       <p className="landing-hero__body">
-        Sunday Games learns how your league values players and how every manager drafts,
-        in order to create custom values, realistic mock drafts and a plan built for the
-        room you’ll actually face.
+        Sunday Games learns how your league values players to create custom values,
+        realistic mock drafts, and a plan for the room you’ll actually face. Auction
+        leagues with enough imported history also model each manager’s position focus
+        and star spending.
       </p>
       <Link className="landing-cta" to="/signup">Connect my league</Link>
     </div>

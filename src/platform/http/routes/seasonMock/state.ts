@@ -1,4 +1,8 @@
 import type { GenericAuctionMockState } from "../../../genericAuctionMockEngine.js";
+import {
+  managerDraftProfileReadModel,
+  type ManagerDraftProfileSnapshot,
+} from "../../../managerDraftProfiles.js";
 import type { MockDraftSession } from "../../../mockSessions.js";
 import { buildSeasonAuctionMockConfig, replaySeasonAuctionMockCommands } from "../../../seasonAuctionMock.js";
 import { buildSeasonMockResults } from "../../../seasonMockResults.js";
@@ -28,6 +32,7 @@ const auctionStateForSeasonMock = async (
   session: MockDraftSession,
   playerExpectedPrices: Readonly<Record<string, number>>,
   playerHumanValues: Readonly<Record<string, number>>,
+  managerProfiles: readonly ManagerDraftProfileSnapshot[],
   additionalCommand?: string,
 ): Promise<GenericAuctionMockState> => {
   const config = buildSeasonAuctionMockConfig({
@@ -38,6 +43,7 @@ const auctionStateForSeasonMock = async (
     seed: session.id,
     playerExpectedPrices,
     playerHumanValues,
+    managerProfiles,
   });
   const commandLog = session.commandLog.map(command => command.command);
   return replaySeasonAuctionMockCommands(config, additionalCommand === undefined ? commandLog : [...commandLog, additionalCommand]);
@@ -62,6 +68,7 @@ export const stateForSeasonMock = async (
         session,
         snapshot.playerExpectedPrices,
         snapshot.playerHumanValues,
+        snapshot.managerProfiles,
         additionalCommand,
       );
 };
@@ -69,11 +76,18 @@ export const stateForSeasonMock = async (
 export const seasonMockResponseBody = (
   mockSession: MockDraftSession,
   state: SnakeDraftState | GenericAuctionMockState,
-) => ({
-  mockSession,
-  state,
-  ...(state.session.status === "completed" ? { results: buildSeasonMockResults(state) } : {}),
-});
+) => {
+  const managerProfiles = mockSession.draftMode.format === "auction"
+    ? seasonMockReplayConfiguration(mockSession.configurationSnapshot)
+      .managerProfiles.map(managerDraftProfileReadModel)
+    : undefined;
+  return {
+    mockSession,
+    state,
+    ...(managerProfiles === undefined ? {} : { managerProfiles }),
+    ...(state.session.status === "completed" ? { results: buildSeasonMockResults(state) } : {}),
+  };
+};
 
 export const serializedSeasonMockCommand = (value: unknown): string => {
   const serialized = JSON.stringify(value);

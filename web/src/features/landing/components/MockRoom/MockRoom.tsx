@@ -9,10 +9,10 @@ interface TendencyRow {
 
 /** What the product reads out of one rival's past drafts. */
 const tendencyRows: readonly TendencyRow[] = [
-  { label: "Targets", value: "Elite WRs" },
-  { label: "Historical premium", value: "+14%" },
-  { label: "Bidding aggression", value: "High" },
-  { label: "Likely to challenge", value: "Puka Nacua & Ja'Marr Chase" },
+  { label: "Historical target", value: "WR focus" },
+  { label: "Premium vs league baseline", value: "+14%" },
+  { label: "Star bidding", value: "High" },
+  { label: "Players to watch", value: "Puka Nacua & Ja'Marr Chase" },
 ];
 
 export const MockRoom = () => <section className="mock-room">
@@ -21,9 +21,9 @@ export const MockRoom = () => <section className="mock-room">
       <p className="mock-room__eyebrow">Realistic mock drafts</p>
       <h2>Your opponents aren’t random. Your mocks shouldn’t be.</h2>
       <p className="mock-room__body">
-        Sunday Games simulates the room from your league’s format, settings and draft
-        history. It learns how each manager drafts, so the manager who always pays up for
-        a star will bid you up in your mock too.
+        Sunday Games simulates the room from your league’s format and settings. In auction
+        mocks, enough imported draft history reveals measured patterns like star bidding
+        and position targets.
       </p>
       <p className="mock-room__note">Make the expensive mistake in a simulation.</p>
     </div>
@@ -37,7 +37,7 @@ export const MockRoom = () => <section className="mock-room">
             <dd>{row.value}</dd>
           </div>)}
         </dl>
-        <p className="mock-room__source">Example, read from your league’s past drafts.</p>
+        <p className="mock-room__source">Example profile from imported past auction drafts.</p>
       </aside>
     </div>
   </div>

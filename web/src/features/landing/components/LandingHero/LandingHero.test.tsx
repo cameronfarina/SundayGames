@@ -11,6 +11,9 @@ describe("LandingHero", () => {
       .toHaveTextContent("Your league isn’t average.So why is your draft prep?");
     expect(screen.getByRole("link", { name: "Connect my league" }))
       .toHaveAttribute("href", "/signup");
+    expect(screen.getByText(/Auction leagues with enough imported history/u))
+      .toBeVisible();
+    expect(screen.queryByText(/how every manager drafts/u)).not.toBeInTheDocument();
   });
 
   it("shows a real board with the callout pointing at one row", () => {

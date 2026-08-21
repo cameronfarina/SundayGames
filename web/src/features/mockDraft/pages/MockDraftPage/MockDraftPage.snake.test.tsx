@@ -28,6 +28,8 @@ describe("MockDraftPage snake", () => {
     expect(screen.getAllByText("On the clock").length).toBeGreaterThan(0);
     expect(screen.getByText("1 / 4 picked")).toBeInTheDocument();
     expect(screen.getAllByText("1.02").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "Draft tendencies" }))
+      .not.toBeInTheDocument();
   });
 
   it("sends a pick command for the player the manager drafts", async () => {

@@ -15,8 +15,12 @@ describe("MockRoom", () => {
   it("reads one rival's habits off their own draft history", () => {
     render(<MockRoom />);
 
-    expect(screen.getByText("Historical premium")).toBeVisible();
+    expect(screen.getByText("Historical target")).toBeVisible();
+    expect(screen.getByText("WR focus")).toBeVisible();
+    expect(screen.getByText("Premium vs league baseline")).toBeVisible();
     expect(screen.getByText("+14%")).toBeVisible();
-    expect(screen.getByText(/past drafts/u)).toBeVisible();
+    expect(screen.getByText("Star bidding")).toBeVisible();
+    expect(screen.getByText("Players to watch")).toBeVisible();
+    expect(screen.getByText(/past auction drafts/u)).toBeVisible();
   });
 });

@@ -1,5 +1,8 @@
 import { canonicalPlayerIdentityKey } from "../../data/normalizePlayerName.js";
-import type { GenericAuctionMockConfig } from "../genericAuctionMockEngine.js";
+import type {
+  GenericAuctionMockAiTendency,
+  GenericAuctionMockConfig,
+} from "../genericAuctionMockEngine.js";
 import type { BuildSeasonAuctionMockConfigInput } from "./contracts.js";
 import { SeasonAuctionMockError } from "./errors.js";
 import { ownerDraftingTendenciesFor } from "./draftingStyles.js";
@@ -15,6 +18,7 @@ export const buildSeasonAuctionMockConfig = ({
   playerExpectedPrices = {},
   playerHumanValues = playerExpectedPrices,
   historicalSaleRecords = [],
+  managerProfiles,
 }: BuildSeasonAuctionMockConfigInput): GenericAuctionMockConfig => {
   if (season.settings.draftFormat !== "auction") {
     throw new SeasonAuctionMockError("wrong_draft_format", "This mock session is not an auction draft.");
@@ -36,13 +40,24 @@ export const buildSeasonAuctionMockConfig = ({
       playerId: player.playerId ?? canonicalPlayerIdentityKey(player.playerName),
       price: player.price,
     }));
-  const tendencies = ownerDraftingTendenciesFor({
-    leagueId: season.leagueId,
-    teams: season.teams,
-    players,
-    keptPlayerIds: new Set(keepers.map(keeper => keeper.playerId)),
-    historicalSaleRecords,
-  });
+  let tendencies: ReadonlyMap<string, GenericAuctionMockAiTendency>;
+  if (managerProfiles === undefined) {
+    tendencies = ownerDraftingTendenciesFor({
+      leagueId: season.leagueId,
+      teams: season.teams,
+      players,
+      keptPlayerIds: new Set(keepers.map(keeper => keeper.playerId)),
+      historicalSaleRecords,
+    });
+  } else {
+    const frozenTendencies = new Map<string, GenericAuctionMockAiTendency>();
+    for (const profile of managerProfiles) {
+      if (profile.aiTendency !== undefined) {
+        frozenTendencies.set(profile.teamId, profile.aiTendency);
+      }
+    }
+    tendencies = frozenTendencies;
+  }
   return {
     sessionId,
     seed,

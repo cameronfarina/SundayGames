@@ -54,7 +54,23 @@ export const mockResultsSchema = z.object({
   teams: z.array(resultTeamSchema),
 });
 
+export const managerDraftProfileSchema = z.object({
+  confidence: z.enum(["limited", "established", "strong"]).nullable(),
+  premiumVsLeagueBaselinePercent: z.number().nullable(),
+  sample: z.object({
+    auctionPurchaseCount: z.number().int().nonnegative(),
+    comparablePurchaseCount: z.number().int().nonnegative(),
+    seasonCount: z.number().int().nonnegative(),
+  }),
+  starBidding: z.enum(["low", "typical", "high"]).nullable(),
+  status: z.enum(["ready", "insufficient-history"]),
+  targetLabel: z.string().min(1).nullable(),
+  targetPosition: z.enum(["QB", "RB", "WR", "TE"]).nullable(),
+  teamId: z.string().min(1),
+});
+
 export const auctionMockResponseSchema = z.object({
+  managerProfiles: z.array(managerDraftProfileSchema).default([]),
   mockSession: auctionSessionSchema,
   results: mockResultsSchema.optional(),
   state: auctionStateSchema,
@@ -79,6 +95,7 @@ export const abandonedMockResponseSchema = z.object({
 export type AuctionMockResponse = z.infer<typeof auctionMockResponseSchema>;
 export type SnakeMockResponse = z.infer<typeof snakeMockResponseSchema>;
 export type MockResponse = z.infer<typeof mockResponseSchema>;
+export type ManagerDraftProfile = z.infer<typeof managerDraftProfileSchema>;
 
 /** The format sits on the session, one level down, so a guard does the narrowing. */
 export const isSnakeMockResponse = (

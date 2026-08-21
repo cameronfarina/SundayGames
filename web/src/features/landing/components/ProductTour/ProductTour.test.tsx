@@ -30,6 +30,14 @@ describe("ProductTour", () => {
     render(<ProductTour />);
 
     expect(screen.getAllByRole("tab").map(tab => tab.textContent))
-      .toEqual(["League", "Values", "Simulations", "Plan", "Draft room"]);
+      .toEqual(["League", "Values", "Simulations", "Plan", "Auction mock"]);
+  });
+
+  it("identifies the auction screen as an interactive practice mock", async () => {
+    render(<ProductTour />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Auction mock" }));
+
+    expect(screen.getByRole("img")).toHaveAccessibleName(/interactive auction mock/u);
   });
 });

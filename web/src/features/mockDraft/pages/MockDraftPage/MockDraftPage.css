@@ -45,14 +45,20 @@
   justify-content: end;
 }
 
+.mock-draft-page__stage-with-profile,
 .mock-draft-page__workspace {
   display: grid;
   gap: 1.5rem;
   grid-template-columns: minmax(0, 2.5fr) minmax(19rem, 1fr);
 }
 
+.mock-draft-page__stage-with-profile {
+  align-items: stretch;
+}
+
 @media (max-width: 960px) {
   .mock-draft-page__header,
+  .mock-draft-page__stage-with-profile,
   .mock-draft-page__workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

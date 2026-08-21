@@ -10,6 +10,7 @@ import type {
 } from "./contracts.js";
 import { deepFreeze } from "./deepFreeze.js";
 import { expectedPricesValue } from "./decoding/prices.js";
+import { managerProfilesValue } from "./decoding/managerProfiles.js";
 import {
   dateString,
   nonEmptyString,
@@ -52,6 +53,7 @@ const snapshotPayload = (
     playerHumanValues: record.playerHumanValues === undefined
       ? expectedPricesValue(record.playerExpectedPrices)
       : expectedPricesValue(record.playerHumanValues),
+    managerProfiles: managerProfilesValue(record.managerProfiles),
   };
   if (payload.setup.seasonId !== payload.season.id) return malformedSnapshot();
   if (!payload.season.teams.some(team => team.id === payload.humanTeamId)) {
@@ -60,6 +62,11 @@ const snapshotPayload = (
   if (payload.setup.initialRosters.some(player =>
     !payload.season.teams.some(team => team.id === player.teamId)
   )) return malformedSnapshot();
+  const profileTeamIds = payload.managerProfiles.map(profile => profile.teamId);
+  if (new Set(profileTeamIds).size !== profileTeamIds.length) return malformedSnapshot();
+  if (profileTeamIds.some(teamId => !payload.season.teams.some(team => team.id === teamId))) {
+    return malformedSnapshot();
+  }
   return payload;
 };
 
