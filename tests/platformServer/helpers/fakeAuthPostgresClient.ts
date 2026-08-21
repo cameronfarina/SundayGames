@@ -2,18 +2,25 @@ import type {
   PostgresQueryClient,
   PostgresQueryResult,
 } from "../../../src/platform/postgresPlatformStore.js";
-import type { StoredAuthAccountRow, StoredAuthSessionRow } from "./postgresRows.js";
+import type {
+  StoredAccountOnboardingRow,
+  StoredAuthAccountRow,
+  StoredAuthSessionRow,
+} from "./postgresRows.js";
 import {
+  cloneAccountOnboardingRow,
   cloneAuthAccountRow,
   cloneAuthSessionRow,
   dateValueAt,
   normalizeSql,
   optionalStringValueAt,
   stringValueAt,
+  valueAt,
 } from "./postgresRowUtilities.js";
 
 export class FakePostgresAuthClient implements PostgresQueryClient {
   readonly accounts = new Map<string, StoredAuthAccountRow>();
+  readonly accountOnboarding = new Map<string, StoredAccountOnboardingRow>();
   readonly sessions = new Map<string, StoredAuthSessionRow>();
 
   query<TRow = Record<string, unknown>>(
@@ -25,6 +32,56 @@ export class FakePostgresAuthClient implements PostgresQueryClient {
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResult<unknown>> {
     const normalizedSql = normalizeSql(text);
+
+    if (normalizedSql.includes("FROM account_onboarding_profiles WHERE account_id = $1")) {
+      const row = this.accountOnboarding.get(stringValueAt(values, 0));
+      return { rows: row === undefined ? [] : [cloneAccountOnboardingRow(row)] };
+    }
+
+    if (normalizedSql.startsWith("INSERT INTO account_onboarding_profiles (account_id, intent")) {
+      const accountId = stringValueAt(values, 0);
+      if (!this.accounts.has(accountId)) throw new Error("Account onboarding foreign key failed.");
+      const existing = this.accountOnboarding.get(accountId);
+      if (existing?.completed_at !== null && existing !== undefined) return { rows: [], rowCount: 0 };
+      const now = dateValueAt(values, 2);
+      const row: StoredAccountOnboardingRow = existing ?? {
+        account_id: accountId,
+        intent: null,
+        providers_json: null,
+        completed_at: null,
+        created_at: now,
+        updated_at: now,
+      };
+      row.intent = stringValueAt(values, 1);
+      row.updated_at = now;
+      this.accountOnboarding.set(accountId, row);
+      return { rows: [cloneAccountOnboardingRow(row)], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE account_onboarding_profiles SET providers_json")) {
+      const accountId = stringValueAt(values, 0);
+      const row = this.accountOnboarding.get(accountId);
+      if (row === undefined || row.intent === null || row.completed_at !== null) {
+        return { rows: [], rowCount: 0 };
+      }
+      const providers = valueAt(values, 1);
+      row.providers_json = typeof providers === "string" ? JSON.parse(providers) : providers;
+      row.updated_at = dateValueAt(values, 2);
+      return { rows: [cloneAccountOnboardingRow(row)], rowCount: 1 };
+    }
+
+    if (normalizedSql.startsWith("UPDATE account_onboarding_profiles SET completed_at")) {
+      const accountId = stringValueAt(values, 0);
+      const row = this.accountOnboarding.get(accountId);
+      if (
+        row === undefined || row.intent === null || row.providers_json === null ||
+        row.completed_at !== null
+      ) return { rows: [], rowCount: 0 };
+      const now = dateValueAt(values, 1);
+      row.completed_at = now;
+      row.updated_at = now;
+      return { rows: [cloneAccountOnboardingRow(row)], rowCount: 1 };
+    }
 
     if (normalizedSql.startsWith("INSERT INTO accounts")) {
       const id = stringValueAt(values, 0);

@@ -30,6 +30,7 @@ export const createStoreSnapshot = (
   repositories: SnapshotRepositories,
 ): InMemoryPlatformStoreSnapshot => ({
   auth: createAuthSnapshot(repositories),
+  accountOnboardingProfiles: repositories.accountOnboarding.records(),
   ...leagueMemorySnapshot(state),
   mockDraftSessions: repositories.mockDraftSessions.sessions(),
   simulationRuns: repositories.simulations.runs(),

@@ -71,8 +71,9 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
       providerLeagueId: input.providerLeagueId,
       season: input.season,
     };
-    const credentials = input.provider === "espn"
-      ? this.#credentials.encryptedFor(input.credentials, credentialContext)
+    const credentialUpdate = input.provider === "espn" ? input.credentialUpdate : undefined;
+    const credentials = credentialUpdate?.mode === "replace"
+      ? this.#credentials.encryptedFor(credentialUpdate.credentials, credentialContext)
       : undefined;
     const result = await this.#client.query<LeagueConnectionRow>(upsertConnectionSql, [
       `league_connection_${randomUUID()}`,
@@ -84,6 +85,7 @@ export class PostgresLeagueConnectionRepository implements LeagueConnectionRepos
       credentials?.ciphertext ?? null,
       credentials?.keyId ?? null,
       (input.now ?? new Date()).toISOString(),
+      credentialUpdate?.mode ?? "retain",
     ]);
     const row = result.rows[0];
     if (row === undefined) throw new Error("Saving a league connection returned no row.");

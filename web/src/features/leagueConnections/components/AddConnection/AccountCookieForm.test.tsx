@@ -6,6 +6,7 @@ import { AccountCookieForm } from "./AccountCookieForm";
 const renderForm = (overrides: Partial<Parameters<typeof AccountCookieForm>[0]> = {}) => {
   const utils = {
     espnS2: "s2-value",
+    hasLeagueHandle: true,
     onEspnS2Change: vi.fn(),
     onSubmit: vi.fn(),
     onSwidChange: vi.fn(),
@@ -32,12 +33,13 @@ describe("AccountCookieForm", () => {
     expect(screen.getByRole("button", { name: "Hide ESPN cookie values" })).toBeVisible();
   });
 
-  it("says why there is no sign-in button before asking for anything", () => {
+  it("discloses that the values are expiring account session credentials", () => {
     renderForm();
 
-    expect(screen.getByRole("heading", { name: "Find every league on your ESPN account" }))
+    expect(screen.getByRole("heading", { name: "Experimental private-league sync" }))
       .toBeVisible();
-    expect(screen.getByText(/It is a one-time step/u)).toBeVisible();
+    expect(screen.getByText(/account session credentials/u)).toBeVisible();
+    expect(screen.getByText(/ESPN expires these credentials/u)).toBeVisible();
     expect(screen.getAllByRole("listitem").map(step => step.textContent.slice(0, 12))).toEqual([
       "Open fantasy",
       "Open your br",
@@ -76,11 +78,11 @@ describe("AccountCookieForm", () => {
     expect(utils.onEspnS2Change).toHaveBeenCalledWith("s");
   });
 
-  it("searches the whole account when both cookies are in place", async () => {
+  it("searches the named private league when both cookies are in place", async () => {
     const user = userEvent.setup();
     const utils = renderForm();
 
-    await user.click(screen.getByRole("button", { name: "Find all my leagues" }));
+    await user.click(screen.getByRole("button", { name: "Find this private league" }));
 
     expect(utils.onSubmit).toHaveBeenCalledOnce();
   });
@@ -88,7 +90,13 @@ describe("AccountCookieForm", () => {
   it("waits for both cookies before it will search", () => {
     renderForm({ swid: "  " });
 
-    expect(screen.getByRole("button", { name: "Find all my leagues" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Find this private league" })).toBeDisabled();
+  });
+
+  it("requires the private league link before using account credentials", () => {
+    renderForm({ hasLeagueHandle: false });
+
+    expect(screen.getByRole("button", { name: "Find this private league" })).toBeDisabled();
   });
 
   it("blocks a second search while ESPN is still answering", () => {

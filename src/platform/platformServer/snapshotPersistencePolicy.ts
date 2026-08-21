@@ -21,6 +21,7 @@ import {
   isSimulationOnlyMutationRequest,
 } from "./requestKinds.js";
 import {
+  isAccountOnboardingOnlyMutationRequest,
   isAuthOnlyMutationRequest,
   isHistoricalImportOnlyMutationRequest,
   isLeagueSetupOnlyMutationRequest,
@@ -42,6 +43,8 @@ export const shouldSkipSnapshotPersist = (
   request: PlatformHttpRequest,
 ): boolean => {
   const externalAuth = runtime.authRepository !== runtime.store.authRepository;
+  const externalAccountOnboarding =
+    runtime.accountOnboardingRepository !== runtime.store.accountOnboarding;
   const externalLeagueSetup = runtime.leagueSetupRepository !== runtime.store;
   const externalHistoricalImports = runtime.historicalImportRepository !== runtime.store.historicalImports;
   const externalJobs = runtime.jobRepository !== runtime.store.jobs;
@@ -53,6 +56,7 @@ export const shouldSkipSnapshotPersist = (
   return isLeagueMembersScreenshotAnalysisRequest(request) ||
     isSeasonSimulationRequest(request) ||
     usesFileAuthSidecarFor(runtime, request) ||
+    (externalAccountOnboarding && isAccountOnboardingOnlyMutationRequest(request)) ||
     (externalAuth && isAuthOnlyMutationRequest(request)) ||
     (externalLeagueSetup && isLeagueSetupOnlyMutationRequest(request)) ||
     (externalHistoricalImports && isHistoricalImportOnlyMutationRequest(request)) ||

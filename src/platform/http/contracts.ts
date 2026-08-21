@@ -2,6 +2,7 @@ import type {
   AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
 } from "../authRateLimit.js";
+import type { AccountOnboardingRepository } from "../accountOnboarding.js";
 import type {
   EspnLeagueSettingsImportInput,
   EspnLeagueSettingsImportOutcome,
@@ -51,6 +52,7 @@ export type PlatformApp = ReturnType<typeof createPlatformApp>;
 export type PlatformHttpHandler = (request: PlatformHttpRequest) => Promise<PlatformHttpResponse>;
 
 export interface PlatformHttpServices {
+  accountOnboardingRepository?: AccountOnboardingRepository | undefined;
   onboardingRepository?: PlatformOnboardingRepository | undefined;
   playerNewsRepository?: PlayerNewsRepository | undefined;
   currentPlayerCatalogProvider?: (() => Promise<readonly LiveDraftRoomPlayerCatalogEntry[]>) | undefined;

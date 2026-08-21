@@ -1,4 +1,5 @@
 import type { InMemoryAuthRepository } from "../../auth.js";
+import type { InMemoryAccountOnboardingRepository } from "../../accountOnboarding.js";
 import type { InMemoryExportArtifactRepository } from "../../exportArtifacts.js";
 import type { InMemoryHistoricalImportRepository } from "../../historicalImports.js";
 import type { InMemoryJobQueue } from "../../jobs.js";
@@ -19,6 +20,7 @@ import {
 } from "./leagueMemoryState.js";
 
 export interface SnapshotRepositories {
+  readonly accountOnboarding: InMemoryAccountOnboardingRepository;
   readonly authRepository: InMemoryAuthRepository;
   readonly exportArtifacts: InMemoryExportArtifactRepository;
   readonly historicalImports: InMemoryHistoricalImportRepository;
@@ -83,6 +85,16 @@ export const loadStoreSnapshot = (
   repositories: SnapshotRepositories,
   snapshot: InMemoryPlatformStoreSnapshot,
 ): void => {
+  const accountOnboardingProfiles = snapshot.accountOnboardingProfiles ??
+    snapshot.auth.accountCredentials.map(credential => ({
+      accountId: credential.account.id,
+      intent: null,
+      providers: null,
+      completedAt: credential.account.createdAt,
+      createdAt: credential.account.createdAt,
+      updatedAt: credential.account.updatedAt,
+    }));
+  repositories.accountOnboarding.replaceRecords(accountOnboardingProfiles);
   restoreAuth(repositories.authRepository, snapshot.auth);
   restoreLeagueMemoryState(state, {
     leagueSeasons: snapshot.leagueSeasons,

@@ -7,6 +7,7 @@ import type {
   DraftRoomSnapshotRow,
   StoredAuthAccountRow,
   StoredAuthSessionRow,
+  StoredAccountOnboardingRow,
 } from "./postgresRows.js";
 
 export const normalizeSql = (text: string): string => text.replace(/\s+/g, " ").trim();
@@ -94,6 +95,16 @@ export const cloneAuthSessionRow = (row: StoredAuthSessionRow): StoredAuthSessio
   created_at: new Date(row.created_at.getTime()),
   expires_at: new Date(row.expires_at.getTime()),
   revoked_at: row.revoked_at === null ? null : new Date(row.revoked_at.getTime()),
+});
+
+export const cloneAccountOnboardingRow = (
+  row: StoredAccountOnboardingRow,
+): StoredAccountOnboardingRow => ({
+  ...row,
+  providers_json: row.providers_json === null ? null : cloneJson(row.providers_json),
+  completed_at: cloneDate(row.completed_at),
+  created_at: new Date(row.created_at.getTime()),
+  updated_at: new Date(row.updated_at.getTime()),
 });
 
 export const cloneRoomRow = (row: DraftRoomRow): DraftRoomRow => ({

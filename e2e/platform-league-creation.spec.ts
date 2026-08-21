@@ -1,17 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { expectAuthenticatedAccount } from "./support/auth.js";
+import { signUp } from "./support/auth.js";
 
 const isDeployedSmoke = process.env.MOCKD_E2E_TARGET?.trim().toLowerCase() === "deployed";
-const password = process.env.MOCKD_E2E_PASSWORD?.trim() || "e2e-secure-password";
-
-const signUp = async (page: Page, email: string): Promise<void> => {
-  await page.goto("/signup");
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expectAuthenticatedAccount(page, email);
-};
-
 const expectStep = async (dialog: Locator, name: string): Promise<void> => {
   await expect(dialog.getByRole("heading", { name })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Back" })).toBeInViewport();

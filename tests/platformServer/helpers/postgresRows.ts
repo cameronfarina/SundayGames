@@ -27,6 +27,15 @@ export interface StoredAuthSessionRow {
   revoked_at: Date | null;
 }
 
+export interface StoredAccountOnboardingRow {
+  account_id: string;
+  intent: string | null;
+  providers_json: unknown;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface DraftRoomRow {
   id: string;
   league_id: string;

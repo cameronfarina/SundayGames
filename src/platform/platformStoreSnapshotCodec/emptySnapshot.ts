@@ -2,6 +2,7 @@ import type { InMemoryPlatformStoreSnapshot } from "../platformApp.js";
 
 export const emptyPlatformStoreSnapshot = (): InMemoryPlatformStoreSnapshot => ({
   auth: { accountCredentials: [], sessions: [] },
+  accountOnboardingProfiles: [],
   leagueSeasons: [],
   leagueCreationRecords: [],
   memberships: [],

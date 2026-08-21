@@ -1,6 +1,14 @@
 import type { PlatformHttpRequest } from "../platformHttp.js";
 import { pathSegmentsFor } from "./requestPath.js";
 
+export const isAccountOnboardingOnlyMutationRequest = (
+  request: PlatformHttpRequest,
+): boolean => {
+  const segments = pathSegmentsFor(request);
+  return request.method.toUpperCase() === "PUT" && segments?.length === 1
+    && segments[0] === "account-onboarding";
+};
+
 export const isAuthOnlyMutationRequest = (request: PlatformHttpRequest): boolean => {
   const method = request.method.toUpperCase();
   const segments = pathSegmentsFor(request);

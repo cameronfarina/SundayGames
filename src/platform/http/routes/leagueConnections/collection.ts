@@ -1,4 +1,5 @@
 import { leagueSyncProviderCatalog, syncLeagueConnection } from "../../../leagueSyncService.js";
+import type { LeagueConnectionCredentialUpdate } from "../../../leagueConnections.js";
 import { requireRequestAccount } from "../../auth/access.js";
 import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
@@ -51,6 +52,28 @@ export const routeLeagueConnectionCollection = async (
     return knownError(400, "league_required", "Choose which league to connect.");
   }
   const credentials = credentialsFor(request.body);
+  const requestedCredentialMode = request.body.credentialMode;
+  if (requestedCredentialMode !== undefined
+    && requestedCredentialMode !== "public"
+    && requestedCredentialMode !== "private") {
+    return knownError(400, "invalid_credential_mode", "Choose public or private ESPN sync.");
+  }
+  if (provider !== "espn" && requestedCredentialMode !== undefined) {
+    return knownError(400, "invalid_credential_mode", "Credential mode is only used for ESPN.");
+  }
+  if (requestedCredentialMode === "public" && credentials !== undefined) {
+    return knownError(400, "invalid_credentials", "Public ESPN sync must not include credentials.");
+  }
+  if (requestedCredentialMode === "private"
+    && (credentials?.espnS2 === undefined || credentials.swid === undefined)) {
+    return knownError(400, "credentials_required", "Private ESPN sync needs both ESPN cookies.");
+  }
+  const credentialUpdate: LeagueConnectionCredentialUpdate | undefined =
+    requestedCredentialMode === "public"
+    ? { mode: "clear" }
+    : credentials === undefined
+      ? undefined
+      : { credentials, mode: "replace" };
   const now = request.now ?? new Date();
   const saved = await options.repository.saveConnection({
     accountId: account.id,
@@ -58,7 +81,7 @@ export const routeLeagueConnectionCollection = async (
     providerLeagueId: normalizedHandle(provider, providerLeagueId),
     season: seasonFor(request, request.body.season),
     displayName: optionalString(request.body.displayName) ?? "Connected league",
-    ...(credentials === undefined ? {} : { credentials }),
+    ...(credentialUpdate === undefined ? {} : { credentialUpdate }),
     now,
   });
   const result = await syncLeagueConnection(options, saved, now);

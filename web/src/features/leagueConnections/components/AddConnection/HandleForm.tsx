@@ -8,10 +8,12 @@ interface HandleFormProps {
   readonly pending: boolean;
   readonly provider: LeagueConnectionProviderInfo;
   readonly submitLabel: string;
+  readonly inputId?: string;
 }
 
 export const HandleForm = ({
   handle,
+  inputId = "connection-handle",
   onHandleChange,
   onSubmit,
   pending,
@@ -22,8 +24,9 @@ export const HandleForm = ({
   onSubmit={event => { event.preventDefault(); onSubmit(); }}
 >
   <TextField
+    disabled={pending}
     hint={provider.handleHint}
-    id="connection-handle"
+    id={inputId}
     label={provider.handleLabel}
     onChange={event => { onHandleChange(event.currentTarget.value); }}
     value={handle}

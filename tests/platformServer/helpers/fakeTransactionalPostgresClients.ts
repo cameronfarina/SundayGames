@@ -36,6 +36,7 @@ export class FakeTransactionalPostgresAuthClient
       normalizedSql.startsWith("DROP TRIGGER") ||
       normalizedSql.startsWith("DO $$") ||
       normalizedSql.startsWith("INSERT INTO platform_practice_persistence_control") ||
+      normalizedSql.startsWith("INSERT INTO account_onboarding_profiles") ||
       normalizedSql.startsWith("UPDATE platform_store_snapshots") ||
       normalizedSql.startsWith("UPDATE accounts SET email_verified_at")
     ) {

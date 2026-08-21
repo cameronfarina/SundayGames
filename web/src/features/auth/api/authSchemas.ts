@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { accountOnboardingSchema } from "../../../shared/api/accountOnboarding/accountOnboardingSchema";
 
 export const accountSchema = z.object({
   createdAt: z.string(),
@@ -17,12 +18,16 @@ const publicSessionSchema = z.object({
   revokedAt: z.string().optional(),
 });
 
-export const sessionSchema = z.object({ account: accountSchema });
+export const sessionSchema = z.object({
+  account: accountSchema,
+  onboarding: accountOnboardingSchema.optional(),
+});
 
 export const sessionStateSchema = z.object({ signedIn: z.boolean() });
 
 export const loginSchema = z.object({
   account: accountSchema,
+  onboarding: accountOnboardingSchema.optional(),
   session: publicSessionSchema,
 });
 

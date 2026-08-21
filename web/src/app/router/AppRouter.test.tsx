@@ -23,6 +23,7 @@ describe("AppRouter", () => {
         id: "account-1",
         updatedAt: "2026-08-13T12:00:00.000Z",
       },
+      onboarding: { intent: null, providers: null, stage: "complete" },
     });
     vi.stubGlobal("fetch", createPracticeFetch());
     const router = createMemoryRouter(createAppRoutes(queryClient), { initialEntries: ["/practice"] });

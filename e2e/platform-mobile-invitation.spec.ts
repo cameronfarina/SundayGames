@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ownerOrder } from "../config/league.js";
 import type { LeagueSeason } from "../src/platform/leagueSeason.js";
 import {
+  completeRequiredAccountSetup,
   expectAuthenticatedSession,
   expectSignedOut,
   signOutThroughAccountMenu,
@@ -123,6 +124,7 @@ test("shared league invitation requires deliberate mobile team claims for existi
     page.getByRole("button", { name: "Create account" }).click(),
   ]);
   await expectAuthenticatedSession(page, newMemberEmail);
+  await completeRequiredAccountSetup(page);
   await expectInvitationPage(page, `${leagueName} Invite`, ownerOrder.length);
   const beforeClaim = expectOk(await api(page, "/onboarding", onboardingSchema));
   expect(beforeClaim.leagues.some(league => league.seasonId === seasonId)).toBe(false);

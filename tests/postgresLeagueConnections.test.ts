@@ -151,7 +151,10 @@ describe("postgres league connection repository", () => {
       providerLeagueId: "289646328504385536",
       season: "2018",
       displayName: "Sleeper Friends League",
-      credentials: { espnS2: "must-not-be-stored", swid: "{MUST-NOT-BE-STORED}" },
+      credentialUpdate: {
+        mode: "replace",
+        credentials: { espnS2: "must-not-be-stored", swid: "{MUST-NOT-BE-STORED}" },
+      },
       now: new Date("2026-08-19T12:00:00.000Z"),
     });
 
@@ -164,6 +167,7 @@ describe("postgres league connection repository", () => {
       null,
       null,
       "2026-08-19T12:00:00.000Z",
+      "retain",
     ]);
     expect(client.queries[0]?.sql).toContain(
       "updated_at = GREATEST(league_connections.updated_at, EXCLUDED.updated_at)",
@@ -216,7 +220,10 @@ describe("postgres league connection repository", () => {
       providerLeagueId: "899513",
       season: "2025",
       displayName: "Pigskin Power Bottoms",
-      credentials: { espnS2: "s2-secret-value", swid: "{SECRET-GUID}" },
+      credentialUpdate: {
+        mode: "replace",
+        credentials: { espnS2: "s2-secret-value", swid: "{SECRET-GUID}" },
+      },
       now: new Date("2026-08-19T12:00:00.000Z"),
     });
 
@@ -224,6 +231,25 @@ describe("postgres league connection repository", () => {
     expect(persistedValues).not.toContain("s2-secret-value");
     expect(persistedValues).not.toContain("{SECRET-GUID}");
     expect(client.queries[0]?.sql).toContain("credentials_ciphertext");
+  });
+
+  it("explicitly clears every stored ESPN credential column for public mode", async () => {
+    const client = new RecordingClient();
+    const repository = new PostgresLeagueConnectionRepository(client, credentialCipher);
+    client.answerWith([connectionRow]);
+
+    await repository.saveConnection({
+      accountId: "account-1",
+      provider: "espn",
+      providerLeagueId: "899513",
+      season: "2025",
+      displayName: "Pigskin Power Bottoms",
+      credentialUpdate: { mode: "clear" },
+      now: new Date("2026-08-19T12:00:00.000Z"),
+    });
+
+    expect(client.queries[0]?.values[9]).toBe("clear");
+    expect(client.queries[0]?.sql).toContain("$10::text = 'clear'");
   });
 
   it("refuses to invent a connection when the upsert returns nothing", async () => {

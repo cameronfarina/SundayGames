@@ -1,4 +1,5 @@
 import { InMemoryPlatformInvitationRepository } from "../platformInvitations.js";
+import { PostgresAccountOnboardingRepository } from "../accountOnboarding.js";
 import { InMemoryPlatformOnboardingRepository, PostgresPlatformOnboardingRepository } from "../platformOnboarding.js";
 import { PostgresAuthRepository } from "../postgresAuth.js";
 import { PostgresExportArtifactRepository } from "../postgresExportArtifacts.js";
@@ -23,8 +24,10 @@ export const composeRuntimeRepositories = (
   loaded: LoadedPlatformStore,
 ): RuntimeRepositories => {
   const { store } = loaded;
-  const postgresAuthRepository = options.postgresAuthClient === undefined
-    ? undefined : new PostgresAuthRepository(options.postgresAuthClient);
+  const postgresAuthRepository = options.postgresAuthClient === undefined ? undefined : new PostgresAuthRepository(options.postgresAuthClient);
+  const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
+  const onboardingClient = authRepository === postgresAuthRepository ? options.postgresAuthClient : undefined;
+  const postgresAccountOnboardingRepository = onboardingClient === undefined ? undefined : new PostgresAccountOnboardingRepository(onboardingClient);
   const postgresLeagueSetupRepository = options.postgresLeagueSetupClient === undefined
     ? undefined : new PostgresLeagueSetupRepository(options.postgresLeagueSetupClient);
   const postgresHistoricalImportRepository = options.postgresHistoricalImportClient === undefined
@@ -79,7 +82,6 @@ export const composeRuntimeRepositories = (
     ? undefined : new PostgresPlatformInvitationRepository(sharedTransactionalClient);
   const postgresLiveDraftRoomSetupRepository = options.postgresClient === undefined
     ? undefined : new PostgresLiveDraftRoomSetupRepository(options.postgresClient);
-  const authRepository = options.authRepository ?? postgresAuthRepository ?? store.authRepository;
   const historicalImportRepository = options.historicalImportRepository ??
     postgresHistoricalImportRepository ?? store.historicalImports;
   if (authRepository !== store.authRepository) store.clearAuthSnapshotState();
@@ -100,6 +102,8 @@ export const composeRuntimeRepositories = (
   return {
     ...loaded,
     authRepository,
+    accountOnboardingRepository: options.accountOnboardingRepository ??
+      postgresAccountOnboardingRepository ?? store.accountOnboarding,
     leagueSetupRepository: options.leagueSetupRepository ?? postgresLeagueSetupRepository ?? store,
     historicalImportRepository,
     jobRepository: options.jobRepository ?? postgresJobQueue ?? store.jobs,
@@ -127,6 +131,7 @@ export const composeRuntimeRepositories = (
     liveDraftRoomSetupRepository: options.liveDraftRoomSetupRepository ??
       postgresLiveDraftRoomSetupRepository ?? store.liveDraftRoomSetups,
     ...(postgresAuthRepository === undefined ? {} : { postgresAuthRepository }),
+    ...(postgresAccountOnboardingRepository === undefined ? {} : { postgresAccountOnboardingRepository }),
     ...(postgresLeagueSetupRepository === undefined ? {} : { postgresLeagueSetupRepository }),
     ...(postgresHistoricalImportRepository === undefined ? {} : { postgresHistoricalImportRepository }),
     ...(postgresJobQueue === undefined ? {} : { postgresJobQueue }),

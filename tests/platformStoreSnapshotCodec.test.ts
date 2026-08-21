@@ -236,17 +236,19 @@ describe("platform store snapshot codec", () => {
   });
 
   it("defaults collections omitted by legacy snapshots", () => {
-    expect(deserializePlatformStoreSnapshot({ schemaVersion: 1 })).toEqual(
-      emptyPlatformStoreSnapshot(),
-    );
+    const decoded = deserializePlatformStoreSnapshot({ schemaVersion: 1 });
+    expect(decoded.accountOnboardingProfiles).toBeUndefined();
+    expect({ ...decoded, accountOnboardingProfiles: [] }).toEqual(emptyPlatformStoreSnapshot());
   });
 
   it("defaults legacy null collections and auth state", () => {
-    expect(deserializePlatformStoreSnapshot({
+    const decoded = deserializePlatformStoreSnapshot({
       schemaVersion: 1,
       auth: null,
       memberships: null,
-    })).toEqual(emptyPlatformStoreSnapshot());
+    });
+    expect(decoded.accountOnboardingProfiles).toBeUndefined();
+    expect({ ...decoded, accountOnboardingProfiles: [] }).toEqual(emptyPlatformStoreSnapshot());
   });
 
   it("rejects a malformed top-level collection", () => {

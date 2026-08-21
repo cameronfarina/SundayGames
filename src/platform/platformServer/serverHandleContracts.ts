@@ -1,5 +1,9 @@
 import type { Server } from "node:http";
 import type { AuthRepository } from "../auth.js";
+import type {
+  AccountOnboardingRepository,
+  PostgresAccountOnboardingRepository,
+} from "../accountOnboarding.js";
 import type { ExportArtifactRepository } from "../exportArtifacts.js";
 import type { FantasyProsRepository } from "../fantasyPros.js";
 import type { FilePlatformStore } from "../filePlatformStore.js";
@@ -35,6 +39,7 @@ export interface PlatformServer {
   app: PlatformApp;
   store: InMemoryPlatformStore;
   authRepository: AuthRepository;
+  accountOnboardingRepository: AccountOnboardingRepository;
   leagueSetupRepository: LeagueSetupRepository;
   historicalImportRepository: HistoricalImportRepository;
   jobRepository: JobRepository;
@@ -55,6 +60,7 @@ export interface PlatformServer {
   fileStore?: FilePlatformStore | undefined;
   postgresStore?: PostgresPlatformStore | undefined;
   postgresAuthRepository?: PostgresAuthRepository | undefined;
+  postgresAccountOnboardingRepository?: PostgresAccountOnboardingRepository | undefined;
   postgresLeagueSetupRepository?: PostgresLeagueSetupRepository | undefined;
   postgresHistoricalImportRepository?: PostgresHistoricalImportRepository | undefined;
   postgresJobQueue?: PostgresJobQueue | undefined;

@@ -1,4 +1,5 @@
 import type { AuthMailSender, AuthRepository, SignupNotifier } from "../auth.js";
+import type { AccountOnboardingRepository } from "../accountOnboarding.js";
 import type {
   AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
@@ -51,6 +52,7 @@ export interface CreatePlatformServerOptions {
   practicePersistenceMode?: PracticePersistenceMode | undefined;
   initializePostgresSchema?: boolean | undefined;
   authRepository?: AuthRepository | undefined;
+  accountOnboardingRepository?: AccountOnboardingRepository | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;

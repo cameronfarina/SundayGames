@@ -21,6 +21,7 @@ export interface DiscoverLeaguesRequest extends ConnectionCredentials {
 }
 
 export interface ConnectLeagueRequest extends ConnectionCredentials {
+  readonly credentialMode?: "private" | "public";
   readonly displayName: string;
   readonly provider: LeagueConnectionProvider;
   readonly providerLeagueId: string;
