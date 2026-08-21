@@ -175,6 +175,10 @@ describe("platform Postgres schema contract", () => {
       name: "account_onboarding_profiles_intent_check",
       expression: "intent IS NULL OR intent IN ('practice', 'live_draft')",
     });
+    expect(tableByName("account_onboarding_profiles").checkConstraints).toContainEqual({
+      name: "account_onboarding_profiles_intent_both_check",
+      expression: "NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')",
+    });
     expectColumn("account_onboarding_profiles", "providers_json", { type: "jsonb", nullable: true });
     expectColumn("account_onboarding_profiles", "completed_at", {
       type: "timestamptz",

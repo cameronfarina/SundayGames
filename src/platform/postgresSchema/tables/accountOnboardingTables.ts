@@ -18,6 +18,10 @@ export const accountOnboardingTables: readonly PostgresTableDefinition[] = [{
       expression: "intent IS NULL OR intent IN ('practice', 'live_draft')",
     },
     {
+      name: "account_onboarding_profiles_intent_both_check",
+      expression: "NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')",
+    },
+    {
       name: "account_onboarding_profiles_providers_check",
       expression: "providers_json IS NULL OR jsonb_typeof(providers_json) = 'array'",
     },

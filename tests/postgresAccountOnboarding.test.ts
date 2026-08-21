@@ -67,8 +67,20 @@ describe("Postgres account onboarding", () => {
     const repository = new PostgresAccountOnboardingRepository(client);
 
     await expect(repository.findByAccountId("account-1"))
-      .resolves.toMatchObject({ intent: "live_draft" });
+      .resolves.toMatchObject({ intent: "live_draft", intentBoth: true });
   });
+
+  it.each([null, "practice"])(
+    "rejects a combined marker paired with the invalid intent %s",
+    async intent => {
+      const client = new QueuedClient();
+      client.results.push([{ ...row, intent, intent_both: true }]);
+      const repository = new PostgresAccountOnboardingRepository(client);
+
+      await expect(repository.findByAccountId("account-1"))
+        .rejects.toThrow("Invalid account onboarding combined intent.");
+    },
+  );
 
   it("clears the reserved combined-intent flag when a legacy intent is saved", async () => {
     const client = new QueuedClient();

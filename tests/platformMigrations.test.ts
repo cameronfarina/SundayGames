@@ -551,10 +551,23 @@ describe("platform Postgres migrations", () => {
 
     expect(requiredPlatformPostgresMigrationIds.at(-1))
       .toBe("platform-account-onboarding-intent-both-v29");
-    expect(result.statementCount).toBe(3);
+    expect(result.statementCount).toBe(6);
     expect(client.statements).toContain(
       "ALTER TABLE account_onboarding_profiles ADD COLUMN IF NOT EXISTS " +
       "intent_both boolean NOT NULL DEFAULT false;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE account_onboarding_profiles DROP CONSTRAINT IF EXISTS " +
+      "account_onboarding_profiles_intent_both_check;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE account_onboarding_profiles ADD CONSTRAINT " +
+      "account_onboarding_profiles_intent_both_check " +
+      "CHECK (NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')) NOT VALID;",
+    );
+    expect(client.statements).toContain(
+      "ALTER TABLE account_onboarding_profiles VALIDATE CONSTRAINT " +
+      "account_onboarding_profiles_intent_both_check;",
     );
   });
 

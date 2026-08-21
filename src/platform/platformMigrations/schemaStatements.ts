@@ -137,6 +137,13 @@ export const accountOnboardingRolloutMigrationStatements: readonly string[] = [
 export const accountOnboardingIntentBothMigrationStatements: readonly string[] = [
   "ALTER TABLE account_onboarding_profiles ADD COLUMN IF NOT EXISTS " +
     "intent_both boolean NOT NULL DEFAULT false;",
+  "ALTER TABLE account_onboarding_profiles DROP CONSTRAINT IF EXISTS " +
+    "account_onboarding_profiles_intent_both_check;",
+  "ALTER TABLE account_onboarding_profiles ADD CONSTRAINT " +
+    "account_onboarding_profiles_intent_both_check " +
+    "CHECK (NOT intent_both OR (intent IS NOT NULL AND intent = 'live_draft')) NOT VALID;",
+  "ALTER TABLE account_onboarding_profiles VALIDATE CONSTRAINT " +
+    "account_onboarding_profiles_intent_both_check;",
 ];
 
 export const leagueSyncMigrationStatements: readonly string[] = [

@@ -26,12 +26,20 @@ const dateValue = (value: unknown, path: string): Date => {
 export const accountOnboardingValue = (value: unknown, path: string): AccountOnboardingRecord => {
   const record = recordValue(value, path);
   if (typeof record.accountId !== "string") return invalidSnapshot(`${path}.accountId`);
+  if (record.intentBoth !== undefined && typeof record.intentBoth !== "boolean") {
+    return invalidSnapshot(`${path}.intentBoth`);
+  }
   if (record.providers !== null && !Array.isArray(record.providers)) {
     return invalidSnapshot(`${path}.providers`);
   }
+  const intent = intentValue(record.intent, `${path}.intent`);
+  if (record.intentBoth === true && intent !== "live_draft") {
+    return invalidSnapshot(`${path}.intentBoth`);
+  }
   return {
     accountId: record.accountId,
-    intent: intentValue(record.intent, `${path}.intent`),
+    intent,
+    ...(record.intentBoth === undefined ? {} : { intentBoth: record.intentBoth }),
     providers: record.providers === null
       ? null
       : record.providers.map((provider, index) =>

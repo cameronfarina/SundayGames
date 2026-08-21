@@ -36,7 +36,8 @@ const rowRecord = (row: AccountOnboardingRow): AccountOnboardingRecord => {
   if (row.intent !== null && !isIntent(row.intent)) {
     throw new Error("Invalid account onboarding intent.");
   }
-  if (typeof row.intent_both !== "boolean" || (row.intent === null && row.intent_both)) {
+  if (typeof row.intent_both !== "boolean"
+    || (row.intent_both && row.intent !== "live_draft")) {
     throw new Error("Invalid account onboarding combined intent.");
   }
   const providerValues = row.providers_json;
@@ -52,6 +53,7 @@ const rowRecord = (row: AccountOnboardingRow): AccountOnboardingRecord => {
   return {
     accountId: row.account_id,
     intent: row.intent,
+    intentBoth: row.intent_both,
     providers: parsedProviders,
     completedAt: row.completed_at === null ? null : date(row.completed_at),
     createdAt: date(row.created_at),
