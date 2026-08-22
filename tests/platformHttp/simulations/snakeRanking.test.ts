@@ -12,15 +12,16 @@ import {
   snakePlayerCatalog,
   snakeSeason,
   it,
+  type LiveDraftRoomPlayerCatalogEntry,
 } from "../support/index.js";
 
 describe("snake simulation ranking", () => {
   it("uses the current board rank order instead of the stored setup order", async () => {
     const app = createPlatformApp({ store: new InMemoryPlatformStore(), simulationRunner: mockRunner });
     const setupRepository = new InMemoryLiveDraftRoomSetupRepository();
-    const rankedPlayers = [
-      { name: "De'Von Achane", position: "RB" as const, expectedPrice: 50 },
-      { name: "Jahmyr Gibbs", position: "RB" as const, expectedPrice: 57 },
+    const rankedPlayers: readonly LiveDraftRoomPlayerCatalogEntry[] = [
+      { name: "De'Von Achane", position: "RB", expectedPrice: 50 },
+      { name: "Jahmyr Gibbs", position: "RB", expectedPrice: 57 },
       ...snakePlayerCatalog.slice(2),
     ];
     const handle = createPlatformHttpHandler(app, {
