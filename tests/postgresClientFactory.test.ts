@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+interface FakePoolClientControl {
+  emitError(error: Error): void;
+  releasedWith: Error | undefined;
+}
+
+const pgMockState = vi.hoisted((): { connectedClient: FakePoolClientControl | undefined } => ({
+  connectedClient: undefined,
+}));
+
 vi.mock("pg", () => {
   interface FakePoolOptions {
     connectionString?: string | undefined;
@@ -10,7 +19,23 @@ vi.mock("pg", () => {
   }
 
   class FakePoolClient {
+    readonly errorListeners = new Set<(error: Error) => void>();
+    releasedWith: Error | undefined;
+
     constructor(private readonly options: FakePoolOptions) {}
+
+    on(event: "error", listener: (error: Error) => void): void {
+      if (event === "error") this.errorListeners.add(listener);
+    }
+
+    removeListener(event: "error", listener: (error: Error) => void): void {
+      if (event === "error") this.errorListeners.delete(listener);
+    }
+
+    emitError(error: Error): void {
+      if (this.errorListeners.size === 0) throw error;
+      for (const listener of this.errorListeners) listener(error);
+    }
 
     async query(
       text: string,
@@ -21,7 +46,8 @@ vi.mock("pg", () => {
       };
     }
 
-    release(): void {
+    release(error?: Error): void {
+      this.releasedWith = error;
       this.options.releases = (this.options.releases ?? 0) + 1;
     }
   }
@@ -41,7 +67,9 @@ vi.mock("pg", () => {
     }
 
     async connect(): Promise<FakePoolClient> {
-      return new FakePoolClient(this.options);
+      const client = new FakePoolClient(this.options);
+      pgMockState.connectedClient = client;
+      return client;
     }
 
     async end(): Promise<void> {
@@ -82,5 +110,19 @@ describe("node-postgres pool adapter", () => {
       releases: 1,
       statement_timeout: 2_000,
     });
+  });
+
+  it("contains checked-out connection errors and evicts the failed connection", async () => {
+    const client = createNodePostgresClient({
+      databaseUrl: "postgres://mockd:test@localhost:5432/mockd",
+    });
+    const connectionError = new Error("Connection terminated unexpectedly");
+
+    await expect(client.transaction(async transactionClient => {
+      expect(() => pgMockState.connectedClient?.emitError(connectionError)).not.toThrow();
+      await transactionClient.query("SELECT after_disconnect");
+    })).rejects.toThrow("Connection terminated unexpectedly");
+
+    expect(pgMockState.connectedClient?.releasedWith).toBe(connectionError);
   });
 });
