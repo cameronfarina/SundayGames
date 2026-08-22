@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { InlineNotice } from "../../../../shared/ui";
+import { useOnboardingQuery } from "../../../../shared/api/onboarding/onboardingQuery";
+import { claimTeamPath } from "../../../league/lib/leaguePaths";
 import { AddConnection } from "../../components/AddConnection/AddConnection";
 import { ConnectionList } from "../../components/ConnectionList/ConnectionList";
 import { ImportDialog } from "../../components/ImportDialog/ImportDialog";
@@ -16,6 +18,7 @@ export const ConnectionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [importingId, setImportingId] = useState<string | undefined>(undefined);
   const connections = useLeagueConnectionsQuery();
+  const onboarding = useOnboardingQuery();
   const mutations = useLeagueConnectionMutations();
   const selectedConnectionId = searchParams.get(selectedConnectionParam) ?? undefined;
   const importing = connections.data?.connections
@@ -70,6 +73,14 @@ export const ConnectionsPage = () => {
       onSync={connectionId => { mutations.sync.mutate(connectionId); }}
       pendingConnectionId={pendingConnectionId(mutations.sync, mutations.remove)}
       selectedConnectionId={selectedConnectionId}
+      teamSelectionHrefFor={connection => {
+        if (connection.importedSeasonId === undefined) return undefined;
+        const league = onboarding.data?.leagues.find(
+          candidate => candidate.seasonId === connection.importedSeasonId,
+        );
+        if (league === undefined || league.membership.teamId !== undefined) return undefined;
+        return claimTeamPath(league);
+      }}
     />}
     {importing === undefined ? null : <ImportDialog
       connection={importing}

@@ -92,8 +92,8 @@ describe("SignupWizard provider setup", () => {
     await user.click(await screen.findByRole("button", {
       name: "Connect and import Sleeper Friends League",
     }));
-    expect(await screen.findByRole("link", { name: "Open in Sunday Games" }))
-      .toHaveAttribute("href", "/leagues/sleeper-friends-league");
+    expect(await screen.findByRole("link", { name: "Select team" }))
+      .toHaveAttribute("href", "/leagues/sleeper-friends-league#claim-your-team");
     expect(espnInput).toHaveValue("espn-s2");
     expect(requests.map(request => [request.method, request.path])).toContainEqual([
       "POST", "/league-connections/connection-sleeper/import",

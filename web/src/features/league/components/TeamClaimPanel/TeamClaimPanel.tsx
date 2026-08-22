@@ -31,7 +31,7 @@ export function TeamClaimPanel({ canManageLeague, keepersPath, seasonId, teams }
   };
 
   return (
-    <section className="league-claim" aria-labelledby="claim-team-title">
+    <section className="league-claim" id="claim-your-team" aria-labelledby="claim-team-title">
       <div>
         <p className="league-eyebrow">One step left</p>
         <h2 id="claim-team-title">Claim your team</h2>

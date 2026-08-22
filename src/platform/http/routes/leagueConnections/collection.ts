@@ -17,6 +17,7 @@ import {
 } from "./context.js";
 import { normalizedHandle } from "./handles.js";
 import { importedLeaguesByConnectionId } from "./importedLeague.js";
+import { importedSeasonRefresher } from "./refreshImportedSeason.js";
 
 export const routeLeagueConnectionCollection = async (
   app: PlatformApp,
@@ -24,7 +25,7 @@ export const routeLeagueConnectionCollection = async (
   services: PlatformHttpServices,
 ): Promise<PlatformHttpResponse> => {
   const account = await requireRequestAccount(app, request);
-  const options = serviceOptionsFor(services);
+  const options = serviceOptionsFor(services, importedSeasonRefresher(app, request));
   if (options === null) return leagueConnectionsUnavailable();
 
   if (request.method === "GET") {

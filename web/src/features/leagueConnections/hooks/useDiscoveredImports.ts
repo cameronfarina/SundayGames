@@ -32,9 +32,6 @@ export interface UseDiscoveredImportsResult {
   readonly states: LeagueImportStates;
 }
 
-const alreadyHandled = (state: LeagueImportState): boolean =>
-  isImportRunning(state) || state.status === "imported";
-
 /**
  * Importing a discovered league is two calls in a row: save the connection, then
  * turn its snapshot into a real Sunday Games league. They are run one league at a
@@ -50,6 +47,9 @@ export const useDiscoveredImports = ({
   provider,
 }: UseDiscoveredImportsOptions): UseDiscoveredImportsResult => {
   const [reported, setReported] = useState<LeagueImportStates>({});
+  const canRefreshImported = provider === "espn"
+    && credentials.espnS2 !== undefined
+    && credentials.swid !== undefined;
 
   const stateFor = (league: DiscoveredLeague): LeagueImportState =>
     reported[discoveredLeagueKey(league)] ?? importStateFromConnections(connections, league);
@@ -63,6 +63,7 @@ export const useDiscoveredImports = ({
     draft?: LeagueDraftOverride,
   ): Promise<boolean> => {
     if (provider === undefined) return false;
+    const existingState = stateFor(league);
     report(league, { status: "connecting" });
     try {
       const connected = await mutations.connect.mutateAsync({
@@ -75,6 +76,10 @@ export const useDiscoveredImports = ({
           : {}),
         ...credentials,
       });
+      if (existingState.status === "imported") {
+        report(league, existingState);
+        return true;
+      }
       report(league, { status: "importing" });
       const result = await mutations.importLeague.mutateAsync({
         connectionId: connected.connection.id,
@@ -96,7 +101,8 @@ export const useDiscoveredImports = ({
     void (async () => {
       let anyImported = false;
       for (const league of leagues) {
-        if (alreadyHandled(stateFor(league))) continue;
+        const state = stateFor(league);
+        if (isImportRunning(state) || (state.status === "imported" && !canRefreshImported)) continue;
         // Deliberately sequential: a failure on one league must not stop the rest.
         if (await runImport(league)) anyImported = true;
       }

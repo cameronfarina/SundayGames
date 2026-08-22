@@ -17,6 +17,7 @@ const renderList = (
     onSync: vi.fn(),
     pendingConnectionId: undefined,
     selectedConnectionId: undefined,
+    teamSelectionHrefFor: vi.fn(() => undefined),
     ...overrides,
   };
   render(<ConnectionList {...props} />);
@@ -51,20 +52,20 @@ describe("ConnectionList", () => {
     const utils = renderList();
 
     await user.click(screen.getByRole("button", { name: "View Sleeper Friends League" }));
-    await user.click(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" }));
+    await user.click(screen.getByRole("link", { name: "Reconnect ESPN" }));
     await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }));
 
     expect(utils.onSelect).toHaveBeenCalledWith("connection-sleeper");
-    expect(utils.onSync).toHaveBeenCalledWith("connection-espn");
+    expect(utils.onSync).not.toHaveBeenCalled();
     expect(utils.onRemove).toHaveBeenCalledWith("connection-sleeper");
   });
 
-  it("offers a sync only on the league that is not up to date", () => {
+  it("offers the correct recovery only on the league that is not up to date", () => {
     renderList();
 
     expect(screen.queryByRole("button", { name: "Sync Sleeper Friends League now" }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Reconnect ESPN" })).toBeVisible();
   });
 
   it("marks the open league and disables a card that is mid-flight", () => {
@@ -75,7 +76,7 @@ describe("ConnectionList", () => {
 
     expect(screen.getByRole("button", { name: "View Sleeper Friends League" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Reconnect ESPN" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" })).toBeEnabled();
   });
 });

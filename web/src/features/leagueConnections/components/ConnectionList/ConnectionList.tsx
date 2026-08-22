@@ -12,6 +12,7 @@ interface ConnectionListProps {
   readonly onSync: (connectionId: string) => void;
   readonly pendingConnectionId: string | undefined;
   readonly selectedConnectionId: string | undefined;
+  readonly teamSelectionHrefFor: (connection: LeagueConnection) => string | undefined;
 }
 
 export const ConnectionList = ({
@@ -22,6 +23,7 @@ export const ConnectionList = ({
   onSync,
   pendingConnectionId,
   selectedConnectionId,
+  teamSelectionHrefFor,
 }: ConnectionListProps) => {
   if (connections.length === 0) {
     return <EmptyState
@@ -33,17 +35,21 @@ export const ConnectionList = ({
   return <div className="connection-list-panel">
     <StatusLegend />
     <div aria-label="Connected leagues" className="connection-list" role="list">
-      {connections.map(connection => <div key={connection.id} role="listitem">
-        <ConnectionCard
-          connection={connection}
-          onImport={onImport}
-          onRemove={onRemove}
-          onSelect={onSelect}
-          onSync={onSync}
-          pending={pendingConnectionId === connection.id}
-          selected={selectedConnectionId === connection.id}
-        />
-      </div>)}
+      {connections.map(connection => {
+        const teamSelectionHref = teamSelectionHrefFor(connection);
+        return <div key={connection.id} role="listitem">
+          <ConnectionCard
+            connection={connection}
+            onImport={onImport}
+            onRemove={onRemove}
+            onSelect={onSelect}
+            onSync={onSync}
+            pending={pendingConnectionId === connection.id}
+            selected={selectedConnectionId === connection.id}
+            {...(teamSelectionHref === undefined ? {} : { teamSelectionHref })}
+          />
+        </div>;
+      })}
     </div>
   </div>;
 };

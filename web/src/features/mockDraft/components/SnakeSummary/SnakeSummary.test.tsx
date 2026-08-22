@@ -15,6 +15,8 @@ describe("SnakeSummary", () => {
     expect(screen.getByText("1 / 4 picked")).toBeVisible();
     expect(screen.getByText("Short King")).toBeVisible();
     expect(screen.getByText("1.02")).toBeVisible();
+    expect(screen.getByText("Your draft pick")).toBeVisible();
+    expect(screen.getByText("2 of 2")).toBeVisible();
     expect(screen.getAllByText("2").length).toBeGreaterThan(0);
   });
 
@@ -24,6 +26,7 @@ describe("SnakeSummary", () => {
       session: { ...state.session, currentPick: undefined, humanTeamId: "team-unclaimed" },
     }} />);
 
-    expect(screen.getAllByText("-")).toHaveLength(3);
+    expect(screen.getByLabelText("Your draft pick: -")).toBeVisible();
+    expect(screen.getByLabelText("On the clock: -")).toBeVisible();
   });
 });

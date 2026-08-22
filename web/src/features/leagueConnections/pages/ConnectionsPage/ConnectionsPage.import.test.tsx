@@ -30,7 +30,7 @@ describe("importing connected leagues", () => {
     await user.click(screen.getByRole("button", { name: "Import all 2 leagues" }));
 
     await waitFor(() => {
-      expect(screen.getAllByRole("link", { name: "Open in Sunday Games" })).toHaveLength(2);
+      expect(screen.getAllByRole("link", { name: "Select team" })).toHaveLength(2);
     });
   });
 

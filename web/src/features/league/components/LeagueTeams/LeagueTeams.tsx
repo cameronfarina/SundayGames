@@ -18,7 +18,7 @@ export function LeagueTeams({ keepers, keepersEnabled, manageKeepersPath, teams 
       <div className="league-section__heading">
         <h2 id="league-teams-title">{keepersEnabled ? "Teams and keepers" : "Teams"}</h2>
         <div className="league-section__actions">
-          <span>{teams.length} teams</span>
+          <span>Draft order · {teams.length} teams</span>
           {manageKeepersPath === undefined ? null : (
             <Link className="league-button" to={manageKeepersPath}>Manage keepers</Link>
           )}
@@ -29,13 +29,15 @@ export function LeagueTeams({ keepers, keepersEnabled, manageKeepersPath, teams 
           League Home shows the shared keeper list. Add or remove keepers in Commissioner.
         </p>
       )}
-      <div className="league-team-list">
-        {teams.map((team) => {
+      <div className="league-team-list" aria-label="Draft order">
+        {[...teams].sort((left, right) => left.draftOrderPosition - right.draftOrderPosition).map((team) => {
           const teamKeepers = keepers.filter((keeper) => keeper.teamId === team.id);
           return (
             <article className="league-team" key={team.id}>
               <div>
-                <span className="league-team__order">{team.draftOrderPosition}</span>
+                <span className="league-team__order" aria-label={`Draft pick ${String(team.draftOrderPosition)}`}>
+                  Pick {team.draftOrderPosition}
+                </span>
                 <h3>{team.displayName}</h3>
                 <p>{team.managerDisplayNames?.join(", ") ?? team.ownerDisplayName}</p>
               </div>

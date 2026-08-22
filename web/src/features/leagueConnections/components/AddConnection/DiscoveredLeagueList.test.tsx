@@ -131,15 +131,15 @@ describe("DiscoveredLeagueList", () => {
     });
   });
 
-  it("hands an imported league a way into Sunday Games instead of a button", () => {
+  it("sends a newly imported league to team selection", () => {
     renderList({
       states: {
         [discoveredLeagueKey(comrades)]: { leagueSlug: "comrades-league", status: "imported" },
       },
     });
 
-    expect(screen.getByRole("link", { name: "Open in Sunday Games" }))
-      .toHaveAttribute("href", "/leagues/comrades-league");
+    expect(screen.getByRole("link", { name: "Select team" }))
+      .toHaveAttribute("href", "/leagues/comrades-league#claim-your-team");
     expect(screen.queryByRole("button", { name: "Connect and import Comrades League" }))
       .not.toBeInTheDocument();
   });

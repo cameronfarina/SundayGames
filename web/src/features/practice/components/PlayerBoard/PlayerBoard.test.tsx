@@ -103,6 +103,9 @@ describe("PlayerBoard", () => {
     );
 
     const search = screen.getByRole("searchbox", { name: "Search players" });
+    expect(screen.getAllByRole("searchbox", { name: "Search players" })).toHaveLength(1);
+    expect(screen.getByLabelText("Player search")).toHaveClass("practice-player-board__search");
+    expect(screen.getByLabelText("Player search")).not.toHaveClass("player-board__search");
     expect(search).toHaveAttribute("placeholder", "Search players, position or NFL team");
     await user.type(search, "goff");
     expect(screen.queryByText("Jared Goff")).not.toBeInTheDocument();

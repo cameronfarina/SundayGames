@@ -49,7 +49,22 @@ describe("MyTeamPage before the draft ends", () => {
   it("shows keeper rounds instead of auction dollars for a snake league", async () => {
     usePreDraftHandlers();
     server.use(
-      http.get("/seasons/season-2026", () => HttpResponse.json(season("snake"))),
+      http.get("/seasons/season-2026", () => {
+        const snakeSeason = season("snake");
+        return HttpResponse.json({
+          ...snakeSeason,
+          season: {
+            ...snakeSeason.season,
+            settings: {
+              ...snakeSeason.season.settings,
+              snake: {
+                rounds: 16,
+                order: Array.from({ length: 12 }, (_, index) => `owner${String(index + 1)}`),
+              },
+            },
+          },
+        });
+      }),
       http.get("/seasons/season-2026/keepers", () => HttpResponse.json({
         keepers: [
           { ...keepers[0], price: 0, keeperRound: 4 },
@@ -68,6 +83,30 @@ describe("MyTeamPage before the draft ends", () => {
     expect(await screen.findByRole("cell", { name: "Round 4" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "Round -" })).toBeVisible();
     expect(screen.queryByText("Budget left")).not.toBeInTheDocument();
+    expect(screen.getByText("Draft pick")).toBeVisible();
+    expect(screen.getByText("7 of 12", { selector: "strong" })).toBeVisible();
+  });
+
+  it("explains when a snake team has no imported draft position", async () => {
+    usePreDraftHandlers();
+    server.use(http.get("/seasons/season-2026", () => {
+      const snakeSeason = season("snake");
+      return HttpResponse.json({
+        ...snakeSeason,
+        season: {
+          ...snakeSeason.season,
+          teams: [{ ...snakeSeason.season.teams[0], id: "another-team" }],
+          settings: {
+            ...snakeSeason.season.settings,
+            snake: { rounds: 16, order: ["another-owner"] },
+          },
+        },
+      });
+    }));
+    renderMyTeamPage();
+
+    expect(await screen.findByText("Draft pick")).toBeVisible();
+    expect(screen.getByText("Not set", { selector: "strong" })).toBeVisible();
   });
 
   it("uses the requested active league from the URL", async () => {

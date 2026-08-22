@@ -18,6 +18,10 @@ export const PreDraftTeam = ({ keepers, league, season, teamId }: PreDraftTeamPr
   const spent = teamKeepers.reduce((total, keeper) => total + keeper.price, 0);
   const openSpots = Math.max(0, settings.roster.rosterSize - teamKeepers.length);
   const auction = settings.draftFormat !== "snake";
+  const draftPosition = season.season.teams.find(team => team.id === teamId)?.draftOrderPosition;
+  const draftTeamCount = settings.draftFormat === "snake"
+    ? settings.snake.order.length
+    : season.season.teams.length;
   const facts = auction
     ? [
         { label: "Keeper spend", value: dollars(spent) },
@@ -25,6 +29,10 @@ export const PreDraftTeam = ({ keepers, league, season, teamId }: PreDraftTeamPr
         { label: "Open roster spots", value: String(openSpots) },
       ]
     : [
+        {
+          label: "Draft pick",
+          value: draftPosition === undefined ? "Not set" : `${String(draftPosition)} of ${String(draftTeamCount)}`,
+        },
         { label: "Keepers", value: String(teamKeepers.length) },
         { label: "Open roster spots", value: String(openSpots) },
       ];

@@ -48,4 +48,16 @@ describe("ConnectionCard", () => {
     expect(screen.queryByRole("button", { name: "Import Sleeper Friends League" }))
       .not.toBeInTheDocument();
   });
+
+  it("makes an imported workspace's missing team selection the next action", () => {
+    renderCard({
+      connection: importedConnectionFixture,
+      teamSelectionHref: "/leagues/sleeper-friends-league#claim-your-team",
+    });
+
+    expect(screen.getByText("Team not selected")).toBeVisible();
+    expect(screen.getByText(/Choose your team to use mock drafts/u)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Select team" }))
+      .toHaveAttribute("href", "/leagues/sleeper-friends-league#claim-your-team");
+  });
 });
