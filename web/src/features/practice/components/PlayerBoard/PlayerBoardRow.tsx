@@ -10,6 +10,7 @@ import {
 } from "../../model/playerBoard";
 
 interface PlayerBoardRowProps {
+  readonly draftFormat: "auction" | "snake";
   readonly isTarget: boolean;
   readonly onSaveMyValue: (player: PracticePlayer, value: number) => void;
   readonly onToggleTarget: (player: PracticePlayer) => void;
@@ -19,6 +20,7 @@ interface PlayerBoardRowProps {
 }
 
 export function PlayerBoardRow({
+  draftFormat,
   isTarget,
   onSaveMyValue,
   onToggleTarget,
@@ -53,9 +55,10 @@ export function PlayerBoardRow({
       <td><span className={`position-label position-label--${positionTone(player.position)}`}>{player.position}</span></td>
       <td>{player.teamAbbreviation ?? "FA"}</td>
       <td>{player.byeWeek ?? "-"}</td>
-      <td>${Math.round(playerMarketValue(player))}</td>
-      <td>${Math.round(playerSimulationValue(player))}</td>
-      <td><label className="player-row__value-editor"><span aria-hidden="true">$</span><span className="sr-only">My value for {player.name}</span><input
+      {draftFormat === "auction" && <>
+        <td>${Math.round(playerMarketValue(player))}</td>
+        <td>${Math.round(playerSimulationValue(player))}</td>
+        <td><label className="player-row__value-editor"><span aria-hidden="true">$</span><span className="sr-only">My value for {player.name}</span><input
         disabled={targetChangesDisabled}
         inputMode="numeric"
         min={1}
@@ -70,6 +73,7 @@ export function PlayerBoardRow({
         type="number"
         value={draftValue}
       /></label></td>
+      </>}
     </tr>
   );
 }

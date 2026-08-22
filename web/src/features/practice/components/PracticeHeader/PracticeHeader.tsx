@@ -8,6 +8,7 @@ interface PracticeHeaderProps {
   readonly onLeagueChange: (seasonId: string) => void;
   readonly onStrategyChange: (strategy: string) => void;
   readonly strategy: string;
+  readonly draftFormat?: "auction" | "snake";
 }
 
 const strategyOptions = [
@@ -18,6 +19,7 @@ const strategyOptions = [
 ];
 
 export function PracticeHeader(props: PracticeHeaderProps) {
+  const strategyLabel = props.draftFormat === "snake" ? "Draft strategy" : "My value strategy";
   const leagueOptions = [
     { label: "Baseline board", value: "baseline" },
     ...props.leagues.map(league => ({
@@ -40,8 +42,8 @@ export function PracticeHeader(props: PracticeHeaderProps) {
           options={leagueOptions}
           value={props.activeLeague?.seasonId ?? "baseline"}
         /></div>
-        <div className="practice-header__field"><span>My value strategy</span><PracticeSelect
-          label="My value strategy"
+        <div className="practice-header__field"><span>{strategyLabel}</span><PracticeSelect
+          label={strategyLabel}
           onValueChange={props.onStrategyChange}
           options={strategyOptions}
           value={props.strategy}

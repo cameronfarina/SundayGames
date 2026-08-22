@@ -42,6 +42,23 @@ const specialistSetup = {
 };
 
 export const registerAuctionCapTests = (): void => {
+  it("keeps the saved auction cap when strategy text repeats the same target", () => {
+    const result = runSeasonSimulations({
+      season: auctionSeason,
+      setup: auctionSetup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Draft Jadarian Price for no more than $20",
+      targetConstraints: [{ playerName: "Jadarian Price", maxAuctionPrice: 12 }],
+      seedPrefix: "saved-auction-cap-precedence",
+    });
+
+    expect(result.strategy.target).toMatchObject({
+      playerName: "Jadarian Price",
+      maxAuctionPrice: 12,
+    });
+  });
+
   it("applies multiple named player caps throughout each auction run", () => {
     const season: LeagueSeason<AuctionLeagueSeasonSettings> = {
       ...auctionSeason,

@@ -8,6 +8,7 @@ import {
   playerKey,
   playerMyValue,
   playerSortFrom,
+  rankPlayers,
   rankPlayersWithPersonalValues,
   type PlayerSort,
 } from "../../model/playerBoard";
@@ -55,13 +56,18 @@ const sortOptions = [
 
 export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist, targetChangesDisabled }: PlayerBoardProps) {
   const [filters, dispatch] = useReducer(filterReducer, initialFilters);
+  const draftFormat = catalog.draftFormat ?? "auction";
+  const auction = draftFormat === "auction";
+  const activeSort = auction ? filters.sort : "rank";
   const deferredSearch = useDeferredValue(filters.search);
   const flexKey = (catalog.flexPositions ?? []).join(",");
   const flexPositions = useMemo(() => (flexKey.length === 0 ? [] : flexKey.split(",")), [flexKey]);
   const shortlisted = useMemo(() => new Set(shortlist.map(item => playerKey(item.playerName))), [shortlist]);
   const rankedPlayers = useMemo(
-    () => rankPlayersWithPersonalValues(catalog.players, shortlist),
-    [catalog.players, shortlist],
+    () => auction
+      ? rankPlayersWithPersonalValues(catalog.players, shortlist)
+      : rankPlayers(catalog.players),
+    [auction, catalog.players, shortlist],
   );
   const players = useMemo(() => filterAndSortPlayers(
     rankedPlayers,
@@ -69,21 +75,21 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
       flexPositions,
       position: filters.position, search: deferredSearch,
       shortlistOnly: filters.shortlistOnly,
-      sort: filters.sort,
+      sort: activeSort,
     },
     shortlisted,
-  ), [deferredSearch, filters.position, filters.shortlistOnly, filters.sort, flexPositions, rankedPlayers, shortlisted]);
+  ), [activeSort, deferredSearch, filters.position, filters.shortlistOnly, flexPositions, rankedPlayers, shortlisted]);
   const { revealMore, revealRowCount, visibleRowCount } = useIncrementalRows(players.length, [
     catalog.players,
     filters.position,
     deferredSearch,
     filters.shortlistOnly ? shortlisted : undefined,
-    filters.sort,
+    activeSort,
   ]);
   const visiblePlayers = players.slice(0, visibleRowCount);
 
   return (
-    <section aria-labelledby="player-board-title" className="player-board">
+    <section aria-labelledby="player-board-title" className={`player-board player-board--${draftFormat}`}>
       <div className="player-board__heading">
         <div><p className="practice-eyebrow">Player board</p><h2 id="player-board-title">Available players</h2></div>
         <p aria-live="polite">{visiblePlayers.length} shown / {players.length} matching / {catalog.players.length} loaded</p>
@@ -101,12 +107,12 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
           type="search"
           value={filters.search}
         /></div>
-        <PracticeSelect
+        {auction && <PracticeSelect
           label="Sort players"
           onValueChange={value => { dispatch({ type: "sort", value: playerSortFrom(value) }); }}
           options={sortOptions}
           value={filters.sort}
-        />
+        />}
         <label className="player-board__target-filter"><input
           checked={filters.shortlistOnly}
           onChange={() => { dispatch({ type: "shortlist" }); }}
@@ -120,12 +126,16 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
             <col className="player-board__target-column" />
             <col className="player-board__rank-column" />
             <col className="player-board__player-column" />
-            <col /><col /><col /><col /><col /><col />
+            <col /><col /><col />
+            {auction && <><col /><col /><col /></>}
           </colgroup>
-          <thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th><th>Market</th><th>Simulation</th><th>My value</th></tr></thead>
+          <thead><tr><th>Target</th><th>Rank</th><th>Player</th><th>Pos</th><th>NFL</th><th>Bye</th>
+            {auction && <><th>Market</th><th>Simulation</th><th>My value</th></>}
+          </tr></thead>
           <tbody>{visiblePlayers.map(({ player, rank }) => <PlayerBoardRow
+            draftFormat={draftFormat}
             isTarget={shortlisted.has(playerKey(player.name))}
-            key={`${player.name}:${String(Math.round(playerMyValue(player)))}`}
+            key={`${player.name}:${auction ? String(Math.round(playerMyValue(player))) : "snake"}`}
             onSaveMyValue={onSaveMyValue}
             onToggleTarget={onToggleTarget}
             player={player}

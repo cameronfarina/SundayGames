@@ -21,6 +21,7 @@ describe("PlayerBoardRow", () => {
     const onToggleTarget = vi.fn();
     const onSaveMyValue = vi.fn();
     render(<table><tbody><PlayerBoardRow
+      draftFormat="auction"
       isTarget={false}
       onSaveMyValue={onSaveMyValue}
       onToggleTarget={onToggleTarget}
@@ -41,6 +42,7 @@ describe("PlayerBoardRow", () => {
 
   it("labels removal and missing NFL context accurately", () => {
     render(<table><tbody><PlayerBoardRow
+      draftFormat="auction"
       isTarget
       onSaveMyValue={vi.fn()}
       onToggleTarget={vi.fn()}
@@ -57,6 +59,7 @@ describe("PlayerBoardRow", () => {
     const user = userEvent.setup();
     const onSaveMyValue = vi.fn();
     render(<table><tbody><PlayerBoardRow
+      draftFormat="auction"
       isTarget={false}
       onSaveMyValue={onSaveMyValue}
       onToggleTarget={vi.fn()}
@@ -76,6 +79,7 @@ describe("PlayerBoardRow", () => {
     const user = userEvent.setup();
     const onSaveMyValue = vi.fn();
     render(<table><tbody><PlayerBoardRow
+      draftFormat="auction"
       isTarget={false}
       onSaveMyValue={onSaveMyValue}
       onToggleTarget={vi.fn()}

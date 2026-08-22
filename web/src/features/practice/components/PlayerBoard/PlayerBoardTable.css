@@ -20,6 +20,10 @@
   width: 100%;
 }
 
+.player-board--snake table {
+  min-width: 620px;
+}
+
 .player-board__target-column {
   width: 4rem;
 }

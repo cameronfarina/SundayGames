@@ -49,6 +49,11 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
+.shortlist-row > .shortlist-row__snake-actions {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .shortlist-row input {
   appearance: textfield;
   background: transparent;

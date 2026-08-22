@@ -17,9 +17,11 @@ interface SimulationWorkspaceProps {
   readonly pending: boolean;
   readonly progress: SimulationProgress | undefined;
   readonly teamClaimed: boolean;
+  readonly draftFormat?: "auction" | "snake";
 }
 
 export function SimulationWorkspace(props: SimulationWorkspaceProps) {
+  const snake = props.draftFormat === "snake";
   const progressPercent = props.progress === undefined
     ? 0
     : Math.round((props.progress.completed / props.progress.total) * 100);
@@ -41,12 +43,16 @@ export function SimulationWorkspace(props: SimulationWorkspaceProps) {
         <a href={props.claimHref}>Claim a team</a> before running private league simulations.
       </p>}
       <form onSubmit={submit}>
-        <label><span>Optional roster rules</span><textarea
+        <label><span>{snake ? "Optional draft strategy" : "Optional roster rules"}</span><textarea
           name="instructions"
-          placeholder="Example: do not spend over $25 on another WR."
+          placeholder={snake
+            ? "Example: draft Lamar Jackson by Round 5."
+            : "Example: do not spend over $25 on another WR."}
           rows={3}
         /></label>
-        <p className="simulation-workspace__helper">Your saved draft targets stay in the plan. Add only roster-wide rules here; these rules never replace your targets.</p>
+        <p className="simulation-workspace__helper">{snake
+          ? "Your saved targets stay in the plan. Add round or pick deadlines and roster-wide preferences here."
+          : "Your saved draft targets stay in the plan. Add only roster-wide rules here; these rules never replace your targets."}</p>
         <div className="simulation-workspace__fields">
           <label><span>Number of simulations</span><input defaultValue="25" max="25" min="1" name="count" required type="number" /></label>
           <label><span>Run label</span><input name="note" placeholder="What are you comparing?" type="text" /></label>
