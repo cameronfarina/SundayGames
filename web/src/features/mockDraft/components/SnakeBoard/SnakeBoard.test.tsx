@@ -55,4 +55,44 @@ describe("SnakeBoard", () => {
     expect(screen.getByText("gibbs")).toBeVisible();
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
+
+  it("renders an empty board without inventing team columns", () => {
+    render(<SnakeBoard
+      currentOverall={undefined}
+      humanTeamId="team-owner11"
+      picks={[]}
+      players={[]}
+    />);
+
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Round"]);
+  });
+
+  it("places unexpected later-round teams after the established columns", () => {
+    const establishedPick = state.board.picks[0];
+    if (establishedPick === undefined) throw new Error("Expected the fixture to include a pick");
+    const unexpectedPick = {
+      ...establishedPick,
+      overall: 2,
+      pickInRound: 2,
+      round: 2,
+      teamId: "late-team",
+      teamName: "Late Team",
+    };
+
+    render(<SnakeBoard
+      currentOverall={undefined}
+      humanTeamId="team-owner11"
+      picks={[
+        establishedPick,
+        unexpectedPick,
+        { ...establishedPick, overall: 3, round: 2 },
+        { ...unexpectedPick, overall: 4, pickInRound: 1, round: 3 },
+        { ...establishedPick, overall: 5, pickInRound: 2, round: 3 },
+      ]}
+      players={state.board.players}
+    />);
+
+    expect(screen.getByRole("row", { name: /Round 2/ })).toHaveTextContent("2.02");
+    expect(screen.getByRole("row", { name: /Round 3/ })).toHaveTextContent("3.02");
+  });
 });
