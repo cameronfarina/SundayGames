@@ -23,6 +23,14 @@ describe("SignupWizard", () => {
       if (path === "/league-connections") {
         return Promise.resolve(Response.json({ connections: [], providers }));
       }
+      if (path === "/league-connections/discover") {
+        return Promise.resolve(Response.json({
+          error: {
+            code: "credentials_required",
+            message: "This ESPN league is private.",
+          },
+        }, { status: 422 }));
+      }
       if (path === "/account-onboarding" && body?.["action"] === "set_intent") {
         return Promise.resolve(Response.json({
           onboarding: { intent: "practice", providers: null, stage: "providers" },
@@ -64,14 +72,20 @@ describe("SignupWizard", () => {
     expect(screen.getByRole("heading", { name: "ESPN" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Sleeper" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Other" })).toBeVisible();
-    await user.click(screen.getByText("Experimental: connect a private ESPN league"));
+    await user.type(
+      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
+      "899513",
+    );
+    await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(screen.getByRole("button", { name: "I'm on mobile" }));
-    expect(screen.getByText(/Private ESPN leagues require desktop browser tools/u)).toBeVisible();
+    expect(screen.getByText(/ESPN cookies require desktop browser tools/u)).toBeVisible();
     expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
-    expect(requests.filter(request =>
+    const connectionRequests = requests.filter(request =>
       request.method === "POST" && request.path.startsWith("/league-connections")
-    ))
-      .toHaveLength(0);
+    );
+    expect(connectionRequests).toHaveLength(1);
+    expect(connectionRequests[0]?.body).not.toHaveProperty("espnS2");
+    expect(connectionRequests[0]?.body).not.toHaveProperty("swid");
 
     await user.click(screen.getByRole("button", { name: "Finish setup" }));
     await waitFor(() => {

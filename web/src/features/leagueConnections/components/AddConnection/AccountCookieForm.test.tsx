@@ -6,7 +6,6 @@ import { AccountCookieForm } from "./AccountCookieForm";
 const renderForm = (overrides: Partial<Parameters<typeof AccountCookieForm>[0]> = {}) => {
   const utils = {
     espnS2: "s2-value",
-    hasLeagueHandle: true,
     onEspnS2Change: vi.fn(),
     onSubmit: vi.fn(),
     onSwidChange: vi.fn(),
@@ -33,20 +32,19 @@ describe("AccountCookieForm", () => {
     expect(screen.getByRole("button", { name: "Hide ESPN cookie values" })).toBeVisible();
   });
 
-  it("discloses that the values are expiring account session credentials", () => {
+  it("explains the account-wide search with concise desktop instructions", () => {
     renderForm();
 
-    expect(screen.getByRole("heading", { name: "Experimental private-league sync" }))
+    expect(screen.getByRole("heading", { name: "Use ESPN cookies" }))
       .toBeVisible();
-    expect(screen.getByText(/account session credentials/u)).toBeVisible();
-    expect(screen.getByText(/ESPN expires these credentials/u)).toBeVisible();
-    expect(screen.getAllByRole("listitem").map(step => step.textContent.slice(0, 12))).toEqual([
-      "Open fantasy",
-      "Open your br",
-      "Choose https",
-      "Copy the val",
-      "Paste both b",
-    ]);
+    expect(screen.getByText(/find every fantasy football league on your ESPN account/u))
+      .toBeVisible();
+    expect(screen.getByText("Cmd + Option + I")).toBeVisible();
+    expect(screen.getByText("Ctrl + Shift + I")).toBeVisible();
+    expect(screen.getByText(/on Mac or/u)).toBeVisible();
+    expect(screen.getByText(/on Windows/u)).toBeVisible();
+    expect(screen.getByText(/Application, then Cookies/u)).toBeVisible();
+    expect(screen.queryByText(/Anyone who obtains the original values/u)).not.toBeInTheDocument();
   });
 
   it("opens ESPN in a new tab without handing it this page", () => {
@@ -78,11 +76,11 @@ describe("AccountCookieForm", () => {
     expect(utils.onEspnS2Change).toHaveBeenCalledWith("s");
   });
 
-  it("searches the named private league when both cookies are in place", async () => {
+  it("searches the ESPN account when both cookies are in place", async () => {
     const user = userEvent.setup();
     const utils = renderForm();
 
-    await user.click(screen.getByRole("button", { name: "Find this private league" }));
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
     expect(utils.onSubmit).toHaveBeenCalledOnce();
   });
@@ -90,13 +88,7 @@ describe("AccountCookieForm", () => {
   it("waits for both cookies before it will search", () => {
     renderForm({ swid: "  " });
 
-    expect(screen.getByRole("button", { name: "Find this private league" })).toBeDisabled();
-  });
-
-  it("requires the private league link before using account credentials", () => {
-    renderForm({ hasLeagueHandle: false });
-
-    expect(screen.getByRole("button", { name: "Find this private league" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Find my ESPN leagues" })).toBeDisabled();
   });
 
   it("blocks a second search while ESPN is still answering", () => {

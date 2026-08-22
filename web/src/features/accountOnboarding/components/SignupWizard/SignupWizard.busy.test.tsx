@@ -70,7 +70,6 @@ describe("SignupWizard provider busy controls", () => {
     await user.type(espnInput, "899513");
     await user.click(screen.getByRole("button", { name: "Find this league" }));
     await screen.findByRole("button", { name: "Connect and import ESPN Friends League" });
-    await user.click(screen.getByText("Experimental: connect a private ESPN league"));
     await user.type(sleeperInput, "feiyingx");
     await user.click(screen.getByRole("button", { name: "Find my leagues" }));
     await user.click(await screen.findByRole("button", {
@@ -83,8 +82,6 @@ describe("SignupWizard provider busy controls", () => {
     for (const button of screen.getAllByRole("button", { name: "Looking..." })) {
       expect(button).toBeDisabled();
     }
-    expect(screen.getByRole("button", { name: "I'm on mobile" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Show ESPN cookie values" })).toBeDisabled();
     for (const button of screen.getAllByRole("button", { name: "Import all" })) {
       expect(button).toBeDisabled();
     }

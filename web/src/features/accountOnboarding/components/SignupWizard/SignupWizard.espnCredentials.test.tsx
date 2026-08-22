@@ -58,9 +58,6 @@ describe("SignupWizard ESPN credential boundaries", () => {
     await user.type(await screen.findByRole("textbox", {
       name: "ESPN league ID or league URL",
     }), "899513");
-    await user.click(screen.getByText("Experimental: connect a private ESPN league"));
-    await user.type(screen.getByLabelText("espn_s2 cookie"), "private-s2");
-    await user.type(screen.getByLabelText("SWID cookie"), "{PRIVATE}");
     await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(await screen.findByRole("button", {
       name: "Connect and import Public ESPN League",
@@ -78,5 +75,66 @@ describe("SignupWizard ESPN credential boundaries", () => {
       expect(request.body).not.toHaveProperty("espnS2");
       expect(request.body).not.toHaveProperty("swid");
     }
+  });
+
+  it("reveals private options only after lookup and discovers every ESPN league with cookies", async () => {
+    const requests: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathFor(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body === undefined ? undefined : requestBody(init.body);
+      if (path === "/league-connections" && method === "GET") {
+        return Promise.resolve(Response.json({ connections: [], providers }));
+      }
+      if (path === "/league-connections/discover" && body !== undefined) {
+        requests.push(body);
+        if (body["handle"] !== "") {
+          return Promise.resolve(Response.json({
+            error: {
+              code: "credentials_required",
+              message: "This ESPN league is private.",
+            },
+          }, { status: 422 }));
+        }
+        return Promise.resolve(Response.json({
+          provider: "espn",
+          season: "2026",
+          leagues: [{
+            providerLeagueId: "899513",
+            name: "Private ESPN League",
+            season: "2026",
+            teamCount: 12,
+          }],
+        }));
+      }
+      return Promise.resolve(Response.json({}));
+    }));
+    const user = userEvent.setup();
+    mountWizard("connections", ["espn"]);
+
+    expect(await screen.findByRole("textbox", {
+      name: "ESPN league ID or league URL",
+    })).toBeVisible();
+    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
+      "899513",
+    );
+    await user.click(screen.getByRole("button", { name: "Find this league" }));
+    expect(await screen.findByRole("heading", {
+      level: 4,
+      name: "This ESPN league is private",
+    })).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 5, name: "Use ESPN cookies" })).toBeVisible();
+    await user.type(screen.getByLabelText("espn_s2 cookie"), "private-s2");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{PRIVATE}");
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
+
+    await waitFor(() => { expect(requests).toHaveLength(2); });
+    expect(requests[1]).toMatchObject({
+      handle: "",
+      espnS2: "private-s2",
+      swid: "{PRIVATE}",
+    });
   });
 });

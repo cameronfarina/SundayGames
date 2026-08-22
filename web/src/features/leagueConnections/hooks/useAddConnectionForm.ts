@@ -93,8 +93,7 @@ export const useAddConnectionForm = (
       search(handle.trim(), {});
     },
     findLeaguesWithCredentials: () => {
-      if (handle.trim() === "") return;
-      search(handle.trim(), trimmedCredentials(espnS2, swid));
+      search("", trimmedCredentials(espnS2, swid));
     },
     handle,
     importAll: imports.importAll,

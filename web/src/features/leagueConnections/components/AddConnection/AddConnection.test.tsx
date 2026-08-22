@@ -34,17 +34,18 @@ describe("AddConnection", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("leads ESPN with a public link and keeps cookies behind an experimental fallback", async () => {
+  it("starts ESPN with only the league ID or URL", async () => {
     const user = userEvent.setup();
     renderAddConnection();
 
     await user.click(screen.getByRole("tab", { name: "ESPN" }));
 
-    expect(screen.getByRole("heading", { name: "Paste a publicly viewable league link" }))
-      .toBeVisible();
+    expect(screen.getByRole("textbox", { name: "ESPN league ID or league URL" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Find this league" })).toBeInTheDocument();
-    expect(screen.getByText("Experimental: connect a private ESPN league")).toBeVisible();
-    expect(screen.getByLabelText("espn_s2 cookie")).not.toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Make it publicly viewable" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("asks Sleeper for a username and nothing else", async () => {
