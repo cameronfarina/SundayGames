@@ -103,6 +103,42 @@ describe("useAddConnectionForm credentials", () => {
     }));
   });
 
+  it("falls back to the requested ESPN league when account discovery finds nothing", async () => {
+    const { fetcher, result } = renderForm();
+    fetcher
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        leagues: [],
+        provider: "espn",
+        season: currentLeagueSeason,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(discoveredLeaguesFixture), { status: 200 }));
+    act(() => { result.current.selectProvider("espn"); });
+    act(() => {
+      result.current.setHandle("899513");
+      result.current.setEspnS2("account-s2");
+      result.current.setSwid("{ACCOUNT}");
+    });
+
+    act(() => { result.current.findLeaguesWithCredentials(); });
+
+    await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      provider: "espn",
+      handle: "",
+      season: currentLeagueSeason,
+      espnS2: "account-s2",
+      swid: "{ACCOUNT}",
+    }));
+    expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({
+      provider: "espn",
+      handle: "899513",
+      season: currentLeagueSeason,
+      espnS2: "account-s2",
+      swid: "{ACCOUNT}",
+    }));
+  });
+
   it.each([
     { espnS2: " ", expected: { swid: "{ACCOUNT}" }, swid: " {ACCOUNT} " },
     { espnS2: " account-s2 ", expected: { espnS2: "account-s2" }, swid: " " },

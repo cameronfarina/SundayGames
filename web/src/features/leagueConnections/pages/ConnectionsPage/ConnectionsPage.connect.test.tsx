@@ -181,6 +181,24 @@ describe("finding leagues to import", () => {
     expect(screen.queryByRole("list", { name: "Leagues found" })).not.toBeInTheDocument();
   });
 
+  it("explains when a Sleeper username has no leagues for the current season", async () => {
+    connectionsServer.use(http.post("/league-connections/discover", () => HttpResponse.json({
+      leagues: [],
+      provider: "sleeper",
+      season: "2026",
+    })));
+    const user = userEvent.setup();
+    renderConnectionsPage();
+
+    await user.click(await screen.findByRole("tab", { name: "Sleeper" }));
+    await user.type(screen.getByRole("textbox", { name: "Sleeper username" }), "feiyingx");
+    await user.click(screen.getByRole("button", { name: "Find my leagues" }));
+
+    expect(await screen.findByText(
+      "No 2026 Sleeper leagues were found for that username.",
+    )).toBeVisible();
+  });
+
   it("explains that Yahoo cannot be connected yet and offers no form", async () => {
     const user = userEvent.setup();
     renderConnectionsPage();

@@ -2,7 +2,10 @@ import { Button, InlineNotice } from "../../../../shared/ui";
 import { useEffect, useRef, useState } from "react";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
 import type { LeagueConnection, LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
-import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
+import {
+  currentLeagueSeason,
+  useAddConnectionForm,
+} from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
 import { AccountCookieForm } from "../AddConnection/AccountCookieForm";
 import { DiscoveredLeagueList } from "../AddConnection/DiscoveredLeagueList";
@@ -56,6 +59,7 @@ export const ProviderConnectionSetup = ({
     : null;
   const privateLeague = form.leagues.length === 0
     && (privateAccessError !== null || privateOptionsRevealed);
+  const noResults = mutations.discover.isSuccess && form.leagues.length === 0 && !localBusy;
   const PrivateHeading = headingLevel === 4 ? "h4" : "h3";
   const OptionHeading = headingLevel === 4 ? "h5" : "h4";
   useEffect(() => {
@@ -136,6 +140,11 @@ export const ProviderConnectionSetup = ({
     {discoveryError === null || privateAccessError?.code === "credentials_required"
       ? null
       : <InlineNotice variant="error">{discoveryError.message}</InlineNotice>}
+    {noResults ? <InlineNotice variant="info">
+      {espn
+        ? `No ${currentLeagueSeason} ESPN leagues were found. Check the league ID or cookie values.`
+        : `No ${currentLeagueSeason} Sleeper leagues were found for that username.`}
+    </InlineNotice> : null}
     <DiscoveredLeagueList
       leagues={form.leagues}
       onImport={form.importLeague}
