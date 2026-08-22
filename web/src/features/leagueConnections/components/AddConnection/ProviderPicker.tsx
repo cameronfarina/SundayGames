@@ -23,7 +23,9 @@ export const ProviderPicker = ({ onSelect, providers, selected }: ProviderPicker
         type="button"
       >{provider.label}</button>)}
     </div>
-    {chosen === undefined ? null : <InlineNotice
+    {chosen === undefined || (chosen.provider === "espn" && chosen.availability === "connectable")
+      ? null
+      : <InlineNotice
       variant={chosen.availability === "connectable" ? "info" : "warning"}
     >{chosen.detail}</InlineNotice>}
   </div>;

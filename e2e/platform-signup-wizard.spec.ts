@@ -39,9 +39,7 @@ test("new account setup is required, resumable, and mobile friendly", async ({ p
   await dialog.getByRole("button", { name: "Continue" }).click();
 
   await expect(dialog.getByRole("heading", { name: "ESPN" })).toBeVisible();
-  await dialog.getByText("Experimental: connect a private ESPN league").click();
-  await dialog.getByRole("button", { name: "I'm on mobile" }).click();
-  await expect(dialog.getByText("Connect your private ESPN league later")).toBeVisible();
+  await expect(dialog.getByLabel("ESPN league ID or league URL")).toBeVisible();
   await expect(dialog.getByLabel("espn_s2 cookie")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Finish setup" }).click();
 

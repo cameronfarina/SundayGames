@@ -40,6 +40,7 @@ const SetupCard = ({
       connections={connections}
       disabled={disabled}
       espnMobileDeferred={espnMobileDeferred}
+      headingLevel={4}
       mutations={mutations}
       {...(info.provider === "espn" ? { onEspnMobile } : {})}
       onBusyChange={onProviderBusyChange}

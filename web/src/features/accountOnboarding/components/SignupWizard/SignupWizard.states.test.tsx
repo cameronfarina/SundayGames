@@ -126,9 +126,14 @@ describe("SignupWizard states", () => {
   });
 
   it("clears typed ESPN credentials when the cached account changes", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({
-      connections: [], providers,
-    }))));
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (pathFor(input) === "/league-connections/discover") {
+        return Promise.resolve(Response.json({
+          error: { code: "credentials_required", message: "This ESPN league is private." },
+        }, { status: 422 }));
+      }
+      return Promise.resolve(Response.json({ connections: [], providers }));
+    }));
     const user = userEvent.setup();
     const client = mountWizard("connections");
     await screen.findByRole("heading", { name: "ESPN" });
@@ -136,7 +141,8 @@ describe("SignupWizard states", () => {
       screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
       "899513",
     );
-    await user.click(screen.getByText("Experimental: connect a private ESPN league"));
+    await user.click(screen.getByRole("button", { name: "Find this league" }));
+    await screen.findByRole("heading", { name: "Use ESPN cookies" });
     await user.type(screen.getByLabelText("espn_s2 cookie"), "account-a-secret");
 
     act(() => {
@@ -153,6 +159,6 @@ describe("SignupWizard states", () => {
     await waitFor(() => {
       expect(screen.getByRole("textbox", { name: "ESPN league ID or league URL" })).toHaveValue("");
     });
-    expect(screen.getByLabelText("espn_s2 cookie")).toHaveValue("");
+    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
   });
 });
