@@ -65,10 +65,11 @@ describe("SignupWizard provider busy controls", () => {
     }));
     const user = userEvent.setup();
     mountWizard("connections");
-    const espnInput = await screen.findByRole("textbox", { name: "ESPN league ID or league URL" });
+    const espnInput = await screen.findByLabelText("espn_s2 cookie");
     const sleeperInput = screen.getByRole("textbox", { name: "Sleeper username" });
-    await user.type(espnInput, "899513");
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
+    await user.type(espnInput, "espn-s2");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{ESPN}");
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
     await screen.findByRole("button", { name: "Connect and import ESPN Friends League" });
     await user.type(sleeperInput, "feiyingx");
     await user.click(screen.getByRole("button", { name: "Find my leagues" }));

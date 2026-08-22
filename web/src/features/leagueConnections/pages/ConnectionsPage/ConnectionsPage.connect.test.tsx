@@ -40,131 +40,42 @@ describe("finding leagues to import", () => {
       .toHaveAttribute("href", "/leagues/sleeper-friends-league");
   });
 
-  it("keeps private ESPN options available while account discovery fails and retries", async () => {
+  it("keeps ESPN account discovery available after an error and retries", async () => {
     const requests: unknown[] = [];
-    let rejectAccountDiscovery: (() => void) | undefined;
     let credentialAttempts = 0;
     connectionsServer.use(http.post("/league-connections/discover", async ({ request }) => {
       const body = await request.json();
       requests.push(body);
-      if (typeof body === "object" && body !== null && "espnS2" in body) {
-        credentialAttempts += 1;
-        if (credentialAttempts === 1) {
-          await new Promise<void>(resolve => { rejectAccountDiscovery = resolve; });
-          return platformError(502, "sync_failed", "ESPN could not load your leagues.");
-        }
-        return HttpResponse.json(espnLeagueOnly);
+      credentialAttempts += 1;
+      if (credentialAttempts === 1) {
+        return platformError(502, "sync_failed", "ESPN could not load your leagues.");
       }
-      return platformError(
-        422,
-        "credentials_required",
-        "This ESPN league is private. Paste your espn_s2 and SWID cookies to connect it.",
-      );
-    }));
-    const user = userEvent.setup();
-    renderConnectionsPage();
-
-    await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "https://fantasy.espn.com/football/league?leagueId=899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
-    const privateHeading = await screen.findByRole("heading", {
-      level: 3,
-      name: "This ESPN league is private",
-    });
-    expect(privateHeading).toHaveFocus();
-    expect(screen.getByText(/Make it publicly viewable and try again/u)).toBeVisible();
-    expect(screen.getByRole("heading", { level: 3, name: "Find every ESPN league" }))
-      .toBeVisible();
-    expect(screen.getByRole("heading", { level: 4, name: "Paste ESPN cookies manually" }))
-      .toBeVisible();
-    expect(screen.queryByRole("button", { name: /Advanced|Experimental/u })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Try again" }));
-    await waitFor(() => { expect(requests).toHaveLength(2); });
-    expect(requests[1]).toMatchObject({
-      handle: "https://fantasy.espn.com/football/league?leagueId=899513",
-    });
-    await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
-    await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
-    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
-
-    await waitFor(() => { expect(requests).toHaveLength(3); });
-    expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
-    expect(requests[2]).toEqual({
-      provider: "espn",
-      handle: "",
-      season: "2026",
-      espnS2: "s2-value",
-      swid: "{GUID}",
-    });
-    rejectAccountDiscovery?.();
-    expect(await screen.findByText("ESPN could not load your leagues.")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
-
-    await waitFor(() => { expect(requests).toHaveLength(4); });
-    expect(await screen.findByRole("list", { name: "Leagues found" })).toBeVisible();
-  });
-
-  it("still connects a single ESPN league by its ID", async () => {
-    const requests: unknown[] = [];
-    connectionsServer.use(http.post("/league-connections/discover", async ({ request }) => {
-      requests.push(await request.json());
       return HttpResponse.json(espnLeagueOnly);
     }));
     const user = userEvent.setup();
     renderConnectionsPage();
 
     await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "https://fantasy.espn.com/football/league?leagueId=899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
+    expect(screen.getByRole("heading", { level: 3, name: "Find every ESPN league" }))
+      .toBeVisible();
+    expect(screen.getByRole("heading", { level: 4, name: "Paste ESPN cookies manually" }))
+      .toBeVisible();
+    await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
-    await waitFor(() => { expect(requests).toHaveLength(1); });
-    expect(requests[0]).toMatchObject({
-      handle: "https://fantasy.espn.com/football/league?leagueId=899513",
+    expect(await screen.findByText("ESPN could not load your leagues.")).toBeVisible();
+    expect(requests[0]).toEqual({
+      provider: "espn",
+      handle: "",
+      season: "2026",
+      espnS2: "s2-value",
+      swid: "{GUID}",
     });
-    expect(await screen.findByRole("button", {
-      name: "Connect and import Pigskin Power Bottoms",
-    })).toBeVisible();
-  });
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
-  it("clears private options for a different ESPN league and announces them again if needed", async () => {
-    let lookup = 0;
-    connectionsServer.use(http.post("/league-connections/discover", () => {
-      lookup += 1;
-      if (lookup === 2) {
-        return platformError(404, "league_not_found", "ESPN could not find that league.");
-      }
-      return platformError(422, "credentials_required", "This ESPN league is private.");
-    }));
-    const user = userEvent.setup();
-    renderConnectionsPage();
-    await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    const handle = screen.getByRole("textbox", { name: "ESPN league ID or league URL" });
-
-    await user.type(handle, "111");
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
-    expect(await screen.findByRole("heading", { name: "This ESPN league is private" }))
-      .toHaveFocus();
-    await user.clear(handle);
-    await user.type(handle, "222");
-    expect(screen.queryByRole("heading", { name: "This ESPN league is private" }))
-      .not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
-    expect(await screen.findByText("ESPN could not find that league.")).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "This ESPN league is private" }))
-      .not.toBeInTheDocument();
-
-    await user.clear(handle);
-    await user.type(handle, "333");
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
-    expect(await screen.findByRole("heading", { name: "This ESPN league is private" }))
-      .toHaveFocus();
+    await waitFor(() => { expect(requests).toHaveLength(2); });
+    expect(await screen.findByRole("list", { name: "Leagues found" })).toBeVisible();
   });
 
   it("shows a lookup failure as an error rather than an empty list", async () => {

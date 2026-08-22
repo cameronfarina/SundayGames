@@ -34,15 +34,15 @@ describe("AddConnection", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("offers both public league lookup and account-wide ESPN discovery", async () => {
+  it("offers only account-wide ESPN discovery", async () => {
     const user = userEvent.setup();
     renderAddConnection();
 
     await user.click(screen.getByRole("tab", { name: "ESPN" }));
 
-    expect(screen.getByRole("textbox", { name: "ESPN league ID or league URL" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Find this league" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Make it publicly viewable" }))
+    expect(screen.queryByRole("textbox", { name: "ESPN league ID or league URL" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Find this league" }))
       .not.toBeInTheDocument();
     expect(screen.getByLabelText("espn_s2 cookie")).toBeVisible();
     expect(screen.getByRole("button", { name: "Find my ESPN leagues" })).toBeDisabled();

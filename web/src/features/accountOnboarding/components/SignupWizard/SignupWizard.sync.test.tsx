@@ -52,12 +52,11 @@ describe("SignupWizard provider setup", () => {
     }));
     const user = userEvent.setup();
     mountWizard("connections");
-    const espnInput = await screen.findByRole("textbox", {
-      name: "ESPN league ID or league URL",
-    });
+    const espnInput = await screen.findByLabelText("espn_s2 cookie");
 
-    await user.type(espnInput, "https://fantasy.espn.com/football/league?leagueId=899513");
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
+    await user.type(espnInput, "espn-s2");
+    await user.type(screen.getByLabelText("SWID cookie"), "{{ESPN}");
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
     await waitFor(() => {
       expect(requests.some(request => request.body?.["provider"] === "espn")).toBe(true);
     });
@@ -66,8 +65,11 @@ describe("SignupWizard provider setup", () => {
       "cookie values.",
     )).toBeVisible();
     const espnRequest = requests.find(request => request.body?.["provider"] === "espn");
-    expect(espnRequest?.body).not.toHaveProperty("espnS2");
-    expect(espnRequest?.body).not.toHaveProperty("swid");
+    expect(espnRequest?.body).toMatchObject({
+      handle: "",
+      espnS2: "espn-s2",
+      swid: "{ESPN}",
+    });
 
     await user.type(screen.getByRole("textbox", { name: "Sleeper username" }), "feiyingx");
     await user.click(screen.getByRole("button", { name: "Find my leagues" }));
@@ -92,7 +94,7 @@ describe("SignupWizard provider setup", () => {
     }));
     expect(await screen.findByRole("link", { name: "Open in Sunday Games" }))
       .toHaveAttribute("href", "/leagues/sleeper-friends-league");
-    expect(espnInput).toHaveValue("https://fantasy.espn.com/football/league?leagueId=899513");
+    expect(espnInput).toHaveValue("espn-s2");
     expect(requests.map(request => [request.method, request.path])).toContainEqual([
       "POST", "/league-connections/connection-sleeper/import",
     ]);

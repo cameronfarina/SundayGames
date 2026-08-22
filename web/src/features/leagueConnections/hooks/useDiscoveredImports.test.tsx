@@ -36,8 +36,9 @@ const importsFine = (path: string): Response => jsonResponse(
 
 interface RenderOptions {
   readonly connections?: readonly LeagueConnection[];
+  readonly credentials?: { readonly espnS2?: string };
   readonly leagues?: readonly DiscoveredLeague[];
-  readonly provider?: "sleeper" | undefined;
+  readonly provider?: "espn" | "sleeper" | undefined;
 }
 
 const renderImports = (
@@ -45,6 +46,7 @@ const renderImports = (
   options: RenderOptions = {},
 ) => {
   const connections = options.connections ?? [];
+  const credentials = options.credentials ?? { espnS2: "s2-value" };
   const discovered = options.leagues ?? leagues;
   // Deliberately not a default: "no provider chosen yet" is one of the cases.
   const provider = "provider" in options ? options.provider : "sleeper";
@@ -63,7 +65,7 @@ const renderImports = (
     const mutations = useLeagueConnectionMutations();
     return useDiscoveredImports({
       connections,
-      credentials: { espnS2: "s2-value" },
+      credentials,
       leagues: discovered,
       mutations,
       onImported,
@@ -111,6 +113,18 @@ describe("useDiscoveredImports", () => {
       draft: { type: "auction", budgetDollars: 250, minimumBidDollars: 2 },
       mode: "create",
     });
+  });
+
+  it("retains support for importing a publicly viewable ESPN discovery", async () => {
+    const { bodies, onImported, result } = renderImports(importsFine, {
+      credentials: {},
+      provider: "espn",
+    });
+
+    act(() => { result.current.importLeague(firstLeague); });
+
+    await waitFor(() => { expect(onImported).toHaveBeenCalledOnce(); });
+    expect(bodies[0]).toMatchObject({ credentialMode: "public", provider: "espn" });
   });
 
   it("keeps every reason a refused import gave next to that league", async () => {

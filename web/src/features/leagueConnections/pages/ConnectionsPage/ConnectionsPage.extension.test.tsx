@@ -140,14 +140,9 @@ describe("ConnectionsPage ESPN browser extension", () => {
     renderConnectionsPage();
 
     await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(await screen.findByRole("button", { name: "Connect with browser extension" }));
 
     expect(await screen.findByText("Sign in to ESPN in this browser, then try again.")).toBeVisible();
-    expect(discoveryRequests).toBe(1);
+    expect(discoveryRequests).toBe(0);
   });
 });

@@ -72,20 +72,13 @@ describe("SignupWizard", () => {
     expect(screen.getByRole("heading", { name: "ESPN" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Sleeper" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Other" })).toBeVisible();
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(screen.getByRole("button", { name: "I'm on mobile" }));
     expect(screen.getByText(/ESPN account connection requires a desktop browser/u)).toBeVisible();
     expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
     const connectionRequests = requests.filter(request =>
       request.method === "POST" && request.path.startsWith("/league-connections")
     );
-    expect(connectionRequests).toHaveLength(1);
-    expect(connectionRequests[0]?.body).not.toHaveProperty("espnS2");
-    expect(connectionRequests[0]?.body).not.toHaveProperty("swid");
+    expect(connectionRequests).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Finish setup" }));
     await waitFor(() => {
