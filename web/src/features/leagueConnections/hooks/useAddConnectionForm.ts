@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ConnectionCredentials } from "../api/leagueConnectionsApi";
+import type { ConnectionCredentials, LeagueDraftOverride } from "../api/leagueConnectionsApi";
 import type {
   DiscoveredLeague,
   LeagueConnection,
@@ -24,7 +24,7 @@ export interface UseAddConnectionFormResult {
   readonly findLeaguesWithCredentials: (credentials?: ConnectionCredentials) => void;
   readonly handle: string;
   readonly importAll: () => void;
-  readonly importLeague: (league: DiscoveredLeague) => void;
+  readonly importLeague: (league: DiscoveredLeague, draft?: LeagueDraftOverride) => void;
   readonly importing: boolean;
   readonly leagueStates: LeagueImportStates;
   readonly leagues: readonly DiscoveredLeague[];
@@ -94,8 +94,7 @@ export const useAddConnectionForm = (
       search(handle.trim(), {});
     },
     findLeaguesWithCredentials: credentials => {
-      if (handle.trim() === "") return;
-      search(handle.trim(), credentials ?? trimmedCredentials(espnS2, swid));
+      search("", credentials ?? trimmedCredentials(espnS2, swid));
     },
     handle,
     importAll: imports.importAll,

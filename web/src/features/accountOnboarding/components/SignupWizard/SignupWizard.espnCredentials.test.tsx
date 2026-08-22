@@ -77,7 +77,7 @@ describe("SignupWizard ESPN credential boundaries", () => {
     }
   });
 
-  it("reveals private options only after lookup and scopes cookies to that ESPN league", async () => {
+  it("offers account-wide cookie discovery without requiring a league ID", async () => {
     const requests: Record<string, unknown>[] = [];
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathFor(input);
@@ -115,25 +115,15 @@ describe("SignupWizard ESPN credential boundaries", () => {
     expect(await screen.findByRole("textbox", {
       name: "ESPN league ID or league URL",
     })).toBeVisible();
-    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
-    expect(await screen.findByRole("heading", {
-      level: 4,
-      name: "This ESPN league is private",
-    })).toHaveFocus();
-    expect(screen.getByRole("heading", { level: 5, name: "Paste ESPN cookies manually" }))
+    expect(screen.getByRole("heading", { level: 4, name: "Find every ESPN league" }))
       .toBeVisible();
     await user.type(screen.getByLabelText("espn_s2 cookie"), "private-s2");
     await user.type(screen.getByLabelText("SWID cookie"), "{{PRIVATE}");
-    await user.click(screen.getByRole("button", { name: "Find this private league" }));
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
-    await waitFor(() => { expect(requests).toHaveLength(2); });
-    expect(requests[1]).toMatchObject({
-      handle: "899513",
+    await waitFor(() => { expect(requests).toHaveLength(1); });
+    expect(requests[0]).toMatchObject({
+      handle: "",
       espnS2: "private-s2",
       swid: "{PRIVATE}",
     });

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -59,7 +59,7 @@ describe("ConnectionsPage ESPN browser extension", () => {
   });
   afterAll(() => { connectionsServer.close(); });
 
-  it("uses the installed extension for only the private ESPN league entered", async () => {
+  it("uses the installed extension to find every ESPN league on the account", async () => {
     const uninstall = installEspnExtensionBridge();
     const discoveryRequests: unknown[] = [];
     const connectionRequests: unknown[] = [];
@@ -70,12 +70,12 @@ describe("ConnectionsPage ESPN browser extension", () => {
         return HttpResponse.json({
           provider: "espn",
           season: "2026",
-          leagues: [{
-            providerLeagueId: "899513",
-            name: "Private ESPN League",
+          leagues: Array.from({ length: 8 }, (_, index) => ({
+            providerLeagueId: String(899_513 + index),
+            name: `Private ESPN League ${String(index + 1)}`,
             season: "2026",
             teamCount: 12,
-          }],
+          })),
         });
       }
       return platformError(422, "credentials_required", "This ESPN league is private.");
@@ -98,31 +98,29 @@ describe("ConnectionsPage ESPN browser extension", () => {
     renderConnectionsPage();
 
     await user.click(await screen.findByRole("tab", { name: "ESPN" }));
-    await user.type(
-      screen.getByRole("textbox", { name: "ESPN league ID or league URL" }),
-      "899513",
-    );
-    await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(await screen.findByRole("button", { name: "Connect with browser extension" }));
 
-    await waitFor(() => { expect(discoveryRequests).toHaveLength(2); });
-    expect(discoveryRequests[1]).toEqual({
+    await waitFor(() => { expect(discoveryRequests).toHaveLength(1); });
+    expect(discoveryRequests[0]).toEqual({
       provider: "espn",
-      handle: "899513",
+      handle: "",
       season: "2026",
       espnS2: "extension-s2",
       swid: "{EXTENSION}",
     });
-    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("SWID cookie")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Leagues found" })).getAllByRole("listitem"))
+      .toHaveLength(8);
+    expect(screen.getByRole("button", { name: "Import all 8 leagues" })).toBeVisible();
+    expect(screen.getByLabelText("espn_s2 cookie")).toHaveValue("");
+    expect(screen.getByLabelText("SWID cookie")).toHaveValue("");
     await user.click(screen.getByRole("button", {
-      name: "Connect and import Private ESPN League",
+      name: "Connect and import Private ESPN League 1",
     }));
     await waitFor(() => { expect(connectionRequests).toHaveLength(1); });
     expect(connectionRequests[0]).toEqual({
       provider: "espn",
       providerLeagueId: "899513",
-      displayName: "Private ESPN League",
+      displayName: "Private ESPN League 1",
       season: "2026",
       credentialMode: "private",
       espnS2: "extension-s2",

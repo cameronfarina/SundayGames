@@ -1,6 +1,7 @@
 export { leagueImportConversion } from "./leagueImportFromSync/convertSnapshot.js";
 export type {
   LeagueImportConversion,
+  LeagueImportDraftSetup,
   LeagueImportSource,
 } from "./leagueImportFromSync/contracts.js";
 export { seasonFromLeagueImport } from "./leagueImportFromSync/overwriteSeason.js";

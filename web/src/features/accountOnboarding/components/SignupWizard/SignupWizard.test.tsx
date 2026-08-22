@@ -78,7 +78,7 @@ describe("SignupWizard", () => {
     );
     await user.click(screen.getByRole("button", { name: "Find this league" }));
     await user.click(screen.getByRole("button", { name: "I'm on mobile" }));
-    expect(screen.getByText(/Private ESPN connection requires a desktop browser/u)).toBeVisible();
+    expect(screen.getByText(/ESPN account connection requires a desktop browser/u)).toBeVisible();
     expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
     const connectionRequests = requests.filter(request =>
       request.method === "POST" && request.path.startsWith("/league-connections")

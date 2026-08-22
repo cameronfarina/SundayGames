@@ -132,8 +132,19 @@ export const leagueImportSchema = z.object({
  * alongside the sentence instead of being flattened into it.
  */
 export const importReviewSchema = z.object({
-  error: z.object({ issues: z.array(z.string()) }),
+  error: z.object({
+    issues: z.array(z.string()),
+    draftSetup: z.object({
+      auctionBudgetDollars: z.number(),
+      minimumBidDollars: z.number(),
+      snakeRounds: z.number(),
+    }).optional(),
+  }),
 });
+
+export type LeagueDraftSetup = NonNullable<
+  z.output<typeof importReviewSchema>["error"]["draftSetup"]
+>;
 
 export type LeagueConnection = z.output<typeof leagueConnectionSchema>;
 export type LeagueConnectionDetail = z.output<typeof leagueConnectionDetailSchema>;

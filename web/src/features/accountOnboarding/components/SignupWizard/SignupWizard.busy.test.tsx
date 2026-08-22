@@ -82,9 +82,7 @@ describe("SignupWizard provider busy controls", () => {
     for (const button of screen.getAllByRole("button", { name: "Looking..." })) {
       expect(button).toBeDisabled();
     }
-    for (const button of screen.getAllByRole("button", { name: "Import all" })) {
-      expect(button).toBeDisabled();
-    }
+    expect(screen.queryByRole("button", { name: /Import all/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", {
       name: "Connect and import ESPN Friends League",
     })).toBeDisabled();

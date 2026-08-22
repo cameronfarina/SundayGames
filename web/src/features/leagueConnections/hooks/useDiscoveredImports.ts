@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ConnectionCredentials } from "../api/leagueConnectionsApi";
+import type { ConnectionCredentials, LeagueDraftOverride } from "../api/leagueConnectionsApi";
 import type {
   DiscoveredLeague,
   LeagueConnection,
@@ -26,7 +26,7 @@ interface UseDiscoveredImportsOptions {
 
 export interface UseDiscoveredImportsResult {
   readonly importAll: () => void;
-  readonly importLeague: (league: DiscoveredLeague) => void;
+  readonly importLeague: (league: DiscoveredLeague, draft?: LeagueDraftOverride) => void;
   readonly reset: () => void;
   readonly running: boolean;
   readonly states: LeagueImportStates;
@@ -58,7 +58,10 @@ export const useDiscoveredImports = ({
     setReported(previous => ({ ...previous, [discoveredLeagueKey(league)]: state }));
   };
 
-  const runImport = async (league: DiscoveredLeague): Promise<boolean> => {
+  const runImport = async (
+    league: DiscoveredLeague,
+    draft?: LeagueDraftOverride,
+  ): Promise<boolean> => {
     if (provider === undefined) return false;
     report(league, { status: "connecting" });
     try {
@@ -75,7 +78,7 @@ export const useDiscoveredImports = ({
       report(league, { status: "importing" });
       const result = await mutations.importLeague.mutateAsync({
         connectionId: connected.connection.id,
-        request: { mode: "create" },
+        request: { mode: "create", ...(draft === undefined ? {} : { draft }) },
       });
       report(league, { leagueSlug: result.imported.leagueSlug, status: "imported" });
       return true;
@@ -85,8 +88,8 @@ export const useDiscoveredImports = ({
     }
   };
 
-  const importLeague = (league: DiscoveredLeague): void => {
-    void runImport(league).then(imported => { if (imported) onImported(); });
+  const importLeague = (league: DiscoveredLeague, draft?: LeagueDraftOverride): void => {
+    void runImport(league, draft).then(imported => { if (imported) onImported(); });
   };
 
   const importAll = (): void => {

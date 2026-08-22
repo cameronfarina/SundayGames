@@ -6,6 +6,7 @@ import {
   type LeagueSyncFetch,
 } from "../src/data/leagueSyncProviderAdapters.js";
 import { sleeperPlayerDirectory } from "../src/data/leagueSyncProviderAdapters/sleeperPlayerDirectory.js";
+import { espnFanLeagueIds } from "../src/data/leagueSyncProviderAdapters/espnFanProfile.js";
 import {
   espnFanProfilePayload,
   espnLeaguePayload,
@@ -190,6 +191,65 @@ describe("sleeper league sync adapter", () => {
 const espnRoutes: readonly StubRoute[] = [{ match: "/leagues/899513", body: espnLeaguePayload }];
 
 describe("espn league sync adapter", () => {
+  it("reads all eight current-season leagues from ESPN's current fan profile shape", () => {
+    const preferences = Array.from({ length: 8 }, (_, index) => ({
+      metaData: {
+        entry: {
+          gameId: 1,
+          seasonId: 2026,
+          groups: [{ groupId: 800_001 + index, groupName: `League ${index + 1}` }],
+        },
+      },
+    }));
+
+    expect(espnFanLeagueIds({
+      preferences: [
+        ...preferences,
+        preferences[0],
+        {
+          metaData: {
+            entry: {
+              gameId: 4,
+              seasonId: 2026,
+              groups: [{ groupId: 999_999, groupName: "Hockey" }],
+            },
+          },
+        },
+      ],
+    }, "2026")).toEqual([
+      "800001", "800002", "800003", "800004",
+      "800005", "800006", "800007", "800008",
+    ]);
+  });
+
+  it("discovers every current ESPN account league when no league id is supplied", async () => {
+    const preferences = Array.from({ length: 8 }, (_, index) => ({
+      metaData: {
+        entry: {
+          gameId: 1,
+          seasonId: 2026,
+          groups: [{ groupId: 810_001 + index }],
+        },
+      },
+    }));
+    const { fetcher } = stubFetch([
+      { match: "fan.api.espn.com", body: { preferences } },
+      { match: "/leagues/", body: espnLeaguePayload },
+    ]);
+
+    const leagues = await leagueSyncAdapters.espn.discoverLeagues({
+      handle: "",
+      season: "2026",
+      credentials: { espnS2: "s2-value", swid: "{GUID}" },
+      fetcher,
+    });
+
+    expect(leagues.map(league => league.providerLeagueId)).toEqual([
+      "810001", "810002", "810003", "810004",
+      "810005", "810006", "810007", "810008",
+    ]);
+  });
+
   it("reads a public league with no credentials", async () => {
     const { fetcher, requests } = stubFetch(espnRoutes);
 

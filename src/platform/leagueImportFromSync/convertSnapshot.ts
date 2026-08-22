@@ -52,7 +52,13 @@ export const leagueImportConversion = (source: LeagueImportSource): LeagueImport
   const expectedTeamCount = teamCountFor(source.settings.teamCount, issues);
   const keeperCount = source.settings.keeperCount;
 
-  if (issues.length > 0 || draft.draft === null) return { status: "blocked", issues };
+  if (issues.length > 0 || draft.draft === null) {
+    return {
+      status: "blocked",
+      issues,
+      ...(draft.draftSetup === undefined ? {} : { draftSetup: draft.draftSetup }),
+    };
+  }
 
   return {
     status: "ready",

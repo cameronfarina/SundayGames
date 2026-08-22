@@ -27,6 +27,25 @@
   margin: 0;
 }
 
+.espn-account-options {
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+.espn-account-options > h3,
+.espn-account-options > h4,
+.espn-account-options > p {
+  margin: 0;
+}
+
+.espn-account-options > p {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
 .espn-private-options p {
   color: var(--color-text-muted);
   line-height: 1.55;

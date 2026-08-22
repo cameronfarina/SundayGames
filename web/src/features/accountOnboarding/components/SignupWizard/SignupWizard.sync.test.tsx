@@ -61,6 +61,10 @@ describe("SignupWizard provider setup", () => {
     await waitFor(() => {
       expect(requests.some(request => request.body?.["provider"] === "espn")).toBe(true);
     });
+    expect(screen.getByText(
+      "No 2026 ESPN leagues were found. For a private account, sign into ESPN and copy fresh " +
+      "cookie values.",
+    )).toBeVisible();
     const espnRequest = requests.find(request => request.body?.["provider"] === "espn");
     expect(espnRequest?.body).not.toHaveProperty("espnS2");
     expect(espnRequest?.body).not.toHaveProperty("swid");

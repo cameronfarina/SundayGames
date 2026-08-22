@@ -1,4 +1,5 @@
 import type { DiscoveredLeague, LeagueConnection } from "../api/leagueConnectionsSchema";
+import type { LeagueDraftSetup } from "../api/leagueConnectionsSchema";
 
 export type LeagueImportStatus =
   | "idle"
@@ -9,6 +10,7 @@ export type LeagueImportStatus =
   | "error";
 
 export interface LeagueImportState {
+  readonly draftSetup?: LeagueDraftSetup;
   readonly status: LeagueImportStatus;
   readonly issues?: readonly string[];
   readonly leagueSlug?: string;

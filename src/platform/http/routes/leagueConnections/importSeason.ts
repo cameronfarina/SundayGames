@@ -68,7 +68,9 @@ export const writeImportSeason = async (
   mode: LeagueImportMode,
   conversion: LeagueImportConversion,
 ): Promise<LeagueSeason | PlatformHttpResponse> => {
-  if (conversion.status === "blocked") return importNeedsReview(conversion.issues);
+  if (conversion.status === "blocked") {
+    return importNeedsReview(conversion.issues, conversion.draftSetup);
+  }
   if (mode.mode === "create") {
     return await createdImportSeason(
       app,

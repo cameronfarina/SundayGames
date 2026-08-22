@@ -75,7 +75,8 @@ describe("finding leagues to import", () => {
       name: "This ESPN league is private",
     });
     expect(privateHeading).toHaveFocus();
-    expect(screen.getByRole("heading", { level: 4, name: "Make it publicly viewable" }))
+    expect(screen.getByText(/Make it publicly viewable and try again/u)).toBeVisible();
+    expect(screen.getByRole("heading", { level: 3, name: "Find every ESPN league" }))
       .toBeVisible();
     expect(screen.getByRole("heading", { level: 4, name: "Paste ESPN cookies manually" }))
       .toBeVisible();
@@ -87,13 +88,13 @@ describe("finding leagues to import", () => {
     });
     await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
     await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
-    await user.click(screen.getByRole("button", { name: "Find this private league" }));
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
     await waitFor(() => { expect(requests).toHaveLength(3); });
     expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
     expect(requests[2]).toEqual({
       provider: "espn",
-      handle: "https://fantasy.espn.com/football/league?leagueId=899513",
+      handle: "",
       season: "2026",
       espnS2: "s2-value",
       swid: "{GUID}",
@@ -101,7 +102,7 @@ describe("finding leagues to import", () => {
     rejectAccountDiscovery?.();
     expect(await screen.findByText("ESPN could not load your leagues.")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Find this private league" }));
+    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
 
     await waitFor(() => { expect(requests).toHaveLength(4); });
     expect(await screen.findByRole("list", { name: "Leagues found" })).toBeVisible();

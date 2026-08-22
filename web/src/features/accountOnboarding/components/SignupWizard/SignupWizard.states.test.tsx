@@ -159,6 +159,6 @@ describe("SignupWizard states", () => {
     await waitFor(() => {
       expect(screen.getByRole("textbox", { name: "ESPN league ID or league URL" })).toHaveValue("");
     });
-    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("espn_s2 cookie")).toHaveValue("");
   });
 });

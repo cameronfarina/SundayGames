@@ -36,6 +36,7 @@ const importsFine = (path: string): Response => jsonResponse(
 
 interface RenderOptions {
   readonly connections?: readonly LeagueConnection[];
+  readonly leagues?: readonly DiscoveredLeague[];
   readonly provider?: "sleeper" | undefined;
 }
 
@@ -44,12 +45,17 @@ const renderImports = (
   options: RenderOptions = {},
 ) => {
   const connections = options.connections ?? [];
+  const discovered = options.leagues ?? leagues;
   // Deliberately not a default: "no provider chosen yet" is one of the cases.
   const provider = "provider" in options ? options.provider : "sleeper";
   const paths: string[] = [];
-  vi.stubGlobal("fetch", vi.fn(async (target: RequestInfo | URL) => {
+  const bodies: unknown[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (target: RequestInfo | URL, init?: RequestInit) => {
     const path = pathOf(target);
     paths.push(path);
+    if (init?.body !== undefined && typeof init.body === "string") {
+      bodies.push(JSON.parse(init.body));
+    }
     return await respond(path);
   }));
   const onImported = vi.fn();
@@ -58,13 +64,13 @@ const renderImports = (
     return useDiscoveredImports({
       connections,
       credentials: { espnS2: "s2-value" },
-      leagues,
+      leagues: discovered,
       mutations,
       onImported,
       provider,
     });
   }, { wrapper });
-  return { onImported, paths, result };
+  return { bodies, onImported, paths, result };
 };
 
 const stateOf = (
@@ -86,6 +92,24 @@ describe("useDiscoveredImports", () => {
     expect(stateOf(result.current.states, firstLeague)).toEqual({
       leagueSlug: "sleeper-friends-league",
       status: "imported",
+    });
+  });
+
+  it("retries an unresolved provider draft with the chosen draft settings", async () => {
+    const { bodies, onImported, result } = renderImports(importsFine);
+
+    act(() => {
+      result.current.importLeague(firstLeague, {
+        type: "auction",
+        budgetDollars: 250,
+        minimumBidDollars: 2,
+      });
+    });
+
+    await waitFor(() => { expect(onImported).toHaveBeenCalledOnce(); });
+    expect(bodies[1]).toEqual({
+      draft: { type: "auction", budgetDollars: 250, minimumBidDollars: 2 },
+      mode: "create",
     });
   });
 
@@ -113,15 +137,23 @@ describe("useDiscoveredImports", () => {
     expect(onImported).not.toHaveBeenCalled();
   });
 
-  it("imports every discovered league one after another", async () => {
-    const { onImported, paths, result } = renderImports(importsFine);
+  it("imports all eight discovered leagues one after another", async () => {
+    const accountLeagues = Array.from({ length: 8 }, (_, index) => ({
+      providerLeagueId: String(900_001 + index),
+      name: `ESPN League ${String(index + 1)}`,
+      season: "2026",
+      teamCount: 12,
+    }));
+    const { onImported, paths, result } = renderImports(importsFine, {
+      leagues: accountLeagues,
+    });
 
     act(() => { result.current.importAll(); });
 
-    await waitFor(() => { expect(paths).toHaveLength(4); });
+    await waitFor(() => { expect(paths).toHaveLength(16); });
     expect(onImported).toHaveBeenCalledOnce();
     expect(Object.values(result.current.states).map(state => state.status))
-      .toEqual(["imported", "imported"]);
+      .toEqual(Array.from({ length: 8 }, () => "imported"));
   });
 
   it("carries on through a failure and reports nothing as imported", async () => {

@@ -15,7 +15,7 @@ import { fetchLeagueSyncJson } from "./httpJson.js";
 
 export const espnFanApiOrigin = "https://fan.api.espn.com";
 
-const fantasyFootballGameId = "ffl";
+const fantasyFootballGameIds = new Set(["1", "ffl"]);
 const entryUrlLeagueId = /[?&]leagueId=(\d+)/u;
 
 export const espnFanProfileUrl = (swid: string): string =>
@@ -29,6 +29,7 @@ export const espnFanProfileUrl = (swid: string): string =>
 const leagueIdFor = (entity: Record<string, unknown>): string | undefined =>
   optionalText(entity.leagueId)
   ?? optionalText(entity.groupId)
+  ?? optionalText(entity.id)
   ?? entryUrlLeagueId.exec(textValue(entity.entryURL))?.[1];
 
 /**
@@ -36,19 +37,66 @@ const leagueIdFor = (entity: Record<string, unknown>): string | undefined =>
  * season-scoped, so ESPN answers 404 for a league that did not run that year
  * and the entry drops out on its own.
  */
-const belongsToSeason = (entity: Record<string, unknown>, season: string): boolean => {
-  const seasonId = optionalText(entity.seasonId);
+const belongsToSeason = (
+  entity: Record<string, unknown>,
+  preference: Record<string, unknown>,
+  season: string,
+): boolean => {
+  const seasonId = optionalText(entity.seasonId) ?? optionalText(preference.seasonId);
   return seasonId === undefined || seasonId === season;
 };
 
-export const espnFanLeagueIds = (payload: unknown, season: string): readonly string[] => {
-  const leagueIds = recordArray(recordValue(payload).preferences).flatMap(preference => {
-    const entity = recordValue(recordValue(preference.metaData).entity);
-    if (textValue(entity.gameId).toLowerCase() !== fantasyFootballGameId) return [];
-    if (!belongsToSeason(entity, season)) return [];
-    const leagueId = leagueIdFor(entity);
+/**
+ * ESPN's current fan profile uses numeric game id 1 and older responses use
+ * the string `ffl`. When ESPN omits the marker, the football league request
+ * below remains the final filter: unrelated group ids simply do not load.
+ */
+const isFootballEntry = (
+  entity: Record<string, unknown>,
+  preference: Record<string, unknown>,
+): boolean => {
+  const markers = [
+    entity.gameId,
+    entity.abbrev,
+    entity.gameAbbrev,
+    preference.gameId,
+    preference.abbrev,
+    preference.type,
+  ].map(textValue).filter(Boolean);
+  if (markers.length === 0) return true;
+  return markers.some(marker => {
+    const normalized = marker.toLowerCase();
+    return fantasyFootballGameIds.has(normalized)
+      || normalized.includes("ffl")
+      || normalized.includes("fantasy_football");
+  });
+};
+
+const leagueIdsFor = (entity: Record<string, unknown>): readonly string[] => {
+  const direct = leagueIdFor(entity);
+  const grouped = recordArray(entity.groups).flatMap(group => {
+    const leagueId = leagueIdFor(group)
+      ?? entryUrlLeagueId.exec(textValue(group.href))?.[1];
     return leagueId === undefined ? [] : [leagueId];
   });
+  return direct === undefined ? grouped : [direct, ...grouped];
+};
+
+const profileEntries = (preference: Record<string, unknown>): readonly Record<string, unknown>[] => {
+  const metadata = recordValue(preference.metaData);
+  return [metadata.entity, metadata.entry, preference.entry]
+    .map(recordValue)
+    .filter(entry => Object.keys(entry).length > 0);
+};
+
+export const espnFanLeagueIds = (payload: unknown, season: string): readonly string[] => {
+  const leagueIds = recordArray(recordValue(payload).preferences).flatMap(preference =>
+    profileEntries(preference).flatMap(entity => {
+      if (!isFootballEntry(entity, preference)) return [];
+      if (!belongsToSeason(entity, preference, season)) return [];
+      return leagueIdsFor(entity);
+    })
+  );
 
   // A co-managed league can appear once per team the account holds in it.
   return [...new Set(leagueIds)];

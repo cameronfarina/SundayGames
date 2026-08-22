@@ -76,7 +76,7 @@ describe("EspnBrowserExtensionOption", () => {
     expect(screen.getByRole("button", { name: "Connect with browser extension" })).toBeDisabled();
   });
 
-  it("hands the extension credentials to the scoped ESPN lookup", async () => {
+  it("hands the extension credentials to account-wide ESPN discovery", async () => {
     const user = userEvent.setup();
     const { onBusyChange, onCredentials } = renderOption();
 
