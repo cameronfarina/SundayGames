@@ -21,12 +21,12 @@ vi.mock("../../api/espnBrowserExtensionApi", () => ({
   requestEspnBrowserCredentials: vi.fn(),
 }));
 
-const renderOption = () => {
+const renderOption = (headingLevel: 4 | 5 = 4, disabled = false) => {
   const onBusyChange = vi.fn();
   const onCredentials = vi.fn();
   const { unmount } = render(<EspnBrowserExtensionOption
-    disabled={false}
-    headingLevel={4}
+    disabled={disabled}
+    headingLevel={headingLevel}
     onBusyChange={onBusyChange}
     onCredentials={onCredentials}
   />);
@@ -49,6 +49,31 @@ describe("EspnBrowserExtensionOption", () => {
     await waitFor(() => { expect(detectEspnBrowserExtension).toHaveBeenCalledOnce(); });
     expect(screen.queryByRole("button", { name: "Connect with browser extension" }))
       .not.toBeInTheDocument();
+  });
+
+  it("does not update after detection finishes on a closed screen", async () => {
+    let finishDetection: (detected: boolean) => void = () => {
+      throw new Error("Detection resolver was not installed.");
+    };
+    vi.mocked(detectEspnBrowserExtension).mockImplementation(() => new Promise(resolve => {
+      finishDetection = resolve;
+    }));
+    const { unmount } = renderOption();
+
+    unmount();
+    finishDetection(true);
+    await Promise.resolve();
+
+    expect(screen.queryByRole("button", { name: "Connect with browser extension" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("uses the requested heading level and respects a parent lock", async () => {
+    renderOption(5, true);
+
+    expect(await screen.findByRole("heading", { level: 5, name: "Connect automatically" }))
+      .toBeVisible();
+    expect(screen.getByRole("button", { name: "Connect with browser extension" })).toBeDisabled();
   });
 
   it("hands the extension credentials to the scoped ESPN lookup", async () => {
@@ -80,11 +105,36 @@ describe("EspnBrowserExtensionOption", () => {
     expect(onBusyChange.mock.calls).toEqual([[true], [false]]);
   });
 
+  it.each([
+    {
+      error: new EspnBrowserExtensionError("extension_unavailable"),
+      message: "The browser extension stopped responding. Reload this page or paste the cookies manually.",
+    },
+    {
+      error: new EspnBrowserExtensionError("read_failed"),
+      message: "The browser extension could not read your ESPN session. Try again or paste the cookies manually.",
+    },
+    {
+      error: new Error("unexpected"),
+      message: "The browser extension could not read your ESPN session. Try again or paste the cookies manually.",
+    },
+  ])("shows the safe fallback for $error", async ({ error, message }) => {
+    vi.mocked(requestEspnBrowserCredentials).mockRejectedValue(error);
+    const user = userEvent.setup();
+    renderOption();
+
+    await user.click(await screen.findByRole("button", { name: "Connect with browser extension" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  });
+
   it("aborts an in-flight credential read when the connection screen closes", async () => {
     let requestSignal: AbortSignal | undefined;
     vi.mocked(requestEspnBrowserCredentials).mockImplementation(signal => {
       requestSignal = signal;
-      return new Promise(() => undefined);
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => { reject(new Error("aborted")); }, { once: true });
+      });
     });
     const user = userEvent.setup();
     const { onBusyChange, onCredentials, unmount } = renderOption();
@@ -93,6 +143,24 @@ describe("EspnBrowserExtensionOption", () => {
     unmount();
 
     expect(requestSignal?.aborted).toBe(true);
+    expect(onCredentials).not.toHaveBeenCalled();
+    expect(onBusyChange.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("ignores credentials that finish after the connection screen closes", async () => {
+    let finishRequest: (credentials: { readonly espnS2: string; readonly swid: string }) => void
+      = () => { throw new Error("Credential resolver was not installed."); };
+    vi.mocked(requestEspnBrowserCredentials).mockImplementation(() => new Promise(resolve => {
+      finishRequest = resolve;
+    }));
+    const user = userEvent.setup();
+    const { onBusyChange, onCredentials, unmount } = renderOption();
+
+    await user.click(await screen.findByRole("button", { name: "Connect with browser extension" }));
+    unmount();
+    finishRequest({ espnS2: "late-s2", swid: "{LATE}" });
+    await Promise.resolve();
+
     expect(onCredentials).not.toHaveBeenCalled();
     expect(onBusyChange.mock.calls).toEqual([[true], [false]]);
   });

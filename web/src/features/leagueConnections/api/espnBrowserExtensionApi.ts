@@ -38,11 +38,8 @@ const receiveResponse = <T extends { readonly requestId: string }>(
   signal?: AbortSignal,
 ): Promise<T | undefined> => new Promise(resolve => {
   const requestId = crypto.randomUUID();
-  let settled = false;
   let timeout = 0;
   const finish = (response: T | undefined): void => {
-    if (settled) return;
-    settled = true;
     window.clearTimeout(timeout);
     window.removeEventListener("message", onMessage);
     signal?.removeEventListener("abort", onAbort);

@@ -53,7 +53,6 @@ export const EspnBrowserExtensionOption = ({
   }, [onBusyChange]);
   if (!available) return null;
   const connect = async (): Promise<void> => {
-    activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
     setError(null);
@@ -65,12 +64,10 @@ export const EspnBrowserExtensionOption = ({
     } catch (nextError) {
       if (!controller.signal.aborted && mounted.current) setError(extensionErrorMessage(nextError));
     } finally {
-      if (activeRequest.current === controller) {
-        activeRequest.current = null;
-        if (mounted.current) {
-          onBusyChange(false);
-          setReading(false);
-        }
+      activeRequest.current = null;
+      if (mounted.current) {
+        onBusyChange(false);
+        setReading(false);
       }
     }
   };

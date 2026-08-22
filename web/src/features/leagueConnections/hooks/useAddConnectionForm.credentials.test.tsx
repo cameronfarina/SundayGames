@@ -103,6 +103,18 @@ describe("useAddConnectionForm credentials", () => {
     }));
   });
 
+  it("does not search with credentials until an ESPN league is entered", () => {
+    const { fetcher, result } = renderForm();
+    act(() => { result.current.selectProvider("espn"); });
+
+    act(() => { result.current.findLeaguesWithCredentials({
+      espnS2: "account-s2",
+      swid: "{ACCOUNT}",
+    }); });
+
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it.each([
     { espnS2: " ", expected: { swid: "{ACCOUNT}" }, swid: " {ACCOUNT} " },
     { espnS2: " account-s2 ", expected: { espnS2: "account-s2" }, swid: " " },
