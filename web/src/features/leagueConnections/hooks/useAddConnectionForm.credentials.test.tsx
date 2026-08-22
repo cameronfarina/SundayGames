@@ -84,7 +84,7 @@ describe("useAddConnectionForm credentials", () => {
     expect(fetcher.mock.calls[1]?.[1]?.body).not.toContain("edited-s2");
   });
 
-  it("uses complete credentials to discover only the ESPN league entered", async () => {
+  it("uses complete credentials to discover every ESPN league on the account", async () => {
     const { fetcher, result } = renderForm();
     act(() => { result.current.selectProvider("espn"); });
     act(() => {
@@ -96,14 +96,14 @@ describe("useAddConnectionForm credentials", () => {
     await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
     expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
       provider: "espn",
-      handle: "899513",
+      handle: "",
       season: currentLeagueSeason,
       espnS2: "account-s2",
       swid: "{ACCOUNT}",
     }));
   });
 
-  it("does not search with credentials until an ESPN league is entered", () => {
+  it("can discover an ESPN account without a league id", async () => {
     const { fetcher, result } = renderForm();
     act(() => { result.current.selectProvider("espn"); });
 
@@ -112,7 +112,14 @@ describe("useAddConnectionForm credentials", () => {
       swid: "{ACCOUNT}",
     }); });
 
-    expect(fetcher).not.toHaveBeenCalled();
+    await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      provider: "espn",
+      handle: "",
+      season: currentLeagueSeason,
+      espnS2: "account-s2",
+      swid: "{ACCOUNT}",
+    }));
   });
 
   it.each([
@@ -132,7 +139,7 @@ describe("useAddConnectionForm credentials", () => {
     if (typeof body !== "string") throw new Error("Expected a JSON request body.");
     expect(JSON.parse(body)).toEqual({
       provider: "espn",
-      handle: "899513",
+      handle: "",
       season: currentLeagueSeason,
       ...expected,
     });

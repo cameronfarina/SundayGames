@@ -27,7 +27,7 @@ describe("importing connected leagues", () => {
     renderConnectionsPage();
 
     await findSleeperLeagues(user);
-    await user.click(screen.getByRole("button", { name: "Import all" }));
+    await user.click(screen.getByRole("button", { name: "Import all 2 leagues" }));
 
     await waitFor(() => {
       expect(screen.getAllByRole("link", { name: "Open in Sunday Games" })).toHaveLength(2);

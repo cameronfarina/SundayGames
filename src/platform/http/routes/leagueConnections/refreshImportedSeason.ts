@@ -8,6 +8,25 @@ import type { ImportedSeasonRefresher } from "../../../leagueSyncService.js";
 import type { PlatformApp } from "../../contracts.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 
+const settingsWithExistingDraft = (
+  settings: Parameters<typeof leagueImportConversion>[0]["settings"],
+  existing: Awaited<ReturnType<PlatformApp["getLeagueSeason"]>>,
+): Parameters<typeof leagueImportConversion>[0]["settings"] => {
+  if (settings.draftType !== undefined) return settings;
+  return existing.settings.draftFormat === "snake"
+    ? {
+        ...settings,
+        draftType: "snake",
+        snakeRounds: existing.settings.snake.rounds,
+      }
+    : {
+        ...settings,
+        draftType: "auction",
+        auctionBudget: existing.settings.auction.budgetDollars,
+        minimumBid: existing.settings.auction.minimumBidDollars,
+      };
+};
+
 /**
  * Carries a fresh snapshot through to the league the connection imported. The
  * league is only ever nudged, never rebuilt: syncing must not be a way to lose
@@ -32,7 +51,7 @@ export const importedSeasonRefresher = (
   const conversion = leagueImportConversion({
     provider: connection.provider,
     providerLeagueId: connection.providerLeagueId,
-    settings: snapshot.settings,
+    settings: settingsWithExistingDraft(snapshot.settings, existing),
     teams: snapshot.teams,
   });
   if (conversion.status === "blocked") {

@@ -1,7 +1,9 @@
 import { PlatformApiError } from "../../../shared/api/http/PlatformApiError";
 import { importReviewSchema } from "../api/leagueConnectionsSchema";
+import type { LeagueDraftSetup } from "../api/leagueConnectionsSchema";
 
 export interface ImportFailure {
+  readonly draftSetup?: LeagueDraftSetup;
   readonly message: string;
   readonly issues: readonly string[];
 }
@@ -19,6 +21,9 @@ export const importFailure = (error: unknown): ImportFailure => {
   }
   const review = importReviewSchema.safeParse(error.body);
   return {
+    ...(review.success && review.data.error.draftSetup !== undefined
+      ? { draftSetup: review.data.error.draftSetup }
+      : {}),
     issues: review.success ? review.data.error.issues : [],
     message: error.message,
   };

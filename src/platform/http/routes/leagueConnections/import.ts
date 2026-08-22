@@ -15,8 +15,10 @@ import { importedLeagueFor } from "./importedLeague.js";
 import { importedSeasonRefresher } from "./refreshImportedSeason.js";
 import { refreshedLeagueImportConversion } from "./importConversion.js";
 import {
+  draftOverrideFrom,
   importModeFrom,
   importNeedsReview,
+  invalidDraftOverride,
   invalidImportMode,
   leagueImportChanged,
   snapshotRequired,
@@ -73,6 +75,8 @@ export const routeLeagueConnectionImport = async (
   if (options === null) return leagueConnectionsUnavailable();
   const mode = importModeFrom(request.body);
   if (mode === null) return invalidImportMode();
+  const draft = draftOverrideFrom(request.body);
+  if (draft === null) return invalidDraftOverride();
 
   const connection = await options.repository.findConnection(account.id, connectionId);
   if (connection === null) return connectionNotFound();
@@ -98,6 +102,7 @@ export const routeLeagueConnectionImport = async (
       connection,
       snapshot,
       request.now ?? new Date(),
+      draft,
     );
     if (conversion === null) return connectionNotFound();
 

@@ -138,9 +138,15 @@ describe("league import conversion", () => {
   it("stops when the provider never says how the league drafts", () => {
     const { draftType: _unused, ...settings } = espnSettings;
 
-    expect(blockedIssues({ ...espnSource, settings })).toEqual([
-      "Could not read the draft type from ESPN. Open the league wizard to finish setup.",
-    ]);
+    expect(leagueImportConversion({ ...espnSource, settings })).toEqual({
+      status: "blocked",
+      issues: ["ESPN did not include this league's draft format."],
+      draftSetup: {
+        auctionBudgetDollars: 200,
+        minimumBidDollars: 1,
+        snakeRounds: 11,
+      },
+    });
   });
 
   it("stops when an auction budget cannot cover the minimum bid for every slot", () => {

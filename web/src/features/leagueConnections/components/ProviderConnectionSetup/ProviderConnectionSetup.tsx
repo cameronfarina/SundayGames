@@ -8,10 +8,9 @@ import {
   useAddConnectionForm,
 } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
-import { AccountCookieForm } from "../AddConnection/AccountCookieForm";
 import { DiscoveredLeagueList } from "../AddConnection/DiscoveredLeagueList";
 import { HandleForm } from "../AddConnection/HandleForm";
-import { EspnBrowserExtensionOption } from "./EspnBrowserExtensionOption";
+import { EspnAccountOptions } from "./EspnAccountOptions";
 import "../AddConnection/AddConnection.css";
 import "./ProviderConnectionSetup.css";
 
@@ -60,16 +59,16 @@ export const ProviderConnectionSetup = ({
       || discoveryError.code === "credentials_rejected")
     ? discoveryError
     : null;
-  const privateLeague = form.leagues.length === 0
+  const privateLeague = form.handle.trim().length > 0
+    && form.leagues.length === 0
     && (privateAccessError !== null || privateOptionsRevealed);
   const noResults = mutations.discover.isSuccess && form.leagues.length === 0 && !localBusy;
   const PrivateHeading = headingLevel === 4 ? "h4" : "h3";
-  const OptionHeading = headingLevel === 4 ? "h5" : "h4";
   useEffect(() => {
-    if (privateAccessError === null || privateOptionsAnnounced.current) return;
+    if (!privateLeague || privateOptionsAnnounced.current) return;
     privateOptionsAnnounced.current = true;
     privateHeadingRef.current?.focus();
-  }, [privateAccessError]);
+  }, [privateLeague]);
   if (provider.availability !== "connectable") {
     return <InlineNotice variant="warning">{provider.detail}</InlineNotice>;
   }
@@ -78,7 +77,6 @@ export const ProviderConnectionSetup = ({
     form.findLeagues();
   };
   const findPrivateLeague = (credentials?: ConnectionCredentials) => {
-    setPrivateOptionsRevealed(true);
     form.findLeaguesWithCredentials(credentials);
   };
   const changeHandle = (value: string) => {
@@ -107,53 +105,35 @@ export const ProviderConnectionSetup = ({
     </>}
     {privateLeague ? <section className="espn-private-options">
       <PrivateHeading ref={privateHeadingRef} tabIndex={-1}>This ESPN league is private</PrivateHeading>
-      <p>You can connect it 1 of 2 ways.</p>
-      <div className="espn-private-options__choices">
-        <section className="espn-private-options__choice">
-          <OptionHeading>Make it publicly viewable</OptionHeading>
-          <p>
-            In ESPN, go to League, Settings, Basic Settings, then Edit Basic Settings.
-            Set Public viewability to Yes and save.
-          </p>
-          <Button disabled={busy} onClick={retryPrivateLeague} variant="secondary">Try again</Button>
-        </section>
-        <section className="espn-private-options__choice">
-          {onEspnMobile === undefined || espnMobileDeferred ? null : <Button
-            disabled={busy}
-            onClick={onEspnMobile}
-            variant="secondary"
-          >
-            I'm on mobile
-          </Button>}
-          {espnMobileDeferred ? <InlineNotice title="Connect it later" variant="info">
-            Private ESPN connection requires a desktop browser. Finish setup now, then connect this
-            league from Connections.
-          </InlineNotice> : <>
-            <EspnBrowserExtensionOption
-              disabled={busy}
-              headingLevel={headingLevel === 4 ? 5 : 4}
-              onBusyChange={setExtensionReading}
-              onCredentials={findPrivateLeague}
-            />
-            <AccountCookieForm
-              espnS2={form.espnS2}
-              headingLevel={headingLevel === 4 ? 5 : 4}
-              onEspnS2Change={form.setEspnS2}
-              onSubmit={findPrivateLeague}
-              onSwidChange={form.setSwid}
-              pending={busy}
-              swid={form.swid}
-            />
-          </>}
-        </section>
-      </div>
+      <p>
+        Make it publicly viewable and try again, or use the account connection below to find every
+        current-season ESPN league.
+      </p>
+      <p>
+        In ESPN, go to League, Settings, Basic Settings, then Edit Basic Settings. Set Public
+        viewability to Yes and save.
+      </p>
+      <Button disabled={busy} onClick={retryPrivateLeague} variant="secondary">Try again</Button>
     </section> : null}
+    {espn ? <EspnAccountOptions
+      disabled={busy}
+      espnMobileDeferred={espnMobileDeferred}
+      espnS2={form.espnS2}
+      headingLevel={headingLevel}
+      onBusyChange={setExtensionReading}
+      onCredentials={findPrivateLeague}
+      onEspnMobile={onEspnMobile}
+      onEspnS2Change={form.setEspnS2}
+      onSwidChange={form.setSwid}
+      swid={form.swid}
+    /> : null}
     {discoveryError === null || privateAccessError?.code === "credentials_required"
       ? null
       : <InlineNotice variant="error">{discoveryError.message}</InlineNotice>}
     {noResults ? <InlineNotice variant="info">
       {espn
-        ? `No ${currentLeagueSeason} ESPN leagues were found. Check the league ID or cookie values.`
+        ? `No ${currentLeagueSeason} ESPN leagues were found. ` +
+          "For a private account, sign into ESPN and copy fresh cookie values."
         : `No ${currentLeagueSeason} Sleeper leagues were found for that username.`}
     </InlineNotice> : null}
     <DiscoveredLeagueList

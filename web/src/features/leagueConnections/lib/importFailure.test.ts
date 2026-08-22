@@ -23,6 +23,30 @@ describe("importFailure", () => {
     });
   });
 
+  it("keeps the draft defaults needed to finish an import", () => {
+    const error = new PlatformApiError({
+      body: {
+        error: {
+          code: "import_needs_review",
+          message: "Choose the draft format to finish importing this league.",
+          issues: ["ESPN did not include this league's draft format."],
+          draftSetup: {
+            auctionBudgetDollars: 200,
+            minimumBidDollars: 1,
+            snakeRounds: 16,
+          },
+        },
+      },
+      code: "import_needs_review",
+      message: "Choose the draft format to finish importing this league.",
+      status: 422,
+    });
+
+    expect(importFailure(error)).toMatchObject({
+      draftSetup: { auctionBudgetDollars: 200, minimumBidDollars: 1, snakeRounds: 16 },
+    });
+  });
+
   it("carries a plain refusal through with nothing invented", () => {
     const error = new PlatformApiError({
       body: { error: { code: "snapshot_required", message: "Sync this league before importing it." } },

@@ -31,8 +31,8 @@ export const AccountCookieForm = ({
   >
     <Heading>Paste ESPN cookies manually</Heading>
     <p>
-      Paste 2 ESPN cookies to connect only the league link you entered. These are account session
-      credentials that Sunday Games stores encrypted. They expire when ESPN ends the session.
+      Paste 2 ESPN cookies to find every current-season fantasy football league on your ESPN
+      account. Sunday Games stores them encrypted, and they expire when ESPN ends the session.
     </p>
     <ol>
       <li>
@@ -85,7 +85,7 @@ export const AccountCookieForm = ({
       disabled={pending || !credentialsComplete}
       type="submit"
     >
-      {pending ? "Looking..." : "Find this private league"}
+      {pending ? "Looking..." : "Find my ESPN leagues"}
     </Button>
   </form>;
 };

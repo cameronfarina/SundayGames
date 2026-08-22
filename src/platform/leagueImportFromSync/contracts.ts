@@ -14,6 +14,12 @@ export interface LeagueImportSource {
   teams: readonly SyncedTeam[];
 }
 
+export interface LeagueImportDraftSetup {
+  auctionBudgetDollars: number;
+  minimumBidDollars: number;
+  snakeRounds: number;
+}
+
 /**
  * Conversion either produces a league the creation domain accepts, or the list
  * of things the owner has to settle first. Issues are written for the owner,
@@ -21,7 +27,11 @@ export interface LeagueImportSource {
  */
 export type LeagueImportConversion =
   | { status: "ready"; input: ConfirmedLeagueCreationInput }
-  | { status: "blocked"; issues: readonly string[] };
+  | {
+      status: "blocked";
+      issues: readonly string[];
+      draftSetup?: LeagueImportDraftSetup;
+    };
 
 export const providerLabelFor = (provider: LeagueSyncProvider): string =>
   leagueSyncProviderCatalog().find(entry => entry.provider === provider)?.label ?? provider;

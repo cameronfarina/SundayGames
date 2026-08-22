@@ -90,6 +90,17 @@
   padding: 0;
 }
 
+.add-connection__import-all {
+  align-self: flex-start;
+}
+
+.add-connection__draft-setup {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .add-connection__results li {
   align-items: center;
   border-bottom: 1px solid var(--color-border);

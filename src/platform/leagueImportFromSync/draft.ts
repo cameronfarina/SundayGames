@@ -1,9 +1,14 @@
 import type { ConfirmedLeagueDraftInput } from "../leagueCreation.js";
-import { providerLabelFor, type LeagueImportSource } from "./contracts.js";
+import {
+  providerLabelFor,
+  type LeagueImportDraftSetup,
+  type LeagueImportSource,
+} from "./contracts.js";
 
 export interface ImportedDraft {
   issues: readonly string[];
   draft: ConfirmedLeagueDraftInput | null;
+  draftSetup?: LeagueImportDraftSetup;
 }
 
 /** Sunday Games allows a dollar bid; providers that hide theirs start at one. */
@@ -52,11 +57,16 @@ export const importedDraft = (
   const issues: string[] = [];
   const draftType = source.settings.draftType;
   if (draftType === undefined) {
-    issues.push(
-      `Could not read the draft type from ${providerLabelFor(source.provider)}. ` +
-      "Open the league wizard to finish setup.",
-    );
-    return { issues, draft: null };
+    issues.push(`${providerLabelFor(source.provider)} did not include this league's draft format.`);
+    return {
+      issues,
+      draft: null,
+      draftSetup: {
+        auctionBudgetDollars: source.settings.auctionBudget ?? 200,
+        minimumBidDollars: source.settings.minimumBid ?? defaultMinimumBid,
+        snakeRounds: source.settings.snakeRounds ?? draftCapacity,
+      },
+    };
   }
   const draft = draftType === "auction"
     ? importedAuction(source, draftCapacity, issues)

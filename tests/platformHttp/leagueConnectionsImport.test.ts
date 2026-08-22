@@ -147,6 +147,30 @@ describe("league connection import HTTP", () => {
     expect(expectBodyRecord(body.imported).leagueName).toBe("Sleeper Friends League");
   });
 
+  it("lets the owner supply draft settings the provider did not return", async () => {
+    const routesWithoutDraft = importableRoutes.filter(route => route.match !== "/drafts");
+    const harness = await createLeagueConnectionsHarness(routesWithoutDraft);
+    const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);
+
+    const blocked = await importLeague(harness.handle, harness.sessionToken, connectionId);
+    expect(blocked.status).toBe(422);
+    expect(expectBodyRecord(expectBodyRecord(blocked.body).error)).toMatchObject({
+      code: "import_needs_review",
+      draftSetup: {
+        auctionBudgetDollars: 200,
+        minimumBidDollars: 1,
+        snakeRounds: 9,
+      },
+    });
+
+    const imported = await importLeague(harness.handle, harness.sessionToken, connectionId, {
+      mode: "create",
+      draft: { type: "snake", rounds: 9 },
+    });
+
+    expect(imported.status).toBe(200);
+  });
+
   it("keeps one account's connections out of another account's reach", async () => {
     const harness = await createLeagueConnectionsHarness(importableRoutes);
     const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);

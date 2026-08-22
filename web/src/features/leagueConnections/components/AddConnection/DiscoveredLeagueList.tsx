@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "../../../../shared/ui";
+import type { LeagueDraftOverride } from "../../api/leagueConnectionsApi";
 import type { DiscoveredLeague } from "../../api/leagueConnectionsSchema";
 import {
   discoveredLeagueKey,
@@ -8,10 +9,11 @@ import {
   type LeagueImportState,
   type LeagueImportStates,
 } from "../../lib/discoveredLeagueState";
+import { DraftSetupForm } from "./DraftSetupForm";
 
 interface DiscoveredLeagueListProps {
   readonly leagues: readonly DiscoveredLeague[];
-  readonly onImport: (league: DiscoveredLeague) => void;
+  readonly onImport: (league: DiscoveredLeague, draft?: LeagueDraftOverride) => void;
   readonly onImportAll: () => void;
   readonly running: boolean;
   readonly states: LeagueImportStates;
@@ -34,7 +36,9 @@ export const DiscoveredLeagueList = ({
   if (leagues.length === 0) return null;
 
   return <>
-    <Button disabled={running} onClick={onImportAll}>Import all</Button>
+    {leagues.length > 1 ? <div className="add-connection__import-all">
+      <Button disabled={running} onClick={onImportAll}>Import all {leagues.length} leagues</Button>
+    </div> : null}
     <ul aria-label="Leagues found" className="add-connection__results">
       {leagues.map(league => {
         const state = states[discoveredLeagueKey(league)] ?? { status: "idle" };
@@ -50,7 +54,13 @@ export const DiscoveredLeagueList = ({
                 {issues.map(issue => <li key={issue}>{issue}</li>)}
               </ul>}
           </div>
-          {state.leagueSlug === undefined
+          {state.draftSetup !== undefined
+            ? <DraftSetupForm
+              defaults={state.draftSetup}
+              disabled={running || isImportRunning(state)}
+              onSubmit={draft => { onImport(league, draft); }}
+            />
+            : state.leagueSlug === undefined
             ? <Button
               disabled={running || isImportRunning(state)}
               onClick={() => { onImport(league); }}

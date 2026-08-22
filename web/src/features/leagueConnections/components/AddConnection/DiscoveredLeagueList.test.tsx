@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { discoveredLeaguesFixture } from "../../api/leagueConnections.fixture";
 import { discoveredLeagueKey, type LeagueImportStates } from "../../lib/discoveredLeagueState";
 import { DiscoveredLeagueList } from "./DiscoveredLeagueList";
@@ -10,6 +10,15 @@ const leagues = discoveredLeaguesFixture.leagues;
 const comrades = leagues[1] ?? { providerLeagueId: "", name: "", season: "", teamCount: 0 };
 
 const noStates: LeagueImportStates = {};
+
+beforeAll(() => {
+  Object.defineProperties(Element.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
 
 const renderList = (
   overrides: Partial<Parameters<typeof DiscoveredLeagueList>[0]> = {},
@@ -54,15 +63,21 @@ describe("DiscoveredLeagueList", () => {
     const user = userEvent.setup();
     const utils = renderList();
 
-    await user.click(screen.getByRole("button", { name: "Import all" }));
+    await user.click(screen.getByRole("button", { name: "Import all 2 leagues" }));
 
     expect(utils.onImportAll).toHaveBeenCalledOnce();
+  });
+
+  it("does not show an account-wide import control for one league", () => {
+    renderList({ leagues: [comrades] });
+
+    expect(screen.queryByRole("button", { name: /Import all/u })).not.toBeInTheDocument();
   });
 
   it("stops every button while an import is running", () => {
     renderList({ running: true });
 
-    expect(screen.getByRole("button", { name: "Import all" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Import all 2 leagues" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Connect and import Comrades League" }))
       .toBeDisabled();
   });
@@ -88,6 +103,32 @@ describe("DiscoveredLeagueList", () => {
     expect(screen.getByText("This league needs a look first.")).toBeVisible();
     expect(screen.getByText("ESPN roster slot HC is not supported.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry Comrades League" })).toBeVisible();
+  });
+
+  it("asks for missing draft settings instead of offering a useless retry", async () => {
+    const user = userEvent.setup();
+    const utils = renderList({
+      leagues: [comrades],
+      states: {
+        [discoveredLeagueKey(comrades)]: {
+          draftSetup: { auctionBudgetDollars: 200, minimumBidDollars: 1, snakeRounds: 16 },
+          issues: ["ESPN did not include this league's draft format."],
+          message: "Choose the draft format to finish importing this league.",
+          status: "error",
+        },
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: /Retry/u })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Draft format" }));
+    await user.click(screen.getByRole("option", { name: "Auction" }));
+    await user.click(screen.getByRole("button", { name: "Finish import" }));
+
+    expect(utils.onImport).toHaveBeenCalledWith(comrades, {
+      type: "auction",
+      budgetDollars: 200,
+      minimumBidDollars: 1,
+    });
   });
 
   it("hands an imported league a way into Sunday Games instead of a button", () => {

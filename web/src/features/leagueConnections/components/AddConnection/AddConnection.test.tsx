@@ -34,7 +34,7 @@ describe("AddConnection", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("starts ESPN with only the league ID or URL", async () => {
+  it("offers both public league lookup and account-wide ESPN discovery", async () => {
     const user = userEvent.setup();
     renderAddConnection();
 
@@ -44,7 +44,8 @@ describe("AddConnection", () => {
     expect(screen.getByRole("button", { name: "Find this league" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Make it publicly viewable" }))
       .not.toBeInTheDocument();
-    expect(screen.queryByLabelText("espn_s2 cookie")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("espn_s2 cookie")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Find my ESPN leagues" })).toBeDisabled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

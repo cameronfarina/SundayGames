@@ -113,6 +113,25 @@ describe("league connections API", () => {
     }));
   });
 
+  it("sends owner-supplied draft settings when ESPN omits them", async () => {
+    const fetcher = stubFetch(leagueImportFixture);
+
+    await importLeagueConnection({
+      connectionId: "connection-espn",
+      request: {
+        mode: "create",
+        draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+      },
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      body: JSON.stringify({
+        mode: "create",
+        draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+      }),
+    }));
+  });
+
   it("creates a connection, syncs it, and removes it", async () => {
     const fetcher = stubFetch({ connection: syncedConnectionFixture });
     await connectLeague({

@@ -76,8 +76,9 @@ export const EspnBrowserExtensionOption = ({
     <Heading>Connect automatically</Heading>
     <p>
       The Sunday Games browser extension reads only your <code>espn_s2</code> and <code>SWID</code>
-      {" "}cookies. These are ESPN account session credentials that Sunday Games stores encrypted,
-      and they expire when ESPN ends the session. The extension never sees your ESPN password.
+      {" "}cookies to find every current-season fantasy football league on your ESPN account.
+      Sunday Games stores them encrypted, and they expire when ESPN ends the session. The extension
+      never sees your ESPN password.
     </p>
     <Button disabled={disabled || reading} onClick={() => { void connect(); }}>
       {reading ? "Connecting..." : "Connect with browser extension"}

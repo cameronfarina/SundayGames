@@ -1,3 +1,4 @@
+import type { LeagueImportDraftSetup } from "../../../leagueImportFromSync.js";
 import type { PlatformHttpResponse } from "../../contracts.js";
 import { optionalString } from "../../request/values.js";
 import { knownError } from "../../responses.js";
@@ -5,6 +6,37 @@ import { knownError } from "../../responses.js";
 export type LeagueImportMode =
   | { mode: "create" }
   | { mode: "overwrite"; seasonId: string };
+
+export type LeagueDraftOverride =
+  | { type: "auction"; budgetDollars: number; minimumBidDollars: number }
+  | { type: "snake"; rounds: number };
+
+const positiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+export const draftOverrideFrom = (
+  body: Record<string, unknown>,
+): LeagueDraftOverride | null | undefined => {
+  if (body.draft === undefined) return undefined;
+  if (!isRecord(body.draft)) return null;
+  const draft = body.draft;
+  if (draft.type === "auction") {
+    return positiveInteger(draft.budgetDollars) && positiveInteger(draft.minimumBidDollars)
+      ? {
+          type: "auction",
+          budgetDollars: draft.budgetDollars,
+          minimumBidDollars: draft.minimumBidDollars,
+        }
+      : null;
+  }
+  if (draft.type === "snake") {
+    return positiveInteger(draft.rounds) ? { type: "snake", rounds: draft.rounds } : null;
+  }
+  return null;
+};
 
 /**
  * Overwriting a league the owner already manages is destructive enough that it
@@ -23,6 +55,12 @@ export const invalidImportMode = (): PlatformHttpResponse => knownError(
   400,
   "invalid_import_mode",
   "Choose whether to create a new league or replace one you already manage.",
+);
+
+export const invalidDraftOverride = (): PlatformHttpResponse => knownError(
+  400,
+  "invalid_draft_settings",
+  "Choose Auction or Snake and enter valid draft settings.",
 );
 
 export const snapshotRequired = (): PlatformHttpResponse => knownError(
@@ -49,13 +87,19 @@ export const leagueSetupLocked = (): PlatformHttpResponse => knownError(
  * inside the error rather than beside it, so the one thing a caller reads to
  * find out what went wrong holds the whole answer.
  */
-export const importNeedsReview = (issues: readonly string[]): PlatformHttpResponse => ({
+export const importNeedsReview = (
+  issues: readonly string[],
+  draftSetup?: LeagueImportDraftSetup,
+): PlatformHttpResponse => ({
   status: 422,
   body: {
     error: {
       code: "import_needs_review",
-      message: "This league needs a few settings sorted out before it can be imported.",
+      message: draftSetup === undefined
+        ? "This league needs a few settings sorted out before it can be imported."
+        : "Choose the draft format to finish importing this league.",
       issues: [...issues],
+      ...(draftSetup === undefined ? {} : { draftSetup }),
     },
   },
 });

@@ -28,10 +28,14 @@ export interface ConnectLeagueRequest extends ConnectionCredentials {
   readonly season: string;
 }
 
+export type LeagueDraftOverride =
+  | { readonly type: "auction"; readonly budgetDollars: number; readonly minimumBidDollars: number }
+  | { readonly type: "snake"; readonly rounds: number };
+
 /** Either build a brand new Sunday Games league, or rebuild one already run here. */
 export type ImportLeagueRequest =
-  | { readonly mode: "create" }
-  | { readonly mode: "overwrite"; readonly seasonId: string };
+  | { readonly mode: "create"; readonly draft?: LeagueDraftOverride }
+  | { readonly mode: "overwrite"; readonly seasonId: string; readonly draft?: LeagueDraftOverride };
 
 export interface ImportLeagueVariables {
   readonly connectionId: string;
