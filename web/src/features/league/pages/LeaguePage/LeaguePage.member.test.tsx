@@ -55,6 +55,8 @@ describe("LeaguePage member experience", () => {
 
     const claimHeading = await screen.findByRole("heading", { name: "Claim your team" });
     const settingsHeading = screen.getByRole("heading", { name: "League settings" });
+    expect(screen.getByRole("region", { name: "Claim your team" }))
+      .toHaveAttribute("id", "claim-your-team");
     expect(claimHeading.compareDocumentPosition(settingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByRole("button", { name: "Select a team" })).toBeDisabled();
     const teamChoices = screen.getByRole("group", { name: "Available teams" });
@@ -86,13 +88,40 @@ describe("LeaguePage member experience", () => {
   });
 
   it("shows snake keepers, owner fallbacks, and an unscheduled draft", async () => {
-    const ownerOnlyTeam = { ...team, managerDisplayNames: undefined };
+    const ownerOnlyTeam = { ...team, managerDisplayNames: undefined, draftOrderPosition: 3 };
+    const firstPick = {
+      ...team,
+      id: "team-first",
+      ownerId: "owner-first",
+      ownerDisplayName: "First Owner",
+      displayName: "First Team",
+      draftOrderPosition: 1,
+    };
+    const secondPick = {
+      ...team,
+      id: "team-second",
+      ownerId: "owner-second",
+      ownerDisplayName: "Second Owner",
+      displayName: "Second Team",
+      draftOrderPosition: 2,
+    };
     useLeagueApi(
       {
         ...onboarding({ claimed: true }),
         leagues: [{ ...onboarding({ claimed: true }).leagues[0], nextDraftAt: undefined }],
       },
-      { season: { ...season, teams: [ownerOnlyTeam] }, claimableTeams: [] },
+      {
+        season: {
+          ...season,
+          teams: [ownerOnlyTeam, firstPick, secondPick],
+          settings: {
+            ...season.settings,
+            draftFormat: "snake",
+            snake: { rounds: 16, order: [firstPick.ownerId, secondPick.ownerId, ownerOnlyTeam.ownerId] },
+          },
+        },
+        claimableTeams: [],
+      },
       { keepers: [{
         teamId: team.id,
         playerName: "De'Von Achane",
@@ -106,6 +135,10 @@ describe("LeaguePage member experience", () => {
     expect(await screen.findByText("No draft time scheduled")).toBeVisible();
     expect(screen.getByText("Owner11")).toBeVisible();
     expect(screen.getByText("Round 3 keeper")).toBeVisible();
+    expect(screen.getByText("Draft order · 3 teams")).toBeVisible();
+    expect(screen.getAllByRole("article").map(article => within(article).getByRole("heading").textContent))
+      .toEqual(["First Team", "Second Team", "Short King"]);
+    expect(screen.getByText("Pick 3")).toBeVisible();
   });
 
   it("shows claim progress and a server error", async () => {

@@ -20,7 +20,7 @@ export const createLeagueSeasonFromConfirmedSetup = (
 
   const leagueId = `league-${createId()}`;
   const seasonId = `season-${createId()}`;
-  const createdTeams = createTeams(input.teams, seasonId, createId);
+  const createdTeams = createTeams(input.teams, input.draft, seasonId, createId);
   const season: AnyLeagueSeason = {
     id: seasonId,
     league: {

@@ -10,12 +10,13 @@ import type { LeagueSetupTeamRecord } from "../leagueSetupImport.js";
 const teamRecordFor = (
   team: ConfirmedLeagueTeamInput,
   index: number,
+  snakePositionByExternalId: ReadonlyMap<string, number> | undefined,
 ): LeagueSetupTeamRecord => ({
   sourceRowNumber: index + 1,
   ownerDisplayName: team.managerNames?.[0] ?? team.displayName,
   teamDisplayName: team.displayName,
   ...(team.managerNames === undefined ? {} : { managerDisplayNames: [...team.managerNames] }),
-  draftOrderPosition: index + 1,
+  draftOrderPosition: snakePositionByExternalId?.get(team.externalTeamId) ?? index + 1,
   role: "member",
 });
 
@@ -32,13 +33,17 @@ interface RebuiltTeam {
  */
 const rebuiltTeams = (
   season: LeagueSeason,
-  teams: readonly ConfirmedLeagueTeamInput[],
+  input: ConfirmedLeagueCreationInput,
 ): readonly RebuiltTeam[] => {
-  const records = teams.map(teamRecordFor);
+  const snakePositionByExternalId = input.draft.type === "snake"
+    ? new Map(input.draft.order.map((externalTeamId, index) => [externalTeamId, index + 1]))
+    : undefined;
+  const records = input.teams.map((team, index) =>
+    teamRecordFor(team, index, snakePositionByExternalId));
   const existing = existingTeamsForRecords(season, records);
 
   return records.map((record, index) => ({
-    externalTeamId: (teams[index]?.externalTeamId ?? "").trim(),
+    externalTeamId: (input.teams[index]?.externalTeamId ?? "").trim(),
     team: teamForRecord(season, record, index, existing[index]),
   }));
 };
@@ -51,7 +56,7 @@ export const seasonFromLeagueImport = (
   season: LeagueSeason,
   input: ConfirmedLeagueCreationInput,
 ): ExplicitLeagueSeason => {
-  const rebuilt = rebuiltTeams(season, input.teams);
+  const rebuilt = rebuiltTeams(season, input);
   const teamIdByExternalId = new Map(
     rebuilt.map(entry => [entry.externalTeamId, entry.team.id]),
   );

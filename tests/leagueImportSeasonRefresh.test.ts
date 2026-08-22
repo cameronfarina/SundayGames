@@ -73,6 +73,26 @@ describe("imported league season refresh", () => {
     expect(refresh.detail).toBeUndefined();
   });
 
+  it("uses the provider snake order instead of the provider team-list order", () => {
+    const season = seasonFixture("draft");
+    const input = importedInput(managersOf(season));
+    if (input.draft.type !== "snake") throw new Error("Expected snake input.");
+
+    const refresh = refreshedSeasonFromImport(season, {
+      ...input,
+      draft: { ...input.draft, order: ["4", "2", "1", "3"] },
+    });
+    if (refresh.status === "blocked") throw new Error(refresh.detail);
+
+    expect(refresh.season.teams.map(team => [team.ownerDisplayName, team.draftOrderPosition]))
+      .toEqual([
+        [season.teams[0]?.ownerDisplayName, 3],
+        [season.teams[1]?.ownerDisplayName, 2],
+        [season.teams[2]?.ownerDisplayName, 4],
+        [season.teams[3]?.ownerDisplayName, 1],
+      ]);
+  });
+
   it("leaves a published season's draft alone and says why", () => {
     const season = seasonFixture("published");
 

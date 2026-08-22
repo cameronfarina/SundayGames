@@ -1,6 +1,6 @@
 import type { FantasyTeam } from "../leagueSeason.js";
 import { LeagueCreationError } from "./errors.js";
-import type { ConfirmedLeagueTeamInput } from "./types.js";
+import type { ConfirmedLeagueDraftInput, ConfirmedLeagueTeamInput } from "./types.js";
 import { requiredText } from "./validation.js";
 
 interface CreatedTeams {
@@ -10,11 +10,15 @@ interface CreatedTeams {
 
 export const createTeams = (
   inputs: readonly ConfirmedLeagueTeamInput[],
+  draft: ConfirmedLeagueDraftInput,
   seasonId: string,
   createId: () => string,
 ): CreatedTeams => {
   const externalIds = new Set<string>();
   const teamIdByExternalId = new Map<string, string>();
+  const snakePositionByExternalId = draft.type === "snake"
+    ? new Map(draft.order.map((externalTeamId, index) => [externalTeamId, index + 1]))
+    : undefined;
   const teams = inputs.map((team, index): FantasyTeam => {
     const externalTeamId = requiredText(team.externalTeamId, "External team ID");
     if (externalIds.has(externalTeamId)) {
@@ -33,7 +37,7 @@ export const createTeams = (
         ? {}
         : { abbreviation: team.abbreviation.trim() }),
       displayName,
-      draftOrderPosition: index + 1,
+      draftOrderPosition: snakePositionByExternalId?.get(externalTeamId) ?? index + 1,
     };
     teamIdByExternalId.set(externalTeamId, created.id);
     return created;

@@ -36,7 +36,7 @@ const importsFine = (path: string): Response => jsonResponse(
 
 interface RenderOptions {
   readonly connections?: readonly LeagueConnection[];
-  readonly credentials?: { readonly espnS2?: string };
+  readonly credentials?: { readonly espnS2?: string; readonly swid?: string };
   readonly leagues?: readonly DiscoveredLeague[];
   readonly provider?: "espn" | "sleeper" | undefined;
 }
@@ -185,22 +185,44 @@ describe("useDiscoveredImports", () => {
     expect(onImported).not.toHaveBeenCalled();
   });
 
-  it("leaves a league that was already imported alone", async () => {
-    const { paths, result } = renderImports(importsFine, {
+  it("refreshes an imported ESPN league with newly supplied account credentials", async () => {
+    const { bodies, onImported, paths, result } = renderImports(importsFine, {
       connections: [importedConnectionFixture],
+      credentials: { espnS2: "fresh-s2", swid: "{FRESH}" },
+      leagues: [firstLeague],
+      provider: "espn",
     });
 
     act(() => { result.current.importAll(); });
 
-    await waitFor(() => { expect(paths).toHaveLength(2); });
+    await waitFor(() => { expect(paths).toHaveLength(1); });
+    expect(paths).toEqual(["/league-connections"]);
+    expect(bodies).toEqual([expect.objectContaining({
+      credentialMode: "private",
+      espnS2: "fresh-s2",
+      swid: "{FRESH}",
+    })]);
     expect(stateOf(result.current.states, firstLeague)?.status).toBe("imported");
+    expect(onImported).toHaveBeenCalledOnce();
+  });
+
+  it("does not reconnect an imported league without fresh private ESPN credentials", () => {
+    const { onImported, paths, result } = renderImports(importsFine, {
+      connections: [importedConnectionFixture],
+      credentials: {},
+      leagues: [firstLeague],
+      provider: "sleeper",
+    });
+
+    act(() => { result.current.importAll(); });
+
+    expect(paths).toEqual([]);
+    expect(onImported).not.toHaveBeenCalled();
   });
 
   it("says an import is running while the provider is still answering", async () => {
     const { result } = renderImports(() => new Promise<Response>(() => undefined));
-
     act(() => { result.current.importLeague(firstLeague); });
-
     await waitFor(() => { expect(result.current.running).toBe(true); });
     expect(stateOf(result.current.states, firstLeague)?.status).toBe("connecting");
   });

@@ -11,6 +11,7 @@ interface ConnectionCardProps {
   readonly onSync: (connectionId: string) => void;
   readonly pending: boolean;
   readonly selected: boolean;
+  readonly teamSelectionHref?: string;
 }
 
 export const ConnectionCard = ({
@@ -21,22 +22,28 @@ export const ConnectionCard = ({
   onSync,
   pending,
   selected,
+  teamSelectionHref,
 }: ConnectionCardProps) => {
-  const presentation = statusPresentation(connection.status);
+  const teamSelectionNeeded = connection.status === "ok" && teamSelectionHref !== undefined;
+  const presentation = teamSelectionNeeded
+    ? { label: "Team not selected" }
+    : statusPresentation(connection.status);
 
   return <article
     className={`connection-card${selected ? " connection-card--selected" : ""}`}
   >
     <header>
       <div className="connection-card__meta">
-        <StatusDot status={connection.status} />
+        <StatusDot status={teamSelectionNeeded ? "needs_attention" : connection.status} />
         <p className="connection-card__provider">{connection.provider}</p>
         <span className="connection-card__status">{presentation.label}</span>
       </div>
       <h3>{connection.displayName}</h3>
     </header>
     <p className="connection-card__detail">
-      {statusMessage(connection.status, connection.statusDetail)}
+      {teamSelectionNeeded
+        ? "Choose your team to use mock drafts, simulations, and My Team."
+        : statusMessage(connection.status, connection.statusDetail)}
     </p>
     <p className="connection-card__synced">
       {connection.season} season · {formatSyncedAt(connection.lastSyncedAt)}
@@ -54,6 +61,7 @@ export const ConnectionCard = ({
       onSync={onSync}
       pending={pending}
       selected={selected}
+      {...(teamSelectionHref === undefined ? {} : { teamSelectionHref })}
     />
   </article>;
 };

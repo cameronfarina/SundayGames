@@ -100,7 +100,7 @@ export function PlayerBoard({ catalog, onSaveMyValue, onToggleTarget, shortlist,
         selected={filters.position}
       />
       <div className="player-board__controls">
-        <div className="player-board__search"><input
+        <div aria-label="Player search" className="practice-player-board__search"><input
           aria-label="Search players"
           onChange={event => { dispatch({ type: "search", value: event.currentTarget.value }); }}
           placeholder="Search players, position or NFL team"

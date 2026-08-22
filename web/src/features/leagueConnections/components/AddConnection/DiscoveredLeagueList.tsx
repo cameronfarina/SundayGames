@@ -66,8 +66,11 @@ export const DiscoveredLeagueList = ({
               onClick={() => { onImport(league); }}
               variant="secondary"
             >{actionLabel(state, league)}</Button>
-            : <Link className="add-connection__open-link" to={`/leagues/${state.leagueSlug}`}>
-              Open in Sunday Games
+            : <Link
+              className="add-connection__open-link"
+              to={`/leagues/${state.leagueSlug}#claim-your-team`}
+            >
+              Select team
             </Link>}
         </li>;
       })}

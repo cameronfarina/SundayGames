@@ -36,8 +36,8 @@ describe("finding leagues to import", () => {
     expect(screen.getByText("2026 season · 12 teams")).toBeVisible();
     await user.click(importButton);
 
-    expect(await screen.findByRole("link", { name: "Open in Sunday Games" }))
-      .toHaveAttribute("href", "/leagues/sleeper-friends-league");
+    expect(await screen.findByRole("link", { name: "Select team" }))
+      .toHaveAttribute("href", "/leagues/sleeper-friends-league#claim-your-team");
   });
 
   it("keeps ESPN account discovery available after an error and retries", async () => {

@@ -19,18 +19,26 @@ export const SnakeSummary = ({ state }: SnakeSummaryProps) => {
     ? undefined
     : state.board.picks.find(pick => pick.overall === current.overall);
   const openSlots = humanTeam?.slots.filter(slot => slot.playerId === undefined).length;
+  const firstRound = state.board.picks.filter(pick => pick.round === 1);
+  const humanDraftPick = firstRound.find(pick => pick.teamId === state.session.humanTeamId)?.pickInRound;
   const stats = [
     { label: "Status", value: titleCase(state.session.status) },
     { label: "Progress", value: `${String(made)} / ${String(state.board.picks.length)} picked` },
     { label: "On the clock", value: currentPick === undefined ? "-" : currentPick.teamName },
     { label: "Pick", value: currentPick === undefined ? "-" : pickLabel(currentPick) },
+    {
+      label: "Your draft pick",
+      value: humanDraftPick === undefined ? "-" : `${String(humanDraftPick)} of ${String(firstRound.length)}`,
+    },
     { label: "Rounds", value: String(state.session.rounds) },
     { label: "Open slots", value: openSlots === undefined ? "-" : String(openSlots) },
   ];
 
   return (
     <dl className="mock-summary">
-      {stats.map(stat => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}
+      {stats.map(stat => <div aria-label={`${stat.label}: ${stat.value}`} key={stat.label}>
+        <dt>{stat.label}</dt><dd>{stat.value}</dd>
+      </div>)}
     </dl>
   );
 };

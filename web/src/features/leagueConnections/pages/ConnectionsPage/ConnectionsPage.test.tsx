@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  importedConnectionFixture,
   needsAttentionConnectionFixture,
   providerCatalogFixture,
 } from "../../api/leagueConnections.fixture";
-import { connectionsServer, platformError } from "./ConnectionsPage.testServer";
+import type { LeagueConnection } from "../../api/leagueConnectionsSchema";
+import { connectionsServer, onboardingFixture, platformError } from "./ConnectionsPage.testServer";
 import { renderConnectionsPage } from "./ConnectionsPage.testUtils";
 
 describe("ConnectionsPage", () => {
@@ -101,17 +103,16 @@ describe("ConnectionsPage", () => {
     expect(await screen.findByText("Connected leagues are off.")).toBeVisible();
   });
 
-  it("syncs and disconnects a league from its card", async () => {
+  it("sends an ESPN league that needs attention to reconnect and can disconnect another", async () => {
     const user = userEvent.setup();
     renderConnectionsPage();
 
-    await user.click(await screen.findByRole("button", {
-      name: "Sync Pigskin Power Bottoms now",
-    }));
+    await user.click(await screen.findByRole("link", { name: "Reconnect ESPN" }));
+    expect(screen.getByRole("heading", { name: "Connect a league" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Friends League" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeEnabled();
+      expect(screen.getByRole("link", { name: "Reconnect ESPN" })).toBeVisible();
     });
   });
 
@@ -121,6 +122,54 @@ describe("ConnectionsPage", () => {
     expect(await screen.findByText("Sleeper Friends League")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Sync Sleeper Friends League now" }))
       .not.toBeInTheDocument();
+  });
+
+  it("retries a non-ESPN connection that needs attention", async () => {
+    const user = userEvent.setup();
+    const sleeperNeedsAttention: LeagueConnection = {
+      ...needsAttentionConnectionFixture,
+      provider: "sleeper",
+    };
+    connectionsServer.use(http.get("/league-connections", () => HttpResponse.json({
+      connections: [sleeperNeedsAttention],
+      providers: providerCatalogFixture,
+    })));
+    renderConnectionsPage();
+
+    const syncButton = await screen.findByRole("button", {
+      name: `Sync ${sleeperNeedsAttention.displayName} now`,
+    });
+    await user.click(syncButton);
+
+    await waitFor(() => { expect(syncButton).toBeEnabled(); });
+  });
+
+  it("marks an imported workspace that still needs a team and links to the picker", async () => {
+    connectionsServer.use(
+      http.get("/league-connections", () => HttpResponse.json({
+        connections: [importedConnectionFixture],
+        providers: providerCatalogFixture,
+      })),
+      http.get("/onboarding", () => HttpResponse.json({
+        ...onboardingFixture,
+        leagues: [{
+          ...onboardingFixture.leagues[0],
+          leagueName: "Sleeper Friends League",
+          leagueSlug: "sleeper-friends-league",
+          membership: { role: "owner" },
+          readiness: {
+            ...onboardingFixture.leagues[0]?.readiness,
+            teamClaim: "needs_attention",
+          },
+          seasonId: "season-imported",
+        }],
+      })),
+    );
+    renderConnectionsPage();
+
+    expect(await screen.findByText("Team not selected")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Select team" }))
+      .toHaveAttribute("href", "/leagues/sleeper-friends-league#claim-your-team");
   });
 
   it("clears the open league when that connection is disconnected", async () => {

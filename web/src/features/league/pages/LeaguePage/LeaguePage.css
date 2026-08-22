@@ -32,7 +32,7 @@
 .league-team-list { display: grid; gap: 1px; margin-top: 1rem; }
 .league-team { align-items: start; background: var(--color-surface); display: grid; gap: 1rem; grid-template-columns: minmax(14rem, .75fr) 1.25fr; padding: 1rem; }
 .league-team h3 { display: inline; margin: 0; }
-.league-team__order { color: var(--color-accent); display: inline-block; font-weight: 800; min-width: 2rem; }
+.league-team__order { color: var(--color-accent); display: inline-block; font-weight: 800; margin-right: .75rem; }
 .league-team ul { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0; padding: 0; }
 .league-team li { border: 1px solid var(--color-border); border-radius: .25rem; padding: .5rem .75rem; }
 .league-team li span { color: var(--color-text-muted); margin-left: .5rem; }

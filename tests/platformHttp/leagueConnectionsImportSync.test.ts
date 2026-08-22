@@ -63,6 +63,74 @@ describe("imported league re-sync HTTP", () => {
     ]);
   });
 
+  it("repairs an imported offline ESPN league when fresh account cookies are saved", async () => {
+    const provider = changeableEspnSnakeImportRoutes();
+    provider.setDraftType("OFFLINE");
+    const harness = await createLeagueConnectionsHarness(provider.routes);
+    const connectionId = await connectEspnSnakeLeague(harness.handle, harness.sessionToken);
+    const imported = await importLeague(harness.handle, harness.sessionToken, connectionId, {
+      mode: "create",
+      draft: { type: "snake", rounds: 8 },
+    });
+    const seasonId = expectString(
+      expectBodyRecord(expectBodyRecord(imported.body).imported).seasonId,
+    );
+    const importedSeason = await seasonRecord(harness.handle, harness.sessionToken, seasonId);
+    const claimedTeam = expectRecordArray(importedSeason.teams)
+      .find(team => team.displayName === "ESPN Team 1");
+    if (claimedTeam === undefined) throw new Error("Expected ESPN Team 1.");
+    const claimedTeamId = expectString(claimedTeam.id);
+    await harness.handle({
+      method: "POST",
+      path: `/seasons/${seasonId}/team-claims`,
+      sessionToken: harness.sessionToken,
+      body: {
+        ownerId: expectString(claimedTeam.ownerId),
+        teamId: claimedTeamId,
+      },
+    });
+
+    provider.setPickOrder([2, 4, 3, 1]);
+    const repaired = await harness.handle({
+      method: "POST",
+      path: "/league-connections",
+      sessionToken: harness.sessionToken,
+      now: new Date("2026-08-19T12:01:00.000Z"),
+      body: {
+        provider: "espn",
+        providerLeagueId: "899513",
+        season: "2025",
+        displayName: "Pigskin Power Bottoms",
+        credentialMode: "private",
+        espnS2: "fresh-s2",
+        swid: "{FRESH}",
+      },
+    });
+    const season = await seasonRecord(harness.handle, harness.sessionToken, seasonId);
+
+    expect(repaired.status).toBe(201);
+    expect(expectBodyRecord(expectBodyRecord(repaired.body).connection).status).toBe("ok");
+    expect(expectBodyRecord(season.settings).draftFormat).toBe("snake");
+    expect(expectRecordArray(season.teams).map(team => [
+      team.displayName,
+      team.draftOrderPosition,
+    ])).toEqual([
+      ["ESPN Team 2", 1],
+      ["ESPN Team 4", 2],
+      ["ESPN Team 3", 3],
+      ["ESPN Team 1", 4],
+    ]);
+    const onboarding = await harness.handle({
+      method: "GET",
+      path: "/onboarding",
+      sessionToken: harness.sessionToken,
+    });
+    const league = expectRecordArray(expectBodyRecord(onboarding.body).leagues)
+      .find(candidate => candidate.seasonId === seasonId);
+    if (league === undefined) throw new Error("Expected imported onboarding league.");
+    expect(expectBodyRecord(league.membership).teamId).toBe(claimedTeamId);
+  });
+
   it("carries a renamed provider league through to the league it created", async () => {
     const provider = changeableImportableRoutes();
     const harness = await createLeagueConnectionsHarness(provider.routes);

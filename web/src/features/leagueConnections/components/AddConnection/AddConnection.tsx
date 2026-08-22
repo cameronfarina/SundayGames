@@ -16,7 +16,11 @@ export const AddConnection = ({ connections, mutations, providers }: AddConnecti
   const provider = form.chosen;
   const connectableProvider = provider?.availability === "connectable" ? provider : undefined;
 
-  return <section aria-labelledby="add-connection-title" className="add-connection">
+  return <section
+    aria-labelledby="add-connection-title"
+    className="add-connection"
+    id="connect-league"
+  >
     <h2 id="add-connection-title">Connect a league</h2>
     <ProviderPicker
       onSelect={form.selectProvider}

@@ -9,6 +9,7 @@ interface ConnectionCardActionsProps {
   readonly onSync: (connectionId: string) => void;
   readonly pending: boolean;
   readonly selected: boolean;
+  readonly teamSelectionHref?: string;
 }
 
 export const ConnectionCardActions = ({
@@ -19,6 +20,7 @@ export const ConnectionCardActions = ({
   onSync,
   pending,
   selected,
+  teamSelectionHref,
 }: ConnectionCardActionsProps) => <div className="connection-card__actions">
   <Button
     aria-label={`View ${connection.displayName}`}
@@ -31,14 +33,20 @@ export const ConnectionCardActions = ({
     disabled={pending}
     onClick={() => { onImport(connection.id); }}
   >Import</Button>}
-  {/* A synced connection is already current, so the only people who need this
-      button are the ones whose league did not come through. */}
-  {connection.status === "ok" ? null : <Button
+  {teamSelectionHref === undefined ? null : <a
+    className="button button--primary"
+    href={teamSelectionHref}
+  >Select team</a>}
+  {connection.status !== "ok" && connection.provider === "espn" ? <a
+    className="button button--secondary"
+    href="#connect-league"
+  >Reconnect ESPN</a> : null}
+  {connection.status !== "ok" && connection.provider !== "espn" ? <Button
     aria-label={`Sync ${connection.displayName} now`}
     disabled={pending}
     onClick={() => { onSync(connection.id); }}
     variant="secondary"
-  >Sync now</Button>}
+  >Sync now</Button> : null}
   <Button
     aria-label={`Disconnect ${connection.displayName}`}
     disabled={pending}

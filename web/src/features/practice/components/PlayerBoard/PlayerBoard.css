@@ -57,11 +57,11 @@
   margin-bottom: 1rem;
 }
 
-.player-board__search {
+.practice-player-board__search {
   flex: 1 1 22rem;
 }
 
-.player-board__search input {
+.practice-player-board__search input {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-strong);
   border-radius: 6px;
@@ -72,7 +72,7 @@
   width: 100%;
 }
 
-.player-board__search input:focus-visible {
+.practice-player-board__search input:focus-visible {
   border-color: var(--color-accent);
   outline: none;
 }

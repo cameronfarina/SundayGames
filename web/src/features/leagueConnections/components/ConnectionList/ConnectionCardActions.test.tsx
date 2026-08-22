@@ -6,7 +6,15 @@ import {
   needsAttentionConnectionFixture,
   syncedConnectionFixture,
 } from "../../api/leagueConnections.fixture";
+import type { LeagueConnection } from "../../api/leagueConnectionsSchema";
 import { ConnectionCardActions } from "./ConnectionCardActions";
+
+const sleeperNeedsAttentionFixture: LeagueConnection = {
+  ...needsAttentionConnectionFixture,
+  id: "connection-sleeper-attention",
+  provider: "sleeper",
+  displayName: "Sleeper Needs Attention",
+};
 
 const renderActions = (
   overrides: Partial<Parameters<typeof ConnectionCardActions>[0]> = {},
@@ -51,29 +59,39 @@ describe("ConnectionCardActions", () => {
 
   it("passes the chosen connection to view, sync, and disconnect", async () => {
     const user = userEvent.setup();
-    const utils = renderActions({ connection: needsAttentionConnectionFixture });
+    const utils = renderActions({ connection: sleeperNeedsAttentionFixture });
 
-    await user.click(screen.getByRole("button", { name: "View Pigskin Power Bottoms" }));
-    await user.click(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" }));
-    await user.click(screen.getByRole("button", { name: "Disconnect Pigskin Power Bottoms" }));
+    await user.click(screen.getByRole("button", { name: "View Sleeper Needs Attention" }));
+    await user.click(screen.getByRole("button", { name: "Sync Sleeper Needs Attention now" }));
+    await user.click(screen.getByRole("button", { name: "Disconnect Sleeper Needs Attention" }));
 
-    expect(utils.onSelect).toHaveBeenCalledWith("connection-espn");
-    expect(utils.onSync).toHaveBeenCalledWith("connection-espn");
-    expect(utils.onRemove).toHaveBeenCalledWith("connection-espn");
+    expect(utils.onSelect).toHaveBeenCalledWith("connection-sleeper-attention");
+    expect(utils.onSync).toHaveBeenCalledWith("connection-sleeper-attention");
+    expect(utils.onRemove).toHaveBeenCalledWith("connection-sleeper-attention");
+  });
+
+  it("replaces an ESPN sync that cannot carry cookies with a reconnect action", () => {
+    renderActions({ connection: needsAttentionConnectionFixture });
+
+    expect(screen.queryByRole("button", { name: "Sync Pigskin Power Bottoms now" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reconnect ESPN" }))
+      .toHaveAttribute("href", "#connect-league");
   });
 
   it("stops every write while the card is mid-flight", () => {
     renderActions({
-      connection: needsAttentionConnectionFixture,
+      connection: sleeperNeedsAttentionFixture,
       pending: true,
       selected: true,
     });
 
-    expect(screen.getByRole("button", { name: "View Pigskin Power Bottoms" }))
+    expect(screen.getByRole("button", { name: "View Sleeper Needs Attention" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Import Pigskin Power Bottoms" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sync Pigskin Power Bottoms now" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Disconnect Pigskin Power Bottoms" }))
+    expect(screen.getByRole("button", { name: "Import Sleeper Needs Attention" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sync Sleeper Needs Attention now" }))
+      .toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect Sleeper Needs Attention" }))
       .toBeDisabled();
   });
 });
