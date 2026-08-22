@@ -6,6 +6,7 @@ import type {
   SyncedLeague,
 } from "./contracts.js";
 import { recordValue } from "./decode.js";
+import { espnPickOrderFor } from "./espnDraftOrder.js";
 import { espnAccountLeagues } from "./espnFanProfile.js";
 import { espnDiscoveredLeague, fetchEspnLeaguePayload } from "./espnLeagueRequest.js";
 import { espnDraftSettings, espnRosterPositions, espnScoring } from "./espnSettings.js";
@@ -22,6 +23,7 @@ const statusFor = (payload: Record<string, unknown>): string | undefined => {
 const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
   const payload = await fetchEspnLeaguePayload(input.providerLeagueId, input.season, input);
   const settings = recordValue(payload.settings);
+  const draftSettings = recordValue(settings.draftSettings);
   const discovered = espnDiscoveredLeague(payload, input.providerLeagueId, input.season);
   const status = statusFor(payload);
 
@@ -37,7 +39,7 @@ const fetchLeague = async (input: FetchLeagueInput): Promise<SyncedLeague> => {
       ...(status === undefined ? {} : { status }),
       ...espnDraftSettings(settings),
     },
-    teams: espnTeamsFor(payload),
+    teams: espnTeamsFor(payload, espnPickOrderFor(draftSettings)),
     matchups: espnMatchupsFor(payload),
   };
 };

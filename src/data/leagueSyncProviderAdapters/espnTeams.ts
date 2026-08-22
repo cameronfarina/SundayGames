@@ -8,6 +8,7 @@ import {
   stringArray,
   textValue,
 } from "./decode.js";
+import { teamsInEspnDraftOrder } from "./espnDraftOrder.js";
 import {
   espnBenchSlotIds,
   espnLineupSlotNames,
@@ -47,10 +48,13 @@ const rosterPlayerFor = (entry: Record<string, unknown>): SyncedRosterPlayer => 
   };
 };
 
-export const espnTeamsFor = (payload: Record<string, unknown>): readonly SyncedTeam[] => {
+export const espnTeamsFor = (
+  payload: Record<string, unknown>,
+  pickOrder: readonly string[] = [],
+): readonly SyncedTeam[] => {
   const ownerNames = ownerNamesFor(payload);
 
-  return recordArray(payload.teams).map(team => {
+  const teams = recordArray(payload.teams).map(team => {
     const overall = recordValue(recordValue(team.record).overall);
     const players = recordArray(recordValue(team.roster).entries).map(rosterPlayerFor);
 
@@ -73,6 +77,7 @@ export const espnTeamsFor = (payload: Record<string, unknown>): readonly SyncedT
       ],
     };
   });
+  return teamsInEspnDraftOrder(teams, pickOrder, team => team.providerTeamId);
 };
 
 /** A playoff bye shows up as a matchup entry with no away side. */

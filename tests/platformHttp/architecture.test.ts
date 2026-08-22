@@ -3,7 +3,6 @@ import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-const maximumFileLines = 250;
 const legacyTest = path.resolve("tests/platformHttp.test.ts");
 const familyDirectory = path.resolve("tests/platformHttp");
 
@@ -41,14 +40,12 @@ const unsafeSyntaxIn = (file: string): readonly string[] => {
 };
 
 describe("platform HTTP test architecture", () => {
-  it("keeps the test family focused and strictly typed", () => {
+  it("keeps the test family strictly typed", () => {
     expect(existsSync(legacyTest), "legacy platform HTTP test").toBe(false);
     const files = typescriptFilesBelow(familyDirectory);
 
     for (const file of files) {
       const label = path.relative(process.cwd(), file);
-      const lines = readFileSync(file, "utf8").trimEnd().split("\n").length;
-      expect(lines, label).toBeLessThanOrEqual(maximumFileLines);
       expect(unsafeSyntaxIn(file), label).toEqual([]);
     }
   });

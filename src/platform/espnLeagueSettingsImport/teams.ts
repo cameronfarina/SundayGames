@@ -4,15 +4,14 @@ import {
   requiredObject,
   type JsonObject,
 } from "./json.js";
+import {
+  espnPickOrderFor,
+  teamsInEspnDraftOrder,
+} from "../../data/leagueSyncProviderAdapters/espnDraftOrder.js";
 import type { EspnLeagueSettingsReviewTeam } from "./types.js";
 
-export const pickOrderFor = (draftSettings: JsonObject): string[] => {
-  if (!Array.isArray(draftSettings.pickOrder)) return [];
-  return draftSettings.pickOrder.flatMap(value => {
-    const id = positiveInteger(value);
-    return id === null ? [] : [String(id)];
-  });
-};
+export const pickOrderFor = (draftSettings: JsonObject): string[] =>
+  espnPickOrderFor(draftSettings);
 
 const displayNameFor = (team: JsonObject): string => {
   const name = normalizedString(team.name);
@@ -44,8 +43,5 @@ export const teamsFor = (
     };
   });
 
-  return [...teams].sort((left, right) =>
-    (left.draftOrderPosition ?? Number.MAX_SAFE_INTEGER)
-      - (right.draftOrderPosition ?? Number.MAX_SAFE_INTEGER)
-      || Number(left.externalTeamId) - Number(right.externalTeamId));
+  return teamsInEspnDraftOrder(teams, pickOrder, team => team.externalTeamId);
 };
