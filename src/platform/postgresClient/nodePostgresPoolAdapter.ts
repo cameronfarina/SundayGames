@@ -10,12 +10,21 @@ const mutableValues = (values: readonly unknown[] | undefined): unknown[] | unde
   values === undefined ? undefined : [...values];
 
 class NodePostgresPoolClientAdapter implements PostgresPoolClientLike {
-  constructor(private readonly client: PoolClient) {}
+  private connectionError: Error | undefined;
+  private readonly handleConnectionError = (error: Error): void => {
+    this.connectionError ??= error;
+  };
+
+  constructor(private readonly client: PoolClient) {
+    this.client.on("error", this.handleConnectionError);
+  }
 
   async query<TRow = Record<string, unknown>>(
     text: string,
     values?: readonly unknown[],
   ): Promise<PostgresPoolQueryResult<TRow>> {
+    if (this.connectionError !== undefined) throw this.connectionError;
+
     return await this.client.query<TRow & QueryResultRow, unknown[]>(
       text,
       mutableValues(values),
@@ -39,7 +48,8 @@ class NodePostgresPoolClientAdapter implements PostgresPoolClientLike {
   }
 
   release(): void {
-    this.client.release();
+    this.client.removeListener("error", this.handleConnectionError);
+    this.client.release(this.connectionError);
   }
 }
 
