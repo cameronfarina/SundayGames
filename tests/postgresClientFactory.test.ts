@@ -53,6 +53,7 @@ vi.mock("pg", () => {
   }
 
   class Pool {
+    readonly errorListeners = new Set<(error: Error) => void>();
     readonly options: FakePoolOptions;
 
     constructor(options: FakePoolOptions = {}) {
@@ -70,6 +71,14 @@ vi.mock("pg", () => {
       const client = new FakePoolClient(this.options);
       pgMockState.connectedClient = client;
       return client;
+    }
+
+    on(event: "error", listener: (error: Error) => void): void {
+      if (event === "error") this.errorListeners.add(listener);
+    }
+
+    removeListener(event: "error", listener: (error: Error) => void): void {
+      if (event === "error") this.errorListeners.delete(listener);
     }
 
     async end(): Promise<void> {

@@ -54,7 +54,16 @@ class NodePostgresPoolClientAdapter implements PostgresPoolClientLike {
 }
 
 export class NodePostgresPoolAdapter implements PostgresPoolLike {
-  constructor(private readonly pool: Pool) {}
+  private readonly handlePoolError = (error: Error): void => {
+    console.error(JSON.stringify({
+      event: "postgres_pool_error",
+      message: error.message,
+    }));
+  };
+
+  constructor(private readonly pool: Pool) {
+    this.pool.on("error", this.handlePoolError);
+  }
 
   get options(): unknown {
     return this.pool.options;
@@ -75,6 +84,10 @@ export class NodePostgresPoolAdapter implements PostgresPoolLike {
   }
 
   async end(): Promise<void> {
-    await this.pool.end();
+    try {
+      await this.pool.end();
+    } finally {
+      this.pool.removeListener("error", this.handlePoolError);
+    }
   }
 }
