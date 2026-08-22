@@ -21,7 +21,7 @@ export interface UseAddConnectionFormResult {
   readonly chosen: LeagueConnectionProviderInfo | undefined;
   readonly espnS2: string;
   readonly findLeagues: () => void;
-  readonly findLeaguesWithCredentials: () => void;
+  readonly findLeaguesWithCredentials: (credentials?: ConnectionCredentials) => void;
   readonly handle: string;
   readonly importAll: () => void;
   readonly importLeague: (league: DiscoveredLeague) => void;
@@ -54,6 +54,7 @@ export const useAddConnectionForm = (
     setHandle("");
     setEspnS2("");
     setSwid("");
+    setImportCredentials({});
   };
 
   const imports = useDiscoveredImports({
@@ -92,8 +93,9 @@ export const useAddConnectionForm = (
       if (handle.trim() === "") return;
       search(handle.trim(), {});
     },
-    findLeaguesWithCredentials: () => {
-      search("", trimmedCredentials(espnS2, swid));
+    findLeaguesWithCredentials: credentials => {
+      if (handle.trim() === "") return;
+      search(handle.trim(), credentials ?? trimmedCredentials(espnS2, swid));
     },
     handle,
     importAll: imports.importAll,

@@ -1,12 +1,14 @@
 import { Button, InlineNotice } from "../../../../shared/ui";
 import { useEffect, useRef, useState } from "react";
 import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
+import type { ConnectionCredentials } from "../../api/leagueConnectionsApi";
 import type { LeagueConnection, LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
 import { useAddConnectionForm } from "../../hooks/useAddConnectionForm";
 import type { useLeagueConnectionMutations } from "../../hooks/useLeagueConnectionMutations";
 import { AccountCookieForm } from "../AddConnection/AccountCookieForm";
 import { DiscoveredLeagueList } from "../AddConnection/DiscoveredLeagueList";
 import { HandleForm } from "../AddConnection/HandleForm";
+import { EspnBrowserExtensionOption } from "./EspnBrowserExtensionOption";
 import "../AddConnection/AddConnection.css";
 import "./ProviderConnectionSetup.css";
 
@@ -31,13 +33,14 @@ export const ProviderConnectionSetup = ({
   onEspnMobile,
   provider,
 }: ProviderConnectionSetupProps) => {
+  const [extensionReading, setExtensionReading] = useState(false);
   const form = useAddConnectionForm(
     [provider],
     mutations,
     connections,
     provider.provider,
   );
-  const localBusy = mutations.discover.isPending || form.importing;
+  const localBusy = mutations.discover.isPending || form.importing || extensionReading;
   const busy = disabled || localBusy;
   const [privateOptionsRevealed, setPrivateOptionsRevealed] = useState(false);
   const privateHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -70,9 +73,9 @@ export const ProviderConnectionSetup = ({
     setPrivateOptionsRevealed(true);
     form.findLeagues();
   };
-  const findAccountLeagues = () => {
+  const findPrivateLeague = (credentials?: ConnectionCredentials) => {
     setPrivateOptionsRevealed(true);
-    form.findLeaguesWithCredentials();
+    form.findLeaguesWithCredentials(credentials);
   };
   const changeHandle = (value: string) => {
     form.setHandle(value);
@@ -119,17 +122,25 @@ export const ProviderConnectionSetup = ({
             I'm on mobile
           </Button>}
           {espnMobileDeferred ? <InlineNotice title="Connect it later" variant="info">
-            ESPN cookies require desktop browser tools. Finish setup now, then connect this league
-            from Connections.
-          </InlineNotice> : <AccountCookieForm
-            espnS2={form.espnS2}
-            headingLevel={headingLevel === 4 ? 5 : 4}
-            onEspnS2Change={form.setEspnS2}
-            onSubmit={findAccountLeagues}
-            onSwidChange={form.setSwid}
-            pending={busy}
-            swid={form.swid}
-          />}
+            Private ESPN connection requires a desktop browser. Finish setup now, then connect this
+            league from Connections.
+          </InlineNotice> : <>
+            <EspnBrowserExtensionOption
+              disabled={busy}
+              headingLevel={headingLevel === 4 ? 5 : 4}
+              onBusyChange={setExtensionReading}
+              onCredentials={findPrivateLeague}
+            />
+            <AccountCookieForm
+              espnS2={form.espnS2}
+              headingLevel={headingLevel === 4 ? 5 : 4}
+              onEspnS2Change={form.setEspnS2}
+              onSubmit={findPrivateLeague}
+              onSwidChange={form.setSwid}
+              pending={busy}
+              swid={form.swid}
+            />
+          </>}
         </section>
       </div>
     </section> : null}

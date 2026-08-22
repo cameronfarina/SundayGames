@@ -7,7 +7,8 @@
     "node": ">=24.15.0 <25"
   },
   "scripts": {
-    "build": "npm run clean:dist && npm run build:server && npm run build:web",
+    "build": "npm run clean:dist && npm run build:server && npm run build:web && npm run build:extension",
+    "build:extension": "tsx scripts/build-browser-extension.ts",
     "build:server": "tsc -p tsconfig.json",
     "clean:dist": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build:web": "vite build --config web/vite.config.ts",
@@ -19,6 +20,7 @@
     "guard:data": "tsx scripts/check-public-data-policy.ts",
     "lint:web": "eslint web",
     "test:web": "vitest run --config web/vitest.config.ts",
+    "test:extension": "vitest run browser-extension/src/cookieSession.test.ts browser-extension/src/serviceWorkerPolicy.test.ts tests/browserExtension.test.ts",
     "test:web:coverage": "vitest run --config web/vitest.config.ts --coverage",
     "typecheck:web": "tsc --noEmit -p web/tsconfig.json",
     "verify:web": "npm run guard:web && npm run typecheck:web && npm run lint:web && npm run test:web:coverage && npm run build:web && npm run budget:web",

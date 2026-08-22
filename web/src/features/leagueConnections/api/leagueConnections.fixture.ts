@@ -25,7 +25,7 @@ export const providerCatalogFixture: readonly LeagueConnectionProviderInfo[] = [
     handleKind: "espn-league-id",
     handleLabel: "ESPN league ID or league URL",
     handleHint: "Paste the league URL from ESPN, or just the leagueId number in it.",
-    detail: "Two cookies from your browser find every league on your ESPN account.",
+    detail: "Paste a league link first. Private leagues can use an encrypted session fallback.",
     supportsCookieCredentials: true,
     handleNamesOneLeague: true,
     supportsAccountDiscovery: true,
