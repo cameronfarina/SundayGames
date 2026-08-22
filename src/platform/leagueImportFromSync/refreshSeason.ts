@@ -35,6 +35,19 @@ const preservedDraftSettings = (
 const draftFormatOf = (settings: LeagueSeasonSettings): "auction" | "snake" =>
   settings.draftFormat ?? "auction";
 
+const teamsWithPreservedDraftPositions = (
+  existing: LeagueSeason,
+  refreshed: LeagueSeason,
+): LeagueSeason["teams"] => {
+  const positionByTeamId = new Map(
+    existing.teams.map(team => [team.id, team.draftOrderPosition]),
+  );
+  return refreshed.teams.map(team => ({
+    ...team,
+    draftOrderPosition: positionByTeamId.get(team.id) ?? team.draftOrderPosition,
+  }));
+};
+
 /**
  * A team leaving or joining at the provider is the owner's decision to carry
  * across, not the sync's. This is checked before anything else a snapshot might
@@ -70,6 +83,7 @@ export const refreshedSeasonFromImport = (
     status: "refreshed",
     season: {
       ...refreshed,
+      teams: teamsWithPreservedDraftPositions(season, refreshed),
       settings: preservedDraftSettings(season.settings, refreshed.settings),
     },
     ...(formatChanged

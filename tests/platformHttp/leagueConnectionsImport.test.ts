@@ -1,5 +1,7 @@
 import { createLeagueConnectionsHarness } from "./leagueConnections/harness.js";
 import {
+  changeableEspnSnakeImportRoutes,
+  connectEspnSnakeLeague,
   connectImportableLeague,
   importLeague,
   importableRoutes,
@@ -28,6 +30,70 @@ class CapabilityAdvertisingLeagueSetupRepository extends InMemoryPlatformStore {
 }
 
 describe("league connection import HTTP", () => {
+  it("creates an ESPN snake league in ESPN's published pick order", async () => {
+    const provider = changeableEspnSnakeImportRoutes();
+    const harness = await createLeagueConnectionsHarness(provider.routes);
+    const connectionId = await connectEspnSnakeLeague(harness.handle, harness.sessionToken);
+
+    const response = await importLeague(harness.handle, harness.sessionToken, connectionId);
+    const imported = expectBodyRecord(expectBodyRecord(response.body).imported);
+    const seasonResponse = await harness.handle({
+      method: "GET",
+      path: `/seasons/${expectString(imported.seasonId)}`,
+      sessionToken: harness.sessionToken,
+    });
+    const teams = expectRecordArray(expectBodyRecord(expectBodyRecord(seasonResponse.body).season).teams);
+
+    expect(response.status).toBe(200);
+    expect(teams.map(team => [team.displayName, team.draftOrderPosition])).toEqual([
+      ["ESPN Team 3", 1],
+      ["ESPN Team 1", 2],
+      ["ESPN Team 4", 3],
+      ["ESPN Team 2", 4],
+    ]);
+  });
+
+  it("keeps ESPN's pick order when an offline draft needs a manual snake choice", async () => {
+    const provider = changeableEspnSnakeImportRoutes();
+    provider.setDraftType("OFFLINE");
+    const harness = await createLeagueConnectionsHarness(provider.routes);
+    const connectionId = await connectEspnSnakeLeague(harness.handle, harness.sessionToken);
+
+    const response = await importLeague(harness.handle, harness.sessionToken, connectionId, {
+      mode: "create",
+      draft: { type: "snake", rounds: 8 },
+    });
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const imported = expectBodyRecord(expectBodyRecord(response.body).imported);
+    const seasonResponse = await harness.handle({
+      method: "GET",
+      path: `/seasons/${expectString(imported.seasonId)}`,
+      sessionToken: harness.sessionToken,
+    });
+    const teams = expectRecordArray(expectBodyRecord(expectBodyRecord(seasonResponse.body).season).teams);
+
+    expect(teams.map(team => team.displayName)).toEqual([
+      "ESPN Team 3",
+      "ESPN Team 1",
+      "ESPN Team 4",
+      "ESPN Team 2",
+    ]);
+  });
+
+  it("still accepts a manual auction choice for an offline ESPN draft", async () => {
+    const provider = changeableEspnSnakeImportRoutes();
+    provider.setDraftType("OFFLINE");
+    const harness = await createLeagueConnectionsHarness(provider.routes);
+    const connectionId = await connectEspnSnakeLeague(harness.handle, harness.sessionToken);
+
+    const response = await importLeague(harness.handle, harness.sessionToken, connectionId, {
+      mode: "create",
+      draft: { type: "auction", budgetDollars: 200, minimumBidDollars: 1 },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
   it("turns a synced connection into a real Sunday Games league", async () => {
     const harness = await createLeagueConnectionsHarness(importableRoutes);
     const connectionId = await connectImportableLeague(harness.handle, harness.sessionToken);

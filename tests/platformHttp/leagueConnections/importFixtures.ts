@@ -1,4 +1,5 @@
 import {
+  espnLeaguePayload,
   sleeperUserLeaguesPayload,
   sleeperUserPayload,
 } from "../../leagueSyncFixtures.js";
@@ -53,6 +54,58 @@ const routesFor = (rosterPositions: readonly string[]): readonly StubRoute[] => 
 
 export const importableRoutes = routesFor(importableRosterPositions);
 
+const espnSnakeTeamNumbers: readonly number[] = [1, 2, 3, 4];
+
+const espnSnakeTeams = espnSnakeTeamNumbers.map(number => ({
+  id: number,
+  name: `ESPN Team ${number}`,
+  owners: [`{ESPN-OWNER-${number}}`],
+  record: { overall: { wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0 } },
+  roster: { entries: [] },
+}));
+
+export interface ChangeableEspnSnakeImportRoutes {
+  routes: readonly StubRoute[];
+  setDraftType: (type: string) => void;
+  setPickOrder: (order: readonly number[]) => void;
+}
+
+/** A real ESPN snake payload whose team list is deliberately not its pick order. */
+export const changeableEspnSnakeImportRoutes = (): ChangeableEspnSnakeImportRoutes => {
+  const draftSettings = {
+    type: "SNAKE",
+    rounds: 8,
+    pickOrder: [3, 1, 4, 2],
+  };
+  const league = {
+    ...espnLeaguePayload,
+    settings: {
+      ...espnLeaguePayload.settings,
+      size: espnSnakeTeamNumbers.length,
+      rosterSettings: {
+        lineupSlotCounts: { "0": 1, "2": 2, "4": 1, "23": 1, "17": 1, "20": 2, "21": 1 },
+      },
+      draftSettings,
+    },
+    members: espnSnakeTeamNumbers.map(number => ({
+      id: `{ESPN-OWNER-${number}}`,
+      displayName: `ESPN Owner ${number}`,
+    })),
+    teams: espnSnakeTeams,
+    schedule: [],
+  };
+
+  return {
+    routes: [{ match: "/leagues/899513", body: league }],
+    setDraftType: type => {
+      draftSettings.type = type;
+    },
+    setPickOrder: order => {
+      draftSettings.pickOrder = [...order];
+    },
+  };
+};
+
 export interface ChangeableLeagueRoutes {
   routes: readonly StubRoute[];
   renameLeague: (name: string) => void;
@@ -106,6 +159,25 @@ export const connectImportableLeague = async (
       providerLeagueId: "289646328504385536",
       season: "2018",
       displayName: "Sleeper Friends League",
+    },
+  });
+  return expectString(expectBodyRecord(expectBodyRecord(created.body).connection).id);
+};
+
+export const connectEspnSnakeLeague = async (
+  handle: PlatformHttpHandler,
+  sessionToken: string,
+): Promise<string> => {
+  const created = await handle({
+    method: "POST",
+    path: "/league-connections",
+    sessionToken,
+    now: syncNow,
+    body: {
+      provider: "espn",
+      providerLeagueId: "899513",
+      season: "2025",
+      displayName: "Pigskin Power Bottoms",
     },
   });
   return expectString(expectBodyRecord(expectBodyRecord(created.body).connection).id);

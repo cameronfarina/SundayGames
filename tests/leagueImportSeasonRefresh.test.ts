@@ -91,6 +91,21 @@ describe("imported league season refresh", () => {
     expect(refresh.season.settings.scoring?.reception).toBe(1);
   });
 
+  it("keeps a published season's team draft positions when provider order changes", () => {
+    const season = seasonFixture("published");
+    const reversedManagers = [...managersOf(season)].reverse();
+    const positionsByTeamId = new Map(
+      season.teams.map(team => [team.id, team.draftOrderPosition]),
+    );
+
+    const refresh = refreshedSeasonFromImport(season, importedInput(reversedManagers));
+    if (refresh.status === "blocked") throw new Error(refresh.detail);
+
+    expect(refresh.season.teams.map(team => [team.id, team.draftOrderPosition])).toEqual(
+      refresh.season.teams.map(team => [team.id, positionsByTeamId.get(team.id)]),
+    );
+  });
+
   it("refuses to add or drop a team behind the owner's back", () => {
     const season = seasonFixture("draft");
     const input = importedInput(managersOf(season).slice(0, 3));
