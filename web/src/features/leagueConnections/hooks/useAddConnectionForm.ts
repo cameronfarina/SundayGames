@@ -21,7 +21,7 @@ export interface UseAddConnectionFormResult {
   readonly chosen: LeagueConnectionProviderInfo | undefined;
   readonly espnS2: string;
   readonly findLeagues: () => void;
-  readonly findLeaguesWithCredentials: () => void;
+  readonly findLeaguesWithCredentials: (credentials?: ConnectionCredentials) => void;
   readonly handle: string;
   readonly importAll: () => void;
   readonly importLeague: (league: DiscoveredLeague) => void;
@@ -54,6 +54,7 @@ export const useAddConnectionForm = (
     setHandle("");
     setEspnS2("");
     setSwid("");
+    setImportCredentials({});
   };
 
   const imports = useDiscoveredImports({
@@ -73,11 +74,7 @@ export const useAddConnectionForm = (
     mutations.importLeague.reset();
   };
 
-  const search = (
-    searchHandle: string,
-    credentials: ConnectionCredentials,
-    fallbackHandle?: string,
-  ): void => {
+  const search = (searchHandle: string, credentials: ConnectionCredentials): void => {
     if (provider === undefined) return;
     clearResults();
     setImportCredentials(credentials);
@@ -86,13 +83,7 @@ export const useAddConnectionForm = (
       handle: searchHandle,
       season: currentLeagueSeason,
       ...credentials,
-    }, { onSuccess: result => {
-      if (result.leagues.length === 0 && fallbackHandle !== undefined) {
-        search(fallbackHandle, credentials);
-        return;
-      }
-      setLeagues(result.leagues);
-    } });
+    }, { onSuccess: result => { setLeagues(result.leagues); } });
   };
 
   return {
@@ -102,13 +93,9 @@ export const useAddConnectionForm = (
       if (handle.trim() === "") return;
       search(handle.trim(), {});
     },
-    findLeaguesWithCredentials: () => {
-      const requestedLeague = handle.trim();
-      search(
-        "",
-        trimmedCredentials(espnS2, swid),
-        requestedLeague === "" ? undefined : requestedLeague,
-      );
+    findLeaguesWithCredentials: credentials => {
+      if (handle.trim() === "") return;
+      search(handle.trim(), credentials ?? trimmedCredentials(espnS2, swid));
     },
     handle,
     importAll: imports.importAll,

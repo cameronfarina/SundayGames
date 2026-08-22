@@ -77,7 +77,8 @@ describe("finding leagues to import", () => {
     expect(privateHeading).toHaveFocus();
     expect(screen.getByRole("heading", { level: 4, name: "Make it publicly viewable" }))
       .toBeVisible();
-    expect(screen.getByRole("heading", { level: 4, name: "Use ESPN cookies" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 4, name: "Paste ESPN cookies manually" }))
+      .toBeVisible();
     expect(screen.queryByRole("button", { name: /Advanced|Experimental/u })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => { expect(requests).toHaveLength(2); });
@@ -86,21 +87,21 @@ describe("finding leagues to import", () => {
     });
     await user.type(screen.getByLabelText("espn_s2 cookie"), "s2-value");
     await user.type(screen.getByLabelText("SWID cookie"), "{{GUID}");
-    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
+    await user.click(screen.getByRole("button", { name: "Find this private league" }));
 
     await waitFor(() => { expect(requests).toHaveLength(3); });
-    expect(screen.getByRole("heading", { name: "Use ESPN cookies" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
     expect(requests[2]).toEqual({
       provider: "espn",
-      handle: "",
+      handle: "https://fantasy.espn.com/football/league?leagueId=899513",
       season: "2026",
       espnS2: "s2-value",
       swid: "{GUID}",
     });
     rejectAccountDiscovery?.();
     expect(await screen.findByText("ESPN could not load your leagues.")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Use ESPN cookies" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Find my ESPN leagues" }));
+    expect(screen.getByRole("heading", { name: "Paste ESPN cookies manually" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Find this private league" }));
 
     await waitFor(() => { expect(requests).toHaveLength(4); });
     expect(await screen.findByRole("list", { name: "Leagues found" })).toBeVisible();

@@ -422,6 +422,12 @@ Event-stream connection limits:
 ESPN import/writeback is not a launch dependency.
 
 - ESPN league data may be private, inconsistent, or unavailable without user cookies/API behavior we should not rely on.
+- The experimental desktop connector reads only espn_s2 and SWID for the one league link the owner
+  entered. Its packaged ZIP is a test artifact, not provider authorization.
+- Do not publish the connector to the Chrome Web Store until ESPN has authorized commercial sync
+  in writing and an accountable human security owner has approved the threat model and test report.
+- The connector does not solve phone-only private leagues. Public viewability remains the mobile
+  path, and enabling it does not allow other people to join the ESPN league.
 - Commissioner setup must be possible without ESPN.
 - Historical league data comes from uploaded CSV/XLSX sheets.
 - Final ESPN roster entry is manual.

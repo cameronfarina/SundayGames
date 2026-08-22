@@ -8,7 +8,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY tsconfig.json ./
+COPY browser-extension ./browser-extension
 COPY config ./config
+COPY scripts/build-browser-extension.ts ./scripts/build-browser-extension.ts
 COPY src ./src
 COPY web ./web
 RUN npm run build

@@ -53,6 +53,18 @@
   padding-left: 0;
 }
 
+.espn-extension-option {
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+
+.espn-extension-option code {
+  color: var(--color-text);
+}
+
 @media (max-width: 48rem) {
   .espn-private-options__choices {
     grid-template-columns: 1fr;

@@ -12,7 +12,8 @@ test-results
 
 docs
 e2e
-scripts
+scripts/*
+!scripts/build-browser-extension.ts
 tests
 output
 .mockd

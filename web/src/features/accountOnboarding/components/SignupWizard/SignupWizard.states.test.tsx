@@ -142,7 +142,7 @@ describe("SignupWizard states", () => {
       "899513",
     );
     await user.click(screen.getByRole("button", { name: "Find this league" }));
-    await screen.findByRole("heading", { name: "Use ESPN cookies" });
+    await screen.findByRole("heading", { name: "Paste ESPN cookies manually" });
     await user.type(screen.getByLabelText("espn_s2 cookie"), "account-a-secret");
 
     act(() => {

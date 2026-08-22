@@ -24,6 +24,10 @@ describe("production container artifacts", () => {
       "COPY --from=build --chown=node:node /app/dist/config ./dist/config",
     );
     expect(dockerfile).toContain("COPY web ./web");
+    expect(dockerfile).toContain("COPY browser-extension ./browser-extension");
+    expect(dockerfile).toContain(
+      "COPY scripts/build-browser-extension.ts ./scripts/build-browser-extension.ts",
+    );
     expect(runtimeStage).toContain(
       "COPY --from=build --chown=node:node /app/dist/web ./dist/web",
     );
