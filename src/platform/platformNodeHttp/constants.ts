@@ -9,10 +9,11 @@ export const dynamicGzipLevel = 6;
 export const staticBrotliQuality = 8;
 
 export const appShellPaths = new Set([
-  "/", "/app", "/account-settings", "/login", "/signup", "/verify-email", "/forgot-password",
+  "/", "/app", "/account", "/account-settings", "/login", "/signup", "/verify-email", "/forgot-password",
   "/reset-password", "/invite", "/setup", "/league", "/commissioner",
   "/draft-room", "/practice", "/my-team", "/mock-drafts", "/mock-results",
   "/simulations", "/strategy", "/my-expert", "/player-news", "/connections",
+  "/platform-admin/drafts",
 ]);
 
 const leagueAppShellPath = /^\/leagues\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/(?:commissioner|draft|mock-drafts|my-team|player-news|practice))?$/u;
@@ -32,7 +33,7 @@ export const legacyProductRedirects: ReadonlyMap<string, string> = new Map([
 
 export const observableRouteRoots = new Set([
   ...[...appShellPaths].map(path => path.slice(1)),
-  "account-onboarding", "accounts", "email-verifications", "fantasypros-status", "healthz",
+  "account-onboarding", "accounts", "api", "email-verifications", "fantasypros-status", "healthz",
   "historical-imports", "invitations", "jobs", "league-connections", "league-imports",
   "leagues", "live-rooms",
   "mock-sessions", "onboarding", "player-catalog", "password-resets",

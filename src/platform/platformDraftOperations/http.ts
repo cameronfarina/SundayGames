@@ -69,9 +69,14 @@ export const routePlatformDraftOperations = async (
   request: ParsedPlatformHttpRequest,
   services: PlatformDraftOperationsRouteServices,
 ): Promise<PlatformHttpResponse> => {
-  const [, resource] = request.segments;
-  if (request.segments.length !== 2) return notFound();
-  if (resource === "drafts") return await routeSchedule(app, request, services);
-  if (resource === "draft-digest") return await routeDigest(request, services);
+  const [root, namespace, resource] = request.segments;
+  if (root === "api" && namespace === "platform-admin" && resource === "drafts"
+    && request.segments.length === 3) {
+    return await routeSchedule(app, request, services);
+  }
+  if (root === "platform-admin" && namespace === "draft-digest"
+    && request.segments.length === 2) {
+    return await routeDigest(request, services);
+  }
   return notFound();
 };

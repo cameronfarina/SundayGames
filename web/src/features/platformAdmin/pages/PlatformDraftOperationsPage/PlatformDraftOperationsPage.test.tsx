@@ -67,7 +67,7 @@ const schedule = {
 };
 
 const server = setupServer(
-  http.get("/platform-admin/drafts", () => HttpResponse.json(schedule)),
+  http.get("/api/platform-admin/drafts", () => HttpResponse.json(schedule)),
 );
 
 beforeAll(() => { server.listen({ onUnhandledRequest: "error" }); });
@@ -100,7 +100,7 @@ describe("PlatformDraftOperationsPage", () => {
   });
 
   it("shows a recoverable error state", async () => {
-    server.use(http.get("/platform-admin/drafts", () =>
+    server.use(http.get("/api/platform-admin/drafts", () =>
       HttpResponse.json({ error: { code: "unavailable", message: "Unavailable" } }, { status: 503 })));
     renderPage();
 

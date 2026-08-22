@@ -20,6 +20,6 @@ describe("fetchPlatformDraftOperations", () => {
     }), { headers: { "content-type": "application/json" } }));
 
     await expect(fetchPlatformDraftOperations(fetcher)).resolves.toMatchObject({ today: [] });
-    expect(fetcher).toHaveBeenCalledWith("/platform-admin/drafts", expect.any(Object));
+    expect(fetcher).toHaveBeenCalledWith("/api/platform-admin/drafts", expect.any(Object));
   });
 });

@@ -25,7 +25,7 @@ describe("platform draft operations handler wiring", () => {
     const response = await handler({
       method: "GET",
       now,
-      path: "/platform-admin/drafts",
+      path: "/api/platform-admin/drafts",
       sessionToken: login.sessionToken,
     });
 
