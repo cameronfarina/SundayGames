@@ -89,6 +89,27 @@ describe("PracticePage", () => {
     view.unmount();
   });
 
+  it("uses ranks, targets, and pick strategy instead of auction prices for snake leagues", async () => {
+    vi.stubGlobal("fetch", createPracticeFetch({ draftFormat: "snake" }));
+    const view = render(<PracticePage />, { wrapper: providers() });
+
+    expect(await screen.findByRole("columnheader", { name: "Rank" })).toBeVisible();
+    expect(screen.queryByRole("columnheader", { name: "Market" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Simulation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "My value" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "My value for Puka Nacua" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Puka Nacua from simulation plan" }))
+      .toBeVisible();
+    expect(screen.queryByRole("spinbutton", { name: "Maximum bid for Puka Nacua" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Draft strategy" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Optional draft strategy" }))
+      .toHaveAttribute("placeholder", "Example: draft Lamar Jackson by Round 5.");
+
+    view.unmount();
+  });
+
   it("runs simulations and opens saved results", async () => {
     const user = userEvent.setup();
     stubPracticeSimulationWorker();

@@ -4,6 +4,45 @@ import { snakeSetup } from "./draftSetups.js";
 import { snakeSeason } from "./leagueFixtures.js";
 
 export const registerSnakeSimulationTests = (): void => {
+  it("respects the claimed team's draft slot when an earlier team takes a target", () => {
+    const result = runSeasonSimulations({
+      season: snakeSeason,
+      setup: { ...snakeSetup, initialRosters: [] },
+      humanTeamId: "team-4",
+      runCount: 1,
+      targetConstraints: [{ playerName: "De'Von Achane" }],
+      seedPrefix: "fourth-pick-unavailable-target",
+    });
+    const humanRoster = result.runs[0]?.teams.find(team => team.isUserTeam)?.roster ?? [];
+
+    expect(humanRoster[0]).toMatchObject({ overallPick: 4, source: "human" });
+    expect(humanRoster).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerName: "De'Von Achane" }),
+    ]));
+    expect(result.targetOutcome).toMatchObject({
+      playerName: "De'Von Achane",
+      status: "miss",
+      hitCount: 0,
+    });
+  });
+
+  it("keeps a snake deadline entered for an already-saved target", () => {
+    const result = runSeasonSimulations({
+      season: snakeSeason,
+      setup: snakeSetup,
+      humanTeamId: "team-1",
+      runCount: 1,
+      strategyInput: "Draft Target Receiver by round 1",
+      targetConstraints: [{ playerName: "Target Receiver" }],
+      seedPrefix: "saved-target-round-deadline",
+    });
+
+    expect(result.strategy.target).toMatchObject({
+      playerName: "Target Receiver",
+      maxSnakeRound: 1,
+    });
+  });
+
   it("completes deterministic snake runs with a round deadline and pick exposure", () => {
     const result = runSeasonSimulations({
       season: snakeSeason,

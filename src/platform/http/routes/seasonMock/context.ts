@@ -14,6 +14,7 @@ import type { PlatformApp, PlatformHttpResponse, PlatformHttpServices } from "..
 import { requireRequestAccount } from "../../auth/access.js";
 import type { ParsedPlatformHttpRequest } from "../../request/parsedRequest.js";
 import { isPlatformHttpResponse, knownError } from "../../responses.js";
+import { playersWithBaselineSource } from "../playerCatalog/baseline.js";
 
 export interface SeasonMockDraftContext {
   membership: PlatformLeagueMembership & { ownerId: string; teamId: string };
@@ -26,26 +27,36 @@ export type SeasonMockDraftIdentityContext = Omit<SeasonMockDraftContext, "setup
 const withCurrentProjectionFields = async (
   setup: LiveDraftRoomSetup,
   currentPlayerCatalogProvider: PlatformHttpServices["currentPlayerCatalogProvider"],
+  draftFormat: ExplicitLeagueSeason["settings"]["draftFormat"],
 ): Promise<LiveDraftRoomSetup> => {
   if (currentPlayerCatalogProvider === undefined) return setup;
   const currentCatalog = await currentPlayerCatalogProvider();
   const currentPlayersByIdentity = new Map(
     currentCatalog.map(player => [canonicalPlayerIdentityKey(player.name), player]),
   );
+  const playerCatalog = setup.playerCatalog.map(player => {
+    const current = currentPlayersByIdentity.get(canonicalPlayerIdentityKey(player.name));
+    if (current === undefined) return player;
+    return {
+      ...player,
+      ...(current.week1Projection === undefined ? {} : { week1Projection: current.week1Projection }),
+      ...(current.weeks1To4Projection === undefined ? {} : { weeks1To4Projection: current.weeks1To4Projection }),
+      ...(current.seasonProjection === undefined ? {} : { seasonProjection: current.seasonProjection }),
+      seasonProjectionAdjustmentFactor: current.seasonProjectionAdjustmentFactor,
+      seasonProjectionScoring: current.seasonProjectionScoring,
+    };
+  });
+  if (draftFormat !== "snake") return { ...setup, playerCatalog };
+  const currentRanks = new Map(playersWithBaselineSource(currentCatalog).map(player => [
+    canonicalPlayerIdentityKey(player.name),
+    player.marketRank,
+  ]));
   return {
     ...setup,
-    playerCatalog: setup.playerCatalog.map(player => {
-      const current = currentPlayersByIdentity.get(canonicalPlayerIdentityKey(player.name));
-      if (current === undefined) return player;
-      return {
-        ...player,
-        ...(current.week1Projection === undefined ? {} : { week1Projection: current.week1Projection }),
-        ...(current.weeks1To4Projection === undefined ? {} : { weeks1To4Projection: current.weeks1To4Projection }),
-        ...(current.seasonProjection === undefined ? {} : { seasonProjection: current.seasonProjection }),
-        seasonProjectionAdjustmentFactor: current.seasonProjectionAdjustmentFactor,
-        seasonProjectionScoring: current.seasonProjectionScoring,
-      };
-    }),
+    playerCatalog: [...playerCatalog].sort((left, right) =>
+      (currentRanks.get(canonicalPlayerIdentityKey(left.name)) ?? Number.MAX_SAFE_INTEGER)
+      - (currentRanks.get(canonicalPlayerIdentityKey(right.name)) ?? Number.MAX_SAFE_INTEGER)
+    ),
   };
 };
 
@@ -55,7 +66,11 @@ export const seasonMockDraftSetupFor = async (
   services: PlatformHttpServices,
 ): Promise<LiveDraftRoomSetup | PlatformHttpResponse> => {
   const stored = await services.liveDraftRoomSetupRepository?.findForSeason(season.id) ?? null;
-  if (stored !== null) return withCurrentProjectionFields(stored, services.currentPlayerCatalogProvider);
+  if (stored !== null) return withCurrentProjectionFields(
+    stored,
+    services.currentPlayerCatalogProvider,
+    season.settings.draftFormat,
+  );
   const fallback = await services.liveDraftRoomSetupProvider?.(season) ?? null;
   if (fallback === null) {
     return knownError(503, "player_catalog_unavailable", "The current player catalog is unavailable.");
@@ -67,7 +82,11 @@ export const seasonMockDraftSetupFor = async (
     initialRosters: fallback.initialRosters,
     updatedAt: request.now ?? new Date(),
   };
-  return { ...setupInput, contentHash: liveDraftRoomSetupContentHash(setupInput) };
+  return withCurrentProjectionFields(
+    { ...setupInput, contentHash: liveDraftRoomSetupContentHash(setupInput) },
+    services.currentPlayerCatalogProvider,
+    season.settings.draftFormat,
+  );
 };
 
 export const seasonMockDraftIdentityContextFor = async (

@@ -3,6 +3,7 @@ import type { LiveDraftRoomSetup } from "../liveDraftRoomSetups/contracts.js";
 import {
   targetKeeperInfeasibilityFor,
   targetResolutionInfeasibilityFor,
+  type SeasonSimulationTargetConstraint,
   type ResolvedSeasonSimulationTarget,
 } from "../seasonSimulationTargets.js";
 import type { ParsedSeasonSimulationStrategy } from "./contracts.js";
@@ -17,6 +18,22 @@ const hasContiguousTokenPrefixMatch = (
     catalogTokens[startIndex + queryIndex]?.startsWith(queryToken) === true
   )
 );
+
+const mergeTargetConstraints = (
+  primary: SeasonSimulationTargetConstraint,
+  fallback: SeasonSimulationTargetConstraint,
+): SeasonSimulationTargetConstraint => ({
+  playerName: primary.playerName,
+  ...((primary.maxAuctionPrice ?? fallback.maxAuctionPrice) === undefined ? {} : {
+    maxAuctionPrice: primary.maxAuctionPrice ?? fallback.maxAuctionPrice,
+  }),
+  ...((primary.maxSnakeRound ?? fallback.maxSnakeRound) === undefined ? {} : {
+    maxSnakeRound: primary.maxSnakeRound ?? fallback.maxSnakeRound,
+  }),
+  ...((primary.maxSnakeOverallPick ?? fallback.maxSnakeOverallPick) === undefined ? {} : {
+    maxSnakeOverallPick: primary.maxSnakeOverallPick ?? fallback.maxSnakeOverallPick,
+  }),
+});
 
 export const resolvedStrategy = (
   strategy: ParsedSeasonSimulationStrategy,
@@ -71,9 +88,17 @@ export const resolvedStrategy = (
       resolution,
       playerId: resolution.id ?? canonicalPlayerIdentityKey(target.playerName),
     };
-  }).filter((target, index, targets) =>
-    targets.findIndex(candidate => candidate.playerId === target.playerId) === index
-  );
+  }).reduce<{
+    target: SeasonSimulationTargetConstraint;
+    resolution: { id: string | undefined; ambiguous: boolean };
+    playerId: string;
+  }[]>((merged, candidate) => {
+    const existingIndex = merged.findIndex(existing => existing.playerId === candidate.playerId);
+    if (existingIndex === -1) return [...merged, candidate];
+    return merged.map((existing, index) => index === existingIndex
+      ? { ...existing, target: mergeTargetConstraints(existing.target, candidate.target) }
+      : existing);
+  }, []);
   const pairResolution = resolveCatalogId(strategy.pairWithPlayerName);
   const pairPlayerId = pairResolution.id;
   const warnings = [...strategy.warnings];

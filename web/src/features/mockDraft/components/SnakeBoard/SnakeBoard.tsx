@@ -24,32 +24,54 @@ export const SnakeBoard = ({
 }: SnakeBoardProps) => {
   const names = playerNamesById(players);
   const rounds = snakeRounds(picks);
+  const teams = rounds[0]?.picks.map(pick => ({ id: pick.teamId, name: pick.teamName })) ?? [];
+  const teamIndex = new Map(teams.map((team, index) => [team.id, index]));
 
   return (
     <section aria-labelledby="snake-board-heading" className="snake-board">
       <h2 id="snake-board-heading">Draft board</h2>
       <div className="snake-board__scroll">
-        {rounds.map(round => (
-          <div className="snake-board__round" key={round.round}>
-            <span className="snake-board__round-label">Round {round.round}</span>
-            <ol className="snake-board__picks">
-              {round.picks.map(pick => (
-                <li
-                  className={cellClass(pick, humanTeamId, pick.overall === currentOverall)}
-                  key={pick.overall}
+        <table aria-label="Draft board" className="snake-board__table">
+          <thead>
+            <tr>
+              <th scope="col">Round</th>
+              {teams.map(team => (
+                <th
+                  className={team.id === humanTeamId ? "snake-board__team-header--mine" : undefined}
+                  key={team.id}
+                  scope="col"
                 >
-                  <span className="snake-board__pick-label">{pickLabel(pick)}</span>
-                  <span className="snake-board__team">{pick.teamName}</span>
-                  <span className="snake-board__player">
-                    {pick.selection === undefined
-                      ? (pick.overall === currentOverall ? "On the clock" : "-")
-                      : names.get(pick.selection.playerId) ?? pick.selection.playerId}
-                  </span>
-                </li>
+                  {team.name}
+                </th>
               ))}
-            </ol>
-          </div>
-        ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rounds.map(round => (
+              <tr key={round.round}>
+                <th scope="row">Round {round.round}</th>
+                {[...round.picks]
+                  .sort((left, right) => (
+                    (teamIndex.get(left.teamId) ?? Number.MAX_SAFE_INTEGER)
+                    - (teamIndex.get(right.teamId) ?? Number.MAX_SAFE_INTEGER)
+                  ))
+                  .map(pick => (
+                    <td
+                      className={cellClass(pick, humanTeamId, pick.overall === currentOverall)}
+                      key={pick.overall}
+                    >
+                      <span className="snake-board__pick-label">{pickLabel(pick)}</span>
+                      <span className="snake-board__player">
+                        {pick.selection === undefined
+                          ? (pick.overall === currentOverall ? "On the clock" : "-")
+                          : names.get(pick.selection.playerId) ?? pick.selection.playerId}
+                      </span>
+                    </td>
+                  ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );

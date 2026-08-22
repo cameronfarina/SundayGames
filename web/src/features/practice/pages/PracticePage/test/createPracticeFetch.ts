@@ -22,6 +22,7 @@ interface PracticeFetchOptions {
   readonly runDetailError?: boolean;
   readonly targetError?: boolean;
   readonly teamClaimed?: boolean;
+  readonly draftFormat?: "auction" | "snake";
 }
 
 const bodySchema = z.object({
@@ -68,7 +69,7 @@ export const createPracticeFetch = (options: PracticeFetchOptions = {}): Platfor
         return response({ error: { code: "catalog_unavailable", message: "Catalog unavailable." } }, 503);
       }
       return response({
-        draftFormat: "auction",
+        draftFormat: options.draftFormat ?? "auction",
         personalized: url.searchParams.has("seasonId"),
         players: options.catalogEmpty === true ? [] : [player],
         strategyLabel: url.searchParams.get("strategy") ?? "balanced",

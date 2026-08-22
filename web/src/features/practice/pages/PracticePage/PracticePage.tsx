@@ -29,6 +29,7 @@ export function PracticePage() {
   const detail = useSimulationDetailQuery(historyId);
   const runDetail = useSimulationRunQuery(historyId, selectedRunNumber);
   const targets = shortlist.data ?? [];
+  const draftFormat = catalog.data?.draftFormat ?? "auction";
   const toggleTarget = (player: PracticePlayer) => {
     const target = targets.find(item => playerKey(item.playerName) === playerKey(player.name));
     if (target === undefined) mutations.targets.save.mutate({ playerName: player.name, position: player.position });
@@ -90,6 +91,7 @@ export function PracticePage() {
   return <section aria-labelledby="practice-title" className="practice-page">
     <PracticeHeader
       activeLeague={activeLeague}
+      draftFormat={draftFormat}
       leagues={leagues}
       onLeagueChange={route.changeLeague}
       onStrategyChange={value => { route.setParameter("strategy", value); }}
@@ -110,6 +112,7 @@ export function PracticePage() {
       </div>
       <aside aria-label="Simulation plan and controls" className="practice-page__sidebar">
         {shortlist.isPending ? <p role="status">Loading draft targets…</p> : <ShortlistPanel
+          draftFormat={draftFormat}
           items={targets}
           onRemove={item => { mutations.targets.remove.mutate(item.playerName); }}
           onSave={saveTarget}
@@ -119,6 +122,7 @@ export function PracticePage() {
           ? <section className="practice-page__error"><p>{history.error.message}</p><button onClick={() => { void history.refetch(); }} type="button">Retry history</button></section>
           : <SimulationWorkspace
           claimHref={claimTeamPath(activeLeague)}
+          draftFormat={draftFormat}
           history={history.data}
           onOpenHistory={route.openSimulation}
           onRun={request => { runMutation.mutate(request, { onSuccess: response => {

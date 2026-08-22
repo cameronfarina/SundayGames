@@ -4,6 +4,7 @@ import type { PracticeShortlistItem } from "../../api/practiceContextSchema";
 import "./ShortlistPanel.css";
 
 interface ShortlistPanelProps {
+  readonly draftFormat?: "auction" | "snake";
   readonly items: readonly PracticeShortlistItem[];
   readonly onRemove: (item: PracticeShortlistItem) => void;
   readonly onSave: (item: PracticeShortlistItem, maxBid: number | undefined) => void;
@@ -14,7 +15,7 @@ interface TargetRowProps extends Omit<ShortlistPanelProps, "items"> {
   readonly item: PracticeShortlistItem;
 }
 
-function TargetRow({ item, onRemove, onSave, pending }: TargetRowProps) {
+function TargetRow({ draftFormat = "auction", item, onRemove, onSave, pending }: TargetRowProps) {
   const submit = (event: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     event.preventDefault();
     const rawValue = new FormData(event.currentTarget).get("maxBid");
@@ -27,7 +28,12 @@ function TargetRow({ item, onRemove, onSave, pending }: TargetRowProps) {
   return (
     <li className="shortlist-row">
       <div><strong>{item.playerName}</strong><span>{item.position}</span></div>
-      <form onSubmit={submit}>
+      {draftFormat === "snake" ? <div className="shortlist-row__snake-actions">
+        <span>Prioritized when available at one of your picks.</span>
+        <button aria-label={`Remove ${item.playerName}`} disabled={pending} onClick={() => { onRemove(item); }} type="button">
+          <Trash2 aria-hidden="true" size={17} />
+        </button>
+      </div> : <form onSubmit={submit}>
         <label><span>Maximum bid for {item.playerName}</span><span className="shortlist-row__money">$<input
           aria-label={`Maximum bid for ${item.playerName}`}
           defaultValue={item.maxBid}
@@ -42,12 +48,12 @@ function TargetRow({ item, onRemove, onSave, pending }: TargetRowProps) {
         <button aria-label={`Remove ${item.playerName}`} disabled={pending} onClick={() => { onRemove(item); }} type="button">
           <Trash2 aria-hidden="true" size={17} />
         </button>
-      </form>
+      </form>}
     </li>
   );
 }
 
-export function ShortlistPanel({ items, onRemove, onSave, pending }: ShortlistPanelProps) {
+export function ShortlistPanel({ draftFormat = "auction", items, onRemove, onSave, pending }: ShortlistPanelProps) {
   return (
     <section aria-labelledby="draft-plan-title" className="shortlist-panel">
       <div className="shortlist-panel__heading"><p className="practice-eyebrow">Simulation plan</p><h2 id="draft-plan-title">Draft targets</h2></div>
@@ -56,6 +62,7 @@ export function ShortlistPanel({ items, onRemove, onSave, pending }: ShortlistPa
         : <ol>{items.map(item => <TargetRow
             item={item}
             key={item.id}
+            draftFormat={draftFormat}
             onRemove={onRemove}
             onSave={onSave}
             pending={pending}

@@ -48,4 +48,22 @@ describe("ShortlistPanel", () => {
     expect(screen.getByText("Star players on the board to build this plan.")).toBeInTheDocument();
     unmount();
   });
+
+  it("treats snake shortlist entries as pick targets without bid controls", async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+    render(<ShortlistPanel
+      draftFormat="snake"
+      items={[item]}
+      onRemove={onRemove}
+      onSave={vi.fn()}
+      pending={false}
+    />);
+
+    expect(screen.getByText("Prioritized when available at one of your picks.")).toBeVisible();
+    expect(screen.queryByRole("spinbutton", { name: "Maximum bid for Jadarian Price" }))
+      .not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Remove Jadarian Price" }));
+    expect(onRemove).toHaveBeenCalledWith(item);
+  });
 });
