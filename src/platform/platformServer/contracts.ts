@@ -1,5 +1,7 @@
 import type { AuthMailSender, AuthRepository, SignupNotifier } from "../auth.js";
 import type { AccountOnboardingRepository } from "../accountOnboarding.js";
+import type { AccountDashboardRepository } from "../accountDashboard.js";
+import type { PlatformDraftOperationsRouteServices } from "../platformDraftOperations.js";
 import type {
   AuthAttemptRateLimiter,
   ClientAddressRateLimiter,
@@ -53,6 +55,8 @@ export interface CreatePlatformServerOptions {
   initializePostgresSchema?: boolean | undefined;
   authRepository?: AuthRepository | undefined;
   accountOnboardingRepository?: AccountOnboardingRepository | undefined;
+  accountDashboardRepository?: AccountDashboardRepository | undefined;
+  platformDraftOperations?: PlatformDraftOperationsRouteServices | undefined;
   leagueSetupRepository?: LeagueSetupRepository | undefined;
   historicalImportRepository?: HistoricalImportRepository | undefined;
   jobRepository?: JobRepository | undefined;

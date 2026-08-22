@@ -2,6 +2,7 @@ import type { JobKind } from "../jobs.js";
 import type { PracticePersistenceMode } from "../practicePersistenceMode.js";
 import type { LeagueConnectionCredentialCipher } from
   "../leagueConnectionCredentialEncryption.js";
+import type { PlatformDraftOperationsConfig } from "../platformDraftOperations.js";
 
 export interface PlatformRuntimeEnv {
   readonly [key: string]: string | undefined;
@@ -57,6 +58,7 @@ export interface PlatformRuntimeConfig {
   trustProxy: boolean;
   liveDraftDataMode: "postgres" | "local-fixtures";
   liveDraftRoomEventStreamMaxConnections: number;
+  platformDraftOperations: PlatformDraftOperationsConfig;
   provisioningToken: string | undefined;
   invitationTokenSecret: string | undefined;
   leagueConnectionCredentialCipher: LeagueConnectionCredentialCipher | undefined;

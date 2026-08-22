@@ -7,6 +7,7 @@ import type {
 } from "./contracts.js";
 import { databaseUrlEnv } from "./database.js";
 import { leagueConnectionCredentialCipherFromEnv } from "./credentialEncryption.js";
+import { platformDraftOperationsConfigFromEnv } from "../platformDraftOperations.js";
 import {
   defaultDraftToolsSessionDirectory,
   defaultPostgresPoolSize,
@@ -89,6 +90,7 @@ export const readPlatformRuntimeConfig = (
       "MOCKD_LIVE_DRAFT_EVENT_STREAM_MAX_CONNECTIONS",
       defaultLiveDraftRoomConcurrentWaiters,
     ),
+    platformDraftOperations: platformDraftOperationsConfigFromEnv(env),
     provisioningToken: optionalEnvString(env, "MOCKD_PROVISIONING_TOKEN"),
     invitationTokenSecret: optionalEnvString(env, "MOCKD_INVITATION_TOKEN_SECRET"),
     leagueConnectionCredentialCipher: leagueConnectionCredentialCipherFromEnv(env),

@@ -1,0 +1,25 @@
+.draft-operations-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0;
+  border: 1px solid var(--color-border, #303640);
+}
+
+.draft-operations-summary > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.draft-operations-summary dt {
+  color: var(--color-text-muted, #aeb5c0);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.draft-operations-summary dd {
+  margin: 0;
+  color: var(--color-accent, #62d8b0);
+  font-weight: 700;
+}

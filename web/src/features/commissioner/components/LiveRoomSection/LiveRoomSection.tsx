@@ -13,18 +13,16 @@ import {
   draftDetailsLabel,
   formatDraftTime,
   roomStatusLabel,
-  scheduledLeagues,
 } from "./liveRoomDisplay";
 import { type CreatedLiveRoom, LiveRoomWizard } from "./LiveRoomWizard";
 import "./LiveRoomSection.css";
 
 interface LiveRoomSectionProps {
   readonly league: OnboardingLeague;
-  readonly manageableLeagues: readonly OnboardingLeague[];
   readonly season: CommissionerSeason;
 }
 
-export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomSectionProps) {
+export function LiveRoomSection({ league, season }: LiveRoomSectionProps) {
   const queryClient = useQueryClient();
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [createdRoom, setCreatedRoom] = useState<CreatedLiveRoom | null>(null);
@@ -41,9 +39,6 @@ export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomS
   const timeZone = browserTimeZone();
   const selectedDraftAt = createdRoom?.startsAt ?? league.nextDraftAt ?? season.draft?.scheduledAt;
   const detailsLabel = draftDetailsLabel(activeRoom, selectedDraftAt);
-  const otherUpcomingDrafts = scheduledLeagues(manageableLeagues)
-    .filter(candidate => candidate.seasonId !== league.seasonId);
-
   return (
     <section className="commissioner-section" id="live-room">
       <header><h2>Live draft room</h2></header>
@@ -55,21 +50,6 @@ export function LiveRoomSection({ league, manageableLeagues, season }: LiveRoomS
             <span>{timeZone}</span></>
           : roomStatusLabel(activeRoom, published)}
       </p>
-      {otherUpcomingDrafts.length > 0 ? <div className="live-room-other-drafts">
-        <h3>Other upcoming drafts</h3>
-        <ul aria-label="Other upcoming drafts">
-          {otherUpcomingDrafts.map(candidate => <li key={candidate.seasonId}>
-            <Link to={`${leaguePath(candidate, "commissioner")}?section=live-draft`}>
-              {candidate.leagueName}
-            </Link>
-            {" · "}
-            <time dateTime={candidate.nextDraftAt}>
-              {formatDraftTime(candidate.nextDraftAt, timeZone)}
-            </time>
-            {" "}{timeZone}
-          </li>)}
-        </ul>
-      </div> : null}
       {activeRoom === null ? <LiveRoomWizard
         initialStartsAt={season.draft?.scheduledAt}
         leagueName={league.leagueName}

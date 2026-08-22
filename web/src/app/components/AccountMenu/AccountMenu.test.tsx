@@ -100,14 +100,14 @@ describe("AccountMenu", () => {
 
   // The page rows above these stay in the DOM and are hidden by CSS on wider
   // screens, so this pins the tail group a laptop actually sees.
-  it("ends the menu with settings, sync and sign out", async () => {
+  it("ends the menu with account pages, sync and sign out", async () => {
     const user = userEvent.setup();
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
 
-    expect(screen.getAllByRole("menuitem").slice(-3).map(item => item.textContent))
-      .toEqual(["Account settings", "Sync leagues", "Sign out"]);
+    expect(screen.getAllByRole("menuitem").slice(-4).map(item => item.textContent))
+      .toEqual(["Account dashboard", "Account settings", "Sync leagues", "Sign out"]);
   });
 
   it("lists every league and marks the one being viewed", async () => {

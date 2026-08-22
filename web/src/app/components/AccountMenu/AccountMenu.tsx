@@ -67,9 +67,13 @@ export const AccountMenu = ({
     {
       // The league rows outlast the page rows, so this divider outlasts them too.
       dividerHiddenFrom: leagueItems.length > 0 ? "laptop" : "tablet",
+      label: "Account dashboard",
+      onSelect: () => { void navigate("/account"); },
+      startsGroup: leagueItems.length > 0 || pageItems.length > 0,
+    },
+    {
       label: "Account settings",
       onSelect: () => { void navigate("/account-settings"); },
-      startsGroup: leagueItems.length > 0 || pageItems.length > 0,
     },
     {
       label: "Sync leagues",

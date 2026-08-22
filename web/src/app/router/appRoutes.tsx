@@ -68,6 +68,14 @@ export const createAppRoutes = (queryClient: QueryClient): RouteObject[] => [
         lazy: () => import("../../features/commissioner/routes/commissionerRoute"),
       },
       {
+        path: "account",
+        lazy: () => import("../../features/account/routes/accountDashboardRoute"),
+      },
+      {
+        path: "platform-admin/drafts",
+        lazy: () => import("../../features/platformAdmin/routes/platformDraftOperationsRoute"),
+      },
+      {
         path: "account-settings",
         lazy: () => import("../../features/account/routes/accountSettingsRoute"),
       },

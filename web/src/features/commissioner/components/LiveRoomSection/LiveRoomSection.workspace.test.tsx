@@ -21,7 +21,6 @@ const renderWorkspace = (
   fetcher: PlatformFetch,
   season = auctionSeason,
   league = ownerLeague,
-  manageableLeagues = [league],
 ) => {
   vi.stubGlobal("fetch", fetcher);
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -30,7 +29,7 @@ const renderWorkspace = (
   return render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <LiveRoomSection league={league} manageableLeagues={manageableLeagues} season={season} />
+        <LiveRoomSection league={league} season={season} />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -39,47 +38,13 @@ const renderWorkspace = (
 describe("LiveRoomSection workspace", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-  it("shows manageable scheduled drafts in chronological order and the selected league status", () => {
+  it("shows only the selected league's scheduled draft", () => {
     vi.useFakeTimers();
     vi.setSystemTime("2026-08-21T12:00:00.000Z");
     vi.stubEnv("TZ", "Europe/Rome");
     const selectedLeague = onboardingLeagueSchema.parse({
       ...ownerLeague,
       nextDraftAt: "2026-08-30T19:00:00.000Z",
-    });
-    const laterLeague = onboardingLeagueSchema.parse({
-      ...ownerLeague,
-      leagueId: "league-2",
-      leagueName: "Later League",
-      leagueSlug: "later-league",
-      nextDraftAt: "2026-09-02T23:00:00.000Z",
-      seasonId: "season-2",
-    });
-    const earlierLeague = onboardingLeagueSchema.parse({
-      ...ownerLeague,
-      leagueId: "league-3",
-      leagueName: "Earlier League",
-      leagueSlug: "earlier-league",
-      nextDraftAt: "2026-08-29T18:00:00.000Z",
-      seasonId: "season-3",
-    });
-    const memberLeague = onboardingLeagueSchema.parse({
-      ...ownerLeague,
-      canManageLeague: false,
-      leagueId: "league-4",
-      leagueName: "Member League",
-      leagueSlug: "member-league",
-      membership: { role: "member" },
-      nextDraftAt: "2026-08-28T18:00:00.000Z",
-      seasonId: "season-4",
-    });
-    const completedSchedule = onboardingLeagueSchema.parse({
-      ...ownerLeague,
-      leagueId: "league-5",
-      leagueName: "Past League",
-      leagueSlug: "past-league",
-      nextDraftAt: "2026-08-20T18:00:00.000Z",
-      seasonId: "season-5",
     });
     const scheduledSeason = seasonSchema.parse({
       ...publishedSeason,
@@ -90,7 +55,6 @@ describe("LiveRoomSection workspace", () => {
       vi.fn(),
       scheduledSeason,
       selectedLeague,
-      [laterLeague, completedSchedule, memberLeague, selectedLeague, earlierLeague],
     );
 
     const selectedDetails = screen.getByLabelText("Selected league draft details");
@@ -100,14 +64,7 @@ describe("LiveRoomSection workspace", () => {
       element?.getAttribute("datetime") === "2026-08-30T19:00:00.000Z"
     ))
       .toHaveAttribute("datetime", "2026-08-30T19:00:00.000Z");
-    expect(screen.getByLabelText("Other upcoming drafts")).not.toHaveTextContent("Sunday Games");
-    expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual([
-      expect.stringContaining("Earlier League"),
-      expect.stringContaining("Later League"),
-    ]);
-    expect(screen.queryByRole("list", { name: "Upcoming scheduled drafts" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Earlier League" }))
-      .toHaveAttribute("href", "/leagues/earlier-league/commissioner?section=live-draft");
+    expect(screen.queryByText("Other upcoming drafts")).not.toBeInTheDocument();
   });
 
   it("shows a live room's status instead of its old schedule", () => {

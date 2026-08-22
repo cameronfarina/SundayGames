@@ -20,7 +20,6 @@ const renderSection = (
   fetcher: PlatformFetch,
   season = auctionSeason,
   league = ownerLeague,
-  manageableLeagues = [league],
 ) => {
   vi.stubGlobal("fetch", fetcher);
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -28,7 +27,7 @@ const renderSection = (
   client.setQueryData(seasonQueryKeys.leagueSeason(season.id), { season });
   const view = render(<MemoryRouter initialEntries={["/league"]}>
     <QueryClientProvider client={client}>
-      <LiveRoomSection league={league} manageableLeagues={manageableLeagues} season={season} />
+      <LiveRoomSection league={league} season={season} />
     </QueryClientProvider>
     <LocationOutput />
   </MemoryRouter>);
@@ -112,7 +111,7 @@ describe("LiveRoomSection", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Review setup first.");
     view.unmount();
     render(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
-      <LiveRoomSection league={ownerLeague} manageableLeagues={[ownerLeague]} season={snakeSeason} />
+      <LiveRoomSection league={ownerLeague} season={snakeSeason} />
     </QueryClientProvider></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Plan live draft" })).toBeVisible();
     expect(screen.queryByText(/support auction drafts only/i)).not.toBeInTheDocument();

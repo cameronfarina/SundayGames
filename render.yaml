@@ -69,6 +69,14 @@ services:
         value: "15000"
       - key: MOCKD_POSTGRES_SNAPSHOT_KEY
         value: mockd-production
+      - key: MOCKD_PLATFORM_ADMIN_ACCOUNT_IDS
+        sync: false
+      - key: MOCKD_PLATFORM_DRAFT_OPERATIONS_TIMEZONE
+        value: America/New_York
+      - key: MOCKD_PLATFORM_DRAFT_DIGEST_TRIGGER_TOKEN
+        sync: false
+      - key: MOCKD_PLATFORM_DRAFT_DIGEST_WEBHOOK_URL
+        sync: false
       - key: MOCKD_SCREENSHOT_IMPORT_MODE
         value: disabled
       - key: FANTASYPROS_API_KEY
