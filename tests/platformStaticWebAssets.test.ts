@@ -75,4 +75,21 @@ describe("platform static web assets", () => {
     expect(asset.headers.get("content-length")).toBe(String(Buffer.byteLength("body { color: white; }")));
     expect(await asset.text()).toBe("");
   });
+
+  it("serves the React app for account and creator dashboard deep links", async () => {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), "mockd-react-assets-"));
+    await writeFile(
+      join(temporaryDirectory, "index.html"),
+      "<!doctype html><div id=\"root\"></div>",
+    );
+    const baseUrl = await listen(temporaryDirectory);
+
+    const account = await fetch(`${baseUrl}/account`);
+    const creatorDrafts = await fetch(`${baseUrl}/platform-admin/drafts`);
+
+    expect(account.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await account.text()).toContain("id=\"root\"");
+    expect(creatorDrafts.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await creatorDrafts.text()).toContain("id=\"root\"");
+  });
 });

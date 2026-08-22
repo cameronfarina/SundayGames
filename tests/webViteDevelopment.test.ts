@@ -115,6 +115,12 @@ describe("web Vite development", () => {
     await expect(eventResponse.text()).resolves.toContain("event: room");
     await expect(fetch(`${origin}/practice`, { headers: { accept: "text/html" } })
       .then(response => response.text())).resolves.toContain("React practice");
+    await expect(fetch(`${origin}/account`).then(response => response.text()))
+      .resolves.toContain("React practice");
+    await expect(fetch(`${origin}/platform-admin/drafts`).then(response => response.text()))
+      .resolves.toContain("React practice");
+    await expect(fetch(`${origin}/api/platform-admin/drafts`).then(response => response.json()))
+      .resolves.toEqual({ path: "/api/platform-admin/drafts" });
   });
 
   it("proxies every platform route root the browser does not own", () => {

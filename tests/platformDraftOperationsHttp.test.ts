@@ -48,7 +48,7 @@ describe("platform draft operations HTTP", () => {
     const { account, app, sessionToken } = await setupAccount("creator@example.com");
     const response = await routePlatformDraftOperations(
       app,
-      request("/platform-admin/drafts", "GET", sessionToken),
+      request("/api/platform-admin/drafts", "GET", sessionToken),
       {
         administratorAccountIds: new Set([account.id]),
         repository: { listScheduledDrafts: vi.fn().mockResolvedValue([draft]) },
@@ -64,7 +64,7 @@ describe("platform draft operations HTTP", () => {
     const { app, sessionToken } = await setupAccount("league-admin@example.com");
     const response = await routePlatformDraftOperations(
       app,
-      request("/platform-admin/drafts", "GET", sessionToken),
+      request("/api/platform-admin/drafts", "GET", sessionToken),
       {
         administratorAccountIds: new Set(),
         repository: { listScheduledDrafts: vi.fn().mockResolvedValue([draft]) },
@@ -76,6 +76,21 @@ describe("platform draft operations HTTP", () => {
       body: { error: { code: "platform_admin_required", message: "Platform administrator access is required." } },
       status: 403,
     });
+  });
+
+  it("does not reserve the creator browser path for JSON", async () => {
+    const { account, app, sessionToken } = await setupAccount("creator-browser@example.com");
+    const response = await routePlatformDraftOperations(
+      app,
+      request("/platform-admin/drafts", "GET", sessionToken),
+      {
+        administratorAccountIds: new Set([account.id]),
+        repository: { listScheduledDrafts: vi.fn().mockResolvedValue([draft]) },
+        timezone: "America/New_York",
+      },
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it("posts a Discord digest only when the independent trigger token matches", async () => {

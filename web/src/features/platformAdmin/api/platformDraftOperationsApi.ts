@@ -5,7 +5,7 @@ import { platformDraftScheduleSchema } from "./platformDraftOperationsSchema";
 
 export const fetchPlatformDraftOperations = async (fetcher?: PlatformFetch) =>
   await requestPlatformJson({
-    path: "/platform-admin/drafts",
+    path: "/api/platform-admin/drafts",
     responseSchema: platformDraftScheduleSchema,
     ...(fetcher === undefined ? {} : { fetcher }),
   });

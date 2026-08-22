@@ -54,7 +54,9 @@ export const createPlatformHttpHandler = (
     if (root === "account-dashboard") {
       return await routeAccountDashboard(app, parsedRequest, services.accountDashboardRepository);
     }
-    if (root === "platform-admin" && services.platformDraftOperations !== undefined) {
+    const isPlatformDraftOperationsRoute = root === "platform-admin"
+      || (root === "api" && parsedRequest.segments[1] === "platform-admin");
+    if (isPlatformDraftOperationsRoute && services.platformDraftOperations !== undefined) {
       return await routePlatformDraftOperations(app, parsedRequest, services.platformDraftOperations);
     }
     if (root === "player-catalog" && parsedRequest.segments.length === 1) {
