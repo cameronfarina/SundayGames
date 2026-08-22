@@ -73,7 +73,11 @@ export const useAddConnectionForm = (
     mutations.importLeague.reset();
   };
 
-  const search = (searchHandle: string, credentials: ConnectionCredentials): void => {
+  const search = (
+    searchHandle: string,
+    credentials: ConnectionCredentials,
+    fallbackHandle?: string,
+  ): void => {
     if (provider === undefined) return;
     clearResults();
     setImportCredentials(credentials);
@@ -82,7 +86,13 @@ export const useAddConnectionForm = (
       handle: searchHandle,
       season: currentLeagueSeason,
       ...credentials,
-    }, { onSuccess: result => { setLeagues(result.leagues); } });
+    }, { onSuccess: result => {
+      if (result.leagues.length === 0 && fallbackHandle !== undefined) {
+        search(fallbackHandle, credentials);
+        return;
+      }
+      setLeagues(result.leagues);
+    } });
   };
 
   return {
@@ -93,7 +103,12 @@ export const useAddConnectionForm = (
       search(handle.trim(), {});
     },
     findLeaguesWithCredentials: () => {
-      search("", trimmedCredentials(espnS2, swid));
+      const requestedLeague = handle.trim();
+      search(
+        "",
+        trimmedCredentials(espnS2, swid),
+        requestedLeague === "" ? undefined : requestedLeague,
+      );
     },
     handle,
     importAll: imports.importAll,
