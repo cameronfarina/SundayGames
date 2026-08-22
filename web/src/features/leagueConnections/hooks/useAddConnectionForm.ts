@@ -54,7 +54,6 @@ export const useAddConnectionForm = (
     setHandle("");
     setEspnS2("");
     setSwid("");
-    setImportCredentials({});
   };
 
   const imports = useDiscoveredImports({

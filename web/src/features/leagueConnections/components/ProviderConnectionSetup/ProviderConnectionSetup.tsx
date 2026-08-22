@@ -1,6 +1,5 @@
-import { Button, InlineNotice } from "../../../../shared/ui";
-import { useEffect, useRef, useState } from "react";
-import { PlatformApiError } from "../../../../shared/api/http/PlatformApiError";
+import { InlineNotice } from "../../../../shared/ui";
+import { useEffect, useState } from "react";
 import type { ConnectionCredentials } from "../../api/leagueConnectionsApi";
 import type { LeagueConnection, LeagueConnectionProviderInfo } from "../../api/leagueConnectionsSchema";
 import {
@@ -44,90 +43,49 @@ export const ProviderConnectionSetup = ({
   );
   const localBusy = mutations.discover.isPending || form.importing || extensionReading;
   const busy = disabled || localBusy;
-  const [privateOptionsRevealed, setPrivateOptionsRevealed] = useState(false);
-  const privateHeadingRef = useRef<HTMLHeadingElement>(null);
-  const privateOptionsAnnounced = useRef(false);
   useEffect(() => {
     onBusyChange?.(provider.provider, localBusy);
     return () => { onBusyChange?.(provider.provider, false); };
   }, [localBusy, onBusyChange, provider.provider]);
   const espn = provider.provider === "espn";
   const discoveryError = mutations.discover.error;
-  const privateAccessError = espn
-    && discoveryError instanceof PlatformApiError
-    && (discoveryError.code === "credentials_required"
-      || discoveryError.code === "credentials_rejected")
-    ? discoveryError
-    : null;
-  const privateLeague = form.handle.trim().length > 0
-    && form.leagues.length === 0
-    && (privateAccessError !== null || privateOptionsRevealed);
   const noResults = mutations.discover.isSuccess && form.leagues.length === 0 && !localBusy;
-  const PrivateHeading = headingLevel === 4 ? "h4" : "h3";
-  useEffect(() => {
-    if (!privateLeague || privateOptionsAnnounced.current) return;
-    privateOptionsAnnounced.current = true;
-    privateHeadingRef.current?.focus();
-  }, [privateLeague]);
   if (provider.availability !== "connectable") {
     return <InlineNotice variant="warning">{provider.detail}</InlineNotice>;
   }
-  const retryPrivateLeague = () => {
-    setPrivateOptionsRevealed(true);
-    form.findLeagues();
-  };
-  const findPrivateLeague = (credentials?: ConnectionCredentials) => {
+  const findAccountLeagues = (credentials?: ConnectionCredentials) => {
     form.findLeaguesWithCredentials(credentials);
-  };
-  const changeHandle = (value: string) => {
-    form.setHandle(value);
-    if (!espn) return;
-    setPrivateOptionsRevealed(false);
-    privateOptionsAnnounced.current = false;
-    mutations.discover.reset();
   };
   const handleForm = <HandleForm
     handle={form.handle}
     inputId={`connection-handle-${provider.provider}`}
-    onHandleChange={changeHandle}
+    onHandleChange={form.setHandle}
     onSubmit={form.findLeagues}
     pending={busy}
     provider={provider}
-    submitLabel={espn ? "Find this league" : "Find my leagues"}
+    submitLabel="Find my leagues"
   />;
 
   return <div className="provider-connection-setup">
-    {espn ? handleForm : <>
+    {espn ? null : <>
       <p className="provider-connection-setup__intro">
         Enter your Sleeper username to find your 2026 leagues. No password is required.
       </p>
       {handleForm}
     </>}
-    {privateLeague ? <section className="espn-private-options">
-      <PrivateHeading ref={privateHeadingRef} tabIndex={-1}>This ESPN league is private</PrivateHeading>
-      <p>
-        Make it publicly viewable and try again, or use the account connection below to find every
-        current-season ESPN league.
-      </p>
-      <p>
-        In ESPN, go to League, Settings, Basic Settings, then Edit Basic Settings. Set Public
-        viewability to Yes and save.
-      </p>
-      <Button disabled={busy} onClick={retryPrivateLeague} variant="secondary">Try again</Button>
-    </section> : null}
     {espn ? <EspnAccountOptions
       disabled={busy}
       espnMobileDeferred={espnMobileDeferred}
       espnS2={form.espnS2}
       headingLevel={headingLevel}
       onBusyChange={setExtensionReading}
-      onCredentials={findPrivateLeague}
+      onCredentials={findAccountLeagues}
       onEspnMobile={onEspnMobile}
       onEspnS2Change={form.setEspnS2}
       onSwidChange={form.setSwid}
       swid={form.swid}
     /> : null}
-    {discoveryError === null || privateAccessError?.code === "credentials_required"
+    {discoveryError === null
       ? null
       : <InlineNotice variant="error">{discoveryError.message}</InlineNotice>}
     {noResults ? <InlineNotice variant="info">

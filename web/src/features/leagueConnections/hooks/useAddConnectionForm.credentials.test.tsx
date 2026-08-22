@@ -17,10 +17,13 @@ const wrapper = ({ children }: PropsWithChildren) => (
   </QueryClientProvider>
 );
 
-const renderForm = () => {
+const renderForm = (
+  respond?: (path: string, callIndex: number) => Response,
+) => {
   const fetcher = vi.fn((target: RequestInfo | URL, init?: RequestInit) => {
     void init;
     const path = typeof target === "string" ? target : target instanceof URL ? target.href : target.url;
+    if (respond !== undefined) return Promise.resolve(respond(path, fetcher.mock.calls.length));
     let body: unknown = { connection: syncedConnectionFixture };
     if (path.endsWith("/discover")) body = discoveredLeaguesFixture;
     if (path.endsWith("/import")) body = leagueImportFixture;
@@ -82,6 +85,46 @@ describe("useAddConnectionForm credentials", () => {
     expect(fetcher.mock.calls[0]?.[1]?.body).toContain('"espnS2":"original-s2"');
     expect(fetcher.mock.calls[1]?.[1]?.body).toContain('"espnS2":"original-s2"');
     expect(fetcher.mock.calls[1]?.[1]?.body).not.toContain("edited-s2");
+  });
+
+  it("keeps discovery credentials for a league that needs a later draft-format choice", async () => {
+    const { fetcher, result } = renderForm((path, callIndex) => {
+      if (path.endsWith("/discover")) {
+        return new Response(JSON.stringify(discoveredLeaguesFixture), { status: 200 });
+      }
+      if (path.endsWith("/import") && callIndex === 5) {
+        return new Response(JSON.stringify({
+          error: { code: "import_needs_review", message: "Choose Auction or Snake." },
+        }), { status: 422 });
+      }
+      if (path.endsWith("/import")) {
+        return new Response(JSON.stringify(leagueImportFixture), { status: 200 });
+      }
+      return new Response(JSON.stringify({ connection: syncedConnectionFixture }), { status: 200 });
+    });
+    act(() => { result.current.selectProvider("espn"); });
+    act(() => { result.current.findLeaguesWithCredentials({
+      espnS2: "account-s2",
+      swid: "{ACCOUNT}",
+    }); });
+    await waitFor(() => { expect(result.current.leagues).toHaveLength(2); });
+
+    act(() => { result.current.importAll(); });
+    await waitFor(() => {
+      expect(Object.values(result.current.leagueStates).map(state => state.status))
+        .toEqual(["imported", "error"]);
+    });
+
+    const deferredLeague = result.current.leagues[1];
+    if (deferredLeague === undefined) throw new Error("Expected a deferred league.");
+    act(() => { result.current.importLeague(deferredLeague, {
+      type: "auction",
+      budgetDollars: 200,
+      minimumBidDollars: 1,
+    }); });
+    await waitFor(() => { expect(fetcher).toHaveBeenCalledTimes(7); });
+    expect(fetcher.mock.calls[5]?.[1]?.body).toContain('"espnS2":"account-s2"');
+    expect(fetcher.mock.calls[5]?.[1]?.body).toContain('"swid":"{ACCOUNT}"');
   });
 
   it("uses complete credentials to discover every ESPN league on the account", async () => {
